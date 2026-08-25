@@ -1,0 +1,32 @@
+name: Fishers
+options:
+  bundleIdPrefix: com.fishers
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+settings:
+  BASE_URL: "http://localhost:8080"
+targets:
+  Fishers:
+    type: application
+    platform: iOS
+    sources:
+      - path: Fishers
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.fishers.app
+      INFOPLIST_FILE: Fishers/Resources/Info.plist
+      SWIFT_VERSION: "5.0"
+      TARGETED_DEVICE_FAMILY: "1,2"
+      GENERATE_INFOPLIST_FILE: false
+    info:
+      path: Fishers/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Fishers
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UIBackgroundModes:
+          - remote-notification

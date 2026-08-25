@@ -1,0 +1,16 @@
+[package]
+name = "fishers-jobs"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+fishers-db = { path = "../db" }
+fishers-domain = { path = "../domain" }
+fishers-notifications = { path = "../notifications" }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }

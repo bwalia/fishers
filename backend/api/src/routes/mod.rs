@@ -1,0 +1,33 @@
+mod auth;
+mod availability;
+mod clubs;
+mod events;
+mod invites;
+mod notifications;
+mod orders;
+mod payments;
+mod users;
+
+use axum::routing::get;
+use axum::Router;
+
+use crate::state::AppState;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/health", get(|| async { "ok" }))
+        .nest("/api/v1", api_v1())
+}
+
+fn api_v1() -> Router<AppState> {
+    Router::new()
+        .merge(auth::router())
+        .merge(users::router())
+        .merge(clubs::router())
+        .merge(events::router())
+        .merge(availability::router())
+        .merge(invites::router())
+        .merge(payments::router())
+        .merge(orders::router())
+        .merge(notifications::router())
+}

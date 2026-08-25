@@ -1,0 +1,36 @@
+# Rust
+backend/target/
+**/*.rs.bk
+Cargo.lock
+
+# iOS / Xcode
+ios/Fishers.xcodeproj/
+ios/Fishers.xcworkspace/
+ios/DerivedData/
+ios/**/*.xcuserstate
+ios/**/xcuserdata/
+ios/**/*.xccheckout
+ios/**/*.moved-aside
+ios/**/*.hmap
+ios/**/*.ipa
+ios/**/*.dSYM.zip
+ios/**/*.dSYM
+ios/.build/
+*.playground
+
+# Env & secrets
+.env
+.env.local
+*.pem
+*.p8
+Secrets.xcconfig
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Docker
+postgres-data/

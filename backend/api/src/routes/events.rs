@@ -1,0 +1,124 @@
+use axum::extract::{Path, Query, State};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use chrono::{DateTime, Utc};
+use fishers_db::repos::events as events_repo;
+use fishers_db::repos::invites as invites_repo;
+use fishers_domain::{
+    AttendeeSummary, CreateEventRequest, Event, EventInvite, RsvpRequest, UpdateEventRequest,
+};
+use serde::Deserialize;
+use uuid::Uuid;
+use validator::Validate;
+
+use crate::auth::AuthUser;
+use crate::error::{ApiError, ApiResult};
+use crate::state::AppState;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/events", get(list_events).post(create_event))
+        .route("/events/{id}", get(get_event).patch(update_event))
+        .route("/events/{id}/rsvp", post(rsvp))
+        .route("/events/{id}/attendees", get(attendees))
+        .route("/events/{id}/invite", post(invite_user))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EventQuery {
+    pub club_id: Option<Uuid>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    /// When true, filter cricket nets + match subtypes (season view).
+    pub cricket_season: Option<bool>,
+}
+
+async fn create_event(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(body): Json<CreateEventRequest>,
+) -> ApiResult<Json<Event>> {
+    body.validate()?;
+    if body.end_at <= body.start_at {
+        return Err(ApiError::bad_request("end_at must be after start_at"));
+    }
+    let event = events_repo::create_event(&state.pool, auth.user_id, &body).await?;
+    Ok(Json(event))
+}
+
+async fn list_events(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Query(q): Query<EventQuery>,
+) -> ApiResult<Json<Vec<Event>>> {
+    Ok(Json(
+        events_repo::list_events(
+            &state.pool,
+            q.club_id,
+            q.from,
+            q.to,
+            q.cricket_season.unwrap_or(false),
+        )
+        .await?,
+    ))
+}
+
+async fn get_event(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Event>> {
+    let event = events_repo::get_event(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("event not found"))?;
+    Ok(Json(event))
+}
+
+async fn update_event(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateEventRequest>,
+) -> ApiResult<Json<Event>> {
+    body.validate()?;
+    Ok(Json(
+        events_repo::update_event(&state.pool, id, &body).await?,
+    ))
+}
+
+async fn rsvp(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RsvpRequest>,
+) -> ApiResult<Json<EventInvite>> {
+    Ok(Json(
+        invites_repo::rsvp(&state.pool, id, auth.user_id, body.status).await?,
+    ))
+}
+
+async fn attendees(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Vec<AttendeeSummary>>> {
+    Ok(Json(
+        invites_repo::list_attendees(&state.pool, id).await?,
+    ))
+}
+
+#[derive(Deserialize)]
+struct InviteUserBody {
+    user_id: Uuid,
+}
+
+async fn invite_user(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<InviteUserBody>,
+) -> ApiResult<Json<EventInvite>> {
+    Ok(Json(
+        invites_repo::invite_to_event(&state.pool, id, body.user_id, auth.user_id).await?,
+    ))
+}

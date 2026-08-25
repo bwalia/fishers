@@ -1,0 +1,34 @@
+[package]
+name = "fishers-api"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "fishers-api"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+argon2 = { workspace = true }
+axum = { workspace = true }
+chrono = { workspace = true }
+dotenvy = { workspace = true }
+fishers-db = { path = "../db" }
+fishers-domain = { path = "../domain" }
+fishers-jobs = { path = "../jobs" }
+fishers-notifications = { path = "../notifications" }
+fishers-payments = { path = "../payments" }
+jsonwebtoken = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+validator = { workspace = true }
