@@ -7,6 +7,10 @@ Cargo.lock
 ios/Fishers.xcodeproj/
 ios/Fishers.xcworkspace/
 ios/DerivedData/
+ios/build/
+ios/.ios-secrets/
+ios/.bundle/
+ios/vendor/bundle/
 ios/**/*.xcuserstate
 ios/**/xcuserdata/
 ios/**/*.xccheckout
@@ -17,6 +21,10 @@ ios/**/*.dSYM.zip
 ios/**/*.dSYM
 ios/.build/
 *.playground
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
 
 # Env & secrets
 .env

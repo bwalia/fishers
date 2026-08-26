@@ -46,6 +46,11 @@ open Fishers.xcodeproj
 
 Run on Simulator. API base URL defaults to `http://localhost:8080` in `Fishers/Config/AppConfig.swift`.
 
+**CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md).
+
+- PR build + tests: `.github/workflows/ios.yml`
+- TestFlight / App Store: `.github/workflows/ios_release.yml` (Vault + fastlane, same pattern as KubePilot)
+
 ## Repo layout
 
 ```

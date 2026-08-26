@@ -5,8 +5,15 @@ options:
     iOS: "17.0"
   xcodeVersion: "16.0"
   createIntermediateGroups: true
+  groupSortPosition: top
+
 settings:
-  BASE_URL: "http://localhost:8080"
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
 targets:
   Fishers:
     type: application
@@ -14,15 +21,20 @@ targets:
     sources:
       - path: Fishers
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.fishers.app
-      INFOPLIST_FILE: Fishers/Resources/Info.plist
-      SWIFT_VERSION: "5.0"
-      TARGETED_DEVICE_FAMILY: "1,2"
-      GENERATE_INFOPLIST_FILE: false
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fishers.app
+        INFOPLIST_FILE: Fishers/Resources/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: false
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0.0
     info:
       path: Fishers/Resources/Info.plist
       properties:
         CFBundleDisplayName: Fishers
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -30,3 +42,25 @@ targets:
           NSAllowsLocalNetworking: true
         UIBackgroundModes:
           - remote-notification
+
+  FishersTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: FishersTests
+    dependencies:
+      - target: Fishers
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fishers.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Fishers:
+    build:
+      targets:
+        Fishers: all
+        FishersTests: [test]
+    test:
+      targets:
+        - FishersTests
