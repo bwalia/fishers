@@ -40,6 +40,12 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            localhost:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
+            127.0.0.1:
+              NSExceptionAllowsInsecureHTTPLoads: true
         UIBackgroundModes:
           - remote-notification
 
