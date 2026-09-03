@@ -1,0 +1,24 @@
+# Rust
+backend/target/
+**/*.rs.bk
+
+# Environment / secrets
+.env
+.env.local
+
+# Xcode
+ios/Fishers.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
+
+# Tooling
+.serena/
+.claude/
