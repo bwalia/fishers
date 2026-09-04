@@ -18,7 +18,7 @@ use fishers_db::repos::{
 };
 use fishers_domain::{
     selection, CreateFixtureBlockRequest, EventStatus, FixtureBlock, FixtureStatusRequest,
-    RespondToSelectionRequest, SelectionBoard, SetSquadRequest, SquadProposalView,
+    RespondToSelectionRequest, SelectionBoard, SetSquadRequest, SquadProposalView, UserRole,
 };
 use serde_json::json;
 use tracing::warn;
@@ -751,8 +751,8 @@ async fn require_captain_or_admin(
     club_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    match clubs_repo::club_role(&state.pool, club_id, user_id).await?.as_deref() {
-        Some("club_admin") | Some("team_captain") | Some("super_admin") => Ok(()),
+    match clubs_repo::club_role(&state.pool, club_id, user_id).await? {
+        Some(UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin) => Ok(()),
         Some(_) => Err(ApiError::forbidden("only a captain or club admin can do that")),
         None => Err(ApiError::forbidden("not a club member")),
     }
