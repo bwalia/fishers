@@ -44,7 +44,6 @@ struct FishersBrandHeader: View {
                 HStack(spacing: 10) {
                     logo
                     wordmark(size: 22)
-                    Spacer(minLength: 0)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Fishers")
@@ -72,7 +71,10 @@ struct FishersBrandHeader: View {
 /// Thin top strip used above tab content so the brand stays visible.
 struct FishersTopBar: View {
     var body: some View {
-        FishersBrandHeader(style: .bar, showsTagline: false)
+        HStack(spacing: 10) {
+            FishersBrandHeader(style: .bar, showsTagline: false)
+            Spacer(minLength: 0)
+        }
             .padding(.horizontal, 20)
             .padding(.top, 6)
             .padding(.bottom, 10)

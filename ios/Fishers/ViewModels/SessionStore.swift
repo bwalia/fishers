@@ -54,12 +54,13 @@ final class SessionStore: ObservableObject {
     }
 
     func signOut() {
-        Task {
-            await NetworkService.shared.clearTokens()
-        }
+        Task { await NetworkService.shared.clearTokens() }
         KeychainStore.delete("user_id")
+        KeychainStore.delete("access_token")
+        KeychainStore.delete("refresh_token")
         user = nil
         isAuthenticated = false
+        errorMessage = nil
     }
 
     private func authenticate(_ work: () async throws -> AuthTokens) async {

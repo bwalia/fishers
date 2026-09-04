@@ -64,7 +64,14 @@ struct ProfileSetupView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
-            FishersBrandHeader(style: .bar)
+            HStack(alignment: .center) {
+                FishersBrandHeader(style: .bar)
+                Spacer(minLength: 8)
+                Button("Sign out", role: .destructive) {
+                    session.signOut()
+                }
+                .font(FishersTheme.subhead)
+            }
 
             HStack {
                 Text("Step \(clampedIndex + 1) of \(steps.count)")

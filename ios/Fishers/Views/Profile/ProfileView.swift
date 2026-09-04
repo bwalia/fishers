@@ -32,6 +32,11 @@ struct ProfileView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Edit") { isEditing = true }
                 }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Sign out", role: .destructive) {
+                        session.signOut()
+                    }
+                }
             }
             .sheet(isPresented: $isEditing) {
                 ProfileEditView(user: session.user)
@@ -166,13 +171,23 @@ struct ProfileView: View {
     }
 
     private var settingsSection: some View {
-        Section("Settings") {
+        Section {
             LabeledContent("API host", value: AppConfig.apiBaseURL.absoluteString)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            Button("Sign out", role: .destructive) {
+                .font(FishersTheme.footnote)
+                .foregroundStyle(FishersTheme.muted)
+
+            Button(role: .destructive) {
                 session.signOut()
+            } label: {
+                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .font(FishersTheme.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+        } header: {
+            Text("Account")
+        } footer: {
+            Text("Signs you out on this device. You can sign back in anytime.")
+                .font(FishersTheme.footnote)
         }
     }
 }
