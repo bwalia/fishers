@@ -63,30 +63,36 @@ struct ProfileSetupView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            FishersBrandHeader(style: .bar)
+
             HStack {
                 Text("Step \(clampedIndex + 1) of \(steps.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .font(FishersTheme.overline)
+                    .tracking(0.5)
+                    .foregroundStyle(FishersTheme.muted)
                 Spacer()
                 if case .sport(let sport) = currentStep {
                     Label(sport.label, systemImage: sport.systemImage)
-                        .font(.caption.weight(.semibold))
+                        .font(FishersTheme.caption)
                         .foregroundStyle(FishersTheme.accent)
                 }
             }
             ProgressView(value: Double(stepIndex + 1), total: Double(steps.count))
                 .tint(FishersTheme.accent)
             Text(title)
-                .font(.title2.bold())
+                .font(FishersTheme.title)
+                .foregroundStyle(FishersTheme.ink)
             Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(FishersTheme.callout)
+                .foregroundStyle(FishersTheme.muted)
+                .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 20)
         .padding(.bottom, 12)
-        .padding(.top, 8)
+        .padding(.top, 10)
+        .background(FishersTheme.cream)
     }
 
     private var footer: some View {

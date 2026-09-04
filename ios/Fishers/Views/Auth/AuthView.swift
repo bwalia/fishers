@@ -11,84 +11,132 @@ struct AuthView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [FishersTheme.pitch, FishersTheme.accent.opacity(0.85), Color.black.opacity(0.55)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            background
 
-            VStack(spacing: 28) {
-                Spacer()
-                VStack(spacing: 8) {
-                    Text("Fishers")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("Clubs, calendars, and match day — organised.")
-                        .font(.system(.body, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
+            ScrollView {
+                VStack(spacing: 32) {
+                    Spacer(minLength: 48)
+
+                    FishersBrandHeader(
+                        style: .hero,
+                        showsTagline: true,
+                        onDark: true
+                    )
+                    .padding(.horizontal, 28)
+
+                    formCard
+                        .padding(.horizontal, 22)
+
+                    Spacer(minLength: 40)
                 }
-                .padding(.horizontal)
-
-                VStack(spacing: 14) {
-                    if mode == .signup {
-                        field("Name", text: $name)
-                    }
-                    field("Email", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                    SecureField("Password", text: $password)
-                        .padding()
-                        .background(.white.opacity(0.95))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                    Button {
-                        Task {
-                            if mode == .login {
-                                await session.login(email: email, password: password)
-                            } else {
-                                await session.signUp(name: name, email: email, password: password)
-                            }
-                        }
-                    } label: {
-                        Text(mode == .login ? "Sign in" : "Create account")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.white)
-                            .foregroundStyle(FishersTheme.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .disabled(session.isLoading)
-
-                    Button(mode == .login ? "Need an account? Sign up" : "Have an account? Sign in") {
-                        mode = mode == .login ? .signup : .login
-                    }
-                    .foregroundStyle(.white.opacity(0.9))
-                    .font(.subheadline)
-
-                    if let error = session.errorMessage {
-                        Text(error)
-                            .font(.footnote)
-                            .foregroundStyle(Color.orange)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-                .padding(24)
-                .background(.ultraThinMaterial.opacity(0.35))
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .padding(.horizontal, 24)
-
-                Spacer()
             }
         }
     }
 
+    private var background: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    FishersTheme.pitch,
+                    FishersTheme.accent,
+                    Color(red: 0.04, green: 0.16, blue: 0.14),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            // Soft pitch-line motif — atmosphere without clutter.
+            GeometryReader { geo in
+                Path { path in
+                    let mid = geo.size.height * 0.42
+                    path.move(to: CGPoint(x: 0, y: mid))
+                    path.addQuadCurve(
+                        to: CGPoint(x: geo.size.width, y: mid + 40),
+                        control: CGPoint(x: geo.size.width * 0.5, y: mid - 50)
+                    )
+                }
+                .stroke(Color.white.opacity(0.08), lineWidth: 2)
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private var formCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(mode == .login ? "Welcome back" : "Join your club")
+                .font(FishersTheme.title)
+                .foregroundStyle(FishersTheme.ink)
+
+            Text(mode == .login
+                 ? "Sign in to see fixtures, chats and selection."
+                 : "Create an account to organise nets, league and socials.")
+                .font(FishersTheme.footnote)
+                .foregroundStyle(FishersTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if mode == .signup {
+                field("Name", text: $name)
+            }
+            field("Email", text: $email)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
+                .textContentType(.emailAddress)
+
+            SecureField("Password", text: $password)
+                .font(FishersTheme.body)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .background(FishersTheme.mist)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .textContentType(mode == .login ? .password : .newPassword)
+
+            Button {
+                Task {
+                    if mode == .login {
+                        await session.login(email: email, password: password)
+                    } else {
+                        await session.signUp(name: name, email: email, password: password)
+                    }
+                }
+            } label: {
+                Text(mode == .login ? "Sign in" : "Create account")
+                    .font(FishersTheme.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(FishersTheme.accent)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .disabled(session.isLoading)
+            .opacity(session.isLoading ? 0.7 : 1)
+
+            Button(mode == .login ? "Need an account? Sign up" : "Have an account? Sign in") {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    mode = mode == .login ? .signup : .login
+                }
+            }
+            .font(FishersTheme.subhead)
+            .foregroundStyle(FishersTheme.accent)
+            .frame(maxWidth: .infinity)
+
+            if let error = session.errorMessage {
+                Text(error)
+                    .font(FishersTheme.footnote)
+                    .foregroundStyle(FishersTheme.unavailable)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(22)
+        .background(Color.white.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: .black.opacity(0.18), radius: 24, y: 12)
+    }
+
     private func field(_ title: String, text: Binding<String>) -> some View {
         TextField(title, text: text)
-            .padding()
-            .background(.white.opacity(0.95))
+            .font(FishersTheme.body)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .background(FishersTheme.mist)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

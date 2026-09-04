@@ -9,14 +9,22 @@ struct HomeFeedView: View {
             ZStack {
                 FishersTheme.mist.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 18) {
                         Text("Upcoming")
-                            .font(FishersTheme.title)
-                            .foregroundStyle(FishersTheme.ink)
+                            .fishersTitle()
+
+                        Text("Nets, league and socials for your clubs.")
+                            .font(FishersTheme.footnote)
+                            .foregroundStyle(FishersTheme.muted)
+
+                        if let error {
+                            Text(error)
+                                .font(FishersTheme.footnote)
+                                .foregroundStyle(FishersTheme.unavailable)
+                        }
 
                         if events.isEmpty {
-                            Text("No sessions yet. Join a club or add sample fixtures.")
-                                .foregroundStyle(.secondary)
+                            emptyState
                         } else {
                             ForEach(events) { event in
                                 NavigationLink(value: event) {
@@ -26,14 +34,32 @@ struct HomeFeedView: View {
                             }
                         }
                     }
-                    .padding()
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
                 }
             }
-            .navigationTitle("Home")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }
             .task { await load() }
             .refreshable { await load() }
         }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("No sessions yet")
+                .font(FishersTheme.headline)
+                .foregroundStyle(FishersTheme.ink)
+            Text("Join a club or add sample fixtures from the Clubs tab.")
+                .font(FishersTheme.callout)
+                .foregroundStyle(FishersTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FishersTheme.cream)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func load() async {
@@ -54,28 +80,38 @@ struct EventRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(FishersTheme.pitch.gradient)
                 .frame(width: 4)
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(event.title)
-                    .font(.headline)
+                    .font(FishersTheme.headline)
                     .foregroundStyle(FishersTheme.ink)
+                    .lineLimit(2)
+
                 Text(event.eventSubtype.replacingOccurrences(of: "_", with: " ").capitalized)
-                    .font(.caption)
+                    .font(FishersTheme.overline)
+                    .tracking(0.6)
+                    .textCase(.uppercase)
                     .foregroundStyle(FishersTheme.accent)
+
                 Text(event.startAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(FishersTheme.subhead)
+                    .foregroundStyle(FishersTheme.muted)
             }
-            Spacer()
+            Spacer(minLength: 8)
             if let fee = event.feeAmountCents {
                 Text(String(format: "£%.0f", Double(fee) / 100))
-                    .font(.subheadline.weight(.semibold))
+                    .font(FishersTheme.headline)
                     .foregroundStyle(FishersTheme.ink)
+                    .monospacedDigit()
             }
         }
-        .padding()
+        .padding(16)
         .background(FishersTheme.cream)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(FishersTheme.ink.opacity(0.04), lineWidth: 1)
+        )
     }
 }
