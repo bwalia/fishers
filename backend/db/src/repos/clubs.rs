@@ -204,6 +204,26 @@ pub async fn list_venues(pool: &PgPool, club_id: Uuid) -> Result<Vec<Venue>, sql
     .await
 }
 
+/// The member's role in the club (`club_admin`, `team_captain`, `member`, ...),
+/// or `None` when they are not an active member.
+pub async fn club_role(
+    pool: &PgPool,
+    club_id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<String>, sqlx::Error> {
+    let row: Option<(String,)> = sqlx::query_as(
+        r#"
+        SELECT role::TEXT FROM club_members
+        WHERE club_id = $1 AND user_id = $2 AND status = 'active'
+        "#,
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| r.0))
+}
+
 pub async fn is_club_member(
     pool: &PgPool,
     club_id: Uuid,

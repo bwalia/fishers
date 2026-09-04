@@ -260,3 +260,14 @@ pub async fn revoke_refresh_token(pool: &PgPool, token_hash: &str) -> Result<(),
 pub fn to_public(user: User) -> PublicUser {
     user.into()
 }
+
+/// Names for a set of ids, for rendering squad announcements.
+pub async fn names_for(
+    pool: &PgPool,
+    user_ids: &[Uuid],
+) -> Result<Vec<(Uuid, String)>, sqlx::Error> {
+    sqlx::query_as::<_, (Uuid, String)>("SELECT id, name FROM users WHERE id = ANY($1)")
+        .bind(user_ids)
+        .fetch_all(pool)
+        .await
+}
