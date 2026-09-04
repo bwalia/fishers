@@ -1,7 +1,8 @@
 # Rust
 backend/target/
 **/*.rs.bk
-Cargo.lock
+# Cargo.lock is committed: the workspace ships a binary, and a pinned graph is
+# what keeps `cargo run -p fishers-api` reproducible across toolchains.
 
 # iOS / Xcode
 ios/Fishers.xcodeproj/
@@ -33,7 +34,9 @@ fastlane/test_output/
 *.p8
 Secrets.xcconfig
 
-# IDE / OS
+# IDE / OS / agent tooling
+.claude/
+.serena/
 .DS_Store
 .idea/
 .vscode/

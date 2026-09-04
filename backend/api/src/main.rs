@@ -34,7 +34,8 @@ async fn main() -> anyhow::Result<()> {
     fishers_db::migrate(&pool).await?;
 
     let push = fishers_notifications::PushService::from_env();
-    fishers_jobs::spawn_scheduler(pool.clone(), push.clone());
+    let email = fishers_notifications::EmailService::from_env();
+    fishers_jobs::spawn_scheduler(pool.clone(), push.clone(), email);
 
     let state = AppState::new(pool, jwt_secret, push);
 

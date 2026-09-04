@@ -7,19 +7,39 @@ struct EventDetailView: View {
     @State private var attendees: [AttendeeSummary] = []
     @State private var message: String?
     @State private var showSquad = false
+    @State private var board: SelectionBoard?
+    @State private var isResponding = false
+    @StateObject private var tickets: TicketStore
+    @State private var guestCount = 0
+    @State private var guestNames = ""
+
+    init(eventId: UUID) {
+        self.eventId = eventId
+        _tickets = StateObject(wrappedValue: TicketStore(eventId: eventId))
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let event {
                     header(event)
+                    ticketCard(event)
+                    selectionCard(event)
                     rsvpRow
                     paymentRow(event)
                     attendeesSection
                     if event.eventSubtype == "friendly" || event.eventSubtype == "league_match" {
+                        NavigationLink {
+                            SelectionBoardView(eventId: eventId)
+                        } label: {
+                            Label("Selection board", systemImage: "person.3.sequence.fill")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(FishersTheme.accent)
                         Button("Squad picker") { showSquad = true }
-                            .buttonStyle(.borderedProminent)
-                            .tint(FishersTheme.accent)
+                            .buttonStyle(.bordered)
                     }
                 } else {
                     ProgressView()
@@ -36,6 +56,144 @@ struct EventDetailView: View {
         .task { await load() }
         .sheet(isPresented: $showSquad) {
             SquadPickerView(attendees: attendees)
+        }
+    }
+
+    /// Presentation nights, dinners, AGMs — book a place, bring guests, pay.
+    @ViewBuilder
+    private func ticketCard(_ event: Event) -> some View {
+        if let booking = tickets.booking, tickets.isTicketed {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Tickets", systemImage: "ticket.fill")
+                    .font(.headline)
+                    .foregroundStyle(FishersTheme.accent)
+
+                HStack(spacing: 12) {
+                    if let price = booking.summary.ticketPriceCents, price > 0 {
+                        Text("£\(Double(price) / 100, specifier: "%.2f") a head")
+                    }
+                    if let left = booking.summary.placesLeft {
+                        Text("\(left) place\(left == 1 ? "" : "s") left")
+                    }
+                    Text("\(booking.summary.headcount) going")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                if let ticket = tickets.myTicket {
+                    Text("Booked for \(ticket.places) — £\(Double(ticket.amountCents) / 100, specifier: "%.2f") \(ticket.isPaid ? "paid" : "outstanding")")
+                        .font(.subheadline)
+                    HStack {
+                        if !ticket.isPaid {
+                            Button("Pay now") { Task { await tickets.pay() } }
+                                .buttonStyle(.borderedProminent)
+                                .tint(FishersTheme.accent)
+                        }
+                        Button("Cancel booking") { Task { await tickets.cancel() } }
+                            .buttonStyle(.bordered)
+                    }
+                    .disabled(tickets.isWorking)
+                } else {
+                    Stepper("Guests: \(guestCount)", value: $guestCount, in: 0...4)
+                    Button("Book my place") {
+                        Task { await tickets.book(guests: guestCount, guestNames: guestNames, notes: nil) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(FishersTheme.accent)
+                    .disabled(tickets.isWorking)
+                    if guestCount > 0 {
+                        TextField("Guest names", text: $guestNames)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+                if let error = tickets.errorMessage {
+                    Text(error).font(.caption).foregroundStyle(FishersTheme.unavailable)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    /// Shown to a player once they are picked: confirm or pull out, well before
+    /// the morning of the game.
+    @ViewBuilder
+    private func selectionCard(_ event: Event) -> some View {
+        if let board, let me = myPlace(in: board) {
+            VStack(alignment: .leading, spacing: 10) {
+                Label(headline(for: me.state), systemImage: icon(for: me.state))
+                    .font(.headline)
+                    .foregroundStyle(FishersTheme.accent)
+                if me.state == .selected || me.state == .confirmed {
+                    Text("Confirm at least \(board.confirmLeadHours)h before start. Unconfirmed places go to reserves \(board.dropLeadHours)h before.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if me.state != .confirmed {
+                    HStack {
+                        Button("I'm playing") { Task { await respond(true) } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(FishersTheme.available)
+                        Button("Can't make it") { Task { await respond(false) } }
+                            .buttonStyle(.bordered)
+                    }
+                    .disabled(isResponding)
+                } else {
+                    Label("You're confirmed", systemImage: "checkmark.seal.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(FishersTheme.available)
+                    Button("Actually, I can't make it") { Task { await respond(false) } }
+                        .font(.footnote)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(FishersTheme.unavailable)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    private func myPlace(in board: SelectionBoard) -> SelectionCandidate? {
+        // The board only carries club members; find the row for this device's user.
+        guard let userId = KeychainStore.get("user_id").flatMap(UUID.init(uuidString:)) else {
+            return board.candidates.first { $0.state == .selected || $0.state == .confirmed }
+        }
+        return board.candidates.first { $0.userId == userId }
+    }
+
+    private func headline(for state: SelectionState) -> String {
+        switch state {
+        case .selected: return "You're picked"
+        case .confirmed: return "You're in"
+        case .reserve: return "You're on standby"
+        case .dropped: return "Your place went to a reserve"
+        case .declined: return "You said you can't make it"
+        case .notSelected: return "Not selected this time"
+        case .pool: return "You're in the mix"
+        }
+    }
+
+    private func icon(for state: SelectionState) -> String {
+        switch state {
+        case .confirmed: return "checkmark.seal.fill"
+        case .selected: return "hand.raised.fill"
+        case .reserve: return "clock.arrow.circlepath"
+        default: return "person.crop.circle"
+        }
+    }
+
+    private func respond(_ confirming: Bool) async {
+        isResponding = true
+        defer { isResponding = false }
+        do {
+            try await FishersAPI.respondToSelection(eventId: eventId, confirming: confirming)
+            board = try? await FishersAPI.selectionBoard(eventId: eventId)
+            await tickets.load()
+            message = confirming ? "Confirmed — see you there." : "Thanks for letting us know."
+        } catch {
+            message = error.localizedDescription
         }
     }
 
@@ -135,6 +293,10 @@ struct EventDetailView: View {
             async let e = FishersAPI.event(id: eventId)
             async let a = FishersAPI.attendees(eventId: eventId)
             (event, attendees) = try await (e, a)
+            // Selection may not apply to this fixture (nets, socials) — a
+            // failure here shouldn't blank the screen.
+            board = try? await FishersAPI.selectionBoard(eventId: eventId)
+            await tickets.load()
         } catch {
             message = error.localizedDescription
         }

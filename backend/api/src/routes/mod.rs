@@ -1,11 +1,14 @@
 mod auth;
 mod availability;
+mod chat;
 mod clubs;
 mod events;
 mod invites;
 mod notifications;
 mod orders;
 mod payments;
+mod selection;
+mod tournament;
 mod users;
 
 use axum::routing::get;
@@ -26,8 +29,11 @@ fn api_v1() -> Router<AppState> {
         .merge(clubs::router())
         .merge(events::router())
         .merge(availability::router())
+        .merge(chat::router())
         .merge(invites::router())
         .merge(payments::router())
+        .merge(selection::router())
+        .merge(tournament::router())
         .merge(orders::router())
         .merge(notifications::router())
 }

@@ -15,9 +15,11 @@ Multi-sport club management — organise recurring activities (cricket nets, foo
 Postgres is mapped to host port **5433** (avoids clashing with a local 5432).
 
 ```bash
-docker compose up -d
 cp .env.example .env
+docker compose up -d
 ```
+
+If 5433 is already taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` port in `.env`.
 
 ### 2. Backend
 
@@ -63,15 +65,17 @@ backend/          Cargo workspace
   payments/       Stripe stubs (Phase 4)
   notifications/  APNs stubs (Phase 3)
   jobs/           Recurring events & reminders
+  agent/          Claude client for the chat assistant
 ios/              SwiftUI app (XcodeGen)
 scripts/smoke.sh  End-to-end API check
 ```
 
 ## Build phases
 
-1. **Foundation** — auth, profiles, clubs/teams, schema ✅
+1. **Foundation** — auth, profile setup (per-sport level, division, stats, logistics, reliability), clubs/teams, schema ✅
 2. **Events & calendar** — CRUD, recurrence, availability, RSVP ✅
 3. **Invites & push** — invite links, APNs stubs ✅ / wire APNs next
+3b. **Chat & assistant** — threads, unread state, agent proposals with human approval ✅
 4. **Payments** — Stripe intent stubs ✅ / real Stripe next
 5. **Shop** — products, cart, checkout ✅
 6. **Admin reports** — attendance & revenue (next)
