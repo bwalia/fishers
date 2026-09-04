@@ -9,12 +9,21 @@ struct EventDetailView: View {
     @State private var showSquad = false
     @State private var board: SelectionBoard?
     @State private var isResponding = false
+    @StateObject private var tickets: TicketStore
+    @State private var guestCount = 0
+    @State private var guestNames = ""
+
+    init(eventId: UUID) {
+        self.eventId = eventId
+        _tickets = StateObject(wrappedValue: TicketStore(eventId: eventId))
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let event {
                     header(event)
+                    ticketCard(event)
                     selectionCard(event)
                     rsvpRow
                     paymentRow(event)
@@ -47,6 +56,63 @@ struct EventDetailView: View {
         .task { await load() }
         .sheet(isPresented: $showSquad) {
             SquadPickerView(attendees: attendees)
+        }
+    }
+
+    /// Presentation nights, dinners, AGMs — book a place, bring guests, pay.
+    @ViewBuilder
+    private func ticketCard(_ event: Event) -> some View {
+        if let booking = tickets.booking, tickets.isTicketed {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Tickets", systemImage: "ticket.fill")
+                    .font(.headline)
+                    .foregroundStyle(FishersTheme.accent)
+
+                HStack(spacing: 12) {
+                    if let price = booking.summary.ticketPriceCents, price > 0 {
+                        Text("£\(Double(price) / 100, specifier: "%.2f") a head")
+                    }
+                    if let left = booking.summary.placesLeft {
+                        Text("\(left) place\(left == 1 ? "" : "s") left")
+                    }
+                    Text("\(booking.summary.headcount) going")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                if let ticket = tickets.myTicket {
+                    Text("Booked for \(ticket.places) — £\(Double(ticket.amountCents) / 100, specifier: "%.2f") \(ticket.isPaid ? "paid" : "outstanding")")
+                        .font(.subheadline)
+                    HStack {
+                        if !ticket.isPaid {
+                            Button("Pay now") { Task { await tickets.pay() } }
+                                .buttonStyle(.borderedProminent)
+                                .tint(FishersTheme.accent)
+                        }
+                        Button("Cancel booking") { Task { await tickets.cancel() } }
+                            .buttonStyle(.bordered)
+                    }
+                    .disabled(tickets.isWorking)
+                } else {
+                    Stepper("Guests: \(guestCount)", value: $guestCount, in: 0...4)
+                    Button("Book my place") {
+                        Task { await tickets.book(guests: guestCount, guestNames: guestNames, notes: nil) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(FishersTheme.accent)
+                    .disabled(tickets.isWorking)
+                    if guestCount > 0 {
+                        TextField("Guest names", text: $guestNames)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+                if let error = tickets.errorMessage {
+                    Text(error).font(.caption).foregroundStyle(FishersTheme.unavailable)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 14))
         }
     }
 
@@ -124,6 +190,7 @@ struct EventDetailView: View {
         do {
             try await FishersAPI.respondToSelection(eventId: eventId, confirming: confirming)
             board = try? await FishersAPI.selectionBoard(eventId: eventId)
+            await tickets.load()
             message = confirming ? "Confirmed — see you there." : "Thanks for letting us know."
         } catch {
             message = error.localizedDescription
@@ -229,6 +296,7 @@ struct EventDetailView: View {
             // Selection may not apply to this fixture (nets, socials) — a
             // failure here shouldn't blank the screen.
             board = try? await FishersAPI.selectionBoard(eventId: eventId)
+            await tickets.load()
         } catch {
             message = error.localizedDescription
         }
