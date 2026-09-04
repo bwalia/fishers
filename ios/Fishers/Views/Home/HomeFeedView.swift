@@ -15,7 +15,7 @@ struct HomeFeedView: View {
                             .foregroundStyle(FishersTheme.ink)
 
                         if events.isEmpty {
-                            Text("No sessions yet. Join a club or create Wednesday nets.")
+                            Text("No sessions yet. Join a club or add sample fixtures.")
                                 .foregroundStyle(.secondary)
                         } else {
                             ForEach(events) { event in
