@@ -23,6 +23,11 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/me")
     }
 
+    /// Profile setup and later edits both send the whole profile the app holds.
+    static func updateProfile(_ update: ProfileUpdate) async throws -> PublicUser {
+        try await NetworkService.shared.request("PATCH", path: "/me", body: update)
+    }
+
     static func clubs() async throws -> [Club] {
         try await NetworkService.shared.request("GET", path: "/clubs")
     }

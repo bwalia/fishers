@@ -34,6 +34,23 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    /// Signed in but hasn't told us how they play yet — the app opens here.
+    var needsProfileSetup: Bool {
+        guard let user else { return false }
+        return !user.isProfileComplete
+    }
+
+    /// Saves the setup or edit form and adopts the user the API returns.
+    func saveProfile(_ update: ProfileUpdate) async throws {
+        user = try await FishersAPI.updateProfile(update)
+    }
+
+    /// Pulls the server's copy, including the reliability score it computes.
+    func refreshProfile() async {
+        guard isAuthenticated, let fresh = try? await FishersAPI.me() else { return }
+        user = fresh
+    }
+
     func signOut() {
         Task {
             await NetworkService.shared.clearTokens()
