@@ -264,3 +264,25 @@ pub async fn member_ids(
     .await?;
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
+
+/// Where an announcement about a fixture should go: its own thread if one
+/// exists, otherwise the club's most recently active thread.
+pub async fn conversation_for_announcement(
+    pool: &PgPool,
+    club_id: Uuid,
+    event_id: Option<Uuid>,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    let row: Option<(Uuid,)> = sqlx::query_as(
+        r#"
+        SELECT id FROM conversations
+        WHERE club_id = $1
+        ORDER BY (event_id IS NOT DISTINCT FROM $2) DESC, updated_at DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(club_id)
+    .bind(event_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| r.0))
+}

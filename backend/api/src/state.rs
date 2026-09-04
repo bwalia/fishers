@@ -1,5 +1,5 @@
 use fishers_agent::AgentService;
-use fishers_notifications::PushService;
+use fishers_notifications::{EmailService, PushService};
 use fishers_payments::StripeClient;
 use sqlx::PgPool;
 
@@ -13,6 +13,7 @@ pub struct AppState {
     pub push: PushService,
     /// Reads chat threads and proposes admin; disabled without ANTHROPIC_API_KEY.
     pub agent: AgentService,
+    pub email: EmailService,
 }
 
 impl AppState {
@@ -33,6 +34,7 @@ impl AppState {
             stripe: StripeClient::from_env(),
             push,
             agent: AgentService::from_env(),
+            email: EmailService::from_env(),
         }
     }
 }

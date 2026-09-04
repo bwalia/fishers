@@ -6,4 +6,5 @@ pub mod events;
 pub mod invites;
 pub mod orders;
 pub mod payments;
+pub mod selection;
 pub mod users;
