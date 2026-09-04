@@ -34,7 +34,7 @@ Keep this process running while using the Simulator. Migrations run on startup.
 
 **Simulator tip:** the app points at `http://127.0.0.1:8080`. If sign-in fails with a connection error, the API is not running.
 
-Optional smoke test (signup → London Lords club → Wednesday nets):
+Optional smoke test (signup → London Lords club → Wednesday nets, Saturday league, Sunday social):
 
 ```bash
 chmod +x scripts/smoke.sh && ./scripts/smoke.sh

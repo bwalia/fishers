@@ -9,7 +9,14 @@ mod event;
 mod invite;
 mod order;
 mod payment;
+mod profile;
 mod rbac;
+/// Tournament generation is namespaced: `tournament::round_robin` etc.
+pub mod tournament;
+/// Selection ranking is namespaced: `selection::rank` / `selection::suggest`.
+pub mod selection;
+/// Reliability scoring is namespaced: `reliability::score(counts)`.
+pub mod reliability;
 mod user;
 
 pub use agent::*;
@@ -21,7 +28,11 @@ pub use event::*;
 pub use invite::*;
 pub use order::*;
 pub use payment::*;
+pub use profile::*;
 pub use rbac::*;
+pub use selection::*;
+pub use tournament::*;
+pub use reliability::{ReliabilityBand, ReliabilityCounts, ReliabilityScore};
 pub use user::*;
 
 use thiserror::Error;

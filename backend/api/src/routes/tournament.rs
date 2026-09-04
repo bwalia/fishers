@@ -15,7 +15,7 @@ use fishers_domain::tournament::{self, TournamentFormat};
 use fishers_domain::{
     AddEntrantsRequest, BookTicketRequest, EventTicket, FixtureBlock, GenerateKnockoutRequest,
     GenerateScheduleRequest, GenerateSlotsRequest, RecordResultRequest, ScheduleRow, Standing,
-    TicketSummary, TournamentEntrant, UpdateBlockRequest,
+    TicketSummary, TournamentEntrant, UpdateBlockRequest, UserRole,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -359,8 +359,12 @@ async fn cancel_ticket(
         .ok_or_else(|| ApiError::not_found("event not found"))?;
     let is_organiser = clubs_repo::club_role(&state.pool, event.club_id, auth.user_id)
         .await?
-        .as_deref()
-        .is_some_and(|role| matches!(role, "club_admin" | "team_captain" | "super_admin"));
+        .is_some_and(|role| {
+            matches!(
+                role,
+                UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin
+            )
+        });
 
     tournament_repo::set_ticket_status(
         &state.pool,
@@ -431,8 +435,8 @@ async fn require_member(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiRe
 }
 
 async fn require_organiser(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<()> {
-    match clubs_repo::club_role(&state.pool, club_id, user_id).await?.as_deref() {
-        Some("club_admin") | Some("team_captain") | Some("super_admin") => Ok(()),
+    match clubs_repo::club_role(&state.pool, club_id, user_id).await? {
+        Some(UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin) => Ok(()),
         Some(_) => Err(ApiError::forbidden(
             "only a captain or club admin can organise this",
         )),

@@ -16,7 +16,7 @@ use fishers_db::repos::{
 };
 use fishers_domain::{
     reliability, AgentAnalysis, AgentProposal, ChatMessage, Conversation, ConversationSummary,
-    CreateConversationRequest, MarkReadRequest, PostMessageRequest, ProposalPayload,
+    CreateConversationRequest, MarkReadRequest, PostMessageRequest, ProposalPayload, UserRole,
     UpsertAvailabilityRequest,
 };
 use serde::Deserialize;
@@ -529,8 +529,8 @@ async fn require_captain_or_admin(
     club_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    match clubs_repo::club_role(&state.pool, club_id, user_id).await?.as_deref() {
-        Some("club_admin") | Some("team_captain") | Some("super_admin") => Ok(()),
+    match clubs_repo::club_role(&state.pool, club_id, user_id).await? {
+        Some(UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin) => Ok(()),
         Some(_) => Err(ApiError::forbidden(
             "only a captain or club admin can decide the assistant's proposals",
         )),

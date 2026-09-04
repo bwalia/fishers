@@ -204,24 +204,22 @@ pub async fn list_venues(pool: &PgPool, club_id: Uuid) -> Result<Vec<Venue>, sql
     .await
 }
 
-/// The member's role in the club (`club_admin`, `team_captain`, `member`, ...),
-/// or `None` when they are not an active member.
+/// Active club role for RBAC (`club_admin` = secretary, `team_captain`, …).
 pub async fn club_role(
     pool: &PgPool,
     club_id: Uuid,
     user_id: Uuid,
-) -> Result<Option<String>, sqlx::Error> {
-    let row: Option<(String,)> = sqlx::query_as(
+) -> Result<Option<UserRole>, sqlx::Error> {
+    sqlx::query_scalar::<_, UserRole>(
         r#"
-        SELECT role::TEXT FROM club_members
+        SELECT role FROM club_members
         WHERE club_id = $1 AND user_id = $2 AND status = 'active'
         "#,
     )
     .bind(club_id)
     .bind(user_id)
     .fetch_optional(pool)
-    .await?;
-    Ok(row.map(|r| r.0))
+    .await
 }
 
 pub async fn is_club_member(
@@ -242,24 +240,6 @@ pub async fn is_club_member(
     .fetch_one(pool)
     .await?;
     Ok(row.0)
-}
-
-/// Active club role for RBAC (`club_admin` = secretary, `team_captain`, …).
-pub async fn club_role(
-    pool: &PgPool,
-    club_id: Uuid,
-    user_id: Uuid,
-) -> Result<Option<UserRole>, sqlx::Error> {
-    sqlx::query_scalar::<_, UserRole>(
-        r#"
-        SELECT role FROM club_members
-        WHERE club_id = $1 AND user_id = $2 AND status = 'active'
-        "#,
-    )
-    .bind(club_id)
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await
 }
 
 pub async fn team_role(
