@@ -1,10 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+/// Club / team membership role.
+///
+/// Product language: **Club secretary** is stored as [`UserRole::ClubAdmin`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "user_role", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum UserRole {
     SuperAdmin,
+    /// Club secretary — roster, invites, venues, fees, selection oversight.
     ClubAdmin,
     TeamCaptain,
     Member,

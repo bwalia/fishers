@@ -7,6 +7,7 @@ mod event;
 mod invite;
 mod order;
 mod payment;
+mod rbac;
 mod user;
 
 pub use availability::*;
@@ -16,6 +17,7 @@ pub use event::*;
 pub use invite::*;
 pub use order::*;
 pub use payment::*;
+pub use rbac::*;
 pub use user::*;
 
 use thiserror::Error;

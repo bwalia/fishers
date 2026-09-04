@@ -83,4 +83,6 @@ In the app: create **London Lords CC** → **Add Wednesday nets** on the club sc
 
 ## Roles
 
-`super_admin` · `club_admin` · `team_captain` · `member` · `guest`
+`super_admin` · **club secretary** (`club_admin`) · **team captain** · `member` · `guest`
+
+Only a **captain or club secretary** can invite players to a fixture. See [docs/RBAC.md](docs/RBAC.md).
