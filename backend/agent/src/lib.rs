@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use fishers_domain::ExtractionResult;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use thiserror::Error;
 use tracing::{debug, warn};
@@ -95,6 +95,71 @@ pub struct AgentContext {
     pub transcript: Vec<TranscriptLine>,
 }
 
+/// A candidate as the deterministic ranking scored them. Handed to the model as
+/// its starting point, so its decision is anchored to explainable numbers.
+#[derive(Debug, Clone, Serialize)]
+pub struct RankedEntry {
+    pub user_id: Uuid,
+    pub name: String,
+    pub rank: usize,
+    pub score: i64,
+    pub reasons: Vec<String>,
+    pub position: Option<String>,
+    pub availability: Option<String>,
+    pub state: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SquadBrief {
+    pub size: usize,
+    pub reserves: usize,
+    pub position_quotas: Vec<(String, usize)>,
+    pub unmet_quotas: Vec<String>,
+}
+
+/// Everything needed to pick one side.
+#[derive(Debug, Clone, Serialize)]
+pub struct SelectionContext {
+    pub club_name: Option<String>,
+    pub fixture: FixtureEntry,
+    pub brief: SquadBrief,
+    pub ranked: Vec<RankedEntry>,
+    /// Recent chat, so injuries and "I can only do the second half" are seen.
+    pub transcript: Vec<TranscriptLine>,
+    pub today: NaiveDate,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PlayerNote {
+    pub user_id: Uuid,
+    pub reason: String,
+}
+
+/// The model's decision. `selected` and `reserves` are the squad; `announcement`
+/// is what gets posted to the thread when a captain publishes it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SquadDecision {
+    #[serde(default)]
+    pub selected: Vec<Uuid>,
+    #[serde(default)]
+    pub reserves: Vec<Uuid>,
+    pub announcement: String,
+    #[serde(default)]
+    pub notes: Vec<PlayerNote>,
+    /// Anything the captain should know — short of a keeper, someone injured.
+    #[serde(default)]
+    pub concerns: Option<String>,
+    pub confidence: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SquadOutcome {
+    pub decision: SquadDecision,
+    pub model: String,
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+}
+
 #[derive(Debug, Clone)]
 pub struct AgentOutcome {
     pub result: ExtractionResult,
@@ -137,6 +202,33 @@ impl AgentService {
         &self.model
     }
 
+    /// One place for the HTTP call, headers and refusal handling.
+    async fn post(&self, api_key: &str, body: &Value) -> Result<Value, AgentError> {
+        let response = self
+            .http
+            .post(&self.api_url)
+            .header("x-api-key", api_key)
+            .header("anthropic-version", API_VERSION)
+            .header("anthropic-beta", FALLBACK_BETA)
+            .json(body)
+            .send()
+            .await?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentError::Api {
+                status: status.as_u16(),
+                body,
+            });
+        }
+        let payload: Value = response.json().await?;
+        if payload["stop_reason"].as_str() == Some("refusal") {
+            return Err(AgentError::Refused);
+        }
+        Ok(payload)
+    }
+
     /// Ask Claude what admin this thread implies. Returns proposals only —
     /// applying them is a separate, human-approved step.
     pub async fn analyse(&self, context: &AgentContext) -> Result<AgentOutcome, AgentError> {
@@ -167,41 +259,8 @@ impl AgentService {
             }]
         });
 
-        let response = self
-            .http
-            .post(&self.api_url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", API_VERSION)
-            .header("anthropic-beta", FALLBACK_BETA)
-            .json(&body)
-            .send()
-            .await?;
-
-        let status = response.status();
-        let payload: Value = if status.is_success() {
-            response.json().await?
-        } else {
-            let body = response.text().await.unwrap_or_default();
-            return Err(AgentError::Api {
-                status: status.as_u16(),
-                body,
-            });
-        };
-
-        if payload["stop_reason"].as_str() == Some("refusal") {
-            return Err(AgentError::Refused);
-        }
-
-        let text = payload["content"]
-            .as_array()
-            .and_then(|blocks| {
-                blocks
-                    .iter()
-                    .find(|b| b["type"] == "text")
-                    .and_then(|b| b["text"].as_str())
-            })
-            .ok_or_else(|| AgentError::Decode("no text block in reply".into()))?;
-
+        let payload = self.post(api_key, &body).await?;
+        let text = first_text_block(&payload)?;
         debug!(%text, "agent reply");
         let result: ExtractionResult =
             serde_json::from_str(text).map_err(|e| AgentError::Decode(e.to_string()))?;
@@ -216,6 +275,111 @@ impl AgentService {
             output_tokens: payload["usage"]["output_tokens"].as_i64().map(|v| v as i32),
         })
     }
+}
+
+impl AgentService {
+    /// Pick a side. The deterministic ranking is the starting point; the model
+    /// may depart from it when the thread justifies it, and must say why.
+    pub async fn pick_squad(
+        &self,
+        context: &SelectionContext,
+    ) -> Result<SquadOutcome, AgentError> {
+        let api_key = self.api_key.as_deref().ok_or(AgentError::Disabled)?;
+
+        let body = json!({
+            "model": self.model,
+            "max_tokens": 16000,
+            "thinking": { "type": "adaptive" },
+            "output_config": {
+                "effort": "medium",
+                "format": { "type": "json_schema", "schema": squad_schema() }
+            },
+            "fallbacks": "default",
+            "system": [{
+                "type": "text",
+                "text": SELECTION_PROMPT,
+                "cache_control": { "type": "ephemeral" }
+            }],
+            "messages": [{
+                "role": "user",
+                "content": serde_json::to_string_pretty(context)
+                    .map_err(|e| AgentError::Decode(e.to_string()))?
+            }]
+        });
+
+        let payload = self.post(api_key, &body).await?;
+        let text = first_text_block(&payload)?;
+        debug!(%text, "squad decision");
+        let decision: SquadDecision =
+            serde_json::from_str(text).map_err(|e| AgentError::Decode(e.to_string()))?;
+
+        Ok(SquadOutcome {
+            decision,
+            model: payload["model"].as_str().unwrap_or(&self.model).to_string(),
+            input_tokens: payload["usage"]["input_tokens"].as_i64().map(|v| v as i32),
+            output_tokens: payload["usage"]["output_tokens"].as_i64().map(|v| v as i32),
+        })
+    }
+}
+
+const SELECTION_PROMPT: &str = r#"You pick amateur club sides in England — cricket, football, badminton, padel, rugby, netball, hockey.
+
+You are given one fixture, what the side needs, and every eligible player already ranked by a deterministic model: availability first, then reliability (do they turn up and pay), then rotation debt (how many fixtures they were available for and left out of). You also get the recent chat for that club.
+
+Your job is to name the squad and the reserves, and write the announcement.
+
+Rules:
+- Start from the ranking. Depart from it only for a reason visible in the context — an injury mentioned in chat, someone saying they can only make half of it, a position the ranking could not fill — and record that reason in notes.
+- Never select a player the ranking excluded for saying they are unavailable.
+- Select exactly the number of places asked for, unless the available pool is smaller; then select everyone available and say so in concerns.
+- Fill the position quotas. If you cannot, say which and by how many in concerns.
+- Rotation matters: if two players are otherwise level, pick the one who has missed out more. Amateur clubs lose players who are never picked.
+- The announcement is what the squad reads: British English, short, concrete, with the meet time if the context has one. No emoji unless the chat uses them.
+- Use only user_ids from the ranked list.
+- Set confidence to low when the pool is thin or the chat is ambiguous, high when availability is clear and the side picks itself."#;
+
+/// Squad decision schema. Numeric constraints are unsupported, so the size is
+/// stated in the brief and the prompt instead.
+fn squad_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["selected", "reserves", "announcement", "confidence"],
+        "properties": {
+            "selected": {
+                "type": "array",
+                "items": { "type": "string", "format": "uuid" },
+                "description": "The squad, best pick first."
+            },
+            "reserves": {
+                "type": "array",
+                "items": { "type": "string", "format": "uuid" },
+                "description": "Standby players, in the order they should be called up."
+            },
+            "announcement": {
+                "type": "string",
+                "description": "What gets posted to the thread when a captain publishes this."
+            },
+            "notes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["user_id", "reason"],
+                    "properties": {
+                        "user_id": { "type": "string", "format": "uuid" },
+                        "reason": { "type": "string" }
+                    }
+                },
+                "description": "Only where you departed from the ranking, or a player needs context."
+            },
+            "concerns": {
+                "anyOf": [{ "type": "string" }, { "type": "null" }],
+                "description": "Short of a position, thin pool, anything the captain must know."
+            },
+            "confidence": { "enum": ["low", "medium", "high"] }
+        }
+    })
 }
 
 const SYSTEM_PROMPT: &str = r#"You are the team admin assistant inside Fishers, a club management app used by amateur clubs in England — cricket, football, badminton, padel, rugby, netball, hockey, tennis, basketball.
@@ -303,4 +467,16 @@ fn extraction_schema() -> Value {
             }
         }
     })
+}
+
+fn first_text_block(payload: &Value) -> Result<&str, AgentError> {
+    payload["content"]
+        .as_array()
+        .and_then(|blocks| {
+            blocks
+                .iter()
+                .find(|b| b["type"] == "text")
+                .and_then(|b| b["text"].as_str())
+        })
+        .ok_or_else(|| AgentError::Decode("no text block in reply".into()))
 }

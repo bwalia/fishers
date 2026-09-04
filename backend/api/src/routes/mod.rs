@@ -7,6 +7,7 @@ mod invites;
 mod notifications;
 mod orders;
 mod payments;
+mod selection;
 mod users;
 
 use axum::routing::get;
@@ -30,6 +31,7 @@ fn api_v1() -> Router<AppState> {
         .merge(chat::router())
         .merge(invites::router())
         .merge(payments::router())
+        .merge(selection::router())
         .merge(orders::router())
         .merge(notifications::router())
 }

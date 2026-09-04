@@ -14,7 +14,9 @@ final class SessionStore: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            user = try await FishersAPI.me()
+            let me = try await FishersAPI.me()
+            KeychainStore.set(me.id.uuidString, forKey: "user_id")
+            user = me
             isAuthenticated = true
         } catch {
             await NetworkService.shared.clearTokens()
@@ -55,6 +57,7 @@ final class SessionStore: ObservableObject {
         Task {
             await NetworkService.shared.clearTokens()
         }
+        KeychainStore.delete("user_id")
         user = nil
         isAuthenticated = false
     }
@@ -66,6 +69,8 @@ final class SessionStore: ObservableObject {
         do {
             let tokens = try await work()
             await NetworkService.shared.setTokens(access: tokens.accessToken, refresh: tokens.refreshToken)
+            // The selection card needs to know which row on the board is yours.
+            KeychainStore.set(tokens.user.id.uuidString, forKey: "user_id")
             user = tokens.user
             isAuthenticated = true
         } catch {

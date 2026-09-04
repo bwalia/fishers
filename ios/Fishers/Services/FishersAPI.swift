@@ -28,6 +28,86 @@ enum FishersAPI {
         try await NetworkService.shared.request("PATCH", path: "/me", body: update)
     }
 
+    // MARK: Selection
+
+    static func selectionBoard(eventId: UUID) async throws -> SelectionBoard {
+        try await NetworkService.shared.request(
+            "GET", path: "/events/\(eventId.uuidString)/selection"
+        )
+    }
+
+    /// Deterministic pick — no model, works with no API key on the server.
+    static func suggestSquad(eventId: UUID) async throws -> SquadProposal {
+        try await NetworkService.shared.request(
+            "POST", path: "/events/\(eventId.uuidString)/selection/suggest"
+        )
+    }
+
+    /// Let the assistant decide the side.
+    static func agentSquad(eventId: UUID) async throws -> SquadProposal {
+        try await NetworkService.shared.request(
+            "POST", path: "/events/\(eventId.uuidString)/selection/agent"
+        )
+    }
+
+    static func setSquad(
+        eventId: UUID,
+        selected: [UUID],
+        reserves: [UUID],
+        announcement: String? = nil,
+        publish: Bool
+    ) async throws -> SelectionBoard {
+        struct Body: Encodable {
+            let selected: [UUID]
+            let reserves: [UUID]
+            let announcement: String?
+            let publish: Bool
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/events/\(eventId.uuidString)/selection",
+            body: Body(selected: selected, reserves: reserves, announcement: announcement, publish: publish)
+        )
+    }
+
+    /// The player's reconfirmation, a couple of days out.
+    static func respondToSelection(eventId: UUID, confirming: Bool) async throws {
+        struct Body: Encodable { let confirming: Bool }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/events/\(eventId.uuidString)/selection/respond",
+            body: Body(confirming: confirming)
+        )
+    }
+
+    /// Rain stops play: change the fixture and tell the squad.
+    static func updateFixtureStatus(
+        eventId: UUID,
+        status: String,
+        note: String?,
+        rescheduledTo: Date? = nil
+    ) async throws {
+        struct Body: Encodable {
+            let status: String
+            let note: String?
+            let rescheduled_to: Date?
+        }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/events/\(eventId.uuidString)/status",
+            body: Body(status: status, note: note, rescheduled_to: rescheduledTo)
+        )
+    }
+
+    static func outstandingFees(clubId: UUID) async throws -> OutstandingFees {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/fees/outstanding"
+        )
+    }
+
+    static func chaseFees(clubId: UUID) async throws {
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/clubs/\(clubId.uuidString)/fees/chase"
+        )
+    }
+
     // MARK: Chat
 
     static func conversations() async throws -> [ConversationSummary] {

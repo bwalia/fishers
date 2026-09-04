@@ -197,3 +197,75 @@ pub async fn upsert_match_result(
     .fetch_one(pool)
     .await
 }
+
+/// Create a tour, tournament or "next few weeks" block, pulling in fixtures.
+pub async fn create_fixture_block(
+    pool: &PgPool,
+    created_by: Uuid,
+    req: &fishers_domain::CreateFixtureBlockRequest,
+) -> Result<fishers_domain::FixtureBlock, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let block = sqlx::query_as::<_, fishers_domain::FixtureBlock>(
+        r#"
+        INSERT INTO fixture_blocks (club_id, team_id, name, kind, starts_on, ends_on, created_by)
+        VALUES ($1, $2, $3, COALESCE($4, 'block'), $5, $6, $7)
+        RETURNING id, club_id, team_id, name, kind, starts_on, ends_on, created_at
+        "#,
+    )
+    .bind(req.club_id)
+    .bind(req.team_id)
+    .bind(&req.name)
+    .bind(&req.kind)
+    .bind(req.starts_on)
+    .bind(req.ends_on)
+    .bind(created_by)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if !req.event_ids.is_empty() {
+        sqlx::query("UPDATE events SET fixture_block_id = $1 WHERE id = ANY($2) AND club_id = $3")
+            .bind(block.id)
+            .bind(&req.event_ids)
+            .bind(req.club_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    tx.commit().await?;
+    Ok(block)
+}
+
+pub async fn list_fixture_blocks(
+    pool: &PgPool,
+    club_id: Uuid,
+) -> Result<Vec<fishers_domain::FixtureBlock>, sqlx::Error> {
+    sqlx::query_as::<_, fishers_domain::FixtureBlock>(
+        r#"
+        SELECT id, club_id, team_id, name, kind, starts_on, ends_on, created_at
+        FROM fixture_blocks WHERE club_id = $1 ORDER BY starts_on DESC NULLS LAST, created_at DESC
+        "#,
+    )
+    .bind(club_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Fixtures in a block, in playing order.
+pub async fn list_block_events(
+    pool: &PgPool,
+    block_id: Uuid,
+) -> Result<Vec<fishers_domain::Event>, sqlx::Error> {
+    sqlx::query_as::<_, fishers_domain::Event>(
+        r#"
+        SELECT id, club_id, team_id, sport, event_subtype, title, venue_id, start_at, end_at,
+               recurrence_rule, recurrence_parent_id, capacity, fee_amount_cents, fee_currency,
+               status, metadata, created_by, created_at, updated_at
+        FROM events
+        WHERE fixture_block_id = $1 AND status <> 'cancelled'
+        ORDER BY start_at
+        "#,
+    )
+    .bind(block_id)
+    .fetch_all(pool)
+    .await
+}

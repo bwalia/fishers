@@ -10,6 +10,8 @@ mod invite;
 mod order;
 mod payment;
 mod profile;
+/// Selection ranking is namespaced: `selection::rank` / `selection::suggest`.
+pub mod selection;
 /// Reliability scoring is namespaced: `reliability::score(counts)`.
 pub mod reliability;
 mod user;
@@ -24,6 +26,7 @@ pub use invite::*;
 pub use order::*;
 pub use payment::*;
 pub use profile::*;
+pub use selection::*;
 pub use reliability::{ReliabilityBand, ReliabilityCounts, ReliabilityScore};
 pub use user::*;
 
