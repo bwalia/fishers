@@ -6,6 +6,7 @@ enum APIError: LocalizedError {
     case decoding(Error)
     case unauthorized
     case empty
+    case unreachable(String)
 
     var errorDescription: String? {
         switch self {
@@ -14,6 +15,8 @@ enum APIError: LocalizedError {
         case .decoding(let e): return "Decode error: \(e.localizedDescription)"
         case .unauthorized: return "Please sign in again"
         case .empty: return "Empty response"
+        case .unreachable(let detail):
+            return "Cannot reach API at \(AppConfig.apiBaseURL.absoluteString) — is it running? (\(detail))"
         }
     }
 }
@@ -98,7 +101,17 @@ actor NetworkService {
             req.httpBody = try encoder.encode(AnyEncodable(body))
         }
 
-        let (data, response) = try await session.data(for: req)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            let ns = error as NSError
+            if ns.domain == NSURLErrorDomain {
+                throw APIError.unreachable(error.localizedDescription)
+            }
+            throw error
+        }
         guard let http = response as? HTTPURLResponse else { throw APIError.empty }
 
         if http.statusCode == 401, authorized, refreshToken != nil {

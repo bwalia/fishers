@@ -24,13 +24,15 @@ If 5433 is already taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` po
 ### 2. Backend
 
 ```bash
-cd backend
-cargo run -p fishers-api
+./scripts/run-api.sh
+# or: cd backend && cargo run -p fishers-api
 ```
 
-API: `http://localhost:8080` · Health: `GET /health` · Routes: `/api/v1/...`
+API: `http://127.0.0.1:8080` · Health: `GET /health` · Routes: `/api/v1/...`
 
-Migrations run on startup.
+Keep this process running while using the Simulator. Migrations run on startup.
+
+**Simulator tip:** the app points at `http://127.0.0.1:8080`. If sign-in fails with a connection error, the API is not running.
 
 Optional smoke test (signup → London Lords club → Wednesday nets):
 
@@ -48,61 +50,10 @@ open Fishers.xcodeproj
 
 Run on Simulator. API base URL defaults to `http://localhost:8080` in `Fishers/Config/AppConfig.swift`.
 
-## Profile setup — the app's first stage
+**CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md).
 
-A new account lands on profile setup and stays there until it has a sport with a stated standard (`profile_complete` on `GET /me`). Setup adds one step per sport picked:
-
-- **Level** — Beginner → Improver → Intermediate → Club standard → Advanced → Elite, with the next rung shown as a target
-- **League** — team, age group (U11–U17 / Senior / Vets), division played and division aimed for
-- **Stats per sport** — cricket batting/bowling styles and averages, padel level and side, badminton discipline and ladder position, football goals/assists, rugby tries, and so on (`ios/Fishers/Models/SportStats.swift`)
-- **Travel** — area, postcode, radius, transport, spare seats for lifts, usual days
-
-`PATCH /me` takes the whole profile: `primary_sport`, `sport_profiles[]` (each with `skill_level`, `current_division`, `target_division`, `age_group`, `stats{}`), and `location`.
-
-**Reliability** is read-only and computed by the API from attendance history — turning up 50%, answering invites 25%, paying fees 25%, minus 5 per late drop-out; `unproven` under three past games (`backend/domain/src/reliability.rs`, mirrored in the client so both agree).
-
-## Chat and the team-admin assistant
-
-Members chat in-app; the assistant reads a thread and proposes the admin a captain would otherwise do by hand.
-
-| Method | Path | Notes |
-|---|---|---|
-| GET/POST | `/conversations` | threads you belong to (unread + pending-suggestion counts) / create |
-| GET/POST | `/conversations/{id}/messages` | page backwards with `?before=&limit=` / post |
-| POST | `/conversations/{id}/read` | clears the unread badge |
-| GET | `/conversations/{id}/proposals` | suggestions and their outcome |
-| POST | `/conversations/{id}/agent/analyse` | captain or club admin only — reads the thread |
-| POST | `/agent/proposals/{id}/apply` \| `/dismiss` | the human decision |
-
-The agent **never writes anything itself**. `analyse` returns proposals — set availability, invite a squad, post an announcement, chase match fees — each with its rationale and a confidence. Applying one is a separate authorised call, which does the write and posts a note in the thread. Every run is recorded in `agent_runs` with its token counts.
-
-It sees only: the last 60 messages, the club roster (with reliability and how many fixtures each member has been available for but left out of), fixtures 21 days ahead, recorded availability, and who owes a fee. It is instructed to use only ids from that context, so it cannot invent a player or a date.
-
-Set `ANTHROPIC_API_KEY` to switch it on (`FISHERS_AGENT_MODEL` defaults to `claude-opus-5`). Without a key, chat works and `analyse` reports `disabled`.
-
-## Squad selection
-
-Availability first, then a side is picked — by a captain, by the deterministic ranking, or by the assistant — then players reconfirm a couple of days out and reserves fill the gaps on their own.
-
-| Method | Path | Notes |
-|---|---|---|
-| GET/POST | `/events/{id}/selection` | the captain's board / commit a squad (`publish: true` announces it) |
-| POST | `/events/{id}/selection/suggest` | deterministic pick, no model involved |
-| POST | `/events/{id}/selection/agent` | the assistant decides; auto-publishes only on `auto_publish` |
-| POST | `/events/{id}/selection/publish` | announce the squad as it stands |
-| POST | `/events/{id}/selection/respond` | the player's reconfirmation (`{confirming}`) |
-| POST | `/events/{id}/selection/promote` | pull up reserves now |
-| POST | `/events/{id}/status` | delayed, called off, back on — announced to the squad |
-| GET/POST | `/clubs/{id}/fees/outstanding` \| `/fees/chase` | who owes, and chase them now |
-| POST | `/fixture-blocks` · `/fixture-blocks/{id}/selection` | a tour or tournament, and squads across all of it |
-
-**Ranking** (`backend/domain/src/selection.rs`, 21 unit tests) weighs availability first — picking someone who said no wastes the place — then reliability, then *rotation debt*: fixtures a player was available for and left out of. Position quotas are filled first (a cricket XI wants a keeper and two seamers), and any quota the pool can't satisfy is reported rather than hidden. Across a block the same engine spreads appearances so nobody sits out a whole tour.
-
-**The assistant** starts from that ranking and may depart from it when the thread justifies it — an injury mentioned in chat, someone who can only make half of it — and has to say why. It writes the announcement too.
-
-**Per-club policy** (defaults, all changeable per club): `selection_autonomy = 'suggest'` (the assistant proposes, a human publishes; `auto_publish` lets it announce alone, `off` disables it), `confirm_lead_hours = 48`, `drop_lead_hours = 24`, `fee_chase_after_hours = 24`, `fee_chase_max_reminders = 3`.
-
-The scheduler (`backend/jobs`) asks for reconfirmations as the deadline nears, drops the unconfirmed at the drop deadline and promotes reserves, and chases unpaid match fees — so a captain and a treasurer aren't keeping lists.
+- PR build + tests: `.github/workflows/ios.yml`
+- TestFlight / App Store: `.github/workflows/ios_release.yml` (Vault + fastlane, same pattern as KubePilot)
 
 ## Repo layout
 
