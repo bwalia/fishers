@@ -9,12 +9,15 @@ struct EventDetailView: View {
     @State private var showSquad = false
     @State private var board: SelectionBoard?
     @State private var isResponding = false
+    @State private var roleInfo: ClubRoleInfo?
+    @State private var existingCricket: CricketMatchDTO?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let event {
                     header(event)
+                    cricketScoringEntry(event)
                     selectionCard(event)
                     rsvpRow
                     paymentRow(event)
@@ -47,6 +50,44 @@ struct EventDetailView: View {
         .task { await load() }
         .sheet(isPresented: $showSquad) {
             SquadPickerView(attendees: attendees)
+        }
+    }
+
+    @ViewBuilder
+    private func cricketScoringEntry(_ event: Event) -> some View {
+        let isCricketFixture = event.sport.lowercased() == "cricket"
+            && (event.eventSubtype == "friendly" || event.eventSubtype == "league_match")
+        if isCricketFixture {
+            let canScore = roleInfo?.canScoreMatch == true
+            NavigationLink {
+                CricketScoringFlowView(event: event, attendees: attendees, canScore: canScore)
+            } label: {
+                Label(
+                    existingCricket == nil ? "Start Match" : "Continue scoring",
+                    systemImage: "sportscourt.fill"
+                )
+                .font(FishersTheme.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(FishersTheme.pitch)
+            .disabled(!canScore && existingCricket == nil)
+            .accessibilityLabel(existingCricket == nil ? "Start match scoring" : "Continue match scoring")
+            if !canScore {
+                Text("Captains, secretaries, and assigned scorers can score.")
+                    .font(FishersTheme.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            if let match = existingCricket {
+                NavigationLink {
+                    CricketScorecardView(state: match.state) { id in
+                        String(id.uuidString.prefix(8))
+                    }
+                } label: {
+                    Label("View scorecard", systemImage: "list.bullet.rectangle")
+                }
+            }
         }
     }
 
@@ -226,9 +267,13 @@ struct EventDetailView: View {
             async let e = FishersAPI.event(id: eventId)
             async let a = FishersAPI.attendees(eventId: eventId)
             (event, attendees) = try await (e, a)
-            // Selection may not apply to this fixture (nets, socials) — a
-            // failure here shouldn't blank the screen.
             board = try? await FishersAPI.selectionBoard(eventId: eventId)
+            if let event {
+                roleInfo = try? await FishersAPI.myClubRole(clubId: event.clubId)
+                if event.sport.lowercased() == "cricket" {
+                    existingCricket = try? await FishersAPI.cricketMatchForEvent(eventId: eventId)
+                }
+            }
         } catch {
             message = error.localizedDescription
         }

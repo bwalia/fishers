@@ -65,6 +65,7 @@ struct MyRoleResponse {
     is_secretary: bool,
     is_captain: bool,
     can_invite_to_play: bool,
+    can_score_match: bool,
     permissions: Vec<&'static str>,
 }
 
@@ -80,9 +81,13 @@ async fn my_role(
         is_secretary: matches!(role, UserRole::ClubAdmin | UserRole::SuperAdmin),
         is_captain: matches!(
             role,
-            UserRole::TeamCaptain | UserRole::ClubAdmin | UserRole::SuperAdmin
+            UserRole::TeamCaptain
+                | UserRole::TeamViceCaptain
+                | UserRole::ClubAdmin
+                | UserRole::SuperAdmin
         ),
         can_invite_to_play: role.can_invite_to_play(),
+        can_score_match: role.can_score_match(),
         permissions: permissions_for(role)
             .iter()
             .map(|p| p.as_str())

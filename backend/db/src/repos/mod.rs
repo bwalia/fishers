@@ -2,6 +2,7 @@ pub mod agent;
 pub mod availability;
 pub mod chat;
 pub mod clubs;
+pub mod cricket;
 pub mod events;
 pub mod invites;
 pub mod orders;
