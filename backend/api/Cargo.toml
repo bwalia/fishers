@@ -13,6 +13,7 @@ argon2 = { workspace = true }
 axum = { workspace = true }
 chrono = { workspace = true }
 dotenvy = { workspace = true }
+fishers-agent = { path = "../agent" }
 fishers-db = { path = "../db" }
 fishers-domain = { path = "../domain" }
 fishers-jobs = { path = "../jobs" }

@@ -87,6 +87,9 @@ struct ClubDetailView: View {
     let club: Club
     @State private var teams: [Team] = []
     @State private var events: [Event] = []
+    @State private var blocks: [FixtureBlock] = []
+    @State private var isCreatingTournament = false
+    @State private var newTournamentName = ""
 
     var body: some View {
         List {
@@ -104,6 +107,34 @@ struct ClubDetailView: View {
                     }
                 }
             }
+            Section {
+                if blocks.isEmpty {
+                    Text("No tournaments or tours yet")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(blocks) { block in
+                        NavigationLink(value: block) {
+                            HStack(spacing: 10) {
+                                Image(systemName: block.systemImage)
+                                    .foregroundStyle(FishersTheme.accent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(block.name)
+                                    Text(block.kind.capitalized)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                Button("New tournament or tour") { isCreatingTournament = true }
+                    .font(.subheadline)
+            } header: {
+                Text("Tournaments & tours")
+            } footer: {
+                Text("A tournament carries its own entrants, pitches and table; a tour carries the travel details.")
+            }
+
             Section("Fixtures & nets") {
                 ForEach(events) { event in
                     NavigationLink(value: event) {
@@ -114,11 +145,19 @@ struct ClubDetailView: View {
         }
         .navigationTitle(club.name)
         .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }
-        .task {
-            async let t = FishersAPI.teams(clubId: club.id)
-            async let e = FishersAPI.events(clubId: club.id)
-            teams = (try? await t) ?? []
-            events = (try? await e) ?? []
+        .navigationDestination(for: FixtureBlock.self) { TournamentView(block: $0) }
+        .task { await load() }
+        .alert("New tournament or tour", isPresented: $isCreatingTournament) {
+            TextField("e.g. Lords T20 Festival", text: $newTournamentName)
+            Button("Create") {
+                let name = newTournamentName
+                newTournamentName = ""
+                Task {
+                    _ = try? await FishersAPI.createTournament(name: name, clubId: club.id)
+                    await load()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -127,6 +166,15 @@ struct ClubDetailView: View {
                 }
             }
         }
+    }
+
+    private func load() async {
+        async let t = FishersAPI.teams(clubId: club.id)
+        async let e = FishersAPI.events(clubId: club.id)
+        async let b = FishersAPI.fixtureBlocks(clubId: club.id)
+        teams = (try? await t) ?? []
+        events = (try? await e) ?? []
+        blocks = (try? await b) ?? []
     }
 
     private func seedNets() async {

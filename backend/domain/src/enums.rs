@@ -65,6 +65,8 @@ pub enum EventSubtype {
 pub enum EventStatus {
     Draft,
     Scheduled,
+    /// Called off for now — rain, unplayable ground, opposition pulled out.
+    Postponed,
     Cancelled,
     Completed,
 }

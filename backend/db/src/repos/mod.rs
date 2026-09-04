@@ -1,7 +1,11 @@
+pub mod agent;
 pub mod availability;
+pub mod chat;
 pub mod clubs;
 pub mod events;
 pub mod invites;
 pub mod orders;
 pub mod payments;
+pub mod selection;
+pub mod tournament;
 pub mod users;

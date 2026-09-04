@@ -1,6 +1,8 @@
 //! Core domain types for Fishers — clubs, events, availability, payments.
 
+mod agent;
 mod availability;
+mod chat;
 mod club;
 mod enums;
 mod event;
@@ -10,7 +12,9 @@ mod payment;
 mod rbac;
 mod user;
 
+pub use agent::*;
 pub use availability::*;
+pub use chat::*;
 pub use club::*;
 pub use enums::*;
 pub use event::*;

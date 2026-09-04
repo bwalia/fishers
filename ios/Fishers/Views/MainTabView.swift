@@ -7,6 +7,8 @@ struct MainTabView: View {
                 .tabItem { Label("Home", systemImage: "house.fill") }
             AvailabilityCalendarView()
                 .tabItem { Label("Calendar", systemImage: "calendar") }
+            ChatListView()
+                .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right.fill") }
             ClubsTeamsView()
                 .tabItem { Label("Clubs", systemImage: "person.3.fill") }
             ShopView()
