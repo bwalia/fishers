@@ -61,9 +61,9 @@ struct ProfileView: View {
                 ProfileAvatar(user: user, size: 64)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(user.name)
-                        .font(.title3.weight(.semibold))
+                        .font(FishersTheme.contentTitle)
                     Text(user.email)
-                        .font(.subheadline)
+                        .font(FishersTheme.subhead)
                         .foregroundStyle(.secondary)
                     if let primary = user.primaryProfile, let sport = primary.sportKind {
                         Label(

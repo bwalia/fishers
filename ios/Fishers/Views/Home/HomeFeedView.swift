@@ -12,13 +12,14 @@ struct HomeFeedView: View {
                         Label("No sessions yet", systemImage: "calendar.badge.plus")
                     } description: {
                         Text("Join a club or add sample fixtures from the Clubs tab.")
+                            .font(FishersTheme.body)
                     }
                 } else {
                     List {
                         if let error {
                             Section {
                                 Text(error)
-                                    .font(.footnote)
+                                    .font(FishersTheme.footnote)
                                     .foregroundStyle(.red)
                             }
                         }
@@ -30,6 +31,8 @@ struct HomeFeedView: View {
                             }
                         } header: {
                             Text("Upcoming")
+                                .font(FishersTheme.overline)
+                                .tracking(0.8)
                         }
                     }
                     .listStyle(.insetGrouped)
@@ -68,27 +71,31 @@ struct EventRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: FishersTheme.space2) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(event.title)
-                    .font(.body.weight(.semibold))
+                    .font(FishersTheme.contentTitle)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
+
                 Text(event.eventSubtype.replacingOccurrences(of: "_", with: " ").capitalized)
-                    .font(.caption)
+                    .font(FishersTheme.overline)
+                    .tracking(0.7)
+                    .textCase(.uppercase)
                     .foregroundStyle(FishersTheme.accent)
+
                 Text(event.startAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.subheadline)
+                    .font(FishersTheme.subhead)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             if let fee = event.feeAmountCents {
                 Text(String(format: "£%.0f", Double(fee) / 100))
-                    .font(.body.weight(.semibold).monospacedDigit())
+                    .font(FishersTheme.headline.monospacedDigit())
                     .foregroundStyle(.primary)
                     .accessibilityLabel("Fee \(String(format: "£%.0f", Double(fee) / 100))")
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
     }
 }

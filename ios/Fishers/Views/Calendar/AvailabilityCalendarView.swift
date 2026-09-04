@@ -74,7 +74,8 @@ struct AvailabilityCalendarView: View {
             Spacer()
             Text(vm.month.formatted(.dateTime.month(.wide).year()))
                 .font(FishersTheme.title)
-                .foregroundStyle(FishersTheme.ink)
+                .tracking(-0.3)
+                .foregroundStyle(.primary)
             Spacer()
             Button {
                 vm.month = Calendar.current.date(byAdding: .month, value: 1, to: vm.month) ?? vm.month

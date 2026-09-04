@@ -1,10 +1,11 @@
 import SwiftUI
 import UIKit
 
-/// Fishers visual language — Apple HIG semantic tokens + pitch-green brand tint.
-/// Prefer system text styles (Dynamic Type) and semantic colors over fixed sizes.
+/// Fishers visual language — Apple HIG tokens with a *visible* SF type hierarchy.
+/// - Brand → SF Rounded (wordmark)
+/// - Fixture titles → SF New York (serif content)
+/// - Chrome / forms → SF Text (Dynamic Type styles)
 enum FishersTheme {
-    /// Brand tint — also set as the app `AccentColor` asset.
     static let accent = Color("AccentColor")
     static let pitch = Color(light: Color(red: 0.10, green: 0.52, blue: 0.34),
                              dark: Color(red: 0.28, green: 0.72, blue: 0.50))
@@ -16,33 +17,62 @@ enum FishersTheme {
                                    dark: Color(red: 0.92, green: 0.42, blue: 0.40))
     static let seam = Color(red: 0.78, green: 0.18, blue: 0.18)
 
-    // Semantic surfaces (HIG) — track light/dark automatically.
     static let ink = Color.primary
     static let muted = Color.secondary
     static let mist = Color(.systemGroupedBackground)
     static let cream = Color(.secondarySystemGroupedBackground)
 
-    // Dynamic Type text styles (do not hard-code point sizes for body UI).
-    static let brand = Font.largeTitle.weight(.bold)
-    static let display = Font.largeTitle.weight(.bold)
-    static let title = Font.title2.weight(.semibold)
+    // MARK: Type — semantic Dynamic Type + deliberate SF designs
+
+    /// Wordmark — SF Rounded, heavy (Apple brand moments).
+    static let brand = Font.system(.largeTitle, design: .rounded).weight(.heavy)
+    static let brandInline = Font.system(.title2, design: .rounded).weight(.heavy)
+
+    /// Screen / section titles — SF Text.
+    static let display = Font.system(.largeTitle, design: .default).weight(.bold)
+    static let title = Font.system(.title2, design: .default).weight(.bold)
+
+    /// Fixture / content titles — New York (readable, distinct from chrome).
+    static let contentTitle = Font.system(.title3, design: .serif).weight(.semibold)
+
     static let headline = Font.headline
     static let body = Font.body
     static let callout = Font.callout
     static let subhead = Font.subheadline
-    static let caption = Font.caption.weight(.medium)
+    static let caption = Font.caption.weight(.semibold)
     static let footnote = Font.footnote
-    static let overline = Font.caption2.weight(.semibold)
+    /// Short labels only (HIG: avoid long all-caps runs).
+    static let overline = Font.system(.caption2, design: .default).weight(.bold)
 
-    /// 8-pt grid.
     static let space1: CGFloat = 8
     static let space2: CGFloat = 16
     static let space3: CGFloat = 24
     static let space4: CGFloat = 32
     static let minTap: CGFloat = 44
-}
 
-// MARK: - Adaptive colour helper
+    /// Apply once at launch so large titles and bar buttons match the type system.
+    static func applyNavigationChrome() {
+        let large = UIFont.systemFont(ofSize: 34, weight: .bold)
+        let inline = UIFont.systemFont(ofSize: 17, weight: .semibold)
+
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithDefaultBackground()
+        appearance.largeTitleTextAttributes = [
+            .font: large,
+            .foregroundColor: UIColor.label,
+        ]
+        appearance.titleTextAttributes = [
+            .font: inline,
+            .foregroundColor: UIColor.label,
+        ]
+
+        let nav = UINavigationBar.appearance()
+        nav.standardAppearance = appearance
+        nav.compactAppearance = appearance
+        nav.scrollEdgeAppearance = appearance
+        nav.prefersLargeTitles = true
+    }
+}
 
 private extension Color {
     init(light: Color, dark: Color) {
@@ -56,14 +86,32 @@ private extension Color {
 
 extension View {
     func fishersBody() -> some View {
-        font(FishersTheme.body).foregroundStyle(.primary)
+        font(FishersTheme.body)
+            .foregroundStyle(.primary)
+            .lineSpacing(3)
     }
 
     func fishersTitle() -> some View {
-        font(FishersTheme.title).foregroundStyle(.primary)
+        font(FishersTheme.title)
+            .foregroundStyle(.primary)
+            .tracking(-0.4)
+    }
+
+    func fishersContentTitle() -> some View {
+        font(FishersTheme.contentTitle)
+            .foregroundStyle(.primary)
+            .lineSpacing(2)
     }
 
     func fishersCaption() -> some View {
-        font(FishersTheme.caption).foregroundStyle(.secondary)
+        font(FishersTheme.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    func fishersOverline() -> some View {
+        font(FishersTheme.overline)
+            .tracking(0.8)
+            .textCase(.uppercase)
+            .foregroundStyle(.secondary)
     }
 }
