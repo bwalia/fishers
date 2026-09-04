@@ -6,137 +6,100 @@ struct AuthView: View {
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
+    @FocusState private var focused: Field?
 
     enum Mode { case login, signup }
+    enum Field { case name, email, password }
 
     var body: some View {
-        ZStack {
-            background
-
-            ScrollView {
-                VStack(spacing: 32) {
-                    Spacer(minLength: 48)
-
-                    FishersBrandHeader(
-                        style: .hero,
-                        showsTagline: true,
-                        onDark: true
-                    )
-                    .padding(.horizontal, 28)
-
-                    formCard
-                        .padding(.horizontal, 22)
-
-                    Spacer(minLength: 40)
+        NavigationStack {
+            Form {
+                Section {
+                    FishersBrandHeader(style: .hero, showsTagline: true)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: FishersTheme.space3, leading: 0, bottom: FishersTheme.space2, trailing: 0))
                 }
-            }
-        }
-    }
 
-    private var background: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    FishersTheme.pitch,
-                    FishersTheme.accent,
-                    Color(red: 0.04, green: 0.16, blue: 0.14),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            // Soft pitch-line motif — atmosphere without clutter.
-            GeometryReader { geo in
-                Path { path in
-                    let mid = geo.size.height * 0.42
-                    path.move(to: CGPoint(x: 0, y: mid))
-                    path.addQuadCurve(
-                        to: CGPoint(x: geo.size.width, y: mid + 40),
-                        control: CGPoint(x: geo.size.width * 0.5, y: mid - 50)
-                    )
+                Section {
+                    if mode == .signup {
+                        TextField("Name", text: $name)
+                            .textContentType(.name)
+                            .focused($focused, equals: .name)
+                    }
+                    TextField("Email", text: $email)
+                        .textContentType(.emailAddress)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focused, equals: .email)
+                    SecureField("Password", text: $password)
+                        .textContentType(mode == .login ? .password : .newPassword)
+                        .focused($focused, equals: .password)
+                } header: {
+                    Text(mode == .login ? "Sign in" : "Create account")
+                } footer: {
+                    Text(mode == .login
+                         ? "Use your club email to see fixtures, chats and selection."
+                         : "You’ll set up how you play after creating an account.")
                 }
-                .stroke(Color.white.opacity(0.08), lineWidth: 2)
-            }
-        }
-        .ignoresSafeArea()
-    }
 
-    private var formCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(mode == .login ? "Welcome back" : "Join your club")
-                .font(FishersTheme.title)
-                .foregroundStyle(FishersTheme.ink)
+                Section {
+                    Button {
+                        focused = nil
+                        Task { await submit() }
+                    } label: {
+                        if session.isLoading {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text(mode == .login ? "Sign in" : "Create account")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(session.isLoading || !canSubmit)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
 
-            Text(mode == .login
-                 ? "Sign in to see fixtures, chats and selection."
-                 : "Create an account to organise nets, league and socials.")
-                .font(FishersTheme.footnote)
-                .foregroundStyle(FishersTheme.muted)
-                .fixedSize(horizontal: false, vertical: true)
+                    Button(mode == .login ? "Need an account? Sign up" : "Have an account? Sign in") {
+                        withAnimation(.snappy) {
+                            mode = mode == .login ? .signup : .login
+                        }
+                    }
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                }
 
-            if mode == .signup {
-                field("Name", text: $name)
-            }
-            field("Email", text: $email)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.emailAddress)
-                .textContentType(.emailAddress)
-
-            SecureField("Password", text: $password)
-                .font(FishersTheme.body)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-                .background(FishersTheme.mist)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .textContentType(mode == .login ? .password : .newPassword)
-
-            Button {
-                Task {
-                    if mode == .login {
-                        await session.login(email: email, password: password)
-                    } else {
-                        await session.signUp(name: name, email: email, password: password)
+                if let error = session.errorMessage {
+                    Section {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .accessibilityLabel("Error: \(error)")
                     }
                 }
-            } label: {
-                Text(mode == .login ? "Sign in" : "Create account")
-                    .font(FishersTheme.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(FishersTheme.accent)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .disabled(session.isLoading)
-            .opacity(session.isLoading ? 0.7 : 1)
-
-            Button(mode == .login ? "Need an account? Sign up" : "Have an account? Sign in") {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    mode = mode == .login ? .signup : .login
-                }
-            }
-            .font(FishersTheme.subhead)
-            .foregroundStyle(FishersTheme.accent)
-            .frame(maxWidth: .infinity)
-
-            if let error = session.errorMessage {
-                Text(error)
-                    .font(FishersTheme.footnote)
-                    .foregroundStyle(FishersTheme.unavailable)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationBarTitleDisplayMode(.inline)
         }
-        .padding(22)
-        .background(Color.white.opacity(0.96))
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.18), radius: 24, y: 12)
+        .tint(FishersTheme.accent)
     }
 
-    private func field(_ title: String, text: Binding<String>) -> some View {
-        TextField(title, text: text)
-            .font(FishersTheme.body)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .background(FishersTheme.mist)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    private var canSubmit: Bool {
+        let emailOk = !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let passwordOk = password.count >= 6
+        if mode == .signup {
+            return emailOk && passwordOk && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return emailOk && passwordOk
+    }
+
+    private func submit() async {
+        if mode == .login {
+            await session.login(email: email, password: password)
+        } else {
+            await session.signUp(name: name, email: email, password: password)
+        }
     }
 }

@@ -5,6 +5,7 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var isEditing = false
+    @State private var confirmSignOut = false
 
     var body: some View {
         NavigationStack {
@@ -15,6 +16,7 @@ struct ProfileView: View {
                         Section("Reliability") {
                             ReliabilityCard(reliability: reliability)
                                 .padding(.vertical, 4)
+                                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         }
                     }
                     ForEach(user.profiles) { profile in
@@ -25,21 +27,27 @@ struct ProfileView: View {
                     }
                     contactSection(user)
                 }
-                settingsSection
+                shopSection
+                accountSection
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Edit") { isEditing = true }
                 }
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Sign out", role: .destructive) {
-                        session.signOut()
-                    }
-                }
             }
             .sheet(isPresented: $isEditing) {
                 ProfileEditView(user: session.user)
+            }
+            .confirmationDialog("Sign out of Fishers?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+                Button("Sign out", role: .destructive) {
+                    session.signOut()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You can sign back in anytime on this device.")
             }
             .task { await session.refreshProfile() }
         }
@@ -49,13 +57,13 @@ struct ProfileView: View {
 
     private func header(_ user: PublicUser) -> some View {
         Section {
-            HStack(spacing: 16) {
+            HStack(spacing: FishersTheme.space2) {
                 ProfileAvatar(user: user, size: 64)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(user.name)
-                        .font(.title3.bold())
+                        .font(.title3.weight(.semibold))
                     Text(user.email)
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                     if let primary = user.primaryProfile, let sport = primary.sportKind {
                         Label(
@@ -63,15 +71,16 @@ struct ProfileView: View {
                             systemImage: sport.systemImage
                         )
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(FishersTheme.accent)
+                        .foregroundStyle(.tint)
                     }
                 }
-                Spacer()
+                Spacer(minLength: 0)
                 if let reliability = user.reliability {
                     ReliabilityRing(reliability: reliability, size: 56)
                 }
             }
             .padding(.vertical, 6)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -100,7 +109,7 @@ struct ProfileView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                             Text(target.shortLabel)
-                                .foregroundStyle(FishersTheme.accent)
+                                .foregroundStyle(.tint)
                         }
                     }
                 }
@@ -126,7 +135,7 @@ struct ProfileView: View {
                 if session.user?.primarySport == profile.sport {
                     Text("MAIN")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(FishersTheme.accent)
+                        .foregroundStyle(.tint)
                 }
             }
         }
@@ -170,25 +179,29 @@ struct ProfileView: View {
         }
     }
 
-    private var settingsSection: some View {
+    private var shopSection: some View {
+        Section("Club shop") {
+            NavigationLink {
+                ShopView()
+            } label: {
+                Label("Browse kit & food", systemImage: "bag")
+            }
+        }
+    }
+
+    private var accountSection: some View {
         Section {
             LabeledContent("API host", value: AppConfig.apiBaseURL.absoluteString)
-                .font(FishersTheme.footnote)
-                .foregroundStyle(FishersTheme.muted)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
 
             Button(role: .destructive) {
-                session.signOut()
+                confirmSignOut = true
             } label: {
-                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                    .font(FishersTheme.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Sign out")
             }
         } header: {
             Text("Account")
-        } footer: {
-            Text("Signs you out on this device. You can sign back in anytime.")
-                .font(FishersTheme.footnote)
         }
     }
 }
-

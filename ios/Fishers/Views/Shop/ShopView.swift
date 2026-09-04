@@ -8,62 +8,64 @@ struct ShopView: View {
     @State private var showCheckout = false
 
     var body: some View {
-        NavigationStack {
-            List {
-                if clubs.isEmpty {
-                    Text("Join a club to see its shop.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Picker("Club", selection: $selectedClub) {
-                        ForEach(clubs) { club in
-                            Text(club.name).tag(Optional(club))
-                        }
+        List {
+            if clubs.isEmpty {
+                Text("Join a club to see its shop.")
+                    .foregroundStyle(.secondary)
+            } else {
+                Picker("Club", selection: $selectedClub) {
+                    ForEach(clubs) { club in
+                        Text(club.name).tag(Optional(club))
                     }
-                    .onChange(of: selectedClub) { _, club in
-                        Task { await loadProducts(club) }
-                    }
+                }
+                .onChange(of: selectedClub) { _, club in
+                    Task { await loadProducts(club) }
+                }
 
-                    ForEach(products) { product in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(product.name).font(.headline)
-                                Text(product.category.capitalized)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(product.priceLabel)
-                            Button {
-                                if let club = selectedClub {
-                                    cart.add(product, clubId: club.id)
-                                }
-                            } label: {
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundStyle(FishersTheme.accent)
-                            }
+                ForEach(products) { product in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(product.name).font(.headline)
+                            Text(product.category.capitalized)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
+                        Spacer()
+                        Text(product.priceLabel)
+                        Button {
+                            if let club = selectedClub {
+                                cart.add(product, clubId: club.id)
+                            }
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(.tint)
+                                .frame(minWidth: 44, minHeight: 44)
+                        }
+                        .buttonStyle(.borderless)
                     }
                 }
             }
-            .navigationTitle("Shop")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showCheckout = true
-                    } label: {
-                        Label("Cart (\(cart.lines.count))", systemImage: "cart")
-                    }
-                    .disabled(cart.lines.isEmpty)
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Shop")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showCheckout = true
+                } label: {
+                    Label("Cart (\(cart.lines.count))", systemImage: "cart")
                 }
+                .disabled(cart.lines.isEmpty)
             }
-            .sheet(isPresented: $showCheckout) {
-                CheckoutView()
-            }
-            .task {
-                clubs = (try? await FishersAPI.clubs()) ?? []
-                selectedClub = clubs.first
-                await loadProducts(selectedClub)
-            }
+        }
+        .sheet(isPresented: $showCheckout) {
+            CheckoutView()
+        }
+        .task {
+            clubs = (try? await FishersAPI.clubs()) ?? []
+            selectedClub = clubs.first
+            await loadProducts(selectedClub)
         }
     }
 

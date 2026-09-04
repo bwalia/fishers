@@ -63,43 +63,42 @@ struct ProfileSetupView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: FishersTheme.space2) {
             HStack(alignment: .center) {
-                FishersBrandHeader(style: .bar)
+                FishersBrandHeader(style: .inline)
                 Spacer(minLength: 8)
                 Button("Sign out", role: .destructive) {
                     session.signOut()
                 }
-                .font(FishersTheme.subhead)
+                .font(.subheadline)
+                .frame(minHeight: FishersTheme.minTap)
             }
 
             HStack {
                 Text("Step \(clampedIndex + 1) of \(steps.count)")
-                    .font(FishersTheme.overline)
-                    .tracking(0.5)
-                    .foregroundStyle(FishersTheme.muted)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
                 Spacer()
                 if case .sport(let sport) = currentStep {
                     Label(sport.label, systemImage: sport.systemImage)
-                        .font(FishersTheme.caption)
-                        .foregroundStyle(FishersTheme.accent)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tint)
                 }
             }
             ProgressView(value: Double(stepIndex + 1), total: Double(steps.count))
                 .tint(FishersTheme.accent)
             Text(title)
-                .font(FishersTheme.title)
-                .foregroundStyle(FishersTheme.ink)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.primary)
             Text(subtitle)
-                .font(FishersTheme.callout)
-                .foregroundStyle(FishersTheme.muted)
-                .lineSpacing(3)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 12)
-        .padding(.top, 10)
-        .background(FishersTheme.cream)
+        .padding(.horizontal, FishersTheme.space2)
+        .padding(.bottom, FishersTheme.space2)
+        .padding(.top, FishersTheme.space1)
+        .background(Color(.systemBackground))
     }
 
     private var footer: some View {

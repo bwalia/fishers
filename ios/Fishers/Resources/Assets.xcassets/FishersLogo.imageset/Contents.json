@@ -2,22 +2,15 @@
   "images" : [
     {
       "filename" : "fishers-logo.png",
-      "idiom" : "universal",
-      "scale" : "1x"
-    },
-    {
-      "filename" : "wendy.h@example.net",
-      "idiom" : "universal",
-      "scale" : "2x"
-    },
-    {
-      "filename" : "carol.w@example.org",
-      "idiom" : "universal",
-      "scale" : "3x"
+      "idiom" : "universal"
     }
   ],
   "info" : {
     "author" : "xcode",
     "version" : 1
+  },
+  "properties" : {
+    "preserves-vector-representation" : false,
+    "template-rendering-intent" : "original"
   }
 }
