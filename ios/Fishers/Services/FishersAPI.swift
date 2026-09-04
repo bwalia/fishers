@@ -28,6 +28,159 @@ enum FishersAPI {
         try await NetworkService.shared.request("PATCH", path: "/me", body: update)
     }
 
+    // MARK: Tournaments
+
+    static func fixtureBlocks(clubId: UUID) async throws -> [FixtureBlock] {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/fixture-blocks"
+        )
+    }
+
+    static func createTournament(
+        name: String,
+        clubId: UUID,
+        kind: String = "tournament"
+    ) async throws -> FixtureBlock {
+        struct Body: Encodable {
+            let name: String
+            let club_id: UUID
+            let kind: String
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/fixture-blocks",
+            body: Body(name: name, club_id: clubId, kind: kind)
+        )
+    }
+
+    static func entrants(blockId: UUID) async throws -> [TournamentEntrant] {
+        try await NetworkService.shared.request(
+            "GET", path: "/fixture-blocks/\(blockId.uuidString)/entrants"
+        )
+    }
+
+    static func addEntrants(blockId: UUID, names: [String]) async throws -> [TournamentEntrant] {
+        struct NewEntrant: Encodable { let name: String; let seed: Int? }
+        struct Body: Encodable { let entrants: [NewEntrant] }
+        let entrants = names.enumerated().map { NewEntrant(name: $1, seed: $0 + 1) }
+        return try await NetworkService.shared.request(
+            "POST", path: "/fixture-blocks/\(blockId.uuidString)/entrants",
+            body: Body(entrants: entrants)
+        )
+    }
+
+    static func tournamentSchedule(blockId: UUID) async throws -> [ScheduleRow] {
+        try await NetworkService.shared.request(
+            "GET", path: "/fixture-blocks/\(blockId.uuidString)/schedule"
+        )
+    }
+
+    static func standings(blockId: UUID) async throws -> [Standing] {
+        try await NetworkService.shared.request(
+            "GET", path: "/fixture-blocks/\(blockId.uuidString)/standings"
+        )
+    }
+
+    /// Lay out the grid: one slot per court per round.
+    static func generateSlots(
+        blockId: UUID,
+        courts: [String],
+        firstStart: Date,
+        matchMinutes: Int,
+        gapMinutes: Int,
+        rounds: Int
+    ) async throws {
+        struct Body: Encodable {
+            let courts: [String]
+            let first_start: Date
+            let match_minutes: Int
+            let gap_minutes: Int
+            let rounds: Int
+            let replace: Bool
+        }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/fixture-blocks/\(blockId.uuidString)/slots",
+            body: Body(
+                courts: courts, first_start: firstStart, match_minutes: matchMinutes,
+                gap_minutes: gapMinutes, rounds: rounds, replace: true
+            )
+        )
+    }
+
+    /// `commit: false` previews the fixture list without writing it.
+    static func generateSchedule(
+        blockId: UUID,
+        format: TournamentFormat,
+        groupCount: Int?,
+        commit: Bool
+    ) async throws {
+        struct Body: Encodable {
+            let format: String
+            let group_count: Int?
+            let commit: Bool
+        }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/fixture-blocks/\(blockId.uuidString)/schedule",
+            body: Body(format: format.rawValue, group_count: groupCount, commit: commit)
+        )
+    }
+
+    static func generateKnockout(blockId: UUID, perGroup: Int, commit: Bool) async throws {
+        struct Body: Encodable { let per_group: Int; let commit: Bool }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/fixture-blocks/\(blockId.uuidString)/knockout",
+            body: Body(per_group: perGroup, commit: commit)
+        )
+    }
+
+    static func recordResult(
+        eventId: UUID,
+        entrants: [(entrantId: UUID, score: Int?, result: String)]
+    ) async throws {
+        struct Line: Encodable { let entrant_id: UUID; let score: Int?; let result: String }
+        struct Body: Encodable { let entrants: [Line] }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/events/\(eventId.uuidString)/result",
+            body: Body(entrants: entrants.map { Line(entrant_id: $0.entrantId, score: $0.score, result: $0.result) })
+        )
+    }
+
+    // MARK: Ticketed events
+
+    static func tickets(eventId: UUID) async throws -> TicketBooking {
+        try await NetworkService.shared.request(
+            "GET", path: "/events/\(eventId.uuidString)/tickets"
+        )
+    }
+
+    static func bookTicket(
+        eventId: UUID,
+        guests: Int,
+        guestNames: String?,
+        notes: String?
+    ) async throws -> EventTicket {
+        struct Body: Encodable {
+            let guests: Int
+            let guest_names: String?
+            let notes: String?
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/events/\(eventId.uuidString)/tickets",
+            body: Body(guests: guests, guest_names: guestNames, notes: notes)
+        )
+    }
+
+    static func payTicket(_ ticketId: UUID) async throws -> EventTicket {
+        try await NetworkService.shared.request(
+            "POST", path: "/tickets/\(ticketId.uuidString)/pay"
+        )
+    }
+
+    static func cancelTicket(_ ticketId: UUID) async throws -> EventTicket {
+        try await NetworkService.shared.request(
+            "POST", path: "/tickets/\(ticketId.uuidString)/cancel"
+        )
+    }
+
     // MARK: Selection
 
     static func selectionBoard(eventId: UUID) async throws -> SelectionBoard {
