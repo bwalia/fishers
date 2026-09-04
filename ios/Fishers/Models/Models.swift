@@ -7,15 +7,58 @@ struct PublicUser: Codable, Identifiable, Equatable {
     var phone: String?
     var avatarUrl: String?
     var sportsPlayed: [String]
+    /// Position and standard of the primary sport, flattened for list views.
     var positionRole: String?
     var skillLevel: String?
+    var emergencyContact: String?
+    /// Sport the player leads with — the rest of the profile hangs off it.
+    var primarySport: String?
+    /// One entry per sport played, each with its own level, league and stats.
+    var sportProfiles: [SportProfile]?
+    var location: PlayerLocation?
+    /// Server's view of whether first-run profile setup is done.
+    var profileComplete: Bool?
+    /// Computed by the API from attendance and payment history.
+    var reliability: ReliabilityScore?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, email, phone
+        case id, name, email, phone, location, reliability
         case avatarUrl = "avatar_url"
         case sportsPlayed = "sports_played"
         case positionRole = "position_role"
         case skillLevel = "skill_level"
+        case emergencyContact = "emergency_contact"
+        case primarySport = "primary_sport"
+        case sportProfiles = "sport_profiles"
+        case profileComplete = "profile_complete"
+    }
+
+    var initials: String {
+        let parts = name.split(separator: " ")
+        let first = parts.first?.first.map(String.init) ?? ""
+        let last = parts.count > 1 ? parts.last?.first.map(String.init) ?? "" : ""
+        return first + last
+    }
+
+    var profiles: [SportProfile] { sportProfiles ?? [] }
+
+    var primaryProfile: SportProfile? {
+        profiles.first { $0.sport == primarySport } ?? profiles.first
+    }
+
+    func profile(for sport: Sport) -> SportProfile? {
+        profiles.first { $0.sport == sport.rawValue }
+    }
+
+    var playedSports: [Sport] { profiles.compactMap(\.sportKind) }
+
+    /// The gate the app uses to decide whether to run profile setup: a name, at
+    /// least one sport, and a stated level for it. Trusts the server's flag when
+    /// it sends one.
+    var isProfileComplete: Bool {
+        if let profileComplete { return profileComplete }
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        return primaryProfile?.isComplete ?? false
     }
 }
 

@@ -7,6 +7,9 @@ mod event;
 mod invite;
 mod order;
 mod payment;
+mod profile;
+/// Reliability scoring is namespaced: `reliability::score(counts)`.
+pub mod reliability;
 mod user;
 
 pub use availability::*;
@@ -16,6 +19,8 @@ pub use event::*;
 pub use invite::*;
 pub use order::*;
 pub use payment::*;
+pub use profile::*;
+pub use reliability::{ReliabilityBand, ReliabilityCounts, ReliabilityScore};
 pub use user::*;
 
 use thiserror::Error;

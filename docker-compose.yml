@@ -7,7 +7,8 @@ services:
       POSTGRES_PASSWORD: fishers
       POSTGRES_DB: fishers
     ports:
-      - "5433:5432"
+      # Override POSTGRES_PORT in .env when 5433 is already taken locally.
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
