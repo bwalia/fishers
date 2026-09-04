@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Brand mark for content areas (auth hero, empty states) — not persistent chrome.
+/// Uses the same full-bleed icon artwork as the app icon (Apple HIG: one recognizable glyph).
 struct FishersBrandHeader: View {
     enum Style {
         case hero
@@ -11,10 +12,13 @@ struct FishersBrandHeader: View {
     var showsTagline: Bool = false
     var tagline: String = "Clubs, calendars, and match day — organised."
 
+    /// Continuous corner radius ≈ iOS icon mask proportion.
+    private var iconCorner: CGFloat { logoSize * 0.2237 }
+
     private var logoSize: CGFloat {
         switch style {
-        case .hero: return 88
-        case .inline: return 36
+        case .hero: return 108
+        case .inline: return 40
         }
     }
 
@@ -23,26 +27,30 @@ struct FishersBrandHeader: View {
             switch style {
             case .hero:
                 VStack(spacing: FishersTheme.space2) {
-                    logo
+                    appIcon
+                        .shadow(color: .black.opacity(0.18), radius: 20, y: 10)
                     Text("Fishers")
-                        .font(.largeTitle.weight(.bold))
+                        .font(FishersTheme.brand)
+                        .tracking(0.8)
                         .foregroundStyle(.primary)
                         .accessibilityAddTraits(.isHeader)
                     if showsTagline {
                         Text(tagline)
-                            .font(.body)
+                            .font(FishersTheme.callout)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
+                            .lineSpacing(3)
                             .padding(.horizontal, FishersTheme.space2)
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
             case .inline:
-                HStack(spacing: 10) {
-                    logo
+                HStack(spacing: 12) {
+                    appIcon
                     Text("Fishers")
-                        .font(.title3.weight(.bold))
+                        .font(FishersTheme.brandInline)
+                        .tracking(0.4)
                         .foregroundStyle(.primary)
                 }
                 .accessibilityElement(children: .combine)
@@ -51,12 +59,25 @@ struct FishersBrandHeader: View {
         }
     }
 
-    private var logo: some View {
+    private var appIcon: some View {
         Image("FishersLogo")
             .resizable()
             .scaledToFit()
             .frame(width: logoSize, height: logoSize)
-            .clipShape(RoundedRectangle(cornerRadius: logoSize * 0.22, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: iconCorner, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Glyph-only mark (ball + hook) when a full green tile is too heavy.
+struct FishersMark: View {
+    var size: CGFloat = 28
+
+    var body: some View {
+        Image("FishersMark")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 }
