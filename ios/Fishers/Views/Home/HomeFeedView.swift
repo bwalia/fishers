@@ -6,30 +6,47 @@ struct HomeFeedView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                FishersTheme.mist.ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text("Upcoming")
-                            .font(FishersTheme.title)
-                            .foregroundStyle(FishersTheme.ink)
-
-                        if events.isEmpty {
-                            Text("No sessions yet. Join a club or add sample fixtures.")
-                                .foregroundStyle(.secondary)
-                        } else {
+            Group {
+                if events.isEmpty && error == nil {
+                    ContentUnavailableView {
+                        Label("No sessions yet", systemImage: "calendar.badge.plus")
+                    } description: {
+                        Text("Join a club or add sample fixtures from the Clubs tab.")
+                    }
+                } else {
+                    List {
+                        if let error {
+                            Section {
+                                Text(error)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                        Section {
                             ForEach(events) { event in
                                 NavigationLink(value: event) {
                                     EventRow(event: event)
                                 }
-                                .buttonStyle(.plain)
                             }
+                        } header: {
+                            Text("Upcoming")
                         }
                     }
-                    .padding()
+                    .listStyle(.insetGrouped)
                 }
             }
             .navigationTitle("Home")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        ShopView()
+                    } label: {
+                        Image(systemName: "bag")
+                    }
+                    .accessibilityLabel("Shop")
+                }
+            }
             .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }
             .task { await load() }
             .refreshable { await load() }
@@ -50,16 +67,12 @@ struct EventRow: View {
     let event: Event
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(FishersTheme.pitch.gradient)
-                .frame(width: 4)
-                .padding(.vertical, 4)
-
+        HStack(alignment: .firstTextBaseline, spacing: FishersTheme.space2) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(event.title)
-                    .font(.headline)
-                    .foregroundStyle(FishersTheme.ink)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
                 Text(event.eventSubtype.replacingOccurrences(of: "_", with: " ").capitalized)
                     .font(.caption)
                     .foregroundStyle(FishersTheme.accent)
@@ -67,15 +80,15 @@ struct EventRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
+            Spacer(minLength: 8)
             if let fee = event.feeAmountCents {
                 Text(String(format: "£%.0f", Double(fee) / 100))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(FishersTheme.ink)
+                    .font(.body.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel("Fee \(String(format: "£%.0f", Double(fee) / 100))")
             }
         }
-        .padding()
-        .background(FishersTheme.cream)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 }

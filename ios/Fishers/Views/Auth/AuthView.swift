@@ -6,89 +6,100 @@ struct AuthView: View {
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
+    @FocusState private var focused: Field?
 
     enum Mode { case login, signup }
+    enum Field { case name, email, password }
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [FishersTheme.pitch, FishersTheme.accent.opacity(0.85), Color.black.opacity(0.55)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 28) {
-                Spacer()
-                VStack(spacing: 8) {
-                    Text("Fishers")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Text("Clubs, calendars, and match day — organised.")
-                        .font(.system(.body, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
+        NavigationStack {
+            Form {
+                Section {
+                    FishersBrandHeader(style: .hero, showsTagline: true)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: FishersTheme.space3, leading: 0, bottom: FishersTheme.space2, trailing: 0))
                 }
-                .padding(.horizontal)
 
-                VStack(spacing: 14) {
+                Section {
                     if mode == .signup {
-                        field("Name", text: $name)
+                        TextField("Name", text: $name)
+                            .textContentType(.name)
+                            .focused($focused, equals: .name)
                     }
-                    field("Email", text: $email)
-                        .textInputAutocapitalization(.never)
+                    TextField("Email", text: $email)
+                        .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focused, equals: .email)
                     SecureField("Password", text: $password)
-                        .padding()
-                        .background(.white.opacity(0.95))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .textContentType(mode == .login ? .password : .newPassword)
+                        .focused($focused, equals: .password)
+                } header: {
+                    Text(mode == .login ? "Sign in" : "Create account")
+                } footer: {
+                    Text(mode == .login
+                         ? "Use your club email to see fixtures, chats and selection."
+                         : "You’ll set up how you play after creating an account.")
+                }
 
+                Section {
                     Button {
-                        Task {
-                            if mode == .login {
-                                await session.login(email: email, password: password)
-                            } else {
-                                await session.signUp(name: name, email: email, password: password)
-                            }
-                        }
+                        focused = nil
+                        Task { await submit() }
                     } label: {
-                        Text(mode == .login ? "Sign in" : "Create account")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.white)
-                            .foregroundStyle(FishersTheme.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        if session.isLoading {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text(mode == .login ? "Sign in" : "Create account")
+                                .frame(maxWidth: .infinity)
+                        }
                     }
-                    .disabled(session.isLoading)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(session.isLoading || !canSubmit)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
 
                     Button(mode == .login ? "Need an account? Sign up" : "Have an account? Sign in") {
-                        mode = mode == .login ? .signup : .login
+                        withAnimation(.snappy) {
+                            mode = mode == .login ? .signup : .login
+                        }
                     }
-                    .foregroundStyle(.white.opacity(0.9))
                     .font(.subheadline)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                }
 
-                    if let error = session.errorMessage {
+                if let error = session.errorMessage {
+                    Section {
                         Text(error)
                             .font(.footnote)
-                            .foregroundStyle(Color.orange)
-                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.red)
+                            .accessibilityLabel("Error: \(error)")
                     }
                 }
-                .padding(24)
-                .background(.ultraThinMaterial.opacity(0.35))
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .padding(.horizontal, 24)
-
-                Spacer()
             }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationBarTitleDisplayMode(.inline)
         }
+        .tint(FishersTheme.accent)
     }
 
-    private func field(_ title: String, text: Binding<String>) -> some View {
-        TextField(title, text: text)
-            .padding()
-            .background(.white.opacity(0.95))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    private var canSubmit: Bool {
+        let emailOk = !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let passwordOk = password.count >= 6
+        if mode == .signup {
+            return emailOk && passwordOk && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return emailOk && passwordOk
+    }
+
+    private func submit() async {
+        if mode == .login {
+            await session.login(email: email, password: password)
+        } else {
+            await session.signUp(name: name, email: email, password: password)
+        }
     }
 }

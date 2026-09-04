@@ -10,7 +10,7 @@ struct FishersApp: App {
             RootView()
                 .environmentObject(session)
                 .environmentObject(cart)
-                .preferredColorScheme(.light)
+                .tint(FishersTheme.accent)
         }
     }
 }

@@ -12,7 +12,7 @@ struct AvailabilityCalendarView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                FishersTheme.mist.ignoresSafeArea()
+                Color(.systemGroupedBackground).ignoresSafeArea()
                 VStack(spacing: 16) {
                     header
                     weekdayHeader
@@ -49,6 +49,7 @@ struct AvailabilityCalendarView: View {
                 }
             }
             .navigationTitle("Calendar")
+            .navigationBarTitleDisplayMode(.large)
             .task { await vm.load() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -73,6 +74,7 @@ struct AvailabilityCalendarView: View {
             Spacer()
             Text(vm.month.formatted(.dateTime.month(.wide).year()))
                 .font(FishersTheme.title)
+                .foregroundStyle(FishersTheme.ink)
             Spacer()
             Button {
                 vm.month = Calendar.current.date(byAdding: .month, value: 1, to: vm.month) ?? vm.month
@@ -89,7 +91,8 @@ struct AvailabilityCalendarView: View {
         LazyVGrid(columns: columns, spacing: 6) {
             ForEach(weekdays, id: \.self) { d in
                 Text(d)
-                    .font(.caption.weight(.semibold))
+                    .font(FishersTheme.overline)
+                    .tracking(0.4)
                     .foregroundStyle(.secondary)
             }
         }
@@ -107,7 +110,7 @@ struct AvailabilityCalendarView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(color(for: status).opacity(status == nil ? 0.15 : 0.85))
                 Text("\(Calendar.current.component(.day, from: day))")
-                    .font(.subheadline.weight(.semibold))
+                    .font(FishersTheme.subhead)
                     .foregroundStyle(status == nil ? FishersTheme.ink : .white)
                 if hasEvent {
                     Circle()
@@ -126,7 +129,7 @@ struct AvailabilityCalendarView: View {
     private func dayDetail(_ day: Date) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(day.formatted(date: .complete, time: .omitted))
-                .font(.headline)
+                .font(FishersTheme.headline)
             let status = vm.days[Calendar.current.startOfDay(for: day)]
             Text(status?.label ?? "Tap a day to set availability")
                 .foregroundStyle(.secondary)

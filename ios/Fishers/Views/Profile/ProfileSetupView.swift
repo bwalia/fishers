@@ -63,7 +63,17 @@ struct ProfileSetupView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: FishersTheme.space2) {
+            HStack(alignment: .center) {
+                FishersBrandHeader(style: .inline)
+                Spacer(minLength: 8)
+                Button("Sign out", role: .destructive) {
+                    session.signOut()
+                }
+                .font(.subheadline)
+                .frame(minHeight: FishersTheme.minTap)
+            }
+
             HStack {
                 Text("Step \(clampedIndex + 1) of \(steps.count)")
                     .font(.caption.weight(.semibold))
@@ -72,21 +82,23 @@ struct ProfileSetupView: View {
                 if case .sport(let sport) = currentStep {
                     Label(sport.label, systemImage: sport.systemImage)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(FishersTheme.accent)
+                        .foregroundStyle(.tint)
                 }
             }
             ProgressView(value: Double(stepIndex + 1), total: Double(steps.count))
                 .tint(FishersTheme.accent)
             Text(title)
-                .font(.title2.bold())
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.primary)
             Text(subtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal)
-        .padding(.bottom, 12)
-        .padding(.top, 8)
+        .padding(.horizontal, FishersTheme.space2)
+        .padding(.bottom, FishersTheme.space2)
+        .padding(.top, FishersTheme.space1)
+        .background(Color(.systemBackground))
     }
 
     private var footer: some View {

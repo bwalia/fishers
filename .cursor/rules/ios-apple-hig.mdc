@@ -1,0 +1,19 @@
+---
+description: Apply Apple HIG when designing or changing Fishers iOS UI
+globs: ios/**/*.swift
+alwaysApply: false
+---
+
+# Fishers iOS UI
+
+When editing SwiftUI under `ios/`, follow the project skill
+`.cursor/skills/apple-hig-designer/SKILL.md`.
+
+Priorities for this app:
+- Clarity, deference, depth — content over chrome
+- Semantic colors + `AccentColor` (pitch green); support light and dark
+- Dynamic Type text styles (`.title`, `.body`, …), not fixed point sizes for reading UI
+- `NavigationStack` + large titles on top-level tabs; inset grouped lists
+- 3–5 tab bar items; SF Symbols; 44pt minimum hit targets
+- Destructive actions use confirmation dialogs
+- Keep the Fishers logo for auth / empty brand moments — not a permanent top chrome bar
