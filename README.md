@@ -55,6 +55,30 @@ Run on Simulator. API base URL defaults to `http://localhost:8080` in `Fishers/C
 - PR build + tests: `.github/workflows/ios.yml`
 - TestFlight / App Store: `.github/workflows/ios_release.yml` (Vault + fastlane, same pattern as KubePilot)
 
+## Squad selection
+
+Availability first, then a side is picked — by a captain, by the deterministic ranking, or by the assistant — then players reconfirm a couple of days out and reserves fill the gaps on their own.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET/POST | `/events/{id}/selection` | the captain's board / commit a squad (`publish: true` announces it) |
+| POST | `/events/{id}/selection/suggest` | deterministic pick, no model involved |
+| POST | `/events/{id}/selection/agent` | the assistant decides; auto-publishes only on `auto_publish` |
+| POST | `/events/{id}/selection/publish` | announce the squad as it stands |
+| POST | `/events/{id}/selection/respond` | the player's reconfirmation (`{confirming}`) |
+| POST | `/events/{id}/selection/promote` | pull up reserves now |
+| POST | `/events/{id}/status` | delayed, called off, back on — announced to the squad |
+| GET/POST | `/clubs/{id}/fees/outstanding` \| `/fees/chase` | who owes, and chase them now |
+| POST | `/fixture-blocks` · `/fixture-blocks/{id}/selection` | a tour or tournament, and squads across all of it |
+
+**Ranking** (`backend/domain/src/selection.rs`, 21 unit tests) weighs availability first — picking someone who said no wastes the place — then reliability, then *rotation debt*: fixtures a player was available for and left out of. Position quotas are filled first (a cricket XI wants a keeper and two seamers), and any quota the pool can't satisfy is reported rather than hidden. Across a block the same engine spreads appearances so nobody sits out a whole tour.
+
+**The assistant** starts from that ranking and may depart from it when the thread justifies it — an injury mentioned in chat, someone who can only make half of it — and has to say why. It writes the announcement too.
+
+**Per-club policy** (defaults, all changeable per club): `selection_autonomy = 'suggest'` (the assistant proposes, a human publishes; `auto_publish` lets it announce alone, `off` disables it), `confirm_lead_hours = 48`, `drop_lead_hours = 24`, `fee_chase_after_hours = 24`, `fee_chase_max_reminders = 3`.
+
+The scheduler (`backend/jobs`) asks for reconfirmations as the deadline nears, drops the unconfirmed at the drop deadline and promotes reserves, and chases unpaid match fees — so a captain and a treasurer aren't keeping lists.
+
 ## Repo layout
 
 ```
