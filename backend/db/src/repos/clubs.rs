@@ -243,3 +243,66 @@ pub async fn is_club_member(
     .await?;
     Ok(row.0)
 }
+
+/// Active club role for RBAC (`club_admin` = secretary, `team_captain`, …).
+pub async fn club_role(
+    pool: &PgPool,
+    club_id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<UserRole>, sqlx::Error> {
+    sqlx::query_scalar::<_, UserRole>(
+        r#"
+        SELECT role FROM club_members
+        WHERE club_id = $1 AND user_id = $2 AND status = 'active'
+        "#,
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn team_role(
+    pool: &PgPool,
+    team_id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<UserRole>, sqlx::Error> {
+    sqlx::query_scalar::<_, UserRole>(
+        r#"
+        SELECT role FROM team_members
+        WHERE team_id = $1 AND user_id = $2
+        "#,
+    )
+    .bind(team_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn get_team(pool: &PgPool, team_id: Uuid) -> Result<Option<Team>, sqlx::Error> {
+    sqlx::query_as::<_, Team>(
+        r#"
+        SELECT id, club_id, sport, name, created_at
+        FROM teams WHERE id = $1
+        "#,
+    )
+    .bind(team_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Highest of club role and (optional) team role for permission checks.
+pub async fn effective_membership_role(
+    pool: &PgPool,
+    club_id: Uuid,
+    user_id: Uuid,
+    team_id: Option<Uuid>,
+) -> Result<Option<UserRole>, sqlx::Error> {
+    let club = club_role(pool, club_id, user_id).await?;
+    let team = if let Some(tid) = team_id {
+        team_role(pool, tid, user_id).await?
+    } else {
+        None
+    };
+    Ok(fishers_domain::effective_role(club, team))
+}

@@ -1,6 +1,18 @@
 import Foundation
 
 enum FishersAPI {
+    static func myClubRole(clubId: UUID) async throws -> ClubRoleInfo {
+        try await NetworkService.shared.request("GET", path: "/clubs/\(clubId.uuidString)/my-role")
+    }
+
+    static func inviteToEvent(eventId: UUID, userId: UUID) async throws {
+        struct Body: Encodable { let user_id: UUID }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/events/\(eventId.uuidString)/invite",
+            body: Body(user_id: userId)
+        )
+    }
+
     static func signup(name: String, email: String, password: String) async throws -> AuthTokens {
         struct Body: Encodable { let name, email, password: String }
         return try await NetworkService.shared.request(
