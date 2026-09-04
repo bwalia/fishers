@@ -7,28 +7,32 @@ Fishers gates admin actions with a permission matrix. Roles live on `club_member
 | Product name | Stored as | Who |
 |---|---|---|
 | **Club secretary** | `club_admin` | Roster, club/team/event invites, venues, fees, selection oversight |
-| **Team captain** | `team_captain` | Invite to play, create fixtures, pick/publish squad |
+| **Team captain** | `team_captain` | Invite to play, create fixtures, pick/publish squad, score matches |
+| **Vice captain** | `team_vice_captain` | Score matches, help with selection |
 | **Member** | `member` | Availability, RSVP, shop, chat |
 | **Guest** | `guest` | Same as member for a one-off invitee |
 | **Super admin** | `super_admin` | Platform ops |
 
-Aliases accepted when parsing: `secretary` / `club_secretary` → `club_admin`, `captain` → `team_captain`.
+Aliases accepted when parsing: `secretary` / `club_secretary` → `club_admin`, `captain` → `team_captain`, `vice_captain` → `team_vice_captain`.
 
 ## Permissions
 
 Defined in `backend/domain/src/rbac.rs` (unit-tested):
 
-| Permission | Secretary | Captain | Member |
-|---|---|---|---|
-| `invite_to_club` | ✓ | | |
-| `invite_to_team` | ✓ | ✓ | |
-| `invite_to_event` (**invite to play**) | ✓ | ✓ | |
-| `manage_events` | ✓ | ✓ | |
-| `manage_selection` | ✓ | ✓ | |
-| `manage_members` | ✓ | | |
-| `manage_club_ops` | ✓ | | |
-| `use_admin_assistant` | ✓ | ✓ | |
-| `respond_as_player` / `view_club` | ✓ | ✓ | ✓ |
+| Permission | Secretary | Captain | Vice | Member |
+|---|---|---|---|---|
+| `invite_to_club` | ✓ | | | |
+| `invite_to_team` | ✓ | ✓ | | |
+| `invite_to_event` (**invite to play**) | ✓ | ✓ | | |
+| `manage_events` | ✓ | ✓ | | |
+| `manage_selection` | ✓ | ✓ | | |
+| `score_match` | ✓ | ✓ | ✓ | |
+| `manage_members` | ✓ | | | |
+| `manage_club_ops` | ✓ | | | |
+| `use_admin_assistant` | ✓ | ✓ | | |
+| `respond_as_player` / `view_club` | ✓ | ✓ | ✓ | ✓ |
+
+Match scorers without a club role can be listed on `cricket_match_officials` — see [CRICKET_SCORING.md](CRICKET_SCORING.md).
 
 ## API enforcement
 
@@ -37,6 +41,7 @@ Defined in `backend/domain/src/rbac.rs` (unit-tested):
 - `POST /clubs/{id}/members` — secretary only (appoint captains here)
 - `POST /clubs/{id}/teams|venues` — secretary (`manage_club_ops`)
 - `POST /events` — captain or secretary (`manage_events`)
+- Cricket scoring routes — `score_match` or match official
 
 Helpers: `backend/api/src/rbac.rs`.
 
@@ -51,7 +56,8 @@ Helpers: `backend/api/src/rbac.rs`.
   "is_secretary": true,
   "is_captain": true,
   "can_invite_to_play": true,
-  "permissions": ["view_club", "invite_to_event", "..."]
+  "can_score_match": true,
+  "permissions": ["view_club", "invite_to_event", "score_match", "..."]
 }
 ```
 

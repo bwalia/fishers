@@ -2,6 +2,7 @@ mod auth;
 mod availability;
 mod chat;
 mod clubs;
+mod cricket;
 mod events;
 mod invites;
 mod notifications;
@@ -34,6 +35,7 @@ fn api_v1() -> Router<AppState> {
         .merge(payments::router())
         .merge(selection::router())
         .merge(tournament::router())
+        .merge(cricket::router())
         .merge(orders::router())
         .merge(notifications::router())
 }

@@ -11,6 +11,8 @@ pub enum UserRole {
     /// Club secretary — roster, invites, venues, fees, selection oversight.
     ClubAdmin,
     TeamCaptain,
+    /// Vice captain — can score matches and help with selection.
+    TeamViceCaptain,
     Member,
     Guest,
 }

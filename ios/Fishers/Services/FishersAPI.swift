@@ -442,6 +442,64 @@ enum FishersAPI {
             body: Body(event_id: eventId, amount_cents: amountCents, currency: "GBP")
         )
     }
+
+    // MARK: Cricket scoring
+
+    static func createCricketMatch(
+        eventId: UUID,
+        oversLimit: Int,
+        homeName: String,
+        awayName: String
+    ) async throws -> CricketMatchDTO {
+        struct Body: Encodable {
+            let overs_limit: Int
+            let home_name: String
+            let away_name: String
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/events/\(eventId.uuidString)/cricket-match",
+            body: Body(overs_limit: oversLimit, home_name: homeName, away_name: awayName)
+        )
+    }
+
+    static func cricketMatchForEvent(eventId: UUID) async throws -> CricketMatchDTO {
+        try await NetworkService.shared.request(
+            "GET", path: "/events/\(eventId.uuidString)/cricket-match"
+        )
+    }
+
+    static func cricketMatch(id: UUID) async throws -> CricketMatchDTO {
+        try await NetworkService.shared.request("GET", path: "/cricket/matches/\(id.uuidString)")
+    }
+
+    static func claimScorer(matchId: UUID, deviceId: String) async throws -> CricketMatchDTO {
+        struct Body: Encodable { let device_id: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/cricket/matches/\(matchId.uuidString)/claim-scorer",
+            body: Body(device_id: deviceId)
+        )
+    }
+
+    static func postCricketEvents(
+        matchId: UUID,
+        deviceId: String,
+        events: [ScoringEvent]
+    ) async throws -> CricketMatchDTO {
+        struct Body: Encodable {
+            let device_id: String
+            let events: [ScoringEvent]
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/cricket/matches/\(matchId.uuidString)/events",
+            body: Body(device_id: deviceId, events: events)
+        )
+    }
+
+    static func cricketScorecard(matchId: UUID) async throws -> MatchState {
+        try await NetworkService.shared.request(
+            "GET", path: "/cricket/matches/\(matchId.uuidString)/scorecard"
+        )
+    }
 }
 
 struct CreateEventBody: Encodable {
