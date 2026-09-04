@@ -28,6 +28,79 @@ enum FishersAPI {
         try await NetworkService.shared.request("PATCH", path: "/me", body: update)
     }
 
+    // MARK: Chat
+
+    static func conversations() async throws -> [ConversationSummary] {
+        try await NetworkService.shared.request("GET", path: "/conversations")
+    }
+
+    static func createConversation(
+        title: String,
+        clubId: UUID?,
+        teamId: UUID? = nil,
+        eventId: UUID? = nil
+    ) async throws -> Conversation {
+        struct Body: Encodable {
+            let title: String
+            let club_id: UUID?
+            let team_id: UUID?
+            let event_id: UUID?
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/conversations",
+            body: Body(title: title, club_id: clubId, team_id: teamId, event_id: eventId)
+        )
+    }
+
+    static func messages(conversationId: UUID, limit: Int = 50) async throws -> [ChatMessage] {
+        try await NetworkService.shared.request(
+            "GET", path: "/conversations/\(conversationId.uuidString)/messages?limit=\(limit)"
+        )
+    }
+
+    static func postMessage(conversationId: UUID, body: String) async throws -> ChatMessage {
+        struct Body: Encodable { let body: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/conversations/\(conversationId.uuidString)/messages",
+            body: Body(body: body)
+        )
+    }
+
+    static func markRead(conversationId: UUID) async throws {
+        struct Body: Encodable { let read_at: Date? }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/conversations/\(conversationId.uuidString)/read",
+            body: Body(read_at: Date())
+        )
+    }
+
+    static func proposals(conversationId: UUID) async throws -> [AgentProposal] {
+        try await NetworkService.shared.request(
+            "GET", path: "/conversations/\(conversationId.uuidString)/proposals"
+        )
+    }
+
+    /// Asks the assistant to read the thread and propose what needs doing.
+    static func analyseConversation(_ conversationId: UUID) async throws -> AgentAnalysis {
+        try await NetworkService.shared.request(
+            "POST", path: "/conversations/\(conversationId.uuidString)/agent/analyse"
+        )
+    }
+
+    static func applyProposal(_ id: UUID) async throws -> AgentProposal {
+        try await NetworkService.shared.request(
+            "POST", path: "/agent/proposals/\(id.uuidString)/apply"
+        )
+    }
+
+    static func dismissProposal(_ id: UUID) async throws -> AgentProposal {
+        try await NetworkService.shared.request(
+            "POST", path: "/agent/proposals/\(id.uuidString)/dismiss"
+        )
+    }
+
+    // MARK: Clubs
+
     static func clubs() async throws -> [Club] {
         try await NetworkService.shared.request("GET", path: "/clubs")
     }

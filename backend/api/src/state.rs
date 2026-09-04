@@ -1,3 +1,4 @@
+use fishers_agent::AgentService;
 use fishers_notifications::PushService;
 use fishers_payments::StripeClient;
 use sqlx::PgPool;
@@ -10,6 +11,8 @@ pub struct AppState {
     pub refresh_ttl_secs: i64,
     pub stripe: StripeClient,
     pub push: PushService,
+    /// Reads chat threads and proposes admin; disabled without ANTHROPIC_API_KEY.
+    pub agent: AgentService,
 }
 
 impl AppState {
@@ -29,6 +32,7 @@ impl AppState {
             refresh_ttl_secs,
             stripe: StripeClient::from_env(),
             push,
+            agent: AgentService::from_env(),
         }
     }
 }

@@ -1,4 +1,6 @@
+pub mod agent;
 pub mod availability;
+pub mod chat;
 pub mod clubs;
 pub mod events;
 pub mod invites;
