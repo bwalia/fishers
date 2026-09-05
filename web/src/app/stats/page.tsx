@@ -149,7 +149,7 @@ export default function StatsPage() {
           </p>
           {season.play_cricket_profile_url && (
             <p style={{ marginTop: 8 }}>
-              <a href={season.play_cricket_profile_url} target="_blank" rel="noreferrer">
+              <a href="https://play-cricket.com/" target="_blank" rel="noreferrer">
                 View on Play-Cricket →
               </a>
             </p>
@@ -197,7 +197,7 @@ export default function StatsPage() {
                     {board.play_cricket?.public_url && (
                       <p style={{ marginTop: 8 }}>
                         <a
-                          href={board.play_cricket.public_url}
+                          href="https://play-cricket.com/"
                           target="_blank"
                           rel="noreferrer"
                         >

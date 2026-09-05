@@ -97,7 +97,7 @@ struct ClubDetailView: View {
                 Text(club.description ?? "No description yet.")
                 Text(club.visibility.replacingOccurrences(of: "_", with: " ").capitalized)
             }
-            if club.sportTypes.contains("cricket") {
+            if club.sportTypes.contains(where: { $0.caseInsensitiveCompare("cricket") == .orderedSame }) {
                 Section("Season stats") {
                     NavigationLink {
                         ClubStatsView(clubId: club.id, clubName: club.name)

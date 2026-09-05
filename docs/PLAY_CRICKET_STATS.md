@@ -1,6 +1,8 @@
 # Play-Cricket season stats
 
-Fishers stores **season aggregates** (runs, wickets, records) and **deep links** to [Play-Cricket](https://play-cricket.com) (ECB) player and club pages.
+Fishers stores **season aggregates** (runs, wickets, records) and links out to [Play-Cricket](https://play-cricket.com/) (ECB).
+
+All Play-Cricket buttons open **`https://play-cricket.com/`** (the live public site). Fabricated sample deep paths are not used.
 
 ## Why sample data?
 
@@ -32,9 +34,13 @@ Sample squad (8 extra players): `20260905000009_play_cricket_sample_squad.sql`
 
 ## Clients
 
-- **iOS Profile** — runs / wickets / achievements + “View on Play-Cricket”
-- **iOS Club detail** — Season stats → club board
+- **iOS Profile** — **Season stats** section (always visible): runs / wickets / achievements + “View on Play-Cricket”
+- **iOS Club detail** — Season stats → club board  
 - **Web** — `/stats` dashboard
+
+Sign in as `demo@fishers.test` / `password123` for the sample showcase season (412 runs, 23 wickets).
+
+If Profile shows a decode/network error under Season stats, confirm the API is running (`./scripts/run-api.sh`) and rebuild the iOS app so fractional ISO-8601 timestamps decode correctly.
 
 ## Live sync (optional)
 

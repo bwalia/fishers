@@ -119,8 +119,7 @@ INSERT INTO play_cricket_club_sites (club_id, site_id, site_name, public_url, ap
 SELECT c.id,
        CASE WHEN c.name ILIKE '%lords%' THEN '12345' ELSE '23456' END,
        c.name || ' on Play-Cricket',
-       'https://play-cricket.com/website/view/' ||
-           CASE WHEN c.name ILIKE '%lords%' THEN '12345' ELSE '23456' END,
+       'https://play-cricket.com/',
        'PLAY_CRICKET_API_TOKEN'
 FROM clubs c
 WHERE 'cricket' = ANY (c.sport_types)
@@ -174,8 +173,7 @@ SELECT r.user_id, r.club_id,
        (r.site_id || lpad(r.rn::text, 4, '0')),
        r.site_id,
        r.name,
-       'https://play-cricket.com/website/player_stats?site_id=' || r.site_id ||
-           '&player_id=' || (r.site_id || lpad(r.rn::text, 4, '0')),
+       'https://play-cricket.com/',
        NOW()
 FROM ranked r
 ON CONFLICT (user_id, club_id) DO NOTHING;
