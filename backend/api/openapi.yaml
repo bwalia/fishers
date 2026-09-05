@@ -1,0 +1,686 @@
+openapi: 3.1.0
+info:
+  title: Fishers API
+  version: 0.1.0
+  description: |
+    Multi-sport club management API (auth, clubs, fixtures, selection, cricket scoring,
+    chat agent, shop, payments). Base path `/api/v1`. JWT Bearer for protected routes.
+  contact:
+    name: Fishers
+servers:
+  - url: http://127.0.0.1:8080/api/v1
+    description: Local API
+tags:
+  - name: Health
+  - name: Auth
+  - name: Users
+  - name: Clubs
+  - name: Events
+  - name: Availability
+  - name: Selection
+  - name: Cricket
+  - name: Chat
+  - name: Orders
+  - name: Payments
+  - name: Tournament
+  - name: Notifications
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness
+      servers:
+        - url: http://127.0.0.1:8080
+      responses:
+        "200":
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "200":
+          description: Tokens + user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Tokens + user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: New tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+
+  /me:
+    get:
+      tags: [Users]
+      summary: Current user profile
+      responses:
+        "200":
+          description: Public user
+    patch:
+      tags: [Users]
+      summary: Update profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Updated user
+
+  /clubs:
+    get:
+      tags: [Clubs]
+      summary: List my clubs
+      responses:
+        "200":
+          description: Club list
+    post:
+      tags: [Clubs]
+      summary: Create club
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClubRequest"
+      responses:
+        "200":
+          description: Club
+
+  /clubs/{id}:
+    get:
+      tags: [Clubs]
+      summary: Get club
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Club
+
+  /clubs/{id}/my-role:
+    get:
+      tags: [Clubs]
+      summary: My role and permissions in the club
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Role info including can_score_match
+
+  /clubs/{id}/members:
+    get:
+      tags: [Clubs]
+      summary: List members
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Members
+    post:
+      tags: [Clubs]
+      summary: Add / update member role (secretary)
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: OK
+
+  /clubs/{id}/teams:
+    get:
+      tags: [Clubs]
+      summary: List teams
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Teams
+    post:
+      tags: [Clubs]
+      summary: Create team
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Team
+
+  /clubs/{id}/venues:
+    get:
+      tags: [Clubs]
+      summary: List venues
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Venues
+    post:
+      tags: [Clubs]
+      summary: Create venue
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Venue
+
+  /clubs/{id}/products:
+    get:
+      tags: [Orders]
+      summary: List active shop products
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      tags: [Orders]
+      summary: Create product (ManageClubOps)
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+      responses:
+        "200":
+          description: Product
+
+  /events:
+    get:
+      tags: [Events]
+      summary: List fixtures
+      parameters:
+        - name: club_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: cricket_season
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Events
+    post:
+      tags: [Events]
+      summary: Create fixture
+      responses:
+        "200":
+          description: Event
+
+  /events/{id}:
+    get:
+      tags: [Events]
+      summary: Event detail
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Event
+
+  /events/{id}/rsvp:
+    post:
+      tags: [Events]
+      summary: RSVP to fixture
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: OK
+
+  /events/{id}/attendees:
+    get:
+      tags: [Events]
+      summary: Attendees
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Attendees
+
+  /events/{id}/invite:
+    post:
+      tags: [Events]
+      summary: Invite to play (captain/secretary)
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: OK
+
+  /events/{id}/selection:
+    get:
+      tags: [Selection]
+      summary: Selection board
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Board
+    post:
+      tags: [Selection]
+      summary: Set squad
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Board
+
+  /events/{id}/selection/suggest:
+    post:
+      tags: [Selection]
+      summary: Deterministic squad suggestion
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Proposal
+
+  /events/{id}/selection/agent:
+    post:
+      tags: [Selection]
+      summary: Assistant squad pick
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Proposal
+
+  /events/{id}/selection/publish:
+    post:
+      tags: [Selection]
+      summary: Announce current squad
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: OK
+
+  /events/{id}/selection/respond:
+    post:
+      tags: [Selection]
+      summary: Player reconfirm / decline
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: OK
+
+  /events/{id}/cricket-match:
+    get:
+      tags: [Cricket]
+      summary: Get cricket match for fixture
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Match
+    post:
+      tags: [Cricket]
+      summary: Create or link cricket match
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                overs_limit: { type: integer, default: 20 }
+                home_name: { type: string }
+                away_name: { type: string }
+      responses:
+        "200":
+          description: Match
+
+  /cricket/matches/{id}:
+    get:
+      tags: [Cricket]
+      summary: Match state + sync cursor
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Match
+
+  /cricket/matches/{id}/claim-scorer:
+    post:
+      tags: [Cricket]
+      summary: Claim active scorer lock
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id]
+              properties:
+                device_id: { type: string }
+      responses:
+        "200":
+          description: Match
+        "409":
+          description: Another scorer holds the lock
+
+  /cricket/matches/{id}/events:
+    get:
+      tags: [Cricket]
+      summary: Scoring events after seq
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: after_seq
+          in: query
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Event list
+    post:
+      tags: [Cricket]
+      summary: Batch sync client scoring events
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_id: { type: string }
+                events:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        "200":
+          description: Updated match
+
+  /cricket/matches/{id}/scorecard:
+    get:
+      tags: [Cricket]
+      summary: Scorecard projection
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: MatchState
+
+  /availability:
+    get:
+      tags: [Availability]
+      summary: My availability window
+      responses:
+        "200":
+          description: Days
+    post:
+      tags: [Availability]
+      summary: Upsert one day
+      responses:
+        "200":
+          description: Day
+
+  /conversations:
+    get:
+      tags: [Chat]
+      summary: My conversations
+      responses:
+        "200":
+          description: Threads
+    post:
+      tags: [Chat]
+      summary: Create conversation
+      responses:
+        "200":
+          description: Conversation
+
+  /conversations/{id}/messages:
+    get:
+      tags: [Chat]
+      summary: Messages
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Messages
+    post:
+      tags: [Chat]
+      summary: Post message
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Message
+
+  /conversations/{id}/agent/analyse:
+    post:
+      tags: [Chat]
+      summary: Run admin assistant on thread
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Analysis + proposals
+
+  /agent/proposals/{id}/apply:
+    post:
+      tags: [Chat]
+      summary: Apply proposal via domain services
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Proposal
+
+  /agent/proposals/{id}/dismiss:
+    post:
+      tags: [Chat]
+      summary: Dismiss proposal
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Proposal
+
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Place shop order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceOrderRequest"
+      responses:
+        "200":
+          description: Order
+
+  /orders/mine:
+    get:
+      tags: [Orders]
+      summary: My orders
+      responses:
+        "200":
+          description: Orders
+
+  /payments/intent:
+    post:
+      tags: [Payments]
+      summary: Create payment intent (stub)
+      responses:
+        "200":
+          description: Intent
+
+  /fixture-blocks:
+    get:
+      tags: [Tournament]
+      summary: List fixture blocks
+      responses:
+        "200":
+          description: Blocks
+    post:
+      tags: [Tournament]
+      summary: Create tournament / tour block
+      responses:
+        "200":
+          description: Block
+
+  /notifications/register-device:
+    post:
+      tags: [Notifications]
+      summary: Register push device
+      responses:
+        "200":
+          description: OK
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    SignupRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    AuthTokens:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string }
+        expires_in: { type: integer }
+        user: { type: object, additionalProperties: true }
+    CreateClubRequest:
+      type: object
+      required: [name, sport_types]
+      properties:
+        name: { type: string }
+        sport_types:
+          type: array
+          items: { type: string }
+        visibility: { type: string }
+        description: { type: string }
+        is_informal_group: { type: boolean }
+    Product:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        club_id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        price_cents: { type: integer }
+        currency: { type: string }
+        category:
+          type: string
+          enum: [food, drink, kit_hire, merchandise, equipment, other]
+        stock: { type: integer, nullable: true }
+        active: { type: boolean }
+    CreateProductRequest:
+      type: object
+      required: [name, price_cents, category]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        price_cents: { type: integer }
+        currency: { type: string }
+        category:
+          type: string
+          enum: [food, drink, kit_hire, merchandise, equipment, other]
+        stock: { type: integer }
+    PlaceOrderRequest:
+      type: object
+      required: [club_id, items]
+      properties:
+        club_id: { type: string, format: uuid }
+        event_id: { type: string, format: uuid, nullable: true }
+        note: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            required: [product_id, quantity]
+            properties:
+              product_id: { type: string, format: uuid }
+              quantity: { type: integer, minimum: 1 }
+
+security:
+  - bearerAuth: []
