@@ -5,7 +5,8 @@ Multi-sport club management — organise recurring activities (cricket nets, foo
 | Layer | Stack |
 |-------|--------|
 | iOS | SwiftUI, iOS 17+, MVVM, Keychain JWT |
-| API | Rust, Axum, sqlx, JWT + argon2 |
+| Web | Next.js dashboard (`web/`) |
+| API | Rust, Axum, sqlx, JWT + argon2 · Swagger at `/swagger-ui` |
 | DB | PostgreSQL 16 |
 
 ## Quick start
@@ -28,9 +29,9 @@ If 5433 is already taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` po
 # or: cd backend && cargo run -p fishers-api
 ```
 
-API: `http://127.0.0.1:8080` · Health: `GET /health` · Routes: `/api/v1/...`
+API: `http://127.0.0.1:8080` · Health: `GET /health` · Swagger: `http://127.0.0.1:8080/swagger-ui` · Routes: `/api/v1/...`
 
-Keep this process running while using the Simulator. Migrations run on startup.
+Keep this process running while using the Simulator or web dashboard. Migrations run on startup.
 
 **Simulator tip:** the app points at `http://127.0.0.1:8080`. If sign-in fails with a connection error, the API is not running.
 
@@ -48,7 +49,18 @@ xcodegen generate
 open Fishers.xcodeproj
 ```
 
-Run on Simulator. API base URL defaults to `http://localhost:8080` in `Fishers/Config/AppConfig.swift`.
+Run on Simulator. API base URL defaults to `http://127.0.0.1:8080` in `Fishers/Config/AppConfig.swift`.
+
+### 4. Web dashboard
+
+```bash
+cd web
+cp .env.local.example .env.local
+npm install
+npm run dev
+```
+
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000). Demo: `demo@fishers.test` / `password123`.
 
 **CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md).
 

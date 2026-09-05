@@ -1,4 +1,5 @@
 mod auth;
+mod docs;
 mod error;
 mod rbac;
 mod routes;
@@ -42,6 +43,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState::new(pool, jwt_secret, push);
 
     let app = Router::new()
+        .merge(docs::router())
         .merge(routes::router())
         .layer(
             CorsLayer::new()
@@ -54,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr: SocketAddr = format!("{host}:{port}").parse()?;
     tracing::info!(%addr, "Fishers API listening");
+    tracing::info!("Swagger UI http://{addr}/swagger-ui");
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .context("bind failed")?;
