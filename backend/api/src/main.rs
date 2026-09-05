@@ -2,6 +2,7 @@ mod auth;
 mod error;
 mod rbac;
 mod routes;
+mod services;
 mod state;
 
 use std::net::SocketAddr;

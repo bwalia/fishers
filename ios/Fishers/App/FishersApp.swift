@@ -5,6 +5,7 @@ import SwiftData
 struct FishersApp: App {
     @StateObject private var session = SessionStore()
     @StateObject private var cart = CartStore()
+    @StateObject private var clubContext = ClubContextStore()
 
     private let cricketContainer: ModelContainer = {
         let schema = Schema([LocalCricketMatch.self, LocalScoringEvent.self])
@@ -27,10 +28,21 @@ struct FishersApp: App {
             RootView()
                 .environmentObject(session)
                 .environmentObject(cart)
+                .environmentObject(clubContext)
                 .modelContainer(cricketContainer)
                 .tint(FishersTheme.accent)
                 .task {
                     await CricketSyncService.shared.configure(container: cricketContainer)
+                    if session.isAuthenticated {
+                        await clubContext.bootstrap()
+                    }
+                }
+                .onChange(of: session.isAuthenticated) { _, signedIn in
+                    if signedIn {
+                        Task { await clubContext.bootstrap() }
+                    } else {
+                        clubContext.clear()
+                    }
                 }
         }
     }

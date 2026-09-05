@@ -4,11 +4,10 @@ import SwiftUI
 /// assistant has proposals waiting on a captain.
 struct ChatListView: View {
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var clubContext: ClubContextStore
     @StateObject private var store = ChatStore()
     @State private var isCreating = false
     @State private var newTitle = ""
-    @State private var clubs: [Club] = []
-    @State private var selectedClubId: UUID?
 
     var body: some View {
         NavigationStack {
@@ -48,8 +47,9 @@ struct ChatListView: View {
             }
             .task {
                 await store.loadConversations()
-                clubs = (try? await FishersAPI.clubs()) ?? []
-                selectedClubId = clubs.first?.id
+                if clubContext.clubs.isEmpty {
+                    await clubContext.bootstrap()
+                }
             }
             .refreshable { await store.loadConversations() }
         }
@@ -103,11 +103,14 @@ struct ChatListView: View {
                 Section("Thread") {
                     TextField("e.g. 1st XI match chat", text: $newTitle)
                 }
-                if !clubs.isEmpty {
+                if !clubContext.clubs.isEmpty {
                     Section("Club") {
-                        Picker("Club", selection: $selectedClubId) {
-                            ForEach(clubs) { club in
-                                Text(club.name).tag(UUID?.some(club.id))
+                        Picker("Club", selection: Binding(
+                            get: { clubContext.activeClubId },
+                            set: { if let id = $0 { clubContext.select(id) } }
+                        )) {
+                            ForEach(clubContext.clubs) { club in
+                                Text(club.name).tag(Optional(club.id))
                             }
                         }
                     }
@@ -128,12 +131,12 @@ struct ChatListView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
                         let title = newTitle
-                        let clubId = selectedClubId
+                        let clubId = clubContext.activeClubId
                         isCreating = false
                         newTitle = ""
                         Task { await store.createConversation(title: title, clubId: clubId) }
                     }
-                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty || selectedClubId == nil)
+                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty || clubContext.activeClubId == nil)
                 }
             }
         }

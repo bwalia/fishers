@@ -1,23 +1,17 @@
 //! Chat threads and the agent that reads them.
 //!
-//! The agent proposes; a captain or club admin applies. Nothing the model says
-//! reaches availability, squads or money without that approval step.
+//! The agent proposes; humans apply via shared domain services. The LLM never
+//! writes the database and uses the same RBAC matrix as the rest of Fishers.
 
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
-use fishers_agent::{
-    AgentContext, AgentError, AvailabilityEntry, FixtureEntry, RosterEntry, TranscriptLine,
-};
-use fishers_db::repos::{
-    agent as agent_repo, availability as availability_repo, chat as chat_repo, clubs as clubs_repo,
-    invites as invites_repo, users as users_repo,
-};
+use fishers_agent::AgentError;
+use fishers_db::repos::{agent as agent_repo, chat as chat_repo, clubs as clubs_repo};
 use fishers_domain::{
-    reliability, AgentAnalysis, AgentProposal, ChatMessage, Conversation, ConversationSummary,
-    CreateConversationRequest, MarkReadRequest, PostMessageRequest, ProposalPayload, UserRole,
-    UpsertAvailabilityRequest,
+    AgentAnalysis, AgentProposal, ChatMessage, Conversation, ConversationSummary,
+    CreateConversationRequest, MarkReadRequest, Permission, PostMessageRequest,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -27,11 +21,9 @@ use validator::Validate;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
+use crate::rbac::require_club_permission;
+use crate::services::{agent_apply, club_briefing};
 use crate::state::AppState;
-
-/// How far ahead the agent looks, and how much of the thread it reads.
-const CONTEXT_DAYS_AHEAD: i32 = 21;
-const TRANSCRIPT_LIMIT: i64 = 60;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -165,7 +157,7 @@ async fn analyse(
     let club_id = conversation
         .club_id
         .ok_or_else(|| ApiError::bad_request("this thread is not attached to a club"))?;
-    require_captain_or_admin(&state, club_id, auth.user_id).await?;
+    require_club_permission(&state, club_id, auth.user_id, Permission::UseAdminAssistant).await?;
 
     let run =
         agent_repo::start_run(&state.pool, id, auth.user_id, state.agent.model()).await?;
@@ -190,7 +182,7 @@ async fn analyse(
         }));
     }
 
-    let context = build_context(&state, &conversation, club_id).await?;
+    let context = club_briefing::build_club_briefing(&state, &conversation, club_id).await?;
 
     let outcome = match state.agent.analyse(&context).await {
         Ok(outcome) => outcome,
@@ -254,7 +246,7 @@ async fn analyse(
     }))
 }
 
-/// Carry out a proposal and record who approved it.
+/// Carry out a proposal through shared services (same writes as the rest of Fishers).
 async fn apply_proposal(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -265,104 +257,17 @@ async fn apply_proposal(
         .ok_or_else(|| ApiError::not_found("proposal not found"))?;
     let conversation = require_thread_member(&state, proposal.conversation_id, auth.user_id).await?;
     if let Some(club_id) = conversation.club_id {
-        require_captain_or_admin(&state, club_id, auth.user_id).await?;
+        require_club_permission(&state, club_id, auth.user_id, Permission::UseAdminAssistant)
+            .await?;
+        if proposal.kind == "squad" {
+            require_club_permission(&state, club_id, auth.user_id, Permission::ManageSelection)
+                .await?;
+        }
     }
 
-    let payload: ProposalPayload = serde_json::from_value(proposal.payload.clone())
-        .map_err(|e| ApiError::bad_request(format!("unreadable proposal payload: {e}")))?;
-
-    match proposal.kind.as_str() {
-        "availability" => {
-            let user_id = proposal
-                .subject_user_id
-                .ok_or_else(|| ApiError::bad_request("proposal has no subject member"))?;
-            let date = payload
-                .date
-                .ok_or_else(|| ApiError::bad_request("proposal has no date"))?;
-            let status = payload
-                .availability_status
-                .ok_or_else(|| ApiError::bad_request("proposal has no availability status"))?;
-
-            availability_repo::upsert(
-                &state.pool,
-                user_id,
-                &UpsertAvailabilityRequest {
-                    date,
-                    status,
-                    note: payload.note.clone(),
-                    recurrence_rule: None,
-                },
-            )
-            .await?;
-
-            let who = users_repo::names_for(&state.pool, &[user_id]).await?;
-            let name = who
-                .first()
-                .map(|(_, n)| n.clone())
-                .unwrap_or_else(|| "A member".into());
-            let status_word = serde_json::to_value(status)
-                .ok()
-                .and_then(|v| v.as_str().map(str::to_owned))
-                .unwrap_or_else(|| "updated".into());
-            post_agent_note(
-                &state,
-                proposal.conversation_id,
-                &format!("Marked {name} {status_word} for {date}."),
-                proposal.id,
-                &proposal.kind,
-            )
-            .await?;
-        }
-        "squad" => {
-            let event_id = proposal
-                .event_id
-                .ok_or_else(|| ApiError::bad_request("proposal has no fixture"))?;
-            if payload.user_ids.is_empty() {
-                return Err(ApiError::bad_request("proposal names no players"));
-            }
-            for user_id in &payload.user_ids {
-                invites_repo::invite_to_event(&state.pool, event_id, *user_id, auth.user_id)
-                    .await?;
-            }
-            let names = users_repo::names_for(&state.pool, &payload.user_ids).await?;
-            let listed = names
-                .iter()
-                .map(|(_, name)| name.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
-            let body = payload.message.clone().unwrap_or_else(|| {
-                format!("Squad invited ({}): {listed}", payload.user_ids.len())
-            });
-            post_agent_note(
-                &state,
-                proposal.conversation_id,
-                &body,
-                proposal.id,
-                &proposal.kind,
-            )
-            .await?;
-        }
-        "announcement" | "payment_chase" => {
-            let body = payload
-                .message
-                .clone()
-                .ok_or_else(|| ApiError::bad_request("proposal has no message to post"))?;
-            post_agent_note(
-                &state,
-                proposal.conversation_id,
-                &body,
-                proposal.id,
-                &proposal.kind,
-            )
-            .await?;
-        }
-        other => return Err(ApiError::bad_request(format!("unknown proposal kind: {other}"))),
-    }
-
-    agent_repo::decide_proposal(&state.pool, id, "applied", auth.user_id)
-        .await?
-        .ok_or_else(|| ApiError::conflict("proposal has already been decided"))
-        .map(Json)
+    let updated =
+        agent_apply::apply_proposal(&state, &proposal, auth.user_id, conversation.club_id).await?;
+    Ok(Json(updated))
 }
 
 async fn dismiss_proposal(
@@ -375,130 +280,13 @@ async fn dismiss_proposal(
         .ok_or_else(|| ApiError::not_found("proposal not found"))?;
     let conversation = require_thread_member(&state, proposal.conversation_id, auth.user_id).await?;
     if let Some(club_id) = conversation.club_id {
-        require_captain_or_admin(&state, club_id, auth.user_id).await?;
+        require_club_permission(&state, club_id, auth.user_id, Permission::UseAdminAssistant)
+            .await?;
     }
     agent_repo::decide_proposal(&state.pool, id, "dismissed", auth.user_id)
         .await?
         .ok_or_else(|| ApiError::conflict("proposal has already been decided"))
         .map(Json)
-}
-
-// MARK: helpers
-
-async fn post_agent_note(
-    state: &AppState,
-    conversation_id: Uuid,
-    body: &str,
-    proposal_id: Uuid,
-    kind: &str,
-) -> ApiResult<ChatMessage> {
-    Ok(chat_repo::post_message(
-        &state.pool,
-        conversation_id,
-        None,
-        "agent",
-        body,
-        json!({ "proposal_id": proposal_id, "kind": kind }),
-    )
-    .await?)
-}
-
-async fn build_context(
-    state: &AppState,
-    conversation: &Conversation,
-    club_id: Uuid,
-) -> ApiResult<AgentContext> {
-    let club = clubs_repo::get_club(&state.pool, club_id).await?;
-    let roster_rows = agent_repo::roster_context(&state.pool, club_id).await?;
-    let user_ids: Vec<Uuid> = roster_rows.iter().map(|r| r.user_id).collect();
-
-    let roster = roster_rows
-        .iter()
-        .map(|row| {
-            let score = reliability::score(reliability::ReliabilityCounts {
-                invites_received: row.invites_received,
-                responded: row.responded,
-                said_going: row.said_going,
-                turned_up: row.turned_up,
-                late_cancellations: row.late_cancellations,
-                fees_due: row.fees_due,
-                fees_paid: row.fees_paid,
-            });
-            let band = serde_json::to_value(score.band)
-                .ok()
-                .and_then(|v| v.as_str().map(str::to_owned))
-                .unwrap_or_else(|| "unproven".into());
-            RosterEntry {
-                user_id: row.user_id,
-                name: row.name.clone(),
-                role: row.role.clone(),
-                position: row.position_role.clone(),
-                skill_level: row.skill_level.clone(),
-                reliability_score: score.score,
-                reliability_band: band,
-                games_missed_out: row.games_missed_out,
-            }
-        })
-        .collect();
-
-    let fixtures = agent_repo::fixture_context(
-        &state.pool,
-        club_id,
-        conversation.team_id,
-        CONTEXT_DAYS_AHEAD,
-    )
-    .await?
-    .into_iter()
-    .map(|row| FixtureEntry {
-        event_id: row.event_id,
-        title: row.title,
-        sport: row.sport,
-        subtype: row.subtype,
-        starts_at: row.start_at,
-        date: row.start_at.date_naive(),
-        capacity: row.capacity,
-        fee_amount_cents: row.fee_amount_cents,
-        already_invited: row.already_invited,
-        confirmed: row.confirmed,
-    })
-    .collect();
-
-    let availability =
-        agent_repo::availability_context(&state.pool, &user_ids, CONTEXT_DAYS_AHEAD)
-            .await?
-            .into_iter()
-            .map(|row| AvailabilityEntry {
-                user_id: row.user_id,
-                date: row.date,
-                status: row.status,
-            })
-            .collect();
-
-    // Newest-first from the repo; the model reads oldest-first.
-    let mut transcript: Vec<TranscriptLine> =
-        chat_repo::list_messages(&state.pool, conversation.id, None, TRANSCRIPT_LIMIT)
-            .await?
-            .into_iter()
-            .map(|m| TranscriptLine {
-                author: m.sender_name.clone().unwrap_or_else(|| "Assistant".into()),
-                author_id: m.sender_id,
-                sent_at: m.created_at,
-                body: m.body,
-            })
-            .collect();
-    transcript.reverse();
-
-    Ok(AgentContext {
-        conversation_title: conversation.title.clone(),
-        conversation_kind: conversation.kind.clone(),
-        club_name: club.map(|c| c.name),
-        today: Utc::now().date_naive(),
-        roster,
-        fixtures,
-        availability,
-        unpaid_fees: agent_repo::unpaid_fee_users(&state.pool, club_id).await?,
-        transcript,
-    })
 }
 
 async fn require_thread_member(
@@ -524,16 +312,3 @@ async fn require_club_member(state: &AppState, club_id: Uuid, user_id: Uuid) -> 
     }
 }
 
-async fn require_captain_or_admin(
-    state: &AppState,
-    club_id: Uuid,
-    user_id: Uuid,
-) -> ApiResult<()> {
-    match clubs_repo::club_role(&state.pool, club_id, user_id).await? {
-        Some(UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin) => Ok(()),
-        Some(_) => Err(ApiError::forbidden(
-            "only a captain or club admin can decide the assistant's proposals",
-        )),
-        None => Err(ApiError::forbidden("not a club member")),
-    }
-}

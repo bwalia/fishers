@@ -11,6 +11,8 @@ mod event;
 mod invite;
 mod order;
 mod payment;
+/// Cross-cutting club activity events (AI, stats, notifications).
+pub mod platform;
 mod profile;
 mod rbac;
 /// Tournament generation is namespaced: `tournament::round_robin` etc.
@@ -34,6 +36,7 @@ pub use event::*;
 pub use invite::*;
 pub use order::*;
 pub use payment::*;
+pub use platform::{MatchStatsDelta, PlatformActor, PlatformEvent, PlatformEventKind};
 pub use profile::*;
 pub use rbac::*;
 pub use selection::*;

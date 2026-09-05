@@ -4,15 +4,14 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::{cricket as cricket_repo, events as events_repo};
-use fishers_domain::{
-    permissions_for, MatchState, Permission, ScoringEvent, ScoringEventKind, UserRole,
-};
+use fishers_domain::{MatchState, Permission, ScoringEvent, ScoringEventKind, UserRole};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
 use crate::rbac::{require_event_permission, require_permission};
+use crate::services::platform_bus;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -144,6 +143,15 @@ async fn claim_scorer(
     let updated = cricket_repo::claim_scorer(&state.pool, id, auth.user_id, &body.device_id)
         .await
         .map_err(|_| ApiError::conflict("another scorer holds this match"))?;
+    platform_bus::match_started(
+        &state,
+        updated.club_id,
+        updated.event_id,
+        updated.id,
+        auth.user_id,
+        "cricket",
+    )
+    .await;
     Ok(Json(to_response(&updated)))
 }
 
@@ -168,6 +176,8 @@ async fn post_events(
             return Err(ApiError::forbidden("not the active scorer for this match"));
         }
     }
+    let prev_complete = cricket_repo::parse_state(&row).status
+        == fishers_domain::MatchStatus::Complete;
     let state_out = cricket_repo::apply_event_batch(
         &state.pool,
         id,
@@ -177,6 +187,19 @@ async fn post_events(
     )
     .await
     .map_err(|e| ApiError::bad_request(e.to_string()))?;
+
+    if !prev_complete && state_out.status == fishers_domain::MatchStatus::Complete {
+        platform_bus::match_completed(
+            &state,
+            row.club_id,
+            row.event_id,
+            id,
+            auth.user_id,
+            "cricket",
+            state_out.margin.clone(),
+        )
+        .await;
+    }
 
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
@@ -277,6 +300,5 @@ async fn require_can_score(
         Permission::ScoreMatch,
     )
     .await?;
-    let _ = permissions_for(role);
     Ok(role)
 }

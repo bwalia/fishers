@@ -18,7 +18,7 @@ use fishers_db::repos::{
 };
 use fishers_domain::{
     selection, CreateFixtureBlockRequest, EventStatus, FixtureBlock, FixtureStatusRequest,
-    RespondToSelectionRequest, SelectionBoard, SetSquadRequest, SquadProposalView, UserRole,
+    RespondToSelectionRequest, SelectionBoard, SetSquadRequest, SquadProposalView,
 };
 use serde_json::json;
 use tracing::warn;
@@ -340,6 +340,7 @@ async fn publish(
     );
     announce(&state, event.club_id, Some(id), &announcement).await;
     notify_squad(&state, id, "squad_published", &event.title, &announcement).await;
+    crate::services::platform_bus::squad_published(&state, event.club_id, id, auth.user_id).await;
     Ok(Json(json!({ "announced_to": squad.len() })))
 }
 
@@ -751,11 +752,14 @@ async fn require_captain_or_admin(
     club_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    match clubs_repo::club_role(&state.pool, club_id, user_id).await? {
-        Some(UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin) => Ok(()),
-        Some(_) => Err(ApiError::forbidden("only a captain or club admin can do that")),
-        None => Err(ApiError::forbidden("not a club member")),
-    }
+    crate::rbac::require_club_permission(
+        state,
+        club_id,
+        user_id,
+        fishers_domain::Permission::ManageSelection,
+    )
+    .await
+    .map(|_| ())
 }
 
 async fn recent_transcript(
