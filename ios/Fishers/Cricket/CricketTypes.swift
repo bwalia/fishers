@@ -517,3 +517,19 @@ enum CricketEngineError: LocalizedError {
         }
     }
 }
+
+/// Response from `POST /cricket/matches/{id}/share`.
+struct ScoreboardShareResponse: Codable, Equatable {
+    let token: String
+    let url: String
+    let expiresAt: Date
+    let conversationId: UUID?
+    let messageId: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case token, url
+        case expiresAt = "expires_at"
+        case conversationId = "conversation_id"
+        case messageId = "message_id"
+    }
+}

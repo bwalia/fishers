@@ -501,6 +501,19 @@ enum FishersAPI {
         )
     }
 
+    /// Mint a secure live scoreboard link and (by default) post it into club chat.
+    static func shareScoreboard(matchId: UUID, postToChat: Bool = true) async throws -> ScoreboardShareResponse {
+        struct Body: Encodable {
+            let post_to_chat: Bool
+            let ttl_hours: Int
+        }
+        return try await NetworkService.shared.request(
+            "POST",
+            path: "/cricket/matches/\(matchId.uuidString)/share",
+            body: Body(post_to_chat: postToChat, ttl_hours: 48)
+        )
+    }
+
     // MARK: Season stats (Play-Cricket)
 
     static func mySeasonStats(season: Int? = nil) async throws -> MeStatsResponse {

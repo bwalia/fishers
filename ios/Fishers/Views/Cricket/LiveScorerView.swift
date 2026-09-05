@@ -15,6 +15,8 @@ struct LiveScorerView: View {
     @State private var newBatterId: UUID?
     @State private var extraKind: ExtraKind = .wide
     @State private var extraRuns: Int = 1
+    @State private var isSharing = false
+    @State private var shareNotice: String?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
@@ -33,7 +35,31 @@ struct LiveScorerView: View {
         }
         .padding()
         .safeAreaInset(edge: .bottom) {
-            syncBar
+            VStack(spacing: 8) {
+                if let shareNotice {
+                    Text(shareNotice)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                }
+                syncBar
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await shareLiveLink() }
+                } label: {
+                    if isSharing {
+                        ProgressView()
+                    } else {
+                        Label("Share live", systemImage: "square.and.arrow.up")
+                    }
+                }
+                .disabled(isSharing || store.matchId == nil)
+                .accessibilityLabel("Share live scoreboard to chat")
+            }
         }
         .sheet(isPresented: $showExtras) { extrasSheet }
         .sheet(isPresented: $showWicket) { wicketSheet }
@@ -329,6 +355,29 @@ struct LiveScorerView: View {
             nonStrikerId: batXi[1],
             bowlerId: bowler
         ))
+    }
+
+    /// Mint a secure live link and post it into the fixture/club chat thread.
+    private func shareLiveLink() async {
+        guard let matchId = store.matchId else {
+            shareNotice = "Match is not synced yet — keep scoring, then try again."
+            return
+        }
+        isSharing = true
+        defer { isSharing = false }
+        do {
+            let share = try await FishersAPI.shareScoreboard(matchId: matchId, postToChat: true)
+            UIPasteboard.general.string = share.url
+            if share.conversationId != nil {
+                shareNotice = "Live link posted to chat and copied."
+            } else {
+                shareNotice = "Live link copied. Open chat if it was not posted automatically."
+            }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } catch {
+            shareNotice = error.localizedDescription
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+        }
     }
 }
 

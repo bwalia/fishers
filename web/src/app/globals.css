@@ -220,3 +220,45 @@ select {
   border: 1px solid var(--line);
   background: white;
 }
+
+.live-board .live-hero {
+  margin-bottom: 20px;
+}
+
+.live-board .scoreline {
+  font-family: var(--font);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 8px 0;
+}
+
+.live-board .live-pair {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.live-board .score-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-board .score-table th,
+.live-board .score-table td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.live-board .score-table th:not(:first-child),
+.live-board .score-table td:not(:first-child) {
+  text-align: right;
+}
+
+.live-board .panel.danger,
+.live-board .panel .error {
+  color: var(--danger);
+}

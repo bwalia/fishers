@@ -17,4 +17,18 @@ enum AppConfig {
     }
 
     static let apiVersionPrefix = "/api/v1"
+
+    /// Public web host for live scoreboard links shared into chat.
+    /// Override with FISHERS_WEB_URL for device testing.
+    static var webBaseURL: URL {
+        if let override = ProcessInfo.processInfo.environment["FISHERS_WEB_URL"],
+           let url = URL(string: override) {
+            return url
+        }
+        #if targetEnvironment(simulator)
+        return URL(string: "http://127.0.0.1:3000")!
+        #else
+        return URL(string: "http://127.0.0.1:3000")!
+        #endif
+    }
 }
