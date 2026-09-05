@@ -68,7 +68,7 @@ struct ClubStatsView: View {
             board = try await FishersAPI.clubSeasonBoard(clubId: clubId)
             error = nil
         } catch {
-            self.error = "Could not load club stats"
+            self.error = error.localizedDescription
             board = nil
         }
     }

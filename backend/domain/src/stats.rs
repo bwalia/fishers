@@ -6,6 +6,23 @@ use serde_json::Value;
 use sqlx::types::Json;
 use uuid::Uuid;
 
+/// Canonical public Play-Cricket site. Sample `/website/...` paths do not resolve.
+pub const PLAY_CRICKET_HOME_URL: &str = "https://play-cricket.com/";
+
+/// Rewrite any Play-Cricket URL to the canonical homepage.
+pub fn canonicalize_play_cricket_url(url: Option<String>) -> Option<String> {
+    let Some(raw) = url else { return None };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.contains("play-cricket.com") || lower.contains("playcricket.com") {
+        return Some(PLAY_CRICKET_HOME_URL.to_string());
+    }
+    Some(trimmed.to_string())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PlayCricketClubSite {
     pub club_id: Uuid,

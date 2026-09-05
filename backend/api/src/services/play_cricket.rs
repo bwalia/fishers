@@ -48,7 +48,7 @@ pub async fn sync_club(pool: &PgPool, club_id: Uuid) -> Result<SyncResult, Strin
         let public = site
             .public_url
             .clone()
-            .unwrap_or_else(|| format!("https://play-cricket.com/website/view/{site_id}"));
+            .unwrap_or_else(|| "https://play-cricket.com/".to_string());
         stats_repo::touch_club_sync(pool, club_id)
             .await
             .map_err(|e| e.to_string())?;

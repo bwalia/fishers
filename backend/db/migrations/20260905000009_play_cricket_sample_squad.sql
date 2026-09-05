@@ -57,8 +57,7 @@ SELECT cm.user_id, cm.club_id,
        pcs.site_id || substr(replace(cm.user_id::text, '-', ''), 1, 8),
        pcs.site_id,
        u.name,
-       'https://play-cricket.com/website/player_stats?site_id=' || pcs.site_id ||
-           '&player_id=' || pcs.site_id || substr(replace(cm.user_id::text, '-', ''), 1, 8),
+       'https://play-cricket.com/',
        NOW()
 FROM club_members cm
 JOIN users u ON u.id = cm.user_id

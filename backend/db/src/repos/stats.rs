@@ -9,7 +9,7 @@ pub async fn club_site(
     pool: &PgPool,
     club_id: Uuid,
 ) -> Result<Option<PlayCricketClubSite>, sqlx::Error> {
-    sqlx::query_as::<_, PlayCricketClubSite>(
+    let mut site = sqlx::query_as::<_, PlayCricketClubSite>(
         r#"
         SELECT club_id, site_id, site_name, public_url, api_token_env,
                last_synced_at, created_at
@@ -19,14 +19,19 @@ pub async fn club_site(
     )
     .bind(club_id)
     .fetch_optional(pool)
-    .await
+    .await?;
+
+    if let Some(ref mut site) = site {
+        site.public_url = fishers_domain::canonicalize_play_cricket_url(site.public_url.take());
+    }
+    Ok(site)
 }
 
 pub async fn player_links_for_user(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<PlayCricketPlayerLink>, sqlx::Error> {
-    sqlx::query_as::<_, PlayCricketPlayerLink>(
+    let mut links = sqlx::query_as::<_, PlayCricketPlayerLink>(
         r#"
         SELECT id, user_id, club_id, play_cricket_player_id, play_cricket_site_id,
                display_name, profile_url, linked_at, last_synced_at
@@ -37,7 +42,12 @@ pub async fn player_links_for_user(
     )
     .bind(user_id)
     .fetch_all(pool)
-    .await
+    .await?;
+
+    for link in &mut links {
+        link.profile_url = fishers_domain::canonicalize_play_cricket_url(link.profile_url.take());
+    }
+    Ok(links)
 }
 
 fn to_view(
@@ -54,7 +64,7 @@ fn to_view(
         stats,
         player_name,
         club_name,
-        play_cricket_profile_url: profile_url,
+        play_cricket_profile_url: fishers_domain::canonicalize_play_cricket_url(profile_url),
         play_cricket_player_id: player_id,
         batting_average,
         bowling_average,

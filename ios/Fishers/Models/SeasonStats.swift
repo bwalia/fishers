@@ -1,6 +1,28 @@
 import Foundation
 
-struct PlayCricketPlayerLink: Codable, Identifiable, Equatable {
+/// Canonical ECB Play-Cricket public site. Fabricated `/website/...` sample paths
+/// do not resolve — always open the real homepage.
+enum PlayCricketLinks {
+    static let homeString = "https://play-cricket.com/"
+    static let home = URL(string: homeString)!
+
+    /// Returns the Play-Cricket home URL when `raw` points at play-cricket.com
+    /// (including legacy broken deep links), otherwise parses `raw` as-is.
+    static func resolve(_ raw: String?) -> URL? {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        let lowered = raw.lowercased()
+        if lowered.contains("play-cricket.com") || lowered.contains("playcricket.com") {
+            return home
+        }
+        return URL(string: raw)
+    }
+}
+
+// MARK: - Play-Cricket player link
+
+struct PlayCricketPlayerLink: Decodable, Identifiable, Equatable {
     let id: UUID
     let userId: UUID
     let clubId: UUID?
@@ -8,7 +30,8 @@ struct PlayCricketPlayerLink: Codable, Identifiable, Equatable {
     let playCricketSiteId: String?
     let displayName: String?
     let profileUrl: String?
-    let linkedAt: Date
+    /// Kept optional + lossy so fractional timestamps never fail the whole payload.
+    let linkedAt: Date?
     let lastSyncedAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -23,11 +46,31 @@ struct PlayCricketPlayerLink: Codable, Identifiable, Equatable {
         case lastSyncedAt = "last_synced_at"
     }
 
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        clubId = try c.decodeIfPresent(UUID.self, forKey: .clubId)
+        playCricketPlayerId = try c.decode(String.self, forKey: .playCricketPlayerId)
+        playCricketSiteId = try c.decodeIfPresent(String.self, forKey: .playCricketSiteId)
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
+        profileUrl = try c.decodeIfPresent(String.self, forKey: .profileUrl)
+        linkedAt = Self.lossyDate(c, forKey: .linkedAt)
+        lastSyncedAt = Self.lossyDate(c, forKey: .lastSyncedAt)
+    }
+
     var profileURL: URL? {
-        guard let profileUrl, let url = URL(string: profileUrl) else { return nil }
-        return url
+        PlayCricketLinks.resolve(profileUrl)
+    }
+
+    private static func lossyDate(_ c: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> Date? {
+        if let date = try? c.decode(Date.self, forKey: key) { return date }
+        guard let raw = try? c.decode(String.self, forKey: key) else { return nil }
+        return StatsDateParsing.date(from: raw)
     }
 }
+
+// MARK: - Player season row
 
 struct PlayerSeasonStats: Codable, Identifiable, Equatable {
     let id: UUID
@@ -86,20 +129,19 @@ struct PlayerSeasonStats: Codable, Identifiable, Equatable {
     }
 
     var playCricketURL: URL? {
-        guard let playCricketProfileUrl, let url = URL(string: playCricketProfileUrl) else {
-            return nil
-        }
-        return url
+        PlayCricketLinks.resolve(playCricketProfileUrl)
     }
 }
 
-struct UserAchievement: Codable, Identifiable, Equatable {
+// MARK: - Achievements
+
+struct UserAchievement: Decodable, Identifiable, Equatable {
     let id: UUID
     let userId: UUID
     let achievementCode: String
     let clubId: UUID?
     let seasonYear: Int?
-    let awardedAt: Date
+    let awardedAt: Date?
     let title: String
     let description: String?
     let icon: String?
@@ -113,15 +155,36 @@ struct UserAchievement: Codable, Identifiable, Equatable {
         case awardedAt = "awarded_at"
         case title, description, icon
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        achievementCode = try c.decode(String.self, forKey: .achievementCode)
+        clubId = try c.decodeIfPresent(UUID.self, forKey: .clubId)
+        seasonYear = try c.decodeIfPresent(Int.self, forKey: .seasonYear)
+        title = try c.decode(String.self, forKey: .title)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        icon = try c.decodeIfPresent(String.self, forKey: .icon)
+        if let date = try? c.decode(Date.self, forKey: .awardedAt) {
+            awardedAt = date
+        } else if let raw = try? c.decode(String.self, forKey: .awardedAt) {
+            awardedAt = StatsDateParsing.date(from: raw)
+        } else {
+            awardedAt = nil
+        }
+    }
 }
 
-struct MeStatsResponse: Codable, Equatable {
+struct MeStatsResponse: Decodable, Equatable {
     let links: [PlayCricketPlayerLink]
     let seasons: [PlayerSeasonStats]
     let achievements: [UserAchievement]
 }
 
-struct PlayCricketClubSite: Codable, Equatable {
+// MARK: - Club board
+
+struct PlayCricketClubSite: Decodable, Equatable {
     let clubId: UUID
     let siteId: String
     let siteName: String?
@@ -136,9 +199,23 @@ struct PlayCricketClubSite: Codable, Equatable {
         case lastSyncedAt = "last_synced_at"
     }
 
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        clubId = try c.decode(UUID.self, forKey: .clubId)
+        siteId = try c.decode(String.self, forKey: .siteId)
+        siteName = try c.decodeIfPresent(String.self, forKey: .siteName)
+        publicUrl = try c.decodeIfPresent(String.self, forKey: .publicUrl)
+        if let date = try? c.decode(Date.self, forKey: .lastSyncedAt) {
+            lastSyncedAt = date
+        } else if let raw = try? c.decode(String.self, forKey: .lastSyncedAt) {
+            lastSyncedAt = StatsDateParsing.date(from: raw)
+        } else {
+            lastSyncedAt = nil
+        }
+    }
+
     var publicURL: URL? {
-        guard let publicUrl, let url = URL(string: publicUrl) else { return nil }
-        return url
+        PlayCricketLinks.resolve(publicUrl)
     }
 }
 
@@ -176,7 +253,7 @@ struct ClubSeasonStats: Codable, Equatable {
     }
 }
 
-struct ClubSeasonBoard: Codable, Equatable {
+struct ClubSeasonBoard: Decodable, Equatable {
     let club: ClubSeasonStats
     let playCricket: PlayCricketClubSite?
     let topBatters: [PlayerSeasonStats]
@@ -187,5 +264,25 @@ struct ClubSeasonBoard: Codable, Equatable {
         case playCricket = "play_cricket"
         case topBatters = "top_batters"
         case topBowlers = "top_bowlers"
+    }
+}
+
+// MARK: - Date helpers
+
+enum StatsDateParsing {
+    private static let fractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let plain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    static func date(from raw: String) -> Date? {
+        fractional.date(from: raw) ?? plain.date(from: raw)
     }
 }

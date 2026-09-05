@@ -21,6 +21,41 @@ enum APIError: LocalizedError {
     }
 }
 
+/// Shared JSON decoder for API payloads. Accepts ISO-8601 with or without
+/// fractional seconds (chrono/Postgres default), which Foundation's plain
+/// `.iso8601` strategy rejects.
+enum FishersJSONDecoder {
+    static func make() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom(decodeISO8601Date)
+        return decoder
+    }
+
+    private static let iso8601Fractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let iso8601Plain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    static func decodeISO8601Date(_ decoder: Decoder) throws -> Date {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        if let date = iso8601Fractional.date(from: raw) ?? iso8601Plain.date(from: raw) {
+            return date
+        }
+        throw DecodingError.dataCorruptedError(
+            in: container,
+            debugDescription: "Unrecognized date: \(raw)"
+        )
+    }
+}
+
 actor NetworkService {
     static let shared = NetworkService()
 
@@ -32,8 +67,7 @@ actor NetworkService {
 
     init(session: URLSession = .shared) {
         self.session = session
-        decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder = FishersJSONDecoder.make()
         encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
     }
