@@ -500,6 +500,30 @@ enum FishersAPI {
             "GET", path: "/cricket/matches/\(matchId.uuidString)/scorecard"
         )
     }
+
+    // MARK: Season stats (Play-Cricket)
+
+    static func mySeasonStats(season: Int? = nil) async throws -> MeStatsResponse {
+        var path = "/me/stats"
+        if let season { path += "?season=\(season)" }
+        return try await NetworkService.shared.request("GET", path: path)
+    }
+
+    static func clubSeasonBoard(clubId: UUID, season: Int = 2026) async throws -> ClubSeasonBoard {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/stats?season=\(season)"
+        )
+    }
+
+    static func syncClubStats(clubId: UUID) async throws {
+        struct Resp: Decodable {
+            let status: String
+            let message: String
+        }
+        let _: Resp = try await NetworkService.shared.request(
+            "POST", path: "/clubs/\(clubId.uuidString)/stats/sync"
+        )
+    }
 }
 
 struct CreateEventBody: Encodable {

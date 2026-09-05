@@ -9,5 +9,6 @@ pub mod orders;
 pub mod payments;
 pub mod platform;
 pub mod selection;
+pub mod stats;
 pub mod tournament;
 pub mod users;

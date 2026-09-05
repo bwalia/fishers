@@ -24,6 +24,7 @@ tags:
   - name: Payments
   - name: Tournament
   - name: Notifications
+  - name: Stats
 
 paths:
   /health:
@@ -243,6 +244,77 @@ paths:
       responses:
         "200":
           description: Product
+
+  /me/stats:
+    get:
+      tags: [Stats]
+      summary: My Play-Cricket season stats and achievements
+      parameters:
+        - name: season
+          in: query
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        "200":
+          description: Links, seasons, achievements
+
+  /users/{id}/stats:
+    get:
+      tags: [Stats]
+      summary: Player season stats (shared club)
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: season
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Season rows
+
+  /users/{id}/achievements:
+    get:
+      tags: [Stats]
+      summary: Player achievements
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Awards
+
+  /clubs/{id}/stats:
+    get:
+      tags: [Stats]
+      summary: Club season board and leaderboards
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: season
+          in: query
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        "200":
+          description: Club board
+
+  /clubs/{id}/stats/sync:
+    post:
+      tags: [Stats]
+      summary: Sync Play-Cricket (secretary; sample if no token)
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Sync result
+
+  /achievements:
+    get:
+      tags: [Stats]
+      summary: Achievement catalogue
+      responses:
+        "200":
+          description: defs
 
   /events:
     get:

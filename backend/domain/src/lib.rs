@@ -15,6 +15,8 @@ mod payment;
 pub mod platform;
 mod profile;
 mod rbac;
+/// Season stats + Play-Cricket (ECB) profile links.
+pub mod stats;
 /// Tournament generation is namespaced: `tournament::round_robin` etc.
 pub mod tournament;
 /// Selection ranking is namespaced: `selection::rank` / `selection::suggest`.
@@ -39,6 +41,7 @@ pub use payment::*;
 pub use platform::{MatchStatsDelta, PlatformActor, PlatformEvent, PlatformEventKind};
 pub use profile::*;
 pub use rbac::*;
+pub use stats::*;
 pub use selection::*;
 pub use tournament::*;
 pub use reliability::{ReliabilityBand, ReliabilityCounts, ReliabilityScore};

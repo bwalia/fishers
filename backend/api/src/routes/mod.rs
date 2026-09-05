@@ -9,6 +9,7 @@ mod notifications;
 mod orders;
 mod payments;
 mod selection;
+mod stats;
 mod tournament;
 mod users;
 
@@ -36,6 +37,7 @@ fn api_v1() -> Router<AppState> {
         .merge(selection::router())
         .merge(tournament::router())
         .merge(cricket::router())
+        .merge(stats::router())
         .merge(orders::router())
         .merge(notifications::router())
 }

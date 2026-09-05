@@ -6,6 +6,8 @@ struct ProfileView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var isEditing = false
     @State private var confirmSignOut = false
+    @State private var meStats: MeStatsResponse?
+    @State private var statsError: String?
 
     var body: some View {
         NavigationStack {
@@ -19,6 +21,7 @@ struct ProfileView: View {
                                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         }
                     }
+                    seasonStatsSections
                     ForEach(user.profiles) { profile in
                         sportSection(profile)
                     }
@@ -49,7 +52,117 @@ struct ProfileView: View {
             } message: {
                 Text("You can sign back in anytime on this device.")
             }
-            .task { await session.refreshProfile() }
+            .task {
+                await session.refreshProfile()
+                await loadSeasonStats()
+            }
+            .refreshable {
+                await session.refreshProfile()
+                await loadSeasonStats()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var seasonStatsSections: some View {
+        if let err = statsError {
+            Section("Season stats") {
+                Text(err)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        if let meStats {
+            if let season = meStats.seasons.first {
+                Section {
+                    HStack(spacing: 16) {
+                        seasonPill(title: "Runs", value: "\(season.runs)")
+                        seasonPill(title: "Wickets", value: "\(season.wickets)")
+                        seasonPill(title: "Matches", value: "\(season.matches)")
+                    }
+                    .padding(.vertical, 4)
+                    if let avg = season.battingAverage {
+                        LabeledContent("Batting avg", value: String(format: "%.1f", avg))
+                    }
+                    if let bowl = season.bowlingAverage {
+                        LabeledContent("Bowling avg", value: String(format: "%.1f", bowl))
+                    }
+                    if let hs = season.highScore {
+                        LabeledContent("High score", value: "\(hs)")
+                    }
+                    if let club = season.clubName {
+                        LabeledContent("Club", value: club)
+                    }
+                    if let url = season.playCricketURL {
+                        Link(destination: url) {
+                            Label("View on Play-Cricket", systemImage: "arrow.up.right.square")
+                        }
+                    }
+                } header: {
+                    Text("\(season.seasonYear) season · Play-Cricket")
+                } footer: {
+                    Text("Sample ECB Play-Cricket import. Live sync uses your club API token when configured.")
+                }
+            }
+            if !meStats.achievements.isEmpty {
+                Section("Achievements") {
+                    ForEach(meStats.achievements) { a in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(a.icon ?? "★")
+                                .font(.title3.weight(.bold))
+                                .frame(width: 36, height: 36)
+                                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(a.title)
+                                    .font(.body.weight(.semibold))
+                                if let desc = a.description {
+                                    Text(desc)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let year = a.seasonYear {
+                                    Text("Season \(year)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            if meStats.links.contains(where: { $0.profileURL != nil }) {
+                Section("Play-Cricket profiles") {
+                    ForEach(meStats.links) { link in
+                        if let url = link.profileURL {
+                            Link(destination: url) {
+                                Label(link.displayName ?? "Player profile", systemImage: "sportscourt")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func seasonPill(title: String, value: String) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.title2.weight(.bold).monospacedDigit())
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func loadSeasonStats() async {
+        do {
+            meStats = try await FishersAPI.mySeasonStats(season: 2026)
+            statsError = nil
+        } catch {
+            statsError = "Could not load season stats"
+            meStats = nil
         }
     }
 
