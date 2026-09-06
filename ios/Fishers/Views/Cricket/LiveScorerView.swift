@@ -39,6 +39,8 @@ struct LiveScorerView: View {
     @State private var showRain = false
     @State private var confirmEndInnings = false
     @State private var pendingShot: PendingShot?
+    @State private var isSharing = false
+    @State private var shareNotice: String?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// A ball waiting on the wagon wheel before it is written to the log.
@@ -74,7 +76,18 @@ struct LiveScorerView: View {
             }
         }
         .padding()
-        .safeAreaInset(edge: .bottom) { syncBar }
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 8) {
+                if let shareNotice {
+                    Text(shareNotice)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                }
+                syncBar
+            }
+        }
         .sheet(isPresented: $showExtras) { ExtrasSheet(store: store, wheelMode: wheelMode) }
         .sheet(isPresented: $showWicket) { WicketSheet(store: store) }
         .sheet(isPresented: $showBowler) { BowlerSheet(store: store) }
@@ -110,6 +123,19 @@ struct LiveScorerView: View {
             Text("Declarations and rain both end an innings early. You can undo it.")
         }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await shareLiveLink() }
+                } label: {
+                    if isSharing {
+                        ProgressView()
+                    } else {
+                        Label("Share live", systemImage: "square.and.arrow.up")
+                    }
+                }
+                .disabled(isSharing || store.matchId == nil)
+                .accessibilityLabel("Share live scoreboard to chat")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker("Wagon wheel", selection: $wheelModeRaw) {
@@ -405,6 +431,29 @@ struct LiveScorerView: View {
             )
         } else {
             commit(nil)
+        }
+    }
+
+    /// Mint a secure live link and post it into the fixture/club chat thread.
+    private func shareLiveLink() async {
+        guard let matchId = store.matchId else {
+            shareNotice = "Match is not synced yet — keep scoring, then try again."
+            return
+        }
+        isSharing = true
+        defer { isSharing = false }
+        do {
+            let share = try await FishersAPI.shareScoreboard(matchId: matchId, postToChat: true)
+            UIPasteboard.general.string = share.url
+            if share.conversationId != nil {
+                shareNotice = "Live link posted to chat and copied."
+            } else {
+                shareNotice = "Live link copied. Open chat if it was not posted automatically."
+            }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } catch {
+            shareNotice = error.localizedDescription
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
     }
 
@@ -812,6 +861,7 @@ private struct WicketSheet: View {
             dismiss()
         }
     }
+
 }
 
 // MARK: - Bowler

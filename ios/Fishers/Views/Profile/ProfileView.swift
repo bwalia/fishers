@@ -1,17 +1,19 @@
 import SwiftUI
 
-/// The player card: who they are, what they play and at what level, how they
-/// travel, and the reliability score captains weigh when picking squads.
+/// Player card: who they are, what they play, how they travel, reliability,
+/// and Play-Cricket season stats (runs, wickets, achievements).
 struct ProfileView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var isEditing = false
     @State private var confirmSignOut = false
+    @State private var statsRefresh = 0
 
     var body: some View {
         NavigationStack {
             List {
                 if let user = session.user {
                     header(user)
+
                     if let reliability = user.reliability {
                         Section("Reliability") {
                             ReliabilityCard(reliability: reliability)
@@ -19,16 +21,38 @@ struct ProfileView: View {
                                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         }
                     }
+
+                    // Always rendered — owns its own loading / error / empty states.
+                    SeasonStatsSection()
+                        .id(statsRefresh)
+
                     ForEach(user.profiles) { profile in
                         sportSection(profile)
                     }
+
                     if let location = user.location, !location.isEmpty {
                         locationSection(location)
                     }
+
                     contactSection(user)
                 }
-                shopSection
-                accountSection
+
+                Section("Club shop") {
+                    NavigationLink {
+                        ShopView()
+                    } label: {
+                        Label("Browse kit & food", systemImage: "bag")
+                    }
+                }
+
+                Section("Account") {
+                    LabeledContent("API host", value: AppConfig.apiBaseURL.absoluteString)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Button("Sign out", role: .destructive) {
+                        confirmSignOut = true
+                    }
+                }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Profile")
@@ -42,18 +66,20 @@ struct ProfileView: View {
                 ProfileEditView(user: session.user)
             }
             .confirmationDialog("Sign out of Fishers?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                Button("Sign out", role: .destructive) {
-                    session.signOut()
-                }
+                Button("Sign out", role: .destructive) { session.signOut() }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("You can sign back in anytime on this device.")
             }
             .task { await session.refreshProfile() }
+            .refreshable {
+                await session.refreshProfile()
+                statsRefresh += 1
+            }
         }
     }
 
-    // MARK: Sections
+    // MARK: - Header
 
     private func header(_ user: PublicUser) -> some View {
         Section {
@@ -83,6 +109,8 @@ struct ProfileView: View {
             .accessibilityElement(children: .combine)
         }
     }
+
+    // MARK: - Sport
 
     private func sportSection(_ profile: SportProfile) -> some View {
         Section {
@@ -141,6 +169,8 @@ struct ProfileView: View {
         }
     }
 
+    // MARK: - Location / contact
+
     private func locationSection(_ location: PlayerLocation) -> some View {
         Section("Travel & logistics") {
             if let summary = location.summary {
@@ -176,32 +206,6 @@ struct ProfileView: View {
             if let emergency = user.emergencyContact {
                 LabeledContent("Emergency", value: emergency)
             }
-        }
-    }
-
-    private var shopSection: some View {
-        Section("Club shop") {
-            NavigationLink {
-                ShopView()
-            } label: {
-                Label("Browse kit & food", systemImage: "bag")
-            }
-        }
-    }
-
-    private var accountSection: some View {
-        Section {
-            LabeledContent("API host", value: AppConfig.apiBaseURL.absoluteString)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            Button(role: .destructive) {
-                confirmSignOut = true
-            } label: {
-                Text("Sign out")
-            }
-        } header: {
-            Text("Account")
         }
     }
 }

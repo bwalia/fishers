@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HomeFeedView: View {
+    @EnvironmentObject private var clubContext: ClubContextStore
     @State private var events: [Event] = []
     @State private var error: String?
 
@@ -21,6 +22,18 @@ struct HomeFeedView: View {
                                 Text(error)
                                     .font(FishersTheme.footnote)
                                     .foregroundStyle(.red)
+                            }
+                        }
+                        if clubContext.clubs.count > 1 {
+                            Section {
+                                Picker("Club", selection: Binding(
+                                    get: { clubContext.activeClubId },
+                                    set: { if let id = $0 { clubContext.select(id) } }
+                                )) {
+                                    ForEach(clubContext.clubs) { club in
+                                        Text(club.name).tag(Optional(club.id))
+                                    }
+                                }
                             }
                         }
                         Section {
@@ -52,13 +65,17 @@ struct HomeFeedView: View {
             }
             .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }
             .task { await load() }
+            .onChange(of: clubContext.activeClubId) { _, _ in
+                Task { await load() }
+            }
             .refreshable { await load() }
         }
     }
 
     private func load() async {
         do {
-            events = try await FishersAPI.events()
+            let all = try await FishersAPI.events(clubId: clubContext.activeClubId)
+            events = all
             error = nil
         } catch {
             self.error = error.localizedDescription

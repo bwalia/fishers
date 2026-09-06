@@ -22,6 +22,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>FishersAPIBaseURL</key>
 	<string>$(FISHERS_API_BASE_URL)</string>
+	<key>FishersWebBaseURL</key>
+	<string>$(FISHERS_WEB_BASE_URL)</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

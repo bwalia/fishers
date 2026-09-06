@@ -341,6 +341,7 @@ async fn publish(
     );
     announce(&state, event.club_id, Some(id), &announcement).await;
     notify_squad(&state, id, "squad_published", &event.title, &announcement).await;
+    crate::services::platform_bus::squad_published(&state, event.club_id, id, auth.user_id).await;
     Ok(Json(json!({ "announced_to": squad.len() })))
 }
 

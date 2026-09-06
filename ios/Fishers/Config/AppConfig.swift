@@ -35,8 +35,33 @@ enum AppConfig {
 
     static let apiVersionPrefix = "/api/v1"
 
-    /// Shown on the sign-in screen when a build cannot reach its API, so the
-    /// person holding the phone can say which server it was trying.
+    /// Public web host for live scoreboard links shared into chat.
+    ///
+    /// Resolved the same way as `apiBaseURL`, and for the same reason: a
+    /// hardcoded loopback address is a link nobody outside the Simulator can
+    /// open, which is the one thing a share link must not be.
+    static let webBaseURL: URL = {
+        if let override = ProcessInfo.processInfo.environment["FISHERS_WEB_URL"],
+           let url = URL(string: override) {
+            return url
+        }
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "FishersWebBaseURL") as? String,
+           !configured.isEmpty,
+           !configured.hasPrefix("$("),
+           let url = URL(string: configured) {
+            return url
+        }
+        #if DEBUG
+        return URL(string: "http://127.0.0.1:3000")!
+        #else
+        assertionFailure("FishersWebBaseURL is not set for this build configuration")
+        NSLog("[Fishers] FishersWebBaseURL is not set — shared live links will point at loopback.")
+        return URL(string: "http://127.0.0.1:3000")!
+        #endif
+    }()
+
+    /// Shown when a build cannot reach its API, so the person holding the phone
+    /// can say which server it was trying.
     static var displayHost: String {
         apiBaseURL.host.map { host in
             apiBaseURL.port.map { "\(host):\($0)" } ?? host

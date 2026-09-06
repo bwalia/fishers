@@ -124,8 +124,9 @@ private struct MessageBubble: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Text(message.body)
+            Text(linkedBody)
                 .font(.body)
+                .tint(FishersTheme.accent)
                 .padding(10)
                 .background(
                     message.isFromAgent
@@ -136,6 +137,36 @@ private struct MessageBubble: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
+    }
+
+    /// Turn bare URLs (including live scoreboard links) into tappable links.
+    private var linkedBody: AttributedString {
+        var text = AttributedString(message.body)
+        if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
+            let ns = message.body as NSString
+            let range = NSRange(location: 0, length: ns.length)
+            for match in detector.matches(in: message.body, options: [], range: range) {
+                guard let url = match.url,
+                      let swiftRange = Range(match.range, in: message.body),
+                      let attrRange = Range(swiftRange, in: text) else { continue }
+                text[attrRange].link = url
+                text[attrRange].foregroundColor = FishersTheme.accent
+                text[attrRange].underlineStyle = .single
+            }
+        }
+        // Scoreboard shares also carry metadata.url for a clearer CTA.
+        if case let .string(kind)? = message.metadata?["kind"], kind == "scoreboard_share",
+           case let .string(urlString)? = message.metadata?["url"],
+           let url = URL(string: urlString),
+           !message.body.contains(urlString) {
+            text.append(AttributedString("\n"))
+            var link = AttributedString("Open live scoreboard")
+            link.link = url
+            link.foregroundColor = FishersTheme.accent
+            link.underlineStyle = .single
+            text.append(link)
+        }
+        return text
     }
 }
 

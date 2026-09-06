@@ -2,24 +2,26 @@ import SwiftUI
 
 struct ShopView: View {
     @EnvironmentObject private var cart: CartStore
-    @State private var clubs: [Club] = []
+    @EnvironmentObject private var clubContext: ClubContextStore
     @State private var products: [Product] = []
-    @State private var selectedClub: Club?
     @State private var showCheckout = false
 
     var body: some View {
         List {
-            if clubs.isEmpty {
+            if clubContext.clubs.isEmpty {
                 Text("Join a club to see its shop.")
                     .foregroundStyle(.secondary)
             } else {
-                Picker("Club", selection: $selectedClub) {
-                    ForEach(clubs) { club in
-                        Text(club.name).tag(Optional(club))
+                Picker("Club", selection: Binding(
+                    get: { clubContext.activeClubId },
+                    set: { if let id = $0 { clubContext.select(id) } }
+                )) {
+                    ForEach(clubContext.clubs) { club in
+                        Text(club.name).tag(Optional(club.id))
                     }
                 }
-                .onChange(of: selectedClub) { _, club in
-                    Task { await loadProducts(club) }
+                .onChange(of: clubContext.activeClubId) { _, _ in
+                    Task { await loadProducts() }
                 }
 
                 ForEach(products) { product in
@@ -33,8 +35,8 @@ struct ShopView: View {
                         Spacer()
                         Text(product.priceLabel)
                         Button {
-                            if let club = selectedClub {
-                                cart.add(product, clubId: club.id)
+                            if let clubId = clubContext.activeClubId {
+                                cart.add(product, clubId: clubId)
                             }
                         } label: {
                             Image(systemName: "plus.circle.fill")
@@ -63,15 +65,16 @@ struct ShopView: View {
             CheckoutView()
         }
         .task {
-            clubs = (try? await FishersAPI.clubs()) ?? []
-            selectedClub = clubs.first
-            await loadProducts(selectedClub)
+            if clubContext.clubs.isEmpty {
+                await clubContext.bootstrap()
+            }
+            await loadProducts()
         }
     }
 
-    private func loadProducts(_ club: Club?) async {
-        guard let club else { products = []; return }
-        products = (try? await FishersAPI.products(clubId: club.id)) ?? []
+    private func loadProducts() async {
+        guard let clubId = clubContext.activeClubId else { products = []; return }
+        products = (try? await FishersAPI.products(clubId: clubId)) ?? []
     }
 }
 

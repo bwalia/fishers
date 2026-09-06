@@ -4,13 +4,16 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::{cricket as cricket_repo, events as events_repo};
-use fishers_domain::{DlsPar, MatchState, Permission, ScoringEvent, ScoringEventKind, UserRole};
+use fishers_domain::{
+    DlsPar, MatchState, MatchStatus, Permission, ScoringEvent, ScoringEventKind, UserRole,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
 use crate::rbac::{require_club_member, require_event_permission, require_permission};
+use crate::services::platform_bus;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -185,6 +188,15 @@ async fn claim_scorer(
             "another device is scoring this match — take over to score from here instead",
         )
     })?;
+    platform_bus::match_started(
+        &state,
+        updated.club_id,
+        updated.event_id,
+        updated.id,
+        auth.user_id,
+        "cricket",
+    )
+    .await;
     Ok(Json(to_response(&state, &updated, true)))
 }
 
@@ -214,6 +226,9 @@ async fn post_events(
     if body.events.len() > 500 {
         return Err(ApiError::bad_request("send at most 500 events per batch"));
     }
+    // Whether the match was already over decides if this batch is the one that
+    // finished it, and so whether the club hears about it.
+    let prev_complete = cricket_repo::parse_state(&row).status == MatchStatus::Complete;
 
     let state_out = cricket_repo::apply_event_batch(
         &state.pool,
@@ -224,6 +239,19 @@ async fn post_events(
     )
     .await
     .map_err(|e| ApiError::conflict(e.to_string()))?;
+
+    if !prev_complete && state_out.status == fishers_domain::MatchStatus::Complete {
+        platform_bus::match_completed(
+            &state,
+            row.club_id,
+            row.event_id,
+            id,
+            auth.user_id,
+            "cricket",
+            state_out.margin.clone(),
+        )
+        .await;
+    }
 
     let row = cricket_repo::get_match(&state.pool, id)
         .await?

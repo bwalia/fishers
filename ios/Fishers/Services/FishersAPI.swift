@@ -571,6 +571,43 @@ enum FishersAPI {
             "GET", path: "/cricket/matches/\(matchId.uuidString)/scorecard"
         )
     }
+
+    /// Mint a secure live scoreboard link and (by default) post it into club chat.
+    static func shareScoreboard(matchId: UUID, postToChat: Bool = true) async throws -> ScoreboardShareResponse {
+        struct Body: Encodable {
+            let post_to_chat: Bool
+            let ttl_hours: Int
+        }
+        return try await NetworkService.shared.request(
+            "POST",
+            path: "/cricket/matches/\(matchId.uuidString)/share",
+            body: Body(post_to_chat: postToChat, ttl_hours: 48)
+        )
+    }
+
+    // MARK: Season stats (Play-Cricket)
+
+    static func mySeasonStats(season: Int? = nil) async throws -> MeStatsResponse {
+        var path = "/me/stats"
+        if let season { path += "?season=\(season)" }
+        return try await NetworkService.shared.request("GET", path: path)
+    }
+
+    static func clubSeasonBoard(clubId: UUID, season: Int = 2026) async throws -> ClubSeasonBoard {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/stats?season=\(season)"
+        )
+    }
+
+    static func syncClubStats(clubId: UUID) async throws {
+        struct Resp: Decodable {
+            let status: String
+            let message: String
+        }
+        let _: Resp = try await NetworkService.shared.request(
+            "POST", path: "/clubs/\(clubId.uuidString)/stats/sync"
+        )
+    }
 }
 
 struct CreateEventBody: Encodable {
