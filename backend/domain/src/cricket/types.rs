@@ -84,6 +84,103 @@ pub enum ExtraKind {
     Penalty,
 }
 
+/// Where the game is being played. A boxed or indoor ground changes how a side
+/// bats, and clubs want it on the scorecard afterwards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GroundType {
+    /// A normal outfield with a full boundary.
+    Open,
+    /// Caged or netted, with walls in play.
+    Boxed,
+    Indoor,
+}
+
+impl GroundType {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Open => "Open ground",
+            Self::Boxed => "Boxed / caged",
+            Self::Indoor => "Indoor",
+        }
+    }
+}
+
+/// What they are bowling with. Red for longer formats, white under lights, pink
+/// for day-night, and tennis or tape for the games most clubs actually play
+/// midweek.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BallType {
+    Red,
+    White,
+    Pink,
+    Tennis,
+    Tape,
+}
+
+impl BallType {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Red => "Red leather",
+            Self::White => "White leather",
+            Self::Pink => "Pink leather",
+            Self::Tennis => "Tennis",
+            Self::Tape => "Tape ball",
+        }
+    }
+}
+
+/// The terms of the game, as the two captains settle them at the toss.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MatchConditions {
+    pub overs_limit: u8,
+    /// Most a single bowler may send down. 0 means no limit — some social
+    /// formats have none.
+    pub overs_per_bowler: u8,
+    pub ground: GroundType,
+    pub ball: BallType,
+}
+
+impl MatchConditions {
+    /// The usual allocation: a fifth of the innings each, rounded up. Twenty
+    /// overs gives four, fifty gives ten.
+    pub fn standard_overs_per_bowler(overs: u8) -> u8 {
+        overs.div_ceil(5).max(1)
+    }
+
+    pub fn standard(overs: u8) -> Self {
+        let overs = overs.max(1);
+        Self {
+            overs_limit: overs,
+            overs_per_bowler: Self::standard_overs_per_bowler(overs),
+            ground: GroundType::Open,
+            ball: BallType::White,
+        }
+    }
+
+    /// One line for the scorecard: "20 overs · 4 per bowler · white · open ground".
+    pub fn summary(&self) -> String {
+        let per_bowler = if self.overs_per_bowler == 0 {
+            "no bowler limit".to_string()
+        } else {
+            format!("{} per bowler", self.overs_per_bowler)
+        };
+        format!(
+            "{} overs · {per_bowler} · {} · {}",
+            self.overs_limit,
+            self.ball.label().to_lowercase(),
+            self.ground.label().to_lowercase()
+        )
+    }
+}
+
+impl Default for MatchConditions {
+    fn default() -> Self {
+        Self::standard(20)
+    }
+}
+
 /// A player on a team sheet. `id` is the Fishers user id for members, or a
 /// locally minted id for a guest / opposition player with no account.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -198,6 +295,20 @@ pub enum ScoringEventKind {
     OversRevised {
         innings_index: u8,
         overs: u8,
+    },
+    /// One captain sets out the terms. Any later proposal clears both
+    /// agreements, so nothing can be changed after the fact without the other
+    /// side agreeing again.
+    ConditionsProposed {
+        conditions: MatchConditions,
+        by: MatchSide,
+        by_name: String,
+    },
+    /// A captain accepts the terms on the table. The toss cannot be recorded
+    /// until both have.
+    ConditionsAgreed {
+        side: MatchSide,
+        captain_name: String,
     },
     InningsStarted {
         innings_index: u8,
@@ -417,6 +528,9 @@ pub struct InningsState {
     /// Overs this innings actually gets, after any weather reduction.
     #[serde(default)]
     pub overs_available: u8,
+    /// Who bowled the over that just finished — nobody bowls two in a row.
+    #[serde(default)]
+    pub last_over_bowler: Option<Uuid>,
 }
 
 fn default_wickets_allowed() -> u8 {
@@ -451,6 +565,7 @@ impl Default for InningsState {
             partnership_balls: 0,
             wickets_allowed: 10,
             overs_available: 0,
+            last_over_bowler: None,
         }
     }
 }
@@ -471,9 +586,23 @@ impl InningsState {
         self.wickets >= self.wickets_allowed
     }
 
+    /// Total balls this innings gets, or `None` when no limit is recorded.
+    ///
+    /// Zero means "not set" rather than "no overs left" — an innings restored
+    /// without the field must not close itself on the next delivery.
+    pub fn balls_allowed(&self) -> Option<u16> {
+        if self.overs_available == 0 {
+            None
+        } else {
+            Some((self.overs_available as u16) * 6)
+        }
+    }
+
     /// Balls left, given whatever overs this innings ended up with.
     pub fn balls_remaining(&self) -> u16 {
-        ((self.overs_available as u16) * 6).saturating_sub(self.legal_balls)
+        self.balls_allowed()
+            .map(|total| total.saturating_sub(self.legal_balls))
+            .unwrap_or(0)
     }
 
     /// Overs left as a fraction, which is what the DLS table is indexed by.
@@ -516,6 +645,16 @@ pub struct MatchState {
     /// Who bats left-handed — the wagon wheel mirrors the field for them.
     #[serde(default)]
     pub left_handers: BTreeSet<Uuid>,
+    /// The terms of the game. `overs_limit` mirrors `conditions.overs_limit`.
+    #[serde(default)]
+    pub conditions: MatchConditions,
+    #[serde(default)]
+    pub conditions_proposed_by: Option<MatchSide>,
+    /// The captain who agreed, by name — the away captain rarely has an account.
+    #[serde(default)]
+    pub agreed_home: Option<String>,
+    #[serde(default)]
+    pub agreed_away: Option<String>,
     /// Undo stack. Rebuilt by replaying the log, never persisted.
     #[serde(skip)]
     pub history: Vec<MatchStateSnapshot>,
@@ -553,6 +692,10 @@ impl Default for MatchState {
             last_seq: 0,
             player_names: BTreeMap::new(),
             left_handers: BTreeSet::new(),
+            conditions: MatchConditions::standard(20),
+            conditions_proposed_by: None,
+            agreed_home: None,
+            agreed_away: None,
             history: vec![],
         }
     }
@@ -576,6 +719,53 @@ impl MatchState {
             .get(&id)
             .cloned()
             .unwrap_or_else(|| id.to_string()[..8].to_string())
+    }
+
+    /// Both captains have signed off the terms, so the game can start.
+    pub fn conditions_agreed(&self) -> bool {
+        self.agreed_home.is_some() && self.agreed_away.is_some()
+    }
+
+    /// Which side still has to agree, for the screen that chases them.
+    pub fn awaiting_agreement(&self) -> Vec<MatchSide> {
+        let mut waiting = Vec::new();
+        if self.agreed_home.is_none() {
+            waiting.push(MatchSide::Home);
+        }
+        if self.agreed_away.is_none() {
+            waiting.push(MatchSide::Away);
+        }
+        waiting
+    }
+
+    /// Overs this bowler may still send down, or `None` when there is no limit.
+    pub fn overs_left_for_bowler(&self, bowler: Uuid) -> Option<u8> {
+        if self.conditions.overs_per_bowler == 0 {
+            return None;
+        }
+        let bowled = self
+            .current_innings()
+            .and_then(|inn| inn.bowlers.iter().find(|b| b.player_id == bowler))
+            .map(|b| (b.balls / 6) as u8)
+            .unwrap_or(0);
+        Some(self.conditions.overs_per_bowler.saturating_sub(bowled))
+    }
+
+    /// Why this bowler cannot come on, if they cannot.
+    pub fn bowler_unavailable_reason(&self, bowler: Uuid) -> Option<String> {
+        let inn = self.current_innings()?;
+        if inn.last_over_bowler == Some(bowler) && self.xi(inn.bowling).len() > 1 {
+            return Some("bowled the last over".into());
+        }
+        if let Some(left) = self.overs_left_for_bowler(bowler) {
+            if left == 0 {
+                return Some(format!(
+                    "has bowled their {} overs",
+                    self.conditions.overs_per_bowler
+                ));
+            }
+        }
+        None
     }
 
     pub fn bats_left(&self, id: Uuid) -> bool {

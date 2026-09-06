@@ -12,10 +12,12 @@ struct CricketScoringFlowView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var session: SessionStore
 
     @StateObject private var store: CricketMatchStore
     @State private var step: Step = .setup
     @State private var overs = 20
+    @State private var conditions = MatchConditions.standard(overs: 20)
     @State private var homeName = "Home"
     @State private var awayName = "Away"
     @State private var tossWinner: MatchSide = .home
@@ -31,9 +33,12 @@ struct CricketScoringFlowView: View {
     @State private var bowlerId: UUID?
     @State private var message: String?
     @State private var booting = false
+    @State private var agreeingSide: MatchSide?
+    @State private var isNamingCaptain = false
+    @State private var captainName = ""
 
     enum Step: Hashable {
-        case setup, toss, sheets, openers, live
+        case setup, agreement, toss, sheets, openers, live
     }
 
     init(event: Event, attendees: [AttendeeSummary], canScore: Bool) {
@@ -50,6 +55,7 @@ struct CricketScoringFlowView: View {
         Group {
             switch step {
             case .setup: setupStep
+            case .agreement: agreementStep
             case .toss: tossStep
             case .sheets: sheetsStep
             case .openers: openersStep
@@ -76,11 +82,50 @@ struct CricketScoringFlowView: View {
             Section {
                 TextField("Batting first / home side", text: $homeName)
                 TextField("Opposition", text: $awayName)
-                Stepper("Overs: \(overs)", value: $overs, in: 1...50)
             } header: {
                 Text(event.title)
+            }
+
+            Section {
+                Picker("Overs", selection: $conditions.oversLimit) {
+                    ForEach(Self.overPresets, id: \.self) { option in
+                        Text("\(option)").tag(UInt8(option))
+                    }
+                }
+                Stepper(
+                    conditions.oversPerBowler == 0
+                        ? "No bowler limit"
+                        : "Max \(conditions.oversPerBowler) overs per bowler",
+                    value: $conditions.oversPerBowler,
+                    in: 0...conditions.oversLimit
+                )
+            } header: {
+                Text("Format")
             } footer: {
-                Text("Scored on this device, online or not. The chip at the bottom of the scorer says when it has synced.")
+                Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs. Set it to none for a social game.")
+            }
+
+            Section("Ground") {
+                Picker("Ground", selection: $conditions.ground) {
+                    ForEach(GroundType.allCases) { ground in
+                        Label(ground.label, systemImage: ground.systemImage).tag(ground)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+                Text(conditions.ground.blurb)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Ball") {
+                Picker("Ball", selection: $conditions.ball) {
+                    ForEach(BallType.allCases) { ball in
+                        Text(ball.label).tag(ball)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
             }
 
             if !canScore {
@@ -103,12 +148,121 @@ struct CricketScoringFlowView: View {
                 } label: {
                     HStack {
                         Spacer()
-                        if booting { ProgressView() } else { Text("Continue to toss").bold() }
+                        if booting {
+                            ProgressView()
+                        } else {
+                            Text("Propose these terms").bold()
+                        }
                         Spacer()
                     }
                 }
                 .disabled(!canScore || booting || homeName.isEmpty || awayName.isEmpty)
+            } footer: {
+                Text("Both captains have to agree before the toss.")
             }
+        }
+        .onChange(of: conditions.oversLimit) { _, new in
+            // Keep the allocation sensible when the format changes.
+            conditions.oversPerBowler = MatchConditions.standardOversPerBowler(new)
+            overs = Int(new)
+        }
+    }
+
+    private static let overPresets = [5, 6, 8, 10, 12, 15, 16, 20, 25, 30, 35, 40, 45, 50]
+
+    // MARK: Step 1b — both captains agree
+
+    private var agreementStep: some View {
+        Form {
+            Section {
+                Text(store.state.conditions.summary)
+                    .font(FishersTheme.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("On the table")
+            } footer: {
+                Text("Change anything and both captains have to agree again.")
+            }
+
+            Section("Captains") {
+                agreementRow(side: .home, teamName: store.state.homeName)
+                agreementRow(side: .away, teamName: store.state.awayName)
+            }
+
+            if let message {
+                Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
+            }
+
+            Section {
+                Button("Continue to the toss") { step = .toss }
+                    .bold()
+                    .disabled(!store.state.conditionsAgreed)
+                Button("Change the terms") { step = .setup }
+                    .foregroundStyle(FishersTheme.accent)
+            } footer: {
+                if !store.state.conditionsAgreed {
+                    Text("Waiting on \(waitingNames). Tap Agree next to their name once they have said yes — this is the conversation you have at the toss.")
+                }
+            }
+        }
+        .alert("Captain's name", isPresented: $isNamingCaptain) {
+            TextField("Name", text: $captainName)
+            Button("Agree") { confirmAgreement() }
+            Button("Cancel", role: .cancel) { agreeingSide = nil }
+        } message: {
+            Text("Recorded against the agreement, so there is no argument later.")
+        }
+    }
+
+    private func agreementRow(side: MatchSide, teamName: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(teamName).font(.subheadline.weight(.medium))
+                if let name = store.state.agreedName(side) {
+                    Label(name, systemImage: "checkmark.seal.fill")
+                        .font(.caption)
+                        .foregroundStyle(FishersTheme.available)
+                } else {
+                    Text("Not agreed yet")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if store.state.agreedName(side) == nil {
+                Button("Agree") {
+                    agreeingSide = side
+                    captainName = suggestedCaptainName(for: side)
+                    isNamingCaptain = true
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private var waitingNames: String {
+        store.state.awaitingAgreement
+            .map { store.state.name(for: $0) }
+            .joined(separator: " and ")
+    }
+
+    private func suggestedCaptainName(for side: MatchSide) -> String {
+        // The home captain is usually whoever is holding the phone.
+        side == .home ? (session.user?.name ?? "") : ""
+    }
+
+    private func confirmAgreement() {
+        guard let side = agreeingSide else { return }
+        let name = captainName.trimmingCharacters(in: .whitespaces)
+        agreeingSide = nil
+        guard !name.isEmpty else {
+            message = "Put a name against the agreement."
+            return
+        }
+        if store.append(.conditionsAgreed(side: side, captainName: name)) {
+            message = nil
+        } else {
+            message = store.lastError
         }
     }
 
@@ -116,6 +270,16 @@ struct CricketScoringFlowView: View {
 
     private var tossStep: some View {
         Form {
+            Section {
+                Text(store.state.conditions.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let home = store.state.agreedHome, let away = store.state.agreedAway {
+                    Label("Agreed by \(home) and \(away)", systemImage: "checkmark.seal.fill")
+                        .font(.caption)
+                        .foregroundStyle(FishersTheme.available)
+                }
+            }
             Section("Who won the toss") {
                 Picker("Winner", selection: $tossWinner) {
                     Text(homeName).tag(MatchSide.home)
@@ -261,6 +425,7 @@ struct CricketScoringFlowView: View {
         overs = Int(store.state.oversLimit)
         homeSheet = store.state.players(for: .home)
         awaySheet = store.state.players(for: .away)
+        conditions = store.state.conditions
         switch store.state.status {
         case .live, .inningsBreak, .complete, .published:
             step = .live
@@ -268,9 +433,12 @@ struct CricketScoringFlowView: View {
             step = .openers
         case .selectingXi:
             step = .sheets
-        case .preparing:
+        case .toss:
             step = .toss
-        case .scheduled, .toss:
+        case .preparing:
+            // Terms are on the table but not settled.
+            step = store.state.conditionsProposedBy == nil ? .setup : .agreement
+        case .scheduled:
             step = .setup
         }
         CricketSyncService.shared.register(store: store)
@@ -292,14 +460,24 @@ struct CricketScoringFlowView: View {
         }
         if store.state.lastSeq == 0 {
             guard store.append(.matchPrepared(
-                oversLimit: UInt8(overs), homeName: homeName, awayName: awayName
+                oversLimit: conditions.oversLimit, homeName: homeName, awayName: awayName
             )) else {
                 message = store.lastError
                 return
             }
         }
+        // Whoever is scoring is proposing on behalf of the home side.
+        guard store.append(.conditionsProposed(
+            conditions: conditions,
+            by: .home,
+            byName: session.user?.name ?? homeName
+        )) else {
+            message = store.lastError
+            return
+        }
         CricketSyncService.shared.register(store: store)
-        step = .toss
+        message = nil
+        step = .agreement
     }
 
     private func commitSheets() {

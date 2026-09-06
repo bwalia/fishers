@@ -20,6 +20,25 @@ scorecard by replaying it with the Rust engine.
 - **Names travel with the events.** `xi_selected` carries `{id, name}` per
   player, so the scorecard reads as names on every device, not just the scorer's.
 
+## Before a ball is bowled
+
+The two captains settle the terms, and the app makes them say so:
+
+| Setting | Options |
+|---|---|
+| Overs | 5–50 (presets for the usual formats) |
+| Overs per bowler | Defaults to a fifth of the innings, rounded up — 4 for a 20, 10 for a 50. Set to none for a social game. |
+| Ground | Open · Boxed / caged · Indoor |
+| Ball | Red · White · Pink · Tennis · Tape |
+
+One captain proposes (`conditions_proposed` — proposing counts as agreeing), the
+other accepts (`conditions_agreed`), each recorded against a **name**, because
+the away captain rarely has an account and this is a conversation that happens at
+the toss. **The toss is refused until both have agreed.** Change anything
+afterwards and both agreements are cleared, so nothing gets altered quietly.
+
+The agreed terms appear on the scorecard.
+
 ## Who can score
 
 Permission `score_match` (`Permission::ScoreMatch`):
@@ -83,13 +102,34 @@ The device mints the match id before the API is involved:
   - a run out can take the batter at **either** end, with runs completed first
   - the batters cross on an odd number of completed runs
 - Strike rotation on odd runs and at the end of an over; maidens
+- **The bowling Laws**: nobody bowls two overs in a row, and nobody exceeds the
+  allocation the captains agreed. The bowler sheet shows overs left per bowler
+  and separates who *can* bowl this over from who cannot, with the reason.
 - Fall of wickets with the partnership that just ended, and the unbroken stand
 - All out at `team size − 1`, so an eight-a-side game ends at seven down
 - Innings closing on overs, on wickets, or on a declaration (`innings_completed`)
 - Result: won by runs, won by wickets with balls remaining, or tied
 
+## What a finished match writes back
+
+Completing a match is the moment cricket joins the rest of the app. It runs once
+— the first caller claims `stats_recorded_at` inside the transaction, so a
+resync or a replayed batch cannot count a hundred twice:
+
+1. **Attendance.** Everyone on either team sheet who is a Fishers member is
+   marked `attended`. This is the half of the reliability score that drives
+   squad selection, and nothing used to set it.
+2. **Season stats.** Batting, bowling, catches and stumpings are folded into
+   `player_season_stats` under `source = 'fishers_scoring'`, so scoring never
+   fights a Play-Cricket import or a manual entry — `source` is part of the
+   unique key.
+3. **The tournament table.** If the fixture belongs to a block, the result and
+   points land on `event_entrants`. Nobody has to type the score in twice.
+4. The fixture flips to `completed` and the scorecard is stored on
+   `match_results`.
+
 Not modelled yet: retired hurt (a retirement counts as a wicket), free hits,
-super overs, and wickets falling off a no ball.
+super overs, powerplays, and wickets falling off a no ball.
 
 ## Rain, and DLS
 

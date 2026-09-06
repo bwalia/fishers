@@ -108,6 +108,100 @@ enum SyncStatus: String, Codable {
 
 // MARK: - Team sheet
 
+/// Where the game is being played.
+enum GroundType: String, Codable, CaseIterable, Identifiable {
+    case open, boxed, indoor
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .open: return "Open ground"
+        case .boxed: return "Boxed / caged"
+        case .indoor: return "Indoor"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .open: return "sun.max"
+        case .boxed: return "square.grid.3x3"
+        case .indoor: return "building.2"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .open: return "Full boundary, normal outfield."
+        case .boxed: return "Caged or netted — walls are in play."
+        case .indoor: return "Indoor centre rules."
+        }
+    }
+}
+
+/// What they are bowling with.
+enum BallType: String, Codable, CaseIterable, Identifiable {
+    case red, white, pink, tennis, tape
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .red: return "Red leather"
+        case .white: return "White leather"
+        case .pink: return "Pink leather"
+        case .tennis: return "Tennis"
+        case .tape: return "Tape ball"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .red: return "Red"
+        case .white: return "White"
+        case .pink: return "Pink"
+        case .tennis: return "Tennis"
+        case .tape: return "Tape"
+        }
+    }
+}
+
+/// The terms of the game, as the two captains settle them at the toss.
+struct MatchConditions: Codable, Equatable, Hashable {
+    var oversLimit: UInt8
+    /// Most a single bowler may send down. 0 means no limit.
+    var oversPerBowler: UInt8
+    var ground: GroundType
+    var ball: BallType
+
+    enum CodingKeys: String, CodingKey {
+        case ground, ball
+        case oversLimit = "overs_limit"
+        case oversPerBowler = "overs_per_bowler"
+    }
+
+    /// A fifth of the innings each, rounded up: 20 overs gives 4, 50 gives 10.
+    static func standardOversPerBowler(_ overs: UInt8) -> UInt8 {
+        max(1, UInt8((Int(overs) + 4) / 5))
+    }
+
+    static func standard(overs: UInt8) -> MatchConditions {
+        let overs = max(overs, 1)
+        return MatchConditions(
+            oversLimit: overs,
+            oversPerBowler: standardOversPerBowler(overs),
+            ground: .open,
+            ball: .white
+        )
+    }
+
+    /// "20 overs · 4 per bowler · white leather · open ground"
+    var summary: String {
+        let perBowler = oversPerBowler == 0 ? "no bowler limit" : "\(oversPerBowler) per bowler"
+        return "\(oversLimit) overs · \(perBowler) · \(ball.label.lowercased()) · \(ground.label.lowercased())"
+    }
+}
+
 /// A player on a team sheet — a Fishers member, or a guest with a name only.
 struct MatchPlayer: Codable, Identifiable, Hashable {
     var id: UUID
@@ -253,6 +347,10 @@ enum ScoringEventKind: Codable, Equatable {
         kind: ExtraKind, runs: UInt8, boundary: Bool, offTheBat: Bool, shot: ShotRecord?
     )
     case oversRevised(inningsIndex: UInt8, overs: UInt8)
+    /// One captain sets out the terms. A later proposal clears both agreements.
+    case conditionsProposed(conditions: MatchConditions, by: MatchSide, byName: String)
+    /// A captain accepts the terms. The toss waits for both.
+    case conditionsAgreed(side: MatchSide, captainName: String)
     case wicketRecorded(
         batterId: UUID, kind: DismissalKind, fielderId: UUID?, newBatterId: UUID?, runs: UInt8
     )
@@ -266,7 +364,9 @@ enum ScoringEventKind: Codable, Equatable {
         case oversLimit = "overs_limit"
         case homeName = "home_name"
         case awayName = "away_name"
-        case winner, decision, side, players, overs
+        case winner, decision, side, players, overs, conditions, by
+        case byName = "by_name"
+        case captainName = "captain_name"
         case captainId = "captain_id"
         case keeperId = "keeper_id"
         case inningsIndex = "innings_index"
@@ -292,6 +392,8 @@ enum ScoringEventKind: Codable, Equatable {
         case .tossRecorded: return "toss_recorded"
         case .xiSelected: return "xi_selected"
         case .oversRevised: return "overs_revised"
+        case .conditionsProposed: return "conditions_proposed"
+        case .conditionsAgreed: return "conditions_agreed"
         case .inningsStarted: return "innings_started"
         case .deliveryRecorded: return "delivery_recorded"
         case .extrasRecorded: return "extras_recorded"
@@ -340,6 +442,13 @@ enum ScoringEventKind: Codable, Equatable {
         case let .oversRevised(index, overs):
             try c.encode(index, forKey: .inningsIndex)
             try c.encode(overs, forKey: .overs)
+        case let .conditionsProposed(conditions, by, byName):
+            try c.encode(conditions, forKey: .conditions)
+            try c.encode(by, forKey: .by)
+            try c.encode(byName, forKey: .byName)
+        case let .conditionsAgreed(side, captainName):
+            try c.encode(side, forKey: .side)
+            try c.encode(captainName, forKey: .captainName)
         case let .wicketRecorded(batter, kind, fielder, newBatter, runs):
             try c.encode(batter, forKey: .batterId)
             try c.encode(kind, forKey: .kind)
@@ -406,6 +515,17 @@ enum ScoringEventKind: Codable, Equatable {
             self = .oversRevised(
                 inningsIndex: try c.decode(UInt8.self, forKey: .inningsIndex),
                 overs: try c.decode(UInt8.self, forKey: .overs)
+            )
+        case "conditions_proposed":
+            self = .conditionsProposed(
+                conditions: try c.decode(MatchConditions.self, forKey: .conditions),
+                by: try c.decode(MatchSide.self, forKey: .by),
+                byName: try c.decode(String.self, forKey: .byName)
+            )
+        case "conditions_agreed":
+            self = .conditionsAgreed(
+                side: try c.decode(MatchSide.self, forKey: .side),
+                captainName: try c.decode(String.self, forKey: .captainName)
             )
         case "wicket_recorded":
             self = .wicketRecorded(
@@ -653,6 +773,8 @@ struct InningsState: Codable, Equatable {
     var wicketsAllowed: UInt8
     /// Overs this innings actually gets, after any weather reduction.
     var oversAvailable: UInt8
+    /// Who bowled the over that just finished — nobody bowls two in a row.
+    var lastOverBowler: UUID?
 
     enum CodingKeys: String, CodingKey {
         case index, batting, bowling, runs, wickets, extras, batters, bowlers
@@ -668,6 +790,7 @@ struct InningsState: Codable, Equatable {
         case partnershipBalls = "partnership_balls"
         case wicketsAllowed = "wickets_allowed"
         case oversAvailable = "overs_available"
+        case lastOverBowler = "last_over_bowler"
     }
 
     init(index: UInt8 = 0, batting: MatchSide = .home, bowling: MatchSide = .away) {
@@ -682,6 +805,7 @@ struct InningsState: Codable, Equatable {
         partnershipRuns = 0; partnershipBalls = 0
         wicketsAllowed = 10
         oversAvailable = 0
+        lastOverBowler = nil
     }
 
     init(from decoder: Decoder) throws {
@@ -711,11 +835,18 @@ struct InningsState: Codable, Equatable {
         partnershipBalls = try c.decodeIfPresent(UInt16.self, forKey: .partnershipBalls) ?? 0
         wicketsAllowed = try c.decodeIfPresent(UInt8.self, forKey: .wicketsAllowed) ?? 10
         oversAvailable = try c.decodeIfPresent(UInt8.self, forKey: .oversAvailable) ?? 0
+        lastOverBowler = try c.decodeIfPresent(UUID.self, forKey: .lastOverBowler)
+    }
+
+    /// Total balls this innings gets, or nil when no limit is recorded. Zero
+    /// means "not set", never "no overs left".
+    var ballsAllowed: UInt16? {
+        oversAvailable == 0 ? nil : UInt16(oversAvailable) * 6
     }
 
     /// Balls left, given whatever overs this innings ended up with.
     var ballsRemaining: UInt16 {
-        let total = UInt16(oversAvailable) * 6
+        guard let total = ballsAllowed else { return 0 }
         return total > legalBalls ? total - legalBalls : 0
     }
 
@@ -799,6 +930,12 @@ struct MatchState: Codable, Equatable {
     var playerNames: [String: String]
     /// Lower-case UUID strings of the left-handers, so the wheel mirrors.
     var leftHanders: Set<String>
+    /// The terms of the game. `oversLimit` mirrors `conditions.oversLimit`.
+    var conditions: MatchConditions
+    var conditionsProposedBy: MatchSide?
+    /// The captain who agreed, by name — the away captain rarely has an account.
+    var agreedHome: String?
+    var agreedAway: String?
     /// Local undo stack — never serialized.
     var history: [MatchStateSnapshot] = []
 
@@ -819,6 +956,10 @@ struct MatchState: Codable, Equatable {
         case lastSeq = "last_seq"
         case playerNames = "player_names"
         case leftHanders = "left_handers"
+        case conditions
+        case conditionsProposedBy = "conditions_proposed_by"
+        case agreedHome = "agreed_home"
+        case agreedAway = "agreed_away"
     }
 
     init(oversLimit: UInt8 = 20, homeName: String = "Home", awayName: String = "Away") {
@@ -832,6 +973,10 @@ struct MatchState: Codable, Equatable {
         homeKeeper = nil; awayKeeper = nil
         innings = []; target = nil; winner = nil; margin = nil
         lastSeq = 0; playerNames = [:]; leftHanders = []; history = []
+        conditions = MatchConditions.standard(overs: oversLimit)
+        conditionsProposedBy = nil
+        agreedHome = nil
+        agreedAway = nil
     }
 
     init(from decoder: Decoder) throws {
@@ -856,6 +1001,11 @@ struct MatchState: Codable, Equatable {
         playerNames = try c.decodeIfPresent([String: String].self, forKey: .playerNames) ?? [:]
         let lefties = try c.decodeIfPresent([String].self, forKey: .leftHanders) ?? []
         leftHanders = Set(lefties.map { $0.lowercased() })
+        conditions = try c.decodeIfPresent(MatchConditions.self, forKey: .conditions)
+            ?? MatchConditions.standard(overs: oversLimit)
+        conditionsProposedBy = try c.decodeIfPresent(MatchSide.self, forKey: .conditionsProposedBy)
+        agreedHome = try c.decodeIfPresent(String.self, forKey: .agreedHome)
+        agreedAway = try c.decodeIfPresent(String.self, forKey: .agreedAway)
         history = []
     }
 
@@ -875,6 +1025,42 @@ struct MatchState: Codable, Equatable {
         xi(side).map {
             MatchPlayer(id: $0, name: name(for: $0), batsLeft: batsLeft($0))
         }
+    }
+
+    /// Both captains have signed off the terms, so the game can start.
+    var conditionsAgreed: Bool { agreedHome != nil && agreedAway != nil }
+
+    /// Which side still has to agree, for the screen that chases them.
+    var awaitingAgreement: [MatchSide] {
+        var waiting: [MatchSide] = []
+        if agreedHome == nil { waiting.append(.home) }
+        if agreedAway == nil { waiting.append(.away) }
+        return waiting
+    }
+
+    func agreedName(_ side: MatchSide) -> String? {
+        side == .home ? agreedHome : agreedAway
+    }
+
+    /// Overs this bowler may still send down, or nil when there is no limit.
+    func oversLeftForBowler(_ bowler: UUID) -> UInt8? {
+        guard conditions.oversPerBowler > 0 else { return nil }
+        let bowled = currentInnings?.bowlers
+            .first { $0.playerId == bowler }
+            .map { UInt8($0.balls / 6) } ?? 0
+        return conditions.oversPerBowler > bowled ? conditions.oversPerBowler - bowled : 0
+    }
+
+    /// Why this bowler cannot come on, if they cannot.
+    func bowlerUnavailableReason(_ bowler: UUID) -> String? {
+        guard let inn = currentInnings else { return nil }
+        if inn.lastOverBowler == bowler && xi(inn.bowling).count > 1 {
+            return "bowled the last over"
+        }
+        if let left = oversLeftForBowler(bowler), left == 0 {
+            return "has bowled their \(conditions.oversPerBowler) overs"
+        }
+        return nil
     }
 
     func batsLeft(_ id: UUID) -> Bool {

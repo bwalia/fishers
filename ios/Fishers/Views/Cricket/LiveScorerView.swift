@@ -670,17 +670,28 @@ private struct RevisedOversSheet: View {
     @ObservedObject var store: CricketMatchStore
     @Environment(\.dismiss) private var dismiss
     @State private var overs: Int = 20
+    @State private var inningsIndex: Int = 0
     @State private var message: String?
 
     var body: some View {
         NavigationStack {
             Form {
+                if store.state.innings.count > 1 {
+                    Section("Which innings") {
+                        Picker("Innings", selection: $inningsIndex) {
+                            ForEach(Array(store.state.innings.enumerated()), id: \.offset) { index, inn in
+                                Text(store.state.name(for: inn.batting)).tag(index)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
                 Section {
                     Stepper("Overs: \(overs)", value: $overs, in: bowledSoFar...50)
                 } header: {
-                    Text("This innings now has")
+                    Text("That innings now has")
                 } footer: {
-                    Text("\(bowledSoFar) over\(bowledSoFar == 1 ? "" : "s") already bowled. The DLS par score updates immediately.")
+                    Text("\(bowledSoFar) over\(bowledSoFar == 1 ? "" : "s") already bowled. The DLS par score updates immediately — including when the first innings was the one cut short.")
                 }
                 if let message {
                     Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
@@ -697,20 +708,30 @@ private struct RevisedOversSheet: View {
                 }
             }
             .onAppear {
-                overs = Int(store.state.currentInnings?.oversAvailable ?? store.state.oversLimit)
+                inningsIndex = max(0, store.state.innings.count - 1)
+                overs = Int(selectedInnings?.oversAvailable ?? store.state.oversLimit)
+            }
+            .onChange(of: inningsIndex) { _, _ in
+                overs = Int(selectedInnings?.oversAvailable ?? store.state.oversLimit)
             }
         }
         .presentationDetents([.medium])
     }
 
+    private var selectedInnings: InningsState? {
+        store.state.innings.indices.contains(inningsIndex)
+            ? store.state.innings[inningsIndex]
+            : store.state.currentInnings
+    }
+
     private var bowledSoFar: Int {
-        guard let inn = store.state.currentInnings else { return 1 }
+        guard let inn = selectedInnings else { return 1 }
         return max(1, (Int(inn.legalBalls) + 5) / 6)
     }
 
     private func apply() {
-        guard let index = store.state.currentInnings?.index else { return }
-        if store.append(.oversRevised(inningsIndex: index, overs: UInt8(overs))) {
+        guard let inn = selectedInnings else { return }
+        if store.append(.oversRevised(inningsIndex: inn.index, overs: UInt8(overs))) {
             dismiss()
         } else {
             message = store.lastError
@@ -872,21 +893,25 @@ private struct BowlerSheet: View {
 
     var body: some View {
         NavigationStack {
-            List(bowlers) { player in
-                Button {
-                    _ = store.append(.bowlerChanged(bowlerId: player.id))
-                    dismiss()
-                } label: {
-                    HStack {
-                        Text(player.name)
-                        Spacer()
-                        if let figures = figures(for: player.id) {
-                            Text(figures)
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                        if store.state.currentInnings?.bowlerId == player.id {
-                            Image(systemName: "checkmark").foregroundStyle(FishersTheme.accent)
+            List {
+                Section {
+                    ForEach(available) { player in
+                        row(player, reason: nil)
+                    }
+                } header: {
+                    Text("Can bowl")
+                } footer: {
+                    if store.state.conditions.oversPerBowler > 0 {
+                        Text("\(store.state.conditions.oversPerBowler) overs each. Nobody bowls two overs in a row.")
+                    } else {
+                        Text("No allocation agreed. Nobody bowls two overs in a row.")
+                    }
+                }
+
+                if !unavailable.isEmpty {
+                    Section("Cannot bowl this over") {
+                        ForEach(unavailable, id: \.0.id) { player, reason in
+                            row(player, reason: reason)
                         }
                     }
                 }
@@ -902,9 +927,54 @@ private struct BowlerSheet: View {
         .presentationDetents([.medium, .large])
     }
 
-    private var bowlers: [MatchPlayer] {
+    private func row(_ player: MatchPlayer, reason: String?) -> some View {
+        Button {
+            guard reason == nil else { return }
+            _ = store.append(.bowlerChanged(bowlerId: player.id))
+            dismiss()
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(player.name)
+                        .foregroundStyle(reason == nil ? .primary : .secondary)
+                    if let reason {
+                        Text(reason).font(.caption2).foregroundStyle(FishersTheme.unavailable)
+                    } else if let left = store.state.oversLeftForBowler(player.id) {
+                        Text("\(left) over\(left == 1 ? "" : "s") left")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if let figures = figures(for: player.id) {
+                    Text(figures)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                if store.state.currentInnings?.bowlerId == player.id {
+                    Image(systemName: "checkmark").foregroundStyle(FishersTheme.accent)
+                }
+            }
+        }
+        .disabled(reason != nil)
+        .accessibilityLabel(
+            reason.map { "\(player.name), \($0)" } ?? player.name
+        )
+    }
+
+    private var fielding: [MatchPlayer] {
         guard let inn = store.state.currentInnings else { return [] }
         return store.state.players(for: inn.bowling)
+    }
+
+    private var available: [MatchPlayer] {
+        fielding.filter { store.state.bowlerUnavailableReason($0.id) == nil }
+    }
+
+    private var unavailable: [(MatchPlayer, String)] {
+        fielding.compactMap { player in
+            store.state.bowlerUnavailableReason(player.id).map { (player, $0) }
+        }
     }
 
     private func figures(for id: UUID) -> String? {

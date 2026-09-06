@@ -86,12 +86,61 @@ impl MatchState {
                 home_name,
                 away_name,
             } => {
-                self.overs_limit = (*overs_limit).max(1);
+                let overs = (*overs_limit).max(1);
+                self.overs_limit = overs;
+                self.conditions = MatchConditions::standard(overs);
                 self.home_name = home_name.clone();
                 self.away_name = away_name.clone();
                 self.status = MatchStatus::Preparing;
             }
+            ScoringEventKind::ConditionsProposed {
+                conditions,
+                by,
+                by_name,
+            } => {
+                if conditions.overs_limit == 0 {
+                    return Err(DomainError::Validation(
+                        "a match needs at least one over".into(),
+                    ));
+                }
+                if conditions.overs_per_bowler > conditions.overs_limit {
+                    return Err(DomainError::Validation(
+                        "a bowler cannot be allowed more overs than the innings has".into(),
+                    ));
+                }
+                self.conditions = *conditions;
+                self.overs_limit = conditions.overs_limit;
+                self.conditions_proposed_by = Some(*by);
+                // New terms need agreeing again, by both sides.
+                self.agreed_home = None;
+                self.agreed_away = None;
+                // The proposer has, by proposing, agreed to their own terms.
+                match by {
+                    MatchSide::Home => self.agreed_home = Some(by_name.clone()),
+                    MatchSide::Away => self.agreed_away = Some(by_name.clone()),
+                }
+                self.status = MatchStatus::Preparing;
+            }
+            ScoringEventKind::ConditionsAgreed { side, captain_name } => {
+                if self.conditions_proposed_by.is_none() {
+                    return Err(DomainError::Validation(
+                        "there are no terms on the table to agree to".into(),
+                    ));
+                }
+                match side {
+                    MatchSide::Home => self.agreed_home = Some(captain_name.clone()),
+                    MatchSide::Away => self.agreed_away = Some(captain_name.clone()),
+                }
+                if self.conditions_agreed() {
+                    self.status = MatchStatus::Toss;
+                }
+            }
             ScoringEventKind::TossRecorded { winner, decision } => {
+                if !self.conditions_agreed() {
+                    return Err(DomainError::Validation(
+                        "both captains have to agree the overs, ground and ball first".into(),
+                    ));
+                }
                 self.toss_winner = Some(*winner);
                 self.toss_decision = Some(*decision);
                 self.status = MatchStatus::SelectingXi;
@@ -164,12 +213,14 @@ impl MatchState {
                     non_striker_id: Some(*non_striker_id),
                     bowler_id: Some(*bowler_id),
                     wickets_allowed,
-                    overs_available: self.overs_limit,
+                    overs_available: self.conditions.overs_limit.max(self.overs_limit),
                     ..Default::default()
                 };
                 inn.ensure_bowler(*bowler_id);
                 self.innings.push(inn);
                 self.status = MatchStatus::Live;
+                // The opening bowler counts against the allocation like any other.
+                self.check_bowler_available(*bowler_id)?;
                 if *innings_index == 1 {
                     if let Some(first) = self.innings.first() {
                         self.target = Some(first.runs + 1);
@@ -223,6 +274,7 @@ impl MatchState {
                 innings.close_if_finished(overs);
             }
             ScoringEventKind::BowlerChanged { bowler_id } => {
+                self.check_bowler_available(*bowler_id)?;
                 let inn = self
                     .current_innings_mut()
                     .ok_or_else(|| DomainError::Validation("no innings".into()))?;
@@ -243,6 +295,37 @@ impl MatchState {
 
         self.last_seq = event.seq;
         self.check_auto_complete();
+        Ok(())
+    }
+
+    /// Two Laws and one agreement: nobody bowls consecutive overs, nobody
+    /// exceeds the allocation the captains settled, and a side with a single
+    /// bowler is excused the first of those.
+    fn check_bowler_available(&self, bowler: Uuid) -> Result<()> {
+        let Some(inn) = self.current_innings() else {
+            return Ok(());
+        };
+        if inn.last_over_bowler == Some(bowler) && self.xi(inn.bowling).len() > 1 {
+            return Err(DomainError::Validation(format!(
+                "{} bowled the last over — nobody bowls two in a row",
+                self.name_for(bowler)
+            )));
+        }
+        if self.conditions.overs_per_bowler > 0 {
+            let bowled = inn
+                .bowlers
+                .iter()
+                .find(|b| b.player_id == bowler)
+                .map(|b| (b.balls / 6) as u8)
+                .unwrap_or(0);
+            if bowled >= self.conditions.overs_per_bowler {
+                return Err(DomainError::Validation(format!(
+                    "{} has bowled their {} overs",
+                    self.name_for(bowler),
+                    self.conditions.overs_per_bowler
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -564,7 +647,7 @@ impl MatchState {
             inn.swap_strike();
         }
 
-        if inn.is_all_out() || inn.legal_balls >= (overs_limit as u16) * 6 {
+        if inn.is_all_out() || (overs_limit > 0 && inn.legal_balls >= (overs_limit as u16) * 6) {
             inn.complete = true;
             return Ok(());
         }
@@ -714,7 +797,8 @@ impl InningsState {
             .ok_or_else(|| DomainError::Validation("bowler missing".into()))
     }
 
-    /// Six legal balls: bank the maiden, reset the count, change ends.
+    /// Six legal balls: bank the maiden, reset the count, change ends, and
+    /// remember who bowled it so they cannot bowl the next one.
     fn complete_over_if_due(&mut self, bowler: Option<Uuid>) {
         if self.balls_in_current_over < 6 {
             return;
@@ -727,12 +811,14 @@ impl InningsState {
                 bowl.current_over_runs = 0;
             }
         }
+        self.last_over_bowler = bowler;
         self.balls_in_current_over = 0;
         self.swap_strike();
     }
 
     fn close_if_finished(&mut self, overs_limit: u8) {
-        if self.legal_balls >= (overs_limit as u16) * 6 || self.is_all_out() {
+        let out_of_overs = overs_limit > 0 && self.legal_balls >= (overs_limit as u16) * 6;
+        if out_of_overs || self.is_all_out() {
             self.complete = true;
         }
     }
@@ -786,6 +872,23 @@ mod tests {
                     overs_limit: overs,
                     home_name: "Lords".into(),
                     away_name: "Hemel".into(),
+                },
+            );
+            push(
+                &mut state,
+                &mut seq,
+                ScoringEventKind::ConditionsProposed {
+                    conditions: MatchConditions::standard(overs),
+                    by: MatchSide::Home,
+                    by_name: "Home captain".into(),
+                },
+            );
+            push(
+                &mut state,
+                &mut seq,
+                ScoringEventKind::ConditionsAgreed {
+                    side: MatchSide::Away,
+                    captain_name: "Away captain".into(),
                 },
             );
             push(
@@ -1337,6 +1440,372 @@ mod tests {
         let key = m.home[0].id.to_string();
         assert_eq!(key, key.to_lowercase(), "uuids serialise lower case");
         assert_eq!(names[&key], "Home 0");
+    }
+
+    #[test]
+    fn an_innings_with_no_recorded_overs_does_not_close_itself() {
+        // A projection restored without `overs_available` used to have a limit
+        // of zero, which meant every ball ended the innings.
+        let mut m = Fixture::new(20);
+        m.state.innings[0].overs_available = 0;
+        m.runs(1);
+        assert!(!m.innings().complete, "zero means unknown, not finished");
+        assert_eq!(m.innings().runs, 1);
+        assert_eq!(m.innings().balls_allowed(), None);
+    }
+
+    // MARK: conditions the captains agree
+
+    #[test]
+    fn a_toss_needs_both_captains_to_have_agreed_the_terms() {
+        let mut state = MatchState::default();
+        let mut seq = 0;
+        let push = |state: &mut MatchState, seq: &mut i64, kind| {
+            *seq += 1;
+            state.apply(&evt(*seq, kind))
+        };
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::MatchPrepared {
+                overs_limit: 20,
+                home_name: "Lords".into(),
+                away_name: "Hemel".into(),
+            },
+        )
+        .unwrap();
+
+        // Straight to the toss: refused, nothing has been agreed.
+        assert!(push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::TossRecorded {
+                winner: MatchSide::Home,
+                decision: TossDecision::Bat,
+            },
+        )
+        .is_err());
+
+        seq -= 1; // the refused event never happened
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::ConditionsProposed {
+                conditions: MatchConditions {
+                    overs_limit: 30,
+                    overs_per_bowler: 6,
+                    ground: GroundType::Boxed,
+                    ball: BallType::Tennis,
+                },
+                by: MatchSide::Home,
+                by_name: "Ravi".into(),
+            },
+        )
+        .unwrap();
+
+        // The proposing captain has agreed; the other has not.
+        assert_eq!(state.agreed_home.as_deref(), Some("Ravi"));
+        assert!(state.agreed_away.is_none());
+        assert!(!state.conditions_agreed());
+        assert_eq!(state.awaiting_agreement(), vec![MatchSide::Away]);
+        assert!(push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::TossRecorded {
+                winner: MatchSide::Home,
+                decision: TossDecision::Bat,
+            },
+        )
+        .is_err());
+
+        seq -= 1;
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::ConditionsAgreed {
+                side: MatchSide::Away,
+                captain_name: "Sam".into(),
+            },
+        )
+        .unwrap();
+        assert!(state.conditions_agreed());
+        assert_eq!(state.status, MatchStatus::Toss);
+        assert_eq!(state.conditions.overs_limit, 30);
+        assert_eq!(state.conditions.ball, BallType::Tennis);
+        assert_eq!(state.conditions.ground, GroundType::Boxed);
+
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::TossRecorded {
+                winner: MatchSide::Home,
+                decision: TossDecision::Bat,
+            },
+        )
+        .unwrap();
+        assert_eq!(state.status, MatchStatus::SelectingXi);
+    }
+
+    #[test]
+    fn changing_the_terms_needs_agreeing_all_over_again() {
+        let mut m = Fixture::new(20);
+        assert!(m.state.conditions_agreed());
+        m.push(ScoringEventKind::ConditionsProposed {
+            conditions: MatchConditions::standard(10),
+            by: MatchSide::Away,
+            by_name: "Sam".into(),
+        });
+        assert!(!m.state.conditions_agreed(), "the home side must agree the change");
+        assert_eq!(m.state.awaiting_agreement(), vec![MatchSide::Home]);
+    }
+
+    #[test]
+    fn the_standard_allocation_is_a_fifth_of_the_innings() {
+        assert_eq!(MatchConditions::standard(20).overs_per_bowler, 4);
+        assert_eq!(MatchConditions::standard(50).overs_per_bowler, 10);
+        assert_eq!(MatchConditions::standard(40).overs_per_bowler, 8);
+        // Rounded up, and never zero.
+        assert_eq!(MatchConditions::standard(12).overs_per_bowler, 3);
+        assert_eq!(MatchConditions::standard(1).overs_per_bowler, 1);
+    }
+
+    #[test]
+    fn a_bowler_allocation_larger_than_the_innings_is_refused() {
+        let mut m = Fixture::new(20);
+        let result = m.try_push(ScoringEventKind::ConditionsProposed {
+            conditions: MatchConditions {
+                overs_limit: 20,
+                overs_per_bowler: 21,
+                ground: GroundType::Open,
+                ball: BallType::White,
+            },
+            by: MatchSide::Home,
+            by_name: "Ravi".into(),
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn the_conditions_summary_reads_like_a_scorecard_header() {
+        let conditions = MatchConditions {
+            overs_limit: 20,
+            overs_per_bowler: 4,
+            ground: GroundType::Boxed,
+            ball: BallType::Tape,
+        };
+        assert_eq!(
+            conditions.summary(),
+            "20 overs · 4 per bowler · tape ball · boxed / caged"
+        );
+    }
+
+    // MARK: the bowling Laws
+
+    #[test]
+    fn nobody_bowls_two_overs_in_a_row() {
+        let mut m = Fixture::new(20);
+        let opener = m.innings().bowler_id.unwrap();
+        for _ in 0..6 {
+            m.runs(0);
+        }
+        assert_eq!(m.innings().last_over_bowler, Some(opener));
+        let result = m.try_push(ScoringEventKind::BowlerChanged { bowler_id: opener });
+        assert!(result.is_err(), "the same bowler cannot start the next over");
+
+        // Someone else can, and then the opener is free again.
+        let second = m.away[1].id;
+        m.seq -= 1;
+        m.push(ScoringEventKind::BowlerChanged { bowler_id: second });
+        for _ in 0..6 {
+            m.runs(0);
+        }
+        m.push(ScoringEventKind::BowlerChanged { bowler_id: opener });
+        assert_eq!(m.innings().bowler_id, Some(opener));
+    }
+
+    #[test]
+    fn a_bowler_cannot_exceed_the_agreed_allocation() {
+        // Five overs, one per bowler.
+        let mut m = Fixture::new(5);
+        m.push(ScoringEventKind::ConditionsProposed {
+            conditions: MatchConditions {
+                overs_limit: 5,
+                overs_per_bowler: 1,
+                ground: GroundType::Open,
+                ball: BallType::White,
+            },
+            by: MatchSide::Home,
+            by_name: "Ravi".into(),
+        });
+        m.push(ScoringEventKind::ConditionsAgreed {
+            side: MatchSide::Away,
+            captain_name: "Sam".into(),
+        });
+
+        let opener = m.innings().bowler_id.unwrap();
+        for _ in 0..6 {
+            m.runs(0);
+        }
+        assert_eq!(m.state.overs_left_for_bowler(opener), Some(0));
+        m.push(ScoringEventKind::BowlerChanged { bowler_id: m.away[1].id });
+        for _ in 0..6 {
+            m.runs(0);
+        }
+        // The opener is off consecutive-over duty now, but has no overs left.
+        let result = m.try_push(ScoringEventKind::BowlerChanged { bowler_id: opener });
+        assert!(result.is_err(), "their single over is gone");
+        assert_eq!(
+            m.state.bowler_unavailable_reason(opener).as_deref(),
+            Some("has bowled their 1 overs")
+        );
+    }
+
+    #[test]
+    fn no_allocation_means_no_limit() {
+        let mut m = Fixture::new(6);
+        m.push(ScoringEventKind::ConditionsProposed {
+            conditions: MatchConditions {
+                overs_limit: 6,
+                overs_per_bowler: 0,
+                ground: GroundType::Boxed,
+                ball: BallType::Tennis,
+            },
+            by: MatchSide::Home,
+            by_name: "Ravi".into(),
+        });
+        m.push(ScoringEventKind::ConditionsAgreed {
+            side: MatchSide::Away,
+            captain_name: "Sam".into(),
+        });
+        let a = m.innings().bowler_id.unwrap();
+        let b = m.away[1].id;
+        assert_eq!(m.state.overs_left_for_bowler(a), None, "no limit to report");
+
+        // Alternate for four overs; with no allocation neither runs out.
+        for _ in 0..2 {
+            for _ in 0..6 {
+                m.runs(0);
+            }
+            m.push(ScoringEventKind::BowlerChanged { bowler_id: b });
+            for _ in 0..6 {
+                m.runs(0);
+            }
+            m.push(ScoringEventKind::BowlerChanged { bowler_id: a });
+        }
+        assert_eq!(m.innings().bowlers.len(), 2);
+        assert_eq!(m.state.overs_left_for_bowler(b), None);
+        // `a` is on now, so the only thing that could stop them is an allocation.
+        assert!(m.state.bowler_unavailable_reason(a).is_none());
+    }
+
+    #[test]
+    fn the_consecutive_over_rule_holds_even_two_a_side() {
+        // A two-player side still has a second bowler, so the Law applies.
+        let home = team("Home", 2);
+        let away = team("Away", 2);
+        let mut state = MatchState::default();
+        let mut seq = 0;
+        let push = |state: &mut MatchState, seq: &mut i64, kind| {
+            *seq += 1;
+            state.apply(&evt(*seq, kind)).unwrap();
+        };
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::MatchPrepared {
+                overs_limit: 4,
+                home_name: "A".into(),
+                away_name: "B".into(),
+            },
+        );
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::ConditionsProposed {
+                conditions: MatchConditions {
+                    overs_limit: 4,
+                    overs_per_bowler: 0,
+                    ground: GroundType::Boxed,
+                    ball: BallType::Tennis,
+                },
+                by: MatchSide::Home,
+                by_name: "A".into(),
+            },
+        );
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::ConditionsAgreed {
+                side: MatchSide::Away,
+                captain_name: "B".into(),
+            },
+        );
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::TossRecorded {
+                winner: MatchSide::Home,
+                decision: TossDecision::Bat,
+            },
+        );
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::XiSelected {
+                side: MatchSide::Home,
+                players: home.clone(),
+                captain_id: None,
+                keeper_id: None,
+            },
+        );
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::XiSelected {
+                side: MatchSide::Away,
+                players: away.clone(),
+                captain_id: None,
+                keeper_id: None,
+            },
+        );
+        push(
+            &mut state,
+            &mut seq,
+            ScoringEventKind::InningsStarted {
+                innings_index: 0,
+                batting: MatchSide::Home,
+                striker_id: home[0].id,
+                non_striker_id: home[1].id,
+                bowler_id: away[0].id,
+            },
+        );
+        for _ in 0..6 {
+            seq += 1;
+            state
+                .apply(&evt(
+                    seq,
+                    ScoringEventKind::DeliveryRecorded {
+                        runs: 0,
+                        is_legal: true,
+                        is_boundary_four: false,
+                        is_boundary_six: false,
+                        shot: None,
+                    },
+                ))
+                .unwrap();
+        }
+        seq += 1;
+        assert!(
+            state
+                .apply(&evt(
+                    seq,
+                    ScoringEventKind::BowlerChanged {
+                        bowler_id: away[0].id
+                    }
+                ))
+                .is_err(),
+            "the other player has to bowl the next one"
+        );
     }
 
     // MARK: extras that carry runs

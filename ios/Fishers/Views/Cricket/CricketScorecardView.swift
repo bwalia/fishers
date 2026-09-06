@@ -9,6 +9,7 @@ struct CricketScorecardView: View {
 
     @State private var tab: Tab = .card
     @State private var wheelBatter: UUID?
+    @State private var inningsIndex: Int = 0
 
     enum Tab: String, CaseIterable, Identifiable {
         case card = "Scorecard"
@@ -39,13 +40,38 @@ struct CricketScorecardView: View {
         }
         .navigationTitle("Scorecard")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { inningsIndex = max(0, state.innings.count - 1) }
+        .onChange(of: inningsIndex) { _, _ in wheelBatter = nil }
     }
 
     // MARK: Wagon wheel
 
+    /// Whichever innings the reader has picked — the first innings' wheel and
+    /// commentary stay reachable once the chase is under way.
+    private var selectedInnings: InningsState? {
+        state.innings.indices.contains(inningsIndex)
+            ? state.innings[inningsIndex]
+            : state.innings.last
+    }
+
+    @ViewBuilder
+    private var inningsPicker: some View {
+        if state.innings.count > 1 {
+            Picker("Innings", selection: $inningsIndex) {
+                ForEach(Array(state.innings.enumerated()), id: \.offset) { index, inn in
+                    Text(state.name(for: inn.batting)).tag(index)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
     private var wheel: some View {
         List {
-            if let innings = state.innings.last {
+            if state.innings.count > 1 {
+                Section { inningsPicker }
+            }
+            if let innings = selectedInnings {
                 Section {
                     Picker("Batter", selection: $wheelBatter) {
                         Text("Whole innings").tag(UUID?.none)
@@ -79,7 +105,10 @@ struct CricketScorecardView: View {
 
     private var commentary: some View {
         List {
-            if let innings = state.innings.last, !innings.deliveries.isEmpty {
+            if state.innings.count > 1 {
+                Section { inningsPicker }
+            }
+            if let innings = selectedInnings, !innings.deliveries.isEmpty {
                 ForEach(CricketCommentary.feed(for: innings, in: state, limit: 120)) { entry in
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Text(entry.marker)
@@ -130,6 +159,17 @@ struct CricketScorecardView: View {
                     Text("Duckworth–Lewis–Stern")
                 } footer: {
                     Text("\(dls.summary). \(dls.methodLabel).")
+                }
+            }
+
+            Section("Conditions") {
+                Text(state.conditions.summary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                if let home = state.agreedHome, let away = state.agreedAway {
+                    Label("Agreed by \(home) and \(away)", systemImage: "checkmark.seal")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
 

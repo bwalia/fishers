@@ -36,6 +36,12 @@ final class CricketEngineTests: XCTestCase {
     private func fixture(overs: UInt8 = 20, size: Int = 11) throws -> Fixture {
         var f = Fixture(home: team("Home", size), away: team("Away", size))
         try f.push(.matchPrepared(oversLimit: overs, homeName: "Lords", awayName: "Hemel"))
+        try f.push(.conditionsProposed(
+            conditions: MatchConditions.standard(overs: overs),
+            by: .home,
+            byName: "Home captain"
+        ))
+        try f.push(.conditionsAgreed(side: .away, captainName: "Away captain"))
         try f.push(.tossRecorded(winner: .home, decision: .bat))
         try f.push(.xiSelected(
             side: .home, players: f.home, captainId: f.home[0].id, keeperId: f.home[1].id
@@ -267,6 +273,140 @@ final class CricketEngineTests: XCTestCase {
         ))
         try f.runs(2)
         XCTAssertEqual(f.state.chaseLine, "Hemel need 3 from 11 balls")
+    }
+
+    // MARK: Conditions the captains agree
+
+    func testTossNeedsBothCaptainsToAgreeFirst() throws {
+        var state = MatchState()
+        var seq: Int64 = 0
+        func push(_ kind: ScoringEventKind) throws {
+            seq += 1
+            try state.apply(.make(seq: seq, kind: kind))
+        }
+
+        try push(.matchPrepared(oversLimit: 20, homeName: "Lords", awayName: "Hemel"))
+        XCTAssertThrowsError(try push(.tossRecorded(winner: .home, decision: .bat)))
+
+        seq -= 1
+        try push(.conditionsProposed(
+            conditions: MatchConditions(
+                oversLimit: 30, oversPerBowler: 6, ground: .boxed, ball: .tennis
+            ),
+            by: .home,
+            byName: "Ravi"
+        ))
+        XCTAssertEqual(state.agreedHome, "Ravi", "proposing is agreeing")
+        XCTAssertNil(state.agreedAway)
+        XCTAssertFalse(state.conditionsAgreed)
+        XCTAssertEqual(state.awaitingAgreement, [.away])
+        XCTAssertThrowsError(try push(.tossRecorded(winner: .home, decision: .bat)))
+
+        seq -= 1
+        try push(.conditionsAgreed(side: .away, captainName: "Sam"))
+        XCTAssertTrue(state.conditionsAgreed)
+        XCTAssertEqual(state.status, .toss)
+        XCTAssertEqual(state.conditions.ground, .boxed)
+        XCTAssertEqual(state.conditions.ball, .tennis)
+        XCTAssertEqual(state.conditions.oversLimit, 30)
+
+        try push(.tossRecorded(winner: .home, decision: .bat))
+        XCTAssertEqual(state.status, .selectingXi)
+    }
+
+    func testChangingTheTermsNeedsAgreeingAgain() throws {
+        var f = try fixture()
+        XCTAssertTrue(f.state.conditionsAgreed)
+        try f.push(.conditionsProposed(
+            conditions: MatchConditions.standard(overs: 10), by: .away, byName: "Sam"
+        ))
+        XCTAssertFalse(f.state.conditionsAgreed)
+        XCTAssertEqual(f.state.awaitingAgreement, [.home])
+    }
+
+    func testStandardAllocationIsAFifthOfTheInnings() {
+        XCTAssertEqual(MatchConditions.standardOversPerBowler(20), 4)
+        XCTAssertEqual(MatchConditions.standardOversPerBowler(50), 10)
+        XCTAssertEqual(MatchConditions.standardOversPerBowler(12), 3)
+        XCTAssertEqual(MatchConditions.standardOversPerBowler(1), 1)
+    }
+
+    func testConditionsSummaryReadsLikeAScorecardHeader() {
+        let conditions = MatchConditions(
+            oversLimit: 20, oversPerBowler: 4, ground: .boxed, ball: .tape
+        )
+        XCTAssertEqual(
+            conditions.summary,
+            "20 overs · 4 per bowler · tape ball · boxed / caged"
+        )
+    }
+
+    // MARK: The bowling Laws
+
+    func testNobodyBowlsTwoOversInARow() throws {
+        var f = try fixture()
+        let opener = try XCTUnwrap(f.innings.bowlerId)
+        for _ in 0..<6 { try f.runs(0) }
+        XCTAssertEqual(f.innings.lastOverBowler, opener)
+        XCTAssertEqual(f.state.bowlerUnavailableReason(opener), "bowled the last over")
+        XCTAssertThrowsError(try f.push(.bowlerChanged(bowlerId: opener)))
+
+        f.seq -= 1
+        try f.push(.bowlerChanged(bowlerId: f.away[1].id))
+        for _ in 0..<6 { try f.runs(0) }
+        try f.push(.bowlerChanged(bowlerId: opener))
+        XCTAssertEqual(f.innings.bowlerId, opener)
+    }
+
+    func testABowlerCannotExceedTheAgreedAllocation() throws {
+        var f = try fixture(overs: 5)
+        try f.push(.conditionsProposed(
+            conditions: MatchConditions(
+                oversLimit: 5, oversPerBowler: 1, ground: .open, ball: .white
+            ),
+            by: .home, byName: "Ravi"
+        ))
+        try f.push(.conditionsAgreed(side: .away, captainName: "Sam"))
+
+        let opener = try XCTUnwrap(f.innings.bowlerId)
+        for _ in 0..<6 { try f.runs(0) }
+        XCTAssertEqual(f.state.oversLeftForBowler(opener), 0)
+        try f.push(.bowlerChanged(bowlerId: f.away[1].id))
+        for _ in 0..<6 { try f.runs(0) }
+        XCTAssertThrowsError(try f.push(.bowlerChanged(bowlerId: opener)))
+        XCTAssertEqual(
+            f.state.bowlerUnavailableReason(opener),
+            "has bowled their 1 overs"
+        )
+    }
+
+    func testNoAllocationMeansNoLimit() throws {
+        var f = try fixture(overs: 6)
+        try f.push(.conditionsProposed(
+            conditions: MatchConditions(
+                oversLimit: 6, oversPerBowler: 0, ground: .boxed, ball: .tennis
+            ),
+            by: .home, byName: "Ravi"
+        ))
+        try f.push(.conditionsAgreed(side: .away, captainName: "Sam"))
+        let a = try XCTUnwrap(f.innings.bowlerId)
+        let b = f.away[1].id
+        XCTAssertNil(f.state.oversLeftForBowler(a), "no limit to report")
+        for _ in 0..<2 {
+            for _ in 0..<6 { try f.runs(0) }
+            try f.push(.bowlerChanged(bowlerId: b))
+            for _ in 0..<6 { try f.runs(0) }
+            try f.push(.bowlerChanged(bowlerId: a))
+        }
+        XCTAssertNil(f.state.bowlerUnavailableReason(a))
+    }
+
+    func testAnInningsWithNoRecordedOversDoesNotCloseItself() throws {
+        var f = try fixture()
+        f.state.innings[0].oversAvailable = 0
+        try f.runs(1)
+        XCTAssertFalse(f.innings.complete, "zero means unknown, not finished")
+        XCTAssertNil(f.innings.ballsAllowed)
     }
 
     // MARK: Extras that carry runs

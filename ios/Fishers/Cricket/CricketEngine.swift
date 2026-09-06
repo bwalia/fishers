@@ -38,11 +38,49 @@ extension MatchState {
         switch event.kind {
         case let .matchPrepared(overs, home, away):
             oversLimit = max(overs, 1)
+            conditions = MatchConditions.standard(overs: oversLimit)
             homeName = home
             awayName = away
             status = .preparing
 
+        case let .conditionsProposed(proposed, by, byName):
+            guard proposed.oversLimit > 0 else {
+                throw CricketEngineError.validation("a match needs at least one over")
+            }
+            guard proposed.oversPerBowler <= proposed.oversLimit else {
+                throw CricketEngineError.validation(
+                    "a bowler cannot be allowed more overs than the innings has"
+                )
+            }
+            conditions = proposed
+            oversLimit = proposed.oversLimit
+            conditionsProposedBy = by
+            // New terms need agreeing again, by both sides.
+            agreedHome = nil
+            agreedAway = nil
+            // The proposer has, by proposing, agreed to their own terms.
+            switch by {
+            case .home: agreedHome = byName
+            case .away: agreedAway = byName
+            }
+            status = .preparing
+
+        case let .conditionsAgreed(side, captainName):
+            guard conditionsProposedBy != nil else {
+                throw CricketEngineError.validation("there are no terms on the table to agree to")
+            }
+            switch side {
+            case .home: agreedHome = captainName
+            case .away: agreedAway = captainName
+            }
+            if conditionsAgreed { status = .toss }
+
         case let .tossRecorded(winner, decision):
+            guard conditionsAgreed else {
+                throw CricketEngineError.validation(
+                    "both captains have to agree the overs, ground and ball first"
+                )
+            }
             tossWinner = winner
             tossDecision = decision
             status = .selectingXi
@@ -82,10 +120,12 @@ extension MatchState {
             inn.nonStrikerId = non
             inn.bowlerId = bowler
             inn.wicketsAllowed = UInt8(min(max(batters.count - 1, 1), 10))
-            inn.oversAvailable = oversLimit
+            inn.oversAvailable = max(conditions.oversLimit, oversLimit)
             inn.ensureBowler(bowler)
             innings.append(inn)
             status = .live
+            // The opening bowler counts against the allocation like any other.
+            try checkBowlerAvailable(bowler)
             if idx == 1, let first = innings.first {
                 target = first.runs + 1
             }
@@ -120,6 +160,7 @@ extension MatchState {
 
         case let .bowlerChanged(bowlerId):
             guard !innings.isEmpty else { throw CricketEngineError.validation("no innings") }
+            try checkBowlerAvailable(bowlerId)
             let idx = innings.count - 1
             innings[idx].ensureBowler(bowlerId)
             innings[idx].bowlerId = bowlerId
@@ -139,6 +180,26 @@ extension MatchState {
 
         lastSeq = event.seq
         checkAutoComplete()
+    }
+
+    /// Two Laws and one agreement: nobody bowls consecutive overs, nobody
+    /// exceeds the allocation the captains settled, and a side with a single
+    /// bowler is excused the first of those.
+    private func checkBowlerAvailable(_ bowler: UUID) throws {
+        guard let inn = currentInnings else { return }
+        if inn.lastOverBowler == bowler && xi(inn.bowling).count > 1 {
+            throw CricketEngineError.validation(
+                "\(name(for: bowler)) bowled the last over — nobody bowls two in a row"
+            )
+        }
+        if conditions.oversPerBowler > 0 {
+            let bowled = inn.bowlers.first { $0.playerId == bowler }.map { UInt8($0.balls / 6) } ?? 0
+            if bowled >= conditions.oversPerBowler {
+                throw CricketEngineError.validation(
+                    "\(name(for: bowler)) has bowled their \(conditions.oversPerBowler) overs"
+                )
+            }
+        }
     }
 
     // MARK: - Undo
@@ -392,8 +453,8 @@ extension MatchState {
         // replacement takes the dismissed player's place.
         if isLegal && runs % 2 == 1 { innings[idx].swapStrike() }
 
-        if innings[idx].isAllOut
-            || innings[idx].legalBalls >= UInt16(innings[idx].oversAvailable) * 6 {
+        let outOfOvers = innings[idx].ballsAllowed.map { innings[idx].legalBalls >= $0 } ?? false
+        if innings[idx].isAllOut || outOfOvers {
             innings[idx].complete = true
             return
         }
@@ -459,13 +520,14 @@ extension MatchState {
             }
             innings[idx].bowlers[boi].currentOverRuns = 0
         }
+        innings[idx].lastOverBowler = bowler
         innings[idx].ballsInCurrentOver = 0
         innings[idx].swapStrike()
     }
 
     private mutating func closeIfFinished(_ idx: Int) {
-        if innings[idx].legalBalls >= UInt16(innings[idx].oversAvailable) * 6
-            || innings[idx].isAllOut {
+        let outOfOvers = innings[idx].ballsAllowed.map { innings[idx].legalBalls >= $0 } ?? false
+        if outOfOvers || innings[idx].isAllOut {
             innings[idx].complete = true
         }
     }

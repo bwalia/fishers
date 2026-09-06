@@ -22,6 +22,11 @@ pub struct CricketMatchRow {
     pub club_id: Uuid,
     pub status: String,
     pub overs_limit: i32,
+    pub overs_per_bowler: i32,
+    pub ground_type: String,
+    pub ball_type: String,
+    pub agreed_home: Option<String>,
+    pub agreed_away: Option<String>,
     pub home_name: String,
     pub away_name: String,
     pub active_scorer_user_id: Option<Uuid>,
@@ -33,7 +38,8 @@ pub struct CricketMatchRow {
     pub updated_at: DateTime<Utc>,
 }
 
-const MATCH_COLS: &str = "id, event_id, club_id, status::TEXT, overs_limit, home_name, away_name, \
+const MATCH_COLS: &str = "id, event_id, club_id, status::TEXT, overs_limit, overs_per_bowler, \
+     ground_type, ball_type, agreed_home, agreed_away, home_name, away_name, \
      active_scorer_user_id, active_scorer_device_id, last_seq, state_json, created_by, \
      created_at, updated_at";
 
@@ -255,6 +261,24 @@ pub fn status_str(state: &MatchState) -> &'static str {
     }
 }
 
+fn ground_str(ground: fishers_domain::GroundType) -> &'static str {
+    match ground {
+        fishers_domain::GroundType::Open => "open",
+        fishers_domain::GroundType::Boxed => "boxed",
+        fishers_domain::GroundType::Indoor => "indoor",
+    }
+}
+
+fn ball_str(ball: fishers_domain::BallType) -> &'static str {
+    match ball {
+        fishers_domain::BallType::Red => "red",
+        fishers_domain::BallType::White => "white",
+        fishers_domain::BallType::Pink => "pink",
+        fishers_domain::BallType::Tennis => "tennis",
+        fishers_domain::BallType::Tape => "tape",
+    }
+}
+
 fn side_str(side: fishers_domain::MatchSide) -> &'static str {
     match side {
         fishers_domain::MatchSide::Home => "home",
@@ -343,6 +367,12 @@ async fn save_state(
             target = $5,
             winner = $6::cricket_match_side,
             margin = $7,
+            overs_limit = $8,
+            overs_per_bowler = $9,
+            ground_type = $10,
+            ball_type = $11,
+            agreed_home = $12,
+            agreed_away = $13,
             updated_at = NOW()
         WHERE id = $1
         "#,
@@ -354,10 +384,17 @@ async fn save_state(
     .bind(state.target.map(|t| t as i32))
     .bind(state.winner.map(side_str))
     .bind(&state.margin)
+    .bind(state.conditions.overs_limit as i32)
+    .bind(state.conditions.overs_per_bowler as i32)
+    .bind(ground_str(state.conditions.ground))
+    .bind(ball_str(state.conditions.ball))
+    .bind(&state.agreed_home)
+    .bind(&state.agreed_away)
     .execute(&mut **tx)
     .await?;
 
     if matches!(state.status, MatchStatus::Complete | MatchStatus::Published) {
+        record_match_outcomes(tx, match_id, state).await?;
         sqlx::query(
             r#"
             UPDATE events SET status = 'completed', updated_at = NOW()
@@ -387,5 +424,256 @@ async fn save_state(
         .execute(&mut **tx)
         .await?;
     }
+    Ok(())
+}
+
+
+/// What one player did in a match, ready to fold into their season.
+#[derive(Default, Debug, Clone, Copy)]
+struct PlayerTally {
+    matches: i32,
+    runs: i32,
+    balls_faced: i32,
+    fours: i32,
+    sixes: i32,
+    batting_innings: i32,
+    not_outs: i32,
+    high_score: i32,
+    bowling_balls: i32,
+    bowling_runs: i32,
+    wickets: i32,
+    maidens: i32,
+    catches: i32,
+    stumpings: i32,
+}
+
+/// Everything a finished match owes the rest of the app: who turned up, what it
+/// did to their season, and — if it was a tournament fixture — the result.
+///
+/// Runs at most once per match. The first caller claims `stats_recorded_at`
+/// inside the transaction, so a resync or a replayed batch cannot count a
+/// hundred twice.
+async fn record_match_outcomes(
+    tx: &mut Transaction<'_, Postgres>,
+    match_id: Uuid,
+    state: &MatchState,
+) -> Result<(), sqlx::Error> {
+    let claimed: Option<(Uuid, Uuid, i32)> = sqlx::query_as(
+        r#"
+        UPDATE cricket_matches m
+        SET stats_recorded_at = NOW()
+        FROM events e
+        WHERE m.id = $1
+          AND m.stats_recorded_at IS NULL
+          AND e.id = m.event_id
+        RETURNING m.event_id, m.club_id,
+                  EXTRACT(YEAR FROM e.start_at)::INT AS season_year
+        "#,
+    )
+    .bind(match_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some((event_id, club_id, season_year)) = claimed else {
+        return Ok(()); // already folded in
+    };
+
+    // 1. Who played. This is the attendance half of the reliability score,
+    //    which until now nothing ever set.
+    let played: Vec<Uuid> = state
+        .home_xi
+        .iter()
+        .chain(state.away_xi.iter())
+        .copied()
+        .collect();
+    if !played.is_empty() {
+        sqlx::query(
+            r#"
+            UPDATE event_invites
+            SET attended = TRUE
+            WHERE event_id = $1 AND user_id = ANY($2) AND attended IS DISTINCT FROM TRUE
+            "#,
+        )
+        .bind(event_id)
+        .bind(&played)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    // 2. The season. Guests have ids that are not users, and the insert simply
+    //    finds no row for them.
+    let tallies = tally_players(state);
+    for (player_id, tally) in tallies {
+        sqlx::query(
+            r#"
+            INSERT INTO player_season_stats (
+                user_id, club_id, sport, season_year, source,
+                matches, runs, wickets, batting_innings, not_outs, balls_faced,
+                fours, sixes, high_score, overs_bowled, bowling_runs, maidens,
+                catches, stumpings
+            )
+            SELECT u.id, $2, 'cricket', $3, 'fishers_scoring',
+                   $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+            FROM users u WHERE u.id = $1
+            ON CONFLICT (user_id, club_id, sport, season_year, source) DO UPDATE SET
+                matches         = player_season_stats.matches + EXCLUDED.matches,
+                runs            = player_season_stats.runs + EXCLUDED.runs,
+                wickets         = player_season_stats.wickets + EXCLUDED.wickets,
+                batting_innings = player_season_stats.batting_innings + EXCLUDED.batting_innings,
+                not_outs        = player_season_stats.not_outs + EXCLUDED.not_outs,
+                balls_faced     = player_season_stats.balls_faced + EXCLUDED.balls_faced,
+                fours           = player_season_stats.fours + EXCLUDED.fours,
+                sixes           = player_season_stats.sixes + EXCLUDED.sixes,
+                high_score      = GREATEST(
+                                      COALESCE(player_season_stats.high_score, 0),
+                                      COALESCE(EXCLUDED.high_score, 0)
+                                  ),
+                overs_bowled    = player_season_stats.overs_bowled + EXCLUDED.overs_bowled,
+                bowling_runs    = player_season_stats.bowling_runs + EXCLUDED.bowling_runs,
+                maidens         = player_season_stats.maidens + EXCLUDED.maidens,
+                catches         = player_season_stats.catches + EXCLUDED.catches,
+                stumpings       = player_season_stats.stumpings + EXCLUDED.stumpings,
+                updated_at      = NOW()
+            "#,
+        )
+        .bind(player_id)
+        .bind(club_id)
+        .bind(season_year)
+        .bind(tally.matches)
+        .bind(tally.runs)
+        .bind(tally.wickets)
+        .bind(tally.batting_innings)
+        .bind(tally.not_outs)
+        .bind(tally.balls_faced)
+        .bind(tally.fours)
+        .bind(tally.sixes)
+        .bind(if tally.batting_innings > 0 { Some(tally.high_score) } else { None })
+        .bind(tally.bowling_balls as f64 / 6.0)
+        .bind(tally.bowling_runs)
+        .bind(tally.maidens)
+        .bind(tally.catches)
+        .bind(tally.stumpings)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    // 3. The tournament table, if this fixture is in one. Without this a
+    //    ball-by-ball scored tournament game left the table blank and somebody
+    //    had to type the result in a second time.
+    record_tournament_result(tx, event_id, state).await?;
+
+    Ok(())
+}
+
+/// Fold the scorecard into one row per player.
+fn tally_players(state: &MatchState) -> std::collections::HashMap<Uuid, PlayerTally> {
+    use fishers_domain::DismissalKind;
+    let mut tallies: std::collections::HashMap<Uuid, PlayerTally> = Default::default();
+
+    for id in state.home_xi.iter().chain(state.away_xi.iter()) {
+        tallies.entry(*id).or_default().matches = 1;
+    }
+
+    for innings in &state.innings {
+        for batter in &innings.batters {
+            if !batter.has_batted() {
+                continue;
+            }
+            let tally = tallies.entry(batter.player_id).or_default();
+            tally.runs += batter.runs as i32;
+            tally.balls_faced += batter.balls as i32;
+            tally.fours += batter.fours as i32;
+            tally.sixes += batter.sixes as i32;
+            tally.batting_innings += 1;
+            if !batter.out {
+                tally.not_outs += 1;
+            }
+            tally.high_score = tally.high_score.max(batter.runs as i32);
+
+            // Fielding credit comes off the dismissal that took the wicket.
+            if let (Some(fielder), Some(kind)) = (batter.fielder_id, batter.dismissal) {
+                let fielding = tallies.entry(fielder).or_default();
+                match kind {
+                    DismissalKind::Caught => fielding.catches += 1,
+                    DismissalKind::Stumped => fielding.stumpings += 1,
+                    _ => {}
+                }
+            }
+        }
+
+        for bowler in &innings.bowlers {
+            if bowler.balls == 0 && bowler.runs == 0 {
+                continue;
+            }
+            let tally = tallies.entry(bowler.player_id).or_default();
+            tally.bowling_balls += bowler.balls as i32;
+            tally.bowling_runs += bowler.runs as i32;
+            tally.wickets += bowler.wickets as i32;
+            tally.maidens += bowler.maidens as i32;
+        }
+    }
+
+    tallies
+}
+
+/// Write the result onto the fixture's tournament entrants, when it has any.
+async fn record_tournament_result(
+    tx: &mut Transaction<'_, Postgres>,
+    event_id: Uuid,
+    state: &MatchState,
+) -> Result<(), sqlx::Error> {
+    let rules: Option<(i32, i32, i32)> = sqlx::query_as(
+        r#"
+        SELECT b.points_win, b.points_draw, b.points_no_result
+        FROM events e
+        JOIN fixture_blocks b ON b.id = e.fixture_block_id
+        WHERE e.id = $1
+        "#,
+    )
+    .bind(event_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some((points_win, points_draw, _points_no_result)) = rules else {
+        return Ok(()); // not part of a tournament
+    };
+
+    // The score each side made, from whichever innings they batted in.
+    let score_for = |side: fishers_domain::MatchSide| -> Option<i32> {
+        state
+            .innings
+            .iter()
+            .find(|inn| inn.batting == side)
+            .map(|inn| inn.runs as i32)
+    };
+    let home = score_for(fishers_domain::MatchSide::Home);
+    let away = score_for(fishers_domain::MatchSide::Away);
+
+    for (side, score, other) in [
+        ("home", home, away),
+        ("away", away, home),
+    ] {
+        let (result, points) = match (score, other) {
+            (Some(a), Some(b)) if a > b => ("win", points_win),
+            (Some(a), Some(b)) if a < b => ("loss", 0),
+            (Some(_), Some(_)) => ("draw", points_draw),
+            _ => continue,
+        };
+        sqlx::query(
+            r#"
+            UPDATE event_entrants
+            SET score = $3, result = $4, points = $5
+            WHERE event_id = $1 AND side = $2
+            "#,
+        )
+        .bind(event_id)
+        .bind(side)
+        .bind(score)
+        .bind(result)
+        .bind(points)
+        .execute(&mut **tx)
+        .await?;
+    }
+
     Ok(())
 }
