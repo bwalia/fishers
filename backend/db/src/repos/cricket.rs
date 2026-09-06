@@ -1,10 +1,19 @@
 //! Cricket match persistence + scoring event log.
+//!
+//! The log is the record; `state_json` is a cache of the projection so reads
+//! are one row. Writes always replay the log, because the undo stack only
+//! exists inside a replay — restoring a serialised snapshot cannot undo a ball
+//! that was stored in an earlier batch.
 
 use chrono::{DateTime, Utc};
-use fishers_domain::{MatchState, ScoringEvent, ScoringEventKind};
+use fishers_domain::{MatchState, MatchStatus, ScoringEvent, ScoringEventKind};
 use serde_json::Value;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
+
+/// How long a scorer's lock survives without a sync before another device on
+/// the ground may take it over. Phones die mid-innings.
+const SCORER_LOCK_IDLE_MINUTES: i64 = 15;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct CricketMatchRow {
@@ -24,8 +33,18 @@ pub struct CricketMatchRow {
     pub updated_at: DateTime<Utc>,
 }
 
+const MATCH_COLS: &str = "id, event_id, club_id, status::TEXT, overs_limit, home_name, away_name, \
+     active_scorer_user_id, active_scorer_device_id, last_seq, state_json, created_by, \
+     created_at, updated_at";
+
+/// Create the match, or return the one this fixture already has.
+///
+/// `match_id` lets the device choose the id up front, so a match started with
+/// no signal can be scored locally and registered later under the same id.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_match(
     pool: &PgPool,
+    match_id: Option<Uuid>,
     event_id: Uuid,
     club_id: Uuid,
     created_by: Uuid,
@@ -34,24 +53,23 @@ pub async fn create_match(
     overs_limit: i32,
 ) -> Result<CricketMatchRow, sqlx::Error> {
     let state = MatchState {
-        overs_limit: overs_limit as u8,
+        overs_limit: overs_limit.clamp(1, 255) as u8,
         home_name: home_name.to_string(),
         away_name: away_name.to_string(),
         ..Default::default()
     };
-    sqlx::query_as::<_, CricketMatchRow>(
+    sqlx::query_as::<_, CricketMatchRow>(&format!(
         r#"
         INSERT INTO cricket_matches (
-            event_id, club_id, status, overs_limit, home_name, away_name,
+            id, event_id, club_id, status, overs_limit, home_name, away_name,
             state_json, created_by
         )
-        VALUES ($1, $2, 'scheduled', $3, $4, $5, $6, $7)
+        VALUES (COALESCE($1, gen_random_uuid()), $2, $3, 'scheduled', $4, $5, $6, $7, $8)
         ON CONFLICT (event_id) DO UPDATE SET updated_at = NOW()
-        RETURNING id, event_id, club_id, status::TEXT, overs_limit, home_name, away_name,
-                  active_scorer_user_id, active_scorer_device_id, last_seq, state_json,
-                  created_by, created_at, updated_at
-        "#,
-    )
+        RETURNING {MATCH_COLS}
+        "#
+    ))
+    .bind(match_id)
     .bind(event_id)
     .bind(club_id)
     .bind(overs_limit)
@@ -63,15 +81,13 @@ pub async fn create_match(
     .await
 }
 
-pub async fn get_match(pool: &PgPool, match_id: Uuid) -> Result<Option<CricketMatchRow>, sqlx::Error> {
-    sqlx::query_as::<_, CricketMatchRow>(
-        r#"
-        SELECT id, event_id, club_id, status::TEXT, overs_limit, home_name, away_name,
-               active_scorer_user_id, active_scorer_device_id, last_seq, state_json,
-               created_by, created_at, updated_at
-        FROM cricket_matches WHERE id = $1
-        "#,
-    )
+pub async fn get_match(
+    pool: &PgPool,
+    match_id: Uuid,
+) -> Result<Option<CricketMatchRow>, sqlx::Error> {
+    sqlx::query_as::<_, CricketMatchRow>(&format!(
+        "SELECT {MATCH_COLS} FROM cricket_matches WHERE id = $1"
+    ))
     .bind(match_id)
     .fetch_optional(pool)
     .await
@@ -81,26 +97,25 @@ pub async fn get_match_by_event(
     pool: &PgPool,
     event_id: Uuid,
 ) -> Result<Option<CricketMatchRow>, sqlx::Error> {
-    sqlx::query_as::<_, CricketMatchRow>(
-        r#"
-        SELECT id, event_id, club_id, status::TEXT, overs_limit, home_name, away_name,
-               active_scorer_user_id, active_scorer_device_id, last_seq, state_json,
-               created_by, created_at, updated_at
-        FROM cricket_matches WHERE event_id = $1
-        "#,
-    )
+    sqlx::query_as::<_, CricketMatchRow>(&format!(
+        "SELECT {MATCH_COLS} FROM cricket_matches WHERE event_id = $1"
+    ))
     .bind(event_id)
     .fetch_optional(pool)
     .await
 }
 
+/// Take the scoring lock. Granted when it is free, already yours, held by this
+/// device, gone quiet for [`SCORER_LOCK_IDLE_MINUTES`], or when `force` is set
+/// — a captain taking over from a dead phone.
 pub async fn claim_scorer(
     pool: &PgPool,
     match_id: Uuid,
     user_id: Uuid,
     device_id: &str,
-) -> Result<CricketMatchRow, sqlx::Error> {
-    sqlx::query_as::<_, CricketMatchRow>(
+    force: bool,
+) -> Result<Option<CricketMatchRow>, sqlx::Error> {
+    sqlx::query_as::<_, CricketMatchRow>(&format!(
         r#"
         UPDATE cricket_matches
         SET active_scorer_user_id = $2,
@@ -108,23 +123,29 @@ pub async fn claim_scorer(
             updated_at = NOW()
         WHERE id = $1
           AND (
-            active_scorer_user_id IS NULL
+            $4
+            OR active_scorer_user_id IS NULL
             OR active_scorer_user_id = $2
             OR active_scorer_device_id = $3
+            OR updated_at < NOW() - ($5 || ' minutes')::INTERVAL
           )
-        RETURNING id, event_id, club_id, status::TEXT, overs_limit, home_name, away_name,
-                  active_scorer_user_id, active_scorer_device_id, last_seq, state_json,
-                  created_by, created_at, updated_at
-        "#,
-    )
+        RETURNING {MATCH_COLS}
+        "#
+    ))
     .bind(match_id)
     .bind(user_id)
     .bind(device_id)
-    .fetch_one(pool)
+    .bind(force)
+    .bind(SCORER_LOCK_IDLE_MINUTES.to_string())
+    .fetch_optional(pool)
     .await
 }
 
-pub async fn is_official(pool: &PgPool, match_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+pub async fn is_official(
+    pool: &PgPool,
+    match_id: Uuid,
+    user_id: Uuid,
+) -> Result<bool, sqlx::Error> {
     let row: (bool,) = sqlx::query_as(
         r#"
         SELECT EXISTS(
@@ -159,84 +180,6 @@ pub async fn add_official(
     Ok(())
 }
 
-pub async fn client_event_exists(
-    pool: &PgPool,
-    match_id: Uuid,
-    client_event_id: Uuid,
-) -> Result<bool, sqlx::Error> {
-    let row: (bool,) = sqlx::query_as(
-        "SELECT EXISTS(SELECT 1 FROM cricket_scoring_events WHERE match_id = $1 AND client_event_id = $2)",
-    )
-    .bind(match_id)
-    .bind(client_event_id)
-    .fetch_one(pool)
-    .await?;
-    Ok(row.0)
-}
-
-pub async fn insert_event(
-    pool: &PgPool,
-    match_id: Uuid,
-    seq: i64,
-    client_event_id: Uuid,
-    kind: &ScoringEventKind,
-    created_by: Uuid,
-    device_id: Option<&str>,
-) -> Result<(), sqlx::Error> {
-    let payload = serde_json::to_value(kind).unwrap_or(Value::Null);
-    let event_type = payload
-        .get("type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-    sqlx::query(
-        r#"
-        INSERT INTO cricket_scoring_events (
-            match_id, seq, client_event_id, event_type, payload, created_by, device_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-        "#,
-    )
-    .bind(match_id)
-    .bind(seq)
-    .bind(client_event_id)
-    .bind(event_type)
-    .bind(payload)
-    .bind(created_by)
-    .bind(device_id)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-pub async fn save_state(
-    pool: &PgPool,
-    match_id: Uuid,
-    state: &MatchState,
-    status: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        r#"
-        UPDATE cricket_matches
-        SET last_seq = $2,
-            state_json = $3,
-            status = $4::cricket_match_status,
-            target = $5,
-            margin = $6,
-            updated_at = NOW()
-        WHERE id = $1
-        "#,
-    )
-    .bind(match_id)
-    .bind(state.last_seq)
-    .bind(serde_json::to_value(state).unwrap_or(Value::Object(Default::default())))
-    .bind(status)
-    .bind(state.target.map(|t| t as i32))
-    .bind(&state.margin)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
 pub async fn list_events_after(
     pool: &PgPool,
     match_id: Uuid,
@@ -256,9 +199,41 @@ pub async fn list_events_after(
     .await
 }
 
+/// The whole log, as domain events, ready to replay.
+async fn load_log(
+    tx: &mut Transaction<'_, Postgres>,
+    match_id: Uuid,
+) -> Result<Vec<ScoringEvent>, anyhow::Error> {
+    let rows = sqlx::query_as::<_, (i64, Uuid, Value)>(
+        r#"
+        SELECT seq, client_event_id, payload
+        FROM cricket_scoring_events
+        WHERE match_id = $1
+        ORDER BY seq ASC
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let mut events = Vec::with_capacity(rows.len());
+    for (seq, client_event_id, payload) in rows {
+        let kind: ScoringEventKind = serde_json::from_value(payload)
+            .map_err(|e| anyhow::anyhow!("stored event {seq} is unreadable: {e}"))?;
+        events.push(ScoringEvent {
+            client_event_id,
+            seq,
+            kind,
+        });
+    }
+    Ok(events)
+}
+
+/// Read-only projection for GET routes. Falls back to the match row's own
+/// details when the cache is empty or from an older shape.
 pub fn parse_state(row: &CricketMatchRow) -> MatchState {
     serde_json::from_value(row.state_json.clone()).unwrap_or_else(|_| MatchState {
-        overs_limit: row.overs_limit as u8,
+        overs_limit: row.overs_limit.clamp(1, 255) as u8,
         home_name: row.home_name.clone(),
         away_name: row.away_name.clone(),
         last_seq: row.last_seq,
@@ -267,21 +242,29 @@ pub fn parse_state(row: &CricketMatchRow) -> MatchState {
 }
 
 pub fn status_str(state: &MatchState) -> &'static str {
-    use fishers_domain::MatchStatus::*;
     match state.status {
-        Scheduled => "scheduled",
-        Preparing => "preparing",
-        Toss => "toss",
-        SelectingXi => "selecting_xi",
-        Ready => "ready",
-        Live => "live",
-        InningsBreak => "innings_break",
-        Complete => "complete",
-        Published => "published",
+        MatchStatus::Scheduled => "scheduled",
+        MatchStatus::Preparing => "preparing",
+        MatchStatus::Toss => "toss",
+        MatchStatus::SelectingXi => "selecting_xi",
+        MatchStatus::Ready => "ready",
+        MatchStatus::Live => "live",
+        MatchStatus::InningsBreak => "innings_break",
+        MatchStatus::Complete => "complete",
+        MatchStatus::Published => "published",
     }
 }
 
-/// Apply a batch of client events; returns updated state.
+fn side_str(side: fishers_domain::MatchSide) -> &'static str {
+    match side {
+        fishers_domain::MatchSide::Home => "home",
+        fishers_domain::MatchSide::Away => "away",
+    }
+}
+
+/// Apply a batch of client events inside one transaction: replay the stored log
+/// to rebuild state (and its undo stack), apply what is new, append it, and
+/// cache the projection. All of it lands or none of it does.
 pub async fn apply_event_batch(
     pool: &PgPool,
     match_id: Uuid,
@@ -289,27 +272,120 @@ pub async fn apply_event_batch(
     user_id: Uuid,
     device_id: Option<&str>,
 ) -> Result<MatchState, anyhow::Error> {
-    let row = get_match(pool, match_id)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("match not found"))?;
-    let mut state = parse_state(&row);
+    let mut tx = pool.begin().await?;
 
-    for ev in events {
-        if client_event_exists(pool, match_id, ev.client_event_id).await? {
-            continue;
+    let row = sqlx::query_as::<_, CricketMatchRow>(&format!(
+        "SELECT {MATCH_COLS} FROM cricket_matches WHERE id = $1 FOR UPDATE"
+    ))
+    .bind(match_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let stored = load_log(&mut tx, match_id).await?;
+    let mut state = MatchState::replay(&stored)?;
+    if state.last_seq == 0 {
+        // Nothing scored yet: keep the names and overs the fixture was set up with.
+        state.overs_limit = row.overs_limit.clamp(1, 255) as u8;
+        state.home_name = row.home_name.clone();
+        state.away_name = row.away_name.clone();
+    }
+    let seen: std::collections::HashSet<Uuid> =
+        stored.iter().map(|e| e.client_event_id).collect();
+
+    for event in events {
+        if seen.contains(&event.client_event_id) {
+            continue; // already applied — the client is retrying a batch
         }
-        state.apply(ev)?;
-        insert_event(
-            pool,
-            match_id,
-            ev.seq,
-            ev.client_event_id,
-            &ev.kind,
-            user_id,
-            device_id,
+        state.apply(event)?;
+
+        let payload = serde_json::to_value(&event.kind)?;
+        let event_type = payload
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        sqlx::query(
+            r#"
+            INSERT INTO cricket_scoring_events (
+                match_id, seq, client_event_id, event_type, payload, created_by, device_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            "#,
         )
+        .bind(match_id)
+        .bind(event.seq)
+        .bind(event.client_event_id)
+        .bind(event_type)
+        .bind(payload)
+        .bind(user_id)
+        .bind(device_id)
+        .execute(&mut *tx)
         .await?;
     }
-    save_state(pool, match_id, &state, status_str(&state)).await?;
+
+    save_state(&mut tx, match_id, &state).await?;
+    tx.commit().await?;
     Ok(state)
+}
+
+/// Cache the projection on the match row, and close the fixture off when the
+/// match finishes so attendance and reliability see a completed game.
+async fn save_state(
+    tx: &mut Transaction<'_, Postgres>,
+    match_id: Uuid,
+    state: &MatchState,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        UPDATE cricket_matches
+        SET last_seq = $2,
+            state_json = $3,
+            status = $4::cricket_match_status,
+            target = $5,
+            winner = $6::cricket_match_side,
+            margin = $7,
+            updated_at = NOW()
+        WHERE id = $1
+        "#,
+    )
+    .bind(match_id)
+    .bind(state.last_seq)
+    .bind(serde_json::to_value(state).unwrap_or(Value::Object(Default::default())))
+    .bind(status_str(state))
+    .bind(state.target.map(|t| t as i32))
+    .bind(state.winner.map(side_str))
+    .bind(&state.margin)
+    .execute(&mut **tx)
+    .await?;
+
+    if matches!(state.status, MatchStatus::Complete | MatchStatus::Published) {
+        sqlx::query(
+            r#"
+            UPDATE events SET status = 'completed', updated_at = NOW()
+            WHERE id = (SELECT event_id FROM cricket_matches WHERE id = $1)
+              AND status NOT IN ('cancelled', 'completed')
+            "#,
+        )
+        .bind(match_id)
+        .execute(&mut **tx)
+        .await?;
+
+        // The scorecard belongs on the fixture too, so the result survives
+        // independently of the scoring projection.
+        sqlx::query(
+            r#"
+            INSERT INTO match_results (event_id, format, opposition, scorecard_json)
+            SELECT m.event_id, m.overs_limit || ' overs', m.away_name, $2
+            FROM cricket_matches m WHERE m.id = $1
+            ON CONFLICT (event_id) DO UPDATE SET
+                scorecard_json = EXCLUDED.scorecard_json,
+                format = EXCLUDED.format,
+                opposition = EXCLUDED.opposition
+            "#,
+        )
+        .bind(match_id)
+        .bind(serde_json::to_value(state).unwrap_or(Value::Object(Default::default())))
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(())
 }

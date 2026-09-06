@@ -20,6 +20,46 @@ enum ClubRole: String, Codable {
         }
     }
 
+    /// Short form for a badge.
+    var shortLabel: String {
+        switch self {
+        case .superAdmin: return "ADMIN"
+        case .clubAdmin: return "SEC"
+        case .teamCaptain: return "CAPT"
+        case .teamViceCaptain: return "VICE"
+        case .member: return "MEMBER"
+        case .guest: return "GUEST"
+        }
+    }
+
+    /// What the role actually lets someone do, in the words the app uses.
+    var responsibilities: String {
+        switch self {
+        case .superAdmin:
+            return "Platform administration."
+        case .clubAdmin:
+            return "Everything: the roster, roles, teams, venues, fixtures, selection, fees and scoring."
+        case .teamCaptain:
+            return "Create fixtures, invite players, pick and publish the squad, score matches."
+        case .teamViceCaptain:
+            return "Help with selection, invite players to a fixture, score matches."
+        case .member:
+            return "Mark availability, RSVP, chat, the shop."
+        case .guest:
+            return "The same as a member, for a one-off invitee."
+        }
+    }
+
+    /// The roles a secretary can hand out, strongest first.
+    static let appointable: [ClubRole] = [
+        .clubAdmin, .teamCaptain, .teamViceCaptain, .member, .guest,
+    ]
+
+    /// The order the roster groups people in.
+    static let rosterOrder: [ClubRole] = [
+        .superAdmin, .clubAdmin, .teamCaptain, .teamViceCaptain, .member, .guest,
+    ]
+
     var isSecretary: Bool { self == .clubAdmin || self == .superAdmin }
     var isCaptain: Bool {
         self == .teamCaptain || self == .teamViceCaptain || isSecretary

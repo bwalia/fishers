@@ -16,7 +16,7 @@ use fishers_db::repos::{
 };
 use fishers_domain::{
     reliability, AgentAnalysis, AgentProposal, ChatMessage, Conversation, ConversationSummary,
-    CreateConversationRequest, MarkReadRequest, PostMessageRequest, ProposalPayload, UserRole,
+    CreateConversationRequest, MarkReadRequest, Permission, PostMessageRequest, ProposalPayload,
     UpsertAvailabilityRequest,
 };
 use serde::Deserialize;
@@ -27,6 +27,7 @@ use validator::Validate;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
+use crate::rbac::require_permission;
 use crate::state::AppState;
 
 /// How far ahead the agent looks, and how much of the thread it reads.
@@ -165,7 +166,7 @@ async fn analyse(
     let club_id = conversation
         .club_id
         .ok_or_else(|| ApiError::bad_request("this thread is not attached to a club"))?;
-    require_captain_or_admin(&state, club_id, auth.user_id).await?;
+    require_assistant_approver(&state, club_id, auth.user_id).await?;
 
     let run =
         agent_repo::start_run(&state.pool, id, auth.user_id, state.agent.model()).await?;
@@ -265,7 +266,7 @@ async fn apply_proposal(
         .ok_or_else(|| ApiError::not_found("proposal not found"))?;
     let conversation = require_thread_member(&state, proposal.conversation_id, auth.user_id).await?;
     if let Some(club_id) = conversation.club_id {
-        require_captain_or_admin(&state, club_id, auth.user_id).await?;
+        require_assistant_approver(&state, club_id, auth.user_id).await?;
     }
 
     let payload: ProposalPayload = serde_json::from_value(proposal.payload.clone())
@@ -375,7 +376,7 @@ async fn dismiss_proposal(
         .ok_or_else(|| ApiError::not_found("proposal not found"))?;
     let conversation = require_thread_member(&state, proposal.conversation_id, auth.user_id).await?;
     if let Some(club_id) = conversation.club_id {
-        require_captain_or_admin(&state, club_id, auth.user_id).await?;
+        require_assistant_approver(&state, club_id, auth.user_id).await?;
     }
     agent_repo::decide_proposal(&state.pool, id, "dismissed", auth.user_id)
         .await?
@@ -524,16 +525,20 @@ async fn require_club_member(state: &AppState, club_id: Uuid, user_id: Uuid) -> 
     }
 }
 
-async fn require_captain_or_admin(
+/// Deciding the assistant's proposals is `use_admin_assistant` — the same
+/// matrix the rest of the API is gated by, so roles behave consistently.
+async fn require_assistant_approver(
     state: &AppState,
     club_id: Uuid,
     user_id: Uuid,
 ) -> ApiResult<()> {
-    match clubs_repo::club_role(&state.pool, club_id, user_id).await? {
-        Some(UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin) => Ok(()),
-        Some(_) => Err(ApiError::forbidden(
-            "only a captain or club admin can decide the assistant's proposals",
-        )),
-        None => Err(ApiError::forbidden("not a club member")),
-    }
+    require_permission(
+        state,
+        club_id,
+        user_id,
+        None,
+        Permission::UseAdminAssistant,
+    )
+    .await
+    .map(|_| ())
 }

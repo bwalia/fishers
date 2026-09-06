@@ -30,7 +30,7 @@ struct FishersApp: App {
                 .modelContainer(cricketContainer)
                 .tint(FishersTheme.accent)
                 .task {
-                    await CricketSyncService.shared.configure(container: cricketContainer)
+                    CricketSyncService.shared.configure(container: cricketContainer)
                 }
         }
     }

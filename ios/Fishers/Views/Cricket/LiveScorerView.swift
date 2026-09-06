@@ -1,46 +1,97 @@
 import SwiftUI
 import UIKit
 
-/// One-tap LIVE scorer — thumb-zone runs grid, wicket, extras, undo.
+/// How often the scorer is asked where the ball went.
+enum WagonWheelMode: String, CaseIterable, Identifiable {
+    case off, boundaries, everyScoringShot
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .off: return "Off"
+        case .boundaries: return "Boundaries"
+        case .everyScoringShot: return "Every shot"
+        }
+    }
+
+    func asks(forRuns runs: Int) -> Bool {
+        switch self {
+        case .off: return false
+        case .boundaries: return runs >= 4
+        case .everyScoringShot: return runs > 0
+        }
+    }
+}
+
+/// One-tap LIVE scorer — thumb-zone runs grid, extras, wickets, undo.
 struct LiveScorerView: View {
     @ObservedObject var store: CricketMatchStore
     var onDone: () -> Void
+
+    @AppStorage("cricket_wheel_mode") private var wheelModeRaw = WagonWheelMode.everyScoringShot.rawValue
 
     @State private var showExtras = false
     @State private var showWicket = false
     @State private var showBowler = false
     @State private var showScorecard = false
-    @State private var showNewBatter = false
-    @State private var pendingDismissal: DismissalKind = .bowled
-    @State private var newBatterId: UUID?
-    @State private var extraKind: ExtraKind = .wide
-    @State private var extraRuns: Int = 1
+    @State private var showSecondInnings = false
+    @State private var showRain = false
+    @State private var confirmEndInnings = false
+    @State private var pendingShot: PendingShot?
     @Environment(\.horizontalSizeClass) private var sizeClass
+
+    /// A ball waiting on the wagon wheel before it is written to the log.
+    private struct PendingShot: Identifiable {
+        let id = UUID()
+        let runs: Int
+        let batterName: String
+        let batsLeft: Bool
+        let commit: (ShotRecord?) -> Void
+    }
+
+    private var innings: InningsState? { store.state.currentInnings }
+    private var isLive: Bool { store.state.status == .live && innings?.complete == false }
+    private var wheelMode: WagonWheelMode {
+        WagonWheelMode(rawValue: wheelModeRaw) ?? .everyScoringShot
+    }
 
     var body: some View {
         Group {
             if sizeClass == .regular {
-                HStack(alignment: .top, spacing: 0) {
-                    scoreHeader.frame(maxWidth: .infinity)
+                HStack(alignment: .top, spacing: 16) {
+                    ScrollView { VStack(spacing: 14) { scoreHeader; commentaryPanel } }
+                        .frame(maxWidth: .infinity)
                     controls.frame(maxWidth: .infinity)
                 }
             } else {
                 VStack(spacing: 12) {
                     scoreHeader
+                    commentaryPanel
+                    Spacer(minLength: 0)
                     controls
                 }
             }
         }
         .padding()
-        .safeAreaInset(edge: .bottom) {
-            syncBar
+        .safeAreaInset(edge: .bottom) { syncBar }
+        .sheet(isPresented: $showExtras) { ExtrasSheet(store: store, wheelMode: wheelMode) }
+        .sheet(isPresented: $showWicket) { WicketSheet(store: store) }
+        .sheet(isPresented: $showBowler) { BowlerSheet(store: store) }
+        .sheet(isPresented: $showSecondInnings) { SecondInningsSheet(store: store) }
+        .sheet(isPresented: $showRain) { RevisedOversSheet(store: store) }
+        .sheet(item: $pendingShot) { pending in
+            WagonWheelPicker(
+                batterName: pending.batterName,
+                batsLeft: pending.batsLeft,
+                runs: pending.runs,
+                onSave: { pending.commit($0) },
+                onSkip: { pending.commit(nil) }
+            )
         }
-        .sheet(isPresented: $showExtras) { extrasSheet }
-        .sheet(isPresented: $showWicket) { wicketSheet }
-        .sheet(isPresented: $showBowler) { bowlerSheet }
         .sheet(isPresented: $showScorecard) {
             NavigationStack {
-                CricketScorecardView(state: store.state, nameFor: store.name(for:))
+                CricketScorecardView(state: store.state, dls: nil)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Done") { showScorecard = false }
@@ -48,87 +99,229 @@ struct LiveScorerView: View {
                     }
             }
         }
+        .confirmationDialog(
+            "End the innings here?",
+            isPresented: $confirmEndInnings,
+            titleVisibility: .visible
+        ) {
+            Button("End innings", role: .destructive) { _ = store.append(.inningsCompleted) }
+            Button("Keep scoring", role: .cancel) {}
+        } message: {
+            Text("Declarations and rain both end an innings early. You can undo it.")
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Wagon wheel", selection: $wheelModeRaw) {
+                        ForEach(WagonWheelMode.allCases) { mode in
+                            Text(mode.label).tag(mode.rawValue)
+                        }
+                    }
+                    Divider()
+                    Button {
+                        showRain = true
+                    } label: {
+                        Label("Overs reduced (rain)", systemImage: "cloud.rain.fill")
+                    }
+                    Button {
+                        showScorecard = true
+                    } label: {
+                        Label("Scorecard", systemImage: "list.bullet.rectangle")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
         .onChange(of: store.state.status) { _, status in
-            if status == .inningsBreak || status == .complete {
+            if status == .inningsBreak || status.isFinished {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
         }
     }
 
+    // MARK: Header
+
     private var scoreHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(store.state.scoreLine())
                     .font(FishersTheme.display)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
                     .accessibilityLabel("Score \(store.state.scoreLine())")
                 Spacer()
                 Button { showScorecard = true } label: {
                     Image(systemName: "list.bullet.rectangle")
                 }
-                .accessibilityLabel("Scorecard")
+                .accessibilityLabel("Full scorecard")
             }
-            if let inn = store.state.currentInnings {
-                HStack(spacing: 16) {
-                    batterLine(id: inn.strikerId, label: "Striker", emphasise: true)
-                    batterLine(id: inn.nonStrikerId, label: "Non-striker", emphasise: false)
+
+            if let inn = innings {
+                HStack(alignment: .top, spacing: 16) {
+                    batterLine(id: inn.strikerId, onStrike: true)
+                    batterLine(id: inn.nonStrikerId, onStrike: false)
                 }
                 if let bowler = inn.bowlerId {
-                    Text("Bowling: \(store.name(for: bowler))")
+                    let figures = inn.bowlers.first { $0.playerId == bowler }?.figures ?? "0.0-0-0-0"
+                    Text("\(store.name(for: bowler))  \(figures)")
                         .font(FishersTheme.subhead)
                         .foregroundStyle(.secondary)
                 }
-                HStack {
-                    Text(String(format: "CRR %.2f", store.state.currentRunRate))
-                    if let rrr = store.state.requiredRunRate {
-                        Text(String(format: "RRR %.2f", rrr))
-                    }
-                    if let t = store.state.target {
-                        Text("Target \(t)")
-                    }
-                }
-                .font(FishersTheme.caption)
-                .foregroundStyle(.secondary)
+                overStrip(inn)
+                statsRow(inn)
+                dlsRow
             }
+
             if store.state.status == .inningsBreak {
-                Button("Start 2nd innings") { startSecondInnings() }
+                Button("Start second innings") { showSecondInnings = true }
                     .buttonStyle(.borderedProminent)
                     .tint(FishersTheme.accent)
             }
-            if store.state.status == .complete {
-                Text(store.state.margin ?? "Match complete")
-                    .font(FishersTheme.headline)
-                Button("Done", action: onDone)
-                    .buttonStyle(.bordered)
+            if store.state.status.isFinished {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(store.state.margin ?? "Match complete")
+                        .font(FishersTheme.headline)
+                        .foregroundStyle(FishersTheme.pitch)
+                    HStack {
+                        Button("Scorecard") { showScorecard = true }
+                            .buttonStyle(.bordered)
+                        Button("Done", action: onDone)
+                            .buttonStyle(.borderedProminent)
+                            .tint(FishersTheme.accent)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func batterLine(id: UUID?, label: String, emphasise: Bool) -> some View {
+    private func batterLine(id: UUID?, onStrike: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label)
+            Text(onStrike ? "STRIKER" : "NON-STRIKER")
                 .font(FishersTheme.overline)
                 .foregroundStyle(.secondary)
-            if let id, let inn = store.state.currentInnings,
+            if let id, let inn = innings,
                let b = inn.batters.first(where: { $0.playerId == id }) {
-                Text("\(store.name(for: id)) \(b.runs) (\(b.balls))")
-                    .font(emphasise ? FishersTheme.headline : FishersTheme.subhead)
-                    .fontWeight(emphasise ? .bold : .regular)
+                Text("\(store.name(for: id))\(onStrike ? "*" : "")")
+                    .font(onStrike ? FishersTheme.headline : FishersTheme.subhead)
+                Text("\(b.runs) (\(b.balls))")
+                    .font(FishersTheme.subhead.monospacedDigit())
+                    .foregroundStyle(.secondary)
             } else {
                 Text("—")
             }
         }
     }
 
+    private func overStrip(_ inn: InningsState) -> some View {
+        HStack(spacing: 6) {
+            Text("This over")
+                .font(FishersTheme.overline)
+                .foregroundStyle(.secondary)
+            ForEach(inn.currentOverBalls) { ball in
+                Text(ball.label)
+                    .font(.caption2.weight(.bold).monospacedDigit())
+                    .frame(minWidth: 26, minHeight: 26)
+                    .background(ballColour(ball).opacity(0.18), in: Circle())
+                    .foregroundStyle(ballColour(ball))
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func ballColour(_ ball: DeliveryRecord) -> Color {
+        if ball.isWicket { return FishersTheme.seam }
+        if !ball.isLegal { return FishersTheme.maybe }
+        if ball.runs >= 4 { return FishersTheme.pitch }
+        return FishersTheme.ink
+    }
+
+    private func statsRow(_ inn: InningsState) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 14) {
+                Label(String(format: "CRR %.2f", inn.runRate), systemImage: "speedometer")
+                if let rrr = store.state.requiredRunRate, inn.index >= 1 {
+                    Label(String(format: "RRR %.2f", rrr), systemImage: "target")
+                }
+                Text("P'ship \(inn.partnershipRuns) (\(inn.partnershipBalls))")
+                if inn.oversAvailable > 0 {
+                    Text("\(inn.oversAvailable) ov")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(FishersTheme.caption)
+            .foregroundStyle(.secondary)
+            if let chase = store.state.chaseLine {
+                Text(chase)
+                    .font(FishersTheme.subhead.weight(.semibold))
+                    .foregroundStyle(FishersTheme.accent)
+            }
+        }
+    }
+
+    /// DLS from the first ball of the chase, so an abandoned match always has a
+    /// result. Computed on the device; the API agrees ball for ball.
+    @ViewBuilder
+    private var dlsRow: some View {
+        if let inn = innings, inn.index >= 1, let par = store.dlsPar {
+            HStack(spacing: 8) {
+                Image(systemName: "cloud.rain")
+                    .font(.caption2)
+                    .foregroundStyle(par.aheadBy >= 0 ? FishersTheme.available : FishersTheme.maybe)
+                Text(par.summary)
+                    .font(FishersTheme.caption)
+                    .foregroundStyle(par.aheadBy >= 0 ? FishersTheme.available : FishersTheme.maybe)
+                Spacer(minLength: 0)
+                Text("Target \(par.target)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    // MARK: Commentary
+
+    @ViewBuilder
+    private var commentaryPanel: some View {
+        if let inn = innings, !inn.deliveries.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(CricketCommentary.feed(for: inn, in: store.state, limit: 3)) { entry in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(entry.marker)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 34, alignment: .leading)
+                        Text(entry.text)
+                            .font(.caption)
+                            .foregroundStyle(entry.isWicket ? FishersTheme.seam : .primary)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    // MARK: Controls
+
     private var controls: some View {
-        VStack(spacing: 12) {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+        VStack(spacing: 10) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
+                spacing: 10
+            ) {
                 ForEach(0..<7, id: \.self) { runs in
                     runButton(runs)
                 }
-                Button {
-                    showExtras = true
-                } label: {
+                Button { showExtras = true } label: {
                     Text("Extras")
                         .font(FishersTheme.headline)
                         .frame(maxWidth: .infinity, minHeight: 64)
@@ -137,9 +330,7 @@ struct LiveScorerView: View {
                 .accessibilityLabel("Extras")
             }
             HStack(spacing: 10) {
-                Button {
-                    showWicket = true
-                } label: {
+                Button { showWicket = true } label: {
                     Text("Wicket")
                         .font(FishersTheme.headline)
                         .frame(maxWidth: .infinity, minHeight: 56)
@@ -149,47 +340,32 @@ struct LiveScorerView: View {
                 .accessibilityLabel("Wicket")
 
                 Button {
-                    _ = store.append(.undoLast)
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    if store.append(.undoLast) {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
                 } label: {
-                    Text("Undo")
+                    Label("Undo", systemImage: "arrow.uturn.backward")
                         .frame(maxWidth: .infinity, minHeight: 56)
                 }
                 .buttonStyle(.bordered)
+                .disabled(store.state.lastSeq == 0)
                 .accessibilityLabel("Undo last ball")
             }
             HStack {
                 Button("Change bowler") { showBowler = true }
                 Spacer()
-                Button("End innings") {
-                    _ = store.append(.inningsCompleted)
-                }
-                .disabled(store.state.currentInnings?.complete == true)
+                Button("End innings") { confirmEndInnings = true }
+                    .disabled(innings?.complete != false)
             }
             .font(FishersTheme.subhead)
         }
-        .disabled(store.state.status != .live)
+        .disabled(!isLive)
+        .opacity(isLive ? 1 : 0.5)
     }
 
     private func runButton(_ runs: Int) -> some View {
         Button {
-            let four = runs == 4
-            let six = runs == 6
-            _ = store.append(.deliveryRecorded(
-                runs: UInt8(runs),
-                isLegal: true,
-                isBoundaryFour: four,
-                isBoundarySix: six
-            ))
-            if four || six {
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-            } else {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            }
-            if store.state.currentInnings?.ballsInCurrentOver == 0,
-               (store.state.currentInnings?.legalBalls ?? 0) > 0 {
-                showBowler = true
-            }
+            score(runs)
         } label: {
             Text("\(runs)")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
@@ -200,15 +376,62 @@ struct LiveScorerView: View {
         .accessibilityLabel("\(runs) run\(runs == 1 ? "" : "s")")
     }
 
+    /// The wheel is asked for *before* the ball is written, so the shot rides
+    /// on the same event and an undo takes both away together.
+    private func score(_ runs: Int) {
+        guard let striker = innings?.strikerId else { return }
+        let commit: (ShotRecord?) -> Void = { shot in
+            guard store.append(.deliveryRecorded(
+                runs: UInt8(runs),
+                isLegal: true,
+                isBoundaryFour: runs == 4,
+                isBoundarySix: runs == 6,
+                shot: shot
+            )) else { return }
+            if runs >= 4 {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            } else {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+            promptForBowlerIfOverEnded()
+        }
+
+        if wheelMode.asks(forRuns: runs) {
+            pendingShot = PendingShot(
+                runs: runs,
+                batterName: store.name(for: striker),
+                batsLeft: store.state.batsLeft(striker),
+                commit: commit
+            )
+        } else {
+            commit(nil)
+        }
+    }
+
+    private func promptForBowlerIfOverEnded() {
+        guard let inn = store.state.currentInnings, !inn.complete else { return }
+        if inn.ballsInCurrentOver == 0 && inn.legalBalls > 0 {
+            showBowler = true
+        }
+    }
+
+    // MARK: Sync chip
+
     private var syncBar: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Image(systemName: syncIcon)
+                .font(.caption2)
+                .foregroundStyle(syncColour)
             Text(syncLabel)
                 .font(FishersTheme.footnote)
                 .foregroundStyle(.secondary)
-            Spacer()
             if let err = store.lastError {
-                Text(err).font(.caption2).foregroundStyle(.red).lineLimit(1)
+                Text(err)
+                    .font(.caption2)
+                    .foregroundStyle(FishersTheme.unavailable)
+                    .lineLimit(2)
             }
+            Spacer()
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -219,157 +442,505 @@ struct LiveScorerView: View {
         switch store.syncStatus {
         case .saved: return "Saved"
         case .syncing: return "Syncing…"
-        case .offline: return "Offline"
+        case .offline: return "Offline — saved on this phone"
         }
     }
 
-    private var extrasSheet: some View {
+    private var syncIcon: String {
+        switch store.syncStatus {
+        case .saved: return "checkmark.circle.fill"
+        case .syncing: return "arrow.triangle.2.circlepath"
+        case .offline: return "wifi.slash"
+        }
+    }
+
+    private var syncColour: Color {
+        switch store.syncStatus {
+        case .saved: return FishersTheme.available
+        case .syncing: return FishersTheme.maybe
+        case .offline: return FishersTheme.unavailable
+        }
+    }
+}
+
+// MARK: - Extras
+
+/// A wide they ran a single off is two runs; a no ball hit for four is five and
+/// four of them belong to the batter. The sheet makes that difference explicit
+/// rather than asking the scorer to do the arithmetic.
+private struct ExtrasSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    let wheelMode: WagonWheelMode
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var kind: ExtraKind = .wide
+    @State private var runs = 0
+    @State private var boundary = false
+    @State private var offTheBat = true
+    @State private var showWheel = false
+
+    var body: some View {
         NavigationStack {
             Form {
-                Picker("Type", selection: $extraKind) {
-                    ForEach(ExtraKind.allCases) { k in
-                        Text(k.label).tag(k)
+                Section {
+                    Picker("Type", selection: $kind) {
+                        ForEach(ExtraKind.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                } footer: {
+                    Text(kind.footnote)
+                }
+
+                if kind != .penalty {
+                    Section {
+                        Stepper(runsLabel, value: $runs, in: runRange)
+                        Toggle("Went to the boundary", isOn: $boundary)
+                            .disabled(runs < 4)
+                        if kind == .noBall {
+                            Picker("Those runs came", selection: $offTheBat) {
+                                Text("Off the bat").tag(true)
+                                Text("As byes").tag(false)
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    } header: {
+                        Text(kind == .bye || kind == .legBye ? "Runs run" : "Runs on top")
+                    } footer: {
+                        Text(explanation)
                     }
                 }
-                Stepper("Runs: \(extraRuns)", value: $extraRuns, in: 1...7)
+
+                Section {
+                    HStack {
+                        Text("Total to the side")
+                        Spacer()
+                        Text("\(totalRuns)")
+                            .font(.title3.bold().monospacedDigit())
+                            .foregroundStyle(FishersTheme.accent)
+                    }
+                }
             }
             .navigationTitle("Extras")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showExtras = false }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        _ = store.append(.extrasRecorded(kind: extraKind, runs: UInt8(extraRuns)))
-                        showExtras = false
-                    }
+                    Button("Add") { add() }.bold()
                 }
+            }
+            .onChange(of: kind) { _, new in
+                runs = new == .penalty ? 5 : 0
+                boundary = false
+                offTheBat = true
+            }
+            .onChange(of: runs) { _, new in
+                if new < 4 { boundary = false }
+            }
+            .sheet(isPresented: $showWheel) {
+                if let striker = store.state.currentInnings?.strikerId {
+                    WagonWheelPicker(
+                        batterName: store.name(for: striker),
+                        batsLeft: store.state.batsLeft(striker),
+                        runs: Int(runs),
+                        onSave: { commit(shot: $0) },
+                        onSkip: { commit(shot: nil) }
+                    )
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private var runRange: ClosedRange<Int> {
+        switch kind {
+        case .wide, .noBall: return 0...6
+        case .bye, .legBye: return 1...6
+        case .penalty: return 5...5
+        }
+    }
+
+    private var runsLabel: String {
+        switch kind {
+        case .wide, .noBall: return runs == 0 ? "None" : "\(runs)"
+        default: return "\(runs)"
+        }
+    }
+
+    private var totalRuns: Int {
+        (kind == .wide || kind == .noBall ? 1 : 0) + runs
+    }
+
+    private var explanation: String {
+        switch kind {
+        case .wide:
+            return runs == 0
+                ? "One run for the wide."
+                : "One for the wide plus \(runs) run — \(totalRuns) to the side, all wides."
+        case .noBall where offTheBat:
+            return runs == 0
+                ? "One run for the no ball."
+                : "One for the no ball plus \(runs) off the bat — the batter gets \(runs)."
+        case .noBall:
+            return "One for the no ball plus \(runs) bye\(runs == 1 ? "" : "s"). Only the no ball is charged to the bowler."
+        case .bye, .legBye:
+            return "A legal ball. Nothing against the bowler, nothing to the batter."
+        case .penalty:
+            return "Five penalty runs. No ball is bowled."
+        }
+    }
+
+    private func add() {
+        // Only runs off the bat are a shot worth plotting.
+        let plottable = kind == .noBall && offTheBat && runs > 0
+        if plottable && wheelMode.asks(forRuns: runs) {
+            showWheel = true
+        } else {
+            commit(shot: nil)
+        }
+    }
+
+    private func commit(shot: ShotRecord?) {
+        _ = store.append(.extrasRecorded(
+            kind: kind,
+            runs: UInt8(runs),
+            boundary: boundary,
+            offTheBat: offTheBat,
+            shot: shot
+        ))
+        dismiss()
+    }
+}
+
+// MARK: - Rain
+
+/// Overs lost to weather. DLS reads this, so the par score moves the moment the
+/// umpires do.
+private struct RevisedOversSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var overs: Int = 20
+    @State private var message: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Stepper("Overs: \(overs)", value: $overs, in: bowledSoFar...50)
+                } header: {
+                    Text("This innings now has")
+                } footer: {
+                    Text("\(bowledSoFar) over\(bowledSoFar == 1 ? "" : "s") already bowled. The DLS par score updates immediately.")
+                }
+                if let message {
+                    Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
+                }
+            }
+            .navigationTitle("Overs reduced")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") { apply() }.bold()
+                }
+            }
+            .onAppear {
+                overs = Int(store.state.currentInnings?.oversAvailable ?? store.state.oversLimit)
             }
         }
         .presentationDetents([.medium])
     }
 
-    private var wicketSheet: some View {
-        let batting = store.state.currentInnings?.batting
-        let xi = batting == .home ? store.state.homeXi : store.state.awayXi
-        let candidates = xi.filter { id in
-            !(store.state.currentInnings?.batters.contains { $0.playerId == id && $0.out } ?? false)
-                && id != store.state.currentInnings?.strikerId
-                && id != store.state.currentInnings?.nonStrikerId
+    private var bowledSoFar: Int {
+        guard let inn = store.state.currentInnings else { return 1 }
+        return max(1, (Int(inn.legalBalls) + 5) / 6)
+    }
+
+    private func apply() {
+        guard let index = store.state.currentInnings?.index else { return }
+        if store.append(.oversRevised(inningsIndex: index, overs: UInt8(overs))) {
+            dismiss()
+        } else {
+            message = store.lastError
         }
-        return NavigationStack {
+    }
+}
+
+// MARK: - Wicket
+
+/// Who is out, how, who did it, and who is coming in. A run out can take the
+/// batter at either end, and can have runs completed first.
+private struct WicketSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var kind: DismissalKind = .bowled
+    @State private var outIsStriker = true
+    @State private var fielderId: UUID?
+    @State private var newBatterId: UUID?
+    @State private var completedRuns = 0
+
+    var body: some View {
+        NavigationStack {
             Form {
-                Picker("Dismissal", selection: $pendingDismissal) {
-                    ForEach(DismissalKind.allCases) { k in
-                        Text(k.label).tag(k)
+                Section("How") {
+                    Picker("Dismissal", selection: $kind) {
+                        ForEach(DismissalKind.allCases) { Text($0.label).tag($0) }
                     }
                 }
-                Picker("New batter", selection: $newBatterId) {
-                    Text("—").tag(UUID?.none)
-                    ForEach(candidates, id: \.self) { id in
-                        Text(store.name(for: id)).tag(UUID?.some(id))
+
+                if kind.canDismissNonStriker {
+                    Section("Who is out") {
+                        Picker("Batter", selection: $outIsStriker) {
+                            Text(strikerName).tag(true)
+                            Text(nonStrikerName).tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
+                if kind.allowsCompletedRuns {
+                    Section {
+                        Stepper("Runs completed: \(completedRuns)", value: $completedRuns, in: 0...4)
+                    } footer: {
+                        Text("Runs finished before the throw came in. The batters cross on an odd number.")
+                    }
+                }
+
+                if kind.needsFielder {
+                    Section(fielderLabel) {
+                        Picker("Fielder", selection: $fielderId) {
+                            Text("—").tag(UUID?.none)
+                            ForEach(fielders) { Text($0.name).tag(UUID?.some($0.id)) }
+                        }
+                    }
+                }
+
+                Section("New batter") {
+                    if nextIn.isEmpty {
+                        Text("That is all out — no one left to come in.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("In next", selection: $newBatterId) {
+                            Text("—").tag(UUID?.none)
+                            ForEach(nextIn) { Text($0.name).tag(UUID?.some($0.id)) }
+                        }
                     }
                 }
             }
             .navigationTitle("Wicket")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showWicket = false }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Confirm") {
-                        guard let batter = store.state.currentInnings?.strikerId else { return }
-                        let ok = store.append(.wicketRecorded(
-                            batterId: batter,
-                            kind: pendingDismissal,
-                            fielderId: nil,
-                            newBatterId: newBatterId
-                        ))
-                        if ok {
-                            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                            showWicket = false
-                        }
-                    }
+                    Button("Out") { record() }.bold().disabled(!canRecord)
                 }
             }
-            .onAppear { newBatterId = candidates.first }
-        }
-        .presentationDetents([.medium])
-    }
-
-    private var bowlerSheet: some View {
-        let bowling = store.state.currentInnings?.bowling
-        let xi = bowling == .home ? store.state.homeXi : store.state.awayXi
-        return NavigationStack {
-            List(xi, id: \.self) { id in
-                Button(store.name(for: id)) {
-                    _ = store.append(.bowlerChanged(bowlerId: id))
-                    showBowler = false
-                }
-            }
-            .navigationTitle("New bowler")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showBowler = false }
-                }
+            .onAppear { newBatterId = nextIn.first?.id }
+            .onChange(of: kind) { _, new in
+                if !new.canDismissNonStriker { outIsStriker = true }
+                if !new.allowsCompletedRuns { completedRuns = 0 }
+                if !new.needsFielder { fielderId = nil }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
     }
 
-    private func startSecondInnings() {
-        let batting = store.state.innings.first?.batting.opposite ?? .away
-        let batXi = batting == .home ? store.state.homeXi : store.state.awayXi
-        let bowlXi = batting == .home ? store.state.awayXi : store.state.homeXi
-        guard batXi.count >= 2, let bowler = bowlXi.first else { return }
-        _ = store.append(.inningsStarted(
-            inningsIndex: 1,
-            batting: batting,
-            strikerId: batXi[0],
-            nonStrikerId: batXi[1],
-            bowlerId: bowler
+    private var innings: InningsState? { store.state.currentInnings }
+
+    private var strikerName: String {
+        innings?.strikerId.map { store.name(for: $0) } ?? "Striker"
+    }
+
+    private var nonStrikerName: String {
+        innings?.nonStrikerId.map { store.name(for: $0) } ?? "Non-striker"
+    }
+
+    private var outBatterId: UUID? {
+        outIsStriker ? innings?.strikerId : innings?.nonStrikerId
+    }
+
+    private var fielderLabel: String {
+        switch kind {
+        case .caught: return "Caught by"
+        case .stumped: return "Stumped by"
+        default: return "Fielder"
+        }
+    }
+
+    private var fielders: [MatchPlayer] {
+        guard let inn = innings else { return [] }
+        return store.state.players(for: inn.bowling)
+    }
+
+    private var nextIn: [MatchPlayer] {
+        guard let inn = innings else { return [] }
+        let atCrease = [inn.strikerId, inn.nonStrikerId].compactMap { $0 }
+        let dismissed = Set(inn.batters.filter(\.out).map(\.playerId))
+        return store.state.players(for: inn.batting).filter {
+            !dismissed.contains($0.id) && !atCrease.contains($0.id)
+        }
+    }
+
+    private var isLastWicket: Bool {
+        guard let inn = innings else { return false }
+        return inn.wickets + 1 >= inn.wicketsAllowed
+    }
+
+    private var canRecord: Bool {
+        guard outBatterId != nil else { return false }
+        return isLastWicket || newBatterId != nil
+    }
+
+    private func record() {
+        guard let batterId = outBatterId else { return }
+        let ok = store.append(.wicketRecorded(
+            batterId: batterId,
+            kind: kind,
+            fielderId: fielderId,
+            newBatterId: newBatterId,
+            runs: UInt8(completedRuns)
         ))
+        if ok {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            dismiss()
+        }
     }
 }
 
-struct CricketScorecardView: View {
-    let state: MatchState
-    var nameFor: (UUID) -> String
+// MARK: - Bowler
+
+private struct BowlerSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        List {
-            if let margin = state.margin {
-                Section("Result") { Text(margin) }
-            }
-            ForEach(Array(state.innings.enumerated()), id: \.offset) { _, inn in
-                Section("\(state.name(for: inn.batting)) — \(inn.runs)/\(inn.wickets)") {
-                    ForEach(inn.batters) { b in
-                        HStack {
-                            Text(nameFor(b.playerId))
-                            Spacer()
-                            Text("\(b.runs) (\(b.balls))")
+        NavigationStack {
+            List(bowlers) { player in
+                Button {
+                    _ = store.append(.bowlerChanged(bowlerId: player.id))
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text(player.name)
+                        Spacer()
+                        if let figures = figures(for: player.id) {
+                            Text(figures)
+                                .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
-                            if b.out {
-                                Text(b.dismissal?.label ?? "out")
-                                    .font(.caption)
-                                    .foregroundStyle(FishersTheme.seam)
-                            }
+                        }
+                        if store.state.currentInnings?.bowlerId == player.id {
+                            Image(systemName: "checkmark").foregroundStyle(FishersTheme.accent)
                         }
                     }
-                    Text("Extras \(inn.extras)").font(.footnote)
                 }
-                Section("Bowling") {
-                    ForEach(inn.bowlers) { b in
-                        HStack {
-                            Text(nameFor(b.playerId))
-                            Spacer()
-                            Text("\(b.oversDisplay)-\(b.maidens)-\(b.runs)-\(b.wickets)")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+            }
+            .navigationTitle("Bowler")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
                 }
             }
         }
-        .navigationTitle("Scorecard")
+        .presentationDetents([.medium, .large])
+    }
+
+    private var bowlers: [MatchPlayer] {
+        guard let inn = store.state.currentInnings else { return [] }
+        return store.state.players(for: inn.bowling)
+    }
+
+    private func figures(for id: UUID) -> String? {
+        store.state.currentInnings?.bowlers.first { $0.playerId == id }?.figures
+    }
+}
+
+// MARK: - Second innings
+
+private struct SecondInningsSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var strikerId: UUID?
+    @State private var nonStrikerId: UUID?
+    @State private var bowlerId: UUID?
+    @State private var message: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let target = store.state.target {
+                    Section {
+                        Text("\(store.state.name(for: batting)) need \(target) to win.")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                }
+                Section("Opening pair") {
+                    picker("Striker", $strikerId, batters)
+                    picker("Non-striker", $nonStrikerId, batters)
+                }
+                Section("Opening bowler") {
+                    picker("Bowler", $bowlerId, bowlersAvailable)
+                }
+                if let message {
+                    Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
+                }
+            }
+            .navigationTitle("Second innings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Start") { start() }.bold()
+                }
+            }
+            .onAppear {
+                strikerId = batters.first?.id
+                nonStrikerId = batters.dropFirst().first?.id
+                bowlerId = bowlersAvailable.first?.id
+            }
+        }
+    }
+
+    private var batting: MatchSide {
+        store.state.innings.first?.batting.opposite ?? .away
+    }
+
+    private var batters: [MatchPlayer] { store.state.players(for: batting) }
+    private var bowlersAvailable: [MatchPlayer] { store.state.players(for: batting.opposite) }
+
+    private func picker(
+        _ title: String,
+        _ selection: Binding<UUID?>,
+        _ players: [MatchPlayer]
+    ) -> some View {
+        Picker(title, selection: selection) {
+            Text("—").tag(UUID?.none)
+            ForEach(players) { Text($0.name).tag(UUID?.some($0.id)) }
+        }
+    }
+
+    private func start() {
+        guard let s = strikerId, let ns = nonStrikerId, let b = bowlerId, s != ns else {
+            message = "Pick two different batters and a bowler."
+            return
+        }
+        if store.append(.inningsStarted(
+            inningsIndex: 1, batting: batting,
+            strikerId: s, nonStrikerId: ns, bowlerId: b
+        )) {
+            dismiss()
+        } else {
+            message = store.lastError
+        }
     }
 }

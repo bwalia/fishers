@@ -1,7 +1,23 @@
 import Foundation
 
 /// On-device cricket scoring engine — mirrors `backend/domain/src/cricket/engine.rs`.
+///
+/// State is a fold over the event log, so the device and the API always agree:
+/// replaying the same events produces the same scorecard, undo stack included.
 extension MatchState {
+    /// Smallest and largest team sheet. Club cricket is not always eleven a side.
+    static let minTeam = 2
+    static let maxTeam = 15
+
+    /// Rebuild from an ordered log — how a match resumes after the app is killed.
+    static func replay(_ events: [ScoringEvent]) throws -> MatchState {
+        var state = MatchState()
+        for event in events {
+            try state.apply(event)
+        }
+        return state
+    }
+
     mutating func apply(_ event: ScoringEvent) throws {
         if event.seq != lastSeq + 1 && !(lastSeq == 0 && event.seq == 1) {
             if event.seq <= lastSeq { return }
@@ -21,30 +37,42 @@ extension MatchState {
 
         switch event.kind {
         case let .matchPrepared(overs, home, away):
-            oversLimit = overs
+            oversLimit = max(overs, 1)
             homeName = home
             awayName = away
             status = .preparing
+
         case let .tossRecorded(winner, decision):
             tossWinner = winner
             tossDecision = decision
             status = .selectingXi
-        case let .xiSelected(side, playerIds, captainId, keeperId):
-            guard playerIds.count == 11 else {
-                throw CricketEngineError.validation("playing XI must be 11")
+
+        case let .xiSelected(side, players, captainId, keeperId):
+            guard players.count >= Self.minTeam, players.count <= Self.maxTeam else {
+                throw CricketEngineError.validation(
+                    "a team sheet is \(Self.minTeam)–\(Self.maxTeam) players, got \(players.count)"
+                )
             }
+            for player in players {
+                setName(player.name, for: player.id)
+                setBatsLeft(player.batsLeft, for: player.id)
+            }
+            let ids = players.map(\.id)
             switch side {
             case .home:
-                homeXi = playerIds; homeCaptain = captainId; homeKeeper = keeperId
+                homeXi = ids; homeCaptain = captainId; homeKeeper = keeperId
             case .away:
-                awayXi = playerIds; awayCaptain = captainId; awayKeeper = keeperId
+                awayXi = ids; awayCaptain = captainId; awayKeeper = keeperId
             }
-            if homeXi.count == 11 && awayXi.count == 11 {
+            if homeXi.count >= Self.minTeam && awayXi.count >= Self.minTeam {
                 status = .ready
             }
+
         case let .inningsStarted(idx, batting, striker, non, bowler):
-            let battingXi = batting == .home ? homeXi : awayXi
-            var batters = battingXi.map { BatterStats(playerId: $0) }
+            guard striker != non else {
+                throw CricketEngineError.validation("the two openers must be different players")
+            }
+            var batters = xi(batting).map { BatterStats(playerId: $0) }
             for id in [striker, non] where !batters.contains(where: { $0.playerId == id }) {
                 batters.append(BatterStats(playerId: id))
             }
@@ -53,38 +81,67 @@ extension MatchState {
             inn.strikerId = striker
             inn.nonStrikerId = non
             inn.bowlerId = bowler
+            inn.wicketsAllowed = UInt8(min(max(batters.count - 1, 1), 10))
+            inn.oversAvailable = oversLimit
             inn.ensureBowler(bowler)
             innings.append(inn)
             status = .live
             if idx == 1, let first = innings.first {
                 target = first.runs + 1
             }
-        case let .deliveryRecorded(runs, isLegal, four, six):
-            try applyDelivery(runs: runs, isLegal: isLegal, four: four, six: six)
-        case let .extrasRecorded(kind, runs):
-            try applyExtras(kind: kind, runs: runs)
-        case let .wicketRecorded(batterId, kind, _, newBatterId):
-            try applyWicket(batterId: batterId, kind: kind, newBatterId: newBatterId)
+
+        case let .deliveryRecorded(runs, isLegal, four, six, shot):
+            try applyDelivery(runs: runs, isLegal: isLegal, four: four, six: six, shot: shot)
+
+        case let .extrasRecorded(kind, runs, boundary, offTheBat, shot):
+            try applyExtras(
+                kind: kind, runs: runs, boundary: boundary,
+                offTheBat: offTheBat, shot: shot
+            )
+
+        case let .oversRevised(inningsIndex, overs):
+            let overs = max(overs, 1)
+            let idx = Int(inningsIndex)
+            guard idx < innings.count else {
+                throw CricketEngineError.validation("no such innings")
+            }
+            let bowled = UInt8((Int(innings[idx].legalBalls) + 5) / 6)
+            guard overs >= bowled else {
+                throw CricketEngineError.validation("\(bowled) overs have already been bowled")
+            }
+            innings[idx].oversAvailable = overs
+            closeIfFinished(idx)
+
+        case let .wicketRecorded(batterId, kind, fielderId, newBatterId, runs):
+            try applyWicket(
+                batterId: batterId, kind: kind, fielderId: fielderId,
+                newBatterId: newBatterId, runs: runs
+            )
+
         case let .bowlerChanged(bowlerId):
             guard !innings.isEmpty else { throw CricketEngineError.validation("no innings") }
-            innings[innings.count - 1].ensureBowler(bowlerId)
-            innings[innings.count - 1].bowlerId = bowlerId
-            innings[innings.count - 1].ballsInCurrentOver = 0
+            let idx = innings.count - 1
+            innings[idx].ensureBowler(bowlerId)
+            innings[idx].bowlerId = bowlerId
+            innings[idx].ballsInCurrentOver = 0
+
         case .inningsCompleted:
             try completeInnings()
+
         case let .matchCompleted(winner, margin):
             self.winner = winner
             self.margin = margin
             status = .complete
+
         case .undoLast:
             break
         }
 
         lastSeq = event.seq
-        try checkAutoComplete()
+        checkAutoComplete()
     }
 
-    // MARK: - Private
+    // MARK: - Undo
 
     private mutating func pushHistory() {
         history.append(MatchStateSnapshot(
@@ -104,10 +161,16 @@ extension MatchState {
         margin = snap.margin
     }
 
-    private mutating func applyDelivery(runs: UInt8, isLegal: Bool, four: Bool, six: Bool) throws {
+    // MARK: - Scoring
+
+    private mutating func applyDelivery(
+        runs: UInt8, isLegal: Bool, four: Bool, six: Bool, shot: ShotRecord?
+    ) throws {
         guard !innings.isEmpty else { throw CricketEngineError.validation("no live innings") }
         let idx = innings.count - 1
-        guard !innings[idx].complete else { throw CricketEngineError.validation("innings complete") }
+        guard !innings[idx].complete else {
+            throw CricketEngineError.validation("innings complete")
+        }
         guard let striker = innings[idx].strikerId else {
             throw CricketEngineError.validation("no striker")
         }
@@ -116,55 +179,52 @@ extension MatchState {
         }
 
         innings[idx].runs += UInt16(runs)
-        let bi = try innings[idx].batterMut(striker)
+        innings[idx].partnershipRuns += UInt16(runs)
+
+        let bi = try innings[idx].batterIndex(striker)
         innings[idx].batters[bi].runs += UInt16(runs)
         if isLegal { innings[idx].batters[bi].balls += 1 }
         if four { innings[idx].batters[bi].fours += 1 }
         if six { innings[idx].batters[bi].sixes += 1 }
 
-        let boi = try innings[idx].bowlerMut(bowler)
+        let boi = try innings[idx].bowlerIndex(bowler)
         innings[idx].bowlers[boi].runs += UInt16(runs)
         innings[idx].bowlers[boi].currentOverRuns += UInt16(runs)
         if isLegal { innings[idx].bowlers[boi].balls += 1 }
 
-        let label: String
-        if six { label = "SIX" }
-        else if four { label = "FOUR" }
-        else if runs == 0 { label = "0" }
-        else { label = "\(runs)" }
-
+        let label = six ? "6" : (four ? "4" : "\(runs)")
         let over = innings[idx].legalBalls / 6
         let ballIn = innings[idx].ballsInCurrentOver + (isLegal ? 1 : 0)
         innings[idx].deliveries.append(DeliveryRecord(
             over: over, ballInOver: ballIn, label: label,
-            runs: runs, isLegal: isLegal, isWicket: false
+            runs: runs, isLegal: isLegal, isWicket: false,
+            batterId: striker, bowlerId: bowler, shot: shot
         ))
 
         if isLegal {
             innings[idx].legalBalls += 1
             innings[idx].ballsInCurrentOver += 1
+            innings[idx].partnershipBalls += 1
             if runs % 2 == 1 { innings[idx].swapStrike() }
-            if innings[idx].ballsInCurrentOver >= 6 {
-                if let boi = innings[idx].bowlers.firstIndex(where: { $0.playerId == bowler }) {
-                    if innings[idx].bowlers[boi].currentOverRuns == 0 {
-                        innings[idx].bowlers[boi].maidens += 1
-                    }
-                    innings[idx].bowlers[boi].currentOverRuns = 0
-                }
-                innings[idx].ballsInCurrentOver = 0
-                innings[idx].swapStrike()
-            }
+            completeOverIfDue(idx, bowler: bowler)
         }
-
-        let ballsCap = UInt16(oversLimit) * 6
-        if innings[idx].legalBalls >= ballsCap || innings[idx].wickets >= 10 {
-            innings[idx].complete = true
-        }
+        closeIfFinished(idx)
     }
 
-    private mutating func applyExtras(kind: ExtraKind, runs: UInt8) throws {
+    /// An extra, plus whatever the ball did afterwards.
+    ///
+    /// `runs` is what the batters ran (or the boundary), *on top of* the one-run
+    /// penalty a wide or a no ball carries. The three things that have to come
+    /// apart are what the side scores, what the batter is credited with, and
+    /// what the bowler is charged.
+    private mutating func applyExtras(
+        kind: ExtraKind, runs: UInt8, boundary: Bool, offTheBat: Bool, shot: ShotRecord?
+    ) throws {
         guard !innings.isEmpty else { throw CricketEngineError.validation("no live innings") }
         let idx = innings.count - 1
+        guard !innings[idx].complete else {
+            throw CricketEngineError.validation("innings complete")
+        }
         guard let bowler = innings[idx].bowlerId else {
             throw CricketEngineError.validation("no bowler")
         }
@@ -172,113 +232,168 @@ extension MatchState {
             throw CricketEngineError.validation("no striker")
         }
 
-        let teamRuns: UInt8
-        let legal: Bool
-        let batRuns: UInt8
-        let bowlRuns: UInt8
+        let penalty: UInt8 = (kind == .wide || kind == .noBall) ? 1 : 0
+        let legal = (kind == .bye || kind == .legBye)
+        let batRuns: UInt8 = (kind == .noBall && offTheBat) ? runs : 0
+        let teamRuns = penalty + runs
+        let extraRuns = teamRuns >= batRuns ? teamRuns - batRuns : 0
+        let bowlerRuns: UInt8
         switch kind {
-        case .wide:
-            teamRuns = max(runs, 1); legal = false; batRuns = 0; bowlRuns = max(runs, 1)
-        case .noBall:
-            teamRuns = max(runs, 1); legal = false
-            batRuns = runs > 0 ? runs - 1 : 0; bowlRuns = max(runs, 1)
-        case .bye, .legBye:
-            teamRuns = runs; legal = true; batRuns = 0; bowlRuns = 0
-        case .penalty:
-            teamRuns = runs; legal = false; batRuns = 0; bowlRuns = 0
+        case .wide: bowlerRuns = penalty + runs
+        case .noBall: bowlerRuns = penalty + batRuns
+        case .bye, .legBye, .penalty: bowlerRuns = 0
         }
 
         innings[idx].runs += UInt16(teamRuns)
-        innings[idx].extras += UInt16(teamRuns)
-
-        if batRuns > 0 {
-            let bi = try innings[idx].batterMut(striker)
-            innings[idx].batters[bi].runs += UInt16(batRuns)
-            innings[idx].batters[bi].balls += 1
+        innings[idx].extras += UInt16(extraRuns)
+        innings[idx].partnershipRuns += UInt16(teamRuns)
+        switch kind {
+        case .wide:
+            innings[idx].wides += UInt16(extraRuns)
+        case .noBall:
+            innings[idx].noBalls += UInt16(penalty)
+            if !offTheBat { innings[idx].byes += UInt16(runs) }
+        case .bye:
+            innings[idx].byes += UInt16(extraRuns)
+        case .legBye:
+            innings[idx].legByes += UInt16(extraRuns)
+        case .penalty:
+            innings[idx].penalties += UInt16(extraRuns)
         }
 
-        let boi = try innings[idx].bowlerMut(bowler)
-        innings[idx].bowlers[boi].runs += UInt16(bowlRuns)
-        innings[idx].bowlers[boi].currentOverRuns += UInt16(bowlRuns)
-        if legal { innings[idx].bowlers[boi].balls += 1 }
+        // The batter faces a no ball, a bye and a leg bye; never a wide.
+        if kind != .wide && kind != .penalty {
+            let bi = try innings[idx].batterIndex(striker)
+            innings[idx].batters[bi].balls += 1
+            if batRuns > 0 {
+                innings[idx].batters[bi].runs += UInt16(batRuns)
+                if boundary && batRuns >= 6 {
+                    innings[idx].batters[bi].sixes += 1
+                } else if boundary && batRuns >= 4 {
+                    innings[idx].batters[bi].fours += 1
+                }
+            }
+        }
 
+        let boi = try innings[idx].bowlerIndex(bowler)
+        innings[idx].bowlers[boi].runs += UInt16(bowlerRuns)
+        innings[idx].bowlers[boi].currentOverRuns += UInt16(bowlerRuns)
+        if legal { innings[idx].bowlers[boi].balls += 1 }
+        switch kind {
+        case .wide: innings[idx].bowlers[boi].wides += 1
+        case .noBall: innings[idx].bowlers[boi].noBalls += 1
+        default: break
+        }
+
+        let label: String
+        switch kind {
+        case .wide: label = runs > 0 ? "wd+\(runs)" : "wd"
+        case .noBall: label = runs > 0 ? "nb+\(runs)" : "nb"
+        case .bye: label = "\(runs)b"
+        case .legBye: label = "\(runs)lb"
+        case .penalty: label = "\(runs)p"
+        }
         let over = innings[idx].legalBalls / 6
+        let ballIn = innings[idx].ballsInCurrentOver + (legal ? 1 : 0)
         innings[idx].deliveries.append(DeliveryRecord(
-            over: over,
-            ballInOver: innings[idx].ballsInCurrentOver + (legal ? 1 : 0),
-            label: "\(kind.label) \(teamRuns)",
-            runs: teamRuns, isLegal: legal, isWicket: false
+            over: over, ballInOver: ballIn, label: label,
+            runs: teamRuns, isLegal: legal, isWicket: false,
+            batterId: striker, bowlerId: bowler, shot: shot
         ))
 
         if legal {
             innings[idx].legalBalls += 1
             innings[idx].ballsInCurrentOver += 1
-            if (kind == .bye || kind == .legBye) && runs % 2 == 1 {
-                innings[idx].swapStrike()
-            }
-            if innings[idx].ballsInCurrentOver >= 6 {
-                if let boi = innings[idx].bowlers.firstIndex(where: { $0.playerId == bowler }) {
-                    if innings[idx].bowlers[boi].currentOverRuns == 0 {
-                        innings[idx].bowlers[boi].maidens += 1
-                    }
-                    innings[idx].bowlers[boi].currentOverRuns = 0
-                }
-                innings[idx].ballsInCurrentOver = 0
-                innings[idx].swapStrike()
-            }
-        } else if (kind == .wide || kind == .noBall)
-            && batRuns == 0
-            && teamRuns > 1
-            && (teamRuns - 1) % 2 == 1
-        {
+            innings[idx].partnershipBalls += 1
+        }
+        // Whatever they ran, an odd number puts the other batter on strike —
+        // and a boundary is four or six, so it never does.
+        if runs % 2 == 1 && !boundary {
             innings[idx].swapStrike()
         }
+        if legal {
+            completeOverIfDue(idx, bowler: bowler)
+        }
+        closeIfFinished(idx)
     }
 
     private mutating func applyWicket(
-        batterId: UUID, kind: DismissalKind, newBatterId: UUID?
+        batterId: UUID, kind: DismissalKind, fielderId: UUID?,
+        newBatterId: UUID?, runs: UInt8
     ) throws {
         guard !innings.isEmpty else { throw CricketEngineError.validation("no live innings") }
         let idx = innings.count - 1
+        guard !innings[idx].complete else {
+            throw CricketEngineError.validation("innings complete")
+        }
         let bowler = innings[idx].bowlerId
-        let isLegal = kind != .retired
+        let striker = innings[idx].strikerId
+        let isLegal = kind.usesABall
 
-        let bi = try innings[idx].batterMut(batterId)
-        innings[idx].batters[bi].out = true
-        innings[idx].batters[bi].dismissal = kind
-        if isLegal { innings[idx].batters[bi].balls += 1 }
+        // Runs completed before the dismissal — a run out is usually off the bat.
+        if runs > 0, let strikerId = striker {
+            innings[idx].runs += UInt16(runs)
+            innings[idx].partnershipRuns += UInt16(runs)
+            let bi = try innings[idx].batterIndex(strikerId)
+            innings[idx].batters[bi].runs += UInt16(runs)
+            if let bid = bowler {
+                let boi = try innings[idx].bowlerIndex(bid)
+                innings[idx].bowlers[boi].runs += UInt16(runs)
+                innings[idx].bowlers[boi].currentOverRuns += UInt16(runs)
+            }
+        }
+
+        let outIndex = try innings[idx].batterIndex(batterId)
+        innings[idx].batters[outIndex].out = true
+        innings[idx].batters[outIndex].dismissal = kind
+        innings[idx].batters[outIndex].fielderId = fielderId
+        innings[idx].batters[outIndex].bowlerId = kind.creditsBowler ? bowler : nil
+
+        // The ball is faced by whoever was on strike, not necessarily the batter
+        // given out — a non-striker can be run out.
+        if isLegal, let strikerId = striker {
+            let bi = try innings[idx].batterIndex(strikerId)
+            innings[idx].batters[bi].balls += 1
+        }
 
         innings[idx].wickets += 1
         if isLegal {
             innings[idx].legalBalls += 1
             innings[idx].ballsInCurrentOver += 1
+            innings[idx].partnershipBalls += 1
             if let bid = bowler {
-                let boi = try innings[idx].bowlerMut(bid)
-                switch kind {
-                case .bowled, .caught, .lbw, .stumped, .hitWicket:
-                    innings[idx].bowlers[boi].wickets += 1
-                    innings[idx].bowlers[boi].balls += 1
-                default:
-                    innings[idx].bowlers[boi].balls += 1
-                }
+                let boi = try innings[idx].bowlerIndex(bid)
+                innings[idx].bowlers[boi].balls += 1
+                if kind.creditsBowler { innings[idx].bowlers[boi].wickets += 1 }
             }
         }
 
-        let score = innings[idx].runs
-        let wickets = innings[idx].wickets
-        let overBall = MatchState.oversBallsDisplay(innings[idx].legalBalls)
         innings[idx].fall.append(FallOfWicket(
-            score: score, wickets: wickets, batterId: batterId, overBall: overBall
+            score: innings[idx].runs,
+            wickets: innings[idx].wickets,
+            batterId: batterId,
+            overBall: MatchState.oversBallsDisplay(innings[idx].legalBalls),
+            partnershipRuns: innings[idx].partnershipRuns,
+            partnershipBalls: innings[idx].partnershipBalls
         ))
+        innings[idx].partnershipRuns = 0
+        innings[idx].partnershipBalls = 0
+
+        let over = innings[idx].legalBalls > 0 ? (innings[idx].legalBalls - 1) / 6 : 0
         innings[idx].deliveries.append(DeliveryRecord(
-            over: innings[idx].legalBalls > 0 ? (innings[idx].legalBalls - 1) / 6 : 0,
+            over: over,
             ballInOver: innings[idx].ballsInCurrentOver,
-            label: "WICKET", runs: 0, isLegal: isLegal, isWicket: true
+            label: runs > 0 ? "\(runs)W" : "W",
+            runs: runs, isLegal: isLegal, isWicket: true,
+            batterId: striker, bowlerId: bowler, shot: nil
         ))
 
-        if innings[idx].wickets >= 10
-            || innings[idx].legalBalls >= UInt16(oversLimit) * 6
-        {
+        // Batters cross on odd completed runs, so settle the ends before the
+        // replacement takes the dismissed player's place.
+        if isLegal && runs % 2 == 1 { innings[idx].swapStrike() }
+
+        if innings[idx].isAllOut
+            || innings[idx].legalBalls >= UInt16(innings[idx].oversAvailable) * 6 {
             innings[idx].complete = true
             return
         }
@@ -291,31 +406,23 @@ extension MatchState {
         }
         if innings[idx].strikerId == batterId {
             innings[idx].strikerId = newId
-        } else {
+        } else if innings[idx].nonStrikerId == batterId {
             innings[idx].nonStrikerId = newId
+        } else {
+            innings[idx].strikerId = newId
         }
 
-        if innings[idx].ballsInCurrentOver >= 6 {
-            if let bid = bowler,
-               let boi = innings[idx].bowlers.firstIndex(where: { $0.playerId == bid }) {
-                if innings[idx].bowlers[boi].currentOverRuns == 0 {
-                    innings[idx].bowlers[boi].maidens += 1
-                }
-                innings[idx].bowlers[boi].currentOverRuns = 0
-            }
-            innings[idx].ballsInCurrentOver = 0
-            innings[idx].swapStrike()
-        }
+        completeOverIfDue(idx, bowler: bowler)
     }
+
+    // MARK: - Innings and result
 
     private mutating func completeInnings() throws {
         guard !innings.isEmpty else { throw CricketEngineError.validation("no innings") }
         let idx = innings.count - 1
         innings[idx].complete = true
-        let innIdx = innings[idx].index
-        let runs = innings[idx].runs
-        if innIdx == 0 {
-            target = runs + 1
+        if innings[idx].index == 0 {
+            target = innings[idx].runs + 1
             status = .inningsBreak
         } else {
             status = .complete
@@ -323,7 +430,7 @@ extension MatchState {
         }
     }
 
-    private mutating func checkAutoComplete() throws {
+    private mutating func checkAutoComplete() {
         guard let inn = currentInnings else { return }
         if !inn.complete {
             if inn.index >= 1, let target, inn.runs >= target {
@@ -336,23 +443,53 @@ extension MatchState {
         if inn.index == 0 && status == .live {
             target = inn.runs + 1
             status = .inningsBreak
+        } else if inn.index >= 1 && status != .complete {
+            status = .complete
+            finishResult()
+        }
+    }
+
+    /// Six legal balls: bank the maiden, reset the count, change ends.
+    private mutating func completeOverIfDue(_ idx: Int, bowler: UUID?) {
+        guard innings[idx].ballsInCurrentOver >= 6 else { return }
+        if let bowler,
+           let boi = innings[idx].bowlers.firstIndex(where: { $0.playerId == bowler }) {
+            if innings[idx].bowlers[boi].currentOverRuns == 0 {
+                innings[idx].bowlers[boi].maidens += 1
+            }
+            innings[idx].bowlers[boi].currentOverRuns = 0
+        }
+        innings[idx].ballsInCurrentOver = 0
+        innings[idx].swapStrike()
+    }
+
+    private mutating func closeIfFinished(_ idx: Int) {
+        if innings[idx].legalBalls >= UInt16(innings[idx].oversAvailable) * 6
+            || innings[idx].isAllOut {
+            innings[idx].complete = true
         }
     }
 
     private mutating func finishResult() {
         guard innings.count >= 2 else { return }
-        let a = innings[0]
-        let b = innings[1]
-        if b.runs > a.runs {
-            winner = b.batting
-            let wkts = 10 - Int(b.wickets)
-            margin = "won by \(max(wkts, 0)) wickets"
-        } else if b.runs < a.runs {
-            winner = a.batting
-            margin = "won by \(a.runs - b.runs) runs"
+        let first = innings[0]
+        let second = innings[1]
+        if second.runs > first.runs {
+            let wickets = second.wicketsAllowed > second.wickets
+                ? second.wicketsAllowed - second.wickets : 0
+            let total = UInt16(second.oversAvailable) * 6
+            let ballsLeft = total > second.legalBalls ? total - second.legalBalls : 0
+            var text = "\(name(for: second.batting)) won by \(wickets) wicket\(wickets == 1 ? "" : "s")"
+            if ballsLeft > 0 { text += " (\(ballsLeft) balls remaining)" }
+            winner = second.batting
+            margin = text
+        } else if second.runs < first.runs {
+            let runs = first.runs - second.runs
+            winner = first.batting
+            margin = "\(name(for: first.batting)) won by \(runs) run\(runs == 1 ? "" : "s")"
         } else {
             winner = nil
-            margin = "tied"
+            margin = "Match tied"
         }
     }
 }

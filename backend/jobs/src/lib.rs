@@ -18,12 +18,24 @@ pub fn spawn_scheduler(pool: PgPool, push: PushService, email: EmailService) {
     });
 }
 
+/// Each job is isolated: one failing must not stop the rest of the tick, or a
+/// single bad fixture would stall reconfirmations for the whole club.
 async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> anyhow::Result<()> {
-    materialise_recurring(pool).await?;
-    send_rsvp_reminders(pool, push).await?;
-    request_reconfirmations(pool, push, email).await?;
-    drop_and_promote(pool, push).await?;
-    chase_match_fees(pool, push, email).await?;
+    if let Err(e) = materialise_recurring(pool).await {
+        warn!(error = %e, "materialising recurring fixtures failed");
+    }
+    if let Err(e) = send_rsvp_reminders(pool, push).await {
+        warn!(error = %e, "rsvp reminders failed");
+    }
+    if let Err(e) = request_reconfirmations(pool, push, email).await {
+        warn!(error = %e, "reconfirmation requests failed");
+    }
+    if let Err(e) = drop_and_promote(pool, push).await {
+        warn!(error = %e, "drop and promote failed");
+    }
+    if let Err(e) = chase_match_fees(pool, push, email).await {
+        warn!(error = %e, "fee chasing failed");
+    }
     Ok(())
 }
 
@@ -153,11 +165,19 @@ async fn chase_match_fees(
     Ok(())
 }
 
-/// Expand parent recurring events into concrete instances within the next 60 days.
+/// Keep every weekly series populated for the next 60 days.
+///
+/// The first version only ever looked at weeks 1–8 from the series' original
+/// date, so a Wednesday nets booking quietly stopped appearing eight weeks after
+/// it was created. The window now rolls: each series remembers how far it has
+/// been expanded and carries on from there.
 async fn materialise_recurring(pool: &PgPool) -> anyhow::Result<()> {
-    let parents = sqlx::query_as::<_, (uuid::Uuid, chrono::DateTime<Utc>, Option<String>)>(
+    const HORIZON_DAYS: i64 = 60;
+
+    let parents = sqlx::query_as::<_, (uuid::Uuid, chrono::DateTime<Utc>, Option<String>, Option<chrono::DateTime<Utc>>)>(
         r#"
-        SELECT id, start_at, recurrence_rule FROM events
+        SELECT id, start_at, recurrence_rule, recurrence_expanded_to
+        FROM events
         WHERE recurrence_rule IS NOT NULL
           AND recurrence_parent_id IS NULL
           AND status = 'scheduled'
@@ -166,35 +186,37 @@ async fn materialise_recurring(pool: &PgPool) -> anyhow::Result<()> {
     .fetch_all(pool)
     .await?;
 
+    let horizon = Utc::now() + Duration::days(HORIZON_DAYS);
     let mut created = 0u32;
-    for (parent_id, start_at, rule) in parents {
+
+    for (parent_id, anchor, rule, expanded_to) in parents {
         let Some(rule) = rule else { continue };
-        // Minimal WEEKLY support: create next 8 weekly clones if missing.
         if !rule.to_uppercase().contains("FREQ=WEEKLY") {
             continue;
         }
-        for week in 1..=8 {
-            let next_start = start_at + Duration::weeks(week);
-            if next_start > Utc::now() + Duration::days(60) {
+
+        // Start from the later of the anchor and wherever we got to last time,
+        // and never create a fixture in the past.
+        let resume_from = expanded_to.unwrap_or(anchor).max(Utc::now() - Duration::days(1));
+        let mut week = 1i64;
+        let mut furthest = expanded_to.unwrap_or(anchor);
+
+        loop {
+            let next_start = anchor + Duration::weeks(week);
+            week += 1;
+            if next_start > horizon {
                 break;
             }
-            let exists: (bool,) = sqlx::query_as(
-                r#"
-                SELECT EXISTS(
-                  SELECT 1 FROM events
-                  WHERE recurrence_parent_id = $1 AND start_at = $2
-                )
-                "#,
-            )
-            .bind(parent_id)
-            .bind(next_start)
-            .fetch_one(pool)
-            .await?;
-            if exists.0 {
+            // Guard against a runaway loop on a very old anchor.
+            if week > 520 {
+                warn!(%parent_id, "recurring series is implausibly old; skipping");
+                break;
+            }
+            if next_start <= resume_from {
                 continue;
             }
 
-            let res = sqlx::query(
+            let inserted = sqlx::query(
                 r#"
                 INSERT INTO events (
                     club_id, team_id, sport, event_subtype, title, venue_id,
@@ -203,28 +225,42 @@ async fn materialise_recurring(pool: &PgPool) -> anyhow::Result<()> {
                 )
                 SELECT
                     club_id, team_id, sport, event_subtype, title, venue_id,
-                    start_at + ($2::int * INTERVAL '1 week'),
-                    end_at + ($2::int * INTERVAL '1 week'),
+                    start_at + ($2::bigint * INTERVAL '1 week'),
+                    end_at + ($2::bigint * INTERVAL '1 week'),
                     NULL, id,
-                    capacity, fee_amount_cents, fee_currency, status, metadata, created_by
+                    capacity, fee_amount_cents, fee_currency, 'scheduled', metadata, created_by
                 FROM events WHERE id = $1
+                  AND NOT EXISTS (
+                      SELECT 1 FROM events child
+                      WHERE child.recurrence_parent_id = $1
+                        AND child.start_at = events.start_at + ($2::bigint * INTERVAL '1 week')
+                  )
                 "#,
             )
             .bind(parent_id)
-            .bind(week as i32)
+            .bind(week - 1)
             .execute(pool)
-            .await;
-            if res.is_ok() {
-                created += 1;
-            }
+            .await?;
+
+            created += inserted.rows_affected() as u32;
+            furthest = furthest.max(next_start);
         }
+
+        sqlx::query("UPDATE events SET recurrence_expanded_to = $2 WHERE id = $1")
+            .bind(parent_id)
+            .bind(furthest)
+            .execute(pool)
+            .await?;
     }
+
     if created > 0 {
-        info!(created, "materialised recurring event instances");
+        info!(created, "materialised recurring fixture instances");
     }
     Ok(())
 }
 
+/// One nudge per player per fixture, 48 hours out. The first version had no
+/// sent-marker and re-sent on every five-minute tick.
 async fn send_rsvp_reminders(pool: &PgPool, push: &PushService) -> anyhow::Result<()> {
     let rows = sqlx::query_as::<_, (uuid::Uuid, uuid::Uuid, String)>(
         r#"
@@ -232,23 +268,42 @@ async fn send_rsvp_reminders(pool: &PgPool, push: &PushService) -> anyhow::Resul
         FROM event_invites ei
         JOIN events e ON e.id = ei.event_id
         WHERE ei.status = 'invited'
+          AND ei.rsvp_reminded_at IS NULL
           AND e.start_at BETWEEN NOW() AND NOW() + INTERVAL '48 hours'
           AND e.status = 'scheduled'
-        LIMIT 50
+        ORDER BY e.start_at
+        LIMIT 200
         "#,
     )
     .fetch_all(pool)
     .await?;
 
-    for (user_id, event_id, title) in rows {
-        push.send(
-            user_id,
-            "rsvp_reminder",
-            "RSVP reminder",
-            &format!("Please respond for {title}"),
-            serde_json::json!({ "event_id": event_id }),
+    for (user_id, event_id, title) in &rows {
+        if let Err(e) = push
+            .send(
+                *user_id,
+                "rsvp_reminder",
+                "Are you playing?",
+                &format!("Let the captain know about {title}."),
+                serde_json::json!({ "event_id": event_id }),
+            )
+            .await
+        {
+            warn!(error = %e, "rsvp reminder push failed");
+            continue;
+        }
+        sqlx::query(
+            "UPDATE event_invites SET rsvp_reminded_at = NOW()
+             WHERE event_id = $1 AND user_id = $2",
         )
+        .bind(event_id)
+        .bind(user_id)
+        .execute(pool)
         .await?;
+    }
+
+    if !rows.is_empty() {
+        info!(count = rows.len(), "rsvp reminders sent");
     }
     Ok(())
 }

@@ -286,3 +286,204 @@ pub async fn effective_membership_role(
     };
     Ok(fishers_domain::effective_role(club, team))
 }
+
+/// True when the two users are active members of at least one club together.
+/// The gate for "may I see this person's availability".
+pub async fn shares_a_club(
+    pool: &PgPool,
+    a: Uuid,
+    b: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let row: (bool,) = sqlx::query_as(
+        r#"
+        SELECT EXISTS(
+          SELECT 1
+          FROM club_members ma
+          JOIN club_members mb ON mb.club_id = ma.club_id
+          WHERE ma.user_id = $1 AND mb.user_id = $2
+            AND ma.status = 'active' AND mb.status = 'active'
+        )
+        "#,
+    )
+    .bind(a)
+    .bind(b)
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
+/// Clubs the user is an active member of — the scope for anything not asked
+/// for by club id.
+pub async fn club_ids_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        "SELECT club_id FROM club_members WHERE user_id = $1 AND status = 'active'",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.0).collect())
+}
+
+/// Remove someone from a club. Their history stays; only the membership goes.
+pub async fn remove_member(
+    pool: &PgPool,
+    club_id: Uuid,
+    user_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE club_members SET status = 'left' WHERE club_id = $1 AND user_id = $2",
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// The roster as an admin screen needs it: who, what role, and how to reach them.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ClubMemberDetail {
+    pub user_id: Uuid,
+    pub name: String,
+    pub email: String,
+    pub phone: Option<String>,
+    pub role: UserRole,
+    pub status: MembershipStatus,
+    pub joined_at: chrono::DateTime<chrono::Utc>,
+    pub position_role: Option<String>,
+    pub skill_level: Option<String>,
+}
+
+pub async fn list_member_details(
+    pool: &PgPool,
+    club_id: Uuid,
+) -> Result<Vec<ClubMemberDetail>, sqlx::Error> {
+    sqlx::query_as::<_, ClubMemberDetail>(
+        r#"
+        SELECT cm.user_id, u.name, u.email, u.phone, cm.role, cm.status, cm.joined_at,
+               u.position_role, u.skill_level
+        FROM club_members cm
+        JOIN users u ON u.id = cm.user_id
+        WHERE cm.club_id = $1
+        ORDER BY
+          CASE cm.role
+            WHEN 'super_admin' THEN 0 WHEN 'club_admin' THEN 1
+            WHEN 'team_captain' THEN 2 WHEN 'team_vice_captain' THEN 3
+            ELSE 4 END,
+          u.name
+        "#,
+    )
+    .bind(club_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Find someone by email so a secretary can add them without knowing their id.
+pub async fn find_user_by_email(
+    pool: &PgPool,
+    email: &str,
+) -> Result<Option<(Uuid, String, String)>, sqlx::Error> {
+    sqlx::query_as::<_, (Uuid, String, String)>(
+        "SELECT id, name, email FROM users WHERE lower(email) = lower($1)",
+    )
+    .bind(email)
+    .fetch_optional(pool)
+    .await
+}
+
+/// How many club secretaries are left — a club must never lose its last one.
+pub async fn count_secretaries(pool: &PgPool, club_id: Uuid) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) FROM club_members
+        WHERE club_id = $1 AND status = 'active'
+          AND role IN ('club_admin', 'super_admin')
+        "#,
+    )
+    .bind(club_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
+/// Change someone's role. Returns `None` when they are not in the club.
+pub async fn update_member_role(
+    pool: &PgPool,
+    club_id: Uuid,
+    user_id: Uuid,
+    role: UserRole,
+) -> Result<Option<ClubMember>, sqlx::Error> {
+    sqlx::query_as::<_, ClubMember>(
+        r#"
+        UPDATE club_members SET role = $3
+        WHERE club_id = $1 AND user_id = $2
+        RETURNING club_id, user_id, role, status, joined_at
+        "#,
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .bind(role)
+    .fetch_optional(pool)
+    .await
+}
+
+/// The knobs a club secretary can turn: how much the assistant may do, when
+/// players are chased, and how hard fees are pursued.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ClubSettings {
+    pub selection_autonomy: String,
+    pub confirm_lead_hours: i32,
+    pub drop_lead_hours: i32,
+    pub fee_chase_after_hours: i32,
+    pub fee_chase_max_reminders: i32,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct UpdateClubSettings {
+    /// `off` | `suggest` | `auto_publish`
+    pub selection_autonomy: Option<String>,
+    pub confirm_lead_hours: Option<i32>,
+    pub drop_lead_hours: Option<i32>,
+    pub fee_chase_after_hours: Option<i32>,
+    pub fee_chase_max_reminders: Option<i32>,
+}
+
+pub async fn get_settings(pool: &PgPool, club_id: Uuid) -> Result<ClubSettings, sqlx::Error> {
+    sqlx::query_as::<_, ClubSettings>(
+        "SELECT selection_autonomy, confirm_lead_hours, drop_lead_hours,
+                fee_chase_after_hours, fee_chase_max_reminders
+         FROM clubs WHERE id = $1",
+    )
+    .bind(club_id)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn update_settings(
+    pool: &PgPool,
+    club_id: Uuid,
+    req: &UpdateClubSettings,
+) -> Result<ClubSettings, sqlx::Error> {
+    sqlx::query_as::<_, ClubSettings>(
+        r#"
+        UPDATE clubs SET
+            selection_autonomy      = COALESCE($2, selection_autonomy),
+            confirm_lead_hours      = COALESCE($3, confirm_lead_hours),
+            drop_lead_hours         = COALESCE($4, drop_lead_hours),
+            fee_chase_after_hours   = COALESCE($5, fee_chase_after_hours),
+            fee_chase_max_reminders = COALESCE($6, fee_chase_max_reminders),
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING selection_autonomy, confirm_lead_hours, drop_lead_hours,
+                  fee_chase_after_hours, fee_chase_max_reminders
+        "#,
+    )
+    .bind(club_id)
+    .bind(&req.selection_autonomy)
+    .bind(req.confirm_lead_hours)
+    .bind(req.drop_lead_hours)
+    .bind(req.fee_chase_after_hours)
+    .bind(req.fee_chase_max_reminders)
+    .fetch_one(pool)
+    .await
+}

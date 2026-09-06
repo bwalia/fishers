@@ -23,6 +23,10 @@ pub struct Event {
     pub fee_amount_cents: Option<i32>,
     pub fee_currency: String,
     pub status: EventStatus,
+    /// "Called off — ground unplayable after Friday's rain."
+    pub status_note: Option<String>,
+    /// Set when a postponed fixture gets a new date.
+    pub rescheduled_to: Option<DateTime<Utc>>,
     /// Cricket nets extras (lanes, machine, kit) or other sport metadata.
     pub metadata: Value,
     pub created_by: Uuid,

@@ -1,13 +1,24 @@
 # Cricket scoring (offline-first)
 
-Ball-by-ball match scoring for cricket fixtures. The scoring device is the live source of truth; the API stores an append-only event log and rebuilds projections with the Rust engine.
+Ball-by-ball match scoring for cricket fixtures. The scoring device is the live
+source of truth; the API stores an append-only event log and rebuilds the
+scorecard by replaying it with the Rust engine.
 
 ## Principles
 
-- **No “Save Score” button** — every ball is appended locally and applied by the on-device engine.
-- Status chip only: `Saved` / `Syncing…` / `Offline`.
-- **One active scorer** per match (`claim-scorer` lock). Others can open the scorecard read-only when online.
-- Undo is a compensating event (`undo_last`), never a silent delete.
+- **No “Save Score” button** — every ball is appended locally and applied by the
+  on-device engine. The status chip is the only feedback: `Saved` / `Syncing…` /
+  `Offline — saved on this phone`.
+- **The log is the record.** Both engines are a fold over it, so replaying the
+  same events on the phone and on the API gives the same scorecard.
+- **Undo is a compensating event** (`undo_last`), never a silent delete. The API
+  replays the stored log to rebuild the undo stack before applying a batch — a
+  serialised snapshot cannot undo a ball it never applied.
+- **One active scorer** per match (`claim-scorer` lock). Others can open the
+  scorecard read-only. A lock idle for 15 minutes, or a `force` claim, can be
+  taken over — phones die mid-innings.
+- **Names travel with the events.** `xi_selected` carries `{id, name}` per
+  player, so the scorecard reads as names on every device, not just the scorer's.
 
 ## Who can score
 
@@ -16,42 +27,126 @@ Permission `score_match` (`Permission::ScoreMatch`):
 - Club secretary (`club_admin`)
 - Team captain / vice captain
 - Super admin
-- Users listed on `cricket_match_officials` for that match (`role = scorer`)
+- Users listed on `cricket_match_officials` for that match (`role = scorer`) —
+  a club's regular scorer needn't hold a club office
+
+`GET` on a match returns `can_score` so the app can show the right button
+without guessing at the role.
 
 ## API (`/api/v1`)
 
 | Method | Path | Notes |
 |--------|------|--------|
-| `POST` | `/events/{id}/cricket-match` | Create/link match from fixture |
+| `POST` | `/events/{id}/cricket-match` | Create/link. Body may carry `match_id` — see offline start |
 | `GET` | `/events/{id}/cricket-match` | Fetch by fixture |
-| `POST` | `/cricket/matches/{id}/claim-scorer` | Body: `{ "device_id": "…" }` |
-| `POST` | `/cricket/matches/{id}/events` | Batch sync; idempotent on `client_event_id` |
+| `POST` | `/cricket/matches/{id}/claim-scorer` | Body: `{ "device_id": "…", "force": false }` |
+| `POST` | `/cricket/matches/{id}/events` | Batch sync; idempotent on `client_event_id`, one transaction |
 | `GET` | `/cricket/matches/{id}/events?after_seq=` | Pull log |
-| `GET` | `/cricket/matches/{id}` | Match + `state` + `last_seq` |
+| `GET` | `/cricket/matches/{id}` | Match + `state` + `last_seq` + `can_score` |
 | `GET` | `/cricket/matches/{id}/scorecard` | Projection (`MatchState`) |
-| `POST` | `/cricket/matches/{id}/officials` | Assign scorer (manage events) |
+| `POST` | `/cricket/matches/{id}/officials` | Assign scorer (needs `manage_events`) |
 
-Event payload shape matches domain `ScoringEvent` / `ScoringEventKind` (internally tagged `type`).
+Event payload shape matches domain `ScoringEvent` / `ScoringEventKind`
+(internally tagged `type`). A rejected batch returns **409** with the reason —
+usually a sequence gap or another device holding the lock.
 
-## iOS
+## Starting a match with no signal
 
-- `Fishers/Cricket/` — types, engine, SwiftData models, `CricketMatchStore`, `CricketSyncService`
-- `Fishers/Views/Cricket/` — setup wizard + LIVE scorer + scorecard
-- Entry: **Start Match** on cricket `league_match` / `friendly` in `EventDetailView` when `can_score_match`
+The device mints the match id before the API is involved:
 
-Offline: airplane mode mid-match continues scoring; pending events flush when `NWPathMonitor` reports online.
+1. `CricketMatchStore.openLocal` creates the local match and its log.
+2. Scoring proceeds against SwiftData only.
+3. When there is a network, `CricketSyncService` calls
+   `POST /events/{id}/cricket-match` **with that `match_id`**, claims the scorer
+   lock, then flushes the pending events.
+4. If the fixture already had a match on the server, the device adopts the
+   server's id and carries on.
+
+## What the engine handles
+
+- Runs 0–6, boundaries counted separately for the card
+- **Extras plus whatever the ball then did.** A wide is one run *and* whatever
+  the batters run off it, so a wide they took a single off is 2 (both wides) and
+  a wide to the rope is 5. A no ball is one run plus either runs off the bat
+  (the batter's, and only the no ball is an extra) or byes (extras, and the
+  bowler is charged only for the no ball). Byes, leg byes and penalties too.
+- **Wagon wheel on every scoring shot.** The scorer taps the field to say where
+  it went and picks the shot — drive, cut, pull, sweep, glance, loft… The shot
+  rides on the same event as the ball, so an undo takes both away. The field
+  mirrors for a left-hander, so "driven through cover" is right for both.
+- **Ball-by-ball commentary**, generated from the log rather than typed:
+  `13.4  Cook to Patel, FOUR — driven through cover`
+- **Duckworth–Lewis–Stern par**, from the first ball of the second innings, so a
+  match abandoned in the chase always has a result
+- Wickets: bowled, caught, LBW, run out, stumped, hit wicket, retired out, other
+  - the bowler is credited only where the laws credit them
+  - a run out can take the batter at **either** end, with runs completed first
+  - the batters cross on an odd number of completed runs
+- Strike rotation on odd runs and at the end of an over; maidens
+- Fall of wickets with the partnership that just ended, and the unbroken stand
+- All out at `team size − 1`, so an eight-a-side game ends at seven down
+- Innings closing on overs, on wickets, or on a declaration (`innings_completed`)
+- Result: won by runs, won by wickets with balls remaining, or tied
+
+Not modelled yet: retired hurt (a retirement counts as a wicket), free hits,
+super overs, and wickets falling off a no ball.
+
+## Rain, and DLS
+
+`overs_revised` records a weather reduction against one innings — the scorer
+reaches it from **⋯ → Overs reduced (rain)**. Every derived number moves with
+it: balls remaining, the required rate, when the innings closes, and the DLS
+par score.
+
+Par is shown from the first ball of the chase, on the device and in the API:
+
+```
+par at any point  = S₁ × (resources team 2 has used) ÷ (resources team 1 had)
+target, R₂ ≤ R₁   = S₁ × R₂ ÷ R₁, floored, + 1
+target, R₂ > R₁   = S₁ + G50 × (R₂ − R₁) ÷ 100, floored, + 1
+```
+
+That arithmetic is exact. The **resource table is an approximation**: the ICC's
+Standard Edition table is licensed and is not reproduced here, so what ships is
+the published Duckworth–Lewis functional form with parameters fitted to it. It
+reproduces the published zero-wicket column to within 0.1 of a percentage point
+at every five-over mark, and every screen labels it *"DLS (Standard Edition
+approximation)"*.
+
+A league holding the official table can supply it as CSV — one
+`overs,w0,w1,…,w9` row per line, overs ascending from 0 — and point
+`DLS_RESOURCE_TABLE` at the file. The maths is unchanged and the label becomes
+*"DLS (supplied resource table)"*. `DLS_G50` overrides G50 (245 by default).
 
 ## Engines
 
-Identical rules in:
+Identical rules, mirrored line for line:
 
-1. Rust — `backend/domain/src/cricket/` (API replay + unit tests)
-2. Swift — `ios/Fishers/Cricket/CricketEngine.swift`
+1. Rust — `backend/domain/src/cricket/` (API replay + 19 unit tests)
+2. Swift — `ios/Fishers/Cricket/CricketEngine.swift` (19 matching tests)
+
+The test names match on both sides. If you change one engine, change the other
+and its test.
+
+## iOS
+
+- `Fishers/Cricket/` — types, engine, SwiftData models, `CricketMatchStore`,
+  `CricketSyncService`
+- `Fishers/Views/Cricket/` — setup wizard, LIVE scorer, full scorecard
+- Entry: **Start match** on a cricket `friendly` / `league_match` / `tournament`
+  fixture in `EventDetailView`, when the API says `can_score`
+
+Team sheets are picked from the club roster (whoever is on the fixture) plus
+guests added by name, so the opposition needs no accounts. Batting order is the
+order of the sheet — drag to change it.
 
 ## Manual smoke (offline LIVE)
 
 1. Sign in as captain/secretary on a cricket fixture.
-2. Start Match → toss → XI → openers → LIVE.
-3. Enable airplane mode; score 0–6, extras, wicket, undo, change bowler.
-4. Complete innings / match; confirm scorecard locally.
-5. Go online; confirm sync chip returns to `Saved` and `GET …/scorecard` matches.
+2. **Start match** → names and overs → toss → team sheets → openers → LIVE.
+3. Enable airplane mode; score 0–6, a wide, a no ball with runs, a run out of
+   the non-striker, and an undo. The chip reads `Offline — saved on this phone`.
+4. Force-quit the app and reopen the fixture: it resumes exactly where it was.
+5. Complete the innings and the chase; check the scorecard reads correctly.
+6. Go back online; the chip returns to `Saved` and
+   `GET /cricket/matches/{id}/scorecard` matches the device.

@@ -4,29 +4,37 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::{cricket as cricket_repo, events as events_repo};
-use fishers_domain::{
-    permissions_for, MatchState, Permission, ScoringEvent, ScoringEventKind, UserRole,
-};
+use fishers_domain::{DlsPar, MatchState, Permission, ScoringEvent, ScoringEventKind, UserRole};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
-use crate::rbac::{require_event_permission, require_permission};
+use crate::rbac::{require_club_member, require_event_permission, require_permission};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/events/{id}/cricket-match", post(create_or_get_match).get(get_match_for_event))
+        .route(
+            "/events/{id}/cricket-match",
+            post(create_or_get_match).get(get_match_for_event),
+        )
         .route("/cricket/matches/{id}", get(get_match))
         .route("/cricket/matches/{id}/claim-scorer", post(claim_scorer))
-        .route("/cricket/matches/{id}/events", post(post_events).get(list_events))
+        .route(
+            "/cricket/matches/{id}/events",
+            post(post_events).get(list_events),
+        )
         .route("/cricket/matches/{id}/scorecard", get(scorecard))
         .route("/cricket/matches/{id}/officials", post(add_official))
 }
 
 #[derive(Deserialize)]
 struct CreateMatchBody {
+    /// The device may choose the id, so a match started with no signal can be
+    /// scored locally and registered under the same id when it reconnects.
+    #[serde(default)]
+    match_id: Option<Uuid>,
     #[serde(default = "default_overs")]
     overs_limit: i32,
     #[serde(default = "default_home")]
@@ -56,11 +64,22 @@ struct MatchResponse {
     away_name: String,
     last_seq: i64,
     active_scorer_user_id: Option<Uuid>,
+    active_scorer_device_id: Option<String>,
+    /// True when the caller is allowed to score this match.
+    can_score: bool,
+    /// Where the chase stands on DLS, from the first ball of the second innings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dls: Option<DlsPar>,
     state: MatchState,
 }
 
-fn to_response(row: &cricket_repo::CricketMatchRow) -> MatchResponse {
-    let state = cricket_repo::parse_state(row);
+fn to_response(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    can_score: bool,
+) -> MatchResponse {
+    let projection = cricket_repo::parse_state(row);
+    let dls = projection.dls_par(&state.dls, state.g50);
     MatchResponse {
         id: row.id,
         event_id: row.event_id,
@@ -71,7 +90,10 @@ fn to_response(row: &cricket_repo::CricketMatchRow) -> MatchResponse {
         away_name: row.away_name.clone(),
         last_seq: row.last_seq,
         active_scorer_user_id: row.active_scorer_user_id,
-        state,
+        active_scorer_device_id: row.active_scorer_device_id.clone(),
+        can_score,
+        dls,
+        state: projection,
     }
 }
 
@@ -86,8 +108,12 @@ async fn create_or_get_match(
     if event.sport != fishers_domain::SportType::Cricket {
         return Err(ApiError::bad_request("only cricket fixtures can be scored"));
     }
+    if !(1..=100).contains(&body.overs_limit) {
+        return Err(ApiError::bad_request("overs must be between 1 and 100"));
+    }
     let row = cricket_repo::create_match(
         &state.pool,
+        body.match_id,
         event_id,
         event.club_id,
         auth.user_id,
@@ -96,7 +122,7 @@ async fn create_or_get_match(
         body.overs_limit,
     )
     .await?;
-    Ok(Json(to_response(&row)))
+    Ok(Json(to_response(&state, &row, true)))
 }
 
 async fn get_match_for_event(
@@ -107,11 +133,12 @@ async fn get_match_for_event(
     let event = events_repo::get_event(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))?;
-    crate::rbac::require_club_member(&state, event.club_id, auth.user_id).await?;
+    require_club_member(&state, event.club_id, auth.user_id).await?;
     let row = cricket_repo::get_match_by_event(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("cricket match not started"))?;
-    Ok(Json(to_response(&row)))
+    let can_score = may_score(&state, &row, auth.user_id).await;
+    Ok(Json(to_response(&state, &row, can_score)))
 }
 
 async fn get_match(
@@ -122,13 +149,17 @@ async fn get_match(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    crate::rbac::require_club_member(&state, row.club_id, auth.user_id).await?;
-    Ok(Json(to_response(&row)))
+    require_club_member(&state, row.club_id, auth.user_id).await?;
+    let can_score = may_score(&state, &row, auth.user_id).await;
+    Ok(Json(to_response(&state, &row, can_score)))
 }
 
 #[derive(Deserialize)]
 struct ClaimBody {
     device_id: String,
+    /// Take the match off a scorer whose phone has died mid-innings.
+    #[serde(default)]
+    force: bool,
 }
 
 async fn claim_scorer(
@@ -141,10 +172,20 @@ async fn claim_scorer(
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
     require_can_score(&state, &row, auth.user_id).await?;
-    let updated = cricket_repo::claim_scorer(&state.pool, id, auth.user_id, &body.device_id)
-        .await
-        .map_err(|_| ApiError::conflict("another scorer holds this match"))?;
-    Ok(Json(to_response(&updated)))
+    let updated = cricket_repo::claim_scorer(
+        &state.pool,
+        id,
+        auth.user_id,
+        &body.device_id,
+        body.force,
+    )
+    .await?
+    .ok_or_else(|| {
+        ApiError::conflict(
+            "another device is scoring this match — take over to score from here instead",
+        )
+    })?;
+    Ok(Json(to_response(&state, &updated, true)))
 }
 
 #[derive(Deserialize)]
@@ -165,9 +206,15 @@ async fn post_events(
     require_can_score(&state, &row, auth.user_id).await?;
     if let Some(active) = row.active_scorer_user_id {
         if active != auth.user_id {
-            return Err(ApiError::forbidden("not the active scorer for this match"));
+            return Err(ApiError::conflict(
+                "someone else is the active scorer for this match",
+            ));
         }
     }
+    if body.events.len() > 500 {
+        return Err(ApiError::bad_request("send at most 500 events per batch"));
+    }
+
     let state_out = cricket_repo::apply_event_batch(
         &state.pool,
         id,
@@ -176,12 +223,13 @@ async fn post_events(
         body.device_id.as_deref(),
     )
     .await
-    .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    .map_err(|e| ApiError::conflict(e.to_string()))?;
 
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    let mut resp = to_response(&row);
+    let mut resp = to_response(&state, &row, true);
+    resp.dls = state_out.dls_par(&state.dls, state.g50);
     resp.state = state_out;
     Ok(Json(resp))
 }
@@ -207,7 +255,7 @@ async fn list_events(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    crate::rbac::require_club_member(&state, row.club_id, auth.user_id).await?;
+    require_club_member(&state, row.club_id, auth.user_id).await?;
     let after = q.after_seq.unwrap_or(0);
     let rows = cricket_repo::list_events_after(&state.pool, id, after).await?;
     let mut out = Vec::new();
@@ -223,16 +271,29 @@ async fn list_events(
     Ok(Json(out))
 }
 
+#[derive(Serialize)]
+struct ScorecardResponse {
+    #[serde(flatten)]
+    state: MatchState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dls: Option<DlsPar>,
+}
+
 async fn scorecard(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
-) -> ApiResult<Json<MatchState>> {
+) -> ApiResult<Json<ScorecardResponse>> {
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    crate::rbac::require_club_member(&state, row.club_id, auth.user_id).await?;
-    Ok(Json(cricket_repo::parse_state(&row)))
+    require_club_member(&state, row.club_id, auth.user_id).await?;
+    let projection = cricket_repo::parse_state(&row);
+    let dls = projection.dls_par(&state.dls, state.g50);
+    Ok(Json(ScorecardResponse {
+        state: projection,
+        dls,
+    }))
 }
 
 #[derive(Deserialize)]
@@ -261,22 +322,31 @@ async fn add_official(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+/// Scoring is for club officers with `score_match`, plus anyone named on the
+/// match as a scorer — a club's regular scorer needn't be a captain.
 async fn require_can_score(
     state: &AppState,
     row: &cricket_repo::CricketMatchRow,
     user_id: Uuid,
 ) -> ApiResult<UserRole> {
     if cricket_repo::is_official(&state.pool, row.id, user_id).await? {
-        return Ok(UserRole::Member); // granted via officials list
+        return Ok(UserRole::Member); // granted via the officials list
     }
-    let role = require_permission(
+    require_permission(
         state,
         row.club_id,
         user_id,
         None,
         Permission::ScoreMatch,
     )
-    .await?;
-    let _ = permissions_for(role);
-    Ok(role)
+    .await
+}
+
+/// Same question, as a flag for the UI rather than a rejection.
+async fn may_score(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    user_id: Uuid,
+) -> bool {
+    require_can_score(state, row, user_id).await.is_ok()
 }

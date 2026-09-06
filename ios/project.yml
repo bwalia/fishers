@@ -29,10 +29,19 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0.0
+        # The API this build talks to. Release is deliberately blank: set it
+        # before shipping, and AppConfig complains loudly if you forget.
+        FISHERS_API_BASE_URL: ""
+      configs:
+        Debug:
+          FISHERS_API_BASE_URL: "http://127.0.0.1:8080"
     info:
       path: Fishers/Resources/Info.plist
       properties:
         CFBundleDisplayName: Fishers
+        # Per-configuration API host. Debug points at the Mac running the API;
+        # set FISHERS_API_BASE_URL in the Release configuration before shipping.
+        FishersAPIBaseURL: "$(FISHERS_API_BASE_URL)"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}

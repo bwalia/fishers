@@ -25,8 +25,8 @@ pub async fn create_event(
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'scheduled',$13,$14)
         RETURNING id, club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
-                  capacity, fee_amount_cents, fee_currency, status, metadata,
-                  created_by, created_at, updated_at
+                  capacity, fee_amount_cents, fee_currency, status, status_note,
+                  rescheduled_to, metadata, created_by, created_at, updated_at
         "#,
     )
     .bind(req.club_id)
@@ -52,8 +52,8 @@ pub async fn get_event(pool: &PgPool, event_id: Uuid) -> Result<Option<Event>, s
         r#"
         SELECT id, club_id, team_id, sport, event_subtype, title, venue_id,
                start_at, end_at, recurrence_rule, recurrence_parent_id,
-               capacity, fee_amount_cents, fee_currency, status, metadata,
-               created_by, created_at, updated_at
+               capacity, fee_amount_cents, fee_currency, status, status_note,
+               rescheduled_to, metadata, created_by, created_at, updated_at
         FROM events WHERE id = $1
         "#,
     )
@@ -62,44 +62,53 @@ pub async fn get_event(pool: &PgPool, event_id: Uuid) -> Result<Option<Event>, s
     .await
 }
 
+/// Fixtures the user is entitled to see. Without a `club_id` this is every
+/// club they belong to — never the whole table.
 pub async fn list_events(
     pool: &PgPool,
+    viewer_id: Uuid,
     club_id: Option<Uuid>,
     from: Option<DateTime<Utc>>,
     to: Option<DateTime<Utc>>,
     cricket_season: bool,
+    limit: i64,
 ) -> Result<Vec<Event>, sqlx::Error> {
-    // Cricket season filter: nets + games for cricket Apr–Sep (caller supplies from/to)
     let mut sql = String::from(
         r#"
-        SELECT id, club_id, team_id, sport, event_subtype, title, venue_id,
-               start_at, end_at, recurrence_rule, recurrence_parent_id,
-               capacity, fee_amount_cents, fee_currency, status, metadata,
-               created_by, created_at, updated_at
-        FROM events WHERE status <> 'cancelled'
+        SELECT e.id, e.club_id, e.team_id, e.sport, e.event_subtype, e.title, e.venue_id,
+               e.start_at, e.end_at, e.recurrence_rule, e.recurrence_parent_id,
+               e.capacity, e.fee_amount_cents, e.fee_currency, e.status, e.status_note,
+               e.rescheduled_to, e.metadata, e.created_by, e.created_at, e.updated_at
+        FROM events e
+        JOIN club_members cm ON cm.club_id = e.club_id
+                            AND cm.user_id = $1
+                            AND cm.status = 'active'
+        WHERE e.status <> 'cancelled'
         "#,
     );
+    let mut next = 2;
+    let club_param = club_id.map(|_| { let p = next; next += 1; p });
+    let from_param = from.map(|_| { let p = next; next += 1; p });
+    let to_param = to.map(|_| { let p = next; next += 1; p });
 
-    if club_id.is_some() {
-        sql.push_str(" AND club_id = $1");
+    if let Some(p) = club_param {
+        sql.push_str(&format!(" AND e.club_id = ${p}"));
     }
-    if from.is_some() {
-        sql.push_str(if club_id.is_some() {
-            " AND start_at >= $2"
-        } else {
-            " AND start_at >= $1"
-        });
+    if let Some(p) = from_param {
+        sql.push_str(&format!(" AND e.start_at >= ${p}"));
     }
-    if to.is_some() {
-        let idx = 1 + club_id.is_some() as i32 + from.is_some() as i32;
-        sql.push_str(&format!(" AND start_at <= ${idx}"));
+    if let Some(p) = to_param {
+        sql.push_str(&format!(" AND e.start_at <= ${p}"));
     }
     if cricket_season {
-        sql.push_str(" AND sport = 'cricket' AND event_subtype IN ('nets','friendly','league_match','tournament')");
+        sql.push_str(
+            " AND e.sport = 'cricket' \
+              AND e.event_subtype IN ('nets','friendly','league_match','tournament')",
+        );
     }
-    sql.push_str(" ORDER BY start_at ASC LIMIT 500");
+    sql.push_str(&format!(" ORDER BY e.start_at ASC LIMIT ${next}"));
 
-    let mut query = sqlx::query_as::<_, Event>(&sql);
+    let mut query = sqlx::query_as::<_, Event>(&sql).bind(viewer_id);
     if let Some(id) = club_id {
         query = query.bind(id);
     }
@@ -109,8 +118,7 @@ pub async fn list_events(
     if let Some(t) = to {
         query = query.bind(t);
     }
-
-    query.fetch_all(pool).await
+    query.bind(limit.clamp(1, 500)).fetch_all(pool).await
 }
 
 pub async fn update_event(
@@ -140,8 +148,8 @@ pub async fn update_event(
         WHERE id = $1
         RETURNING id, club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
-                  capacity, fee_amount_cents, fee_currency, status, metadata,
-                  created_by, created_at, updated_at
+                  capacity, fee_amount_cents, fee_currency, status, status_note,
+                  rescheduled_to, metadata, created_by, created_at, updated_at
         "#,
     )
     .bind(event_id)
@@ -163,8 +171,8 @@ pub async fn cancel_event(pool: &PgPool, event_id: Uuid) -> Result<Event, sqlx::
         UPDATE events SET status = $2, updated_at = NOW() WHERE id = $1
         RETURNING id, club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
-                  capacity, fee_amount_cents, fee_currency, status, metadata,
-                  created_by, created_at, updated_at
+                  capacity, fee_amount_cents, fee_currency, status, status_note,
+                  rescheduled_to, metadata, created_by, created_at, updated_at
         "#,
     )
     .bind(event_id)
@@ -259,7 +267,7 @@ pub async fn list_block_events(
         r#"
         SELECT id, club_id, team_id, sport, event_subtype, title, venue_id, start_at, end_at,
                recurrence_rule, recurrence_parent_id, capacity, fee_amount_cents, fee_currency,
-               status, metadata, created_by, created_at, updated_at
+               status, status_note, rescheduled_to, metadata, created_by, created_at, updated_at
         FROM events
         WHERE fixture_block_id = $1 AND status <> 'cancelled'
         ORDER BY start_at

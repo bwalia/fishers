@@ -1,7 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// Setup wizard → LIVE scorer for a cricket fixture (offline-first).
+/// Setup wizard → LIVE scorer for a cricket fixture.
+///
+/// Everything here works with no network: the match id is minted on the device
+/// and the API is told about it whenever the signal comes back.
 struct CricketScoringFlowView: View {
     let event: Event
     let attendees: [AttendeeSummary]
@@ -11,14 +14,18 @@ struct CricketScoringFlowView: View {
     @Environment(\.dismiss) private var dismiss
 
     @StateObject private var store: CricketMatchStore
-    @State private var step: Step = .confirm
+    @State private var step: Step = .setup
     @State private var overs = 20
     @State private var homeName = "Home"
     @State private var awayName = "Away"
     @State private var tossWinner: MatchSide = .home
     @State private var tossDecision: TossDecision = .bat
-    @State private var homeXi: [UUID] = []
-    @State private var awayXi: [UUID] = []
+    @State private var homeSheet: [MatchPlayer] = []
+    @State private var awaySheet: [MatchPlayer] = []
+    @State private var homeCaptain: UUID?
+    @State private var awayCaptain: UUID?
+    @State private var homeKeeper: UUID?
+    @State private var awayKeeper: UUID?
     @State private var strikerId: UUID?
     @State private var nonStrikerId: UUID?
     @State private var bowlerId: UUID?
@@ -26,7 +33,7 @@ struct CricketScoringFlowView: View {
     @State private var booting = false
 
     enum Step: Hashable {
-        case confirm, toss, xi, openers, live
+        case setup, toss, sheets, openers, live
     }
 
     init(event: Event, attendees: [AttendeeSummary], canScore: Bool) {
@@ -42,9 +49,9 @@ struct CricketScoringFlowView: View {
     var body: some View {
         Group {
             switch step {
-            case .confirm: confirmStep
+            case .setup: setupStep
             case .toss: tossStep
-            case .xi: xiStep
+            case .sheets: sheetsStep
             case .openers: openersStep
             case .live:
                 LiveScorerView(store: store, onDone: { dismiss() })
@@ -53,298 +60,388 @@ struct CricketScoringFlowView: View {
         .background(FishersTheme.mist.ignoresSafeArea())
         .navigationTitle(step == .live ? "LIVE" : "Start match")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { store.replaceContext(modelContext) }
+        .task {
+            store.replaceContext(modelContext)
+            await resumeOrPrepare()
+        }
+        .onDisappear {
+            CricketSyncService.shared.unregister(store: store)
+        }
     }
 
-    private var confirmStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text(event.title).font(FishersTheme.contentTitle)
-            Text("Score offline on this device. Syncs when you're back online.")
-                .foregroundStyle(.secondary)
-            TextField("Home side", text: $homeName)
-                .textFieldStyle(.roundedBorder)
-            TextField("Away side", text: $awayName)
-                .textFieldStyle(.roundedBorder)
-            Stepper("Overs: \(overs)", value: $overs, in: 5...50)
-            if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
-            Spacer()
-            Button {
-                Task { await startMatch() }
-            } label: {
-                Text("Continue")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+    // MARK: Step 1 — the match
+
+    private var setupStep: some View {
+        Form {
+            Section {
+                TextField("Batting first / home side", text: $homeName)
+                TextField("Opposition", text: $awayName)
+                Stepper("Overs: \(overs)", value: $overs, in: 1...50)
+            } header: {
+                Text(event.title)
+            } footer: {
+                Text("Scored on this device, online or not. The chip at the bottom of the scorer says when it has synced.")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(FishersTheme.accent)
-            .disabled(!canScore || booting)
-            .accessibilityLabel("Continue to toss")
+
+            if !canScore {
+                Section {
+                    Label(
+                        "You need scoring permission — a captain, club secretary or an assigned scorer.",
+                        systemImage: "lock.fill"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(FishersTheme.unavailable)
+                }
+            }
+            if let message {
+                Section { Text(message).font(.footnote).foregroundStyle(.secondary) }
+            }
+
+            Section {
+                Button {
+                    Task { await startMatch() }
+                } label: {
+                    HStack {
+                        Spacer()
+                        if booting { ProgressView() } else { Text("Continue to toss").bold() }
+                        Spacer()
+                    }
+                }
+                .disabled(!canScore || booting || homeName.isEmpty || awayName.isEmpty)
+            }
         }
-        .padding()
     }
+
+    // MARK: Step 2 — toss
 
     private var tossStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Toss").font(FishersTheme.title)
-            Picker("Winner", selection: $tossWinner) {
-                Text(homeName).tag(MatchSide.home)
-                Text(awayName).tag(MatchSide.away)
+        Form {
+            Section("Who won the toss") {
+                Picker("Winner", selection: $tossWinner) {
+                    Text(homeName).tag(MatchSide.home)
+                    Text(awayName).tag(MatchSide.away)
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
-            .accessibilityLabel("Toss winner")
-            Picker("Decision", selection: $tossDecision) {
-                Text("Bat").tag(TossDecision.bat)
-                Text("Bowl").tag(TossDecision.bowl)
+            Section("And chose to") {
+                Picker("Decision", selection: $tossDecision) {
+                    ForEach(TossDecision.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
-            Spacer()
-            Button("Record toss") {
-                _ = store.append(.tossRecorded(winner: tossWinner, decision: tossDecision))
-                seedXiIfNeeded()
-                step = .xi
+            Section {
+                Text("\(store.state.name(for: firstInningsBatting)) bat first.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(FishersTheme.accent)
-            .frame(maxWidth: .infinity)
+            Section {
+                Button("Record toss") {
+                    guard store.append(.tossRecorded(winner: tossWinner, decision: tossDecision))
+                    else { return }
+                    step = .sheets
+                }
+                .bold()
+            }
         }
-        .padding()
     }
 
-    private var xiStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Playing XI").font(FishersTheme.title)
-            Text("Home \(homeXi.count)/11 · Away \(awayXi.count)/11")
-                .foregroundStyle(.secondary)
-            List {
-                Section("Home — \(homeName)") {
-                    ForEach(candidatePool, id: \.0) { id, name in
-                        Button {
-                            toggleXi(id, side: .home, name: name)
-                        } label: {
-                            HStack {
-                                Text(name)
-                                Spacer()
-                                if homeXi.contains(id) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(FishersTheme.accent)
-                                }
-                            }
-                        }
-                        .accessibilityLabel("\(name), home XI")
-                    }
-                }
-                Section("Away — \(awayName)") {
-                    ForEach(candidatePool, id: \.0) { id, name in
-                        Button {
-                            toggleXi(id, side: .away, name: name)
-                        } label: {
-                            HStack {
-                                Text(name)
-                                Spacer()
-                                if awayXi.contains(id) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(FishersTheme.accent)
-                                }
-                            }
-                        }
-                        .accessibilityLabel("\(name), away XI")
-                    }
+    // MARK: Step 3 — team sheets
+
+    private var sheetsStep: some View {
+        VStack(spacing: 0) {
+            TabView {
+                TeamSheetEditor(
+                    title: homeName,
+                    players: $homeSheet,
+                    captain: $homeCaptain,
+                    keeper: $homeKeeper,
+                    clubPlayers: clubPlayers,
+                    alreadyPicked: Set(awaySheet.map(\.id))
+                )
+                .tabItem { Label(homeName, systemImage: "house") }
+
+                TeamSheetEditor(
+                    title: awayName,
+                    players: $awaySheet,
+                    captain: $awayCaptain,
+                    keeper: $awayKeeper,
+                    clubPlayers: clubPlayers,
+                    alreadyPicked: Set(homeSheet.map(\.id))
+                )
+                .tabItem { Label(awayName, systemImage: "figure.walk") }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .always))
+
+            VStack(spacing: 6) {
+                Text("\(homeName) \(homeSheet.count) · \(awayName) \(awaySheet.count)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Confirm team sheets") { commitSheets() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(FishersTheme.accent)
+                    .frame(maxWidth: .infinity)
+                    .disabled(homeSheet.count < 2 || awaySheet.count < 2)
+                if let message {
+                    Text(message).font(.caption).foregroundStyle(FishersTheme.unavailable)
                 }
             }
-            .listStyle(.insetGrouped)
-            Button("Confirm XIs") {
-                padAndCommitXi()
-                step = .openers
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(FishersTheme.accent)
-            .disabled(homeXi.count < 2 || awayXi.count < 2)
             .padding()
+            .background(.bar)
         }
     }
+
+    // MARK: Step 4 — openers
 
     private var openersStep: some View {
         let batting = firstInningsBatting
-        let batXi = batting == .home ? homeXi : awayXi
-        let bowlXi = batting == .home ? awayXi : homeXi
-        return VStack(alignment: .leading, spacing: 16) {
-            Text("Openers & bowler").font(FishersTheme.title)
-            Text("\(store.state.name(for: batting)) to bat")
-                .foregroundStyle(.secondary)
-            pickerRow("Striker", selection: $strikerId, ids: batXi)
-            pickerRow("Non-striker", selection: $nonStrikerId, ids: batXi)
-            pickerRow("Opening bowler", selection: $bowlerId, ids: bowlXi)
-            Spacer()
-            Button("Start innings") {
-                guard let s = strikerId, let ns = nonStrikerId, let b = bowlerId, s != ns else {
-                    message = "Pick two different batters and a bowler"
-                    return
-                }
-                _ = store.append(.inningsStarted(
-                    inningsIndex: 0,
-                    batting: batting,
-                    strikerId: s,
-                    nonStrikerId: ns,
-                    bowlerId: b
-                ))
-                step = .live
+        let batXi = store.state.players(for: batting)
+        let bowlXi = store.state.players(for: batting.opposite)
+        return Form {
+            Section {
+                playerPicker("Striker", selection: $strikerId, from: batXi)
+                playerPicker("Non-striker", selection: $nonStrikerId, from: batXi)
+            } header: {
+                Text("\(store.state.name(for: batting)) opening pair")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(FishersTheme.accent)
-            .frame(maxWidth: .infinity)
-            if let message { Text(message).font(.footnote).foregroundStyle(.red) }
+            Section("Opening bowler") {
+                playerPicker("Bowler", selection: $bowlerId, from: bowlXi)
+            }
+            if let message {
+                Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
+            }
+            Section {
+                Button("Start innings") { startInnings(batting: batting) }
+                    .bold()
+            }
         }
-        .padding()
         .onAppear {
-            if strikerId == nil { strikerId = batXi.first }
-            if nonStrikerId == nil { nonStrikerId = batXi.dropFirst().first }
-            if bowlerId == nil { bowlerId = bowlXi.first }
+            if strikerId == nil { strikerId = batXi.first?.id }
+            if nonStrikerId == nil { nonStrikerId = batXi.dropFirst().first?.id }
+            if bowlerId == nil { bowlerId = bowlXi.first?.id }
         }
     }
 
-    private func pickerRow(_ title: String, selection: Binding<UUID?>, ids: [UUID]) -> some View {
-        VStack(alignment: .leading) {
-            Text(title).font(.subheadline.weight(.semibold))
-            Picker(title, selection: selection) {
-                Text("—").tag(UUID?.none)
-                ForEach(ids, id: \.self) { id in
-                    Text(store.name(for: id)).tag(UUID?.some(id))
-                }
+    private func playerPicker(
+        _ title: String,
+        selection: Binding<UUID?>,
+        from players: [MatchPlayer]
+    ) -> some View {
+        Picker(title, selection: selection) {
+            Text("—").tag(UUID?.none)
+            ForEach(players) { player in
+                Text(player.name).tag(UUID?.some(player.id))
             }
-            .pickerStyle(.menu)
         }
     }
 
-    private var candidatePool: [(UUID, String)] {
-        var seen = Set<UUID>()
-        var out: [(UUID, String)] = []
-        for a in attendees {
-            if seen.insert(a.userId).inserted {
-                out.append((a.userId, a.name))
-            }
-        }
-        for i in 1...22 {
-            let id = UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", i))!
-            if seen.insert(id).inserted {
-                out.append((id, "Player \(i)"))
-            }
-        }
-        return out
+    // MARK: Actions
+
+    private var clubPlayers: [MatchPlayer] {
+        attendees.map { MatchPlayer(id: $0.userId, name: $0.name) }
     }
 
     private var firstInningsBatting: MatchSide {
         guard let winner = store.state.tossWinner, let decision = store.state.tossDecision else {
-            return .home
+            return tossDecision == .bat ? tossWinner : tossWinner.opposite
         }
-        switch decision {
-        case .bat: return winner
-        case .bowl: return winner.opposite
-        }
+        return decision == .bat ? winner : winner.opposite
     }
 
-    private func toggleXi(_ id: UUID, side: MatchSide, name: String) {
-        store.registerName(name, for: id)
-        switch side {
-        case .home:
-            if let i = homeXi.firstIndex(of: id) { homeXi.remove(at: i) }
-            else if homeXi.count < 11 { homeXi.append(id) }
-        case .away:
-            if let i = awayXi.firstIndex(of: id) { awayXi.remove(at: i) }
-            else if awayXi.count < 11 { awayXi.append(id) }
+    /// Pick up where the device left off — a match half scored, the app killed,
+    /// the phone rebooted at tea.
+    private func resumeOrPrepare() async {
+        if let opposition = event.metadata?["opposition"], case let .string(name) = opposition {
+            awayName = name
         }
-    }
+        guard store.resumeLocal() != nil, store.state.lastSeq > 0 else { return }
 
-    private func seedXiIfNeeded() {
-        if homeXi.isEmpty {
-            homeXi = Array(candidatePool.prefix(11).map(\.0))
-            for (id, name) in candidatePool.prefix(11) { store.registerName(name, for: id) }
+        // There is a log: jump to wherever it got to.
+        homeName = store.state.homeName
+        awayName = store.state.awayName
+        overs = Int(store.state.oversLimit)
+        homeSheet = store.state.players(for: .home)
+        awaySheet = store.state.players(for: .away)
+        switch store.state.status {
+        case .live, .inningsBreak, .complete, .published:
+            step = .live
+        case .ready:
+            step = .openers
+        case .selectingXi:
+            step = .sheets
+        case .preparing:
+            step = .toss
+        case .scheduled, .toss:
+            step = .setup
         }
-        if awayXi.isEmpty {
-            awayXi = Array(candidatePool.dropFirst(11).prefix(11).map(\.0))
-            for (id, name) in zip(awayXi, candidatePool.dropFirst(11).prefix(11).map(\.1)) {
-                store.registerName(name, for: id)
-            }
-        }
-    }
-
-    private func padAndCommitXi() {
-        while homeXi.count < 11 {
-            let id = UUID()
-            homeXi.append(id)
-            store.registerName("Home \(homeXi.count)", for: id)
-        }
-        while awayXi.count < 11 {
-            let id = UUID()
-            awayXi.append(id)
-            store.registerName("Away \(awayXi.count)", for: id)
-        }
-        _ = store.append(.xiSelected(side: .home, playerIds: homeXi, captainId: homeXi.first, keeperId: nil))
-        _ = store.append(.xiSelected(side: .away, playerIds: awayXi, captainId: awayXi.first, keeperId: nil))
+        CricketSyncService.shared.register(store: store)
     }
 
     private func startMatch() async {
         guard canScore else {
-            message = "You need score permission (captain / secretary / scorer)."
+            message = "You need scoring permission (captain, secretary or assigned scorer)."
             return
         }
         booting = true
         defer { booting = false }
         store.replaceContext(modelContext)
         do {
-            let dto = try await FishersAPI.createCricketMatch(
-                eventId: event.id,
-                oversLimit: overs,
-                homeName: homeName,
-                awayName: awayName
-            )
-            _ = try await FishersAPI.claimScorer(matchId: dto.id, deviceId: store.deviceId)
-            try store.loadLocalOrCreate(
-                matchId: dto.id,
-                homeName: homeName,
-                awayName: awayName,
-                oversLimit: overs
-            )
-            if store.state.lastSeq == 0 {
-                _ = store.append(.matchPrepared(
-                    oversLimit: UInt8(overs),
-                    homeName: homeName,
-                    awayName: awayName
-                ))
-            }
-            switch store.state.status {
-            case .live, .inningsBreak, .complete:
-                step = .live
-            case .ready:
-                homeXi = store.state.homeXi
-                awayXi = store.state.awayXi
-                step = .openers
-            case .selectingXi:
-                step = .xi
-            default:
-                step = .toss
-            }
+            _ = try store.openLocal(homeName: homeName, awayName: awayName, oversLimit: overs)
         } catch {
-            let localId = store.matchId ?? event.id
-            do {
-                try store.loadLocalOrCreate(
-                    matchId: localId,
-                    homeName: homeName,
-                    awayName: awayName,
-                    oversLimit: overs
-                )
-                if store.state.lastSeq == 0 {
-                    _ = store.append(.matchPrepared(
-                        oversLimit: UInt8(overs),
-                        homeName: homeName,
-                        awayName: awayName
-                    ))
-                }
-                store.setSyncing(false, offline: true)
-                step = store.state.status == .live ? .live : .toss
-                message = "Working offline — will sync when online."
-            } catch {
-                message = error.localizedDescription
+            message = error.localizedDescription
+            return
+        }
+        if store.state.lastSeq == 0 {
+            guard store.append(.matchPrepared(
+                oversLimit: UInt8(overs), homeName: homeName, awayName: awayName
+            )) else {
+                message = store.lastError
+                return
             }
         }
+        CricketSyncService.shared.register(store: store)
+        step = .toss
+    }
+
+    private func commitSheets() {
+        guard homeSheet.count >= 2, awaySheet.count >= 2 else { return }
+        let ok = store.append(.xiSelected(
+            side: .home, players: homeSheet,
+            captainId: homeCaptain, keeperId: homeKeeper
+        )) && store.append(.xiSelected(
+            side: .away, players: awaySheet,
+            captainId: awayCaptain, keeperId: awayKeeper
+        ))
+        if ok {
+            message = nil
+            step = .openers
+        } else {
+            message = store.lastError
+        }
+    }
+
+    private func startInnings(batting: MatchSide) {
+        guard let s = strikerId, let ns = nonStrikerId, let b = bowlerId, s != ns else {
+            message = "Pick two different batters and a bowler."
+            return
+        }
+        if store.append(.inningsStarted(
+            inningsIndex: 0, batting: batting,
+            strikerId: s, nonStrikerId: ns, bowlerId: b
+        )) {
+            message = nil
+            step = .live
+        } else {
+            message = store.lastError
+        }
+    }
+}
+
+// MARK: - Team sheet editor
+
+/// One side's sheet: pick from the club, add a guest, order the batting line-up.
+private struct TeamSheetEditor: View {
+    let title: String
+    @Binding var players: [MatchPlayer]
+    @Binding var captain: UUID?
+    @Binding var keeper: UUID?
+    let clubPlayers: [MatchPlayer]
+    /// Nobody plays for both sides.
+    let alreadyPicked: Set<UUID>
+
+    @State private var guestName = ""
+
+    var body: some View {
+        List {
+            Section {
+                if players.isEmpty {
+                    Text("Nobody picked yet.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
+                        HStack {
+                            Text("\(index + 1)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20, alignment: .trailing)
+                            Text(player.name)
+                            Spacer()
+                            if captain == player.id {
+                                Text("C").font(.caption2.bold())
+                                    .foregroundStyle(FishersTheme.accent)
+                            }
+                            if keeper == player.id {
+                                Text("WK").font(.caption2.bold())
+                                    .foregroundStyle(FishersTheme.accent)
+                            }
+                        }
+                    }
+                    .onDelete { offsets in
+                        let removed = offsets.map { players[$0].id }
+                        players.remove(atOffsets: offsets)
+                        if let c = captain, removed.contains(c) { captain = nil }
+                        if let k = keeper, removed.contains(k) { keeper = nil }
+                    }
+                    .onMove { players.move(fromOffsets: $0, toOffset: $1) }
+                }
+            } header: {
+                Text("\(title) — batting order (\(players.count))")
+            } footer: {
+                Text("Drag to set the batting order. Swipe to remove.")
+            }
+
+            if !players.isEmpty {
+                Section("Roles") {
+                    Picker("Captain", selection: $captain) {
+                        Text("—").tag(UUID?.none)
+                        ForEach(players) { Text($0.name).tag(UUID?.some($0.id)) }
+                    }
+                    Picker("Wicketkeeper", selection: $keeper) {
+                        Text("—").tag(UUID?.none)
+                        ForEach(players) { Text($0.name).tag(UUID?.some($0.id)) }
+                    }
+                }
+            }
+
+            Section("Add a guest or the opposition") {
+                HStack {
+                    TextField("Name", text: $guestName)
+                        .textInputAutocapitalization(.words)
+                        .onSubmit(addGuest)
+                    Button("Add", action: addGuest)
+                        .disabled(guestName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+
+            if !available.isEmpty {
+                Section("From the club") {
+                    ForEach(available) { player in
+                        Button {
+                            players.append(player)
+                        } label: {
+                            HStack {
+                                Text(player.name)
+                                Spacer()
+                                Image(systemName: "plus.circle")
+                                    .foregroundStyle(FishersTheme.accent)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .environment(\.editMode, .constant(.active))
+        .listStyle(.insetGrouped)
+    }
+
+    private var available: [MatchPlayer] {
+        let picked = Set(players.map(\.id)).union(alreadyPicked)
+        return clubPlayers.filter { !picked.contains($0.id) }
+    }
+
+    private func addGuest() {
+        let name = guestName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        players.append(MatchPlayer(name: name))
+        guestName = ""
     }
 }
