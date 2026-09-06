@@ -11,10 +11,6 @@ use serde_json::Value;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-/// How long a scorer's lock survives without a sync before another device on
-/// the ground may take it over. Phones die mid-innings.
-const SCORER_LOCK_IDLE_MINUTES: i64 = 15;
-
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct CricketMatchRow {
     pub id: Uuid,
@@ -111,17 +107,28 @@ pub async fn get_match_by_event(
     .await
 }
 
-/// Take the scoring lock. Granted when it is free, already yours, held by this
-/// device, gone quiet for [`SCORER_LOCK_IDLE_MINUTES`], or when `force` is set
-/// — a captain taking over from a dead phone.
+/// Take the scoring lock. Granted only when it is free, already yours, or held
+/// by this same device.
+///
+/// There is deliberately no idle takeover: while someone is scoring, nobody
+/// else may alter the match. It changes hands through [`handover`], or — when
+/// the phone is genuinely gone — an officer's override, which is written to the
+/// handover trail either way.
 pub async fn claim_scorer(
     pool: &PgPool,
     match_id: Uuid,
     user_id: Uuid,
     device_id: &str,
-    force: bool,
 ) -> Result<Option<CricketMatchRow>, sqlx::Error> {
-    sqlx::query_as::<_, CricketMatchRow>(&format!(
+    let mut tx = pool.begin().await?;
+    let previous: Option<(Option<Uuid>,)> =
+        sqlx::query_as("SELECT active_scorer_user_id FROM cricket_matches WHERE id = $1")
+            .bind(match_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let previous = previous.and_then(|row| row.0);
+
+    let updated = sqlx::query_as::<_, CricketMatchRow>(&format!(
         r#"
         UPDATE cricket_matches
         SET active_scorer_user_id = $2,
@@ -129,11 +136,9 @@ pub async fn claim_scorer(
             updated_at = NOW()
         WHERE id = $1
           AND (
-            $4
-            OR active_scorer_user_id IS NULL
+            active_scorer_user_id IS NULL
             OR active_scorer_user_id = $2
             OR active_scorer_device_id = $3
-            OR updated_at < NOW() - ($5 || ' minutes')::INTERVAL
           )
         RETURNING {MATCH_COLS}
         "#
@@ -141,9 +146,142 @@ pub async fn claim_scorer(
     .bind(match_id)
     .bind(user_id)
     .bind(device_id)
-    .bind(force)
-    .bind(SCORER_LOCK_IDLE_MINUTES.to_string())
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if updated.is_some() && previous != Some(user_id) {
+        log_handover(&mut tx, match_id, previous, user_id, "claim", user_id).await?;
+    }
+    tx.commit().await?;
+    Ok(updated)
+}
+
+/// Pass the book to someone else. Only the scorer holding it may do this, which
+/// is what makes the lock meaningful.
+pub async fn handover(
+    pool: &PgPool,
+    match_id: Uuid,
+    from_user: Uuid,
+    to_user: Uuid,
+) -> Result<Option<CricketMatchRow>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let updated = sqlx::query_as::<_, CricketMatchRow>(&format!(
+        r#"
+        UPDATE cricket_matches
+        SET active_scorer_user_id = $3,
+            -- The new scorer claims the lock from their own device on first sync.
+            active_scorer_device_id = NULL,
+            updated_at = NOW()
+        WHERE id = $1 AND active_scorer_user_id = $2
+        RETURNING {MATCH_COLS}
+        "#
+    ))
+    .bind(match_id)
+    .bind(from_user)
+    .bind(to_user)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if updated.is_some() {
+        log_handover(&mut tx, match_id, Some(from_user), to_user, "handover", from_user).await?;
+    }
+    tx.commit().await?;
+    Ok(updated)
+}
+
+/// Break glass: a captain or secretary takes the book because the scorer's
+/// phone is dead. Always recorded, never silent.
+pub async fn override_scorer(
+    pool: &PgPool,
+    match_id: Uuid,
+    to_user: Uuid,
+    acted_by: Uuid,
+    device_id: &str,
+) -> Result<Option<CricketMatchRow>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let previous: Option<(Option<Uuid>,)> =
+        sqlx::query_as("SELECT active_scorer_user_id FROM cricket_matches WHERE id = $1")
+            .bind(match_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let previous = previous.and_then(|row| row.0);
+
+    let updated = sqlx::query_as::<_, CricketMatchRow>(&format!(
+        r#"
+        UPDATE cricket_matches
+        SET active_scorer_user_id = $2,
+            active_scorer_device_id = $3,
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING {MATCH_COLS}
+        "#
+    ))
+    .bind(match_id)
+    .bind(to_user)
+    .bind(device_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if updated.is_some() {
+        log_handover(&mut tx, match_id, previous, to_user, "override", acted_by).await?;
+    }
+    tx.commit().await?;
+    Ok(updated)
+}
+
+async fn log_handover(
+    tx: &mut Transaction<'_, Postgres>,
+    match_id: Uuid,
+    from_user: Option<Uuid>,
+    to_user: Uuid,
+    reason: &str,
+    acted_by: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO cricket_scorer_handovers (match_id, from_user, to_user, reason, acted_by)
+        VALUES ($1, $2, $3, $4, $5)
+        "#,
+    )
+    .bind(match_id)
+    .bind(from_user)
+    .bind(to_user)
+    .bind(reason)
+    .bind(acted_by)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Who has held the book, most recent first.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct HandoverRow {
+    pub from_name: Option<String>,
+    pub to_name: String,
+    pub reason: String,
+    pub acted_by_name: String,
+    pub created_at: DateTime<Utc>,
+}
+
+pub async fn handover_trail(
+    pool: &PgPool,
+    match_id: Uuid,
+) -> Result<Vec<HandoverRow>, sqlx::Error> {
+    sqlx::query_as::<_, HandoverRow>(
+        r#"
+        SELECT prev.name AS from_name, next.name AS to_name, h.reason,
+               actor.name AS acted_by_name, h.created_at
+        FROM cricket_scorer_handovers h
+        JOIN users next ON next.id = h.to_user
+        JOIN users actor ON actor.id = h.acted_by
+        LEFT JOIN users prev ON prev.id = h.from_user
+        WHERE h.match_id = $1
+        ORDER BY h.created_at DESC
+        LIMIT 50
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
     .await
 }
 
@@ -167,23 +305,70 @@ pub async fn is_official(
     Ok(row.0)
 }
 
+/// Appoint an umpire or a scorer. Either may score the match, which is the
+/// point: the umpire standing at square leg often keeps the book.
 pub async fn add_official(
     pool: &PgPool,
     match_id: Uuid,
     user_id: Uuid,
+    role: &str,
+    appointed_by: Uuid,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
-        INSERT INTO cricket_match_officials (match_id, user_id, role)
-        VALUES ($1, $2, 'scorer')
-        ON CONFLICT DO NOTHING
+        INSERT INTO cricket_match_officials (match_id, user_id, role, appointed_by)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (match_id, user_id) DO UPDATE SET
+            role = EXCLUDED.role,
+            appointed_by = EXCLUDED.appointed_by,
+            appointed_at = NOW()
         "#,
     )
     .bind(match_id)
     .bind(user_id)
+    .bind(role)
+    .bind(appointed_by)
     .execute(pool)
     .await?;
     Ok(())
+}
+
+pub async fn remove_official(
+    pool: &PgPool,
+    match_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM cricket_match_officials WHERE match_id = $1 AND user_id = $2")
+        .bind(match_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct OfficialRow {
+    pub user_id: Uuid,
+    pub name: String,
+    pub role: String,
+}
+
+pub async fn list_officials(
+    pool: &PgPool,
+    match_id: Uuid,
+) -> Result<Vec<OfficialRow>, sqlx::Error> {
+    sqlx::query_as::<_, OfficialRow>(
+        r#"
+        SELECT o.user_id, u.name, o.role
+        FROM cricket_match_officials o
+        JOIN users u ON u.id = o.user_id
+        WHERE o.match_id = $1
+        ORDER BY o.role, u.name
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
+    .await
 }
 
 pub async fn list_events_after(

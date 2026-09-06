@@ -173,6 +173,11 @@ struct ClubDetailView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     NavigationLink {
+                        ClubQRView(club: club)
+                    } label: {
+                        Label("QR code", systemImage: "qrcode")
+                    }
+                    NavigationLink {
                         ClubAdminView(club: club, role: role)
                     } label: {
                         Label("Manage club", systemImage: "person.2.badge.gearshape")

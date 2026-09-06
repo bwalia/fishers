@@ -29,7 +29,16 @@ pub fn router() -> Router<AppState> {
             post(post_events).get(list_events),
         )
         .route("/cricket/matches/{id}/scorecard", get(scorecard))
-        .route("/cricket/matches/{id}/officials", post(add_official))
+        .route(
+            "/cricket/matches/{id}/officials",
+            get(list_officials).post(add_official),
+        )
+        .route(
+            "/cricket/matches/{id}/officials/{user_id}",
+            axum::routing::delete(remove_official),
+        )
+        .route("/cricket/matches/{id}/handover", post(handover))
+        .route("/cricket/matches/{id}/scorer-trail", get(scorer_trail))
 }
 
 #[derive(Deserialize)]
@@ -160,7 +169,8 @@ async fn get_match(
 #[derive(Deserialize)]
 struct ClaimBody {
     device_id: String,
-    /// Take the match off a scorer whose phone has died mid-innings.
+    /// Break glass: take the book from a scorer whose phone has died. Needs
+    /// `manage_events`, and is written to the handover trail.
     #[serde(default)]
     force: bool,
 }
@@ -175,17 +185,34 @@ async fn claim_scorer(
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
     require_can_score(&state, &row, auth.user_id).await?;
-    let updated = cricket_repo::claim_scorer(
-        &state.pool,
-        id,
-        auth.user_id,
-        &body.device_id,
-        body.force,
-    )
-    .await?
-    .ok_or_else(|| {
+
+    let updated = if body.force {
+        // Only a captain or secretary may take the book off someone, and only
+        // ever on the record.
+        require_permission(
+            &state,
+            row.club_id,
+            auth.user_id,
+            None,
+            Permission::ManageEvents,
+        )
+        .await?;
+        cricket_repo::override_scorer(
+            &state.pool,
+            id,
+            auth.user_id,
+            auth.user_id,
+            &body.device_id,
+        )
+        .await?
+    } else {
+        cricket_repo::claim_scorer(&state.pool, id, auth.user_id, &body.device_id).await?
+    };
+
+    let updated = updated.ok_or_else(|| {
         ApiError::conflict(
-            "another device is scoring this match — take over to score from here instead",
+            "someone else is scoring this match — ask them to hand it over, \
+             or a captain can take it on the record",
         )
     })?;
     platform_bus::match_started(
@@ -327,14 +354,27 @@ async fn scorecard(
 #[derive(Deserialize)]
 struct OfficialBody {
     user_id: Uuid,
+    /// `umpire` or `scorer`. Either may score the match.
+    #[serde(default = "default_official_role")]
+    role: String,
 }
 
+fn default_official_role() -> String {
+    "scorer".into()
+}
+
+/// Appoint an umpire or a scorer. Umpires are named before the toss and may
+/// control the scoring — at club level the square-leg umpire often keeps the
+/// book.
 async fn add_official(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
     Json(body): Json<OfficialBody>,
-) -> ApiResult<Json<serde_json::Value>> {
+) -> ApiResult<Json<Vec<cricket_repo::OfficialRow>>> {
+    if !matches!(body.role.as_str(), "umpire" | "scorer") {
+        return Err(ApiError::bad_request("a match official is an umpire or a scorer"));
+    }
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
@@ -346,8 +386,101 @@ async fn add_official(
         Permission::ManageEvents,
     )
     .await?;
-    cricket_repo::add_official(&state.pool, id, body.user_id).await?;
-    Ok(Json(serde_json::json!({ "ok": true })))
+    cricket_repo::add_official(&state.pool, id, body.user_id, &body.role, auth.user_id).await?;
+    Ok(Json(cricket_repo::list_officials(&state.pool, id).await?))
+}
+
+async fn list_officials(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Vec<cricket_repo::OfficialRow>>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    require_club_member(&state, row.club_id, auth.user_id).await?;
+    Ok(Json(cricket_repo::list_officials(&state.pool, id).await?))
+}
+
+async fn remove_official(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((id, user_id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Json<Vec<cricket_repo::OfficialRow>>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    require_permission(
+        &state,
+        row.club_id,
+        auth.user_id,
+        None,
+        Permission::ManageEvents,
+    )
+    .await?;
+    cricket_repo::remove_official(&state.pool, id, user_id).await?;
+    Ok(Json(cricket_repo::list_officials(&state.pool, id).await?))
+}
+
+#[derive(Deserialize)]
+struct HandoverBody {
+    to_user_id: Uuid,
+}
+
+/// Pass the book on. Only the scorer currently holding it can do this — which
+/// is what stops anyone else altering a match while it is being scored.
+async fn handover(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<HandoverBody>,
+) -> ApiResult<Json<MatchResponse>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+
+    if row.active_scorer_user_id != Some(auth.user_id) {
+        return Err(ApiError::forbidden(
+            "only the scorer holding the book can hand it over",
+        ));
+    }
+    if body.to_user_id == auth.user_id {
+        return Err(ApiError::bad_request("you already have it"));
+    }
+    // Whoever receives it has to be allowed to score.
+    let recipient_may_score = cricket_repo::is_official(&state.pool, id, body.to_user_id).await?
+        || require_permission(
+            &state,
+            row.club_id,
+            body.to_user_id,
+            None,
+            Permission::ScoreMatch,
+        )
+        .await
+        .is_ok();
+    if !recipient_may_score {
+        return Err(ApiError::bad_request(
+            "that person cannot score this match — appoint them as an official first",
+        ));
+    }
+
+    let updated = cricket_repo::handover(&state.pool, id, auth.user_id, body.to_user_id)
+        .await?
+        .ok_or_else(|| ApiError::conflict("the book has already moved on"))?;
+    Ok(Json(to_response(&state, &updated, false)))
+}
+
+/// Who has held the book, and how it changed hands.
+async fn scorer_trail(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Vec<cricket_repo::HandoverRow>>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    require_club_member(&state, row.club_id, auth.user_id).await?;
+    Ok(Json(cricket_repo::handover_trail(&state.pool, id).await?))
 }
 
 /// Scoring is for club officers with `score_match`, plus anyone named on the

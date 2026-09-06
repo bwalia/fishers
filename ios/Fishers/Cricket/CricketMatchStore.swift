@@ -177,6 +177,13 @@ final class CricketMatchStore: ObservableObject {
         try? modelContext?.save()
     }
 
+    /// The book has gone to someone else: stop syncing from this device so we
+    /// cannot alter a match we no longer hold.
+    func releaseScoring() {
+        CricketSyncService.shared.unregister(store: self)
+        lastError = "You handed the book over. This phone can no longer score."
+    }
+
     func setSyncing(_ syncing: Bool, offline: Bool = false) {
         let status: SyncStatus = offline ? .offline : (syncing ? .syncing : .saved)
         syncStatus = status

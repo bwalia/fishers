@@ -22,7 +22,9 @@ enum MatchSide: String, Codable, Hashable, CaseIterable {
 
 enum DismissalKind: String, Codable, CaseIterable, Identifiable {
     case bowled, caught, lbw, runOut = "run_out", stumped
-    case hitWicket = "hit_wicket", retired, other
+    case hitWicket = "hit_wicket", retired
+    case retiredHurt = "retired_hurt"
+    case other
 
     var id: String { rawValue }
 
@@ -35,6 +37,7 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
         case .stumped: return "Stumped"
         case .hitWicket: return "Hit wicket"
         case .retired: return "Retired out"
+        case .retiredHurt: return "Retired hurt"
         case .other: return "Other"
         }
     }
@@ -47,8 +50,27 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Retiring does not use up a delivery.
-    var usesABall: Bool { self != .retired }
+    /// Retiring, either way, does not use up a delivery.
+    var usesABall: Bool { self != .retired && self != .retiredHurt }
+
+    /// Retired hurt costs a batter but not a wicket, and they may come back.
+    var costsAWicket: Bool { self != .retiredHurt }
+
+    /// The only ways out on a free hit.
+    var allowedOnAFreeHit: Bool {
+        switch self {
+        case .runOut, .retired, .retiredHurt, .other: return true
+        default: return false
+        }
+    }
+
+    /// A dismissal that can land on a delivery already booked as an extra.
+    var canFollowAnExtra: Bool {
+        switch self {
+        case .stumped, .runOut, .other: return true
+        default: return false
+        }
+    }
 
     /// Who took the catch, effected the run out, made the stumping.
     var needsFielder: Bool {
@@ -59,7 +81,9 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
     }
 
     /// Only a run out can take the batter at the non-striker's end.
-    var canDismissNonStriker: Bool { self == .runOut || self == .retired }
+    var canDismissNonStriker: Bool {
+        self == .runOut || self == .retired || self == .retiredHurt
+    }
 
     /// Runs can be completed before a run out.
     var allowsCompletedRuns: Bool { self == .runOut }
@@ -107,6 +131,36 @@ enum SyncStatus: String, Codable {
 }
 
 // MARK: - Team sheet
+
+/// Who is standing and who is keeping the book.
+struct MatchOfficials: Codable, Equatable {
+    var umpires: [MatchPlayer]
+    var scorers: [MatchPlayer]
+
+    init(umpires: [MatchPlayer] = [], scorers: [MatchPlayer] = []) {
+        self.umpires = umpires
+        self.scorers = scorers
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        umpires = try c.decodeIfPresent([MatchPlayer].self, forKey: .umpires) ?? []
+        scorers = try c.decodeIfPresent([MatchPlayer].self, forKey: .scorers) ?? []
+    }
+
+    var isEmpty: Bool { umpires.isEmpty && scorers.isEmpty }
+
+    var summary: String {
+        var parts: [String] = []
+        if !umpires.isEmpty {
+            parts.append("Umpires: " + umpires.map(\.name).joined(separator: ", "))
+        }
+        if !scorers.isEmpty {
+            parts.append("Scorers: " + scorers.map(\.name).joined(separator: ", "))
+        }
+        return parts.joined(separator: " · ")
+    }
+}
 
 /// Where the game is being played.
 enum GroundType: String, Codable, CaseIterable, Identifiable {
@@ -351,8 +405,13 @@ enum ScoringEventKind: Codable, Equatable {
     case conditionsProposed(conditions: MatchConditions, by: MatchSide, byName: String)
     /// A captain accepts the terms. The toss waits for both.
     case conditionsAgreed(side: MatchSide, captainName: String)
+    case officialsAppointed(officials: MatchOfficials)
+    /// A batter who retired hurt comes back in.
+    case batterResumed(batterId: UUID, replacingId: UUID?)
+    case playerOfTheMatch(playerId: UUID)
     case wicketRecorded(
-        batterId: UUID, kind: DismissalKind, fielderId: UUID?, newBatterId: UUID?, runs: UInt8
+        batterId: UUID, kind: DismissalKind, fielderId: UUID?, newBatterId: UUID?,
+        runs: UInt8, onExtra: Bool
     )
     case bowlerChanged(bowlerId: UUID)
     case inningsCompleted
@@ -367,6 +426,10 @@ enum ScoringEventKind: Codable, Equatable {
         case winner, decision, side, players, overs, conditions, by
         case byName = "by_name"
         case captainName = "captain_name"
+        case officials
+        case onExtra = "on_extra"
+        case playerId = "player_id"
+        case replacingId = "replacing_id"
         case captainId = "captain_id"
         case keeperId = "keeper_id"
         case inningsIndex = "innings_index"
@@ -394,6 +457,9 @@ enum ScoringEventKind: Codable, Equatable {
         case .oversRevised: return "overs_revised"
         case .conditionsProposed: return "conditions_proposed"
         case .conditionsAgreed: return "conditions_agreed"
+        case .officialsAppointed: return "officials_appointed"
+        case .batterResumed: return "batter_resumed"
+        case .playerOfTheMatch: return "player_of_the_match"
         case .inningsStarted: return "innings_started"
         case .deliveryRecorded: return "delivery_recorded"
         case .extrasRecorded: return "extras_recorded"
@@ -449,12 +515,20 @@ enum ScoringEventKind: Codable, Equatable {
         case let .conditionsAgreed(side, captainName):
             try c.encode(side, forKey: .side)
             try c.encode(captainName, forKey: .captainName)
-        case let .wicketRecorded(batter, kind, fielder, newBatter, runs):
+        case let .officialsAppointed(officials):
+            try c.encode(officials, forKey: .officials)
+        case let .batterResumed(batterId, replacingId):
+            try c.encode(batterId, forKey: .batterId)
+            try c.encodeIfPresent(replacingId, forKey: .replacingId)
+        case let .playerOfTheMatch(playerId):
+            try c.encode(playerId, forKey: .playerId)
+        case let .wicketRecorded(batter, kind, fielder, newBatter, runs, onExtra):
             try c.encode(batter, forKey: .batterId)
             try c.encode(kind, forKey: .kind)
             try c.encodeIfPresent(fielder, forKey: .fielderId)
             try c.encodeIfPresent(newBatter, forKey: .newBatterId)
             try c.encode(runs, forKey: .runs)
+            try c.encode(onExtra, forKey: .onExtra)
         case let .bowlerChanged(bowler):
             try c.encode(bowler, forKey: .bowlerId)
         case .inningsCompleted, .undoLast:
@@ -527,13 +601,25 @@ enum ScoringEventKind: Codable, Equatable {
                 side: try c.decode(MatchSide.self, forKey: .side),
                 captainName: try c.decode(String.self, forKey: .captainName)
             )
+        case "officials_appointed":
+            self = .officialsAppointed(
+                officials: try c.decode(MatchOfficials.self, forKey: .officials)
+            )
+        case "batter_resumed":
+            self = .batterResumed(
+                batterId: try c.decode(UUID.self, forKey: .batterId),
+                replacingId: try c.decodeIfPresent(UUID.self, forKey: .replacingId)
+            )
+        case "player_of_the_match":
+            self = .playerOfTheMatch(playerId: try c.decode(UUID.self, forKey: .playerId))
         case "wicket_recorded":
             self = .wicketRecorded(
                 batterId: try c.decode(UUID.self, forKey: .batterId),
                 kind: try c.decode(DismissalKind.self, forKey: .kind),
                 fielderId: try c.decodeIfPresent(UUID.self, forKey: .fielderId),
                 newBatterId: try c.decodeIfPresent(UUID.self, forKey: .newBatterId),
-                runs: try c.decodeIfPresent(UInt8.self, forKey: .runs) ?? 0
+                runs: try c.decodeIfPresent(UInt8.self, forKey: .runs) ?? 0,
+                onExtra: try c.decodeIfPresent(Bool.self, forKey: .onExtra) ?? false
             )
         case "bowler_changed":
             self = .bowlerChanged(bowlerId: try c.decode(UUID.self, forKey: .bowlerId))
@@ -580,6 +666,8 @@ struct BatterStats: Codable, Equatable, Identifiable {
     var sixes: UInt16
     var out: Bool
     var dismissal: DismissalKind?
+    /// Off the field hurt, not out, and eligible to resume.
+    var retiredHurt: Bool
     var bowlerId: UUID?
     var fielderId: UUID?
 
@@ -588,6 +676,7 @@ struct BatterStats: Codable, Equatable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case playerId = "player_id"
         case runs, balls, fours, sixes, out, dismissal
+        case retiredHurt = "retired_hurt"
         case bowlerId = "bowler_id"
         case fielderId = "fielder_id"
     }
@@ -595,7 +684,21 @@ struct BatterStats: Codable, Equatable, Identifiable {
     init(playerId: UUID) {
         self.playerId = playerId
         runs = 0; balls = 0; fours = 0; sixes = 0; out = false
-        dismissal = nil; bowlerId = nil; fielderId = nil
+        dismissal = nil; retiredHurt = false; bowlerId = nil; fielderId = nil
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        playerId = try c.decode(UUID.self, forKey: .playerId)
+        runs = try c.decode(UInt16.self, forKey: .runs)
+        balls = try c.decode(UInt16.self, forKey: .balls)
+        fours = try c.decode(UInt16.self, forKey: .fours)
+        sixes = try c.decode(UInt16.self, forKey: .sixes)
+        out = try c.decode(Bool.self, forKey: .out)
+        dismissal = try c.decodeIfPresent(DismissalKind.self, forKey: .dismissal)
+        retiredHurt = try c.decodeIfPresent(Bool.self, forKey: .retiredHurt) ?? false
+        bowlerId = try c.decodeIfPresent(UUID.self, forKey: .bowlerId)
+        fielderId = try c.decodeIfPresent(UUID.self, forKey: .fielderId)
     }
 
     var strikeRate: Double {
@@ -603,7 +706,10 @@ struct BatterStats: Codable, Equatable, Identifiable {
     }
 
     /// Leaves the rest of the order off the card as "did not bat".
-    var hasBatted: Bool { balls > 0 || runs > 0 || out }
+    var hasBatted: Bool { balls > 0 || runs > 0 || out || retiredHurt }
+
+    /// Can still come back to the crease.
+    var canResume: Bool { retiredHurt && !out }
 }
 
 struct BowlerStats: Codable, Equatable, Identifiable {
@@ -775,6 +881,8 @@ struct InningsState: Codable, Equatable {
     var oversAvailable: UInt8
     /// Who bowled the over that just finished — nobody bowls two in a row.
     var lastOverBowler: UUID?
+    /// The next legal delivery is a free hit: only a run out can get them.
+    var freeHit: Bool
 
     enum CodingKeys: String, CodingKey {
         case index, batting, bowling, runs, wickets, extras, batters, bowlers
@@ -791,6 +899,7 @@ struct InningsState: Codable, Equatable {
         case wicketsAllowed = "wickets_allowed"
         case oversAvailable = "overs_available"
         case lastOverBowler = "last_over_bowler"
+        case freeHit = "free_hit"
     }
 
     init(index: UInt8 = 0, batting: MatchSide = .home, bowling: MatchSide = .away) {
@@ -806,6 +915,7 @@ struct InningsState: Codable, Equatable {
         wicketsAllowed = 10
         oversAvailable = 0
         lastOverBowler = nil
+        freeHit = false
     }
 
     init(from decoder: Decoder) throws {
@@ -836,6 +946,7 @@ struct InningsState: Codable, Equatable {
         wicketsAllowed = try c.decodeIfPresent(UInt8.self, forKey: .wicketsAllowed) ?? 10
         oversAvailable = try c.decodeIfPresent(UInt8.self, forKey: .oversAvailable) ?? 0
         lastOverBowler = try c.decodeIfPresent(UUID.self, forKey: .lastOverBowler)
+        freeHit = try c.decodeIfPresent(Bool.self, forKey: .freeHit) ?? false
     }
 
     /// Total balls this innings gets, or nil when no limit is recorded. Zero
@@ -904,6 +1015,7 @@ struct MatchStateSnapshot: Equatable {
     var target: UInt16?
     var winner: MatchSide?
     var margin: String?
+    var playerOfTheMatch: UUID?
 }
 
 struct MatchState: Codable, Equatable {
@@ -936,6 +1048,8 @@ struct MatchState: Codable, Equatable {
     /// The captain who agreed, by name — the away captain rarely has an account.
     var agreedHome: String?
     var agreedAway: String?
+    var officials: MatchOfficials
+    var playerOfTheMatch: UUID?
     /// Local undo stack — never serialized.
     var history: [MatchStateSnapshot] = []
 
@@ -960,6 +1074,8 @@ struct MatchState: Codable, Equatable {
         case conditionsProposedBy = "conditions_proposed_by"
         case agreedHome = "agreed_home"
         case agreedAway = "agreed_away"
+        case officials
+        case playerOfTheMatch = "player_of_the_match"
     }
 
     init(oversLimit: UInt8 = 20, homeName: String = "Home", awayName: String = "Away") {
@@ -977,6 +1093,8 @@ struct MatchState: Codable, Equatable {
         conditionsProposedBy = nil
         agreedHome = nil
         agreedAway = nil
+        officials = MatchOfficials()
+        playerOfTheMatch = nil
     }
 
     init(from decoder: Decoder) throws {
@@ -1006,6 +1124,9 @@ struct MatchState: Codable, Equatable {
         conditionsProposedBy = try c.decodeIfPresent(MatchSide.self, forKey: .conditionsProposedBy)
         agreedHome = try c.decodeIfPresent(String.self, forKey: .agreedHome)
         agreedAway = try c.decodeIfPresent(String.self, forKey: .agreedAway)
+        officials = try c.decodeIfPresent(MatchOfficials.self, forKey: .officials)
+            ?? MatchOfficials()
+        playerOfTheMatch = try c.decodeIfPresent(UUID.self, forKey: .playerOfTheMatch)
         history = []
     }
 
@@ -1029,6 +1150,11 @@ struct MatchState: Codable, Equatable {
 
     /// Both captains have signed off the terms, so the game can start.
     var conditionsAgreed: Bool { agreedHome != nil && agreedAway != nil }
+
+    /// Anyone appointed to stand or to score — they may score the match.
+    func isOfficial(_ id: UUID) -> Bool {
+        officials.umpires.contains { $0.id == id } || officials.scorers.contains { $0.id == id }
+    }
 
     /// Which side still has to agree, for the screen that chases them.
     var awaitingAgreement: [MatchSide] {
@@ -1125,6 +1251,7 @@ struct MatchState: Codable, Equatable {
 
     /// "c Smith b Jones", "run out (Patel)", "not out".
     func dismissalText(_ batter: BatterStats) -> String {
+        if batter.retiredHurt && !batter.out { return "retired hurt" }
         guard batter.out else { return batter.hasBatted ? "not out" : "did not bat" }
         let bowler = batter.bowlerId.map { name(for: $0) }
         let fielder = batter.fielderId.map { name(for: $0) }
@@ -1147,6 +1274,8 @@ struct MatchState: Codable, Equatable {
             return fielder.map { "run out (\($0))" } ?? "run out"
         case .retired:
             return "retired out"
+        case .retiredHurt:
+            return "retired hurt"
         case .other, nil:
             return "out"
         }

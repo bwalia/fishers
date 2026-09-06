@@ -487,3 +487,111 @@ pub async fn update_settings(
     .fetch_one(pool)
     .await
 }
+
+
+/// A club's QR code, as the app renders it and another club scans it.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct QrIdentity {
+    pub id: Uuid,
+    pub name: String,
+    pub qr_token: String,
+    /// `club` or `team`.
+    pub kind: String,
+    pub club_id: Uuid,
+    pub club_name: String,
+    pub sport: Option<String>,
+}
+
+pub async fn club_qr(pool: &PgPool, club_id: Uuid) -> Result<Option<QrIdentity>, sqlx::Error> {
+    sqlx::query_as::<_, QrIdentity>(
+        r#"
+        SELECT c.id, c.name, c.qr_token, 'club' AS kind, c.id AS club_id,
+               c.name AS club_name, NULL::TEXT AS sport
+        FROM clubs c WHERE c.id = $1
+        "#,
+    )
+    .bind(club_id)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn team_qr(pool: &PgPool, team_id: Uuid) -> Result<Option<QrIdentity>, sqlx::Error> {
+    sqlx::query_as::<_, QrIdentity>(
+        r#"
+        SELECT t.id, t.name, t.qr_token, 'team' AS kind, t.club_id,
+               c.name AS club_name, t.sport::TEXT AS sport
+        FROM teams t JOIN clubs c ON c.id = t.club_id
+        WHERE t.id = $1
+        "#,
+    )
+    .bind(team_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Resolve a scanned token to whoever it belongs to.
+///
+/// Deliberately not gated on membership: the whole point is that a side you
+/// have never played can scan your code at the ground. The token is the secret,
+/// and it only ever returns a name — never a roster, fixtures or contacts.
+pub async fn resolve_qr(pool: &PgPool, token: &str) -> Result<Option<QrIdentity>, sqlx::Error> {
+    if let Some(team) = sqlx::query_as::<_, QrIdentity>(
+        r#"
+        SELECT t.id, t.name, t.qr_token, 'team' AS kind, t.club_id,
+               c.name AS club_name, t.sport::TEXT AS sport
+        FROM teams t JOIN clubs c ON c.id = t.club_id
+        WHERE t.qr_token = $1
+        "#,
+    )
+    .bind(token)
+    .fetch_optional(pool)
+    .await?
+    {
+        return Ok(Some(team));
+    }
+
+    sqlx::query_as::<_, QrIdentity>(
+        r#"
+        SELECT c.id, c.name, c.qr_token, 'club' AS kind, c.id AS club_id,
+               c.name AS club_name, NULL::TEXT AS sport
+        FROM clubs c WHERE c.qr_token = $1
+        "#,
+    )
+    .bind(token)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Mint a new code, so a club can retire one it has handed out too widely.
+pub async fn rotate_club_qr(pool: &PgPool, club_id: Uuid) -> Result<String, sqlx::Error> {
+    let row: (String,) = sqlx::query_as(
+        "UPDATE clubs SET qr_token = encode(gen_random_bytes(12), 'hex')
+         WHERE id = $1 RETURNING qr_token",
+    )
+    .bind(club_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
+/// Clubs whose name matches, for picking an opposition without a QR code.
+pub async fn search_clubs(
+    pool: &PgPool,
+    query: &str,
+    limit: i64,
+) -> Result<Vec<QrIdentity>, sqlx::Error> {
+    sqlx::query_as::<_, QrIdentity>(
+        r#"
+        SELECT c.id, c.name, c.qr_token, 'club' AS kind, c.id AS club_id,
+               c.name AS club_name, NULL::TEXT AS sport
+        FROM clubs c
+        WHERE c.name ILIKE '%' || $1 || '%'
+        ORDER BY c.name
+        LIMIT $2
+        "#,
+    )
+    .bind(query)
+    .bind(limit.clamp(1, 25))
+    .fetch_all(pool)
+    .await
+}

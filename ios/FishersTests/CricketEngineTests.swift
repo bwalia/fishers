@@ -122,7 +122,7 @@ final class CricketEngineTests: XCTestCase {
         let striker = f.innings.strikerId!
         try f.push(.wicketRecorded(
             batterId: striker, kind: .caught,
-            fielderId: f.away[3].id, newBatterId: f.home[2].id, runs: 0
+            fielderId: f.away[3].id, newBatterId: f.home[2].id, runs: 0, onExtra: false
         ))
         XCTAssertEqual(f.innings.wickets, 1)
         XCTAssertEqual(f.innings.bowlers[0].wickets, 1)
@@ -136,7 +136,7 @@ final class CricketEngineTests: XCTestCase {
         let nonStriker = f.innings.nonStrikerId!
         try f.push(.wicketRecorded(
             batterId: nonStriker, kind: .runOut,
-            fielderId: f.away[4].id, newBatterId: f.home[2].id, runs: 1
+            fielderId: f.away[4].id, newBatterId: f.home[2].id, runs: 1, onExtra: false
         ))
         XCTAssertEqual(f.innings.wickets, 1)
         XCTAssertEqual(f.innings.bowlers[0].wickets, 0, "run outs are not the bowler's")
@@ -156,7 +156,7 @@ final class CricketEngineTests: XCTestCase {
         let striker = f.innings.strikerId!
         try f.push(.wicketRecorded(
             batterId: striker, kind: .bowled,
-            fielderId: nil, newBatterId: f.home[2].id, runs: 0
+            fielderId: nil, newBatterId: f.home[2].id, runs: 0, onExtra: false
         ))
         let fall = f.innings.fall[0]
         XCTAssertEqual(fall.score, 6)
@@ -171,11 +171,11 @@ final class CricketEngineTests: XCTestCase {
         XCTAssertEqual(f.innings.wicketsAllowed, 2)
         try f.push(.wicketRecorded(
             batterId: f.home[0].id, kind: .bowled,
-            fielderId: nil, newBatterId: f.home[2].id, runs: 0
+            fielderId: nil, newBatterId: f.home[2].id, runs: 0, onExtra: false
         ))
         try f.push(.wicketRecorded(
             batterId: f.home[1].id, kind: .bowled,
-            fielderId: nil, newBatterId: nil, runs: 0
+            fielderId: nil, newBatterId: nil, runs: 0, onExtra: false
         ))
         XCTAssertTrue(f.innings.complete, "three players, two wickets")
     }
@@ -582,6 +582,98 @@ final class CricketEngineTests: XCTestCase {
         XCTAssertLessThan(shortened.target, full.target)
     }
 
+    // MARK: Free hit, retired hurt, and dismissals on an extra
+
+    private func wicket(
+        _ batterId: UUID, _ kind: DismissalKind, _ newBatterId: UUID?
+    ) -> ScoringEventKind {
+        .wicketRecorded(
+            batterId: batterId, kind: kind, fielderId: nil,
+            newBatterId: newBatterId, runs: 0, onExtra: false
+        )
+    }
+
+    func testANoBallBuysAFreeHit() throws {
+        var f = try fixture()
+        XCTAssertFalse(f.innings.freeHit)
+        try f.push(extras(.noBall, 0))
+        XCTAssertTrue(f.innings.freeHit)
+        try f.push(extras(.noBall, 0))
+        XCTAssertTrue(f.innings.freeHit, "another no ball keeps it alive")
+        try f.runs(1)
+        XCTAssertFalse(f.innings.freeHit, "one legal delivery spends it")
+    }
+
+    func testOnlyARunOutGetsYouOnAFreeHit() throws {
+        var f = try fixture()
+        try f.push(extras(.noBall, 0))
+        let striker = try XCTUnwrap(f.innings.strikerId)
+        for kind in [DismissalKind.bowled, .caught, .lbw, .stumped, .hitWicket] {
+            XCTAssertThrowsError(
+                try f.push(wicket(striker, kind, f.home[2].id)),
+                "\(kind) should not stand on a free hit"
+            )
+            f.seq -= 1
+        }
+        try f.push(wicket(striker, .runOut, f.home[2].id))
+        XCTAssertEqual(f.innings.wickets, 1)
+    }
+
+    func testRetiredHurtCostsABatterButNotAWicket() throws {
+        var f = try fixture()
+        try f.runs(2)
+        let striker = try XCTUnwrap(f.innings.strikerId)
+        try f.push(wicket(striker, .retiredHurt, f.home[2].id))
+
+        XCTAssertEqual(f.innings.wickets, 0)
+        XCTAssertTrue(f.innings.fall.isEmpty)
+        let batter = try XCTUnwrap(f.innings.batters.first { $0.playerId == striker })
+        XCTAssertTrue(batter.retiredHurt)
+        XCTAssertFalse(batter.out)
+        XCTAssertTrue(batter.canResume)
+        XCTAssertEqual(f.state.dismissalText(batter), "retired hurt")
+    }
+
+    func testABatterWhoRetiredHurtComesBackWhenNamed() throws {
+        var f = try fixture()
+        let striker = try XCTUnwrap(f.innings.strikerId)
+        try f.push(wicket(striker, .retiredHurt, f.home[2].id))
+        // The replacement goes, and the injured batter is named to come back.
+        try f.push(wicket(f.home[2].id, .bowled, striker))
+        let batter = try XCTUnwrap(f.innings.batters.first { $0.playerId == striker })
+        XCTAssertFalse(batter.retiredHurt, "back at the crease")
+        XCTAssertEqual(f.innings.wickets, 1, "only the bowled one counted")
+    }
+
+    func testAStumpingOffAWideDoesNotCountTheBallTwice() throws {
+        var f = try fixture()
+        try f.push(extras(.wide, 0))
+        XCTAssertEqual(f.innings.legalBalls, 0)
+        let striker = try XCTUnwrap(f.innings.strikerId)
+        try f.push(.wicketRecorded(
+            batterId: striker, kind: .stumped, fielderId: f.away[1].id,
+            newBatterId: f.home[2].id, runs: 0, onExtra: true
+        ))
+        XCTAssertEqual(f.innings.wickets, 1)
+        XCTAssertEqual(f.innings.legalBalls, 0, "a wide is still not a ball")
+        XCTAssertEqual(f.innings.bowlers[0].wickets, 1, "the stumping is the bowler's")
+    }
+
+    func testOfficialsAndAwardAreRecordedAndUndone() throws {
+        var f = try fixture()
+        let umpire = MatchPlayer(name: "Alan Umpire")
+        try f.push(.officialsAppointed(
+            officials: MatchOfficials(umpires: [umpire], scorers: [])
+        ))
+        XCTAssertTrue(f.state.isOfficial(umpire.id))
+        XCTAssertEqual(f.state.name(for: umpire.id), "Alan Umpire")
+
+        try f.push(.playerOfTheMatch(playerId: f.home[0].id))
+        XCTAssertEqual(f.state.playerOfTheMatch, f.home[0].id)
+        try f.push(.undoLast)
+        XCTAssertNil(f.state.playerOfTheMatch, "the award undoes with everything else")
+    }
+
     // MARK: Names and wire format
 
     func testNamesTravelWithTheTeamSheet() throws {
@@ -614,7 +706,7 @@ final class CricketEngineTests: XCTestCase {
             seq: 1,
             kind: .wicketRecorded(
                 batterId: UUID(), kind: .runOut,
-                fielderId: UUID(), newBatterId: UUID(), runs: 1
+                fielderId: UUID(), newBatterId: UUID(), runs: 1, onExtra: false
             )
         )
         let data = try JSONEncoder().encode(event)

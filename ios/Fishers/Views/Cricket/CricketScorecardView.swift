@@ -171,6 +171,21 @@ struct CricketScorecardView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                if !state.officials.isEmpty {
+                    Text(state.officials.summary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let award = state.playerOfTheMatch {
+                Section {
+                    Label(state.name(for: award), systemImage: "star.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(FishersTheme.maybe)
+                } header: {
+                    Text("Player of the match")
+                }
             }
 
             ForEach(Array(state.innings.enumerated()), id: \.offset) { _, innings in

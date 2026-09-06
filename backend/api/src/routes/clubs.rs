@@ -2,12 +2,12 @@ use axum::extract::{Path, State};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use fishers_db::repos::clubs as clubs_repo;
-use fishers_db::repos::clubs::{ClubMemberDetail, ClubSettings, UpdateClubSettings};
+use fishers_db::repos::clubs::{ClubMemberDetail, ClubSettings, QrIdentity, UpdateClubSettings};
 use fishers_domain::{
     parse_role, permissions_for, AddMemberRequest, Club, ClubMember, CreateClubRequest,
     CreateTeamRequest, CreateVenueRequest, Permission, Team, TeamMember, UserRole, Venue,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -30,6 +30,10 @@ pub fn router() -> Router<AppState> {
         .route("/clubs/{id}/teams", get(list_teams).post(create_team))
         .route("/clubs/{id}/venues", get(list_venues).post(create_venue))
         .route("/teams/{id}/members", post(add_team_member))
+        .route("/clubs/{id}/qr", get(club_qr).post(rotate_qr))
+        .route("/teams/{id}/qr", get(team_qr))
+        .route("/opponents/lookup", post(lookup_opponent))
+        .route("/opponents/search", get(search_opponents))
 }
 
 async fn create_club(
@@ -331,4 +335,117 @@ async fn add_team_member(
     Ok(Json(
         clubs_repo::add_team_member(&state.pool, id, body.user_id, role).await?,
     ))
+}
+
+
+/// What a QR code carries, and what the app draws.
+#[derive(Serialize)]
+struct QrResponse {
+    #[serde(flatten)]
+    identity: QrIdentity,
+    /// Encoded into the QR image. A phone camera that is not Fishers opens the
+    /// club's page; the app pulls the token out of it.
+    payload: String,
+}
+
+fn qr_payload(identity: &QrIdentity) -> String {
+    let base = std::env::var("PUBLIC_WEB_BASE")
+        .unwrap_or_else(|_| "https://fishers.app".into());
+    let base = base.trim_end_matches('/');
+    format!("{base}/play/{}", identity.qr_token)
+}
+
+/// The club's own code, to show an opposition captain at the ground.
+async fn club_qr(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<QrResponse>> {
+    require_club_member(&state, id, auth.user_id).await?;
+    let identity = clubs_repo::club_qr(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("club not found"))?;
+    let payload = qr_payload(&identity);
+    Ok(Json(QrResponse { identity, payload }))
+}
+
+async fn team_qr(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<QrResponse>> {
+    let team = clubs_repo::get_team(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("team not found"))?;
+    require_club_member(&state, team.club_id, auth.user_id).await?;
+    let identity = clubs_repo::team_qr(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("team not found"))?;
+    let payload = qr_payload(&identity);
+    Ok(Json(QrResponse { identity, payload }))
+}
+
+/// Retire a code that has been handed out too widely.
+async fn rotate_qr(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<QrResponse>> {
+    require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
+    clubs_repo::rotate_club_qr(&state.pool, id).await?;
+    let identity = clubs_repo::club_qr(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("club not found"))?;
+    let payload = qr_payload(&identity);
+    Ok(Json(QrResponse { identity, payload }))
+}
+
+#[derive(Deserialize)]
+struct LookupBody {
+    /// The scanned token, or the whole URL the camera read.
+    token: String,
+}
+
+/// Resolve a scanned code to the side it belongs to.
+///
+/// Not gated on membership — the point is that a club you have never played can
+/// scan your code at the ground. The token is the secret, and this only ever
+/// returns a name: no roster, no fixtures, no contact details.
+async fn lookup_opponent(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Json(body): Json<LookupBody>,
+) -> ApiResult<Json<QrIdentity>> {
+    let token = body
+        .token
+        .trim()
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    if token.is_empty() {
+        return Err(ApiError::bad_request("that code is empty"));
+    }
+    clubs_repo::resolve_qr(&state.pool, &token)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("no club or team has that code"))
+}
+
+#[derive(Deserialize)]
+struct SearchQuery {
+    q: String,
+}
+
+/// Find an opposition by name, for when nobody has a code to scan.
+async fn search_opponents(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    axum::extract::Query(query): axum::extract::Query<SearchQuery>,
+) -> ApiResult<Json<Vec<QrIdentity>>> {
+    let q = query.q.trim();
+    if q.len() < 2 {
+        return Err(ApiError::bad_request("give at least two letters to search on"));
+    }
+    Ok(Json(clubs_repo::search_clubs(&state.pool, q, 25).await?))
 }

@@ -28,11 +28,15 @@ struct CricketScoringFlowView: View {
     @State private var awayCaptain: UUID?
     @State private var homeKeeper: UUID?
     @State private var awayKeeper: UUID?
+    @State private var umpires: [MatchPlayer] = []
+    @State private var scorers: [MatchPlayer] = []
     @State private var strikerId: UUID?
     @State private var nonStrikerId: UUID?
     @State private var bowlerId: UUID?
     @State private var message: String?
     @State private var booting = false
+    @State private var isPickingOpposition = false
+    @State private var opponent: ClubIdentity?
     @State private var agreeingSide: MatchSide?
     @State private var isNamingCaptain = false
     @State private var captainName = ""
@@ -73,6 +77,12 @@ struct CricketScoringFlowView: View {
         .onDisappear {
             CricketSyncService.shared.unregister(store: store)
         }
+        .sheet(isPresented: $isPickingOpposition) {
+            OppositionPickerView { name, identity in
+                awayName = name
+                opponent = identity
+            }
+        }
     }
 
     // MARK: Step 1 — the match
@@ -81,9 +91,29 @@ struct CricketScoringFlowView: View {
         Form {
             Section {
                 TextField("Batting first / home side", text: $homeName)
-                TextField("Opposition", text: $awayName)
+                Button {
+                    isPickingOpposition = true
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(awayName.isEmpty ? "Opposition" : awayName)
+                                .foregroundStyle(awayName.isEmpty ? .secondary : .primary)
+                            if opponent != nil {
+                                Label("On Fishers", systemImage: "checkmark.seal.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(FishersTheme.available)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "qrcode.viewfinder")
+                            .foregroundStyle(FishersTheme.accent)
+                    }
+                }
+                .buttonStyle(.plain)
             } header: {
                 Text(event.title)
+            } footer: {
+                Text("Scan the other club's QR code, search for them, or type a name.")
             }
 
             Section {
@@ -333,11 +363,18 @@ struct CricketScoringFlowView: View {
                     alreadyPicked: Set(homeSheet.map(\.id))
                 )
                 .tabItem { Label(awayName, systemImage: "figure.walk") }
+
+                OfficialsEditor(
+                    umpires: $umpires,
+                    scorers: $scorers,
+                    clubPlayers: clubPlayers
+                )
+                .tabItem { Label("Officials", systemImage: "figure.australian.football") }
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
 
             VStack(spacing: 6) {
-                Text("\(homeName) \(homeSheet.count) · \(awayName) \(awaySheet.count)")
+                Text("\(homeName) \(homeSheet.count) · \(awayName) \(awaySheet.count) · \(umpires.count) umpire\(umpires.count == 1 ? "" : "s")")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Button("Confirm team sheets") { commitSheets() }
@@ -400,6 +437,23 @@ struct CricketScoringFlowView: View {
 
     // MARK: Actions
 
+    /// An umpire who is a Fishers member is granted scoring rights on the API,
+    /// so they can pick up the book without holding a club office.
+    private func grantScoringToOfficials() async {
+        guard let matchId = store.matchId else { return }
+        let members = Set(attendees.map(\.userId))
+        for umpire in umpires where members.contains(umpire.id) {
+            _ = try? await FishersAPI.appointOfficial(
+                matchId: matchId, userId: umpire.id, role: "umpire"
+            )
+        }
+        for scorer in scorers where members.contains(scorer.id) {
+            _ = try? await FishersAPI.appointOfficial(
+                matchId: matchId, userId: scorer.id, role: "scorer"
+            )
+        }
+    }
+
     private var clubPlayers: [MatchPlayer] {
         attendees.map { MatchPlayer(id: $0.userId, name: $0.name) }
     }
@@ -425,6 +479,8 @@ struct CricketScoringFlowView: View {
         overs = Int(store.state.oversLimit)
         homeSheet = store.state.players(for: .home)
         awaySheet = store.state.players(for: .away)
+        umpires = store.state.officials.umpires
+        scorers = store.state.officials.scorers
         conditions = store.state.conditions
         switch store.state.status {
         case .live, .inningsBreak, .complete, .published:
@@ -482,13 +538,20 @@ struct CricketScoringFlowView: View {
 
     private func commitSheets() {
         guard homeSheet.count >= 2, awaySheet.count >= 2 else { return }
-        let ok = store.append(.xiSelected(
+        var ok = store.append(.xiSelected(
             side: .home, players: homeSheet,
             captainId: homeCaptain, keeperId: homeKeeper
         )) && store.append(.xiSelected(
             side: .away, players: awaySheet,
             captainId: awayCaptain, keeperId: awayKeeper
         ))
+        if ok && !(umpires.isEmpty && scorers.isEmpty) {
+            ok = store.append(.officialsAppointed(
+                officials: MatchOfficials(umpires: umpires, scorers: scorers)
+            ))
+            // Appointed officials can score the match, so tell the API too.
+            Task { await grantScoringToOfficials() }
+        }
         if ok {
             message = nil
             step = .openers
@@ -620,6 +683,99 @@ private struct TeamSheetEditor: View {
         let name = guestName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         players.append(MatchPlayer(name: name))
+        guestName = ""
+    }
+}
+
+// MARK: - Officials
+
+/// Who is standing and who is keeping the book. Umpires appointed here can
+/// control the scoring, which is how the square-leg umpire ends up with the app.
+private struct OfficialsEditor: View {
+    @Binding var umpires: [MatchPlayer]
+    @Binding var scorers: [MatchPlayer]
+    let clubPlayers: [MatchPlayer]
+
+    @State private var guestName = ""
+    @State private var addingUmpire = true
+
+    var body: some View {
+        List {
+            Section {
+                if umpires.isEmpty {
+                    Text("Nobody standing yet.").foregroundStyle(.secondary)
+                } else {
+                    ForEach(umpires) { official in
+                        Text(official.name)
+                    }
+                    .onDelete { umpires.remove(atOffsets: $0) }
+                }
+            } header: {
+                Text("Umpires (\(umpires.count))")
+            } footer: {
+                Text("An umpire who is a Fishers member can pick up the scoring, even without a club role.")
+            }
+
+            Section("Scorers (\(scorers.count))") {
+                if scorers.isEmpty {
+                    Text("Only the person who started the match.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(scorers) { official in
+                        Text(official.name)
+                    }
+                    .onDelete { scorers.remove(atOffsets: $0) }
+                }
+            }
+
+            Section("Add") {
+                Picker("Role", selection: $addingUmpire) {
+                    Text("Umpire").tag(true)
+                    Text("Scorer").tag(false)
+                }
+                .pickerStyle(.segmented)
+
+                HStack {
+                    TextField("Name", text: $guestName)
+                        .textInputAutocapitalization(.words)
+                        .onSubmit(addGuest)
+                    Button("Add", action: addGuest)
+                        .disabled(guestName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+
+                ForEach(available) { player in
+                    Button {
+                        append(player)
+                    } label: {
+                        HStack {
+                            Text(player.name)
+                            Spacer()
+                            Image(systemName: "plus.circle").foregroundStyle(FishersTheme.accent)
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    private var available: [MatchPlayer] {
+        let taken = Set(umpires.map(\.id)).union(scorers.map(\.id))
+        return clubPlayers.filter { !taken.contains($0.id) }
+    }
+
+    private func append(_ player: MatchPlayer) {
+        if addingUmpire {
+            umpires.append(player)
+        } else {
+            scorers.append(player)
+        }
+    }
+
+    private func addGuest() {
+        let name = guestName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        append(MatchPlayer(name: name))
         guestName = ""
     }
 }

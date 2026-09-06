@@ -68,6 +68,11 @@ pub struct PublicScoreboard {
     pub overs_limit: i32,
     pub last_seq: i64,
     pub state: MatchState,
+    /// Where the chase stands on Duckworth–Lewis–Stern, when there is one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dls: Option<fishers_domain::DlsPar>,
+    /// The terms the two captains agreed, for the header.
+    pub conditions: fishers_domain::MatchConditions,
     pub player_names: HashMap<String, String>,
     pub expires_at: chrono::DateTime<chrono::Utc>,
     pub refreshed_at: chrono::DateTime<chrono::Utc>,
@@ -252,6 +257,8 @@ async fn public_scoreboard(
         status: row.status,
         overs_limit: row.overs_limit,
         last_seq: row.last_seq,
+        dls: match_state.dls_par(&state.dls, state.g50),
+        conditions: match_state.conditions,
         state: match_state,
         player_names,
         expires_at: share.expires_at,

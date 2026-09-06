@@ -75,6 +75,37 @@ extension MatchState {
             }
             if conditionsAgreed { status = .toss }
 
+        case let .officialsAppointed(appointed):
+            for official in appointed.umpires + appointed.scorers {
+                setName(official.name, for: official.id)
+            }
+            officials = appointed
+
+        case let .playerOfTheMatch(playerId):
+            playerOfTheMatch = playerId
+
+        case let .batterResumed(batterId, replacingId):
+            guard !innings.isEmpty else { throw CricketEngineError.validation("no innings") }
+            let idx = innings.count - 1
+            let bi = try innings[idx].batterIndex(batterId)
+            guard innings[idx].batters[bi].canResume else {
+                throw CricketEngineError.validation(
+                    "only a batter who retired hurt can come back"
+                )
+            }
+            innings[idx].batters[bi].retiredHurt = false
+            if let out = replacingId, innings[idx].strikerId == out {
+                innings[idx].strikerId = batterId
+            } else if let out = replacingId, innings[idx].nonStrikerId == out {
+                innings[idx].nonStrikerId = batterId
+            } else if innings[idx].strikerId == nil {
+                innings[idx].strikerId = batterId
+            } else if innings[idx].nonStrikerId == nil {
+                innings[idx].nonStrikerId = batterId
+            } else {
+                throw CricketEngineError.validation("say which batter they are coming in for")
+            }
+
         case let .tossRecorded(winner, decision):
             guard conditionsAgreed else {
                 throw CricketEngineError.validation(
@@ -152,10 +183,10 @@ extension MatchState {
             innings[idx].oversAvailable = overs
             closeIfFinished(idx)
 
-        case let .wicketRecorded(batterId, kind, fielderId, newBatterId, runs):
+        case let .wicketRecorded(batterId, kind, fielderId, newBatterId, runs, onExtra):
             try applyWicket(
                 batterId: batterId, kind: kind, fielderId: fielderId,
-                newBatterId: newBatterId, runs: runs
+                newBatterId: newBatterId, runs: runs, onExtra: onExtra
             )
 
         case let .bowlerChanged(bowlerId):
@@ -206,7 +237,8 @@ extension MatchState {
 
     private mutating func pushHistory() {
         history.append(MatchStateSnapshot(
-            status: status, innings: innings, target: target, winner: winner, margin: margin
+            status: status, innings: innings, target: target, winner: winner,
+            margin: margin, playerOfTheMatch: playerOfTheMatch
         ))
         if history.count > 200 { history.removeFirst() }
     }
@@ -220,6 +252,7 @@ extension MatchState {
         target = snap.target
         winner = snap.winner
         margin = snap.margin
+        playerOfTheMatch = snap.playerOfTheMatch
     }
 
     // MARK: - Scoring
@@ -266,6 +299,8 @@ extension MatchState {
             innings[idx].legalBalls += 1
             innings[idx].ballsInCurrentOver += 1
             innings[idx].partnershipBalls += 1
+            // A free hit lasts one legal delivery.
+            innings[idx].freeHit = false
             if runs % 2 == 1 { innings[idx].swapStrike() }
             completeOverIfDue(idx, bowler: bowler)
         }
@@ -366,7 +401,10 @@ extension MatchState {
             innings[idx].legalBalls += 1
             innings[idx].ballsInCurrentOver += 1
             innings[idx].partnershipBalls += 1
+            innings[idx].freeHit = false
         }
+        // A no ball buys the batter a free hit off the next legal delivery.
+        if kind == .noBall { innings[idx].freeHit = true }
         // Whatever they ran, an odd number puts the other batter on strike —
         // and a boundary is four or six, so it never does.
         if runs % 2 == 1 && !boundary {
@@ -380,7 +418,7 @@ extension MatchState {
 
     private mutating func applyWicket(
         batterId: UUID, kind: DismissalKind, fielderId: UUID?,
-        newBatterId: UUID?, runs: UInt8
+        newBatterId: UUID?, runs: UInt8, onExtra: Bool
     ) throws {
         guard !innings.isEmpty else { throw CricketEngineError.validation("no live innings") }
         let idx = innings.count - 1
@@ -389,7 +427,13 @@ extension MatchState {
         }
         let bowler = innings[idx].bowlerId
         let striker = innings[idx].strikerId
-        let isLegal = kind.usesABall
+        if innings[idx].freeHit && !kind.allowedOnAFreeHit {
+            throw CricketEngineError.validation("it is a free hit — only a run out can get them")
+        }
+        // A dismissal on a delivery already booked as an extra must not count
+        // the ball a second time.
+        let isLegal = kind.usesABall && !onExtra
+        let countsAWicket = kind.costsAWicket
 
         // Runs completed before the dismissal — a run out is usually off the bat.
         if runs > 0, let strikerId = striker {
@@ -405,7 +449,12 @@ extension MatchState {
         }
 
         let outIndex = try innings[idx].batterIndex(batterId)
-        innings[idx].batters[outIndex].out = true
+        if countsAWicket {
+            innings[idx].batters[outIndex].out = true
+        } else {
+            // Retired hurt: off the field, but not out, and may resume.
+            innings[idx].batters[outIndex].retiredHurt = true
+        }
         innings[idx].batters[outIndex].dismissal = kind
         innings[idx].batters[outIndex].fielderId = fielderId
         innings[idx].batters[outIndex].bowlerId = kind.creditsBowler ? bowler : nil
@@ -417,35 +466,43 @@ extension MatchState {
             innings[idx].batters[bi].balls += 1
         }
 
-        innings[idx].wickets += 1
+        if countsAWicket { innings[idx].wickets += 1 }
         if isLegal {
             innings[idx].legalBalls += 1
             innings[idx].ballsInCurrentOver += 1
             innings[idx].partnershipBalls += 1
+            innings[idx].freeHit = false
             if let bid = bowler {
                 let boi = try innings[idx].bowlerIndex(bid)
                 innings[idx].bowlers[boi].balls += 1
-                if kind.creditsBowler { innings[idx].bowlers[boi].wickets += 1 }
             }
         }
+        // The wicket is the bowler's whether or not the delivery counted — a
+        // stumping off a wide is still theirs.
+        if kind.creditsBowler, let bid = bowler {
+            let boi = try innings[idx].bowlerIndex(bid)
+            innings[idx].bowlers[boi].wickets += 1
+        }
 
-        innings[idx].fall.append(FallOfWicket(
-            score: innings[idx].runs,
-            wickets: innings[idx].wickets,
-            batterId: batterId,
-            overBall: MatchState.oversBallsDisplay(innings[idx].legalBalls),
-            partnershipRuns: innings[idx].partnershipRuns,
-            partnershipBalls: innings[idx].partnershipBalls
-        ))
-        innings[idx].partnershipRuns = 0
-        innings[idx].partnershipBalls = 0
+        if countsAWicket {
+            innings[idx].fall.append(FallOfWicket(
+                score: innings[idx].runs,
+                wickets: innings[idx].wickets,
+                batterId: batterId,
+                overBall: MatchState.oversBallsDisplay(innings[idx].legalBalls),
+                partnershipRuns: innings[idx].partnershipRuns,
+                partnershipBalls: innings[idx].partnershipBalls
+            ))
+            innings[idx].partnershipRuns = 0
+            innings[idx].partnershipBalls = 0
+        }
 
         let over = innings[idx].legalBalls > 0 ? (innings[idx].legalBalls - 1) / 6 : 0
         innings[idx].deliveries.append(DeliveryRecord(
             over: over,
             ballInOver: innings[idx].ballsInCurrentOver,
-            label: runs > 0 ? "\(runs)W" : "W",
-            runs: runs, isLegal: isLegal, isWicket: true,
+            label: !countsAWicket ? "RH" : (runs > 0 ? "\(runs)W" : "W"),
+            runs: runs, isLegal: isLegal, isWicket: countsAWicket,
             batterId: striker, bowlerId: bowler, shot: nil
         ))
 
@@ -462,7 +519,10 @@ extension MatchState {
         guard let newId = newBatterId else {
             throw CricketEngineError.validation("new batter required")
         }
-        if !innings[idx].batters.contains(where: { $0.playerId == newId }) {
+        if let existing = innings[idx].batters.firstIndex(where: { $0.playerId == newId }) {
+            // Someone who retired hurt and is coming back in.
+            innings[idx].batters[existing].retiredHurt = false
+        } else {
             innings[idx].batters.append(BatterStats(playerId: newId))
         }
         if innings[idx].strikerId == batterId {

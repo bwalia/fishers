@@ -20,6 +20,20 @@ scorecard by replaying it with the Rust engine.
 - **Names travel with the events.** `xi_selected` carries `{id, name}` per
   player, so the scorecard reads as names on every device, not just the scorer's.
 
+## Who you are playing, and the QR code
+
+Every club and every team has its own QR code (**Clubs → the club → ⋯ → QR
+code**). At the toss, one captain shows it and the other scans it from the match
+setup screen — no typing, no spelling arguments.
+
+The token is the whole secret, so it can be shown to a side you have never
+played. Scanning it returns **only a name**: no roster, no fixtures, no contact
+details. A code that has been shared too widely can be retired, which kills the
+old one immediately.
+
+Failing that, search by name, or just type one — a scratch side that has never
+heard of Fishers is only a name, and that is fine.
+
 ## Before a ball is bowled
 
 The two captains settle the terms, and the app makes them say so:
@@ -38,6 +52,23 @@ the toss. **The toss is refused until both have agreed.** Change anything
 afterwards and both agreements are cleared, so nothing gets altered quietly.
 
 The agreed terms appear on the scorecard.
+
+**Umpires and scorers are named at the same time.** An umpire who is a Fishers
+member is granted scoring rights on that match, so the square-leg umpire can
+pick up the book without holding any club office.
+
+## One book, one pair of hands
+
+While someone is scoring, **nobody else can alter the match**. There is no idle
+takeover: the lock moves when the scorer hands it over
+(`POST /cricket/matches/{id}/handover`), and only they can do that. Anything not
+yet synced goes up before the book moves, so nothing is stranded on the old
+phone.
+
+If the phone is genuinely gone, a captain or secretary can take it — `force` on
+the claim, which needs `manage_events`. Either way it is written to
+`cricket_scorer_handovers` and shown in the app, so there is never a question
+about who was scoring when.
 
 ## Who can score
 
@@ -105,6 +136,15 @@ The device mints the match id before the API is involved:
 - **The bowling Laws**: nobody bowls two overs in a row, and nobody exceeds the
   allocation the captains agreed. The bowler sheet shows overs left per bowler
   and separates who *can* bowl this over from who cannot, with the reason.
+- **Free hits.** A no ball sets one, the next legal delivery spends it, and
+  while it stands only a run out can get the batter — the scorer sees a banner
+  and the other dismissals disappear from the sheet.
+- **Retired hurt** costs a batter but not a wicket: no fall of wicket, and they
+  can be named to come back later in the innings.
+- **Dismissals on a delivery already booked as an extra** — stumped off a wide,
+  run out off a no ball — do not count the ball twice, but the bowler still gets
+  the wicket.
+- **Player of the match**, once the game is over.
 - Fall of wickets with the partnership that just ended, and the unbroken stand
 - All out at `team size − 1`, so an eight-a-side game ends at seven down
 - Innings closing on overs, on wickets, or on a declaration (`innings_completed`)
@@ -128,8 +168,8 @@ resync or a replayed batch cannot count a hundred twice:
 4. The fixture flips to `completed` and the scorecard is stored on
    `match_results`.
 
-Not modelled yet: retired hurt (a retirement counts as a wicket), free hits,
-super overs, powerplays, and wickets falling off a no ball.
+Not modelled yet: super overs, powerplays and fielding restrictions, over-rate
+penalties, and correcting a ball other than by undoing back to it.
 
 ## Rain, and DLS
 

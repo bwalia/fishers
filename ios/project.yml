@@ -59,6 +59,10 @@ targets:
               NSIncludesSubdomains: true
             127.0.0.1:
               NSExceptionAllowsInsecureHTTPLoads: true
+        # Scanning the other club's QR code at the toss is the only camera use.
+        NSCameraUsageDescription: >-
+          Fishers uses the camera to scan another club's QR code when you start
+          a match, so you don't have to type their name.
         UIBackgroundModes:
           - remote-notification
 

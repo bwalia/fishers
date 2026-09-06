@@ -37,6 +37,8 @@ struct LiveScorerView: View {
     @State private var showScorecard = false
     @State private var showSecondInnings = false
     @State private var showRain = false
+    @State private var showHandover = false
+    @State private var showAward = false
     @State private var confirmEndInnings = false
     @State private var pendingShot: PendingShot?
     @State private var isSharing = false
@@ -93,6 +95,8 @@ struct LiveScorerView: View {
         .sheet(isPresented: $showBowler) { BowlerSheet(store: store) }
         .sheet(isPresented: $showSecondInnings) { SecondInningsSheet(store: store) }
         .sheet(isPresented: $showRain) { RevisedOversSheet(store: store) }
+        .sheet(isPresented: $showHandover) { HandoverSheet(store: store) }
+        .sheet(isPresented: $showAward) { AwardSheet(store: store) }
         .sheet(item: $pendingShot) { pending in
             WagonWheelPicker(
                 batterName: pending.batterName,
@@ -145,6 +149,11 @@ struct LiveScorerView: View {
                     }
                     Divider()
                     Button {
+                        showHandover = true
+                    } label: {
+                        Label("Hand the book over", systemImage: "person.2.arrow.trianglehead.swap")
+                    }
+                    Button {
                         showRain = true
                     } label: {
                         Label("Overs reduced (rain)", systemImage: "cloud.rain.fill")
@@ -194,6 +203,15 @@ struct LiveScorerView: View {
                         .font(FishersTheme.subhead)
                         .foregroundStyle(.secondary)
                 }
+                if inn.freeHit {
+                    Label("FREE HIT — only a run out can get them", systemImage: "shield.lefthalf.filled")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(FishersTheme.maybe)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 10)
+                        .background(FishersTheme.maybe.opacity(0.15), in: Capsule())
+                        .accessibilityLabel("Free hit")
+                }
                 overStrip(inn)
                 statsRow(inn)
                 dlsRow
@@ -209,7 +227,16 @@ struct LiveScorerView: View {
                     Text(store.state.margin ?? "Match complete")
                         .font(FishersTheme.headline)
                         .foregroundStyle(FishersTheme.pitch)
+                    if let award = store.state.playerOfTheMatch {
+                        Label("Player of the match: \(store.name(for: award))", systemImage: "star.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(FishersTheme.maybe)
+                    }
                     HStack {
+                        Button(store.state.playerOfTheMatch == nil ? "Award" : "Change award") {
+                            showAward = true
+                        }
+                        .buttonStyle(.bordered)
                         Button("Scorecard") { showScorecard = true }
                             .buttonStyle(.bordered)
                         Button("Done", action: onDone)
@@ -752,13 +779,34 @@ private struct WicketSheet: View {
     @State private var fielderId: UUID?
     @State private var newBatterId: UUID?
     @State private var completedRuns = 0
+    @State private var onExtra = false
+
+    private var isFreeHit: Bool { store.state.currentInnings?.freeHit ?? false }
 
     var body: some View {
         NavigationStack {
             Form {
+                if isFreeHit {
+                    Section {
+                        Label(
+                            "Free hit — only a run out can get them.",
+                            systemImage: "shield.lefthalf.filled"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(FishersTheme.maybe)
+                    }
+                }
                 Section("How") {
                     Picker("Dismissal", selection: $kind) {
-                        ForEach(DismissalKind.allCases) { Text($0.label).tag($0) }
+                        ForEach(allowedKinds) { Text($0.label).tag($0) }
+                    }
+                }
+
+                if kind.canFollowAnExtra {
+                    Section {
+                        Toggle("Off a wide or a no ball", isOn: $onExtra)
+                    } footer: {
+                        Text("The delivery is already in the book as an extra, so it is not counted twice.")
                     }
                 }
 
@@ -789,8 +837,8 @@ private struct WicketSheet: View {
                     }
                 }
 
-                Section("New batter") {
-                    if nextIn.isEmpty {
+                Section {
+                    if nextIn.isEmpty && resuming.isEmpty {
                         Text("That is all out — no one left to come in.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -798,7 +846,16 @@ private struct WicketSheet: View {
                         Picker("In next", selection: $newBatterId) {
                             Text("—").tag(UUID?.none)
                             ForEach(nextIn) { Text($0.name).tag(UUID?.some($0.id)) }
+                            ForEach(resuming) {
+                                Text("\($0.name) (resuming)").tag(UUID?.some($0.id))
+                            }
                         }
+                    }
+                } header: {
+                    Text("New batter")
+                } footer: {
+                    if !resuming.isEmpty {
+                        Text("Anyone who retired hurt can come back in.")
                     }
                 }
             }
@@ -817,6 +874,10 @@ private struct WicketSheet: View {
                 if !new.canDismissNonStriker { outIsStriker = true }
                 if !new.allowsCompletedRuns { completedRuns = 0 }
                 if !new.needsFielder { fielderId = nil }
+                if !new.canFollowAnExtra { onExtra = false }
+            }
+            .onAppear {
+                if !allowedKinds.contains(kind) { kind = allowedKinds.first ?? .runOut }
             }
         }
         .presentationDetents([.large])
@@ -849,13 +910,31 @@ private struct WicketSheet: View {
         return store.state.players(for: inn.bowling)
     }
 
+    /// On a free hit the Laws allow very little.
+    private var allowedKinds: [DismissalKind] {
+        isFreeHit
+            ? DismissalKind.allCases.filter(\.allowedOnAFreeHit)
+            : DismissalKind.allCases
+    }
+
     private var nextIn: [MatchPlayer] {
         guard let inn = innings else { return [] }
         let atCrease = [inn.strikerId, inn.nonStrikerId].compactMap { $0 }
-        let dismissed = Set(inn.batters.filter(\.out).map(\.playerId))
+        let unavailable = Set(
+            inn.batters.filter { $0.out || $0.retiredHurt }.map(\.playerId)
+        )
         return store.state.players(for: inn.batting).filter {
-            !dismissed.contains($0.id) && !atCrease.contains($0.id)
+            !unavailable.contains($0.id) && !atCrease.contains($0.id)
         }
+    }
+
+    /// Batters who retired hurt and are fit to come back.
+    private var resuming: [MatchPlayer] {
+        guard let inn = innings else { return [] }
+        let atCrease = [inn.strikerId, inn.nonStrikerId].compactMap { $0 }
+        return inn.batters
+            .filter { $0.canResume && !atCrease.contains($0.playerId) }
+            .map { MatchPlayer(id: $0.playerId, name: store.name(for: $0.playerId)) }
     }
 
     private var isLastWicket: Bool {
@@ -865,7 +944,9 @@ private struct WicketSheet: View {
 
     private var canRecord: Bool {
         guard outBatterId != nil else { return false }
-        return isLastWicket || newBatterId != nil
+        // Retiring hurt still needs someone to come in, unless nobody is left.
+        if isLastWicket && kind.costsAWicket { return true }
+        return newBatterId != nil || (nextIn.isEmpty && resuming.isEmpty)
     }
 
     private func record() {
@@ -875,7 +956,8 @@ private struct WicketSheet: View {
             kind: kind,
             fielderId: fielderId,
             newBatterId: newBatterId,
-            runs: UInt8(completedRuns)
+            runs: UInt8(completedRuns),
+            onExtra: onExtra
         ))
         if ok {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
@@ -1062,5 +1144,157 @@ private struct SecondInningsSheet: View {
         } else {
             message = store.lastError
         }
+    }
+}
+
+// MARK: - Handing the book over
+
+/// While one person is scoring, nobody else can alter the match. That only
+/// changes when they hand it over here — or when a captain takes it because the
+/// phone is dead, which the trail records either way.
+private struct HandoverSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var officials: [MatchOfficialRow] = []
+    @State private var trail: [ScorerHandover] = []
+    @State private var isWorking = false
+    @State private var message: String?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Label(
+                        "You hold the book. Nobody else can change this match until you pass it on.",
+                        systemImage: "lock.fill"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    if officials.isEmpty {
+                        Text("Nobody else is appointed to this match. Add an umpire or scorer from the match setup first.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(officials) { official in
+                            Button {
+                                Task { await handOver(to: official) }
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(official.name)
+                                        Text(official.label)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if isWorking {
+                                        ProgressView()
+                                    } else {
+                                        Image(systemName: "arrow.right.circle")
+                                            .foregroundStyle(FishersTheme.accent)
+                                    }
+                                }
+                            }
+                            .disabled(isWorking)
+                        }
+                    }
+                } header: {
+                    Text("Hand over to")
+                } footer: {
+                    Text("They pick it up on their own phone. Anything you have not synced yet goes up first.")
+                }
+
+                if !trail.isEmpty {
+                    Section("Who has had it") {
+                        ForEach(trail) { entry in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.summary)
+                                    .font(.footnote)
+                                    .foregroundStyle(entry.isOverride ? FishersTheme.maybe : .primary)
+                                Text(entry.createdAt, format: .dateTime.hour().minute())
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
+                if let message {
+                    Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
+                }
+            }
+            .navigationTitle("The book")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func load() async {
+        guard let matchId = store.matchId else { return }
+        officials = (try? await FishersAPI.matchOfficials(matchId: matchId)) ?? []
+        trail = (try? await FishersAPI.scorerTrail(matchId: matchId)) ?? []
+    }
+
+    private func handOver(to official: MatchOfficialRow) async {
+        guard let matchId = store.matchId else { return }
+        isWorking = true
+        defer { isWorking = false }
+        // Everything scored so far goes up before the book moves, or it would
+        // be stranded on this phone.
+        await CricketSyncService.shared.flush()
+        do {
+            _ = try await FishersAPI.handOverScoring(matchId: matchId, toUserId: official.userId)
+            store.releaseScoring()
+            dismiss()
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Player of the match
+
+private struct AwardSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(candidates) { player in
+                Button {
+                    _ = store.append(.playerOfTheMatch(playerId: player.id))
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text(player.name)
+                        Spacer()
+                        if store.state.playerOfTheMatch == player.id {
+                            Image(systemName: "star.fill").foregroundStyle(FishersTheme.maybe)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Player of the match")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var candidates: [MatchPlayer] {
+        store.state.players(for: .home) + store.state.players(for: .away)
     }
 }

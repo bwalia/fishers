@@ -54,8 +54,11 @@ pub enum DismissalKind {
     RunOut,
     Stumped,
     HitWicket,
-    /// Retired out — counts as a wicket. Retired hurt is not modelled yet.
+    /// Retired out: the batter chose to go and will not return. A wicket.
     Retired,
+    /// Retired hurt: they had to go off. Not a wicket, and they may come back.
+    RetiredHurt,
+    /// Obstructing the field, handled the ball, and the other rarities.
     Other,
 }
 
@@ -68,9 +71,20 @@ impl DismissalKind {
         )
     }
 
-    /// Retiring does not use up a delivery.
+    /// Retiring, either way, does not use up a delivery.
     pub fn uses_a_ball(self) -> bool {
-        !matches!(self, Self::Retired)
+        !matches!(self, Self::Retired | Self::RetiredHurt)
+    }
+
+    /// Retired hurt costs the side a batter but not a wicket, and they may
+    /// resume later in the innings.
+    pub fn costs_a_wicket(self) -> bool {
+        !matches!(self, Self::RetiredHurt)
+    }
+
+    /// The only ways out on a free hit.
+    pub fn allowed_on_a_free_hit(self) -> bool {
+        matches!(self, Self::RunOut | Self::Retired | Self::RetiredHurt | Self::Other)
     }
 }
 
@@ -179,6 +193,16 @@ impl Default for MatchConditions {
     fn default() -> Self {
         Self::standard(20)
     }
+}
+
+/// Who is standing, and who is keeping the book. Umpires appointed here can
+/// score the match even without a club office.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct MatchOfficials {
+    #[serde(default)]
+    pub umpires: Vec<MatchPlayer>,
+    #[serde(default)]
+    pub scorers: Vec<MatchPlayer>,
 }
 
 /// A player on a team sheet. `id` is the Fishers user id for members, or a
@@ -310,6 +334,20 @@ pub enum ScoringEventKind {
         side: MatchSide,
         captain_name: String,
     },
+    /// Who is standing and who is scoring, agreed before the toss.
+    OfficialsAppointed {
+        officials: MatchOfficials,
+    },
+    /// A batter who retired hurt comes back in.
+    BatterResumed {
+        batter_id: Uuid,
+        /// Who they are replacing, if someone is at the crease.
+        replacing_id: Option<Uuid>,
+    },
+    /// The award, once the game is over.
+    PlayerOfTheMatch {
+        player_id: Uuid,
+    },
     InningsStarted {
         innings_index: u8,
         batting: MatchSide,
@@ -355,6 +393,11 @@ pub enum ScoringEventKind {
         /// Runs completed before the dismissal — run-outs are usually 1 or 2.
         #[serde(default)]
         runs: u8,
+        /// The dismissal happened on a delivery already recorded as an extra —
+        /// stumped off a wide, run out off a no ball. The ball has been counted
+        /// once already, so do not count it again.
+        #[serde(default)]
+        on_extra: bool,
     },
     BowlerChanged {
         bowler_id: Uuid,
@@ -383,6 +426,9 @@ pub struct BatterStats {
     pub sixes: u16,
     pub out: bool,
     pub dismissal: Option<DismissalKind>,
+    /// Off the field hurt, not out, and eligible to resume.
+    #[serde(default)]
+    pub retired_hurt: bool,
     /// Who bowled the dismissal, for "c Smith b Jones".
     #[serde(default)]
     pub bowler_id: Option<Uuid>,
@@ -400,6 +446,7 @@ impl BatterStats {
             sixes: 0,
             out: false,
             dismissal: None,
+            retired_hurt: false,
             bowler_id: None,
             fielder_id: None,
         }
@@ -415,7 +462,12 @@ impl BatterStats {
     /// True once the batter has faced a ball or been dismissed — used to leave
     /// the rest of the order off the card as "did not bat".
     pub fn has_batted(&self) -> bool {
-        self.balls > 0 || self.runs > 0 || self.out
+        self.balls > 0 || self.runs > 0 || self.out || self.retired_hurt
+    }
+
+    /// Can still come back to the crease.
+    pub fn can_resume(&self) -> bool {
+        self.retired_hurt && !self.out
     }
 }
 
@@ -531,6 +583,9 @@ pub struct InningsState {
     /// Who bowled the over that just finished — nobody bowls two in a row.
     #[serde(default)]
     pub last_over_bowler: Option<Uuid>,
+    /// The next legal delivery is a free hit: only a run out can get them.
+    #[serde(default)]
+    pub free_hit: bool,
 }
 
 fn default_wickets_allowed() -> u8 {
@@ -566,6 +621,7 @@ impl Default for InningsState {
             wickets_allowed: 10,
             overs_available: 0,
             last_over_bowler: None,
+            free_hit: false,
         }
     }
 }
@@ -655,6 +711,10 @@ pub struct MatchState {
     pub agreed_home: Option<String>,
     #[serde(default)]
     pub agreed_away: Option<String>,
+    #[serde(default)]
+    pub officials: MatchOfficials,
+    #[serde(default)]
+    pub player_of_the_match: Option<Uuid>,
     /// Undo stack. Rebuilt by replaying the log, never persisted.
     #[serde(skip)]
     pub history: Vec<MatchStateSnapshot>,
@@ -668,6 +728,7 @@ pub struct MatchStateSnapshot {
     pub target: Option<u16>,
     pub winner: Option<MatchSide>,
     pub margin: Option<String>,
+    pub player_of_the_match: Option<Uuid>,
 }
 
 impl Default for MatchState {
@@ -696,6 +757,8 @@ impl Default for MatchState {
             conditions_proposed_by: None,
             agreed_home: None,
             agreed_away: None,
+            officials: MatchOfficials::default(),
+            player_of_the_match: None,
             history: vec![],
         }
     }
@@ -768,6 +831,12 @@ impl MatchState {
         None
     }
 
+    /// Anyone appointed to stand or to score — they may score the match.
+    pub fn is_official(&self, id: Uuid) -> bool {
+        self.officials.umpires.iter().any(|o| o.id == id)
+            || self.officials.scorers.iter().any(|o| o.id == id)
+    }
+
     pub fn bats_left(&self, id: Uuid) -> bool {
         self.left_handers.contains(&id)
     }
@@ -795,6 +864,9 @@ impl MatchState {
 
     /// "c Smith b Jones", "run out (Patel)", "not out" — the scorecard line.
     pub fn dismissal_text(&self, batter: &BatterStats) -> String {
+        if batter.retired_hurt && !batter.out {
+            return "retired hurt".into();
+        }
         if !batter.out {
             return "not out".into();
         }
@@ -828,6 +900,7 @@ impl MatchState {
                 None => "run out".into(),
             },
             Some(DismissalKind::Retired) => "retired out".into(),
+            Some(DismissalKind::RetiredHurt) => "retired hurt".into(),
             Some(DismissalKind::Other) | None => "out".into(),
         }
     }

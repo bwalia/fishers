@@ -35,6 +35,7 @@ impl MatchState {
             target: self.target,
             winner: self.winner,
             margin: self.margin.clone(),
+            player_of_the_match: self.player_of_the_match,
         });
         // Cap history depth for memory.
         if self.history.len() > 200 {
@@ -52,6 +53,7 @@ impl MatchState {
         self.target = snap.target;
         self.winner = snap.winner;
         self.margin = snap.margin;
+        self.player_of_the_match = snap.player_of_the_match;
         Ok(())
     }
 
@@ -133,6 +135,53 @@ impl MatchState {
                 }
                 if self.conditions_agreed() {
                     self.status = MatchStatus::Toss;
+                }
+            }
+            ScoringEventKind::OfficialsAppointed { officials } => {
+                for official in officials.umpires.iter().chain(officials.scorers.iter()) {
+                    self.player_names
+                        .insert(official.id, official.name.clone());
+                }
+                self.officials = officials.clone();
+            }
+            ScoringEventKind::PlayerOfTheMatch { player_id } => {
+                self.player_of_the_match = Some(*player_id);
+            }
+            ScoringEventKind::BatterResumed {
+                batter_id,
+                replacing_id,
+            } => {
+                let inn = self
+                    .current_innings_mut()
+                    .ok_or_else(|| DomainError::Validation("no innings".into()))?;
+                {
+                    let batter = inn.batter_mut(*batter_id)?;
+                    if !batter.can_resume() {
+                        return Err(DomainError::Validation(
+                            "only a batter who retired hurt can come back".into(),
+                        ));
+                    }
+                    batter.retired_hurt = false;
+                }
+                match replacing_id {
+                    Some(out_id) if inn.striker_id == Some(*out_id) => {
+                        inn.striker_id = Some(*batter_id)
+                    }
+                    Some(out_id) if inn.non_striker_id == Some(*out_id) => {
+                        inn.non_striker_id = Some(*batter_id)
+                    }
+                    _ => {
+                        // Nobody named: take whichever end is empty.
+                        if inn.striker_id.is_none() {
+                            inn.striker_id = Some(*batter_id);
+                        } else if inn.non_striker_id.is_none() {
+                            inn.non_striker_id = Some(*batter_id);
+                        } else {
+                            return Err(DomainError::Validation(
+                                "say which batter they are coming in for".into(),
+                            ));
+                        }
+                    }
                 }
             }
             ScoringEventKind::TossRecorded { winner, decision } => {
@@ -251,8 +300,16 @@ impl MatchState {
                 fielder_id,
                 new_batter_id,
                 runs,
+                on_extra,
             } => {
-                self.apply_wicket(*batter_id, *kind, *fielder_id, *new_batter_id, *runs)?;
+                self.apply_wicket(
+                    *batter_id,
+                    *kind,
+                    *fielder_id,
+                    *new_batter_id,
+                    *runs,
+                    *on_extra,
+                )?;
             }
             ScoringEventKind::OversRevised {
                 innings_index,
@@ -399,6 +456,8 @@ impl MatchState {
             inn.legal_balls += 1;
             inn.balls_in_current_over += 1;
             inn.partnership_balls += 1;
+            // A free hit lasts one legal delivery.
+            inn.free_hit = false;
             if runs % 2 == 1 {
                 inn.swap_strike();
             }
@@ -533,6 +592,11 @@ impl MatchState {
             inn.legal_balls += 1;
             inn.balls_in_current_over += 1;
             inn.partnership_balls += 1;
+            inn.free_hit = false;
+        }
+        // A no ball buys the batter a free hit off the next legal delivery.
+        if kind == ExtraKind::NoBall {
+            inn.free_hit = true;
         }
         // Whatever they ran, an odd number puts the other batter on strike —
         // and a boundary is four or six, so it never does.
@@ -555,6 +619,7 @@ impl MatchState {
         fielder_id: Option<Uuid>,
         new_batter_id: Option<Uuid>,
         runs: u8,
+        on_extra: bool,
     ) -> Result<()> {
         let inn = self
             .current_innings_mut()
@@ -565,7 +630,15 @@ impl MatchState {
         let overs_limit = inn.overs_available;
         let bowler = inn.bowler_id;
         let striker = inn.striker_id;
-        let is_legal = kind.uses_a_ball();
+        if inn.free_hit && !kind.allowed_on_a_free_hit() {
+            return Err(DomainError::Validation(
+                "it is a free hit — only a run out can get them".into(),
+            ));
+        }
+        // A dismissal on a delivery already booked as an extra must not count
+        // the ball a second time.
+        let is_legal = kind.uses_a_ball() && !on_extra;
+        let counts_a_wicket = kind.costs_a_wicket();
 
         // Runs completed before the dismissal (a run-out is usually off the bat).
         if runs > 0 {
@@ -584,7 +657,12 @@ impl MatchState {
 
         {
             let b = inn.batter_mut(batter_id)?;
-            b.out = true;
+            if counts_a_wicket {
+                b.out = true;
+            } else {
+                // Retired hurt: off the field, but not out, and may resume.
+                b.retired_hurt = true;
+            }
             b.dismissal = Some(kind);
             b.fielder_id = fielder_id;
             b.bowler_id = if kind.credits_bowler() { bowler } else { None };
@@ -597,45 +675,59 @@ impl MatchState {
             }
         }
 
-        inn.wickets += 1;
+        if counts_a_wicket {
+            inn.wickets += 1;
+        }
         if is_legal {
             inn.legal_balls += 1;
             inn.balls_in_current_over += 1;
             inn.partnership_balls += 1;
+            inn.free_hit = false;
             if let Some(bid) = bowler {
-                let bowl = inn.bowler_mut(bid)?;
-                bowl.balls += 1;
-                if kind.credits_bowler() {
-                    bowl.wickets += 1;
-                }
+                inn.bowler_mut(bid)?.balls += 1;
+            }
+        }
+        // The wicket is the bowler's whether or not the delivery counted — a
+        // stumping off a wide is still theirs.
+        if kind.credits_bowler() {
+            if let Some(bid) = bowler {
+                inn.bowler_mut(bid)?.wickets += 1;
             }
         }
 
-        let score = inn.runs;
-        let wickets = inn.wickets;
-        let over_ball = MatchState::overs_balls_display(inn.legal_balls);
-        let partnership_runs = inn.partnership_runs;
-        let partnership_balls = inn.partnership_balls;
-        inn.fall.push(FallOfWicket {
-            score,
-            wickets,
-            batter_id,
-            over_ball,
-            partnership_runs,
-            partnership_balls,
-        });
-        inn.partnership_runs = 0;
-        inn.partnership_balls = 0;
+        if counts_a_wicket {
+            let score = inn.runs;
+            let wickets = inn.wickets;
+            let over_ball = MatchState::overs_balls_display(inn.legal_balls);
+            let partnership_runs = inn.partnership_runs;
+            let partnership_balls = inn.partnership_balls;
+            inn.fall.push(FallOfWicket {
+                score,
+                wickets,
+                batter_id,
+                over_ball,
+                partnership_runs,
+                partnership_balls,
+            });
+            inn.partnership_runs = 0;
+            inn.partnership_balls = 0;
+        }
 
         let over = inn.legal_balls.saturating_sub(1) / 6;
         let ball_in = inn.balls_in_current_over;
         inn.deliveries.push(DeliveryRecord {
             over,
             ball_in_over: ball_in,
-            label: if runs > 0 { format!("{runs}W") } else { "W".into() },
+            label: if !counts_a_wicket {
+                "RH".into()
+            } else if runs > 0 {
+                format!("{runs}W")
+            } else {
+                "W".into()
+            },
             runs,
             is_legal,
-            is_wicket: true,
+            is_wicket: counts_a_wicket,
             batter_id: striker,
             bowler_id: bowler,
             shot: None,
@@ -656,6 +748,9 @@ impl MatchState {
             .ok_or_else(|| DomainError::Validation("new batter required".into()))?;
         if !inn.batters.iter().any(|b| b.player_id == new_id) {
             inn.batters.push(BatterStats::new(new_id));
+        } else if let Ok(returning) = inn.batter_mut(new_id) {
+            // Someone who retired hurt and is coming back in.
+            returning.retired_hurt = false;
         }
         if inn.striker_id == Some(batter_id) {
             inn.striker_id = Some(new_id);
@@ -1148,6 +1243,7 @@ mod tests {
             fielder_id: Some(fielder),
             new_batter_id: Some(m.home[2].id),
             runs: 0,
+                    on_extra: false,
         });
         assert_eq!(m.innings().wickets, 1);
         assert_eq!(m.innings().bowlers[0].wickets, 1);
@@ -1167,6 +1263,7 @@ mod tests {
             fielder_id: Some(m.away[4].id),
             new_batter_id: Some(replacement),
             runs: 1,
+                    on_extra: false,
         });
         assert_eq!(m.innings().wickets, 1);
         assert_eq!(m.innings().bowlers[0].wickets, 0, "run outs are not the bowler's");
@@ -1194,6 +1291,7 @@ mod tests {
             fielder_id: None,
             new_batter_id: Some(m.home[2].id),
             runs: 0,
+                    on_extra: false,
         });
         let fall = &m.innings().fall[0];
         assert_eq!(fall.score, 6);
@@ -1276,6 +1374,7 @@ mod tests {
                         fielder_id: None,
                         new_batter_id: Some(home[2].id),
                         runs: 0,
+                    on_extra: false,
                     },
                 ))
                 .unwrap();
@@ -1905,6 +2004,169 @@ mod tests {
         assert_eq!(m.innings().legal_balls, 0);
         assert!(!m.innings().complete, "five wides is not an over");
         assert_eq!(m.innings().runs, 5);
+    }
+
+    // MARK: free hit, retired hurt, and dismissals on an extra
+
+    fn wicket(
+        batter_id: Uuid,
+        kind: DismissalKind,
+        new_batter_id: Option<Uuid>,
+    ) -> ScoringEventKind {
+        ScoringEventKind::WicketRecorded {
+            batter_id,
+            kind,
+            fielder_id: None,
+            new_batter_id,
+            runs: 0,
+            on_extra: false,
+        }
+    }
+
+    #[test]
+    fn a_no_ball_buys_a_free_hit_off_the_next_delivery() {
+        let mut m = Fixture::new(20);
+        assert!(!m.innings().free_hit);
+        m.push(extras(ExtraKind::NoBall, 0, false, false));
+        assert!(m.innings().free_hit, "the next legal ball is a free hit");
+
+        // Another no ball keeps it alive.
+        m.push(extras(ExtraKind::NoBall, 0, false, false));
+        assert!(m.innings().free_hit);
+
+        m.runs(1);
+        assert!(!m.innings().free_hit, "one legal delivery spends it");
+    }
+
+    #[test]
+    fn only_a_run_out_gets_you_on_a_free_hit() {
+        let mut m = Fixture::new(20);
+        m.push(extras(ExtraKind::NoBall, 0, false, false));
+        let striker = m.innings().striker_id.unwrap();
+
+        for kind in [
+            DismissalKind::Bowled,
+            DismissalKind::Caught,
+            DismissalKind::Lbw,
+            DismissalKind::Stumped,
+            DismissalKind::HitWicket,
+        ] {
+            let result = m.try_push(wicket(striker, kind, Some(m.home[2].id)));
+            assert!(result.is_err(), "{kind:?} should not stand on a free hit");
+            m.seq -= 1;
+        }
+
+        m.push(wicket(striker, DismissalKind::RunOut, Some(m.home[2].id)));
+        assert_eq!(m.innings().wickets, 1);
+    }
+
+    #[test]
+    fn retired_hurt_costs_a_batter_but_not_a_wicket() {
+        let mut m = Fixture::new(20);
+        m.runs(2);
+        let striker = m.innings().striker_id.unwrap();
+        m.push(wicket(striker, DismissalKind::RetiredHurt, Some(m.home[2].id)));
+
+        assert_eq!(m.innings().wickets, 0, "retiring hurt is not a wicket");
+        assert!(m.innings().fall.is_empty(), "and does not fall");
+        let batter = m.innings().batters.iter().find(|b| b.player_id == striker).unwrap();
+        assert!(batter.retired_hurt);
+        assert!(!batter.out);
+        assert!(batter.can_resume());
+        assert_eq!(m.state.dismissal_text(batter), "retired hurt");
+        assert_eq!(m.innings().striker_id, Some(m.home[2].id));
+    }
+
+    #[test]
+    fn a_batter_who_retired_hurt_can_come_back() {
+        let mut m = Fixture::new(20);
+        let striker = m.innings().striker_id.unwrap();
+        m.push(wicket(striker, DismissalKind::RetiredHurt, Some(m.home[2].id)));
+        // The replacement is then out, and the injured batter resumes.
+        m.push(wicket(m.home[2].id, DismissalKind::Bowled, Some(m.home[3].id)));
+        m.push(ScoringEventKind::BatterResumed {
+            batter_id: striker,
+            replacing_id: Some(m.home[3].id),
+        });
+
+        let batter = m.innings().batters.iter().find(|b| b.player_id == striker).unwrap();
+        assert!(!batter.retired_hurt, "back at the crease");
+        assert!(
+            m.innings().striker_id == Some(striker) || m.innings().non_striker_id == Some(striker)
+        );
+        assert_eq!(m.innings().wickets, 1, "only the bowled one counted");
+    }
+
+    #[test]
+    fn only_someone_who_retired_hurt_can_resume() {
+        let mut m = Fixture::new(20);
+        let result = m.try_push(ScoringEventKind::BatterResumed {
+            batter_id: m.home[5].id,
+            replacing_id: None,
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn a_stumping_off_a_wide_does_not_count_the_ball_twice() {
+        let mut m = Fixture::new(20);
+        m.push(extras(ExtraKind::Wide, 0, false, false));
+        assert_eq!(m.innings().legal_balls, 0);
+        let striker = m.innings().striker_id.unwrap();
+
+        m.push(ScoringEventKind::WicketRecorded {
+            batter_id: striker,
+            kind: DismissalKind::Stumped,
+            fielder_id: Some(m.away[1].id),
+            new_batter_id: Some(m.home[2].id),
+            runs: 0,
+            on_extra: true,
+        });
+
+        assert_eq!(m.innings().wickets, 1);
+        assert_eq!(
+            m.innings().legal_balls,
+            0,
+            "a wide is not a ball, and the stumping does not make it one"
+        );
+        assert_eq!(m.innings().bowlers[0].wickets, 1, "the stumping is the bowler's");
+    }
+
+    #[test]
+    fn the_player_of_the_match_is_recorded_and_undone_with_everything_else() {
+        let mut m = Fixture::new(20);
+        m.push(ScoringEventKind::PlayerOfTheMatch {
+            player_id: m.home[0].id,
+        });
+        assert_eq!(m.state.player_of_the_match, Some(m.home[0].id));
+        m.push(ScoringEventKind::UndoLast);
+        assert_eq!(m.state.player_of_the_match, None);
+    }
+
+    #[test]
+    fn umpires_are_named_before_the_toss_and_may_score() {
+        let mut m = Fixture::new(20);
+        let umpire = MatchPlayer {
+            id: Uuid::new_v4(),
+            name: "Alan Umpire".into(),
+            bats_left: false,
+        };
+        let scorer = MatchPlayer {
+            id: Uuid::new_v4(),
+            name: "Book Keeper".into(),
+            bats_left: false,
+        };
+        m.push(ScoringEventKind::OfficialsAppointed {
+            officials: MatchOfficials {
+                umpires: vec![umpire.clone()],
+                scorers: vec![scorer.clone()],
+            },
+        });
+        assert!(m.state.is_official(umpire.id));
+        assert!(m.state.is_official(scorer.id));
+        assert!(!m.state.is_official(m.home[0].id));
+        // Names travel, so the scorecard can print who stood.
+        assert_eq!(m.state.name_for(umpire.id), "Alan Umpire");
     }
 
     // MARK: the wagon wheel
