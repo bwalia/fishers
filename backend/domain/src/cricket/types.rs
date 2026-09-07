@@ -157,6 +157,30 @@ pub struct MatchConditions {
     /// Overs of fielding restrictions at the start of an innings. 0 for none.
     #[serde(default)]
     pub powerplay_overs: u8,
+    /// Fielders allowed outside the circle during the powerplay.
+    #[serde(default = "default_powerplay_outside")]
+    pub fielders_outside_powerplay: u8,
+    /// Fielders allowed outside the circle for the rest of the innings.
+    #[serde(default = "default_normal_outside")]
+    pub fielders_outside_normal: u8,
+    /// Fielders allowed behind square on the leg side. Two, in every format.
+    #[serde(default = "default_behind_square")]
+    pub fielders_behind_square_leg: u8,
+    /// Overs a side is expected to bowl in an hour. 0 means nobody is counting.
+    #[serde(default)]
+    pub target_overs_per_hour: u8,
+}
+
+fn default_powerplay_outside() -> u8 {
+    2
+}
+
+fn default_normal_outside() -> u8 {
+    5
+}
+
+fn default_behind_square() -> u8 {
+    2
 }
 
 impl MatchConditions {
@@ -186,6 +210,10 @@ impl MatchConditions {
             ground: GroundType::Open,
             ball: BallType::White,
             powerplay_overs: Self::standard_powerplay(overs),
+            fielders_outside_powerplay: 2,
+            fielders_outside_normal: 5,
+            fielders_behind_square_leg: 2,
+            target_overs_per_hour: 0,
         }
     }
 
@@ -195,7 +223,17 @@ impl MatchConditions {
             overs_limit: 1,
             overs_per_bowler: 1,
             powerplay_overs: 0,
+            target_overs_per_hour: 0,
             ..*self
+        }
+    }
+
+    /// How many fielders may be outside the circle right now.
+    pub fn fielders_allowed_outside(&self, in_powerplay: bool) -> u8 {
+        if in_powerplay {
+            self.fielders_outside_powerplay
+        } else {
+            self.fielders_outside_normal
         }
     }
 
@@ -302,6 +340,15 @@ fn default_shot_reach() -> f32 {
     0.6
 }
 
+/// Map key for a side. A `BTreeMap<MatchSide, _>` would serialise as an array,
+/// so the string form is the one both ends agree on.
+pub fn side_key(side: MatchSide) -> &'static str {
+    match side {
+        MatchSide::Home => "home",
+        MatchSide::Away => "away",
+    }
+}
+
 /// The eight sectors of a wagon wheel, named as the batter's own field.
 ///
 /// `angle` is 0 straight down the ground past the bowler, increasing towards a
@@ -384,6 +431,16 @@ pub enum ScoringEventKind {
         runs: u8,
         /// What the umpire gave them for — it reads out in the commentary.
         reason: String,
+        /// Who gets them. Awarded to a side that has not batted yet, they wait
+        /// and open that side's innings.
+        #[serde(default)]
+        to_side: Option<MatchSide>,
+    },
+    /// Where the field is set. The scorer records the two counts that the Laws
+    /// actually restrict, and the app says when the field breaks them.
+    FieldSet {
+        outside_circle: u8,
+        behind_square_leg: u8,
     },
     InningsStarted {
         innings_index: u8,
@@ -455,6 +512,10 @@ pub struct ScoringEvent {
     pub client_event_id: Uuid,
     pub seq: i64,
     pub kind: ScoringEventKind,
+    /// When the scorer tapped it. Optional so an older log still replays; the
+    /// over rate is only tracked for events that carry one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -632,6 +693,22 @@ pub struct InningsState {
     /// Overs of fielding restrictions this innings gets.
     #[serde(default)]
     pub powerplay_overs: u8,
+    /// Fielders the scorer last recorded outside the circle.
+    #[serde(default)]
+    pub fielders_outside: Option<u8>,
+    /// Fielders behind square on the leg side.
+    #[serde(default)]
+    pub fielders_behind_square_leg: Option<u8>,
+    /// Runs added to this innings that nobody scored — penalties awarded to
+    /// this side, including any carried in from before they batted.
+    #[serde(default)]
+    pub penalty_runs_awarded: u16,
+    /// When the innings started and when the last ball was bowled, for the
+    /// over rate. Only set when the scoring device stamps its events.
+    #[serde(default)]
+    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    pub last_ball_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 fn default_wickets_allowed() -> u8 {
@@ -670,6 +747,11 @@ impl Default for InningsState {
             free_hit: false,
             super_over: false,
             powerplay_overs: 0,
+            fielders_outside: None,
+            fielders_behind_square_leg: None,
+            penalty_runs_awarded: 0,
+            started_at: None,
+            last_ball_at: None,
         }
     }
 }
@@ -688,6 +770,35 @@ impl InningsState {
 
     pub fn is_all_out(&self) -> bool {
         self.wickets >= self.wickets_allowed
+    }
+
+    /// How long the innings has been going, from the first ball to the last.
+    pub fn elapsed_minutes(&self) -> Option<i64> {
+        let started = self.started_at?;
+        let last = self.last_ball_at?;
+        let minutes = (last - started).num_minutes();
+        (minutes > 0).then_some(minutes)
+    }
+
+    /// Overs actually bowled per hour so far.
+    pub fn overs_per_hour(&self) -> Option<f64> {
+        let minutes = self.elapsed_minutes()? as f64;
+        Some((self.legal_balls as f64 / 6.0) * 60.0 / minutes)
+    }
+
+    /// Overs the side should have bowled by now at the agreed rate.
+    pub fn overs_due(&self, target_per_hour: u8) -> Option<f64> {
+        if target_per_hour == 0 {
+            return None;
+        }
+        let minutes = self.elapsed_minutes()? as f64;
+        Some(minutes / 60.0 * target_per_hour as f64)
+    }
+
+    /// Overs behind the clock — negative when they are ahead of it.
+    pub fn overs_behind(&self, target_per_hour: u8) -> Option<f64> {
+        let due = self.overs_due(target_per_hour)?;
+        Some(due - self.legal_balls as f64 / 6.0)
     }
 
     /// Inside the fielding restrictions.
@@ -723,6 +834,30 @@ impl InningsState {
     /// Overs left as a fraction, which is what the DLS table is indexed by.
     pub fn overs_remaining(&self) -> f64 {
         (self.balls_remaining() as f64) / 6.0
+    }
+
+    /// What the field breaks, if anything. Empty when it is legal, or when the
+    /// scorer has not said where the fielders are.
+    pub fn fielding_breaches(&self, conditions: &MatchConditions) -> Vec<String> {
+        let mut breaches = Vec::new();
+        if let Some(outside) = self.fielders_outside {
+            let allowed = conditions.fielders_allowed_outside(self.in_powerplay());
+            if outside > allowed {
+                breaches.push(format!(
+                    "{outside} outside the circle — {allowed} allowed{}",
+                    if self.in_powerplay() { " in the powerplay" } else { "" }
+                ));
+            }
+        }
+        if let Some(behind) = self.fielders_behind_square_leg {
+            if behind > conditions.fielders_behind_square_leg {
+                breaches.push(format!(
+                    "{behind} behind square on the leg side — {} allowed",
+                    conditions.fielders_behind_square_leg
+                ));
+            }
+        }
+        breaches
     }
 
     /// Every recorded shot, optionally for one batter — the wagon wheel.
@@ -777,6 +912,10 @@ pub struct MatchState {
     /// How many super overs it has taken so far.
     #[serde(default)]
     pub super_overs: u8,
+    /// Penalties awarded to a side that has not batted yet. They open that
+    /// side's innings when it starts.
+    #[serde(default)]
+    pub pending_penalties: BTreeMap<String, u16>,
     /// Undo stack. Rebuilt by replaying the log, never persisted.
     #[serde(skip)]
     pub history: Vec<MatchStateSnapshot>,
@@ -792,6 +931,7 @@ pub struct MatchStateSnapshot {
     pub margin: Option<String>,
     pub player_of_the_match: Option<Uuid>,
     pub super_overs: u8,
+    pub pending_penalties: BTreeMap<String, u16>,
 }
 
 impl Default for MatchState {
@@ -823,6 +963,7 @@ impl Default for MatchState {
             officials: MatchOfficials::default(),
             player_of_the_match: None,
             super_overs: 0,
+            pending_penalties: BTreeMap::new(),
             history: vec![],
         }
     }
@@ -893,6 +1034,14 @@ impl MatchState {
             }
         }
         None
+    }
+
+    /// Penalties waiting for a side that has not batted yet.
+    pub fn pending_penalty(&self, side: MatchSide) -> u16 {
+        self.pending_penalties
+            .get(side_key(side))
+            .copied()
+            .unwrap_or(0)
     }
 
     /// The scores are level and the match is over: it needs a super over.

@@ -43,6 +43,8 @@ The two captains settle the terms, and the app makes them say so:
 | Overs | 5–50 (presets for the usual formats) |
 | Overs per bowler | Defaults to a fifth of the innings, rounded up — 4 for a 20, 10 for a 50. Set to none for a social game. |
 | Powerplay | Defaults to what the format usually plays — 6 overs of a 20, 10 of a 50. The scorer sees a banner with the overs left. |
+| Fielding restrictions | 2 outside the circle during the powerplay, 5 after it. Two behind square on the leg side throughout, which is not adjustable. |
+| Over rate | Overs an hour the side is expected to bowl. 0 means nobody is counting. |
 | Ground | Open · Boxed / caged · Indoor |
 | Ball | Red · White · Pink · Tennis · Tape |
 
@@ -147,8 +149,10 @@ The device mints the match id before the API is involved:
   the wicket.
 - **Player of the match**, once the game is over.
 - **Penalty runs** with a reason — a slow over rate, the ball hitting a helmet,
-  a fielding infringement. They go to the side batting and against nobody's
-  bowling figures, and the reason reads out in the commentary.
+  a fielding infringement — awarded to **either side**, against nobody's bowling
+  figures. Runs given to a side that has not batted yet wait and open their
+  innings, because five runs are five runs whether or not anyone has faced a
+  ball for them.
 - **Correcting an earlier ball.** Scorers get it wrong three balls back, not
   just on the last one. Pick the ball from the recent list and the innings winds
   back to it — recorded as undo events, so the log stays append-only.
@@ -175,11 +179,28 @@ resync or a replayed batch cannot count a hundred twice:
 4. The fixture flips to `completed` and the scorecard is stored on
    `match_results`.
 
-Not modelled yet: the fielding-restriction *rules* themselves (the powerplay is
-tracked and shown, but nothing counts fielders outside the circle), penalties
-awarded **against** the batting side — which belong to an innings that may not
-have happened yet — and a clock, so a slow over rate has to be spotted by the
-umpire rather than by the app.
+Not modelled: individual fielding positions — the app counts fielders in the two
+places the Laws restrict, it does not know where any one of them is standing.
+Nor does it call anything: a field that breaks the restriction is a no ball, and
+a slow over rate may be a penalty, but both are the umpire's call and the app
+only records what follows.
+
+## The field, and the clock
+
+Two things the app can measure and an umpire has to act on. It does neither for
+you — it tells you where you stand.
+
+**The field.** The scorer records the two counts the Laws actually restrict —
+fielders outside the circle, and fielders behind square on the leg side — and
+the app says when the field breaks them, on the setting sheet and as a banner on
+the LIVE screen. It does **not** call a no ball: the umpire does that, and the
+scorer records it. Nothing tracks individual fielding positions.
+
+**The clock.** Every event the app writes is stamped, and the server keeps the
+stamp when it replays, so the over rate survives a sync. When an over rate is
+agreed, the LIVE screen shows overs an hour and how far ahead or behind the
+clock the side is. Deciding whether that costs anyone five runs is the umpire's,
+and the penalty is then recorded like any other.
 
 ## Super overs
 

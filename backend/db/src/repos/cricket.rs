@@ -398,9 +398,9 @@ async fn load_log(
     tx: &mut Transaction<'_, Postgres>,
     match_id: Uuid,
 ) -> Result<Vec<ScoringEvent>, anyhow::Error> {
-    let rows = sqlx::query_as::<_, (i64, Uuid, Value)>(
+    let rows = sqlx::query_as::<_, (i64, Uuid, Value, DateTime<Utc>)>(
         r#"
-        SELECT seq, client_event_id, payload
+        SELECT seq, client_event_id, payload, created_at
         FROM cricket_scoring_events
         WHERE match_id = $1
         ORDER BY seq ASC
@@ -411,13 +411,15 @@ async fn load_log(
     .await?;
 
     let mut events = Vec::with_capacity(rows.len());
-    for (seq, client_event_id, payload) in rows {
+    for (seq, client_event_id, payload, created_at) in rows {
         let kind: ScoringEventKind = serde_json::from_value(payload)
             .map_err(|e| anyhow::anyhow!("stored event {seq} is unreadable: {e}"))?;
         events.push(ScoringEvent {
             client_event_id,
             seq,
             kind,
+            // When the row was written, so the over rate survives a replay.
+            at: Some(created_at),
         });
     }
     Ok(events)

@@ -26,6 +26,18 @@ extension MatchState {
             }
         }
 
+        // The clock only advances for events the device stamped.
+        if let at = event.at, !innings.isEmpty {
+            let idx = innings.count - 1
+            if innings[idx].startedAt == nil { innings[idx].startedAt = at }
+            switch event.kind {
+            case .deliveryRecorded, .extrasRecorded, .wicketRecorded:
+                innings[idx].lastBallAt = at
+            default:
+                break
+            }
+        }
+
         switch event.kind {
         case .undoLast:
             try restoreHistory()
@@ -84,25 +96,47 @@ extension MatchState {
         case let .playerOfTheMatch(playerId):
             playerOfTheMatch = playerId
 
-        case let .penaltyRuns(runs, reason):
+        case let .penaltyRuns(runs, reason, toSide):
             guard runs > 0 else {
                 throw CricketEngineError.validation("a penalty is at least one run")
             }
+            _ = reason // carried in the log for the commentary to read
+
+            // Default to whoever is batting: that is the common award.
+            guard let side = toSide ?? currentInnings?.batting else {
+                throw CricketEngineError.validation("no live innings")
+            }
+
+            // The side may not have batted yet, in which case the runs wait and
+            // open their innings.
+            guard let idx = innings.lastIndex(where: { $0.batting == side }) else {
+                pendingPenalties[side.rawValue, default: 0] += UInt16(runs)
+                lastSeq = event.seq
+                return
+            }
+
+            let isCurrent = idx == innings.count - 1
+            innings[idx].runs += UInt16(runs)
+            innings[idx].extras += UInt16(runs)
+            innings[idx].penalties += UInt16(runs)
+            innings[idx].penaltyRunsAwarded += UInt16(runs)
+            if isCurrent {
+                innings[idx].partnershipRuns += UInt16(runs)
+                innings[idx].deliveries.append(DeliveryRecord(
+                    over: innings[idx].legalBalls / 6,
+                    ballInOver: innings[idx].ballsInCurrentOver,
+                    label: "\(runs)p",
+                    runs: runs, isLegal: false, isWicket: false
+                ))
+            }
+
+        case let .fieldSet(outsideCircle, behindSquareLeg):
             guard !innings.isEmpty else {
                 throw CricketEngineError.validation("no live innings")
             }
             let idx = innings.count - 1
-            innings[idx].runs += UInt16(runs)
-            innings[idx].extras += UInt16(runs)
-            innings[idx].penalties += UInt16(runs)
-            innings[idx].partnershipRuns += UInt16(runs)
-            innings[idx].deliveries.append(DeliveryRecord(
-                over: innings[idx].legalBalls / 6,
-                ballInOver: innings[idx].ballsInCurrentOver,
-                label: "\(runs)p",
-                runs: runs, isLegal: false, isWicket: false
-            ))
-            _ = reason // carried in the log for the commentary to read
+            innings[idx].fieldersOutside = outsideCircle
+            innings[idx].fieldersBehindSquareLeg = behindSquareLeg
 
         case let .batterResumed(batterId, replacingId):
             guard !innings.isEmpty else { throw CricketEngineError.validation("no innings") }
@@ -176,6 +210,14 @@ extension MatchState {
             inn.superOver = superOver
             inn.powerplayOvers = superOver ? 0 : conditions.powerplayOvers
             inn.ensureBowler(bowler)
+            // Penalties awarded before this side batted open their innings.
+            let waiting = pendingPenalties.removeValue(forKey: batting.rawValue) ?? 0
+            if waiting > 0 {
+                inn.runs += waiting
+                inn.extras += waiting
+                inn.penalties += waiting
+                inn.penaltyRunsAwarded += waiting
+            }
             innings.append(inn)
             status = .live
             if superOver {
@@ -268,7 +310,8 @@ extension MatchState {
     private mutating func pushHistory() {
         history.append(MatchStateSnapshot(
             status: status, innings: innings, target: target, winner: winner,
-            margin: margin, playerOfTheMatch: playerOfTheMatch, superOvers: superOvers
+            margin: margin, playerOfTheMatch: playerOfTheMatch, superOvers: superOvers,
+            pendingPenalties: pendingPenalties
         ))
         if history.count > 200 { history.removeFirst() }
     }
@@ -284,6 +327,7 @@ extension MatchState {
         margin = snap.margin
         playerOfTheMatch = snap.playerOfTheMatch
         superOvers = snap.superOvers
+        pendingPenalties = snap.pendingPenalties
     }
 
     // MARK: - Scoring
