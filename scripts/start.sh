@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Start the whole local dev stack: Postgres, the Fishers API and the Next.js
-# dashboard. Ports are auto-picked so this works alongside other projects.
+# dashboard on 7311/7312/7313 — chosen to stay clear of the usual
+# 3000/8080/5432 crowd. Anything occupied is stepped over automatically.
 #
 #   ./scripts/start.sh          start everything (Ctrl-C stops API + web)
 #   ./scripts/start.sh --stop   stop everything, Postgres included
@@ -49,14 +50,19 @@ running_pg_port() {
     --format '{{with index .NetworkSettings.Ports "5432/tcp"}}{{(index . 0).HostPort}}{{end}}' 2>/dev/null || true
 }
 
+# Keep the running container's port only when it is already the one we want:
+# otherwise free_port would see our own Postgres as "busy" and walk past it.
+# If the wanted port has changed, compose recreates the container on it and the
+# named volume keeps the data.
+PG_WANT="${POSTGRES_PORT:-7313}"
 PG_RUNNING="$(running_pg_port)"
-if [ -n "$PG_RUNNING" ]; then
-  POSTGRES_PORT="$PG_RUNNING"
+if [ -n "$PG_RUNNING" ] && [ "$PG_RUNNING" = "$PG_WANT" ]; then
+  POSTGRES_PORT="$PG_WANT"
 else
-  POSTGRES_PORT="$(free_port "${POSTGRES_PORT:-5433}")"
+  POSTGRES_PORT="$(free_port "$PG_WANT")"
 fi
-API_PORT="$(free_port "${API_PORT:-8080}")"
-WEB_PORT="$(free_port "${WEB_PORT:-3000}")"
+API_PORT="$(free_port "${API_PORT:-7312}")"
+WEB_PORT="$(free_port "${WEB_PORT:-7311}")"
 export POSTGRES_PORT API_PORT WEB_PORT
 
 # Share links and the iOS app need an address reachable from other devices.

@@ -25,14 +25,14 @@ local Rust toolchain. The steps below are the manual equivalent.
 
 ### 1. Database
 
-Postgres is mapped to host port **5433** (avoids clashing with a local 5432).
+Postgres is mapped to host port **7313** (well clear of a local 5432/5433).
 
 ```bash
 cp .env.example .env
 docker compose up -d
 ```
 
-If 5433 is already taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` port in `.env`.
+If that is somehow taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` port in `.env` — or just use `./scripts/start.sh`, which steps over anything busy.
 
 ### 2. Backend
 
@@ -41,11 +41,11 @@ If 5433 is already taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` po
 # or: cd backend && cargo run -p fishers-api
 ```
 
-API: `http://192.168.1.99:8080` · Health: `GET /health` · Swagger: `http://192.168.1.99:8080/swagger-ui` · Routes: `/api/v1/...`
+API: `http://192.168.1.99:7312` · Health: `GET /health` · Swagger: `http://192.168.1.99:7312/swagger-ui` · Routes: `/api/v1/...`
 
 Keep this process running while using the Simulator, a physical iPhone, or the web dashboard. Migrations run on startup.
 
-**Device / LAN tip:** Debug builds and the web dashboard talk to `http://192.168.1.99:8080`. Bind the API with `API_HOST=0.0.0.0`. If sign-in fails with a connection error, the API is not running or not reachable on the LAN.
+**Device / LAN tip:** Debug builds and the web dashboard talk to `http://192.168.1.99:7312`. Bind the API with `API_HOST=0.0.0.0`. If sign-in fails with a connection error, the API is not running or not reachable on the LAN.
 
 Optional smoke test (signup → London Lords club → Wednesday nets, Saturday league, Sunday social):
 
@@ -61,7 +61,7 @@ xcodegen generate
 open Fishers.xcodeproj
 ```
 
-Run on Simulator or a physical iPhone. Debug API base URL is `http://192.168.1.99:8080` in `Fishers/Config/AppConfig.swift`.
+Run on Simulator or a physical iPhone. Debug API base URL is `http://192.168.1.99:7312` in `Fishers/Config/AppConfig.swift`.
 
 ### 4. Web dashboard
 
@@ -72,7 +72,7 @@ npm install
 npm run dev
 ```
 
-Open [http://192.168.1.99:3000](http://192.168.1.99:3000).
+Open [http://192.168.1.99:7311](http://192.168.1.99:7311).
 
 Signed-out pages show a sign-in prompt rather than data. `./scripts/seed-demo.sh`
 creates `demo@fishers.test` / `password123` with a club, fixtures, shop stock and

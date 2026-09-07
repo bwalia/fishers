@@ -28,13 +28,13 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://fishers:fishers@localhost:5433/fishers".into());
+        .unwrap_or_else(|_| "postgres://fishers:fishers@localhost:7313/fishers".into());
     let jwt_secret = resolve_jwt_secret();
     let host = std::env::var("API_HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let port: u16 = std::env::var("API_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
-        .unwrap_or(8080);
+        .unwrap_or(7312);
 
     let pool = fishers_db::connect(&database_url).await?;
     fishers_db::migrate(&pool).await?;

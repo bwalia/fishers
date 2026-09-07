@@ -81,7 +81,7 @@ pub struct PublicScoreboard {
 fn public_web_base() -> String {
     std::env::var("PUBLIC_WEB_BASE")
         .or_else(|_| std::env::var("WEB_BASE_URL"))
-        .unwrap_or_else(|_| "http://127.0.0.1:3000".into())
+        .unwrap_or_else(|_| "http://127.0.0.1:7311".into())
         .trim_end_matches('/')
         .to_string()
 }

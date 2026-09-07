@@ -2,8 +2,8 @@ import Foundation
 
 enum AppConfig {
     /// LAN Mac that hosts the API/web during local device + Simulator testing.
-    private static let lanAPIBase = "http://192.168.1.99:8080"
-    private static let lanWebBase = "http://192.168.1.99:3000"
+    private static let lanAPIBase = "http://192.168.1.99:7312"
+    private static let lanWebBase = "http://192.168.1.99:7311"
 
     /// Where the API lives.
     ///

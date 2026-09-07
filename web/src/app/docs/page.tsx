@@ -1,6 +1,6 @@
 const API_ORIGIN =
   process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ||
-  "http://192.168.1.99:8080";
+  "http://192.168.1.99:7312";
 
 export default function DocsPage() {
   const swagger = `${API_ORIGIN}/swagger-ui`;

@@ -3,11 +3,11 @@
 # Creates demo@fishers.test / password123 with a club, fixtures, shop stock and
 # a part-scored cricket match, then prints the live scoreboard link.
 #
-#   ./scripts/seed-demo.sh                       # against http://127.0.0.1:8080
-#   API_BASE=http://192.168.1.70:8080 ./scripts/seed-demo.sh
+#   ./scripts/seed-demo.sh                       # against http://127.0.0.1:7312
+#   API_BASE=http://192.168.1.70:7312 ./scripts/seed-demo.sh
 set -euo pipefail
 
-API_BASE="${API_BASE:-http://127.0.0.1:8080}"
+API_BASE="${API_BASE:-http://127.0.0.1:7312}"
 
 curl -sf -m 5 "${API_BASE}/health" >/dev/null || {
   echo "No API at ${API_BASE} — start it with ./scripts/start.sh first." >&2
