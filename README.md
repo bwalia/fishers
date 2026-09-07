@@ -11,6 +11,17 @@ Multi-sport club management — organise recurring activities (cricket nets, foo
 
 ## Quick start
 
+Everything at once — Postgres, the API and the dashboard:
+
+```bash
+./scripts/start.sh          # Ctrl-C stops the API and web; Postgres keeps running
+./scripts/start.sh --stop   # stop everything
+```
+
+It picks free ports (so it coexists with other local projects), prints the URLs
+it chose, writes `web/.env.local`, and builds the API in Docker when there is no
+local Rust toolchain. The steps below are the manual equivalent.
+
 ### 1. Database
 
 Postgres is mapped to host port **5433** (avoids clashing with a local 5432).

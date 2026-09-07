@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# Start the whole local dev stack: Postgres, the Fishers API and the Next.js
+# dashboard. Ports are auto-picked so this works alongside other projects.
+#
+#   ./scripts/start.sh          start everything (Ctrl-C stops API + web)
+#   ./scripts/start.sh --stop   stop everything, Postgres included
+#
+# Override any port up front: WEB_PORT=4000 ./scripts/start.sh
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+API_CONTAINER=fishers-api-dev
+
+if [ "${1:-}" = "--stop" ]; then
+  docker rm -f "$API_CONTAINER" >/dev/null 2>&1 || true
+  docker compose down
+  echo "Stopped API + Postgres. Data volume kept — 'docker compose down -v' to wipe it."
+  echo "The dashboard runs in your terminal, not Docker — Ctrl-C it there."
+  exit 0
+fi
+
+# A second run would 'docker rm -f' the first run's API out from under it.
+if [ -n "$(docker ps -q -f name="^${API_CONTAINER}$" 2>/dev/null)" ]; then
+  echo "The dev stack is already running ($API_CONTAINER)." >&2
+  echo "Ctrl-C it in its own terminal, or './scripts/start.sh --stop'." >&2
+  exit 1
+fi
+
+[ -f .env ] || { cp .env.example .env; echo "Created .env from .env.example"; }
+
+set -a
+# shellcheck disable=SC1091
+source "$ROOT/.env"
+set +a
+
+# First free TCP port at or above $1.
+free_port() {
+  local p=$1
+  while lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1; do p=$((p + 1)); done
+  echo "$p"
+}
+
+# Reuse the running container's published port so we never recreate the DB just
+# because its old port is now "busy" (it is busy because it is ours).
+running_pg_port() {
+  docker inspect fishers-postgres \
+    --format '{{with index .NetworkSettings.Ports "5432/tcp"}}{{(index . 0).HostPort}}{{end}}' 2>/dev/null || true
+}
+
+PG_RUNNING="$(running_pg_port)"
+if [ -n "$PG_RUNNING" ]; then
+  POSTGRES_PORT="$PG_RUNNING"
+else
+  POSTGRES_PORT="$(free_port "${POSTGRES_PORT:-5433}")"
+fi
+API_PORT="$(free_port "${API_PORT:-8080}")"
+WEB_PORT="$(free_port "${WEB_PORT:-3000}")"
+export POSTGRES_PORT API_PORT WEB_PORT
+
+# Share links and the iOS app need an address reachable from other devices.
+LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)"
+WEB_BASE="http://${LAN_IP}:${WEB_PORT}"
+API_BASE="http://${LAN_IP}:${API_PORT}"
+
+echo "==> Postgres"
+docker compose up -d
+until docker exec fishers-postgres pg_isready -U fishers -d fishers >/dev/null 2>&1; do sleep 1; done
+
+echo "==> API"
+docker rm -f "$API_CONTAINER" >/dev/null 2>&1 || true
+
+API_ENV=(
+  "API_HOST=0.0.0.0"
+  "API_PORT=${API_PORT}"
+  "JWT_SECRET=${JWT_SECRET:-dev-secret-not-for-production-use-only}"
+  "RUST_LOG=${RUST_LOG:-fishers_api=debug,tower_http=info,sqlx=warn}"
+  "PUBLIC_WEB_BASE=${WEB_BASE}"
+  "CORS_ALLOWED_ORIGINS=${WEB_BASE},http://127.0.0.1:${WEB_PORT},http://localhost:${WEB_PORT}"
+  "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}"
+  "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}"
+  "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}"
+  "DLS_RESOURCE_TABLE=${DLS_RESOURCE_TABLE:-}"
+  "DLS_G50=${DLS_G50:-245}"
+)
+
+if command -v cargo >/dev/null 2>&1; then
+  export DATABASE_URL="postgres://fishers:fishers@localhost:${POSTGRES_PORT}/fishers"
+  for kv in "${API_ENV[@]}"; do export "${kv?}"; done
+  (cd backend && cargo run -p fishers-api) &
+  API_PID=$!
+else
+  # No local Rust toolchain — build and run in the same container image CI uses.
+  # The cargo volumes keep rebuilds incremental across runs.
+  PG_NETWORK="$(docker inspect fishers-postgres \
+    --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')"
+  DOCKER_ENV=( -e "DATABASE_URL=postgres://fishers:fishers@postgres:5432/fishers" )
+  for kv in "${API_ENV[@]}"; do DOCKER_ENV+=( -e "$kv" ); done
+  echo "    no local cargo — building in Docker (first run takes a few minutes)"
+  docker run -d --name "$API_CONTAINER" \
+    --network "$PG_NETWORK" \
+    -p "${API_PORT}:${API_PORT}" \
+    -v "$ROOT/backend:/w" \
+    -v fishers-cargo-registry:/usr/local/cargo/registry \
+    -v fishers-cargo-target:/w/target \
+    -w /w \
+    "${DOCKER_ENV[@]}" \
+    rust:slim cargo run -p fishers-api >/dev/null
+  API_PID=""
+fi
+
+cleanup() {
+  echo
+  echo "Stopping…"
+  [ -n "${API_PID:-}" ] && kill "$API_PID" 2>/dev/null || true
+  docker rm -f "$API_CONTAINER" >/dev/null 2>&1 || true
+  echo "Postgres left running — ./scripts/start.sh --stop to stop it too."
+}
+trap cleanup EXIT INT TERM
+
+printf '    waiting for the API'
+until curl -sf -m 2 "http://127.0.0.1:${API_PORT}/health" >/dev/null 2>&1; do
+  if [ -n "${API_PID:-}" ] && ! kill -0 "$API_PID" 2>/dev/null; then
+    echo; echo "API exited — see the output above." >&2; exit 1
+  fi
+  if [ -z "${API_PID:-}" ] && [ -z "$(docker ps -q -f name="$API_CONTAINER")" ]; then
+    echo; echo "API container exited:" >&2
+    docker logs "$API_CONTAINER" 2>&1 | tail -20 >&2; exit 1
+  fi
+  printf '.'; sleep 2
+done
+echo " ok"
+
+echo "==> Web"
+[ -d web/node_modules ] || (cd web && npm install)
+cat > web/.env.local <<EOF
+# Generated by scripts/start.sh — re-run it after changing ports.
+NEXT_PUBLIC_API_BASE=${API_BASE}
+EOF
+
+cat <<EOF
+
+  Dashboard   http://127.0.0.1:${WEB_PORT}       (LAN: ${WEB_BASE})
+  API         http://127.0.0.1:${API_PORT}       (LAN: ${API_BASE})
+  Swagger     http://127.0.0.1:${API_PORT}/swagger-ui
+  Postgres    postgres://fishers:fishers@localhost:${POSTGRES_PORT}/fishers
+
+  Scoring is iOS-only; the dashboard is read-only live scores plus club admin.
+  Point the iOS app at ${API_BASE}.
+
+  Ctrl-C stops the API and web. Postgres keeps running.
+
+EOF
+
+# Not exec'd: the shell has to survive to run the cleanup trap on Ctrl-C.
+(cd web && npx next dev --hostname 0.0.0.0 -p "${WEB_PORT}")

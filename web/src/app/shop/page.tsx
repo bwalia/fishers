@@ -50,12 +50,6 @@ export default function ShopPage() {
 
   const visible = useMemo(() => {
     if (filter === "all") return products;
-    if (filter === "sportswear") {
-      return products.filter((p) =>
-        ["merchandise"].includes(p.category) &&
-        /shirt|polo|hoodie|cap|trousers|shoe|spike/i.test(p.name)
-      );
-    }
     return products.filter((p) => p.category === filter);
   }, [products, filter]);
 
