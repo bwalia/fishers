@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api, getAccessToken, getStoredUser } from "@/lib/api";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Icon } from "@/components/Icon";
+import { ShotIcon, SHOT_SHAPES } from "@/components/ShotIcon";
 import {
   BALLS,
   DEFAULT_CONDITIONS,
@@ -12,7 +13,6 @@ import {
   DISMISSALS_WITH_FIELDER,
   EXTRA_KINDS,
   GROUNDS,
-  SHOT_KINDS,
   commentaryFor,
   overs,
   titleCase,
@@ -562,6 +562,23 @@ function OpenersPanel({
   );
 }
 
+/// The scoring surface.
+///
+/// One tap records a ball. The detail — which stroke, where it went — is asked
+/// *after* the runs, in that order, and every step can be skipped, because a
+/// scorer's hands are busy and the ball has already happened.
+type Draft = {
+  runs: number;
+  /// Set when this ball is an extra rather than a delivery off the bat.
+  extra?: string;
+  boundary?: boolean;
+  offTheBat?: boolean;
+  shotKind?: string;
+  step: "detail" | "shot" | "direction";
+};
+
+const ASK_KEY = "fishers_ask_shot";
+
 function LivePanel({
   match,
   send,
@@ -582,26 +599,61 @@ function LivePanel({
   const available = battingXi.filter(
     (id) => !outIds.has(id) && id !== inn.striker_id && id !== inn.non_striker_id
   );
-
-  const [angle, setAngle] = useState<number | null>(null);
-  const [reach, setReach] = useState(0.6);
-  const [shotKind, setShotKind] = useState<string>("drive");
   const batsLeft = (st.left_handers || []).includes((inn.striker_id || "").toLowerCase());
 
-  const shot = () =>
-    angle === null ? undefined : { angle, kind: shotKind, reach };
-  const clearShot = () => setAngle(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [sheet, setSheet] = useState<null | "wicket" | "more">(null);
+  const [askShot, setAskShot] = useState(true);
 
-  const runs = async (n: number) => {
-    await send({
-      type: "delivery_recorded",
-      runs: n,
-      is_legal: true,
-      is_boundary_four: n === 4,
-      is_boundary_six: n === 6,
-      ...(shot() ? { shot: shot() } : {}),
-    });
-    clearShot();
+  useEffect(() => {
+    setAskShot(localStorage.getItem(ASK_KEY) !== "0");
+  }, []);
+  const toggleAsk = (on: boolean) => {
+    setAskShot(on);
+    localStorage.setItem(ASK_KEY, on ? "1" : "0");
+  };
+
+  /// Turn the draft into the one event it represents and send it.
+  const record = async (d: Draft, shot?: { angle: number; kind: string; reach: number }) => {
+    const kind = d.extra
+      ? {
+          type: "extras_recorded",
+          kind: d.extra,
+          runs: d.runs,
+          boundary: !!d.boundary,
+          off_the_bat: d.extra === "no_ball" ? !!d.offTheBat : false,
+          ...(shot ? { shot } : {}),
+        }
+      : {
+          type: "delivery_recorded",
+          runs: d.runs,
+          is_legal: true,
+          is_boundary_four: d.runs === 4,
+          is_boundary_six: d.runs === 6,
+          ...(shot ? { shot } : {}),
+        };
+    setDraft(null);
+    await send(kind);
+  };
+
+  const startRuns = (runs: number) => {
+    const d: Draft = { runs, step: "shot" };
+    if (!askShot) return record(d);
+    setDraft(d);
+  };
+
+  const startExtra = (extra: string) => {
+    setDraft({ runs: 0, extra, step: "detail" });
+  };
+
+  const pickShot = (kindName: string) => {
+    if (!draft) return;
+    const shape = SHOT_SHAPES.find((s) => s.kind === kindName);
+    // A block or a leave has no direction worth plotting.
+    if (!shape || shape.angle === null) {
+      return record(draft, { angle: 0, kind: kindName, reach: 0.15 });
+    }
+    setDraft({ ...draft, shotKind: kindName, step: "direction" });
   };
 
   const inPowerplay =
@@ -614,157 +666,245 @@ function LivePanel({
     inn.fielders_outside != null &&
     inn.fielders_outside > allowedOutside;
 
+  const thisOver = (inn.deliveries || []).filter((d) => d.over === Math.floor(inn.legal_balls / 6));
+
   return (
     <>
-      <div className="panel">
-        <h2>
-          {inn.runs}/{inn.wickets}{" "}
+      <div className="matchbar">
+        <div>
+          <span className="scoreline">
+            {inn.runs}/{inn.wickets}
+          </span>{" "}
           <span className="muted">({overs(inn.legal_balls)} ov)</span>
-        </h2>
-        {st.target != null && (
-          <p className="muted">
-            Chasing {st.target} — {Math.max(0, st.target - inn.runs)} needed
-          </p>
-        )}
-        {match.dls && (
-          <p className="tag">
-            DLS par {match.dls.par} · {match.dls.ahead_by >= 0 ? "ahead by" : "behind by"}{" "}
-            {Math.abs(match.dls.ahead_by)}
-          </p>
-        )}
-        {inn.free_hit && <p className="tag">Free hit</p>}
-        {inPowerplay && <p className="tag">Powerplay</p>}
-        {fieldBreach && (
-          <p className="error">
-            {inn.fielders_outside} fielders outside the circle — only {allowedOutside}{" "}
-            allowed.
-          </p>
-        )}
-        <div className="row">
-          <div>
-            <strong>{nameOf(inn.striker_id)}</strong>
-            <span className="muted"> striker</span>
-          </div>
-          <div>
-            <strong>{nameOf(inn.non_striker_id)}</strong>
-            <span className="muted"> non-striker</span>
-          </div>
-          <div>
-            <strong>{nameOf(inn.bowler_id)}</strong>
-            <span className="muted"> bowling</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="panel">
-        <h2>Where did it go?</h2>
-        <p className="muted">
-          Optional. Place the shot and pick the stroke, then record the runs — the
-          commentary and the wagon wheel are written from it.
-        </p>
-        <WagonWheel
-          deliveries={inn.deliveries || []}
-          batsLeft={batsLeft}
-          pending={angle === null ? null : { angle, reach }}
-          onPick={(a, r) => {
-            setAngle(a);
-            setReach(r);
-          }}
-        />
-        <div className="select-row">
-          <label>
-            Stroke{" "}
-            <select value={shotKind} onChange={(e) => setShotKind(e.target.value)}>
-              {SHOT_KINDS.map((k) => <option key={k} value={k}>{titleCase(k)}</option>)}
-            </select>
-          </label>
-          {angle !== null && (
-            <button className="btn ghost" type="button" onClick={clearShot}>
-              Clear shot
-            </button>
+          {st.target != null && (
+            <div className="muted">
+              Needs {Math.max(0, st.target - inn.runs)} from{" "}
+              {Math.max(0, (inn.overs_available ?? st.overs_limit) * 6 - inn.legal_balls)}
+            </div>
           )}
         </div>
+        <div className="crease">
+          <div>
+            <strong>{nameOf(inn.striker_id)}</strong> <span className="muted">striker</span>
+          </div>
+          <div>
+            <strong>{nameOf(inn.non_striker_id)}</strong> <span className="muted">non-striker</span>
+          </div>
+          <div>
+            <strong>{nameOf(inn.bowler_id)}</strong> <span className="muted">bowling</span>
+          </div>
+        </div>
       </div>
 
+      <div style={{ display: "flex", gap: "var(--s2)", flexWrap: "wrap", marginBottom: "var(--s3)" }}>
+        {inn.free_hit && <span className="tag gold">Free hit</span>}
+        {inPowerplay && <span className="tag">Powerplay</span>}
+        {match.dls && (
+          <span className="tag grey">
+            DLS par {match.dls.par} · {match.dls.ahead_by >= 0 ? "+" : ""}
+            {match.dls.ahead_by}
+          </span>
+        )}
+        {thisOver.length > 0 && (
+          <span className="tag grey">
+            This over: {thisOver.map((d) => d.label).join(" ")}
+          </span>
+        )}
+      </div>
+
+      {fieldBreach && (
+        <p className="error">
+          {inn.fielders_outside} fielders outside the circle — only {allowedOutside} allowed.
+        </p>
+      )}
+
       <div className="panel">
-        <h2>Runs off the bat</h2>
-        <div className="runs" style={{ marginBottom: "var(--s3)" }}>
+        <div className="panel-head">
+          <h2>Runs off the bat</h2>
+          <label className="checkbox" style={{ fontSize: "0.85rem" }}>
+            <input
+              type="checkbox"
+              checked={askShot}
+              onChange={(e) => toggleAsk(e.target.checked)}
+            />
+            Ask for the shot
+          </label>
+        </div>
+        <div className="runs">
           {[0, 1, 2, 3, 4, 5, 6].map((n) => (
             <button
               key={n}
               className={n === 4 || n === 6 ? "btn primary" : "btn"}
               type="button"
               disabled={!canAct}
-              onClick={() => runs(n)}
+              onClick={() => startRuns(n)}
             >
               {n}
             </button>
           ))}
         </div>
-        <div className="select-row" style={{ marginBottom: 0 }}>
+      </div>
+
+      <div className="panel">
+        <h2>Extras, wickets and the rest</h2>
+        <div className="actions">
+          {EXTRA_KINDS.map((k) => (
+            <button key={k} className="btn" type="button" disabled={!canAct} onClick={() => startExtra(k)}>
+              {titleCase(k)}
+            </button>
+          ))}
+          <button className="btn danger" type="button" disabled={!canAct} onClick={() => setSheet("wicket")}>
+            Wicket
+          </button>
           <button className="btn ghost" type="button" disabled={!canAct} onClick={() => send({ type: "undo_last" })}>
             <Icon name="arrowLeft" size={16} /> Undo
           </button>
-          {/* The engine closes an innings on overs or wickets by itself; this is
-              for a declaration or an innings called off. */}
-          <button
-            className="btn ghost"
-            type="button"
-            disabled={!canAct}
-            onClick={() => send({ type: "innings_completed" })}
-          >
-            End innings
+          <button className="btn ghost" type="button" disabled={!canAct} onClick={() => setSheet("more")}>
+            More
           </button>
         </div>
       </div>
 
-      <ExtrasForm send={send} canAct={canAct} shot={shot} clearShot={clearShot} />
-
-      <WicketForm
-        key={`${inn.striker_id}-${inn.wickets}`}
-        send={send}
-        canAct={canAct}
-        striker={inn.striker_id ?? ""}
-        nonStriker={inn.non_striker_id ?? ""}
-        available={available}
-        bowlingXi={bowlingXi}
-        nameOf={nameOf}
-      />
-
-      <div className="panel">
-        <h2>Bowling and the field</h2>
-        <div className="select-row">
-          <label>
-            Bowler{" "}
-            <select
-              value={inn.bowler_id ?? ""}
-              onChange={(e) => send({ type: "bowler_changed", bowler_id: e.target.value })}
-              disabled={!canAct}
-            >
-              {bowlingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
-            </select>
-          </label>
-          <label>
-            Outside the circle{" "}
-            <input
-              type="number"
-              min={0}
-              max={9}
-              defaultValue={inn.fielders_outside ?? 0}
-              onBlur={(e) =>
-                send({
-                  type: "field_set",
-                  outside_circle: Number(e.target.value),
-                  behind_square_leg: inn.fielders_behind_square_leg ?? 2,
-                })
+      {/* ---- the guided ball flow ---- */}
+      {draft && draft.step === "detail" && (
+        <Sheet title={`${titleCase(draft.extra || "Extra")}`} step={1} of={2} onClose={() => setDraft(null)}>
+          <p className="muted">
+            How many did they run on top of the {titleCase(draft.extra || "extra").toLowerCase()}?
+          </p>
+          <div className="runs">
+            {[0, 1, 2, 3, 4].map((n) => (
+              <button
+                key={n}
+                className={draft.runs === n ? "btn primary" : "btn"}
+                type="button"
+                onClick={() => setDraft({ ...draft, runs: n, boundary: n === 4 })}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          {draft.extra === "no_ball" && (
+            <label className="checkbox" style={{ marginTop: "var(--s3)" }}>
+              <input
+                type="checkbox"
+                checked={!!draft.offTheBat}
+                onChange={(e) => setDraft({ ...draft, offTheBat: e.target.checked })}
+              />
+              Came off the bat
+            </label>
+          )}
+          <div className="sheet-actions">
+            <button className="btn ghost" type="button" onClick={() => setDraft(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={() =>
+                draft.offTheBat && askShot
+                  ? setDraft({ ...draft, step: "shot" })
+                  : record(draft)
               }
-              disabled={!canAct}
-            />
-          </label>
-        </div>
-      </div>
+            >
+              Record
+            </button>
+          </div>
+        </Sheet>
+      )}
 
-      <PenaltyForm send={send} canAct={canAct} st={st} />
+      {draft && draft.step === "shot" && (
+        <Sheet
+          title={draft.runs === 0 ? "No run — which shot?" : `${draft.runs} — which shot?`}
+          step={draft.extra ? 2 : 1}
+          of={draft.extra ? 3 : 2}
+          onClose={() => setDraft(null)}
+        >
+          <div className="shot-grid">
+            {SHOT_SHAPES.map((s) => (
+              <button
+                key={s.kind}
+                className="shot-option"
+                type="button"
+                aria-pressed={draft.shotKind === s.kind}
+                onClick={() => pickShot(s.kind)}
+              >
+                <ShotIcon shape={s} />
+                {s.label}
+                <span className="hint">{s.hint}</span>
+              </button>
+            ))}
+          </div>
+          <div className="sheet-actions">
+            <button className="btn ghost" type="button" onClick={() => setDraft(null)}>
+              Cancel
+            </button>
+            <button className="btn" type="button" onClick={() => record(draft)}>
+              Skip — just the runs
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {draft && draft.step === "direction" && (
+        <Sheet
+          title="Where did it go?"
+          step={draft.extra ? 3 : 2}
+          of={draft.extra ? 3 : 2}
+          onClose={() => setDraft(null)}
+        >
+          <p className="muted">
+            Tap the field. Nearer the rope means it carried further — the commentary reads
+            from this.
+          </p>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <WagonWheel
+              deliveries={inn.deliveries || []}
+              batsLeft={batsLeft}
+              onPick={(angle, reach) =>
+                record(draft, { angle, kind: draft.shotKind || "other", reach })
+              }
+            />
+          </div>
+          <div className="sheet-actions">
+            <button className="btn ghost" type="button" onClick={() => setDraft({ ...draft, step: "shot" })}>
+              Back
+            </button>
+            <button
+              className="btn"
+              type="button"
+              onClick={() =>
+                record(draft, { angle: 0, kind: draft.shotKind || "other", reach: 0.5 })
+              }
+            >
+              Skip direction
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {sheet === "wicket" && (
+        <WicketSheet
+          key={`${inn.striker_id}-${inn.wickets}`}
+          send={send}
+          onClose={() => setSheet(null)}
+          striker={inn.striker_id ?? ""}
+          nonStriker={inn.non_striker_id ?? ""}
+          available={available}
+          bowlingXi={bowlingXi}
+          nameOf={nameOf}
+        />
+      )}
+
+      {sheet === "more" && (
+        <MoreSheet
+          send={send}
+          onClose={() => setSheet(null)}
+          st={st}
+          inn={inn}
+          bowlingXi={bowlingXi}
+          nameOf={nameOf}
+        />
+      )}
 
       <div className="panel">
         <h2>Commentary</h2>
@@ -780,80 +920,69 @@ function LivePanel({
                 <span>{commentaryFor(ball, nameOf, st.left_handers || [])}</span>
               </li>
             ))}
+          {(inn.deliveries || []).length === 0 && (
+            <li className="muted">No balls yet.</li>
+          )}
         </ul>
       </div>
     </>
   );
 }
 
-function ExtrasForm({
-  send,
-  canAct,
-  shot,
-  clearShot,
+/// A bottom sheet. Escape closes it, and the backdrop is a real button so a
+/// keyboard user is never trapped.
+function Sheet({
+  title,
+  step,
+  of,
+  onClose,
+  children,
 }: {
-  send: (kind: Record<string, unknown>) => Promise<void>;
-  canAct: boolean;
-  shot: () => { angle: number; kind: string; reach: number } | undefined;
-  clearShot: () => void;
+  title: string;
+  step?: number;
+  of?: number;
+  onClose: () => void;
+  children: React.ReactNode;
 }) {
-  const [kind, setKind] = useState<string>("wide");
-  const [runs, setRuns] = useState(0);
-  const [boundary, setBoundary] = useState(false);
-  const [offTheBat, setOffTheBat] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
-    <div className="panel">
-      <h2>Extras</h2>
-      <p className="muted">
-        Runs here are what they <em>ran</em> on top of the extra itself — a wide they took
-        a single off is a wide plus 1, so two to the side.
-      </p>
-      <div className="select-row">
-        <select value={kind} onChange={(e) => setKind(e.target.value)}>
-          {EXTRA_KINDS.map((k) => <option key={k} value={k}>{titleCase(k)}</option>)}
-        </select>
-        <label>
-          Runs{" "}
-          <input type="number" min={0} max={6} value={runs} onChange={(e) => setRuns(Number(e.target.value))} />
-        </label>
-        <label>
-          <input type="checkbox" checked={boundary} onChange={(e) => setBoundary(e.target.checked)} /> Boundary
-        </label>
-        {kind === "no_ball" && (
-          <label>
-            <input type="checkbox" checked={offTheBat} onChange={(e) => setOffTheBat(e.target.checked)} /> Off the bat
-          </label>
+    <div
+      className="sheet-backdrop"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="sheet-head">
+          <h2>{title}</h2>
+          <button className="btn ghost sm" type="button" onClick={onClose} aria-label="Close">
+            Close
+          </button>
+        </div>
+        {of && (
+          <div className="sheet-steps" aria-hidden="true">
+            {Array.from({ length: of }, (_, i) => (
+              <span key={i} className={i < (step ?? 0) ? "on" : undefined} />
+            ))}
+          </div>
         )}
-        <button
-          className="btn primary"
-          type="button"
-          disabled={!canAct}
-          onClick={async () => {
-            await send({
-              type: "extras_recorded",
-              kind,
-              runs,
-              boundary,
-              off_the_bat: kind === "no_ball" ? offTheBat : false,
-              ...(shot() ? { shot: shot() } : {}),
-            });
-            clearShot();
-            setRuns(0);
-            setBoundary(false);
-            setOffTheBat(false);
-          }}
-        >
-          Record extra
-        </button>
+        {children}
       </div>
     </div>
   );
 }
 
-function WicketForm({
+function WicketSheet({
   send,
-  canAct,
+  onClose,
   striker,
   nonStriker,
   available,
@@ -861,7 +990,7 @@ function WicketForm({
   nameOf,
 }: {
   send: (kind: Record<string, unknown>) => Promise<void>;
-  canAct: boolean;
+  onClose: () => void;
   striker: string;
   nonStriker: string;
   available: string[];
@@ -876,14 +1005,22 @@ function WicketForm({
   const [onExtra, setOnExtra] = useState(false);
 
   return (
-    <div className="panel">
-      <h2>Wicket</h2>
-      <div className="select-row">
-        <select value={kind} onChange={(e) => setKind(e.target.value)}>
-          {DISMISSALS.map((d) => <option key={d} value={d}>{titleCase(d)}</option>)}
-        </select>
+    <Sheet title="Wicket" onClose={onClose}>
+      <div className="actions" style={{ marginBottom: "var(--s3)" }}>
+        {DISMISSALS.map((d) => (
+          <button
+            key={d}
+            className={kind === d ? "btn primary" : "btn"}
+            type="button"
+            onClick={() => setKind(d)}
+          >
+            {titleCase(d)}
+          </button>
+        ))}
+      </div>
+      <div className="form">
         <label>
-          Out{" "}
+          Who is out
           <select value={batter} onChange={(e) => setBatter(e.target.value)}>
             <option value={striker}>{nameOf(striker)} (striker)</option>
             <option value={nonStriker}>{nameOf(nonStriker)} (non-striker)</option>
@@ -891,7 +1028,7 @@ function WicketForm({
         </label>
         {DISMISSALS_WITH_FIELDER.includes(kind) && (
           <label>
-            Fielder{" "}
+            Fielder
             <select value={fielder} onChange={(e) => setFielder(e.target.value)}>
               <option value="">—</option>
               {bowlingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
@@ -899,25 +1036,34 @@ function WicketForm({
           </label>
         )}
         <label>
-          New batter{" "}
+          Next in
           <select value={newBatter} onChange={(e) => setNewBatter(e.target.value)}>
             <option value="">— innings ends —</option>
             {available.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
           </select>
         </label>
         <label>
-          Runs completed{" "}
-          <input type="number" min={0} max={6} value={runsBefore} onChange={(e) => setRunsBefore(Number(e.target.value))} />
+          Runs completed first
+          <input
+            type="number"
+            min={0}
+            max={6}
+            value={runsBefore}
+            onChange={(e) => setRunsBefore(Number(e.target.value))}
+          />
         </label>
-        <label>
-          <input type="checkbox" checked={onExtra} onChange={(e) => setOnExtra(e.target.checked)} /> On a ball already
-          recorded as an extra
-        </label>
+      </div>
+      <label className="checkbox" style={{ marginTop: "var(--s3)" }}>
+        <input type="checkbox" checked={onExtra} onChange={(e) => setOnExtra(e.target.checked)} />
+        On a ball already recorded as an extra
+      </label>
+      <div className="sheet-actions">
+        <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
         <button
-          className="btn primary"
+          className="btn danger"
           type="button"
-          disabled={!canAct}
           onClick={async () => {
+            onClose();
             await send({
               type: "wicket_recorded",
               batter_id: batter,
@@ -927,52 +1073,108 @@ function WicketForm({
               runs: runsBefore,
               on_extra: onExtra,
             });
-            setRunsBefore(0);
-            setOnExtra(false);
-            setFielder("");
           }}
         >
           Record wicket
         </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
-function PenaltyForm({
+function MoreSheet({
   send,
-  canAct,
+  onClose,
   st,
+  inn,
+  bowlingXi,
+  nameOf,
 }: {
   send: (kind: Record<string, unknown>) => Promise<void>;
-  canAct: boolean;
+  onClose: () => void;
   st: MatchState;
+  inn: MatchState["innings"][number];
+  bowlingXi: string[];
+  nameOf: (id?: string | null) => string;
 }) {
-  const [runs, setRuns] = useState(5);
+  const [outside, setOutside] = useState(inn.fielders_outside ?? 0);
+  const [penalty, setPenalty] = useState(5);
   const [reason, setReason] = useState("slow over rate");
   const [side, setSide] = useState<Side>("home");
+
   return (
-    <div className="panel">
-      <h2>Penalty runs</h2>
-      <div className="select-row">
+    <Sheet title="Bowling, field and penalties" onClose={onClose}>
+      <div className="form">
         <label>
-          Runs <input type="number" min={1} max={10} value={runs} onChange={(e) => setRuns(Number(e.target.value))} />
+          Bowler
+          <select
+            value={inn.bowler_id ?? ""}
+            onChange={(e) => send({ type: "bowler_changed", bowler_id: e.target.value })}
+          >
+            {bowlingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
+          </select>
         </label>
-        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason" />
-        <select value={side} onChange={(e) => setSide(e.target.value as Side)}>
-          <option value="home">to {st.home_name}</option>
-          <option value="away">to {st.away_name}</option>
-        </select>
+        <label>
+          Fielders outside the circle
+          <input
+            type="number"
+            min={0}
+            max={9}
+            value={outside}
+            onChange={(e) => setOutside(Number(e.target.value))}
+            onBlur={() =>
+              send({
+                type: "field_set",
+                outside_circle: outside,
+                behind_square_leg: inn.fielders_behind_square_leg ?? 2,
+              })
+            }
+          />
+        </label>
+      </div>
+
+      <h3 style={{ marginTop: "var(--s4)" }}>Penalty runs</h3>
+      <div className="form">
+        <label>
+          Runs
+          <input type="number" min={1} max={10} value={penalty} onChange={(e) => setPenalty(Number(e.target.value))} />
+        </label>
+        <label>
+          Reason
+          <input value={reason} onChange={(e) => setReason(e.target.value)} />
+        </label>
+        <label>
+          Awarded to
+          <select value={side} onChange={(e) => setSide(e.target.value as Side)}>
+            <option value="home">{st.home_name}</option>
+            <option value="away">{st.away_name}</option>
+          </select>
+        </label>
+      </div>
+      <div className="sheet-actions">
+        <button
+          className="btn"
+          type="button"
+          disabled={!reason.trim()}
+          onClick={async () => {
+            onClose();
+            await send({ type: "penalty_runs", runs: penalty, reason: reason.trim(), to_side: side });
+          }}
+        >
+          Award penalty
+        </button>
         <button
           className="btn ghost"
           type="button"
-          disabled={!canAct || !reason.trim()}
-          onClick={() => send({ type: "penalty_runs", runs, reason: reason.trim(), to_side: side })}
+          onClick={async () => {
+            onClose();
+            await send({ type: "innings_completed" });
+          }}
         >
-          Award
+          End innings
         </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 

@@ -635,3 +635,143 @@ textarea { line-height: 1.5; resize: vertical; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Sheets (the guided ball flow) ---------- */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: rgb(4 12 8 / 55%);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+@media (min-width: 700px) {
+  .sheet-backdrop { align-items: center; padding: var(--s4); }
+}
+
+.sheet {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: var(--s4);
+  box-shadow: var(--shadow-3);
+  animation: sheet-in 200ms var(--ease);
+}
+@media (min-width: 700px) {
+  .sheet { border-radius: var(--radius); }
+}
+@keyframes sheet-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+.sheet-head h2 { margin: 0; }
+.sheet-steps {
+  display: flex;
+  gap: var(--s1);
+  margin-bottom: var(--s3);
+}
+.sheet-steps span {
+  height: 3px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+.sheet-steps span.on { background: var(--primary); }
+
+.sheet-actions {
+  display: flex;
+  gap: var(--s2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: var(--s4);
+}
+
+/* ---------- Shot picker ---------- */
+
+.shot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--s2);
+}
+.shot-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 92px;
+  padding: var(--s2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+.shot-option:hover { background: var(--surface-2); border-color: var(--primary); }
+.shot-option:active { transform: scale(0.97); }
+.shot-option[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+}
+.shot-option .hint {
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--fg-subtle);
+  text-align: center;
+  line-height: 1.25;
+}
+
+/* ---------- Sticky match bar ---------- */
+
+.matchbar {
+  position: sticky;
+  top: 64px;
+  z-index: calc(var(--z-nav) - 1);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s4);
+  box-shadow: var(--shadow-2);
+}
+.matchbar .scoreline { font-size: clamp(1.9rem, 1.4rem + 2vw, 2.6rem); }
+.matchbar .crease {
+  display: flex;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin-left: auto;
+  font-size: 0.9rem;
+}
+
+/* ---------- Secondary action row ---------- */
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: var(--s2);
+}
