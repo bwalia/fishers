@@ -19,6 +19,8 @@ pub struct CricketMatchRow {
     pub status: String,
     pub overs_limit: i32,
     pub overs_per_bowler: i32,
+    pub powerplay_overs: i32,
+    pub super_overs: i32,
     pub ground_type: String,
     pub ball_type: String,
     pub agreed_home: Option<String>,
@@ -35,7 +37,8 @@ pub struct CricketMatchRow {
 }
 
 const MATCH_COLS: &str = "id, event_id, club_id, status::TEXT, overs_limit, overs_per_bowler, \
-     ground_type, ball_type, agreed_home, agreed_away, home_name, away_name, \
+     powerplay_overs, super_overs, ground_type, ball_type, agreed_home, agreed_away, \
+     home_name, away_name, \
      active_scorer_user_id, active_scorer_device_id, last_seq, state_json, created_by, \
      created_at, updated_at";
 
@@ -395,9 +398,9 @@ async fn load_log(
     tx: &mut Transaction<'_, Postgres>,
     match_id: Uuid,
 ) -> Result<Vec<ScoringEvent>, anyhow::Error> {
-    let rows = sqlx::query_as::<_, (i64, Uuid, Value)>(
+    let rows = sqlx::query_as::<_, (i64, Uuid, Value, DateTime<Utc>)>(
         r#"
-        SELECT seq, client_event_id, payload
+        SELECT seq, client_event_id, payload, created_at
         FROM cricket_scoring_events
         WHERE match_id = $1
         ORDER BY seq ASC
@@ -408,13 +411,15 @@ async fn load_log(
     .await?;
 
     let mut events = Vec::with_capacity(rows.len());
-    for (seq, client_event_id, payload) in rows {
+    for (seq, client_event_id, payload, created_at) in rows {
         let kind: ScoringEventKind = serde_json::from_value(payload)
             .map_err(|e| anyhow::anyhow!("stored event {seq} is unreadable: {e}"))?;
         events.push(ScoringEvent {
             client_event_id,
             seq,
             kind,
+            // When the row was written, so the over rate survives a replay.
+            at: Some(created_at),
         });
     }
     Ok(events)
@@ -558,6 +563,8 @@ async fn save_state(
             ball_type = $11,
             agreed_home = $12,
             agreed_away = $13,
+            powerplay_overs = $14,
+            super_overs = $15,
             updated_at = NOW()
         WHERE id = $1
         "#,
@@ -575,6 +582,8 @@ async fn save_state(
     .bind(ball_str(state.conditions.ball))
     .bind(&state.agreed_home)
     .bind(&state.agreed_away)
+    .bind(state.conditions.powerplay_overs as i32)
+    .bind(state.super_overs as i32)
     .execute(&mut **tx)
     .await?;
 

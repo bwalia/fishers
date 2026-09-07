@@ -674,6 +674,238 @@ final class CricketEngineTests: XCTestCase {
         XCTAssertNil(f.state.playerOfTheMatch, "the award undoes with everything else")
     }
 
+    // MARK: Super overs, powerplays and penalties
+
+    /// Wind a fixture to a completed first innings and start the chase.
+    private func startChase(_ f: inout Fixture, firstInningsRuns: Int) throws {
+        for _ in 0..<firstInningsRuns { try f.runs(1) }
+        try f.push(.inningsCompleted)
+        try f.push(.inningsStarted(
+            inningsIndex: 1, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
+        ))
+    }
+
+    func testATieAsksForASuperOver() throws {
+        var f = try fixture(overs: 1)
+        try startChase(&f, firstInningsRuns: 6)
+        for _ in 0..<6 { try f.runs(1) }
+        XCTAssertEqual(f.state.margin, "Match tied")
+        XCTAssertTrue(f.state.needsASuperOver)
+        XCTAssertEqual(f.state.superOverFirstBatting, .away)
+    }
+
+    func testASuperOverIsOneOverAndTwoWickets() throws {
+        var f = try fixture(overs: 1)
+        try startChase(&f, firstInningsRuns: 6)
+        for _ in 0..<6 { try f.runs(1) }
+        try f.push(.inningsStarted(
+            inningsIndex: 2, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id,
+            superOver: true
+        ))
+        XCTAssertTrue(f.innings.superOver)
+        XCTAssertEqual(f.innings.oversAvailable, 1)
+        XCTAssertEqual(f.innings.wicketsAllowed, 2)
+        XCTAssertEqual(f.state.superOvers, 1)
+        XCTAssertNil(f.state.winner, "the tie is no longer the result")
+    }
+
+    func testTheSuperOverDecidesTheMatch() throws {
+        var f = try fixture(overs: 1)
+        try startChase(&f, firstInningsRuns: 6)
+        for _ in 0..<6 { try f.runs(1) }
+
+        try f.push(.inningsStarted(
+            inningsIndex: 2, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id,
+            superOver: true
+        ))
+        for _ in 0..<5 { try f.runs(2) }
+        try f.runs(0)
+        XCTAssertEqual(f.state.target, 11)
+
+        try f.push(.inningsStarted(
+            inningsIndex: 3, batting: .home,
+            strikerId: f.home[0].id, nonStrikerId: f.home[1].id, bowlerId: f.away[0].id,
+            superOver: true
+        ))
+        for _ in 0..<6 { try f.runs(1) }
+
+        XCTAssertEqual(f.state.status, .complete)
+        XCTAssertEqual(f.state.winner, .away)
+        XCTAssertTrue(
+            f.state.margin?.contains("won the super over by 4 runs") ?? false,
+            f.state.margin ?? "no margin"
+        )
+    }
+
+    func testTwoWicketsEndASuperOver() throws {
+        var f = try fixture(overs: 1)
+        try startChase(&f, firstInningsRuns: 6)
+        for _ in 0..<6 { try f.runs(1) }
+        try f.push(.inningsStarted(
+            inningsIndex: 2, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id,
+            superOver: true
+        ))
+        try f.push(wicket(f.away[0].id, .bowled, f.away[2].id))
+        XCTAssertFalse(f.innings.complete, "one is not enough")
+        try f.push(wicket(f.away[2].id, .bowled, nil))
+        XCTAssertTrue(f.innings.complete, "two ends it")
+    }
+
+    func testAPowerplayRunsForTheOversAgreed() throws {
+        var f = try fixture(overs: 20)
+        XCTAssertEqual(f.state.conditions.powerplayOvers, 6)
+        XCTAssertTrue(f.innings.inPowerplay)
+        XCTAssertEqual(f.innings.powerplayOversLeft, 6)
+        for _ in 0..<(6 * 6) { try f.runs(0) }
+        XCTAssertFalse(f.innings.inPowerplay)
+        XCTAssertEqual(f.innings.powerplayOversLeft, 0)
+    }
+
+    func testStandardPowerplayFollowsTheFormat() {
+        XCTAssertEqual(MatchConditions.standardPowerplay(20), 6)
+        XCTAssertEqual(MatchConditions.standardPowerplay(50), 10)
+        XCTAssertEqual(MatchConditions.standardPowerplay(10), 2)
+        XCTAssertEqual(MatchConditions.standardPowerplay(5), 0)
+    }
+
+    func testPenaltyRunsGoToTheSideBatting() throws {
+        var f = try fixture()
+        try f.runs(2)
+        try f.push(.penaltyRuns(runs: 5, reason: "slow over rate", toSide: nil))
+        XCTAssertEqual(f.innings.runs, 7)
+        XCTAssertEqual(f.innings.penalties, 5)
+        XCTAssertEqual(f.innings.legalBalls, 1, "the penalty is not a delivery")
+        XCTAssertEqual(
+            f.innings.bowlers[0].runs, 2,
+            "the bowler keeps their two and is not charged the penalty"
+        )
+        XCTAssertThrowsError(try f.push(.penaltyRuns(runs: 0, reason: "nothing", toSide: nil)))
+    }
+
+    func testWindingBackSeveralBallsUndoesThemAll() throws {
+        var f = try fixture()
+        try f.runs(1)
+        try f.runs(4)
+        try f.runs(2)
+        XCTAssertEqual(f.innings.runs, 7)
+        XCTAssertEqual(f.innings.deliveries.count, 3)
+
+        // Correcting the ball two back takes that ball and everything after.
+        try f.push(.undoLast)
+        try f.push(.undoLast)
+        XCTAssertEqual(f.innings.deliveries.count, 1)
+        XCTAssertEqual(f.innings.runs, 1, "only the first ball survives")
+    }
+
+    // MARK: Fielding restrictions, penalties either way, and the clock
+
+    func testTheFieldIsLegalUntilTheScorerSaysOtherwise() throws {
+        let f = try fixture()
+        XCTAssertTrue(f.innings.fieldingBreaches(f.state.conditions).isEmpty)
+        XCTAssertNil(f.innings.fieldersOutside)
+    }
+
+    func testTooManyOutsideTheCircleInThePowerplayIsFlagged() throws {
+        var f = try fixture(overs: 20)
+        XCTAssertTrue(f.innings.inPowerplay)
+        try f.push(.fieldSet(outsideCircle: 4, behindSquareLeg: 2))
+        let breaches = f.innings.fieldingBreaches(f.state.conditions)
+        XCTAssertEqual(breaches.count, 1)
+        XCTAssertTrue(breaches[0].contains("4 outside the circle"), breaches[0])
+        XCTAssertTrue(breaches[0].contains("in the powerplay"), breaches[0])
+    }
+
+    func testTheSameFieldIsLegalOnceThePowerplayIsOver() throws {
+        var f = try fixture(overs: 20)
+        try f.push(.fieldSet(outsideCircle: 4, behindSquareLeg: 2))
+        XCTAssertFalse(f.innings.fieldingBreaches(f.state.conditions).isEmpty)
+        for _ in 0..<(6 * 6) { try f.runs(0) }
+        XCTAssertFalse(f.innings.inPowerplay)
+        XCTAssertTrue(f.innings.fieldingBreaches(f.state.conditions).isEmpty)
+    }
+
+    func testThreeBehindSquareIsNeverAllowed() throws {
+        var f = try fixture(overs: 20)
+        for _ in 0..<(6 * 6) { try f.runs(0) }
+        try f.push(.fieldSet(outsideCircle: 5, behindSquareLeg: 3))
+        let breaches = f.innings.fieldingBreaches(f.state.conditions)
+        XCTAssertEqual(breaches.count, 1, "the circle is fine, the leg side is not")
+        XCTAssertTrue(breaches[0].contains("behind square"), breaches[0])
+    }
+
+    func testAPenaltyAgainstTheBattingSideWaitsForTheOtherInnings() throws {
+        var f = try fixture(overs: 20)
+        try f.runs(4)
+        try f.push(.penaltyRuns(runs: 5, reason: "damaging the pitch", toSide: .away))
+        XCTAssertEqual(f.innings.runs, 4, "the batting side keeps its own score")
+        XCTAssertEqual(f.state.pendingPenalty(.away), 5)
+
+        try f.push(.inningsCompleted)
+        try f.push(.inningsStarted(
+            inningsIndex: 1, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
+        ))
+        XCTAssertEqual(f.innings.runs, 5, "they open on the penalty")
+        XCTAssertEqual(f.innings.penaltyRunsAwarded, 5)
+        XCTAssertEqual(f.state.pendingPenalty(.away), 0, "and it is spent")
+    }
+
+    func testAPenaltyToASideThatHasBattedLandsOnThatInnings() throws {
+        var f = try fixture(overs: 20)
+        try f.runs(4)
+        try f.push(.inningsCompleted)
+        try f.push(.inningsStarted(
+            inningsIndex: 1, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
+        ))
+        try f.push(.penaltyRuns(runs: 5, reason: "fielding infringement", toSide: .home))
+        XCTAssertEqual(f.state.innings[0].runs, 9, "added to the completed innings")
+        XCTAssertEqual(f.innings.runs, 0, "and not to the one being played")
+    }
+
+    func testTheOverRateNeedsAStampedLog() throws {
+        var f = try fixture(overs: 20)
+        // The fixture stamps nothing, so there is nothing to report.
+        try f.push(.deliveryRecorded(
+            runs: 0, isLegal: true, isBoundaryFour: false, isBoundarySix: false, shot: nil
+        ))
+        XCTAssertNil(f.innings.oversPerHour)
+        XCTAssertNil(f.innings.oversBehind(target: 14))
+    }
+
+    func testAStampedLogMeasuresTheOverRate() throws {
+        var f = try fixture(overs: 20)
+        let start = Date(timeIntervalSince1970: 1_780_000_000)
+
+        // Start the clock, then two overs across half an hour: four an hour.
+        f.seq += 1
+        try f.state.apply(ScoringEvent(
+            clientEventId: UUID(), seq: f.seq,
+            kind: .fieldSet(outsideCircle: 2, behindSquareLeg: 2), at: start
+        ))
+        for ball in 0..<12 {
+            f.seq += 1
+            try f.state.apply(ScoringEvent(
+                clientEventId: UUID(), seq: f.seq,
+                kind: .deliveryRecorded(
+                    runs: 0, isLegal: true, isBoundaryFour: false, isBoundarySix: false, shot: nil
+                ),
+                at: start.addingTimeInterval(Double(30 * (ball + 1) / 12) * 60)
+            ))
+        }
+
+        XCTAssertEqual(f.innings.elapsedMinutes, 30)
+        let rate = try XCTUnwrap(f.innings.oversPerHour)
+        XCTAssertEqual(rate, 4.0, accuracy: 0.01)
+        let behind = try XCTUnwrap(f.innings.oversBehind(target: 14))
+        XCTAssertEqual(behind, 5.0, accuracy: 0.01, "five overs behind at fourteen an hour")
+        XCTAssertNil(f.innings.oversBehind(target: 0), "nobody counting, nothing to report")
+    }
+
     // MARK: Names and wire format
 
     func testNamesTravelWithTheTeamSheet() throws {

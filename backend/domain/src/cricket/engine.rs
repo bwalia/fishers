@@ -36,6 +36,8 @@ impl MatchState {
             winner: self.winner,
             margin: self.margin.clone(),
             player_of_the_match: self.player_of_the_match,
+            super_overs: self.super_overs,
+            pending_penalties: self.pending_penalties.clone(),
         });
         // Cap history depth for memory.
         if self.history.len() > 200 {
@@ -54,6 +56,8 @@ impl MatchState {
         self.winner = snap.winner;
         self.margin = snap.margin;
         self.player_of_the_match = snap.player_of_the_match;
+        self.super_overs = snap.super_overs;
+        self.pending_penalties = snap.pending_penalties;
         Ok(())
     }
 
@@ -70,6 +74,23 @@ impl MatchState {
                     self.last_seq + 1,
                     event.seq
                 )));
+            }
+        }
+
+        // The clock only advances for events the device stamped.
+        if let Some(at) = event.at {
+            if let Some(inn) = self.innings.last_mut() {
+                if inn.started_at.is_none() {
+                    inn.started_at = Some(at);
+                }
+                if matches!(
+                    event.kind,
+                    ScoringEventKind::DeliveryRecorded { .. }
+                        | ScoringEventKind::ExtrasRecorded { .. }
+                        | ScoringEventKind::WicketRecorded { .. }
+                ) {
+                    inn.last_ball_at = Some(at);
+                }
             }
         }
 
@@ -237,6 +258,7 @@ impl MatchState {
                 striker_id,
                 non_striker_id,
                 bowler_id,
+                super_over,
             } => {
                 if striker_id == non_striker_id {
                     return Err(DomainError::Validation(
@@ -252,7 +274,17 @@ impl MatchState {
                         batters.push(BatterStats::new(id));
                     }
                 }
-                let wickets_allowed = (batters.len().saturating_sub(1)).clamp(1, 10) as u8;
+                // A super over is one over and two wickets, whatever the match is.
+                let wickets_allowed = if *super_over {
+                    2
+                } else {
+                    (batters.len().saturating_sub(1)).clamp(1, 10) as u8
+                };
+                let overs_available = if *super_over {
+                    1
+                } else {
+                    self.conditions.overs_limit.max(self.overs_limit)
+                };
                 let mut inn = InningsState {
                     index: *innings_index,
                     batting: *batting,
@@ -262,17 +294,41 @@ impl MatchState {
                     non_striker_id: Some(*non_striker_id),
                     bowler_id: Some(*bowler_id),
                     wickets_allowed,
-                    overs_available: self.conditions.overs_limit.max(self.overs_limit),
+                    overs_available,
+                    super_over: *super_over,
+                    powerplay_overs: if *super_over {
+                        0
+                    } else {
+                        self.conditions.powerplay_overs
+                    },
                     ..Default::default()
                 };
                 inn.ensure_bowler(*bowler_id);
+                // Penalties awarded before this side batted open their innings.
+                let waiting = self
+                    .pending_penalties
+                    .remove(side_key(*batting))
+                    .unwrap_or(0);
+                if waiting > 0 {
+                    inn.runs += waiting;
+                    inn.extras += waiting;
+                    inn.penalties += waiting;
+                    inn.penalty_runs_awarded += waiting;
+                }
                 self.innings.push(inn);
                 self.status = MatchStatus::Live;
+                if *super_over {
+                    // A tie is no longer the result; the super over decides it.
+                    self.winner = None;
+                    self.margin = None;
+                    self.super_overs = (self.innings.len() as u8).saturating_sub(2) / 2 + 1;
+                }
                 // The opening bowler counts against the allocation like any other.
                 self.check_bowler_available(*bowler_id)?;
-                if *innings_index == 1 {
-                    if let Some(first) = self.innings.first() {
-                        self.target = Some(first.runs + 1);
+                // Every odd innings is a chase of the one before it.
+                if *innings_index % 2 == 1 {
+                    if let Some(previous) = self.innings.iter().rev().nth(1) {
+                        self.target = Some(previous.runs + 1);
                     }
                 }
             }
@@ -329,6 +385,72 @@ impl MatchState {
                 }
                 innings.overs_available = overs;
                 innings.close_if_finished(overs);
+            }
+            ScoringEventKind::PenaltyRuns {
+                runs,
+                reason,
+                to_side,
+            } => {
+                if *runs == 0 {
+                    return Err(DomainError::Validation("a penalty is at least one run".into()));
+                }
+                let _ = reason; // carried in the log for the commentary to read
+
+                // Default to whoever is batting: that is the common award.
+                let side = match to_side {
+                    Some(side) => *side,
+                    None => self
+                        .current_innings()
+                        .map(|inn| inn.batting)
+                        .ok_or_else(|| DomainError::Validation("no live innings".into()))?,
+                };
+
+                // The side may not have batted yet, in which case the runs wait
+                // and open their innings — five penalty runs are five runs
+                // whether or not anyone has faced a ball for them.
+                let Some(index) = self.innings.iter().rposition(|inn| inn.batting == side) else {
+                    *self
+                        .pending_penalties
+                        .entry(side_key(side).to_string())
+                        .or_insert(0) += *runs as u16;
+                    return {
+                        self.last_seq = event.seq;
+                        Ok(())
+                    };
+                };
+
+                let is_current = index + 1 == self.innings.len();
+                let inn = &mut self.innings[index];
+                inn.runs += *runs as u16;
+                inn.extras += *runs as u16;
+                inn.penalties += *runs as u16;
+                inn.penalty_runs_awarded += *runs as u16;
+                if is_current {
+                    inn.partnership_runs += *runs as u16;
+                    let over = inn.legal_balls / 6;
+                    let ball_in = inn.balls_in_current_over;
+                    inn.deliveries.push(DeliveryRecord {
+                        over,
+                        ball_in_over: ball_in,
+                        label: format!("{runs}p"),
+                        runs: *runs,
+                        is_legal: false,
+                        is_wicket: false,
+                        batter_id: None,
+                        bowler_id: None,
+                        shot: None,
+                    });
+                }
+            }
+            ScoringEventKind::FieldSet {
+                outside_circle,
+                behind_square_leg,
+            } => {
+                let inn = self
+                    .current_innings_mut()
+                    .ok_or_else(|| DomainError::Validation("no live innings".into()))?;
+                inn.fielders_outside = Some(*outside_circle);
+                inn.fielders_behind_square_leg = Some(*behind_square_leg);
             }
             ScoringEventKind::BowlerChanged { bowler_id } => {
                 self.check_bowler_available(*bowler_id)?;
@@ -771,7 +893,8 @@ impl MatchState {
         inn.complete = true;
         let idx = inn.index;
         let runs = inn.runs;
-        if idx == 0 {
+        if idx % 2 == 0 {
+            // The side batting next is chasing this.
             self.target = Some(runs + 1);
             self.status = MatchStatus::InningsBreak;
         } else {
@@ -792,7 +915,7 @@ impl MatchState {
         let runs = inn.runs;
 
         if !complete {
-            if index >= 1 {
+            if index % 2 == 1 {
                 if let Some(target) = self.target {
                     if runs >= target {
                         if let Some(inn) = self.current_innings_mut() {
@@ -806,46 +929,46 @@ impl MatchState {
             return;
         }
 
-        if index == 0 && self.status == MatchStatus::Live {
+        if index % 2 == 0 && self.status == MatchStatus::Live {
             self.target = Some(runs + 1);
             self.status = MatchStatus::InningsBreak;
-        } else if index >= 1 && self.status != MatchStatus::Complete {
+        } else if index % 2 == 1 && self.status != MatchStatus::Complete {
             self.status = MatchStatus::Complete;
             self.finish_result();
         }
     }
 
+    /// The result comes from the last pair of innings, so a super over decides
+    /// a match that the regular innings tied.
     fn finish_result(&mut self) {
         if self.innings.len() < 2 {
             return;
         }
-        // Copy what the margin needs before touching `self` again.
-        let (first_runs, first_batting) = {
-            let first = &self.innings[0];
-            (first.runs, first.batting)
-        };
-        let (second_runs, second_batting, second_wickets, wickets_allowed, second_balls, second_overs) = {
-            let second = &self.innings[1];
-            (
-                second.runs,
-                second.batting,
-                second.wickets,
-                second.wickets_allowed,
-                second.legal_balls,
-                second.overs_available,
-            )
-        };
+        let count = self.innings.len();
+        let first = &self.innings[count - 2];
+        let second = &self.innings[count - 1];
+
+        let (first_runs, first_batting) = (first.runs, first.batting);
+        let (second_runs, second_batting) = (second.runs, second.batting);
+        let (second_wickets, wickets_allowed, second_balls, second_overs) = (
+            second.wickets,
+            second.wickets_allowed,
+            second.legal_balls,
+            second.overs_available,
+        );
+        let is_super_over = second.super_over;
+        let decider = if is_super_over { " the super over" } else { "" };
 
         if second_runs > first_runs {
             // Chased it down: the margin is the wickets still standing.
             let wickets = wickets_allowed.saturating_sub(second_wickets);
             let balls_left = ((second_overs as u16) * 6).saturating_sub(second_balls);
             let mut margin = format!(
-                "{} won by {wickets} wicket{}",
+                "{} won{decider} by {wickets} wicket{}",
                 self.side_name(second_batting),
                 if wickets == 1 { "" } else { "s" }
             );
-            if balls_left > 0 {
+            if balls_left > 0 && !is_super_over {
                 margin.push_str(&format!(" ({balls_left} balls remaining)"));
             }
             self.winner = Some(second_batting);
@@ -853,7 +976,7 @@ impl MatchState {
         } else if second_runs < first_runs {
             let runs = first_runs - second_runs;
             let margin = format!(
-                "{} won by {runs} run{}",
+                "{} won{decider} by {runs} run{}",
                 self.side_name(first_batting),
                 if runs == 1 { "" } else { "s" }
             );
@@ -861,7 +984,11 @@ impl MatchState {
             self.margin = Some(margin);
         } else {
             self.winner = None;
-            self.margin = Some("Match tied".into());
+            self.margin = Some(if is_super_over {
+                "Super over tied".into()
+            } else {
+                "Match tied".into()
+            });
         }
     }
 }
@@ -925,6 +1052,21 @@ pub fn evt(seq: i64, kind: ScoringEventKind) -> ScoringEvent {
         client_event_id: Uuid::new_v4(),
         seq,
         kind,
+        at: None,
+    }
+}
+
+/// The same, stamped — the over rate only counts events that carry a time.
+pub fn evt_at(
+    seq: i64,
+    kind: ScoringEventKind,
+    at: chrono::DateTime<chrono::Utc>,
+) -> ScoringEvent {
+    ScoringEvent {
+        client_event_id: Uuid::new_v4(),
+        seq,
+        kind,
+        at: Some(at),
     }
 }
 
@@ -1023,6 +1165,7 @@ mod tests {
                     striker_id: home[0].id,
                     non_striker_id: home[1].id,
                     bowler_id: away[0].id,
+                    super_over: false,
                 },
             );
             Self {
@@ -1141,6 +1284,7 @@ mod tests {
                     striker_id: home[0].id,
                     non_striker_id: home[1].id,
                     bowler_id: away[0].id,
+                    super_over: false,
                 },
             ),
             evt(
@@ -1360,6 +1504,7 @@ mod tests {
                 striker_id: home[0].id,
                 non_striker_id: home[1].id,
                 bowler_id: away[0].id,
+                    super_over: false,
             },
         );
         assert_eq!(state.current_innings().unwrap().wickets_allowed, 2);
@@ -1406,6 +1551,7 @@ mod tests {
             striker_id: m.away[0].id,
             non_striker_id: m.away[1].id,
             bowler_id: m.home[0].id,
+                    super_over: false,
         });
         m.runs(6);
         assert_eq!(m.state.status, MatchStatus::Complete);
@@ -1427,6 +1573,7 @@ mod tests {
             striker_id: m.away[0].id,
             non_striker_id: m.away[1].id,
             bowler_id: m.home[0].id,
+                    super_over: false,
         });
         for _ in 0..6 {
             m.runs(1);
@@ -1448,6 +1595,7 @@ mod tests {
             striker_id: m.away[0].id,
             non_striker_id: m.away[1].id,
             bowler_id: m.home[0].id,
+                    super_over: false,
         });
         for _ in 0..6 {
             m.runs(1);
@@ -1467,6 +1615,7 @@ mod tests {
             striker_id: m.away[0].id,
             non_striker_id: m.away[1].id,
             bowler_id: m.home[0].id,
+                    super_over: false,
         });
         m.runs(2);
         assert_eq!(
@@ -1595,6 +1744,8 @@ mod tests {
                     overs_per_bowler: 6,
                     ground: GroundType::Boxed,
                     ball: BallType::Tennis,
+                powerplay_overs: 0,
+                    ..MatchConditions::standard(20)
                 },
                 by: MatchSide::Home,
                 by_name: "Ravi".into(),
@@ -1677,6 +1828,8 @@ mod tests {
                 overs_per_bowler: 21,
                 ground: GroundType::Open,
                 ball: BallType::White,
+                powerplay_overs: 0,
+                ..MatchConditions::standard(20)
             },
             by: MatchSide::Home,
             by_name: "Ravi".into(),
@@ -1691,6 +1844,8 @@ mod tests {
             overs_per_bowler: 4,
             ground: GroundType::Boxed,
             ball: BallType::Tape,
+                powerplay_overs: 0,
+            ..MatchConditions::standard(20)
         };
         assert_eq!(
             conditions.summary(),
@@ -1732,6 +1887,8 @@ mod tests {
                 overs_per_bowler: 1,
                 ground: GroundType::Open,
                 ball: BallType::White,
+                powerplay_overs: 0,
+                ..MatchConditions::standard(20)
             },
             by: MatchSide::Home,
             by_name: "Ravi".into(),
@@ -1768,6 +1925,8 @@ mod tests {
                 overs_per_bowler: 0,
                 ground: GroundType::Boxed,
                 ball: BallType::Tennis,
+                powerplay_overs: 0,
+                ..MatchConditions::standard(20)
             },
             by: MatchSide::Home,
             by_name: "Ravi".into(),
@@ -1826,6 +1985,8 @@ mod tests {
                     overs_per_bowler: 0,
                     ground: GroundType::Boxed,
                     ball: BallType::Tennis,
+                powerplay_overs: 0,
+                    ..MatchConditions::standard(20)
                 },
                 by: MatchSide::Home,
                 by_name: "A".into(),
@@ -1876,6 +2037,7 @@ mod tests {
                 striker_id: home[0].id,
                 non_striker_id: home[1].id,
                 bowler_id: away[0].id,
+                    super_over: false,
             },
         );
         for _ in 0..6 {
@@ -2169,6 +2331,418 @@ mod tests {
         assert_eq!(m.state.name_for(umpire.id), "Alan Umpire");
     }
 
+    // MARK: super overs, powerplays and penalties
+
+    /// Wind a fixture to a completed first innings and start the chase.
+    fn start_chase(m: &mut Fixture, first_innings_runs: u8) {
+        for _ in 0..first_innings_runs {
+            m.runs(1);
+        }
+        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 1,
+            batting: MatchSide::Away,
+            striker_id: m.away[0].id,
+            non_striker_id: m.away[1].id,
+            bowler_id: m.home[0].id,
+            super_over: false,
+        });
+    }
+
+    #[test]
+    fn a_tie_asks_for_a_super_over() {
+        let mut m = Fixture::new(1);
+        start_chase(&mut m, 6);
+        for _ in 0..6 {
+            m.runs(1);
+        }
+        assert_eq!(m.state.margin.as_deref(), Some("Match tied"));
+        assert!(m.state.needs_a_super_over());
+        // Whoever batted second bats first in the super over.
+        assert_eq!(m.state.super_over_first_batting(), Some(MatchSide::Away));
+    }
+
+    #[test]
+    fn a_super_over_is_one_over_and_two_wickets() {
+        let mut m = Fixture::new(1);
+        start_chase(&mut m, 6);
+        for _ in 0..6 {
+            m.runs(1);
+        }
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 2,
+            batting: MatchSide::Away,
+            striker_id: m.away[0].id,
+            non_striker_id: m.away[1].id,
+            bowler_id: m.home[0].id,
+            super_over: true,
+        });
+
+        let inn = m.innings();
+        assert!(inn.super_over);
+        assert_eq!(inn.overs_available, 1);
+        assert_eq!(inn.wickets_allowed, 2, "two down and you are out");
+        assert_eq!(inn.powerplay_overs, 0);
+        assert_eq!(m.state.super_overs, 1);
+        assert_eq!(m.state.winner, None, "the tie is no longer the result");
+        assert!(m.state.margin.is_none());
+    }
+
+    #[test]
+    fn two_wickets_end_a_super_over() {
+        let mut m = Fixture::new(1);
+        start_chase(&mut m, 6);
+        for _ in 0..6 {
+            m.runs(1);
+        }
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 2,
+            batting: MatchSide::Away,
+            striker_id: m.away[0].id,
+            non_striker_id: m.away[1].id,
+            bowler_id: m.home[0].id,
+            super_over: true,
+        });
+        m.push(wicket(m.away[0].id, DismissalKind::Bowled, Some(m.away[2].id)));
+        assert!(!m.innings().complete, "one is not enough");
+        m.push(wicket(m.away[2].id, DismissalKind::Bowled, None));
+        assert!(m.innings().complete, "two ends it");
+    }
+
+    #[test]
+    fn the_super_over_decides_the_match() {
+        let mut m = Fixture::new(1);
+        start_chase(&mut m, 6);
+        for _ in 0..6 {
+            m.runs(1);
+        }
+        // Away bat first in the super over and make 10.
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 2,
+            batting: MatchSide::Away,
+            striker_id: m.away[0].id,
+            non_striker_id: m.away[1].id,
+            bowler_id: m.home[0].id,
+            super_over: true,
+        });
+        for _ in 0..5 {
+            m.runs(2);
+        }
+        m.runs(0);
+        assert_eq!(m.state.target, Some(11), "the reply chases eleven");
+
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 3,
+            batting: MatchSide::Home,
+            striker_id: m.home[0].id,
+            non_striker_id: m.home[1].id,
+            bowler_id: m.away[0].id,
+            super_over: true,
+        });
+        for _ in 0..6 {
+            m.runs(1);
+        }
+
+        assert_eq!(m.state.status, MatchStatus::Complete);
+        assert_eq!(m.state.winner, Some(MatchSide::Away));
+        let margin = m.state.margin.clone().unwrap();
+        assert!(margin.contains("won the super over by 4 runs"), "got {margin}");
+    }
+
+    #[test]
+    fn a_tied_super_over_asks_for_another() {
+        let mut m = Fixture::new(1);
+        start_chase(&mut m, 6);
+        for _ in 0..6 {
+            m.runs(1);
+        }
+        for (index, batting, striker, non_striker, bowler) in [
+            (2u8, MatchSide::Away, m.away[0].id, m.away[1].id, m.home[0].id),
+            (3u8, MatchSide::Home, m.home[0].id, m.home[1].id, m.away[0].id),
+        ] {
+            m.push(ScoringEventKind::InningsStarted {
+                innings_index: index,
+                batting,
+                striker_id: striker,
+                non_striker_id: non_striker,
+                bowler_id: bowler,
+                super_over: true,
+            });
+            for _ in 0..6 {
+                m.runs(1);
+            }
+        }
+        assert_eq!(m.state.margin.as_deref(), Some("Super over tied"));
+        assert!(m.state.needs_a_super_over(), "and another one is needed");
+    }
+
+    #[test]
+    fn a_powerplay_runs_for_the_overs_agreed() {
+        let mut m = Fixture::new(20);
+        assert_eq!(m.state.conditions.powerplay_overs, 6, "the usual for a twenty");
+        assert!(m.innings().in_powerplay());
+        assert_eq!(m.innings().powerplay_overs_left(), 6);
+
+        for _ in 0..(6 * 6) {
+            m.runs(0);
+        }
+        assert!(!m.innings().in_powerplay(), "six overs and it is over");
+        assert_eq!(m.innings().powerplay_overs_left(), 0);
+    }
+
+    #[test]
+    fn the_standard_powerplay_follows_the_format() {
+        assert_eq!(MatchConditions::standard_powerplay(20), 6);
+        assert_eq!(MatchConditions::standard_powerplay(50), 10);
+        assert_eq!(MatchConditions::standard_powerplay(10), 2);
+        assert_eq!(MatchConditions::standard_powerplay(5), 0);
+    }
+
+    #[test]
+    fn the_conditions_summary_names_the_powerplay() {
+        let conditions = MatchConditions::standard(20);
+        assert!(
+            conditions.summary().contains("6 over powerplay"),
+            "got {}",
+            conditions.summary()
+        );
+    }
+
+    #[test]
+    fn penalty_runs_go_to_the_side_batting_with_a_reason_in_the_log() {
+        let mut m = Fixture::new(20);
+        m.runs(2);
+        m.push(ScoringEventKind::PenaltyRuns {
+            runs: 5,
+            reason: "slow over rate".into(),
+            to_side: None,
+        });
+        assert_eq!(m.innings().runs, 7);
+        assert_eq!(m.innings().extras, 5);
+        assert_eq!(m.innings().penalties, 5);
+        assert_eq!(m.innings().legal_balls, 1, "the penalty is not a delivery");
+        assert_eq!(
+            m.innings().bowlers[0].runs,
+            2,
+            "the bowler keeps the two they conceded and is not charged the penalty"
+        );
+        assert_eq!(m.innings().deliveries.last().unwrap().label, "5p");
+    }
+
+    #[test]
+    fn a_penalty_of_nothing_is_refused() {
+        let mut m = Fixture::new(20);
+        let result = m.try_push(ScoringEventKind::PenaltyRuns {
+            runs: 0,
+            reason: "nothing".into(),
+            to_side: None,
+        });
+        assert!(result.is_err());
+    }
+
+    // MARK: fielding restrictions, penalties either way, and the clock
+
+    #[test]
+    fn the_field_is_legal_until_the_scorer_says_otherwise() {
+        let m = Fixture::new(20);
+        // Nothing recorded means nothing to complain about.
+        assert!(m.innings().fielding_breaches(&m.state.conditions).is_empty());
+        assert_eq!(m.innings().fielders_outside, None);
+    }
+
+    #[test]
+    fn too_many_outside_the_circle_in_the_powerplay_is_flagged() {
+        let mut m = Fixture::new(20);
+        assert!(m.innings().in_powerplay());
+        m.push(ScoringEventKind::FieldSet {
+            outside_circle: 4,
+            behind_square_leg: 2,
+        });
+        let breaches = m.innings().fielding_breaches(&m.state.conditions);
+        assert_eq!(breaches.len(), 1);
+        assert!(breaches[0].contains("4 outside the circle"), "{}", breaches[0]);
+        assert!(breaches[0].contains("2 allowed in the powerplay"), "{}", breaches[0]);
+    }
+
+    #[test]
+    fn the_same_field_is_legal_once_the_powerplay_is_over() {
+        let mut m = Fixture::new(20);
+        m.push(ScoringEventKind::FieldSet {
+            outside_circle: 4,
+            behind_square_leg: 2,
+        });
+        assert!(!m.innings().fielding_breaches(&m.state.conditions).is_empty());
+        // Bowl the powerplay out; four outside is fine after it.
+        for _ in 0..(6 * 6) {
+            m.runs(0);
+        }
+        assert!(!m.innings().in_powerplay());
+        assert!(m.innings().fielding_breaches(&m.state.conditions).is_empty());
+    }
+
+    #[test]
+    fn three_behind_square_on_the_leg_side_is_never_allowed() {
+        let mut m = Fixture::new(20);
+        for _ in 0..(6 * 6) {
+            m.runs(0);
+        }
+        m.push(ScoringEventKind::FieldSet {
+            outside_circle: 5,
+            behind_square_leg: 3,
+        });
+        let breaches = m.innings().fielding_breaches(&m.state.conditions);
+        assert_eq!(breaches.len(), 1, "the circle is fine, the leg side is not");
+        assert!(breaches[0].contains("behind square"), "{}", breaches[0]);
+    }
+
+    #[test]
+    fn a_penalty_against_the_batting_side_waits_for_the_other_innings() {
+        let mut m = Fixture::new(20);
+        m.runs(4);
+        // Five to the side that has not batted yet.
+        m.push(ScoringEventKind::PenaltyRuns {
+            runs: 5,
+            reason: "damaging the pitch".into(),
+            to_side: Some(MatchSide::Away),
+        });
+        assert_eq!(m.innings().runs, 4, "the batting side keeps its own score");
+        assert_eq!(m.state.pending_penalty(MatchSide::Away), 5);
+
+        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 1,
+            batting: MatchSide::Away,
+            striker_id: m.away[0].id,
+            non_striker_id: m.away[1].id,
+            bowler_id: m.home[0].id,
+            super_over: false,
+        });
+        assert_eq!(m.innings().runs, 5, "they open on the penalty");
+        assert_eq!(m.innings().penalty_runs_awarded, 5);
+        assert_eq!(m.state.pending_penalty(MatchSide::Away), 0, "and it is spent");
+    }
+
+    #[test]
+    fn a_penalty_to_a_side_that_has_already_batted_lands_on_their_innings() {
+        let mut m = Fixture::new(20);
+        m.runs(4);
+        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 1,
+            batting: MatchSide::Away,
+            striker_id: m.away[0].id,
+            non_striker_id: m.away[1].id,
+            bowler_id: m.home[0].id,
+            super_over: false,
+        });
+        // The chase is on; a penalty is awarded to the side batting first.
+        m.push(ScoringEventKind::PenaltyRuns {
+            runs: 5,
+            reason: "fielding infringement".into(),
+            to_side: Some(MatchSide::Home),
+        });
+        assert_eq!(m.state.innings[0].runs, 9, "added to the completed innings");
+        assert_eq!(m.innings().runs, 0, "and not to the one being played");
+    }
+
+    #[test]
+    fn a_penalty_with_no_side_named_goes_to_whoever_is_batting() {
+        let mut m = Fixture::new(20);
+        m.push(ScoringEventKind::PenaltyRuns {
+            runs: 5,
+            reason: "helmet".into(),
+            to_side: None,
+        });
+        assert_eq!(m.innings().runs, 5);
+    }
+
+    #[test]
+    fn the_over_rate_needs_a_stamped_log() {
+        let m = Fixture::new(20);
+        // The fixture stamps nothing, so there is nothing to report.
+        assert_eq!(m.innings().overs_per_hour(), None);
+        assert_eq!(m.innings().overs_behind(14), None);
+    }
+
+    #[test]
+    fn a_stamped_log_measures_the_over_rate() {
+        use chrono::{Duration, TimeZone, Utc};
+        let start = Utc.with_ymd_and_hms(2026, 6, 6, 13, 0, 0).unwrap();
+
+        let mut m = Fixture::new(20);
+        // Start the clock, then bowl two overs in half an hour: four an hour,
+        // which is a long way behind fourteen.
+        m.seq += 1;
+        m.state
+            .apply(&evt_at(
+                m.seq,
+                ScoringEventKind::FieldSet {
+                    outside_circle: 2,
+                    behind_square_leg: 2,
+                },
+                start,
+            ))
+            .unwrap();
+
+        for ball in 0..12 {
+            m.seq += 1;
+            m.state
+                .apply(&evt_at(
+                    m.seq,
+                    ScoringEventKind::DeliveryRecorded {
+                        runs: 0,
+                        is_legal: true,
+                        is_boundary_four: false,
+                        is_boundary_six: false,
+                        shot: None,
+                    },
+                    start + Duration::minutes(30 * (ball + 1) / 12),
+                ))
+                .unwrap();
+        }
+
+        let inn = m.innings();
+        assert_eq!(inn.elapsed_minutes(), Some(30));
+        let rate = inn.overs_per_hour().unwrap();
+        assert!((rate - 4.0).abs() < 0.01, "two overs in half an hour is four an hour, got {rate}");
+
+        // At fourteen an hour they owe seven overs and have bowled two.
+        let behind = inn.overs_behind(14).unwrap();
+        assert!((behind - 5.0).abs() < 0.01, "five overs behind, got {behind}");
+        // Nobody counting means nothing to report.
+        assert_eq!(inn.overs_behind(0), None);
+    }
+
+    #[test]
+    fn a_side_ahead_of_the_clock_is_not_behind_it() {
+        use chrono::{Duration, TimeZone, Utc};
+        let start = Utc.with_ymd_and_hms(2026, 6, 6, 13, 0, 0).unwrap();
+        let mut m = Fixture::new(20);
+        m.seq += 1;
+        m.state
+            .apply(&evt_at(m.seq, ScoringEventKind::BowlerChanged { bowler_id: m.away[1].id }, start))
+            .unwrap();
+        // Six overs in twenty minutes: eighteen an hour.
+        for ball in 0..36 {
+            m.seq += 1;
+            m.state
+                .apply(&evt_at(
+                    m.seq,
+                    ScoringEventKind::DeliveryRecorded {
+                        runs: 0,
+                        is_legal: true,
+                        is_boundary_four: false,
+                        is_boundary_six: false,
+                        shot: None,
+                    },
+                    start + Duration::minutes(20 * (ball + 1) / 36),
+                ))
+                .unwrap();
+        }
+        let behind = m.innings().overs_behind(14).unwrap();
+        assert!(behind < 0.0, "ahead of the clock reads negative, got {behind}");
+    }
+
     // MARK: the wagon wheel
 
     #[test]
@@ -2287,6 +2861,7 @@ mod tests {
             striker_id: m.away[0].id,
             non_striker_id: m.away[1].id,
             bowler_id: m.home[0].id,
+                    super_over: false,
         });
 
         let start = m.state.dls_par(&table, crate::cricket::dls::DEFAULT_G50).unwrap();
@@ -2313,6 +2888,7 @@ mod tests {
             striker_id: m.away[0].id,
             non_striker_id: m.away[1].id,
             bowler_id: m.home[0].id,
+                    super_over: false,
         });
         let full = m.state.dls_par(&table, crate::cricket::dls::DEFAULT_G50).unwrap();
 

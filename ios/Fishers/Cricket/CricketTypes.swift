@@ -227,16 +227,83 @@ struct MatchConditions: Codable, Equatable, Hashable {
     var oversPerBowler: UInt8
     var ground: GroundType
     var ball: BallType
+    /// Overs of fielding restrictions at the start of an innings. 0 for none.
+    var powerplayOvers: UInt8
+    /// Fielders allowed outside the circle during the powerplay.
+    var fieldersOutsidePowerplay: UInt8
+    /// Fielders allowed outside the circle for the rest of the innings.
+    var fieldersOutsideNormal: UInt8
+    /// Fielders allowed behind square on the leg side. Two, in every format.
+    var fieldersBehindSquareLeg: UInt8
+    /// Overs a side is expected to bowl in an hour. 0 means nobody is counting.
+    var targetOversPerHour: UInt8
 
     enum CodingKeys: String, CodingKey {
         case ground, ball
         case oversLimit = "overs_limit"
         case oversPerBowler = "overs_per_bowler"
+        case powerplayOvers = "powerplay_overs"
+        case fieldersOutsidePowerplay = "fielders_outside_powerplay"
+        case fieldersOutsideNormal = "fielders_outside_normal"
+        case fieldersBehindSquareLeg = "fielders_behind_square_leg"
+        case targetOversPerHour = "target_overs_per_hour"
+    }
+
+    init(
+        oversLimit: UInt8, oversPerBowler: UInt8,
+        ground: GroundType, ball: BallType, powerplayOvers: UInt8 = 0,
+        fieldersOutsidePowerplay: UInt8 = 2,
+        fieldersOutsideNormal: UInt8 = 5,
+        fieldersBehindSquareLeg: UInt8 = 2,
+        targetOversPerHour: UInt8 = 0
+    ) {
+        self.oversLimit = oversLimit
+        self.oversPerBowler = oversPerBowler
+        self.ground = ground
+        self.ball = ball
+        self.powerplayOvers = powerplayOvers
+        self.fieldersOutsidePowerplay = fieldersOutsidePowerplay
+        self.fieldersOutsideNormal = fieldersOutsideNormal
+        self.fieldersBehindSquareLeg = fieldersBehindSquareLeg
+        self.targetOversPerHour = targetOversPerHour
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        oversLimit = try c.decode(UInt8.self, forKey: .oversLimit)
+        oversPerBowler = try c.decode(UInt8.self, forKey: .oversPerBowler)
+        ground = try c.decode(GroundType.self, forKey: .ground)
+        ball = try c.decode(BallType.self, forKey: .ball)
+        powerplayOvers = try c.decodeIfPresent(UInt8.self, forKey: .powerplayOvers) ?? 0
+        fieldersOutsidePowerplay =
+            try c.decodeIfPresent(UInt8.self, forKey: .fieldersOutsidePowerplay) ?? 2
+        fieldersOutsideNormal =
+            try c.decodeIfPresent(UInt8.self, forKey: .fieldersOutsideNormal) ?? 5
+        fieldersBehindSquareLeg =
+            try c.decodeIfPresent(UInt8.self, forKey: .fieldersBehindSquareLeg) ?? 2
+        targetOversPerHour =
+            try c.decodeIfPresent(UInt8.self, forKey: .targetOversPerHour) ?? 0
+    }
+
+    /// How many fielders may be outside the circle right now.
+    func fieldersAllowedOutside(inPowerplay: Bool) -> UInt8 {
+        inPowerplay ? fieldersOutsidePowerplay : fieldersOutsideNormal
     }
 
     /// A fifth of the innings each, rounded up: 20 overs gives 4, 50 gives 10.
     static func standardOversPerBowler(_ overs: UInt8) -> UInt8 {
         max(1, UInt8((Int(overs) + 4) / 5))
+    }
+
+    /// The powerplay most competitions use at each length.
+    static func standardPowerplay(_ overs: UInt8) -> UInt8 {
+        switch overs {
+        case 0...5: return 0
+        case 6...10: return 2
+        case 11...20: return 6
+        case 21...40: return 8
+        default: return 10
+        }
     }
 
     static func standard(overs: UInt8) -> MatchConditions {
@@ -245,14 +312,19 @@ struct MatchConditions: Codable, Equatable, Hashable {
             oversLimit: overs,
             oversPerBowler: standardOversPerBowler(overs),
             ground: .open,
-            ball: .white
+            ball: .white,
+            powerplayOvers: standardPowerplay(overs)
         )
     }
 
     /// "20 overs · 4 per bowler · white leather · open ground"
     var summary: String {
         let perBowler = oversPerBowler == 0 ? "no bowler limit" : "\(oversPerBowler) per bowler"
-        return "\(oversLimit) overs · \(perBowler) · \(ball.label.lowercased()) · \(ground.label.lowercased())"
+        var summary = "\(oversLimit) overs · \(perBowler) · \(ball.label.lowercased()) · \(ground.label.lowercased())"
+        if powerplayOvers > 0 {
+            summary += " · \(powerplayOvers) over powerplay"
+        }
+        return summary
     }
 }
 
@@ -388,7 +460,8 @@ enum ScoringEventKind: Codable, Equatable {
     case xiSelected(side: MatchSide, players: [MatchPlayer], captainId: UUID?, keeperId: UUID?)
     case inningsStarted(
         inningsIndex: UInt8, batting: MatchSide,
-        strikerId: UUID, nonStrikerId: UUID, bowlerId: UUID
+        strikerId: UUID, nonStrikerId: UUID, bowlerId: UUID,
+        superOver: Bool = false
     )
     case deliveryRecorded(
         runs: UInt8, isLegal: Bool, isBoundaryFour: Bool, isBoundarySix: Bool,
@@ -409,6 +482,10 @@ enum ScoringEventKind: Codable, Equatable {
     /// A batter who retired hurt comes back in.
     case batterResumed(batterId: UUID, replacingId: UUID?)
     case playerOfTheMatch(playerId: UUID)
+    /// Runs the umpire awards that nobody bowled or ran.
+    case penaltyRuns(runs: UInt8, reason: String, toSide: MatchSide?)
+    /// Where the field is set — the two counts the Laws restrict.
+    case fieldSet(outsideCircle: UInt8, behindSquareLeg: UInt8)
     case wicketRecorded(
         batterId: UUID, kind: DismissalKind, fielderId: UUID?, newBatterId: UUID?,
         runs: UInt8, onExtra: Bool
@@ -430,6 +507,11 @@ enum ScoringEventKind: Codable, Equatable {
         case onExtra = "on_extra"
         case playerId = "player_id"
         case replacingId = "replacing_id"
+        case reason
+        case superOver = "super_over"
+        case toSide = "to_side"
+        case outsideCircle = "outside_circle"
+        case behindSquareLeg = "behind_square_leg"
         case captainId = "captain_id"
         case keeperId = "keeper_id"
         case inningsIndex = "innings_index"
@@ -460,6 +542,8 @@ enum ScoringEventKind: Codable, Equatable {
         case .officialsAppointed: return "officials_appointed"
         case .batterResumed: return "batter_resumed"
         case .playerOfTheMatch: return "player_of_the_match"
+        case .penaltyRuns: return "penalty_runs"
+        case .fieldSet: return "field_set"
         case .inningsStarted: return "innings_started"
         case .deliveryRecorded: return "delivery_recorded"
         case .extrasRecorded: return "extras_recorded"
@@ -487,12 +571,13 @@ enum ScoringEventKind: Codable, Equatable {
             try c.encode(players, forKey: .players)
             try c.encodeIfPresent(captain, forKey: .captainId)
             try c.encodeIfPresent(keeper, forKey: .keeperId)
-        case let .inningsStarted(idx, batting, striker, non, bowler):
+        case let .inningsStarted(idx, batting, striker, non, bowler, superOver):
             try c.encode(idx, forKey: .inningsIndex)
             try c.encode(batting, forKey: .batting)
             try c.encode(striker, forKey: .strikerId)
             try c.encode(non, forKey: .nonStrikerId)
             try c.encode(bowler, forKey: .bowlerId)
+            try c.encode(superOver, forKey: .superOver)
         case let .deliveryRecorded(runs, legal, four, six, shot):
             try c.encode(runs, forKey: .runs)
             try c.encode(legal, forKey: .isLegal)
@@ -522,6 +607,13 @@ enum ScoringEventKind: Codable, Equatable {
             try c.encodeIfPresent(replacingId, forKey: .replacingId)
         case let .playerOfTheMatch(playerId):
             try c.encode(playerId, forKey: .playerId)
+        case let .penaltyRuns(runs, reason, toSide):
+            try c.encode(runs, forKey: .runs)
+            try c.encode(reason, forKey: .reason)
+            try c.encodeIfPresent(toSide, forKey: .toSide)
+        case let .fieldSet(outsideCircle, behindSquareLeg):
+            try c.encode(outsideCircle, forKey: .outsideCircle)
+            try c.encode(behindSquareLeg, forKey: .behindSquareLeg)
         case let .wicketRecorded(batter, kind, fielder, newBatter, runs, onExtra):
             try c.encode(batter, forKey: .batterId)
             try c.encode(kind, forKey: .kind)
@@ -567,7 +659,8 @@ enum ScoringEventKind: Codable, Equatable {
                 batting: try c.decode(MatchSide.self, forKey: .batting),
                 strikerId: try c.decode(UUID.self, forKey: .strikerId),
                 nonStrikerId: try c.decode(UUID.self, forKey: .nonStrikerId),
-                bowlerId: try c.decode(UUID.self, forKey: .bowlerId)
+                bowlerId: try c.decode(UUID.self, forKey: .bowlerId),
+                superOver: try c.decodeIfPresent(Bool.self, forKey: .superOver) ?? false
             )
         case "delivery_recorded":
             self = .deliveryRecorded(
@@ -612,6 +705,17 @@ enum ScoringEventKind: Codable, Equatable {
             )
         case "player_of_the_match":
             self = .playerOfTheMatch(playerId: try c.decode(UUID.self, forKey: .playerId))
+        case "penalty_runs":
+            self = .penaltyRuns(
+                runs: try c.decode(UInt8.self, forKey: .runs),
+                reason: try c.decode(String.self, forKey: .reason),
+                toSide: try c.decodeIfPresent(MatchSide.self, forKey: .toSide)
+            )
+        case "field_set":
+            self = .fieldSet(
+                outsideCircle: try c.decode(UInt8.self, forKey: .outsideCircle),
+                behindSquareLeg: try c.decode(UInt8.self, forKey: .behindSquareLeg)
+            )
         case "wicket_recorded":
             self = .wicketRecorded(
                 batterId: try c.decode(UUID.self, forKey: .batterId),
@@ -645,14 +749,33 @@ struct ScoringEvent: Codable, Identifiable, Equatable {
     var clientEventId: UUID
     var seq: Int64
     var kind: ScoringEventKind
+    /// When the scorer tapped it. The over rate is only tracked for events that
+    /// carry one, so an older log still replays without it.
+    var at: Date?
 
     enum CodingKeys: String, CodingKey {
         case clientEventId = "client_event_id"
-        case seq, kind
+        case seq, kind, at
     }
 
-    static func make(seq: Int64, kind: ScoringEventKind) -> ScoringEvent {
-        ScoringEvent(clientEventId: UUID(), seq: seq, kind: kind)
+    init(clientEventId: UUID, seq: Int64, kind: ScoringEventKind, at: Date? = nil) {
+        self.clientEventId = clientEventId
+        self.seq = seq
+        self.kind = kind
+        self.at = at
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        clientEventId = try c.decode(UUID.self, forKey: .clientEventId)
+        seq = try c.decode(Int64.self, forKey: .seq)
+        kind = try c.decode(ScoringEventKind.self, forKey: .kind)
+        at = try c.decodeIfPresent(Date.self, forKey: .at)
+    }
+
+    /// Stamped with the clock, which is what makes the over rate measurable.
+    static func make(seq: Int64, kind: ScoringEventKind, at: Date? = Date()) -> ScoringEvent {
+        ScoringEvent(clientEventId: UUID(), seq: seq, kind: kind, at: at)
     }
 }
 
@@ -883,6 +1006,18 @@ struct InningsState: Codable, Equatable {
     var lastOverBowler: UUID?
     /// The next legal delivery is a free hit: only a run out can get them.
     var freeHit: Bool
+    /// One over a side, two wickets, to break a tie.
+    var superOver: Bool
+    /// Overs of fielding restrictions this innings gets.
+    var powerplayOvers: UInt8
+    /// Fielders the scorer last recorded outside the circle.
+    var fieldersOutside: UInt8?
+    var fieldersBehindSquareLeg: UInt8?
+    /// Runs added to this innings that nobody scored.
+    var penaltyRunsAwarded: UInt16
+    /// When the innings started and when the last ball was bowled.
+    var startedAt: Date?
+    var lastBallAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case index, batting, bowling, runs, wickets, extras, batters, bowlers
@@ -900,6 +1035,13 @@ struct InningsState: Codable, Equatable {
         case oversAvailable = "overs_available"
         case lastOverBowler = "last_over_bowler"
         case freeHit = "free_hit"
+        case superOver = "super_over"
+        case powerplayOvers = "powerplay_overs"
+        case fieldersOutside = "fielders_outside"
+        case fieldersBehindSquareLeg = "fielders_behind_square_leg"
+        case penaltyRunsAwarded = "penalty_runs_awarded"
+        case startedAt = "started_at"
+        case lastBallAt = "last_ball_at"
     }
 
     init(index: UInt8 = 0, batting: MatchSide = .home, bowling: MatchSide = .away) {
@@ -916,6 +1058,13 @@ struct InningsState: Codable, Equatable {
         oversAvailable = 0
         lastOverBowler = nil
         freeHit = false
+        superOver = false
+        powerplayOvers = 0
+        fieldersOutside = nil
+        fieldersBehindSquareLeg = nil
+        penaltyRunsAwarded = 0
+        startedAt = nil
+        lastBallAt = nil
     }
 
     init(from decoder: Decoder) throws {
@@ -947,6 +1096,69 @@ struct InningsState: Codable, Equatable {
         oversAvailable = try c.decodeIfPresent(UInt8.self, forKey: .oversAvailable) ?? 0
         lastOverBowler = try c.decodeIfPresent(UUID.self, forKey: .lastOverBowler)
         freeHit = try c.decodeIfPresent(Bool.self, forKey: .freeHit) ?? false
+        superOver = try c.decodeIfPresent(Bool.self, forKey: .superOver) ?? false
+        powerplayOvers = try c.decodeIfPresent(UInt8.self, forKey: .powerplayOvers) ?? 0
+        fieldersOutside = try c.decodeIfPresent(UInt8.self, forKey: .fieldersOutside)
+        fieldersBehindSquareLeg =
+            try c.decodeIfPresent(UInt8.self, forKey: .fieldersBehindSquareLeg)
+        penaltyRunsAwarded =
+            try c.decodeIfPresent(UInt16.self, forKey: .penaltyRunsAwarded) ?? 0
+        startedAt = try c.decodeIfPresent(Date.self, forKey: .startedAt)
+        lastBallAt = try c.decodeIfPresent(Date.self, forKey: .lastBallAt)
+    }
+
+    /// How long the innings has been going, from the first ball to the last.
+    var elapsedMinutes: Int? {
+        guard let startedAt, let lastBallAt else { return nil }
+        let minutes = Int(lastBallAt.timeIntervalSince(startedAt) / 60)
+        return minutes > 0 ? minutes : nil
+    }
+
+    /// Overs actually bowled per hour so far.
+    var oversPerHour: Double? {
+        guard let minutes = elapsedMinutes else { return nil }
+        return (Double(legalBalls) / 6.0) * 60.0 / Double(minutes)
+    }
+
+    /// Overs behind the clock — negative when they are ahead of it.
+    func oversBehind(target: UInt8) -> Double? {
+        guard target > 0, let minutes = elapsedMinutes else { return nil }
+        let due = Double(minutes) / 60.0 * Double(target)
+        return due - Double(legalBalls) / 6.0
+    }
+
+    /// What the field breaks, if anything. Empty when it is legal, or when the
+    /// scorer has not said where the fielders are.
+    func fieldingBreaches(_ conditions: MatchConditions) -> [String] {
+        var breaches: [String] = []
+        if let outside = fieldersOutside {
+            let allowed = conditions.fieldersAllowedOutside(inPowerplay: inPowerplay)
+            if outside > allowed {
+                breaches.append(
+                    "\(outside) outside the circle — \(allowed) allowed"
+                        + (inPowerplay ? " in the powerplay" : "")
+                )
+            }
+        }
+        if let behind = fieldersBehindSquareLeg,
+           behind > conditions.fieldersBehindSquareLeg {
+            breaches.append(
+                "\(behind) behind square on the leg side — \(conditions.fieldersBehindSquareLeg) allowed"
+            )
+        }
+        return breaches
+    }
+
+    /// Inside the fielding restrictions.
+    var inPowerplay: Bool {
+        powerplayOvers > 0 && legalBalls < UInt16(powerplayOvers) * 6
+    }
+
+    /// Overs of powerplay still to come, for the banner.
+    var powerplayOversLeft: UInt16 {
+        let total = UInt16(powerplayOvers) * 6
+        guard total > legalBalls else { return 0 }
+        return (total - legalBalls + 5) / 6
     }
 
     /// Total balls this innings gets, or nil when no limit is recorded. Zero
@@ -1016,6 +1228,10 @@ struct MatchStateSnapshot: Equatable {
     var winner: MatchSide?
     var margin: String?
     var playerOfTheMatch: UUID?
+    /// How many super overs it has taken so far.
+    var superOvers: UInt8
+    /// Penalties awarded to a side that has not batted yet, keyed `home`/`away`.
+    var pendingPenalties: [String: UInt16]
 }
 
 struct MatchState: Codable, Equatable {
@@ -1050,6 +1266,10 @@ struct MatchState: Codable, Equatable {
     var agreedAway: String?
     var officials: MatchOfficials
     var playerOfTheMatch: UUID?
+    /// How many super overs it has taken so far.
+    var superOvers: UInt8
+    /// Penalties awarded to a side that has not batted yet, keyed `home`/`away`.
+    var pendingPenalties: [String: UInt16]
     /// Local undo stack — never serialized.
     var history: [MatchStateSnapshot] = []
 
@@ -1076,6 +1296,8 @@ struct MatchState: Codable, Equatable {
         case agreedAway = "agreed_away"
         case officials
         case playerOfTheMatch = "player_of_the_match"
+        case superOvers = "super_overs"
+        case pendingPenalties = "pending_penalties"
     }
 
     init(oversLimit: UInt8 = 20, homeName: String = "Home", awayName: String = "Away") {
@@ -1095,6 +1317,8 @@ struct MatchState: Codable, Equatable {
         agreedAway = nil
         officials = MatchOfficials()
         playerOfTheMatch = nil
+        superOvers = 0
+        pendingPenalties = [:]
     }
 
     init(from decoder: Decoder) throws {
@@ -1127,6 +1351,9 @@ struct MatchState: Codable, Equatable {
         officials = try c.decodeIfPresent(MatchOfficials.self, forKey: .officials)
             ?? MatchOfficials()
         playerOfTheMatch = try c.decodeIfPresent(UUID.self, forKey: .playerOfTheMatch)
+        superOvers = try c.decodeIfPresent(UInt8.self, forKey: .superOvers) ?? 0
+        pendingPenalties =
+            try c.decodeIfPresent([String: UInt16].self, forKey: .pendingPenalties) ?? [:]
         history = []
     }
 
@@ -1150,6 +1377,19 @@ struct MatchState: Codable, Equatable {
 
     /// Both captains have signed off the terms, so the game can start.
     var conditionsAgreed: Bool { agreedHome != nil && agreedAway != nil }
+
+    /// Penalties waiting for a side that has not batted yet.
+    func pendingPenalty(_ side: MatchSide) -> UInt16 {
+        pendingPenalties[side.rawValue] ?? 0
+    }
+
+    /// The scores are level and the match is over: it needs a super over.
+    var needsASuperOver: Bool {
+        status == .complete && winner == nil && innings.count >= 2 && innings.count % 2 == 0
+    }
+
+    /// Which side bats first in the super over: whoever batted second last.
+    var superOverFirstBatting: MatchSide? { innings.last?.batting }
 
     /// Anyone appointed to stand or to score — they may score the match.
     func isOfficial(_ id: UUID) -> Bool {

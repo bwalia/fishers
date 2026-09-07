@@ -129,10 +129,24 @@ struct CricketScoringFlowView: View {
                     value: $conditions.oversPerBowler,
                     in: 0...conditions.oversLimit
                 )
+                Stepper(
+                    conditions.powerplayOvers == 0
+                        ? "No powerplay"
+                        : "\(conditions.powerplayOvers) over powerplay",
+                    value: $conditions.powerplayOvers,
+                    in: 0...conditions.oversLimit
+                )
+                Stepper(
+                    conditions.targetOversPerHour == 0
+                        ? "Over rate not counted"
+                        : "\(conditions.targetOversPerHour) overs an hour",
+                    value: $conditions.targetOversPerHour,
+                    in: 0...25
+                )
             } header: {
                 Text("Format")
             } footer: {
-                Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs. Set it to none for a social game.")
+                Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs — with a \(MatchConditions.standardPowerplay(conditions.oversLimit)) over powerplay. Fourteen an hour is the usual over rate. Set any of them to none for a social game.")
             }
 
             Section("Ground") {
@@ -146,6 +160,23 @@ struct CricketScoringFlowView: View {
                 Text(conditions.ground.blurb)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Stepper(
+                    "\(conditions.fieldersOutsidePowerplay) outside the circle in the powerplay",
+                    value: $conditions.fieldersOutsidePowerplay,
+                    in: 0...11
+                )
+                Stepper(
+                    "\(conditions.fieldersOutsideNormal) outside after it",
+                    value: $conditions.fieldersOutsideNormal,
+                    in: 0...11
+                )
+            } header: {
+                Text("Fielding restrictions")
+            } footer: {
+                Text("Two and five are standard. Two behind square on the leg side applies throughout and is not adjustable.")
             }
 
             Section("Ball") {
@@ -194,6 +225,7 @@ struct CricketScoringFlowView: View {
         .onChange(of: conditions.oversLimit) { _, new in
             // Keep the allocation sensible when the format changes.
             conditions.oversPerBowler = MatchConditions.standardOversPerBowler(new)
+            conditions.powerplayOvers = MatchConditions.standardPowerplay(new)
             overs = Int(new)
         }
     }

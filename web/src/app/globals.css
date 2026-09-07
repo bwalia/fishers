@@ -262,3 +262,22 @@ select {
 .live-board .panel .error {
   color: var(--danger);
 }
+
+/* Ball-by-ball commentary on the live scoreboard. */
+.commentary {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.commentary li {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+.commentary li:last-child {
+  border-bottom: none;
+}
