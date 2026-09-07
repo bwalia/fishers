@@ -23,8 +23,8 @@ pub async fn create_club(
 
     let club = sqlx::query_as::<_, Club>(
         r#"
-        INSERT INTO clubs (name, sport_types, visibility, owner_id, description, is_informal_group)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO clubs (name, sport_types, visibility, owner_id, description, is_informal_group, qr_token)
+        VALUES ($1, $2, $3, $4, $5, $6, encode(gen_random_bytes(12), 'hex'))
         RETURNING id, name, sport_types, visibility, owner_id, description,
                   is_informal_group, created_at, updated_at
         "#,
@@ -126,8 +126,8 @@ pub async fn create_team(
 ) -> Result<Team, sqlx::Error> {
     sqlx::query_as::<_, Team>(
         r#"
-        INSERT INTO teams (club_id, sport, name)
-        VALUES ($1, $2, $3)
+        INSERT INTO teams (club_id, sport, name, qr_token)
+        VALUES ($1, $2, $3, encode(gen_random_bytes(12), 'hex'))
         RETURNING id, club_id, sport, name, created_at
         "#,
     )
