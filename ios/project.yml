@@ -36,14 +36,17 @@ targets:
         FISHERS_WEB_BASE_URL: ""
       configs:
         Debug:
-          FISHERS_API_BASE_URL: "http://127.0.0.1:8080"
-          FISHERS_WEB_BASE_URL: "http://127.0.0.1:3000"
+          # LAN host for physical iPhone testing (Simulator can use the same
+          # addresses when the API/web bind 0.0.0.0). API is :8080; web/share
+          # links are :3000 — Next does not serve /api/v1.
+          FISHERS_API_BASE_URL: "http://192.168.1.99:8080"
+          FISHERS_WEB_BASE_URL: "http://192.168.1.99:3000"
     info:
       path: Fishers/Resources/Info.plist
       properties:
         CFBundleDisplayName: Fishers
-        # Per-configuration API host. Debug points at the Mac running the API;
-        # set FISHERS_API_BASE_URL in the Release configuration before shipping.
+        # Per-configuration API host. Debug points at the LAN Mac running the
+        # API; set FISHERS_API_BASE_URL in Release before shipping.
         FishersAPIBaseURL: "$(FISHERS_API_BASE_URL)"
         FishersWebBaseURL: "$(FISHERS_WEB_BASE_URL)"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
@@ -70,6 +73,8 @@ targets:
               NSExceptionAllowsInsecureHTTPLoads: true
               NSIncludesSubdomains: true
             127.0.0.1:
+              NSExceptionAllowsInsecureHTTPLoads: true
+            192.168.1.99:
               NSExceptionAllowsInsecureHTTPLoads: true
         # Scanning the other club's QR code at the toss is the only camera use.
         NSCameraUsageDescription: >-
