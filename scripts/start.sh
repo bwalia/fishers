@@ -81,6 +81,8 @@ API_ENV=(
   "API_HOST=0.0.0.0"
   "API_PORT=${API_PORT}"
   "JWT_SECRET=${JWT_SECRET:-dev-secret-not-for-production-use-only}"
+  "JWT_ACCESS_TTL_SECS=${JWT_ACCESS_TTL_SECS:-900}"
+  "JWT_REFRESH_TTL_SECS=${JWT_REFRESH_TTL_SECS:-2592000}"
   "RUST_LOG=${RUST_LOG:-fishers_api=debug,tower_http=info,sqlx=warn}"
   "PUBLIC_WEB_BASE=${WEB_BASE}"
   "CORS_ALLOWED_ORIGINS=${WEB_BASE},http://127.0.0.1:${WEB_PORT},http://localhost:${WEB_PORT}"
