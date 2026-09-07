@@ -63,6 +63,20 @@ struct LiveScorerView: View {
 
     private var innings: InningsState? { store.state.currentInnings }
     private var isLive: Bool { store.state.status == .live && innings?.complete == false }
+
+    /// An over has finished and the same bowler is still down for the next one.
+    ///
+    /// The engine refuses this — nobody bowls two in a row — so the controls
+    /// have to refuse it too, or a scorer meets a rejection instead of a
+    /// question.
+    private var needsNewBowler: Bool {
+        guard let inn = innings, !inn.complete else { return false }
+        guard inn.ballsInCurrentOver == 0,
+              inn.legalBalls > 0,
+              let bowler = inn.bowlerId,
+              inn.lastOverBowler == bowler else { return false }
+        return store.state.xi(inn.bowling).count > 1
+    }
     private var wheelMode: WagonWheelMode {
         WagonWheelMode(rawValue: wheelModeRaw) ?? .everyScoringShot
     }
@@ -73,13 +87,18 @@ struct LiveScorerView: View {
                 HStack(alignment: .top, spacing: 16) {
                     ScrollView { VStack(spacing: 14) { scoreHeader; commentaryPanel } }
                         .frame(maxWidth: .infinity)
-                    controls.frame(maxWidth: .infinity)
+                    VStack(spacing: 10) {
+                        bowlerGate
+                        controls
+                    }
+                    .frame(maxWidth: .infinity)
                 }
             } else {
                 VStack(spacing: 12) {
                     scoreHeader
                     commentaryPanel
                     Spacer(minLength: 0)
+                    bowlerGate
                     controls
                 }
             }
@@ -539,8 +558,34 @@ struct LiveScorerView: View {
             }
             .font(FishersTheme.subhead)
         }
-        .disabled(!isLive)
-        .opacity(isLive ? 1 : 0.5)
+        .disabled(!isLive || needsNewBowler)
+        .opacity(isLive && !needsNewBowler ? 1 : 0.5)
+    }
+
+    /// Says why the buttons are dead, and offers the way out.
+    @ViewBuilder
+    private var bowlerGate: some View {
+        if needsNewBowler, let inn = innings {
+            let last = inn.lastOverBowler.map { store.name(for: $0) } ?? "That bowler"
+            Button { showBowler = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Over \(Int(inn.legalBalls) / 6) done — who bowls next?")
+                            .font(FishersTheme.headline)
+                        Text("\(last) bowled it, and nobody bowls two in a row.")
+                            .font(FishersTheme.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(FishersTheme.maybe.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Choose the next bowler to carry on scoring")
+        }
     }
 
     private func runButton(_ runs: Int, big: Bool = false) -> some View {
@@ -620,10 +665,7 @@ struct LiveScorerView: View {
     }
 
     private func promptForBowlerIfOverEnded() {
-        guard let inn = store.state.currentInnings, !inn.complete else { return }
-        if inn.ballsInCurrentOver == 0 && inn.legalBalls > 0 {
-            showBowler = true
-        }
+        if needsNewBowler { showBowler = true }
     }
 
     // MARK: Sync chip
