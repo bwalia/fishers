@@ -1,5 +1,6 @@
 export const API_ORIGIN =
-  process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") || "http://127.0.0.1:8080";
+  process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ||
+  "http://192.168.1.99:8080";
 
 export const API_V1 = `${API_ORIGIN}/api/v1`;
 
