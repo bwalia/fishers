@@ -64,6 +64,8 @@ actor NetworkService {
     private let encoder: JSONEncoder
     private var accessToken: String?
     private var refreshToken: String?
+    /// The refresh in flight, if there is one. See `refreshAccessToken`.
+    private var refreshTask: Task<Void, Error>?
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -170,7 +172,25 @@ actor NetworkService {
         return data
     }
 
+    /// Renew the session, one at a time.
+    ///
+    /// An actor serialises calls but still suspends at every `await`, so two
+    /// requests answered 401 together would each reach the network with the
+    /// same refresh token. The server rotates them — issuing a new pair revokes
+    /// the old one — so the second would be refused and the loser would clear
+    /// the keychain and sign the scorer out mid-match. Whoever asks second
+    /// waits on the refresh already running instead.
     private func refreshAccessToken() async throws {
+        if let inFlight = refreshTask {
+            return try await inFlight.value
+        }
+        let task = Task { try await performRefresh() }
+        refreshTask = task
+        defer { refreshTask = nil }
+        try await task.value
+    }
+
+    private func performRefresh() async throws {
         guard let refreshToken else { throw APIError.unauthorized }
         struct Body: Encodable { let refresh_token: String }
         struct Resp: Decodable {
