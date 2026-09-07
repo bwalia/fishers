@@ -29,11 +29,11 @@ If 5433 is already taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` po
 # or: cd backend && cargo run -p fishers-api
 ```
 
-API: `http://127.0.0.1:8080` · Health: `GET /health` · Swagger: `http://127.0.0.1:8080/swagger-ui` · Routes: `/api/v1/...`
+API: `http://192.168.1.99:8080` · Health: `GET /health` · Swagger: `http://192.168.1.99:8080/swagger-ui` · Routes: `/api/v1/...`
 
-Keep this process running while using the Simulator or web dashboard. Migrations run on startup.
+Keep this process running while using the Simulator, a physical iPhone, or the web dashboard. Migrations run on startup.
 
-**Simulator tip:** the app points at `http://127.0.0.1:8080`. If sign-in fails with a connection error, the API is not running.
+**Device / LAN tip:** Debug builds and the web dashboard talk to `http://192.168.1.99:8080`. Bind the API with `API_HOST=0.0.0.0`. If sign-in fails with a connection error, the API is not running or not reachable on the LAN.
 
 Optional smoke test (signup → London Lords club → Wednesday nets, Saturday league, Sunday social):
 
@@ -49,7 +49,7 @@ xcodegen generate
 open Fishers.xcodeproj
 ```
 
-Run on Simulator. API base URL defaults to `http://127.0.0.1:8080` in `Fishers/Config/AppConfig.swift`.
+Run on Simulator or a physical iPhone. Debug API base URL is `http://192.168.1.99:8080` in `Fishers/Config/AppConfig.swift`.
 
 ### 4. Web dashboard
 
@@ -60,7 +60,7 @@ npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). Demo: `demo@fishers.test` / `password123`.
+Open [http://192.168.1.99:3000](http://192.168.1.99:3000). Demo: `demo@fishers.test` / `password123`.
 
 **CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md).
 
