@@ -91,6 +91,8 @@ API_ENV=(
   "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}"
   "DLS_RESOURCE_TABLE=${DLS_RESOURCE_TABLE:-}"
   "DLS_G50=${DLS_G50:-245}"
+  "OLLAMA_URL=${OLLAMA_URL:-}"
+  "OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}"
 )
 
 if command -v cargo >/dev/null 2>&1; then

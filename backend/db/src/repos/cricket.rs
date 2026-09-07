@@ -510,6 +510,15 @@ pub async fn apply_event_batch(
         if seen.contains(&event.client_event_id) {
             continue; // already applied — the client is retrying a batch
         }
+        if event.seq <= state.last_seq {
+            // The client worked from a state it had already moved past — two
+            // quick taps both numbering the same ball, say. The engine treats
+            // this as applied and does nothing, so inserting it anyway would
+            // collide with the row already holding that sequence number, and
+            // the scorer would see a duplicate key error for a ball that was
+            // recorded perfectly well.
+            continue;
+        }
         state.apply(event)?;
 
         let payload = serde_json::to_value(&event.kind)?;

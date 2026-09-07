@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { api, getAccessToken, getStoredUser } from "@/lib/api";
 import { WagonWheel } from "@/components/WagonWheel";
@@ -75,9 +75,14 @@ export default function ScorerPage({
   /// Every action is one event appended to the log. The server replays the log,
   /// applies the Laws and hands back the new state — the browser never decides
   /// anything itself, so it cannot disagree with the app.
+  // Two taps landing in the same tick would both number the ball from the same
+  // state. `busy` only takes effect after a re-render, so the guard is a ref.
+  const sending = useRef(false);
+
   const send = useCallback(
     async (kind: Record<string, unknown>) => {
-      if (!match) return;
+      if (!match || sending.current) return;
+      sending.current = true;
       setBusy(true);
       setError(null);
       const at = new Date().toISOString();
@@ -115,6 +120,7 @@ export default function ScorerPage({
       } catch (err) {
         setError(err instanceof Error ? err.message : "The API rejected that");
       } finally {
+        sending.current = false;
         setBusy(false);
       }
     },
@@ -606,6 +612,31 @@ function LivePanel({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [sheet, setSheet] = useState<null | "wicket" | "more">(null);
   const [askShot, setAskShot] = useState(true);
+  /// Model-written lines, keyed by ball. The log-written line shows instantly
+  /// and is replaced only if a better one arrives.
+  const [aiLines, setAiLines] = useState<Record<string, string>>({});
+
+  const ballCount = (inn.deliveries || []).length;
+  useEffect(() => {
+    const last = (inn.deliveries || [])[ballCount - 1];
+    if (!last) return;
+    const key = `${last.over}.${last.ball_in_over}.${last.label}`;
+    let dropped = false;
+    // Fire and forget: a model takes seconds and the ball is already recorded,
+    // so nothing waits on this and a failure leaves the written line in place.
+    api<{ line: string | null }>("POST", `/cricket/matches/${match.id}/commentary`, {
+      over: last.over,
+      ball_in_over: last.ball_in_over,
+    })
+      .then((r) => {
+        if (!dropped && r.line) setAiLines((prev) => ({ ...prev, [key]: r.line! }));
+      })
+      .catch(() => {});
+    return () => {
+      dropped = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ballCount, match.id]);
 
   useEffect(() => {
     setAskShot(localStorage.getItem(ASK_KEY) !== "0");
@@ -687,158 +718,279 @@ function LivePanel({
     inn.fielders_outside != null &&
     inn.fielders_outside > allowedOutside;
 
-  const thisOver = (inn.deliveries || []).filter((d) => d.over === Math.floor(inn.legal_balls / 6));
+  /// Commentary newest-first, with each over closed off by a summary once its
+  /// balls have been listed — so an over reads as a unit rather than a stream.
+  const commentaryRows = (() => {
+    const balls = inn.deliveries || [];
+    // The innings score after each ball, so an over summary can state it.
+    let runs = 0;
+    let wickets = 0;
+    const running = balls.map((b) => {
+      runs += b.runs;
+      if (b.is_wicket) wickets += 1;
+      return { runs, wickets };
+    });
+
+    type Row =
+      | { kind: "ball"; ball: (typeof balls)[number]; key: string }
+      | {
+          kind: "over";
+          over: number;
+          runs: number;
+          wickets: number;
+          overRuns: number;
+          overWickets: number;
+        };
+
+    const rows: Row[] = [];
+    for (let i = balls.length - 1; i >= 0; i--) {
+      const ball = balls[i];
+      rows.push({
+        kind: "ball",
+        ball,
+        key: `${ball.over}.${ball.ball_in_over}.${ball.label}`,
+      });
+      const previous = balls[i - 1];
+      // This was the first ball of its over, so the over is now fully listed.
+      if (previous && previous.over !== ball.over) {
+        const overBalls = balls.filter((b) => b.over === previous.over);
+        rows.push({
+          kind: "over",
+          over: previous.over,
+          runs: running[i - 1].runs,
+          wickets: running[i - 1].wickets,
+          overRuns: overBalls.reduce((sum, b) => sum + b.runs, 0),
+          overWickets: overBalls.filter((b) => b.is_wicket).length,
+        });
+      }
+    }
+    return rows.slice(0, 40);
+  })();
+
+  // Ball-by-ball, grouped into overs and shown as dials.
+  const overGroups = (() => {
+    const map = new Map<number, NonNullable<typeof inn.deliveries>>();
+    for (const d of inn.deliveries || []) {
+      const list = map.get(d.over) || [];
+      list.push(d);
+      map.set(d.over, list);
+    }
+    return [...map.entries()].sort((a, b) => a[0] - b[0]).slice(-2);
+  })();
 
   return (
-    <>
-      <div className="matchbar">
-        <div>
-          <span className="scoreline">
-            {inn.runs}/{inn.wickets}
-          </span>{" "}
-          <span className="muted">
-            ({overs(inn.legal_balls)} of {oversAvailable} ov)
-          </span>
-          <div className="muted">
-            RR {crr === null ? "—" : crr.toFixed(2)}
-            {rrr !== null && ` · need ${rrr.toFixed(2)}`}
-            {st.target != null &&
-              ` · ${Math.max(0, st.target - inn.runs)} from ${Math.max(
-                0,
-                oversAvailable * 6 - inn.legal_balls
-              )}`}
-          </div>
-        </div>
-        <div className="crease">
-          <Batter label="striker" id={inn.striker_id} nameOf={nameOf} b={batterOf(inn.striker_id)} />
-          <Batter label="non-striker" id={inn.non_striker_id} nameOf={nameOf} b={batterOf(inn.non_striker_id)} />
+    <div className="score-layout">
+      <div>
+        <div className="matchbar">
           <div>
-            <strong>{nameOf(inn.bowler_id)}</strong>
-            <div className="subtle">
-              bowling ·{" "}
-              {(() => {
-                const bowl = inn.bowlers.find((b) => b.player_id === inn.bowler_id);
-                return bowl ? `${overs(bowl.balls)}-${bowl.maidens}-${bowl.runs}-${bowl.wickets}` : "—";
-              })()}
+            <span className="scoreline">
+              {inn.runs}/{inn.wickets}
+            </span>{" "}
+            <span className="muted">
+              ({overs(inn.legal_balls)} of {oversAvailable} ov)
+            </span>
+            <div className="muted">
+              CRR {crr === null ? "—" : crr.toFixed(2)}
+              {rrr !== null && ` · RRR ${rrr.toFixed(2)}`}
             </div>
           </div>
-          {currentOver > 0 && (
-            <div>
-              <strong className="num">{lastOverRuns}</strong>
+          {st.target != null && (
+            <div style={{ marginLeft: "auto", textAlign: "right" }}>
+              <strong className="num">
+                {Math.max(0, st.target - inn.runs)} needed
+              </strong>
               <div className="subtle">
-                off over {currentOver} · {nameOf(inn.last_over_bowler)}
+                from {Math.max(0, oversAvailable * 6 - inn.legal_balls)} balls
               </div>
             </div>
           )}
         </div>
-      </div>
 
-      <div style={{ display: "flex", gap: "var(--s2)", flexWrap: "wrap", marginBottom: "var(--s3)" }}>
-        {inn.free_hit && <span className="tag gold">Free hit</span>}
-        {inPowerplay && <span className="tag">Powerplay</span>}
-        {match.dls && (
-          <span className="tag grey">
-            DLS par {match.dls.par} · {match.dls.ahead_by >= 0 ? "+" : ""}
-            {match.dls.ahead_by}
-          </span>
-        )}
-        {thisOver.length > 0 && (
-          <span className="tag grey">
-            This over: {thisOver.map((d) => d.label).join(" ")}
-          </span>
-        )}
-      </div>
+        <div style={{ display: "flex", gap: "var(--s2)", flexWrap: "wrap", marginBottom: "var(--s3)" }}>
+          {inn.free_hit && <span className="tag gold">Free hit</span>}
+          {inPowerplay && <span className="tag">Powerplay</span>}
+          {match.dls && (
+            <span className="tag grey">
+              DLS par {match.dls.par} · {match.dls.ahead_by >= 0 ? "+" : ""}
+              {match.dls.ahead_by}
+            </span>
+          )}
+        </div>
 
-      {fieldBreach && (
-        <p className="error">
-          {inn.fielders_outside} fielders outside the circle — only {allowedOutside} allowed.
-        </p>
-      )}
-
-      {needsBowler && (
-        <div className="panel" style={{ borderColor: "var(--accent)" }}>
-          <div className="panel-head">
-            <h2>Over {currentOver} complete — who bowls next?</h2>
-            <span className="tag gold">{lastOverRuns} off the last over</span>
-          </div>
-          <p className="muted">
-            {nameOf(inn.last_over_bowler)} bowled it, and nobody bowls two in a row.
+        {fieldBreach && (
+          <p className="error">
+            {inn.fielders_outside} fielders outside the circle — only {allowedOutside} allowed.
           </p>
-          <div className="actions bowler-options">
-            {bowlingXi
-              .filter((id) => id !== inn.last_over_bowler)
-              .map((id) => {
-                const b = inn.bowlers.find((x) => x.player_id === id);
-                const bowled = b ? Math.floor(b.balls / 6) : 0;
-                const limit = st.conditions?.overs_per_bowler ?? 0;
-                const spent = limit > 0 && bowled >= limit;
+        )}
+
+        <div className="panel">
+          <div className="who">
+            <BatterCard id={inn.striker_id} nameOf={nameOf} b={batterOf(inn.striker_id)} onStrike />
+            <BatterCard id={inn.non_striker_id} nameOf={nameOf} b={batterOf(inn.non_striker_id)} />
+            <div className="card">
+              <div className="who-name">{nameOf(inn.bowler_id)}</div>
+              <div className="who-figs">
+                {(() => {
+                  const bowl = inn.bowlers.find((b) => b.player_id === inn.bowler_id);
+                  return bowl ? `${bowl.wickets}-${bowl.runs}` : "—";
+                })()}
+              </div>
+              <div className="who-sub">
+                bowling ·{" "}
+                {(() => {
+                  const bowl = inn.bowlers.find((b) => b.player_id === inn.bowler_id);
+                  return bowl ? `${overs(bowl.balls)} ov, ${bowl.maidens} mdn` : "first over";
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {overGroups.length > 0 && (
+            <div className="overs-strip" style={{ marginTop: "var(--s3)" }}>
+              {overGroups.map(([over, balls]) => {
+                const legal = balls.filter((b) => b.is_legal).length;
+                const total = balls.reduce((sum, b) => sum + b.runs, 0);
                 return (
-                  <button
-                    key={id}
-                    className="btn"
-                    type="button"
-                    disabled={!canAct || spent}
-                    title={spent ? `${nameOf(id)} has bowled their ${limit}` : undefined}
-                    onClick={() => send({ type: "bowler_changed", bowler_id: id })}
-                  >
-                    {nameOf(id)}
-                    {b && b.balls > 0 && (
-                      <span className="subtle">
-                        {" "}
-                        {overs(b.balls)}-{b.maidens}-{b.runs}-{b.wickets}
+                  <div className="over-row" key={over}>
+                    <span className="over-label">Over {over + 1}</span>
+                    {balls.map((b, i) => (
+                      <span key={i} className={`ball-chip ${chipClass(b)}`} title={b.label}>
+                        {b.is_wicket ? "W" : b.label}
                       </span>
-                    )}
-                  </button>
+                    ))}
+                    {Array.from({ length: Math.max(0, 6 - legal) }, (_, i) => (
+                      <span key={`p${i}`} className="ball-chip pending">
+                        ·
+                      </span>
+                    ))}
+                    <span className="over-total">= {total}</span>
+                  </div>
                 );
               })}
-          </div>
+            </div>
+          )}
         </div>
-      )}
 
-      <div className="panel">
-        <div className="panel-head">
-          <h2>Runs off the bat</h2>
-          <label className="checkbox" style={{ fontSize: "0.85rem" }}>
-            <input
-              type="checkbox"
-              checked={askShot}
-              onChange={(e) => toggleAsk(e.target.checked)}
-            />
-            Ask for the shot
-          </label>
-        </div>
-        <div className="runs">
-          {[0, 1, 2, 3, 4, 5, 6].map((n) => (
-            <button
-              key={n}
-              className={n === 4 || n === 6 ? "btn primary" : "btn"}
-              type="button"
-              disabled={!canAct || needsBowler}
-              onClick={() => startRuns(n)}
-            >
-              {n}
-            </button>
-          ))}
+        <div className="panel">
+          <h2>Commentary</h2>
+          <ul className="comm-list">
+            {commentaryRows.map((row) =>
+              row.kind === "over" ? (
+                <li className="over-summary" key={`o${row.over}`}>
+                  <strong>End of over {row.over + 1}</strong>
+                  <span className="muted">
+                    {row.overRuns} run{row.overRuns === 1 ? "" : "s"}
+                    {row.overWickets > 0 &&
+                      `, ${row.overWickets} wicket${row.overWickets === 1 ? "" : "s"}`}
+                  </span>
+                  <strong className="num">
+                    {inn.batting === "home" ? st.home_name : st.away_name} {row.runs}/{row.wickets}
+                  </strong>
+                </li>
+              ) : (
+                <li className="comm-ball" key={row.key}>
+                  <span className="comm-num">
+                    {row.ball.over}.{row.ball.ball_in_over}
+                  </span>
+                  <span className={`ball-chip ${chipClass(row.ball)}`}>
+                    {row.ball.is_wicket ? "W" : row.ball.label}
+                  </span>
+                  <span className="comm-text">
+                    {aiLines[row.key] || commentaryFor(row.ball, nameOf, st.left_handers || [])}
+                    {aiLines[row.key] && (
+                      <span className="tag grey" style={{ marginLeft: "var(--s2)" }}>AI</span>
+                    )}
+                  </span>
+                </li>
+              )
+            )}
+            {(inn.deliveries || []).length === 0 && <li className="muted">No balls yet.</li>}
+          </ul>
         </div>
       </div>
 
-      <div className="panel">
-        <h2>Extras, wickets and the rest</h2>
-        <div className="actions">
-          {EXTRA_KINDS.map((k) => (
-            <button key={k} className="btn" type="button" disabled={!canAct} onClick={() => startExtra(k)}>
-              {titleCase(k)}
+      {/* ---- controls ---- */}
+      <div className="controls">
+        {needsBowler && (
+          <div className="panel" style={{ borderColor: "var(--accent)" }}>
+            <div className="panel-head">
+              <h2>Over {currentOver} done — who bowls next?</h2>
+              <span className="tag gold">{lastOverRuns} off it</span>
+            </div>
+            <p className="muted">
+              {nameOf(inn.last_over_bowler)} bowled it, and nobody bowls two in a row.
+            </p>
+            <div className="actions bowler-options">
+              {bowlingXi
+                .filter((id) => id !== inn.last_over_bowler)
+                .map((id) => {
+                  const b = inn.bowlers.find((x) => x.player_id === id);
+                  const bowled = b ? Math.floor(b.balls / 6) : 0;
+                  const limit = st.conditions?.overs_per_bowler ?? 0;
+                  const spent = limit > 0 && bowled >= limit;
+                  return (
+                    <button
+                      key={id}
+                      className="btn"
+                      type="button"
+                      disabled={!canAct || spent}
+                      title={spent ? `${nameOf(id)} has bowled their ${limit}` : undefined}
+                      onClick={() => send({ type: "bowler_changed", bowler_id: id })}
+                    >
+                      {nameOf(id)}
+                      {b && b.balls > 0 && (
+                        <span className="subtle">
+                          {overs(b.balls)}-{b.maidens}-{b.runs}-{b.wickets}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        <div className="panel">
+          <div className="panel-head">
+            <h2>Runs</h2>
+            <label className="checkbox" style={{ fontSize: "0.85rem" }}>
+              <input type="checkbox" checked={askShot} onChange={(e) => toggleAsk(e.target.checked)} />
+              Ask for the shot
+            </label>
+          </div>
+          <div className="dial">
+            {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+              <button
+                key={n}
+                className={`btn${n === 4 ? " four" : ""}${n === 6 ? " six" : ""}`}
+                type="button"
+                disabled={!canAct || needsBowler}
+                onClick={() => startRuns(n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel">
+          <h2>Extras, wickets and the rest</h2>
+          <div className="actions">
+            {EXTRA_KINDS.map((k) => (
+              <button key={k} className="btn" type="button" disabled={!canAct || needsBowler} onClick={() => startExtra(k)}>
+                {titleCase(k)}
+              </button>
+            ))}
+            <button className="btn danger" type="button" disabled={!canAct || needsBowler} onClick={() => setSheet("wicket")}>
+              Wicket
             </button>
-          ))}
-          <button className="btn danger" type="button" disabled={!canAct} onClick={() => setSheet("wicket")}>
-            Wicket
-          </button>
-          <button className="btn ghost" type="button" disabled={!canAct} onClick={() => send({ type: "undo_last" })}>
-            <Icon name="arrowLeft" size={16} /> Undo
-          </button>
-          <button className="btn ghost" type="button" disabled={!canAct} onClick={() => setSheet("more")}>
-            More
-          </button>
+            <button className="btn ghost" type="button" disabled={!canAct} onClick={() => send({ type: "undo_last" })}>
+              <Icon name="arrowLeft" size={16} /> Undo
+            </button>
+            <button className="btn ghost" type="button" disabled={!canAct} onClick={() => setSheet("more")}>
+              More
+            </button>
+          </div>
         </div>
       </div>
 
@@ -848,7 +1000,7 @@ function LivePanel({
           <p className="muted">
             How many did they run on top of the {titleCase(draft.extra || "extra").toLowerCase()}?
           </p>
-          <div className="runs">
+          <div className="dial">
             {[0, 1, 2, 3, 4].map((n) => (
               <button
                 key={n}
@@ -871,16 +1023,12 @@ function LivePanel({
             </label>
           )}
           <div className="sheet-actions">
-            <button className="btn ghost" type="button" onClick={() => setDraft(null)}>
-              Cancel
-            </button>
+            <button className="btn ghost" type="button" onClick={() => setDraft(null)}>Cancel</button>
             <button
               className="btn primary"
               type="button"
               onClick={() =>
-                draft.offTheBat && askShot
-                  ? setDraft({ ...draft, step: "shot" })
-                  : record(draft)
+                draft.offTheBat && askShot ? setDraft({ ...draft, step: "shot" }) : record(draft)
               }
             >
               Record
@@ -897,24 +1045,22 @@ function LivePanel({
           onClose={() => setDraft(null)}
         >
           <div className="shot-grid">
-            {SHOT_SHAPES.map((s) => (
+            {SHOT_SHAPES.map((sh) => (
               <button
-                key={s.kind}
+                key={sh.kind}
                 className="shot-option"
                 type="button"
-                aria-pressed={draft.shotKind === s.kind}
-                onClick={() => pickShot(s.kind)}
+                aria-pressed={draft.shotKind === sh.kind}
+                onClick={() => pickShot(sh.kind)}
               >
-                <ShotIcon shape={s} />
-                {s.label}
-                <span className="hint">{s.hint}</span>
+                <ShotIcon shape={sh} />
+                {sh.label}
+                <span className="hint">{sh.hint}</span>
               </button>
             ))}
           </div>
           <div className="sheet-actions">
-            <button className="btn ghost" type="button" onClick={() => setDraft(null)}>
-              Cancel
-            </button>
+            <button className="btn ghost" type="button" onClick={() => setDraft(null)}>Cancel</button>
             <button className="btn" type="button" onClick={() => record(draft)}>
               Skip — just the runs
             </button>
@@ -930,8 +1076,8 @@ function LivePanel({
           onClose={() => setDraft(null)}
         >
           <p className="muted">
-            Tap the field. Nearer the rope means it carried further — the commentary reads
-            from this.
+            Tap the field. Nearer the rope means it carried further — the commentary reads from
+            this.
           </p>
           <div style={{ display: "flex", justifyContent: "center" }}>
             {/* Only the ball being scored: the innings so far would be noise
@@ -952,9 +1098,7 @@ function LivePanel({
             <button
               className="btn"
               type="button"
-              onClick={() =>
-                record(draft, { angle: 0, kind: draft.shotKind || "other", reach: 0.5 })
-              }
+              onClick={() => record(draft, { angle: 0, kind: draft.shotKind || "other", reach: 0.5 })}
             >
               Skip direction
             </button>
@@ -985,51 +1129,44 @@ function LivePanel({
           nameOf={nameOf}
         />
       )}
-
-      <div className="panel">
-        <h2>Commentary</h2>
-        <ul className="commentary">
-          {[...(inn.deliveries || [])]
-            .reverse()
-            .slice(0, 12)
-            .map((ball, i) => (
-              <li key={i} className={ballClass(ball)}>
-                <span className="ball">
-                  {ball.over}.{ball.ball_in_over}
-                </span>
-                <span>{commentaryFor(ball, nameOf, st.left_handers || [])}</span>
-              </li>
-            ))}
-          {(inn.deliveries || []).length === 0 && (
-            <li className="muted">No balls yet.</li>
-          )}
-        </ul>
-      </div>
-    </>
+    </div>
   );
 }
 
-function Batter({
-  label,
+/// Which dial a ball gets on the over strip.
+function chipClass(b: { runs: number; is_wicket: boolean; is_legal: boolean }) {
+  if (b.is_wicket) return "wicket";
+  if (!b.is_legal) return "extra";
+  if (b.runs >= 6) return "six";
+  if (b.runs >= 4) return "four";
+  return "";
+}
+
+function BatterCard({
   id,
   nameOf,
   b,
+  onStrike,
 }: {
-  label: string;
   id?: string | null;
   nameOf: (id?: string | null) => string;
   b?: { runs: number; balls: number; fours: number; sixes: number };
+  onStrike?: boolean;
 }) {
+  const sr = b && b.balls ? ((b.runs / b.balls) * 100).toFixed(0) : null;
   return (
-    <div>
-      <strong>{nameOf(id)}</strong>{" "}
-      <span className="num">
-        {b ? `${b.runs}` : "0"}
-        <span className="subtle"> ({b ? b.balls : 0})</span>
-      </span>
-      <div className="subtle">
-        {label}
-        {b && (b.fours || b.sixes) ? ` · ${b.fours}x4 ${b.sixes}x6` : ""}
+    <div className={`card${onStrike ? " on-strike" : ""}`}>
+      <div className="who-name">
+        {nameOf(id)}
+        {onStrike && <span className="tag">on strike</span>}
+      </div>
+      <div className="who-figs">
+        {b ? b.runs : 0}
+        <span className="subtle" style={{ fontSize: "0.9rem" }}> ({b ? b.balls : 0})</span>
+      </div>
+      <div className="who-sub">
+        {b ? `${b.fours}x4 · ${b.sixes}x6` : "yet to face"}
+        {sr && ` · SR ${sr}`}
       </div>
     </div>
   );

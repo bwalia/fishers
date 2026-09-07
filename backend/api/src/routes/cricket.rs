@@ -39,6 +39,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/cricket/matches/{id}/handover", post(handover))
         .route("/cricket/matches/{id}/scorer-trail", get(scorer_trail))
+        .route("/cricket/matches/{id}/commentary", post(commentary))
 }
 
 #[derive(Deserialize)]
@@ -510,4 +511,107 @@ async fn may_score(
     user_id: Uuid,
 ) -> bool {
     require_can_score(state, row, user_id).await.is_ok()
+}
+
+#[derive(Deserialize)]
+struct CommentaryRequest {
+    /// Which ball to call. Defaults to the last one bowled.
+    over: Option<u16>,
+    ball_in_over: Option<u8>,
+}
+
+#[derive(Serialize)]
+struct CommentaryResponse {
+    /// `None` when no model is configured or it could not oblige — the caller
+    /// keeps the line it already has.
+    line: Option<String>,
+    model: Option<String>,
+}
+
+/// A line of colour for one ball.
+///
+/// The facts are built here from the stored state, never taken from the caller,
+/// so the model cannot be handed a score that did not happen. Scoring never
+/// waits on this: the ball is already recorded by the time anyone asks.
+async fn commentary(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CommentaryRequest>,
+) -> ApiResult<Json<CommentaryResponse>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    require_club_member(&state, row.club_id, auth.user_id).await?;
+
+    let Some(ollama) = state.ollama.clone() else {
+        return Ok(Json(CommentaryResponse { line: None, model: None }));
+    };
+
+    let projection = cricket_repo::parse_state(&row);
+    let Some(inn) = projection.innings.last() else {
+        return Err(ApiError::bad_request("nothing has been bowled yet"));
+    };
+    let ball = match (body.over, body.ball_in_over) {
+        (Some(o), Some(b)) => inn
+            .deliveries
+            .iter()
+            .rev()
+            .find(|d| d.over == o && d.ball_in_over == b),
+        _ => inn.deliveries.last(),
+    }
+    .ok_or_else(|| ApiError::not_found("no such ball"))?;
+
+    let name = |who: Option<Uuid>| {
+        who.and_then(|w| projection.player_names.get(&w).cloned())
+            .unwrap_or_else(|| "the batter".to_string())
+    };
+    let mut facts = format!(
+        "Over {}.{}. {} bowls to {}. Result: {}.",
+        ball.over,
+        ball.ball_in_over,
+        name(ball.bowler_id),
+        name(ball.batter_id),
+        ball.label
+    );
+    if let Some(shot) = ball.shot {
+        let left = ball
+            .batter_id
+            .map(|b| projection.left_handers.contains(&b))
+            .unwrap_or(false);
+        facts.push_str(&format!(
+            " Shot: {}, towards {}.",
+            format!("{:?}", shot.kind).to_lowercase(),
+            fishers_domain::region_for(shot.angle, left)
+        ));
+    }
+    facts.push_str(&format!(
+        " Score now {} for {} after {}.{} overs.",
+        inn.runs,
+        inn.wickets,
+        inn.legal_balls / 6,
+        inn.legal_balls % 6
+    ));
+    if let Some(target) = projection.target {
+        facts.push_str(&format!(
+            " Chasing {}, needing {} more.",
+            target,
+            target.saturating_sub(inn.runs)
+        ));
+    }
+
+    let line = ollama
+        .commentate(
+            &facts,
+            crate::services::ollama::BallFacts {
+                is_wicket: ball.is_wicket,
+                runs: ball.runs,
+                is_legal: ball.is_legal,
+            },
+        )
+        .await;
+    Ok(Json(CommentaryResponse {
+        line,
+        model: Some(ollama.model().to_string()),
+    }))
 }
