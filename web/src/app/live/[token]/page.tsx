@@ -409,18 +409,26 @@ export default function LiveScoreboardPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {inn.batters.map((b) => (
-                    <tr key={b.player_id}>
-                      <td>
-                        {nameOf(board, b.player_id)}
-                        {b.out ? "" : " *"}
-                      </td>
-                      <td>{b.runs}</td>
-                      <td>{b.balls}</td>
-                      <td>{b.fours}</td>
-                      <td>{b.sixes}</td>
-                    </tr>
-                  ))}
+                  {inn.batters
+                    .filter(
+                      (b) =>
+                        b.balls > 0 ||
+                        b.out ||
+                        b.player_id === inn.striker_id ||
+                        b.player_id === inn.non_striker_id,
+                    )
+                    .map((b) => (
+                      <tr key={b.player_id}>
+                        <td>
+                          {nameOf(board, b.player_id)}
+                          {b.out ? "" : " *"}
+                        </td>
+                        <td>{b.runs}</td>
+                        <td>{b.balls}</td>
+                        <td>{b.fours}</td>
+                        <td>{b.sixes}</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
               <h3>Bowling</h3>

@@ -239,13 +239,19 @@ async fn public_scoreboard(
         }
     }
     let id_list: Vec<Uuid> = ids.into_iter().collect();
-    let names = users_repo::names_for(&state.pool, &id_list)
-        .await
-        .unwrap_or_default();
-    let player_names = names
-        .into_iter()
-        .map(|(id, name)| (id.to_string(), name))
+    // Guest players never get a `users` row — they only exist in the event log — so
+    // start from the in-match roster and let registered users' canonical names win.
+    let mut player_names: HashMap<String, String> = match_state
+        .player_names
+        .iter()
+        .map(|(id, name)| (id.to_string(), name.clone()))
         .collect();
+    for (id, name) in users_repo::names_for(&state.pool, &id_list)
+        .await
+        .unwrap_or_default()
+    {
+        player_names.insert(id.to_string(), name);
+    }
 
     Ok(Json(PublicScoreboard {
         match_id: row.id,
