@@ -17,6 +17,13 @@ enum FishersTheme {
                                    dark: Color(red: 0.92, green: 0.42, blue: 0.40))
     static let seam = Color(red: 0.78, green: 0.18, blue: 0.18)
 
+    /// Boundary colours, the same two the web uses, so blue and orange mean
+    /// the same thing on a phone as on the dashboard — and so a four and a six
+    /// are told apart at a glance instead of both reading as pitch green.
+    /// Far enough apart for the common kinds of colour blindness.
+    static let four = Color(red: 0.184, green: 0.502, blue: 0.929)
+    static let six = Color(red: 0.949, green: 0.443, blue: 0.110)
+
     static let ink = Color.primary
     static let muted = Color.secondary
     static let mist = Color(.systemGroupedBackground)

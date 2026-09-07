@@ -109,18 +109,35 @@ struct CricketScorecardView: View {
                 Section { inningsPicker }
             }
             if let innings = selectedInnings, !innings.deliveries.isEmpty {
-                ForEach(CricketCommentary.feed(for: innings, in: state, limit: 120)) { entry in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(entry.marker)
-                            .font(.caption.monospacedDigit().weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 38, alignment: .leading)
-                        Text(entry.text)
-                            .font(.subheadline)
-                            .foregroundStyle(entry.isWicket ? FishersTheme.seam : .primary)
-                            .fontWeight(entry.isWicket || entry.isBoundary ? .semibold : .regular)
+                ForEach(CricketCommentary.groupedFeed(for: innings, in: state, limit: 120)) { row in
+                    switch row {
+                    case .ball(let entry):
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text(entry.marker)
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 38, alignment: .leading)
+                            Text(entry.text)
+                                .font(.subheadline)
+                                .foregroundStyle(entry.isWicket ? FishersTheme.seam : .primary)
+                                .fontWeight(entry.isWicket || entry.isBoundary ? .semibold : .regular)
+                        }
+                        .padding(.vertical, 2)
+                    case .overEnd(let over):
+                        HStack {
+                            Text("End of over \(over.over + 1)")
+                                .font(.caption.weight(.bold))
+                                .textCase(.uppercase)
+                            Spacer()
+                            Text("\(over.overRuns) run\(over.overRuns == 1 ? "" : "s")")
+                                .foregroundStyle(.secondary)
+                            Text("\(over.runs)/\(over.wickets)")
+                                .font(.caption.monospacedDigit().weight(.bold))
+                        }
+                        .font(.caption)
+                        .padding(.vertical, 6)
+                        .listRowBackground(FishersTheme.pitch.opacity(0.10))
                     }
-                    .padding(.vertical, 2)
                 }
             } else {
                 Text("Nothing bowled yet.").foregroundStyle(.secondary)

@@ -66,6 +66,74 @@ enum CricketCommentary {
         let isBoundary: Bool
     }
 
+    /// One row of a grouped feed: a ball, or the line that closes off an over.
+    enum Row: Identifiable {
+        case ball(Entry)
+        case overEnd(OverSummary)
+
+        var id: String {
+            switch self {
+            case .ball(let e): return e.id
+            case .overEnd(let o): return "over-\(o.over)"
+            }
+        }
+    }
+
+    struct OverSummary {
+        let over: Int
+        /// The innings score once the over was done.
+        let runs: Int
+        let wickets: Int
+        let overRuns: Int
+        let overWickets: Int
+    }
+
+    /// Newest ball first, with each over closed off once its balls have been
+    /// listed — so an over reads as a unit rather than an undifferentiated
+    /// stream, which is how a scorecard is actually read back.
+    static func groupedFeed(
+        for innings: InningsState,
+        in state: MatchState,
+        limit: Int = 120
+    ) -> [Row] {
+        let balls = Array(innings.deliveries.suffix(limit))
+        guard !balls.isEmpty else { return [] }
+
+        // The innings score after each ball, so a summary can state it.
+        var runningRuns = 0
+        var runningWickets = 0
+        let running: [(runs: Int, wickets: Int)] = balls.map { ball in
+            runningRuns += Int(ball.runs)
+            if ball.isWicket { runningWickets += 1 }
+            return (runningRuns, runningWickets)
+        }
+
+        var rows: [Row] = []
+        for index in stride(from: balls.count - 1, through: 0, by: -1) {
+            let ball = balls[index]
+            rows.append(.ball(Entry(
+                id: "\(ball.over).\(ball.ballInOver)-\(ball.label)-\(ball.runs)",
+                marker: marker(for: ball),
+                text: line(for: ball, in: state, innings: innings),
+                isWicket: ball.isWicket,
+                isBoundary: ball.runs >= 4 && !ball.isWicket
+            )))
+            // This was the first ball of its over, so the over is fully listed.
+            if index > 0, balls[index - 1].over != ball.over {
+                let previousOver = Int(balls[index - 1].over)
+                let overBalls = balls.filter { Int($0.over) == previousOver }
+                rows.append(.overEnd(OverSummary(
+                    over: previousOver,
+                    runs: running[index - 1].runs,
+                    wickets: running[index - 1].wickets,
+                    overRuns: overBalls.reduce(0) { $0 + Int($1.runs) },
+                    overWickets: overBalls.filter(\.isWicket).count
+                )))
+            }
+        }
+        return rows
+    }
+
     // MARK: - Private
 
     private static func outcome(for delivery: DeliveryRecord, innings: InningsState) -> String {

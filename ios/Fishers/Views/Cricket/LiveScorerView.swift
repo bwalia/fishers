@@ -356,7 +356,8 @@ struct LiveScorerView: View {
     private func ballColour(_ ball: DeliveryRecord) -> Color {
         if ball.isWicket { return FishersTheme.seam }
         if !ball.isLegal { return FishersTheme.maybe }
-        if ball.runs >= 4 { return FishersTheme.pitch }
+        if ball.runs >= 6 { return FishersTheme.six }
+        if ball.runs >= 4 { return FishersTheme.four }
         return FishersTheme.ink
     }
 
@@ -468,21 +469,24 @@ struct LiveScorerView: View {
 
     private var controls: some View {
         VStack(spacing: 10) {
+            // Three rows, the six on its own and larger: the shot you most
+            // want to hit is the easiest to reach, and hardest to mis-tap.
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
                 spacing: 10
             ) {
-                ForEach(0..<7, id: \.self) { runs in
+                ForEach(0..<6, id: \.self) { runs in
                     runButton(runs)
                 }
-                Button { showExtras = true } label: {
-                    Text("Extras")
-                        .font(FishersTheme.headline)
-                        .frame(maxWidth: .infinity, minHeight: 64)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Extras")
             }
+            runButton(6, big: true)
+            Button { showExtras = true } label: {
+                Text("Extras")
+                    .font(FishersTheme.headline)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Extras")
             HStack(spacing: 10) {
                 Button { showWicket = true } label: {
                     Text("Wicket")
@@ -517,17 +521,25 @@ struct LiveScorerView: View {
         .opacity(isLive ? 1 : 0.5)
     }
 
-    private func runButton(_ runs: Int) -> some View {
+    private func runButton(_ runs: Int, big: Bool = false) -> some View {
         Button {
             score(runs)
         } label: {
             Text("\(runs)")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .frame(maxWidth: .infinity, minHeight: 64)
+                .font(.system(size: big ? 40 : 28, weight: .bold, design: .rounded))
+                .frame(maxWidth: .infinity, minHeight: big ? 84 : 64)
         }
         .buttonStyle(.borderedProminent)
-        .tint(runs >= 4 ? FishersTheme.pitch : FishersTheme.accent)
+        .tint(runButtonTint(runs))
         .accessibilityLabel("\(runs) run\(runs == 1 ? "" : "s")")
+    }
+
+    private func runButtonTint(_ runs: Int) -> Color {
+        switch runs {
+        case 6: return FishersTheme.six
+        case 4: return FishersTheme.four
+        default: return FishersTheme.accent
+        }
     }
 
     /// The wheel is asked for *before* the ball is written, so the shot rides
