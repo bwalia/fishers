@@ -1,8 +1,23 @@
-export const API_ORIGIN =
-  process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ||
-  "http://192.168.1.99:7312";
+/// Where the API lives, worked out at call time.
+///
+/// Baking a LAN IP in at build time meant the dashboard stopped talking to the
+/// API the moment DHCP handed the machine a different address. Deriving it from
+/// the page's own hostname keeps localhost, 127.0.0.1 and any LAN address all
+/// working without a rebuild; NEXT_PUBLIC_API_BASE still overrides when the API
+/// really is somewhere else.
+export function apiOrigin(): string {
+  const explicit = process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "");
+  if (explicit) return explicit;
+  const port = process.env.NEXT_PUBLIC_API_PORT || "7312";
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:${port}`;
+  }
+  return `http://127.0.0.1:${port}`;
+}
 
-export const API_V1 = `${API_ORIGIN}/api/v1`;
+export function apiV1(): string {
+  return `${apiOrigin()}/api/v1`;
+}
 
 const TOKEN_KEY = "fishers_access_token";
 const REFRESH_KEY = "fishers_refresh_token";
@@ -104,7 +119,7 @@ async function performRefresh(): Promise<string | null> {
   const before = getAccessToken();
   if (!stored) return null;
   try {
-    const res = await fetch(`${API_V1}/auth/refresh`, {
+    const res = await fetch(`${apiV1()}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: stored }),
@@ -173,7 +188,7 @@ export async function api<T>(
     const token = await usableToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
-  const res = await fetch(`${API_V1}${path}`, {
+  const res = await fetch(`${apiV1()}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),

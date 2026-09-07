@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { API_V1 } from "@/lib/api";
+import { apiV1 } from "@/lib/api";
 import { WagonWheel } from "@/components/WagonWheel";
 import {
   commentaryFor,
@@ -59,7 +59,7 @@ export default function LiveScoreboardPage({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API_V1}/public/scoreboard/${token}`, {
+      const res = await fetch(`${apiV1()}/public/scoreboard/${token}`, {
         cache: "no-store",
       });
       if (!res.ok) {
