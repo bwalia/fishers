@@ -45,6 +45,9 @@ struct LiveScorerView: View {
     @State private var showField = false
     @State private var confirmEndInnings = false
     @State private var pendingShot: PendingShot?
+    /// Model-written lines keyed by ball. The line the app writes from the log
+    /// shows instantly; this replaces it only if something better arrives.
+    @State private var aiLines: [String: String] = [:]
     @State private var isSharing = false
     @State private var shareNotice: String?
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -451,7 +454,7 @@ struct LiveScorerView: View {
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .frame(width: 34, alignment: .leading)
-                        Text(entry.text)
+                        Text(aiLines[entry.id] ?? entry.text)
                             .font(.caption)
                             .foregroundStyle(entry.isWicket ? FishersTheme.seam : .primary)
                             .lineLimit(2)
@@ -462,7 +465,26 @@ struct LiveScorerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+            .task(id: inn.deliveries.count) { await fetchCommentary(for: inn) }
         }
+    }
+
+    /// Colour for the ball just bowled.
+    ///
+    /// Deliberately after the fact and deliberately silent on failure: the
+    /// model sits on the network and takes seconds, the ball is already in the
+    /// log, and the line written from that log is correct on its own. Nothing
+    /// here blocks scoring, and a failure leaves the written line alone.
+    private func fetchCommentary(for inn: InningsState) async {
+        guard let matchId = store.matchId, let ball = inn.deliveries.last else { return }
+        let key = "\(ball.over).\(ball.ballInOver)-\(ball.label)-\(ball.runs)"
+        guard aiLines[key] == nil else { return }
+        guard let reply = try? await FishersAPI.commentary(
+            matchId: matchId,
+            over: Int(ball.over),
+            ballInOver: Int(ball.ballInOver)
+        ), let line = reply.line else { return }
+        aiLines[key] = line
     }
 
     // MARK: Controls

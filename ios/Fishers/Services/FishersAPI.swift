@@ -419,6 +419,31 @@ enum FishersAPI {
         )
     }
 
+    /// A line of colour for one ball, written by the model the API is pointed
+    /// at. `line` is nil when none is configured or it said something that did
+    /// not match the ball — the line the app writes from the log then stands.
+    static func commentary(
+        matchId: UUID,
+        over: Int,
+        ballInOver: Int
+    ) async throws -> BallCommentary {
+        try await NetworkService.shared.request(
+            "POST",
+            path: "/cricket/matches/\(matchId.uuidString)/commentary",
+            body: CommentaryRequest(over: over, ballInOver: ballInOver)
+        )
+    }
+
+    private struct CommentaryRequest: Encodable {
+        let over: Int
+        let ballInOver: Int
+
+        enum CodingKeys: String, CodingKey {
+            case over
+            case ballInOver = "ball_in_over"
+        }
+    }
+
     // MARK: Club administration
 
     /// The roster, with names and roles. Any member may read it; only a
