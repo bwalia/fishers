@@ -8,6 +8,7 @@ import { clearSession, getStoredUser, type PublicUser } from "@/lib/api";
 const links = [
   { href: "/", label: "Overview" },
   { href: "/events", label: "Fixtures" },
+  { href: "/score", label: "Score" },
   { href: "/shop", label: "Shop" },
   { href: "/stats", label: "Stats" },
   { href: "/clubs", label: "Clubs" },
