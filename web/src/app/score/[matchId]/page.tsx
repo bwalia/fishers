@@ -15,6 +15,8 @@ import {
   GROUNDS,
   commentaryFor,
   overs,
+  requiredRate,
+  runRate,
   titleCase,
   type MatchConditions,
   type MatchResponse,
@@ -656,6 +658,25 @@ function LivePanel({
     setDraft({ ...draft, shotKind: kindName, step: "direction" });
   };
 
+  // An over has just finished and the same bowler is still marked down for the
+  // next one — nobody bowls two in a row, so a new one has to be chosen first.
+  const needsBowler =
+    inn.legal_balls > 0 &&
+    (inn.balls_in_current_over ?? 0) === 0 &&
+    !!inn.bowler_id &&
+    inn.last_over_bowler === inn.bowler_id &&
+    bowlingXi.length > 1;
+
+  const oversAvailable = inn.overs_available ?? st.overs_limit;
+  const crr = runRate(inn.runs, inn.legal_balls);
+  const rrr = requiredRate(st.target, inn.runs, inn.legal_balls, oversAvailable);
+  const currentOver = Math.floor(inn.legal_balls / 6);
+  const ballsIn = (over: number) => (inn.deliveries || []).filter((d) => d.over === over);
+  const lastOverBalls = currentOver > 0 ? ballsIn(currentOver - 1) : [];
+  const lastOverRuns = lastOverBalls.reduce((total, b) => total + b.runs, 0);
+  const batterOf = (id?: string | null) =>
+    inn.batters.find((b) => b.player_id === id);
+
   const inPowerplay =
     (inn.powerplay_overs ?? 0) > 0 && inn.legal_balls < (inn.powerplay_overs ?? 0) * 6;
   const allowedOutside = inPowerplay
@@ -675,24 +696,40 @@ function LivePanel({
           <span className="scoreline">
             {inn.runs}/{inn.wickets}
           </span>{" "}
-          <span className="muted">({overs(inn.legal_balls)} ov)</span>
-          {st.target != null && (
-            <div className="muted">
-              Needs {Math.max(0, st.target - inn.runs)} from{" "}
-              {Math.max(0, (inn.overs_available ?? st.overs_limit) * 6 - inn.legal_balls)}
-            </div>
-          )}
+          <span className="muted">
+            ({overs(inn.legal_balls)} of {oversAvailable} ov)
+          </span>
+          <div className="muted">
+            RR {crr === null ? "—" : crr.toFixed(2)}
+            {rrr !== null && ` · need ${rrr.toFixed(2)}`}
+            {st.target != null &&
+              ` · ${Math.max(0, st.target - inn.runs)} from ${Math.max(
+                0,
+                oversAvailable * 6 - inn.legal_balls
+              )}`}
+          </div>
         </div>
         <div className="crease">
+          <Batter label="striker" id={inn.striker_id} nameOf={nameOf} b={batterOf(inn.striker_id)} />
+          <Batter label="non-striker" id={inn.non_striker_id} nameOf={nameOf} b={batterOf(inn.non_striker_id)} />
           <div>
-            <strong>{nameOf(inn.striker_id)}</strong> <span className="muted">striker</span>
+            <strong>{nameOf(inn.bowler_id)}</strong>
+            <div className="subtle">
+              bowling ·{" "}
+              {(() => {
+                const bowl = inn.bowlers.find((b) => b.player_id === inn.bowler_id);
+                return bowl ? `${overs(bowl.balls)}-${bowl.maidens}-${bowl.runs}-${bowl.wickets}` : "—";
+              })()}
+            </div>
           </div>
-          <div>
-            <strong>{nameOf(inn.non_striker_id)}</strong> <span className="muted">non-striker</span>
-          </div>
-          <div>
-            <strong>{nameOf(inn.bowler_id)}</strong> <span className="muted">bowling</span>
-          </div>
+          {currentOver > 0 && (
+            <div>
+              <strong className="num">{lastOverRuns}</strong>
+              <div className="subtle">
+                off over {currentOver} · {nameOf(inn.last_over_bowler)}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -718,6 +755,46 @@ function LivePanel({
         </p>
       )}
 
+      {needsBowler && (
+        <div className="panel" style={{ borderColor: "var(--accent)" }}>
+          <div className="panel-head">
+            <h2>Over {currentOver} complete — who bowls next?</h2>
+            <span className="tag gold">{lastOverRuns} off the last over</span>
+          </div>
+          <p className="muted">
+            {nameOf(inn.last_over_bowler)} bowled it, and nobody bowls two in a row.
+          </p>
+          <div className="actions bowler-options">
+            {bowlingXi
+              .filter((id) => id !== inn.last_over_bowler)
+              .map((id) => {
+                const b = inn.bowlers.find((x) => x.player_id === id);
+                const bowled = b ? Math.floor(b.balls / 6) : 0;
+                const limit = st.conditions?.overs_per_bowler ?? 0;
+                const spent = limit > 0 && bowled >= limit;
+                return (
+                  <button
+                    key={id}
+                    className="btn"
+                    type="button"
+                    disabled={!canAct || spent}
+                    title={spent ? `${nameOf(id)} has bowled their ${limit}` : undefined}
+                    onClick={() => send({ type: "bowler_changed", bowler_id: id })}
+                  >
+                    {nameOf(id)}
+                    {b && b.balls > 0 && (
+                      <span className="subtle">
+                        {" "}
+                        {overs(b.balls)}-{b.maidens}-{b.runs}-{b.wickets}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       <div className="panel">
         <div className="panel-head">
           <h2>Runs off the bat</h2>
@@ -736,7 +813,7 @@ function LivePanel({
               key={n}
               className={n === 4 || n === 6 ? "btn primary" : "btn"}
               type="button"
-              disabled={!canAct}
+              disabled={!canAct || needsBowler}
               onClick={() => startRuns(n)}
             >
               {n}
@@ -929,6 +1006,32 @@ function LivePanel({
         </ul>
       </div>
     </>
+  );
+}
+
+function Batter({
+  label,
+  id,
+  nameOf,
+  b,
+}: {
+  label: string;
+  id?: string | null;
+  nameOf: (id?: string | null) => string;
+  b?: { runs: number; balls: number; fours: number; sixes: number };
+}) {
+  return (
+    <div>
+      <strong>{nameOf(id)}</strong>{" "}
+      <span className="num">
+        {b ? `${b.runs}` : "0"}
+        <span className="subtle"> ({b ? b.balls : 0})</span>
+      </span>
+      <div className="subtle">
+        {label}
+        {b && (b.fours || b.sixes) ? ` · ${b.fours}x4 ${b.sixes}x6` : ""}
+      </div>
+    </div>
   );
 }
 

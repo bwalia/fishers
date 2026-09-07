@@ -65,6 +65,8 @@ export type Innings = {
   leg_byes?: number;
   penalties?: number;
   overs_available?: number;
+  balls_in_current_over?: number;
+  last_over_bowler?: string | null;
 };
 
 export type MatchConditions = {
@@ -245,4 +247,25 @@ export function commentaryFor(
     }
   }
   return parts.join(" ");
+}
+
+
+/// Runs per over so far. Null before a ball is bowled.
+export function runRate(runs: number, legalBalls: number): number | null {
+  if (!legalBalls) return null;
+  return (runs * 6) / legalBalls;
+}
+
+/// What the chase now needs per over, or null when there is nothing to chase
+/// or no balls left to chase it in.
+export function requiredRate(
+  target: number | null | undefined,
+  runs: number,
+  legalBalls: number,
+  oversAvailable: number
+): number | null {
+  if (target == null) return null;
+  const ballsLeft = oversAvailable * 6 - legalBalls;
+  if (ballsLeft <= 0) return null;
+  return ((target - runs) * 6) / ballsLeft;
 }

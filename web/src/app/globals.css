@@ -799,3 +799,15 @@ textarea { line-height: 1.5; resize: vertical; }
   border-radius: 2px;
   display: inline-block;
 }
+
+/* Bowler choices carry figures, so they need room and a stacked layout. */
+.bowler-options {
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+.bowler-options .btn {
+  flex-direction: column;
+  gap: 0;
+  padding: var(--s2) var(--s3);
+  min-height: 52px;
+  line-height: 1.25;
+}

@@ -288,6 +288,22 @@ extension MatchState {
     /// Two Laws and one agreement: nobody bowls consecutive overs, nobody
     /// exceeds the allocation the captains settled, and a side with a single
     /// bowler is excused the first of those.
+    /// The same bowler carrying straight on into the next over.
+    ///
+    /// `checkBowlerAvailable` only ran when a scorer explicitly changed bowler,
+    /// so simply not changing one bowled the whole innings with one man —
+    /// legal-looking, and against the Laws. Checked at the first ball of an
+    /// over; mid-over the bowler is of course unchanged.
+    private func checkNewOverBowler() throws {
+        guard let inn = innings.last, !inn.complete else { return }
+        guard inn.ballsInCurrentOver == 0, let bowler = inn.bowlerId else { return }
+        if inn.lastOverBowler == bowler && xi(inn.bowling).count > 1 {
+            throw CricketEngineError.validation(
+                "\(name(for: bowler)) bowled the last over — change the bowler before the next one"
+            )
+        }
+    }
+
     private func checkBowlerAvailable(_ bowler: UUID) throws {
         guard let inn = currentInnings else { return }
         if inn.lastOverBowler == bowler && xi(inn.bowling).count > 1 {
@@ -335,6 +351,7 @@ extension MatchState {
     private mutating func applyDelivery(
         runs: UInt8, isLegal: Bool, four: Bool, six: Bool, shot: ShotRecord?
     ) throws {
+        try checkNewOverBowler()
         guard !innings.isEmpty else { throw CricketEngineError.validation("no live innings") }
         let idx = innings.count - 1
         guard !innings[idx].complete else {
@@ -391,6 +408,7 @@ extension MatchState {
     private mutating func applyExtras(
         kind: ExtraKind, runs: UInt8, boundary: Bool, offTheBat: Bool, shot: ShotRecord?
     ) throws {
+        try checkNewOverBowler()
         guard !innings.isEmpty else { throw CricketEngineError.validation("no live innings") }
         let idx = innings.count - 1
         guard !innings[idx].complete else {
@@ -495,6 +513,9 @@ extension MatchState {
         batterId: UUID, kind: DismissalKind, fielderId: UUID?,
         newBatterId: UUID?, runs: UInt8, onExtra: Bool
     ) throws {
+        // A wicket uses a ball, so it can open an over. Retiring does not,
+        // and `onExtra` means the ball was already counted.
+        if kind.usesABall && !onExtra { try checkNewOverBowler() }
         guard !innings.isEmpty else { throw CricketEngineError.validation("no live innings") }
         let idx = innings.count - 1
         guard !innings[idx].complete else {
