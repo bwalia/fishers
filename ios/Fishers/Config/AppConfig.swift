@@ -23,13 +23,13 @@ enum AppConfig {
             return url
         }
         #if DEBUG
-        // Prefer 127.0.0.1 over `localhost`: the API listens on IPv4 only, and
-        // `localhost` resolves to ::1 first on the Simulator.
-        return URL(string: "http://127.0.0.1:8080")!
+        // LAN Mac running the API (physical iPhone). Prefer this over loopback:
+        // a device cannot reach the Mac via 127.0.0.1.
+        return URL(string: "http://192.168.1.99:8080")!
         #else
         assertionFailure("FishersAPIBaseURL is not set for this build configuration")
-        NSLog("[Fishers] FishersAPIBaseURL is not set — falling back to loopback, which will not work on a device.")
-        return URL(string: "http://127.0.0.1:8080")!
+        NSLog("[Fishers] FishersAPIBaseURL is not set — falling back to LAN default.")
+        return URL(string: "http://192.168.1.99:8080")!
         #endif
     }()
 
@@ -52,11 +52,11 @@ enum AppConfig {
             return url
         }
         #if DEBUG
-        return URL(string: "http://127.0.0.1:3000")!
+        return URL(string: "http://192.168.1.99:3000")!
         #else
         assertionFailure("FishersWebBaseURL is not set for this build configuration")
-        NSLog("[Fishers] FishersWebBaseURL is not set — shared live links will point at loopback.")
-        return URL(string: "http://127.0.0.1:3000")!
+        NSLog("[Fishers] FishersWebBaseURL is not set — shared live links will point at LAN default.")
+        return URL(string: "http://192.168.1.99:3000")!
         #endif
     }()
 
