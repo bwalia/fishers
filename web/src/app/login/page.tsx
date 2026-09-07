@@ -38,7 +38,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main>
+    <main id="main">
       <section className="hero">
         <h1>Sign in</h1>
         <p>Same accounts as the iOS app and API.</p>

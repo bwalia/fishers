@@ -54,7 +54,7 @@ export default function ShopPage() {
   }, [products, filter]);
 
   return (
-    <main>
+    <main id="main">
       <section className="hero">
         <h1>Club shop</h1>
         <p>Cricket bats, balls, pads, shoes, clubwear and hire — browse by club.</p>

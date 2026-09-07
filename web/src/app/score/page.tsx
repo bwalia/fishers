@@ -75,7 +75,7 @@ export default function ScoreIndexPage() {
   };
 
   return (
-    <main>
+    <main id="main">
       <section className="hero">
         <h1>Score a match</h1>
         <p>

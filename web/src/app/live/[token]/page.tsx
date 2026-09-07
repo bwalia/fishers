@@ -34,6 +34,13 @@ type PublicScoreboard = {
   state: MatchState;
 };
 
+function ballClass(ball: { runs: number; is_wicket: boolean }) {
+  if (ball.is_wicket) return "wicket";
+  if (ball.runs >= 6) return "six";
+  if (ball.runs >= 4) return "boundary";
+  return undefined;
+}
+
 function nameOf(board: PublicScoreboard, id?: string | null) {
   if (!id) return "—";
   return board.player_names[id] || id.slice(0, 8);
@@ -181,7 +188,7 @@ export default function LiveScoreboardPage({
               </h2>
               {inn.free_hit && <p className="tag">Free hit</p>}
               <h3>Batting</h3>
-              <table className="score-table">
+              <div className="table-wrap"><table className="score-table">
                 <thead>
                   <tr>
                     <th>Batter</th>
@@ -213,9 +220,9 @@ export default function LiveScoreboardPage({
                       </tr>
                     ))}
                 </tbody>
-              </table>
+              </table></div>
               <h3>Bowling</h3>
-              <table className="score-table">
+              <div className="table-wrap"><table className="score-table">
                 <thead>
                   <tr>
                     <th>Bowler</th>
@@ -236,7 +243,7 @@ export default function LiveScoreboardPage({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
               <h3>Wagon wheel</h3>
               <WagonWheel deliveries={inn.deliveries || []} />
 
@@ -248,11 +255,13 @@ export default function LiveScoreboardPage({
                       .slice(-40)
                       .reverse()
                       .map((ball, index) => (
-                        <li key={index}>
-                          <span className="muted">
+                        <li key={index} className={ballClass(ball)}>
+                          <span className="ball">
                             {ball.over}.{ball.ball_in_over}
-                          </span>{" "}
-                          {commentaryFor(ball, (id) => nameOf(board, id), board.state.left_handers || [])}
+                          </span>
+                          <span>
+                            {commentaryFor(ball, (id) => nameOf(board, id), board.state.left_handers || [])}
+                          </span>
                         </li>
                       ))}
                   </ul>

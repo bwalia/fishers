@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, getAccessToken, getStoredUser } from "@/lib/api";
 import { WagonWheel } from "@/components/WagonWheel";
+import { Icon } from "@/components/Icon";
 import {
   BALLS,
   DEFAULT_CONDITIONS,
@@ -30,6 +31,13 @@ function deviceId() {
     localStorage.setItem(KEY, id);
   }
   return id;
+}
+
+function ballClass(ball: { runs: number; is_wicket: boolean }) {
+  if (ball.is_wicket) return "wicket";
+  if (ball.runs >= 6) return "six";
+  if (ball.runs >= 4) return "boundary";
+  return undefined;
 }
 
 type Side = "home" | "away";
@@ -128,7 +136,7 @@ export default function ScorerPage({
     }
   };
 
-  if (error && !match) return <main><p className="error">{error}</p></main>;
+  if (error && !match) return <main id="main"><p className="error">{error}</p></main>;
   if (!match) return <main><p className="muted">Loading match…</p></main>;
 
   const st = match.state;
@@ -680,7 +688,7 @@ function LivePanel({
 
       <div className="panel">
         <h2>Runs off the bat</h2>
-        <div className="select-row">
+        <div className="runs" style={{ marginBottom: "var(--s3)" }}>
           {[0, 1, 2, 3, 4, 5, 6].map((n) => (
             <button
               key={n}
@@ -692,8 +700,10 @@ function LivePanel({
               {n}
             </button>
           ))}
+        </div>
+        <div className="select-row" style={{ marginBottom: 0 }}>
           <button className="btn ghost" type="button" disabled={!canAct} onClick={() => send({ type: "undo_last" })}>
-            Undo
+            <Icon name="arrowLeft" size={16} /> Undo
           </button>
           {/* The engine closes an innings on overs or wickets by itself; this is
               for a declaration or an innings called off. */}
@@ -763,11 +773,11 @@ function LivePanel({
             .reverse()
             .slice(0, 12)
             .map((ball, i) => (
-              <li key={i}>
-                <span className="muted">
-                  {ball.over}.{ball.ball_in_over}{" "}
+              <li key={i} className={ballClass(ball)}>
+                <span className="ball">
+                  {ball.over}.{ball.ball_in_over}
                 </span>
-                {commentaryFor(ball, nameOf, st.left_handers || [])}
+                <span>{commentaryFor(ball, nameOf, st.left_handers || [])}</span>
               </li>
             ))}
         </ul>
@@ -981,7 +991,7 @@ function Scorecard({
           <h2>
             Innings {inn.index + 1} · {inn.runs}/{inn.wickets} ({overs(inn.legal_balls)})
           </h2>
-          <table className="score-table">
+          <div className="table-wrap"><table className="score-table">
             <thead>
               <tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr>
             </thead>
@@ -1004,8 +1014,8 @@ function Scorecard({
                   </tr>
                 ))}
             </tbody>
-          </table>
-          <table className="score-table">
+          </table></div>
+          <div className="table-wrap"><table className="score-table">
             <thead>
               <tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th></tr>
             </thead>
@@ -1020,7 +1030,7 @@ function Scorecard({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       ))}
     </>

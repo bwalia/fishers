@@ -163,6 +163,76 @@ else:
 inn = state["innings"][0]
 print(f"match: {inn['runs']}/{inn['wickets']} ({inn['legal_balls']} balls){suffix}")
 
+# --- a finished match, so the season boards have something in them ----------
+# Season stats are only written when a match completes, and only for players
+# who are real users — a guest id matches no row, so the insert finds nothing.
+SQUAD = [("Ravi Sharma", False), ("Sam Blake", True), ("Tom Reed", False),
+         ("Alex Khan", False), ("Joe Miller", False), ("Dan Foster", True)]
+squad = []
+for i, (name, left) in enumerate(SQUAD):
+    email = f"player{i + 1}@fishers.test"
+    try:
+        a = call("POST", "/auth/login", {"email": email, "password": PASSWORD})
+    except RuntimeError:
+        a = call("POST", "/auth/signup", {"name": name, "email": email, "password": PASSWORD})
+    uid = a["user"]["id"]
+    try:
+        call("POST", f"/clubs/{club['id']}/members", {"user_id": uid, "role": "member"}, tok)
+    except RuntimeError:
+        pass  # already a member
+    squad.append({"id": uid, "name": name, "bats_left": left})
+
+RESULT = "League vs Watford — result"
+revent = next((e for e in call("GET", f"/events?club_id={club['id']}", None, tok)
+               if e["title"] == RESULT), None)
+if revent is None:
+    revent = call("POST", "/events", {
+        "club_id": club["id"], "sport": "cricket", "event_subtype": "league_match",
+        "title": RESULT, "start_at": iso(now - datetime.timedelta(days=7)),
+        "end_at": iso(now - datetime.timedelta(days=7) + datetime.timedelta(hours=4)),
+        "capacity": 22}, tok)
+rmatch = call("POST", f"/events/{revent['id']}/cricket-match", {
+    "overs_limit": 1, "home_name": "London Lords", "away_name": "Watford"}, tok)
+call("POST", f"/cricket/matches/{rmatch['id']}/claim-scorer", {"device_id": "seed"}, tok)
+
+if call("GET", f"/cricket/matches/{rmatch['id']}", None, tok)["state"]["status"] != "complete":
+    seq, events = 0, []
+    lords, watford = squad[:3], squad[3:]
+    rc = dict(conditions, overs_limit=1, overs_per_bowler=1, powerplay_overs=0)
+    ev({"type": "match_prepared", "overs_limit": 1,
+        "home_name": "London Lords", "away_name": "Watford"})
+    ev({"type": "conditions_proposed", "by": "home", "by_name": "Ravi", "conditions": rc})
+    ev({"type": "conditions_agreed", "side": "away", "captain_name": "Alex"})
+    ev({"type": "toss_recorded", "winner": "home", "decision": "bat"})
+    ev({"type": "xi_selected", "side": "home", "players": lords, "captain_id": lords[0]["id"]})
+    ev({"type": "xi_selected", "side": "away", "players": watford, "captain_id": watford[0]["id"]})
+    ev({"type": "innings_started", "innings_index": 0, "batting": "home",
+        "striker_id": lords[0]["id"], "non_striker_id": lords[1]["id"],
+        "bowler_id": watford[0]["id"], "super_over": False})
+    for runs, kind, angle in [(4, "drive", 285), (2, "cut", 250), (6, "loft", 15),
+                              (1, "glance", 150), (0, None, 0), (4, "sweep", 205)]:
+        ev({"type": "delivery_recorded", "runs": runs, "is_legal": True,
+            "is_boundary_four": runs == 4, "is_boundary_six": runs == 6,
+            "shot": None if kind is None else {"angle": angle, "kind": kind, "reach": 1.0}})
+    # 17 all told; Watford need 18 off the over and fall short.
+    ev({"type": "innings_started", "innings_index": 1, "batting": "away",
+        "striker_id": watford[0]["id"], "non_striker_id": watford[1]["id"],
+        "bowler_id": lords[0]["id"], "super_over": False})
+    for runs, kind, angle in [(1, "flick", 95), (4, "drive", 300), (2, "cut", 255)]:
+        ev({"type": "delivery_recorded", "runs": runs, "is_legal": True,
+            "is_boundary_four": runs == 4, "is_boundary_six": False,
+            "shot": {"angle": angle, "kind": kind, "reach": 0.9}})
+    ev({"type": "wicket_recorded", "kind": "bowled", "batter_id": watford[0]["id"],
+        "new_batter_id": watford[2]["id"], "runs": 0})
+    for _ in range(2):
+        ev({"type": "delivery_recorded", "runs": 1, "is_legal": True,
+            "is_boundary_four": False, "is_boundary_six": False, "shot": None})
+    rstate = call("POST", f"/cricket/matches/{rmatch['id']}/events",
+                  {"device_id": "seed", "events": events}, tok)["state"]
+    print(f"result match: {rstate.get('margin') or rstate['status']}")
+else:
+    print("result match: already played")
+
 share = call("POST", f"/cricket/matches/{match['id']}/share", {"post_to_chat": False}, tok)
 print()
 print(f"  Sign in    {EMAIL} / {PASSWORD}")
