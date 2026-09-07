@@ -857,9 +857,12 @@ function LivePanel({
             from this.
           </p>
           <div style={{ display: "flex", justifyContent: "center" }}>
+            {/* Only the ball being scored: the innings so far would be noise
+                when the question is where this one went. */}
             <WagonWheel
-              deliveries={inn.deliveries || []}
+              deliveries={[]}
               batsLeft={batsLeft}
+              size={300}
               onPick={(angle, reach) =>
                 record(draft, { angle, kind: draft.shotKind || "other", reach })
               }

@@ -775,3 +775,27 @@ textarea { line-height: 1.5; resize: vertical; }
   grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   gap: var(--s2);
 }
+
+/* ---------- Wagon wheel legend ---------- */
+
+.wheel-legend {
+  display: flex;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  list-style: none;
+  margin: var(--s1) 0 0;
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+}
+.wheel-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+.wheel-legend span {
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
