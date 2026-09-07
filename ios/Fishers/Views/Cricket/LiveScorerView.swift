@@ -42,6 +42,7 @@ struct LiveScorerView: View {
     @State private var showSuperOver = false
     @State private var showPenalty = false
     @State private var showCorrection = false
+    @State private var showField = false
     @State private var confirmEndInnings = false
     @State private var pendingShot: PendingShot?
     @State private var isSharing = false
@@ -103,6 +104,7 @@ struct LiveScorerView: View {
         .sheet(isPresented: $showSuperOver) { SuperOverSheet(store: store) }
         .sheet(isPresented: $showPenalty) { PenaltySheet(store: store) }
         .sheet(isPresented: $showCorrection) { BallCorrectionSheet(store: store) }
+        .sheet(isPresented: $showField) { FieldSheet(store: store) }
         .sheet(item: $pendingShot) { pending in
             WagonWheelPicker(
                 batterName: pending.batterName,
@@ -158,6 +160,11 @@ struct LiveScorerView: View {
                         showCorrection = true
                     } label: {
                         Label("Correct an earlier ball", systemImage: "arrow.uturn.backward.badge.clock")
+                    }
+                    Button {
+                        showField = true
+                    } label: {
+                        Label("Set the field", systemImage: "circle.dashed.inset.filled")
                     }
                     Button {
                         showPenalty = true
@@ -248,8 +255,20 @@ struct LiveScorerView: View {
                         .background(FishersTheme.maybe.opacity(0.15), in: Capsule())
                         .accessibilityLabel("Free hit")
                 }
+                let breaches = inn.fieldingBreaches(store.state.conditions)
+                if !breaches.isEmpty {
+                    ForEach(breaches, id: \.self) { breach in
+                        Label(breach, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(FishersTheme.unavailable)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 10)
+                            .background(FishersTheme.unavailable.opacity(0.14), in: Capsule())
+                    }
+                }
                 overStrip(inn)
                 statsRow(inn)
+                overRateRow(inn)
                 dlsRow
             }
 
@@ -361,6 +380,37 @@ struct LiveScorerView: View {
                     .font(FishersTheme.subhead.weight(.semibold))
                     .foregroundStyle(FishersTheme.accent)
             }
+        }
+    }
+
+    /// How the over rate is going, when anyone is counting. The app measures it;
+    /// the umpire decides what to do about it.
+    @ViewBuilder
+    private func overRateRow(_ inn: InningsState) -> some View {
+        let target = store.state.conditions.targetOversPerHour
+        if target > 0, let rate = inn.oversPerHour, let behind = inn.oversBehind(target: target) {
+            let late = behind >= 1
+            HStack(spacing: 8) {
+                Image(systemName: late ? "clock.badge.exclamationmark" : "clock")
+                    .font(.caption2)
+                Text(String(format: "%.1f overs an hour", rate))
+                Text("·")
+                Text(
+                    behind >= 0
+                        ? String(format: "%.1f over%@ behind", behind, abs(behind) == 1 ? "" : "s")
+                        : String(format: "%.1f ahead", -behind)
+                )
+                .fontWeight(late ? .semibold : .regular)
+                Spacer(minLength: 0)
+            }
+            .font(FishersTheme.caption)
+            .foregroundStyle(late ? FishersTheme.unavailable : .secondary)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                late
+                    ? "Behind the over rate by \(String(format: "%.1f", behind)) overs"
+                    : "On the over rate"
+            )
         }
     }
 
@@ -1452,6 +1502,7 @@ private struct PenaltySheet: View {
     @State private var runs = 5
     @State private var reason = PenaltyReason.slowOverRate
     @State private var otherReason = ""
+    @State private var toSide: MatchSide = .home
 
     enum PenaltyReason: String, CaseIterable, Identifiable {
         case slowOverRate = "Slow over rate"
@@ -1472,6 +1523,18 @@ private struct PenaltySheet: View {
                     Text("Award")
                 } footer: {
                     Text("Five is the usual. They go to the side batting, and against nobody's bowling figures.")
+                }
+
+                Section {
+                    Picker("To", selection: $toSide) {
+                        Text(store.state.homeName).tag(MatchSide.home)
+                        Text(store.state.awayName).tag(MatchSide.away)
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Who gets them")
+                } footer: {
+                    Text(sideFootnote)
                 }
 
                 Section("What for") {
@@ -1498,7 +1561,8 @@ private struct PenaltySheet: View {
                             : reason.rawValue
                         _ = store.append(.penaltyRuns(
                             runs: UInt8(runs),
-                            reason: text.isEmpty ? "Penalty" : text
+                            reason: text.isEmpty ? "Penalty" : text,
+                            toSide: toSide
                         ))
                         dismiss()
                     }
@@ -1506,7 +1570,23 @@ private struct PenaltySheet: View {
                 }
             }
         }
+        .onAppear {
+            toSide = store.state.currentInnings?.batting ?? .home
+        }
         .presentationDetents([.medium, .large])
+    }
+
+    /// Runs awarded to a side that has not batted yet wait and open their
+    /// innings — five runs are five runs whether or not anyone has faced a ball.
+    private var sideFootnote: String {
+        let batting = store.state.currentInnings?.batting
+        if toSide == batting {
+            return "They go straight onto the score, and against nobody's bowling figures."
+        }
+        let alreadyBatted = store.state.innings.contains { $0.batting == toSide }
+        return alreadyBatted
+            ? "\(store.state.name(for: toSide)) have batted, so the runs go onto that innings."
+            : "\(store.state.name(for: toSide)) have not batted yet, so the runs open their innings."
     }
 }
 
@@ -1631,5 +1711,97 @@ private struct BallCorrectionSheet: View {
             if !store.append(.undoLast) { break }
         }
         dismiss()
+    }
+}
+
+// MARK: - Where the field is
+
+/// The two counts the Laws actually restrict. The app does not police the field
+/// — it tells the scorer when the field they have entered breaks the
+/// restriction, and the umpire calls it.
+struct FieldSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var outside = 2
+    @State private var behindSquare = 2
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Stepper("\(outside) outside the circle", value: $outside, in: 0...11)
+                } header: {
+                    Text("Fielders")
+                } footer: {
+                    Text(circleFootnote)
+                }
+
+                Section {
+                    Stepper(
+                        "\(behindSquare) behind square on the leg side",
+                        value: $behindSquare,
+                        in: 0...11
+                    )
+                } footer: {
+                    Text("Two at most, in every format.")
+                }
+
+                if !breaches.isEmpty {
+                    Section {
+                        ForEach(breaches, id: \.self) { breach in
+                            Label(breach, systemImage: "exclamationmark.triangle.fill")
+                                .font(.footnote)
+                                .foregroundStyle(FishersTheme.unavailable)
+                        }
+                    } header: {
+                        Text("That field is not legal")
+                    } footer: {
+                        Text("The umpire calls a no ball for this — the app only tells you it has happened.")
+                    }
+                }
+            }
+            .navigationTitle("The field")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Set") {
+                        _ = store.append(.fieldSet(
+                            outsideCircle: UInt8(outside),
+                            behindSquareLeg: UInt8(behindSquare)
+                        ))
+                        dismiss()
+                    }
+                    .bold()
+                }
+            }
+            .onAppear {
+                if let inn = store.state.currentInnings {
+                    outside = Int(inn.fieldersOutside
+                        ?? store.state.conditions.fieldersAllowedOutside(inPowerplay: inn.inPowerplay))
+                    behindSquare = Int(inn.fieldersBehindSquareLeg ?? 2)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var circleFootnote: String {
+        guard let inn = store.state.currentInnings else { return "" }
+        let allowed = store.state.conditions.fieldersAllowedOutside(inPowerplay: inn.inPowerplay)
+        return inn.inPowerplay
+            ? "\(allowed) allowed during the powerplay."
+            : "\(allowed) allowed outside the powerplay."
+    }
+
+    /// Checked against what is being entered, not what was last saved.
+    private var breaches: [String] {
+        guard var inn = store.state.currentInnings else { return [] }
+        inn.fieldersOutside = UInt8(outside)
+        inn.fieldersBehindSquareLeg = UInt8(behindSquare)
+        return inn.fieldingBreaches(store.state.conditions)
     }
 }
