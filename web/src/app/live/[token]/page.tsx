@@ -46,6 +46,18 @@ type PublicScoreboard = {
   overs_limit: number;
   last_seq: number;
   player_names: Record<string, string>;
+  conditions?: {
+    overs_limit: number;
+    overs_per_bowler: number;
+    ground: string;
+    ball: string;
+  };
+  dls?: {
+    par: number;
+    ahead_by: number;
+    target: number;
+    method: string;
+  };
   expires_at: string;
   refreshed_at: string;
   state: {
@@ -148,6 +160,31 @@ export default function LiveScoreboardPage({
               <p className="muted">Target {board.state.target}</p>
             )}
             {board.state.margin && <p>{board.state.margin}</p>}
+            {board.dls && (
+              <p className={board.dls.ahead_by >= 0 ? "tag" : "muted"}>
+                {board.dls.ahead_by === 0
+                  ? `Level with the DLS par of ${board.dls.par}`
+                  : board.dls.ahead_by > 0
+                    ? `${board.dls.ahead_by} ahead of the DLS par of ${board.dls.par}`
+                    : `${-board.dls.ahead_by} behind the DLS par of ${board.dls.par}`}
+                {" · "}
+                <span className="muted">
+                  target {board.dls.target}
+                  {board.dls.method === "standard_approximation"
+                    ? " (Standard Edition approximation)"
+                    : ""}
+                </span>
+              </p>
+            )}
+            {board.conditions && (
+              <p className="muted">
+                {board.conditions.overs_limit} overs ·{" "}
+                {board.conditions.overs_per_bowler > 0
+                  ? `${board.conditions.overs_per_bowler} per bowler`
+                  : "no bowler limit"}{" "}
+                · {board.conditions.ball} ball · {board.conditions.ground}
+              </p>
+            )}
             {current && (
               <div className="live-pair">
                 <div>

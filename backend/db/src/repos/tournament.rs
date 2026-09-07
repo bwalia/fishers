@@ -567,6 +567,50 @@ pub async fn set_ticket_status(
     .await
 }
 
+/// One ticket, for the checks a payment has to make before taking money.
+pub async fn get_ticket(pool: &PgPool, ticket_id: Uuid) -> Result<Option<EventTicket>, sqlx::Error> {
+    sqlx::query_as::<_, EventTicket>(
+        r#"
+        SELECT t.id, t.event_id, t.user_id, u.name, t.guests, t.guest_names, t.amount_cents,
+               t.currency, t.status, t.notes, t.created_at
+        FROM event_tickets t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.id = $1
+        "#,
+    )
+    .bind(ticket_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Record money that arrived outside the app. Stamped with who recorded it, so
+/// the treasurer's book has a name against every cash payment.
+pub async fn record_ticket_payment(
+    pool: &PgPool,
+    ticket_id: Uuid,
+    recorded_by: Uuid,
+    method: &str,
+) -> Result<Option<EventTicket>, sqlx::Error> {
+    sqlx::query_as::<_, EventTicket>(
+        r#"
+        UPDATE event_tickets
+        SET status = 'paid',
+            paid_at = COALESCE(paid_at, NOW()),
+            paid_by = $2,
+            payment_method = $3,
+            updated_at = NOW()
+        WHERE id = $1 AND status <> 'cancelled'
+        RETURNING id, event_id, user_id, NULL::TEXT AS name, guests, guest_names,
+                  amount_cents, currency, status, notes, created_at
+        "#,
+    )
+    .bind(ticket_id)
+    .bind(recorded_by)
+    .bind(method)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn ticket_event(pool: &PgPool, ticket_id: Uuid) -> Result<Option<Uuid>, sqlx::Error> {
     let row: Option<(Uuid,)> = sqlx::query_as("SELECT event_id FROM event_tickets WHERE id = $1")
         .bind(ticket_id)

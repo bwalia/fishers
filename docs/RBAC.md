@@ -23,9 +23,9 @@ Defined in `backend/domain/src/rbac.rs` (unit-tested):
 |---|---|---|---|---|
 | `invite_to_club` | ✓ | | | |
 | `invite_to_team` | ✓ | ✓ | | |
-| `invite_to_event` (**invite to play**) | ✓ | ✓ | | |
+| `invite_to_event` (**invite to play**) | ✓ | ✓ | ✓ | |
 | `manage_events` | ✓ | ✓ | | |
-| `manage_selection` | ✓ | ✓ | | |
+| `manage_selection` | ✓ | ✓ | ✓ | |
 | `score_match` | ✓ | ✓ | ✓ | |
 | `manage_members` | ✓ | | | |
 | `manage_club_ops` | ✓ | | | |
@@ -43,7 +43,30 @@ Match scorers without a club role can be listed on `cricket_match_officials` —
 - `POST /events` — captain or secretary (`manage_events`)
 - Cricket scoring routes — `score_match` or match official
 
-Helpers: `backend/api/src/rbac.rs`.
+Helpers: `backend/api/src/rbac.rs`. **Every route goes through them.** Selection,
+chat and tournament routes each used to carry their own hardcoded
+`club_admin | team_captain | super_admin` check, which locked vice captains out
+of the permissions this table grants them and ignored a captaincy recorded on
+the team rather than the club. Those copies are gone; if you add a route, gate
+it with `require_permission` and a `Permission`, never a role list.
+
+## Who can change roles
+
+A **club secretary** appoints and stands down captains, vice captains and
+members, from **Clubs → the club → ⋯ → Manage club**. The API refuses to remove
+a club's last secretary, so a club can never end up with nobody able to run it.
+
+| Method | Path | Who |
+|---|---|---|
+| `GET` | `/clubs/{id}/members` | any member — names, roles, contact |
+| `POST` | `/clubs/{id}/members` | secretary — add by `user_id` or `email` |
+| `PATCH` | `/clubs/{id}/members/{user_id}` | secretary — `{"role": "captain"}` |
+| `DELETE` | `/clubs/{id}/members/{user_id}` | secretary |
+| `GET/PATCH` | `/clubs/{id}/settings` | read: any member · write: `manage_club_ops` |
+
+Club settings are the selection and fee policy: how much the assistant may do
+(`off` / `suggest` / `auto_publish`), the reconfirm and drop windows, and how
+hard match fees are chased.
 
 ## Client
 

@@ -90,6 +90,7 @@ struct ClubDetailView: View {
     @State private var blocks: [FixtureBlock] = []
     @State private var isCreatingTournament = false
     @State private var newTournamentName = ""
+    @State private var role: ClubRoleInfo?
 
     var body: some View {
         List {
@@ -170,8 +171,24 @@ struct ClubDetailView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Add sample fixtures") {
-                    Task { await seedSampleFixtures() }
+                Menu {
+                    NavigationLink {
+                        ClubQRView(club: club)
+                    } label: {
+                        Label("QR code", systemImage: "qrcode")
+                    }
+                    NavigationLink {
+                        ClubAdminView(club: club, role: role)
+                    } label: {
+                        Label("Manage club", systemImage: "person.2.badge.gearshape")
+                    }
+                    if role?.isSecretary == true {
+                        Button("Add sample fixtures") {
+                            Task { await seedSampleFixtures() }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
             }
         }
@@ -181,9 +198,11 @@ struct ClubDetailView: View {
         async let t = FishersAPI.teams(clubId: club.id)
         async let e = FishersAPI.events(clubId: club.id)
         async let b = FishersAPI.fixtureBlocks(clubId: club.id)
+        async let r = FishersAPI.myClubRole(clubId: club.id)
         teams = (try? await t) ?? []
         events = (try? await e) ?? []
         blocks = (try? await b) ?? []
+        role = try? await r
     }
 
     /// Weekly cricket series: Wednesday nets, Saturday league, Sunday social.

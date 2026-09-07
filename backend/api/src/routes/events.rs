@@ -35,6 +35,7 @@ pub struct EventQuery {
     pub to: Option<DateTime<Utc>>,
     /// When true, filter cricket nets + match subtypes (season view).
     pub cricket_season: Option<bool>,
+    pub limit: Option<i64>,
 }
 
 async fn create_event(
@@ -69,10 +70,12 @@ async fn list_events(
     Ok(Json(
         events_repo::list_events(
             &state.pool,
+            auth.user_id,
             q.club_id,
             q.from,
             q.to,
             q.cricket_season.unwrap_or(false),
+            q.limit.unwrap_or(200),
         )
         .await?,
     ))

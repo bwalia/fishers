@@ -9,19 +9,21 @@ use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use chrono::Duration;
 use fishers_db::repos::{
-    clubs as clubs_repo, events as events_repo, tournament as tournament_repo,
+    clubs as clubs_repo, events as events_repo, payments as payments_repo,
+    tournament as tournament_repo,
 };
 use fishers_domain::tournament::{self, TournamentFormat};
 use fishers_domain::{
     AddEntrantsRequest, BookTicketRequest, EventTicket, FixtureBlock, GenerateKnockoutRequest,
-    GenerateScheduleRequest, GenerateSlotsRequest, RecordResultRequest, ScheduleRow, Standing,
-    TicketSummary, TournamentEntrant, UpdateBlockRequest, UserRole,
+    GenerateScheduleRequest, GenerateSlotsRequest, Permission, RecordResultRequest, ScheduleRow,
+    Standing, TicketSummary, TournamentEntrant, UpdateBlockRequest,
 };
 use serde_json::json;
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
+use crate::rbac::require_permission;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -37,6 +39,7 @@ pub fn router() -> Router<AppState> {
         .route("/events/{id}/tickets", get(list_tickets).post(book_ticket))
         .route("/tickets/{id}/cancel", post(cancel_ticket))
         .route("/tickets/{id}/pay", post(pay_ticket))
+        .route("/tickets/{id}/mark-paid", post(mark_ticket_paid))
 }
 
 async fn update_block(
@@ -357,14 +360,9 @@ async fn cancel_ticket(
     let event = events_repo::get_event(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))?;
-    let is_organiser = clubs_repo::club_role(&state.pool, event.club_id, auth.user_id)
-        .await?
-        .is_some_and(|role| {
-            matches!(
-                role,
-                UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin
-            )
-        });
+    let is_organiser = require_organiser(&state, event.club_id, auth.user_id)
+        .await
+        .is_ok();
 
     tournament_repo::set_ticket_status(
         &state.pool,
@@ -377,25 +375,90 @@ async fn cancel_ticket(
     .ok_or_else(|| ApiError::forbidden("that isn't your ticket"))
 }
 
-/// Mark a ticket paid. Stripe is stubbed, so this records the payment and
-/// returns the ticket; wiring a real intent replaces the middle of it.
+/// Start paying for a ticket. This creates the payment; the ticket only becomes
+/// `paid` when the provider's webhook says the money arrived — a member cannot
+/// mark their own ticket paid.
 async fn pay_ticket(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let ticket = tournament_repo::get_ticket(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("ticket not found"))?;
+    if ticket.user_id != auth.user_id {
+        return Err(ApiError::forbidden("that isn't your ticket"));
+    }
+    let event = events_repo::get_event(&state.pool, ticket.event_id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("event not found"))?;
+    require_member(&state, event.club_id, auth.user_id).await?;
+
+    if ticket.status == "paid" {
+        return Ok(Json(json!({ "already_paid": true })));
+    }
+    if ticket.amount_cents <= 0 {
+        return Err(ApiError::bad_request("this event is free — nothing to pay"));
+    }
+
+    let request = fishers_domain::CreatePaymentIntentRequest {
+        event_id: Some(ticket.event_id),
+        order_id: None,
+        amount_cents: ticket.amount_cents,
+        currency: Some(ticket.currency.clone()),
+    };
+    let payment =
+        payments_repo::create_pending(&state.pool, auth.user_id, &request, None).await?;
+    let intent = state
+        .stripe
+        .create_payment_intent(payment.id, &request)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    payments_repo::attach_intent(&state.pool, payment.id, &intent.client_secret).await?;
+
+    Ok(Json(json!({
+        "payment_id": intent.payment_id,
+        "client_secret": intent.client_secret,
+        "amount_cents": intent.amount_cents,
+        "currency": intent.currency,
+        "ticket_status": ticket.status,
+    })))
+}
+
+#[derive(serde::Deserialize)]
+struct MarkPaidBody {
+    /// `cash` | `transfer` — how the money actually arrived.
+    #[serde(default = "default_method")]
+    method: String,
+}
+
+fn default_method() -> String {
+    "cash".into()
+}
+
+/// Record a ticket paid outside the app — cash at the bar, a bank transfer.
+/// Organisers only: this is the treasurer's button, not the buyer's.
+async fn mark_ticket_paid(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<MarkPaidBody>,
 ) -> ApiResult<Json<EventTicket>> {
+    if !matches!(body.method.as_str(), "cash" | "transfer") {
+        return Err(ApiError::bad_request("method must be cash or transfer"));
+    }
     let event_id = tournament_repo::ticket_event(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("ticket not found"))?;
     let event = events_repo::get_event(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))?;
-    require_member(&state, event.club_id, auth.user_id).await?;
+    require_organiser(&state, event.club_id, auth.user_id).await?;
 
-    tournament_repo::set_ticket_status(&state.pool, id, Some(auth.user_id), "paid")
+    tournament_repo::record_ticket_payment(&state.pool, id, auth.user_id, &body.method)
         .await?
         .map(Json)
-        .ok_or_else(|| ApiError::forbidden("that isn't your ticket"))
+        .ok_or_else(|| ApiError::not_found("ticket not found"))
 }
 
 // MARK: helpers
@@ -434,12 +497,10 @@ async fn require_member(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiRe
     }
 }
 
+/// Running a tournament is `manage_events`, from the same matrix as everything
+/// else — including a captaincy held on the team rather than the club.
 async fn require_organiser(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<()> {
-    match clubs_repo::club_role(&state.pool, club_id, user_id).await? {
-        Some(UserRole::ClubAdmin | UserRole::TeamCaptain | UserRole::SuperAdmin) => Ok(()),
-        Some(_) => Err(ApiError::forbidden(
-            "only a captain or club admin can organise this",
-        )),
-        None => Err(ApiError::forbidden("not a club member")),
-    }
+    require_permission(state, club_id, user_id, None, Permission::ManageEvents)
+        .await
+        .map(|_| ())
 }

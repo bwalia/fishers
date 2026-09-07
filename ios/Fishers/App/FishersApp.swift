@@ -32,7 +32,8 @@ struct FishersApp: App {
                 .modelContainer(cricketContainer)
                 .tint(FishersTheme.accent)
                 .task {
-                    await CricketSyncService.shared.configure(container: cricketContainer)
+                    // The sync service is @MainActor now, so this is a plain call.
+                    CricketSyncService.shared.configure(container: cricketContainer)
                     if session.isAuthenticated {
                         await clubContext.bootstrap()
                     }

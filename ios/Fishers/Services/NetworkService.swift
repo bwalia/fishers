@@ -99,7 +99,9 @@ actor NetworkService {
         body: (any Encodable)? = nil,
         authorized: Bool = true
     ) async throws -> T {
-        let data = try await rawRequest(method, path: path, body: body, authorized: authorized)
+        let data = try await rawRequest(
+            method, path: path, body: body, authorized: authorized
+        )
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -113,14 +115,17 @@ actor NetworkService {
         body: (any Encodable)? = nil,
         authorized: Bool = true
     ) async throws {
-        _ = try await rawRequest(method, path: path, body: body, authorized: authorized)
+        _ = try await rawRequest(
+            method, path: path, body: body, authorized: authorized
+        )
     }
 
     private func rawRequest(
         _ method: String,
         path: String,
         body: (any Encodable)?,
-        authorized: Bool
+        authorized: Bool,
+        hasRefreshed: Bool = false
     ) async throws -> Data {
         guard let url = URL(string: AppConfig.apiBaseURL.absoluteString + AppConfig.apiVersionPrefix + path) else {
             throw APIError.invalidURL
@@ -148,9 +153,13 @@ actor NetworkService {
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.empty }
 
-        if http.statusCode == 401, authorized, refreshToken != nil {
+        // Refresh once and retry once. Without the guard, a server that keeps
+        // answering 401 sends this into an unbounded recursion.
+        if http.statusCode == 401, authorized, !hasRefreshed, refreshToken != nil {
             try await refreshAccessToken()
-            return try await rawRequest(method, path: path, body: body, authorized: true)
+            return try await rawRequest(
+                method, path: path, body: body, authorized: true, hasRefreshed: true
+            )
         }
 
         guard (200..<300).contains(http.statusCode) else {

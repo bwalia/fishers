@@ -9,8 +9,12 @@ mod state;
 use std::net::SocketAddr;
 
 use anyhow::Context;
+use axum::http::{HeaderValue, Method};
 use axum::Router;
-use tower_http::cors::{Any, CorsLayer};
+use rand::Rng;
+use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -25,8 +29,7 @@ async fn main() -> anyhow::Result<()> {
 
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://fishers:fishers@localhost:5433/fishers".into());
-    let jwt_secret = std::env::var("JWT_SECRET")
-        .unwrap_or_else(|_| "dev-only-change-me-fishers-jwt-secret".into());
+    let jwt_secret = resolve_jwt_secret();
     let host = std::env::var("API_HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let port: u16 = std::env::var("API_PORT")
         .ok()
@@ -45,12 +48,13 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .merge(docs::router())
         .merge(routes::router())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        .layer(cors_layer())
+        // A scoring batch is the largest legitimate body; nothing needs a megabyte.
+        .layer(RequestBodyLimitLayer::new(1024 * 1024))
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::GATEWAY_TIMEOUT,
+            std::time::Duration::from_secs(30),
+        ))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
@@ -62,4 +66,66 @@ async fn main() -> anyhow::Result<()> {
         .context("bind failed")?;
     axum::serve(listener, app).await.context("server failed")?;
     Ok(())
+}
+
+/// The signing key for every token this API issues.
+///
+/// There is no shipped default: a known constant in the binary is the same as
+/// no authentication at all. Without `JWT_SECRET` we mint a random one, which
+/// keeps `cargo run` working and logs every session out on restart — annoying
+/// in development, harmless in production, and never a forgeable key.
+fn resolve_jwt_secret() -> String {
+    match std::env::var("JWT_SECRET") {
+        Ok(secret) if secret.len() >= 32 => secret,
+        Ok(secret) if !secret.is_empty() => {
+            tracing::warn!(
+                length = secret.len(),
+                "JWT_SECRET is shorter than 32 characters — use a long random string"
+            );
+            secret
+        }
+        _ => {
+            let random: String = (0..48)
+                .map(|_| rand::thread_rng().sample(rand::distributions::Alphanumeric) as char)
+                .collect();
+            tracing::warn!(
+                "JWT_SECRET is not set — generated a random one. \
+                 Everyone will be signed out when this process restarts."
+            );
+            random
+        }
+    }
+}
+
+/// The iOS app does not use CORS at all, so nothing is allowed cross-origin
+/// unless a web front end is named in `CORS_ALLOWED_ORIGINS`.
+fn cors_layer() -> CorsLayer {
+    let layer = CorsLayer::new()
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+        ]);
+
+    let configured: Vec<HeaderValue> = std::env::var("CORS_ALLOWED_ORIGINS")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|origin| !origin.is_empty())
+        .filter_map(|origin| origin.parse().ok())
+        .collect();
+
+    if configured.is_empty() {
+        tracing::info!("CORS_ALLOWED_ORIGINS unset — no cross-origin browser access");
+        layer.allow_origin(AllowOrigin::list([]))
+    } else {
+        tracing::info!(count = configured.len(), "CORS origins allowed");
+        layer.allow_origin(AllowOrigin::list(configured))
+    }
 }

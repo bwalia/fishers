@@ -3,6 +3,8 @@ import SwiftData
 
 @Model
 final class LocalCricketMatch {
+    /// Chosen on the device before the API is ever called, so a match started
+    /// with no signal keeps the same id when it is registered later.
     @Attribute(.unique) var matchId: UUID
     var eventId: UUID
     var clubId: UUID
@@ -10,12 +12,12 @@ final class LocalCricketMatch {
     var homeName: String
     var awayName: String
     var oversLimit: Int
-    /// JSON-encoded `[UUID: String]` display names.
-    var playerNamesJSON: Data
-    /// Latest MatchState JSON snapshot for fast resume.
+    /// Latest MatchState JSON snapshot, for a fast resume before replay.
     var stateJSON: Data
     var lastSeq: Int64
     var syncStatusRaw: String
+    /// True until the API has been told this match exists.
+    var needsRemoteCreate: Bool = false
     var updatedAt: Date
 
     @Relationship(deleteRule: .cascade, inverse: \LocalScoringEvent.match)
@@ -30,7 +32,7 @@ final class LocalCricketMatch {
         awayName: String,
         oversLimit: Int,
         state: MatchState,
-        playerNames: [UUID: String] = [:]
+        needsRemoteCreate: Bool
     ) {
         self.matchId = matchId
         self.eventId = eventId
@@ -41,16 +43,28 @@ final class LocalCricketMatch {
         self.oversLimit = oversLimit
         self.lastSeq = state.lastSeq
         self.syncStatusRaw = SyncStatus.saved.rawValue
+        self.needsRemoteCreate = needsRemoteCreate
         self.updatedAt = .now
-        let enc = JSONEncoder()
-        self.stateJSON = (try? enc.encode(state)) ?? Data()
-        let namePairs = Dictionary(uniqueKeysWithValues: playerNames.map { ($0.key.uuidString, $0.value) })
-        self.playerNamesJSON = (try? enc.encode(namePairs)) ?? Data()
+        self.stateJSON = (try? JSONEncoder().encode(state)) ?? Data()
     }
 
     var syncStatus: SyncStatus {
         get { SyncStatus(rawValue: syncStatusRaw) ?? .saved }
         set { syncStatusRaw = newValue.rawValue }
+    }
+
+    var pendingEvents: [ScoringEvent] {
+        events
+            .filter(\.pendingSync)
+            .sorted { $0.seq < $1.seq }
+            .compactMap { $0.asScoringEvent() }
+    }
+
+    var hasPendingWork: Bool { needsRemoteCreate || events.contains(where: \.pendingSync) }
+
+    /// The whole log in order — the engine folds this back into a scorecard.
+    var orderedEvents: [ScoringEvent] {
+        events.sorted { $0.seq < $1.seq }.compactMap { $0.asScoringEvent() }
     }
 
     func decodedState() -> MatchState {
@@ -62,21 +76,6 @@ final class LocalCricketMatch {
         stateJSON = (try? JSONEncoder().encode(state)) ?? stateJSON
         lastSeq = state.lastSeq
         updatedAt = .now
-    }
-
-    func playerNames() -> [UUID: String] {
-        guard let dict = try? JSONDecoder().decode([String: String].self, from: playerNamesJSON)
-        else { return [:] }
-        var out: [UUID: String] = [:]
-        for (k, v) in dict {
-            if let id = UUID(uuidString: k) { out[id] = v }
-        }
-        return out
-    }
-
-    func setPlayerNames(_ names: [UUID: String]) {
-        let pairs = Dictionary(uniqueKeysWithValues: names.map { ($0.key.uuidString, $0.value) })
-        playerNamesJSON = (try? JSONEncoder().encode(pairs)) ?? playerNamesJSON
     }
 }
 

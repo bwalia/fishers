@@ -6,7 +6,6 @@ struct EventDetailView: View {
     @State private var event: Event?
     @State private var attendees: [AttendeeSummary] = []
     @State private var message: String?
-    @State private var showSquad = false
     @State private var board: SelectionBoard?
     @State private var isResponding = false
     @State private var roleInfo: ClubRoleInfo?
@@ -32,8 +31,6 @@ struct EventDetailView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(FishersTheme.accent)
-                        Button("Squad picker") { showSquad = true }
-                            .buttonStyle(.bordered)
                     }
                 } else {
                     ProgressView()
@@ -48,47 +45,67 @@ struct EventDetailView: View {
         .navigationTitle("Event")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-        .sheet(isPresented: $showSquad) {
-            SquadPickerView(attendees: attendees)
-        }
     }
 
     @ViewBuilder
     private func cricketScoringEntry(_ event: Event) -> some View {
-        let isCricketFixture = event.sport.lowercased() == "cricket"
-            && (event.eventSubtype == "friendly" || event.eventSubtype == "league_match")
-        if isCricketFixture {
-            let canScore = roleInfo?.canScoreMatch == true
-            NavigationLink {
-                CricketScoringFlowView(event: event, attendees: attendees, canScore: canScore)
-            } label: {
-                Label(
-                    existingCricket == nil ? "Start Match" : "Continue scoring",
-                    systemImage: "sportscourt.fill"
-                )
-                .font(FishersTheme.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(FishersTheme.pitch)
-            .disabled(!canScore && existingCricket == nil)
-            .accessibilityLabel(existingCricket == nil ? "Start match scoring" : "Continue match scoring")
-            if !canScore {
-                Text("Captains, secretaries, and assigned scorers can score.")
-                    .font(FishersTheme.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            if let match = existingCricket {
-                NavigationLink {
-                    CricketScorecardView(state: match.state) { id in
-                        String(id.uuidString.prefix(8))
+        if isCricketFixture(event) {
+            VStack(alignment: .leading, spacing: 12) {
+                if let match = existingCricket {
+                    CricketScoreSummary(state: match.state)
+                    NavigationLink {
+                        CricketScorecardView(state: match.state)
+                    } label: {
+                        Label("Full scorecard", systemImage: "list.bullet.rectangle")
+                            .font(FishersTheme.subhead)
                     }
-                } label: {
-                    Label("View scorecard", systemImage: "list.bullet.rectangle")
+                }
+
+                if canScoreThisMatch {
+                    NavigationLink {
+                        CricketScoringFlowView(
+                            event: event,
+                            attendees: attendees,
+                            canScore: true
+                        )
+                    } label: {
+                        Label(
+                            scoringButtonTitle,
+                            systemImage: "sportscourt.fill"
+                        )
+                        .font(FishersTheme.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(FishersTheme.pitch)
+                    .accessibilityLabel(scoringButtonTitle)
+                } else if existingCricket == nil {
+                    Text("Captains, club secretaries and assigned scorers can score this match.")
+                        .font(FishersTheme.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 14))
         }
+    }
+
+    private func isCricketFixture(_ event: Event) -> Bool {
+        event.sport.lowercased() == "cricket"
+            && ["friendly", "league_match", "tournament"].contains(event.eventSubtype)
+    }
+
+    /// The server is the authority; the club role is the answer before a match
+    /// exists to ask about.
+    private var canScoreThisMatch: Bool {
+        existingCricket?.canScore ?? (roleInfo?.canScoreMatch == true)
+    }
+
+    private var scoringButtonTitle: String {
+        guard let match = existingCricket else { return "Start match" }
+        return match.state.status.isFinished ? "Reopen scoring" : "Continue scoring"
     }
 
     /// Shown to a player once they are picked: confirm or pull out, well before

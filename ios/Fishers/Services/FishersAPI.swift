@@ -344,6 +344,140 @@ enum FishersAPI {
         )
     }
 
+    // MARK: QR codes and opponents
+
+    static func clubQRCode(clubId: UUID) async throws -> ClubQRCode {
+        try await NetworkService.shared.request("GET", path: "/clubs/\(clubId.uuidString)/qr")
+    }
+
+    static func teamQRCode(teamId: UUID) async throws -> ClubQRCode {
+        try await NetworkService.shared.request("GET", path: "/teams/\(teamId.uuidString)/qr")
+    }
+
+    /// Retires the old code immediately.
+    static func rotateClubQRCode(clubId: UUID) async throws -> ClubQRCode {
+        try await NetworkService.shared.request("POST", path: "/clubs/\(clubId.uuidString)/qr")
+    }
+
+    /// Resolve a scanned code — or the whole URL the camera read — to a side.
+    static func lookupOpponent(token: String) async throws -> ClubIdentity {
+        struct Body: Encodable { let token: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/opponents/lookup", body: Body(token: token)
+        )
+    }
+
+    static func searchOpponents(query: String) async throws -> [ClubIdentity] {
+        let escaped = query.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed
+        ) ?? query
+        return try await NetworkService.shared.request(
+            "GET", path: "/opponents/search?q=\(escaped)"
+        )
+    }
+
+    // MARK: Match officials and the scoring lock
+
+    static func matchOfficials(matchId: UUID) async throws -> [MatchOfficialRow] {
+        try await NetworkService.shared.request(
+            "GET", path: "/cricket/matches/\(matchId.uuidString)/officials"
+        )
+    }
+
+    /// Appoint an umpire or a scorer. Either may control the scoring.
+    static func appointOfficial(
+        matchId: UUID,
+        userId: UUID,
+        role: String
+    ) async throws -> [MatchOfficialRow] {
+        struct Body: Encodable { let user_id: UUID; let role: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/cricket/matches/\(matchId.uuidString)/officials",
+            body: Body(user_id: userId, role: role)
+        )
+    }
+
+    static func removeOfficial(matchId: UUID, userId: UUID) async throws -> [MatchOfficialRow] {
+        try await NetworkService.shared.request(
+            "DELETE",
+            path: "/cricket/matches/\(matchId.uuidString)/officials/\(userId.uuidString)"
+        )
+    }
+
+    /// Pass the book on. Only the scorer holding it can.
+    static func handOverScoring(matchId: UUID, toUserId: UUID) async throws -> CricketMatchDTO {
+        struct Body: Encodable { let to_user_id: UUID }
+        return try await NetworkService.shared.request(
+            "POST", path: "/cricket/matches/\(matchId.uuidString)/handover",
+            body: Body(to_user_id: toUserId)
+        )
+    }
+
+    static func scorerTrail(matchId: UUID) async throws -> [ScorerHandover] {
+        try await NetworkService.shared.request(
+            "GET", path: "/cricket/matches/\(matchId.uuidString)/scorer-trail"
+        )
+    }
+
+    // MARK: Club administration
+
+    /// The roster, with names and roles. Any member may read it; only a
+    /// secretary may change it.
+    static func clubMembers(clubId: UUID) async throws -> [ClubMemberDetail] {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/members"
+        )
+    }
+
+    /// Add someone already on Fishers to the club, by email.
+    static func addClubMember(
+        clubId: UUID,
+        email: String,
+        role: ClubRole
+    ) async throws {
+        struct Body: Encodable {
+            let user_id: UUID
+            let email: String
+            let role: String
+        }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/clubs/\(clubId.uuidString)/members",
+            // The server resolves the email; the id is ignored when one is given.
+            body: Body(user_id: UUID(), email: email, role: role.rawValue)
+        )
+    }
+
+    /// Appoint a captain or vice captain, or stand someone down.
+    static func setMemberRole(clubId: UUID, userId: UUID, role: ClubRole) async throws {
+        struct Body: Encodable { let role: String }
+        try await NetworkService.shared.requestVoid(
+            "PATCH",
+            path: "/clubs/\(clubId.uuidString)/members/\(userId.uuidString)",
+            body: Body(role: role.rawValue)
+        )
+    }
+
+    static func removeClubMember(clubId: UUID, userId: UUID) async throws {
+        try await NetworkService.shared.requestVoid(
+            "DELETE", path: "/clubs/\(clubId.uuidString)/members/\(userId.uuidString)"
+        )
+    }
+
+    static func clubSettings(clubId: UUID) async throws -> ClubSettings {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/settings"
+        )
+    }
+
+    static func updateClubSettings(
+        clubId: UUID,
+        _ settings: ClubSettings
+    ) async throws -> ClubSettings {
+        try await NetworkService.shared.request(
+            "PATCH", path: "/clubs/\(clubId.uuidString)/settings", body: settings
+        )
+    }
+
     // MARK: Clubs
 
     static func clubs() async throws -> [Club] {
@@ -445,20 +579,27 @@ enum FishersAPI {
 
     // MARK: Cricket scoring
 
+    /// `matchId` is chosen on the device, so a match started with no signal
+    /// registers under the id its local event log already uses.
     static func createCricketMatch(
         eventId: UUID,
+        matchId: UUID? = nil,
         oversLimit: Int,
         homeName: String,
         awayName: String
     ) async throws -> CricketMatchDTO {
         struct Body: Encodable {
+            let match_id: UUID?
             let overs_limit: Int
             let home_name: String
             let away_name: String
         }
         return try await NetworkService.shared.request(
             "POST", path: "/events/\(eventId.uuidString)/cricket-match",
-            body: Body(overs_limit: oversLimit, home_name: homeName, away_name: awayName)
+            body: Body(
+                match_id: matchId, overs_limit: oversLimit,
+                home_name: homeName, away_name: awayName
+            )
         )
     }
 
@@ -472,11 +613,16 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/cricket/matches/\(id.uuidString)")
     }
 
-    static func claimScorer(matchId: UUID, deviceId: String) async throws -> CricketMatchDTO {
-        struct Body: Encodable { let device_id: String }
+    /// `force` takes the match off a scorer whose phone has died mid-innings.
+    static func claimScorer(
+        matchId: UUID,
+        deviceId: String,
+        force: Bool = false
+    ) async throws -> CricketMatchDTO {
+        struct Body: Encodable { let device_id: String; let force: Bool }
         return try await NetworkService.shared.request(
             "POST", path: "/cricket/matches/\(matchId.uuidString)/claim-scorer",
-            body: Body(device_id: deviceId)
+            body: Body(device_id: deviceId, force: force)
         )
     }
 

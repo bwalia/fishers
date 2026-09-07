@@ -18,7 +18,7 @@ use fishers_db::repos::{
 };
 use fishers_domain::{
     selection, CreateFixtureBlockRequest, EventStatus, FixtureBlock, FixtureStatusRequest,
-    RespondToSelectionRequest, SelectionBoard, SetSquadRequest, SquadProposalView,
+    Permission, RespondToSelectionRequest, SelectionBoard, SetSquadRequest, SquadProposalView,
 };
 use serde_json::json;
 use tracing::warn;
@@ -27,6 +27,7 @@ use validator::Validate;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
+use crate::rbac::{require_club_member, require_permission};
 use crate::state::AppState;
 
 /// How much chat the assistant reads when picking a side.
@@ -66,7 +67,7 @@ async fn set_squad(
     Json(body): Json<SetSquadRequest>,
 ) -> ApiResult<Json<SelectionBoard>> {
     let event = load_event(&state, id).await?;
-    require_captain_or_admin(&state, event.club_id, auth.user_id).await?;
+    require_selector(&state, &event, auth.user_id).await?;
     let policy = selection_repo::policy_for_club(&state.pool, event.club_id).await?;
 
     selection_repo::set_squad(
@@ -98,7 +99,7 @@ async fn suggest_squad(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<SquadProposalView>> {
     let event = load_event(&state, id).await?;
-    require_captain_or_admin(&state, event.club_id, auth.user_id).await?;
+    require_selector(&state, &event, auth.user_id).await?;
 
     let candidates = selection_repo::candidates(&state.pool, id).await?;
     let requirements = selection_repo::requirements_for(&state.pool, id).await?;
@@ -132,7 +133,7 @@ async fn agent_squad(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<SquadProposalView>> {
     let event = load_event(&state, id).await?;
-    require_captain_or_admin(&state, event.club_id, auth.user_id).await?;
+    require_selector(&state, &event, auth.user_id).await?;
     let policy = selection_repo::policy_for_club(&state.pool, event.club_id).await?;
     if policy.selection_autonomy == "off" {
         return Err(ApiError::forbidden(
@@ -323,7 +324,7 @@ async fn publish(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let event = load_event(&state, id).await?;
-    require_captain_or_admin(&state, event.club_id, auth.user_id).await?;
+    require_selector(&state, &event, auth.user_id).await?;
     let policy = selection_repo::policy_for_club(&state.pool, event.club_id).await?;
     let candidates = selection_repo::candidates(&state.pool, id).await?;
     let squad: Vec<&fishers_domain::Candidate> =
@@ -405,7 +406,7 @@ async fn promote(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let event = load_event(&state, id).await?;
-    require_captain_or_admin(&state, event.club_id, auth.user_id).await?;
+    require_selector(&state, &event, auth.user_id).await?;
     let policy = selection_repo::policy_for_club(&state.pool, event.club_id).await?;
     let promoted =
         selection_repo::promote_reserves(&state.pool, id, policy.confirm_lead_hours).await?;
@@ -423,7 +424,7 @@ async fn update_status(
     Json(body): Json<FixtureStatusRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let event = load_event(&state, id).await?;
-    require_captain_or_admin(&state, event.club_id, auth.user_id).await?;
+    require_selector(&state, &event, auth.user_id).await?;
 
     let status = match body.status.as_str() {
         "scheduled" => EventStatus::Scheduled,
@@ -473,7 +474,7 @@ async fn outstanding_fees(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    require_captain_or_admin(&state, id, auth.user_id).await?;
+    require_club_selector(&state, id, auth.user_id).await?;
     let rows = selection_repo::outstanding_fees(&state.pool, id).await?;
     let total: i64 = rows
         .iter()
@@ -502,7 +503,7 @@ async fn chase_fees(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    require_captain_or_admin(&state, id, auth.user_id).await?;
+    require_club_selector(&state, id, auth.user_id).await?;
     let rows = selection_repo::outstanding_fees(&state.pool, id).await?;
 
     for row in &rows {
@@ -547,7 +548,7 @@ async fn create_block(
     Json(body): Json<CreateFixtureBlockRequest>,
 ) -> ApiResult<Json<FixtureBlock>> {
     body.validate()?;
-    require_captain_or_admin(&state, body.club_id, auth.user_id).await?;
+    require_club_selector(&state, body.club_id, auth.user_id).await?;
     Ok(Json(
         events_repo::create_fixture_block(&state.pool, auth.user_id, &body).await?,
     ))
@@ -574,7 +575,7 @@ async fn plan_block(
     let Some(first) = fixtures.first() else {
         return Err(ApiError::bad_request("this block has no fixtures yet"));
     };
-    require_captain_or_admin(&state, first.club_id, auth.user_id).await?;
+    require_club_selector(&state, first.club_id, auth.user_id).await?;
     let policy = selection_repo::policy_for_club(&state.pool, first.club_id).await?;
 
     let mut block_fixtures = Vec::with_capacity(fixtures.len());
@@ -673,7 +674,7 @@ async fn build_board(state: &AppState, event_id: Uuid) -> ApiResult<SelectionBoa
             .ok()
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap_or_default(),
-        status_note: None,
+        status_note: event.status_note.clone(),
         selected_count: candidates.iter().filter(|c| c.state.is_in_squad()).count(),
         confirmed_count: candidates.iter().filter(|c| c.is_confirmed).count(),
         requirements,
@@ -739,27 +740,26 @@ async fn load_event(state: &AppState, event_id: Uuid) -> ApiResult<fishers_domai
         .ok_or_else(|| ApiError::not_found("fixture not found"))
 }
 
-async fn require_club_member(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<()> {
-    if clubs_repo::is_club_member(&state.pool, club_id, user_id).await? {
-        Ok(())
-    } else {
-        Err(ApiError::forbidden("not a club member"))
-    }
-}
-
-async fn require_captain_or_admin(
-    state: &AppState,
-    club_id: Uuid,
-    user_id: Uuid,
-) -> ApiResult<()> {
-    crate::rbac::require_club_permission(
+/// Selection is gated by `manage_selection`, which vice captains hold too — and
+/// a captaincy recorded on the team counts, not just one on the club.
+async fn require_selector(state: &AppState, event: &fishers_domain::Event, user_id: Uuid) -> ApiResult<()> {
+    require_permission(
         state,
-        club_id,
+        event.club_id,
         user_id,
-        fishers_domain::Permission::ManageSelection,
+        event.team_id,
+        Permission::ManageSelection,
     )
     .await
     .map(|_| ())
+}
+
+/// Club-level selection oversight, for the fee and block screens that have no
+/// single fixture to hang a team role off.
+async fn require_club_selector(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<()> {
+    require_permission(state, club_id, user_id, None, Permission::ManageSelection)
+        .await
+        .map(|_| ())
 }
 
 async fn recent_transcript(

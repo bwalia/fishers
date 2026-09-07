@@ -30,8 +30,10 @@ pub use availability::*;
 pub use chat::*;
 pub use club::*;
 pub use cricket::{
-    evt, BatterStats, BowlerStats, DeliveryRecord, DismissalKind, ExtraKind, FallOfWicket,
-    InningsState, MatchSide, MatchState, MatchStatus, ScoringEvent, ScoringEventKind, TossDecision,
+    dls, evt, BallType, BatterStats, BowlerStats, DeliveryRecord, DismissalKind, DlsMethod, DlsPar,
+    ExtraKind, FallOfWicket, GroundType, InningsResources, InningsState, MatchConditions,
+    MatchPlayer, MatchSide, MatchState, MatchStatus, ResourceTable, ScoringEvent, ScoringEventKind,
+    ShotKind, ShotRecord, TossDecision,
 };
 pub use enums::*;
 pub use event::*;

@@ -84,17 +84,37 @@ final class SeasonStatsDecodingTests: XCTestCase {
         XCTAssertEqual(decoded.seasons[0].playCricketURL, PlayCricketLinks.home)
     }
 
-    func testDefaultIso8601StrategyRejectsFractionalSeconds() {
-        let raw = "\"2026-04-12T09:15:30.123456Z\"".data(using: .utf8)!
-        let plain = JSONDecoder()
-        plain.dateDecodingStrategy = .iso8601
-        XCTAssertThrowsError(try plain.decode(Date.self, from: raw))
+    /// The server sends timestamps both ways — chrono emits fractional seconds,
+    /// some columns do not — and our decoder has to take either.
+    ///
+    /// This used to assert that Foundation's plain `.iso8601` *rejects*
+    /// fractional seconds. It no longer does on current SDKs, which made the
+    /// test fail without anything of ours changing. What actually matters is
+    /// our own decoder, so that is what it checks now.
+    func testFishersDecoderAcceptsBothTimestampShapes() throws {
+        let decoder = FishersJSONDecoder.make()
+        // 2026-04-12T09:15:30Z. ISO8601DateFormatter parses to the millisecond,
+        // so a microsecond input lands within half a millisecond.
+        let expected = 1_775_985_330.123456
+
+        let withFraction = "\"2026-04-12T09:15:30.123456Z\"".data(using: .utf8)!
+        XCTAssertEqual(
+            try decoder.decode(Date.self, from: withFraction).timeIntervalSince1970,
+            expected,
+            accuracy: 0.001
+        )
+
+        let withoutFraction = "\"2026-04-12T09:15:30Z\"".data(using: .utf8)!
+        XCTAssertEqual(
+            try decoder.decode(Date.self, from: withoutFraction).timeIntervalSince1970,
+            1_775_985_330,
+            accuracy: 0.001
+        )
     }
 
-    func testFishersDecoderAcceptsFractionalSeconds() throws {
-        let raw = "\"2026-04-12T09:15:30.123456Z\"".data(using: .utf8)!
-        let date = try FishersJSONDecoder.make().decode(Date.self, from: raw)
-        XCTAssertEqual(date.timeIntervalSince1970, 1_776_024_930.123456, accuracy: 0.001)
+    func testFishersDecoderRejectsSomethingThatIsNotADate() {
+        let raw = "\"not a date\"".data(using: .utf8)!
+        XCTAssertThrowsError(try FishersJSONDecoder.make().decode(Date.self, from: raw))
     }
 
     func testClubBoardDecodesExtraSiteFields() throws {
