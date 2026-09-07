@@ -980,3 +980,107 @@ textarea { line-height: 1.5; resize: vertical; }
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
+
+/* ---------- Scorecard ---------- */
+
+.innings-tabs {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  margin-bottom: var(--s4);
+}
+.innings-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 52px;
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.innings-tab:hover { background: var(--surface-2); }
+.innings-tab.active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+}
+.innings-tab .num {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.section-head {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  margin: var(--s5) 0 var(--s2);
+}
+.section-head:first-child { margin-top: 0; }
+
+.card-split {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 860px) {
+  .card-split { grid-template-columns: minmax(0, 3fr) minmax(150px, 1fr); }
+}
+
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s1);
+}
+
+/* Partnerships */
+.stand {
+  display: grid;
+  grid-template-columns: 64px minmax(60px, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.stand:last-child { border-bottom: none; }
+.stand-label { font-weight: 700; color: var(--fg-subtle); font-size: 0.8rem; }
+.stand-bar {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.stand-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  border-radius: var(--radius-pill);
+}
+.stand-runs { font-weight: 700; }
+.stand-end { text-align: right; }
+
+/* Result header */
+.result-panel { border-left: 3px solid var(--accent); }
+.result-line { margin: var(--s2) 0 var(--s3); font-size: 1.6rem; }
+.result-innings {
+  display: flex;
+  gap: var(--s5);
+  flex-wrap: wrap;
+  margin-bottom: var(--s2);
+}
+.result-side .result-score {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+.result-side.won .result-score { color: var(--primary); }

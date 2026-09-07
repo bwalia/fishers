@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { api, getAccessToken, getStoredUser } from "@/lib/api";
 import { WagonWheel } from "@/components/WagonWheel";
+import { Scorecard } from "@/components/Scorecard";
 import { Icon } from "@/components/Icon";
 import { ShotIcon, SHOT_SHAPES } from "@/components/ShotIcon";
 import {
@@ -234,10 +235,23 @@ function Stages({
 
   if (st.status === "complete") {
     return (
-      <div className="panel">
-        <h2>Result</h2>
-        <p>{st.margin || "Match complete."}</p>
-        {st.player_of_the_match && <p className="muted">Player of the match: {nameOf(st.player_of_the_match)}</p>}
+      <div className="panel result-panel">
+        <span className="tag gold">Result</span>
+        <h2 className="result-line">{st.margin || "Match complete."}</h2>
+        <div className="result-innings">
+          {st.innings.map((i, n) => (
+            <div key={n} className={`result-side${st.winner === i.batting ? " won" : ""}`}>
+              <div className="subtle">{i.batting === "home" ? st.home_name : st.away_name}</div>
+              <div className="result-score num">
+                {i.runs}-{i.wickets}
+                <span className="subtle"> ({overs(i.legal_balls)} ov)</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {st.player_of_the_match && (
+          <p className="muted">Player of the match: {nameOf(st.player_of_the_match)}</p>
+        )}
       </div>
     );
   }
@@ -1421,63 +1435,3 @@ function MoreSheet({
   );
 }
 
-function Scorecard({
-  st,
-  nameOf,
-}: {
-  st: MatchState;
-  nameOf: (id?: string | null) => string;
-}) {
-  if (st.innings.length === 0) return null;
-  return (
-    <>
-      {st.innings.map((inn) => (
-        <div className="panel" key={inn.index}>
-          <h2>
-            Innings {inn.index + 1} · {inn.runs}/{inn.wickets} ({overs(inn.legal_balls)})
-          </h2>
-          <div className="table-wrap"><table className="score-table">
-            <thead>
-              <tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr>
-            </thead>
-            <tbody>
-              {inn.batters
-                .filter(
-                  (b) =>
-                    b.balls > 0 ||
-                    b.out ||
-                    b.player_id === inn.striker_id ||
-                    b.player_id === inn.non_striker_id
-                )
-                .map((b) => (
-                  <tr key={b.player_id}>
-                    <td>{nameOf(b.player_id)}{b.out ? "" : " *"}</td>
-                    <td>{b.runs}</td>
-                    <td>{b.balls}</td>
-                    <td>{b.fours}</td>
-                    <td>{b.sixes}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table></div>
-          <div className="table-wrap"><table className="score-table">
-            <thead>
-              <tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th></tr>
-            </thead>
-            <tbody>
-              {inn.bowlers.map((b) => (
-                <tr key={b.player_id}>
-                  <td>{nameOf(b.player_id)}</td>
-                  <td>{overs(b.balls)}</td>
-                  <td>{b.maidens}</td>
-                  <td>{b.runs}</td>
-                  <td>{b.wickets}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
-        </div>
-      ))}
-    </>
-  );
-}

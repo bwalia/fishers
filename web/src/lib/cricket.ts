@@ -29,6 +29,20 @@ export type Batter = {
   fours: number;
   sixes: number;
   out: boolean;
+  dismissal?: string | null;
+  retired_hurt?: boolean;
+  /// Who bowled the dismissal, for "c Smith b Jones".
+  bowler_id?: string | null;
+  fielder_id?: string | null;
+};
+
+export type FallOfWicket = {
+  score: number;
+  wickets: number;
+  batter_id: string;
+  over_ball: string;
+  partnership_runs: number;
+  partnership_balls: number;
 };
 
 export type Bowler = {
@@ -67,6 +81,9 @@ export type Innings = {
   overs_available?: number;
   balls_in_current_over?: number;
   last_over_bowler?: string | null;
+  fall?: FallOfWicket[];
+  partnership_runs?: number;
+  partnership_balls?: number;
 };
 
 export type MatchConditions = {
@@ -268,4 +285,51 @@ export function requiredRate(
   const ballsLeft = oversAvailable * 6 - legalBalls;
   if (ballsLeft <= 0) return null;
   return ((target - runs) * 6) / ballsLeft;
+}
+
+/// "c Smith b Jones", "lbw b Jones", "not out" — read the way a scorebook reads.
+export function howOut(b: Batter, nameOf: (id?: string | null) => string): string {
+  if (!b.out) return b.retired_hurt ? "retired hurt" : "not out";
+  const bowler = b.bowler_id ? nameOf(b.bowler_id) : null;
+  const fielder = b.fielder_id ? nameOf(b.fielder_id) : null;
+  switch (b.dismissal) {
+    case "bowled":
+      return bowler ? `b ${bowler}` : "bowled";
+    case "caught":
+      if (fielder && bowler) return fielder === bowler ? `c & b ${bowler}` : `c ${fielder} b ${bowler}`;
+      return bowler ? `c & b ${bowler}` : "caught";
+    case "lbw":
+      return bowler ? `lbw b ${bowler}` : "lbw";
+    case "run_out":
+      return fielder ? `run out (${fielder})` : "run out";
+    case "stumped":
+      return fielder && bowler ? `st ${fielder} b ${bowler}` : "stumped";
+    case "hit_wicket":
+      return bowler ? `hit wicket b ${bowler}` : "hit wicket";
+    case "retired":
+      return "retired out";
+    case "retired_hurt":
+      return "retired hurt";
+    default:
+      return "out";
+  }
+}
+
+export function strikeRate(runs: number, balls: number): string {
+  return balls ? ((runs / balls) * 100).toFixed(2) : "—";
+}
+
+export function economy(runs: number, balls: number): string {
+  return balls ? ((runs * 6) / balls).toFixed(2) : "—";
+}
+
+/// The extras breakdown, the way a scorecard prints it.
+export function extrasLine(inn: Innings): string {
+  const parts: string[] = [];
+  if (inn.byes) parts.push(`b ${inn.byes}`);
+  if (inn.leg_byes) parts.push(`lb ${inn.leg_byes}`);
+  if (inn.wides) parts.push(`w ${inn.wides}`);
+  if (inn.no_balls) parts.push(`nb ${inn.no_balls}`);
+  if (inn.penalties) parts.push(`p ${inn.penalties}`);
+  return parts.length ? `(${parts.join(", ")})` : "";
 }
