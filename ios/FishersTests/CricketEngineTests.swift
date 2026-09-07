@@ -674,6 +674,133 @@ final class CricketEngineTests: XCTestCase {
         XCTAssertNil(f.state.playerOfTheMatch, "the award undoes with everything else")
     }
 
+    // MARK: Super overs, powerplays and penalties
+
+    /// Wind a fixture to a completed first innings and start the chase.
+    private func startChase(_ f: inout Fixture, firstInningsRuns: Int) throws {
+        for _ in 0..<firstInningsRuns { try f.runs(1) }
+        try f.push(.inningsCompleted)
+        try f.push(.inningsStarted(
+            inningsIndex: 1, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
+        ))
+    }
+
+    func testATieAsksForASuperOver() throws {
+        var f = try fixture(overs: 1)
+        try startChase(&f, firstInningsRuns: 6)
+        for _ in 0..<6 { try f.runs(1) }
+        XCTAssertEqual(f.state.margin, "Match tied")
+        XCTAssertTrue(f.state.needsASuperOver)
+        XCTAssertEqual(f.state.superOverFirstBatting, .away)
+    }
+
+    func testASuperOverIsOneOverAndTwoWickets() throws {
+        var f = try fixture(overs: 1)
+        try startChase(&f, firstInningsRuns: 6)
+        for _ in 0..<6 { try f.runs(1) }
+        try f.push(.inningsStarted(
+            inningsIndex: 2, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id,
+            superOver: true
+        ))
+        XCTAssertTrue(f.innings.superOver)
+        XCTAssertEqual(f.innings.oversAvailable, 1)
+        XCTAssertEqual(f.innings.wicketsAllowed, 2)
+        XCTAssertEqual(f.state.superOvers, 1)
+        XCTAssertNil(f.state.winner, "the tie is no longer the result")
+    }
+
+    func testTheSuperOverDecidesTheMatch() throws {
+        var f = try fixture(overs: 1)
+        try startChase(&f, firstInningsRuns: 6)
+        for _ in 0..<6 { try f.runs(1) }
+
+        try f.push(.inningsStarted(
+            inningsIndex: 2, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id,
+            superOver: true
+        ))
+        for _ in 0..<5 { try f.runs(2) }
+        try f.runs(0)
+        XCTAssertEqual(f.state.target, 11)
+
+        try f.push(.inningsStarted(
+            inningsIndex: 3, batting: .home,
+            strikerId: f.home[0].id, nonStrikerId: f.home[1].id, bowlerId: f.away[0].id,
+            superOver: true
+        ))
+        for _ in 0..<6 { try f.runs(1) }
+
+        XCTAssertEqual(f.state.status, .complete)
+        XCTAssertEqual(f.state.winner, .away)
+        XCTAssertTrue(
+            f.state.margin?.contains("won the super over by 4 runs") ?? false,
+            f.state.margin ?? "no margin"
+        )
+    }
+
+    func testTwoWicketsEndASuperOver() throws {
+        var f = try fixture(overs: 1)
+        try startChase(&f, firstInningsRuns: 6)
+        for _ in 0..<6 { try f.runs(1) }
+        try f.push(.inningsStarted(
+            inningsIndex: 2, batting: .away,
+            strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id,
+            superOver: true
+        ))
+        try f.push(wicket(f.away[0].id, .bowled, f.away[2].id))
+        XCTAssertFalse(f.innings.complete, "one is not enough")
+        try f.push(wicket(f.away[2].id, .bowled, nil))
+        XCTAssertTrue(f.innings.complete, "two ends it")
+    }
+
+    func testAPowerplayRunsForTheOversAgreed() throws {
+        var f = try fixture(overs: 20)
+        XCTAssertEqual(f.state.conditions.powerplayOvers, 6)
+        XCTAssertTrue(f.innings.inPowerplay)
+        XCTAssertEqual(f.innings.powerplayOversLeft, 6)
+        for _ in 0..<(6 * 6) { try f.runs(0) }
+        XCTAssertFalse(f.innings.inPowerplay)
+        XCTAssertEqual(f.innings.powerplayOversLeft, 0)
+    }
+
+    func testStandardPowerplayFollowsTheFormat() {
+        XCTAssertEqual(MatchConditions.standardPowerplay(20), 6)
+        XCTAssertEqual(MatchConditions.standardPowerplay(50), 10)
+        XCTAssertEqual(MatchConditions.standardPowerplay(10), 2)
+        XCTAssertEqual(MatchConditions.standardPowerplay(5), 0)
+    }
+
+    func testPenaltyRunsGoToTheSideBatting() throws {
+        var f = try fixture()
+        try f.runs(2)
+        try f.push(.penaltyRuns(runs: 5, reason: "slow over rate"))
+        XCTAssertEqual(f.innings.runs, 7)
+        XCTAssertEqual(f.innings.penalties, 5)
+        XCTAssertEqual(f.innings.legalBalls, 1, "the penalty is not a delivery")
+        XCTAssertEqual(
+            f.innings.bowlers[0].runs, 2,
+            "the bowler keeps their two and is not charged the penalty"
+        )
+        XCTAssertThrowsError(try f.push(.penaltyRuns(runs: 0, reason: "nothing")))
+    }
+
+    func testWindingBackSeveralBallsUndoesThemAll() throws {
+        var f = try fixture()
+        try f.runs(1)
+        try f.runs(4)
+        try f.runs(2)
+        XCTAssertEqual(f.innings.runs, 7)
+        XCTAssertEqual(f.innings.deliveries.count, 3)
+
+        // Correcting the ball two back takes that ball and everything after.
+        try f.push(.undoLast)
+        try f.push(.undoLast)
+        XCTAssertEqual(f.innings.deliveries.count, 1)
+        XCTAssertEqual(f.innings.runs, 1, "only the first ball survives")
+    }
+
     // MARK: Names and wire format
 
     func testNamesTravelWithTheTeamSheet() throws {

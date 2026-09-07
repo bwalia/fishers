@@ -129,10 +129,17 @@ struct CricketScoringFlowView: View {
                     value: $conditions.oversPerBowler,
                     in: 0...conditions.oversLimit
                 )
+                Stepper(
+                    conditions.powerplayOvers == 0
+                        ? "No powerplay"
+                        : "\(conditions.powerplayOvers) over powerplay",
+                    value: $conditions.powerplayOvers,
+                    in: 0...conditions.oversLimit
+                )
             } header: {
                 Text("Format")
             } footer: {
-                Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs. Set it to none for a social game.")
+                Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs — with a \(MatchConditions.standardPowerplay(conditions.oversLimit)) over powerplay. Set either to none for a social game.")
             }
 
             Section("Ground") {
@@ -194,6 +201,7 @@ struct CricketScoringFlowView: View {
         .onChange(of: conditions.oversLimit) { _, new in
             // Keep the allocation sensible when the format changes.
             conditions.oversPerBowler = MatchConditions.standardOversPerBowler(new)
+            conditions.powerplayOvers = MatchConditions.standardPowerplay(new)
             overs = Int(new)
         }
     }

@@ -19,6 +19,8 @@ pub struct CricketMatchRow {
     pub status: String,
     pub overs_limit: i32,
     pub overs_per_bowler: i32,
+    pub powerplay_overs: i32,
+    pub super_overs: i32,
     pub ground_type: String,
     pub ball_type: String,
     pub agreed_home: Option<String>,
@@ -35,7 +37,8 @@ pub struct CricketMatchRow {
 }
 
 const MATCH_COLS: &str = "id, event_id, club_id, status::TEXT, overs_limit, overs_per_bowler, \
-     ground_type, ball_type, agreed_home, agreed_away, home_name, away_name, \
+     powerplay_overs, super_overs, ground_type, ball_type, agreed_home, agreed_away, \
+     home_name, away_name, \
      active_scorer_user_id, active_scorer_device_id, last_seq, state_json, created_by, \
      created_at, updated_at";
 
@@ -558,6 +561,8 @@ async fn save_state(
             ball_type = $11,
             agreed_home = $12,
             agreed_away = $13,
+            powerplay_overs = $14,
+            super_overs = $15,
             updated_at = NOW()
         WHERE id = $1
         "#,
@@ -575,6 +580,8 @@ async fn save_state(
     .bind(ball_str(state.conditions.ball))
     .bind(&state.agreed_home)
     .bind(&state.agreed_away)
+    .bind(state.conditions.powerplay_overs as i32)
+    .bind(state.super_overs as i32)
     .execute(&mut **tx)
     .await?;
 

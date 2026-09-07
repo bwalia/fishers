@@ -42,6 +42,7 @@ The two captains settle the terms, and the app makes them say so:
 |---|---|
 | Overs | 5–50 (presets for the usual formats) |
 | Overs per bowler | Defaults to a fifth of the innings, rounded up — 4 for a 20, 10 for a 50. Set to none for a social game. |
+| Powerplay | Defaults to what the format usually plays — 6 overs of a 20, 10 of a 50. The scorer sees a banner with the overs left. |
 | Ground | Open · Boxed / caged · Indoor |
 | Ball | Red · White · Pink · Tennis · Tape |
 
@@ -145,6 +146,12 @@ The device mints the match id before the API is involved:
   run out off a no ball — do not count the ball twice, but the bowler still gets
   the wicket.
 - **Player of the match**, once the game is over.
+- **Penalty runs** with a reason — a slow over rate, the ball hitting a helmet,
+  a fielding infringement. They go to the side batting and against nobody's
+  bowling figures, and the reason reads out in the commentary.
+- **Correcting an earlier ball.** Scorers get it wrong three balls back, not
+  just on the last one. Pick the ball from the recent list and the innings winds
+  back to it — recorded as undo events, so the log stays append-only.
 - Fall of wickets with the partnership that just ended, and the unbroken stand
 - All out at `team size − 1`, so an eight-a-side game ends at seven down
 - Innings closing on overs, on wickets, or on a declaration (`innings_completed`)
@@ -168,8 +175,18 @@ resync or a replayed batch cannot count a hundred twice:
 4. The fixture flips to `completed` and the scorecard is stored on
    `match_results`.
 
-Not modelled yet: super overs, powerplays and fielding restrictions, over-rate
-penalties, and correcting a ball other than by undoing back to it.
+Not modelled yet: the fielding-restriction *rules* themselves (the powerplay is
+tracked and shown, but nothing counts fielders outside the circle), penalties
+awarded **against** the batting side — which belong to an innings that may not
+have happened yet — and a clock, so a slow over rate has to be spotted by the
+umpire rather than by the app.
+
+## Super overs
+
+A tied match offers one, and the scorer starts it from the LIVE screen: one over
+a side, two wickets, and the side that batted second in the match bats first.
+Tie the super over and it offers another, counting them as it goes. The margin
+reads *"Hemel won the super over by 4 runs"*.
 
 ## Rain, and DLS
 

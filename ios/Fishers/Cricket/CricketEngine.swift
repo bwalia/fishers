@@ -84,6 +84,26 @@ extension MatchState {
         case let .playerOfTheMatch(playerId):
             playerOfTheMatch = playerId
 
+        case let .penaltyRuns(runs, reason):
+            guard runs > 0 else {
+                throw CricketEngineError.validation("a penalty is at least one run")
+            }
+            guard !innings.isEmpty else {
+                throw CricketEngineError.validation("no live innings")
+            }
+            let idx = innings.count - 1
+            innings[idx].runs += UInt16(runs)
+            innings[idx].extras += UInt16(runs)
+            innings[idx].penalties += UInt16(runs)
+            innings[idx].partnershipRuns += UInt16(runs)
+            innings[idx].deliveries.append(DeliveryRecord(
+                over: innings[idx].legalBalls / 6,
+                ballInOver: innings[idx].ballsInCurrentOver,
+                label: "\(runs)p",
+                runs: runs, isLegal: false, isWicket: false
+            ))
+            _ = reason // carried in the log for the commentary to read
+
         case let .batterResumed(batterId, replacingId):
             guard !innings.isEmpty else { throw CricketEngineError.validation("no innings") }
             let idx = innings.count - 1
@@ -137,7 +157,7 @@ extension MatchState {
                 status = .ready
             }
 
-        case let .inningsStarted(idx, batting, striker, non, bowler):
+        case let .inningsStarted(idx, batting, striker, non, bowler, superOver):
             guard striker != non else {
                 throw CricketEngineError.validation("the two openers must be different players")
             }
@@ -150,15 +170,25 @@ extension MatchState {
             inn.strikerId = striker
             inn.nonStrikerId = non
             inn.bowlerId = bowler
-            inn.wicketsAllowed = UInt8(min(max(batters.count - 1, 1), 10))
-            inn.oversAvailable = max(conditions.oversLimit, oversLimit)
+            // A super over is one over and two wickets, whatever the match is.
+            inn.wicketsAllowed = superOver ? 2 : UInt8(min(max(batters.count - 1, 1), 10))
+            inn.oversAvailable = superOver ? 1 : max(conditions.oversLimit, oversLimit)
+            inn.superOver = superOver
+            inn.powerplayOvers = superOver ? 0 : conditions.powerplayOvers
             inn.ensureBowler(bowler)
             innings.append(inn)
             status = .live
+            if superOver {
+                // A tie is no longer the result; the super over decides it.
+                winner = nil
+                margin = nil
+                superOvers = UInt8(max(0, innings.count - 2) / 2 + 1)
+            }
             // The opening bowler counts against the allocation like any other.
             try checkBowlerAvailable(bowler)
-            if idx == 1, let first = innings.first {
-                target = first.runs + 1
+            // Every odd innings is a chase of the one before it.
+            if idx % 2 == 1, innings.count >= 2 {
+                target = innings[innings.count - 2].runs + 1
             }
 
         case let .deliveryRecorded(runs, isLegal, four, six, shot):
@@ -238,7 +268,7 @@ extension MatchState {
     private mutating func pushHistory() {
         history.append(MatchStateSnapshot(
             status: status, innings: innings, target: target, winner: winner,
-            margin: margin, playerOfTheMatch: playerOfTheMatch
+            margin: margin, playerOfTheMatch: playerOfTheMatch, superOvers: superOvers
         ))
         if history.count > 200 { history.removeFirst() }
     }
@@ -253,6 +283,7 @@ extension MatchState {
         winner = snap.winner
         margin = snap.margin
         playerOfTheMatch = snap.playerOfTheMatch
+        superOvers = snap.superOvers
     }
 
     // MARK: - Scoring
@@ -554,17 +585,17 @@ extension MatchState {
     private mutating func checkAutoComplete() {
         guard let inn = currentInnings else { return }
         if !inn.complete {
-            if inn.index >= 1, let target, inn.runs >= target {
+            if inn.index % 2 == 1, let target, inn.runs >= target {
                 innings[innings.count - 1].complete = true
                 status = .complete
                 finishResult()
             }
             return
         }
-        if inn.index == 0 && status == .live {
+        if inn.index % 2 == 0 && status == .live {
             target = inn.runs + 1
             status = .inningsBreak
-        } else if inn.index >= 1 && status != .complete {
+        } else if inn.index % 2 == 1 && status != .complete {
             status = .complete
             finishResult()
         }
@@ -592,26 +623,31 @@ extension MatchState {
         }
     }
 
+    /// The result comes from the last pair of innings, so a super over decides
+    /// a match that the regular innings tied.
     private mutating func finishResult() {
         guard innings.count >= 2 else { return }
-        let first = innings[0]
-        let second = innings[1]
+        let first = innings[innings.count - 2]
+        let second = innings[innings.count - 1]
+        let isSuperOver = second.superOver
+        let decider = isSuperOver ? " the super over" : ""
+
         if second.runs > first.runs {
             let wickets = second.wicketsAllowed > second.wickets
                 ? second.wicketsAllowed - second.wickets : 0
             let total = UInt16(second.oversAvailable) * 6
             let ballsLeft = total > second.legalBalls ? total - second.legalBalls : 0
-            var text = "\(name(for: second.batting)) won by \(wickets) wicket\(wickets == 1 ? "" : "s")"
-            if ballsLeft > 0 { text += " (\(ballsLeft) balls remaining)" }
+            var text = "\(name(for: second.batting)) won\(decider) by \(wickets) wicket\(wickets == 1 ? "" : "s")"
+            if ballsLeft > 0 && !isSuperOver { text += " (\(ballsLeft) balls remaining)" }
             winner = second.batting
             margin = text
         } else if second.runs < first.runs {
             let runs = first.runs - second.runs
             winner = first.batting
-            margin = "\(name(for: first.batting)) won by \(runs) run\(runs == 1 ? "" : "s")"
+            margin = "\(name(for: first.batting)) won\(decider) by \(runs) run\(runs == 1 ? "" : "s")"
         } else {
             winner = nil
-            margin = "Match tied"
+            margin = isSuperOver ? "Super over tied" : "Match tied"
         }
     }
 }

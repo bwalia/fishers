@@ -154,6 +154,9 @@ pub struct MatchConditions {
     pub overs_per_bowler: u8,
     pub ground: GroundType,
     pub ball: BallType,
+    /// Overs of fielding restrictions at the start of an innings. 0 for none.
+    #[serde(default)]
+    pub powerplay_overs: u8,
 }
 
 impl MatchConditions {
@@ -163,6 +166,18 @@ impl MatchConditions {
         overs.div_ceil(5).max(1)
     }
 
+    /// The powerplay most competitions use at each length: six overs of a
+    /// twenty, ten of a fifty, and pro rata in between.
+    pub fn standard_powerplay(overs: u8) -> u8 {
+        match overs {
+            0..=5 => 0,
+            6..=10 => 2,
+            11..=20 => 6,
+            21..=40 => 8,
+            _ => 10,
+        }
+    }
+
     pub fn standard(overs: u8) -> Self {
         let overs = overs.max(1);
         Self {
@@ -170,6 +185,17 @@ impl MatchConditions {
             overs_per_bowler: Self::standard_overs_per_bowler(overs),
             ground: GroundType::Open,
             ball: BallType::White,
+            powerplay_overs: Self::standard_powerplay(overs),
+        }
+    }
+
+    /// The terms of a super over: one over, two wickets, no restrictions.
+    pub fn super_over(&self) -> Self {
+        Self {
+            overs_limit: 1,
+            overs_per_bowler: 1,
+            powerplay_overs: 0,
+            ..*self
         }
     }
 
@@ -180,12 +206,16 @@ impl MatchConditions {
         } else {
             format!("{} per bowler", self.overs_per_bowler)
         };
-        format!(
+        let mut summary = format!(
             "{} overs · {per_bowler} · {} · {}",
             self.overs_limit,
             self.ball.label().to_lowercase(),
             self.ground.label().to_lowercase()
-        )
+        );
+        if self.powerplay_overs > 0 {
+            summary.push_str(&format!(" · {} over powerplay", self.powerplay_overs));
+        }
+        summary
     }
 }
 
@@ -348,12 +378,22 @@ pub enum ScoringEventKind {
     PlayerOfTheMatch {
         player_id: Uuid,
     },
+    /// Runs the umpire awards that nobody bowled or ran: a slow over rate, the
+    /// ball hitting a helmet on the ground, a fielding infringement.
+    PenaltyRuns {
+        runs: u8,
+        /// What the umpire gave them for — it reads out in the commentary.
+        reason: String,
+    },
     InningsStarted {
         innings_index: u8,
         batting: MatchSide,
         striker_id: Uuid,
         non_striker_id: Uuid,
         bowler_id: Uuid,
+        /// One over a side, two wickets down and out, to break a tie.
+        #[serde(default)]
+        super_over: bool,
     },
     DeliveryRecorded {
         runs: u8,
@@ -586,6 +626,12 @@ pub struct InningsState {
     /// The next legal delivery is a free hit: only a run out can get them.
     #[serde(default)]
     pub free_hit: bool,
+    /// One over a side, two wickets, to break a tie.
+    #[serde(default)]
+    pub super_over: bool,
+    /// Overs of fielding restrictions this innings gets.
+    #[serde(default)]
+    pub powerplay_overs: u8,
 }
 
 fn default_wickets_allowed() -> u8 {
@@ -622,6 +668,8 @@ impl Default for InningsState {
             overs_available: 0,
             last_over_bowler: None,
             free_hit: false,
+            super_over: false,
+            powerplay_overs: 0,
         }
     }
 }
@@ -640,6 +688,17 @@ impl InningsState {
 
     pub fn is_all_out(&self) -> bool {
         self.wickets >= self.wickets_allowed
+    }
+
+    /// Inside the fielding restrictions.
+    pub fn in_powerplay(&self) -> bool {
+        self.powerplay_overs > 0 && self.legal_balls < (self.powerplay_overs as u16) * 6
+    }
+
+    /// Overs of powerplay still to come, for the banner.
+    pub fn powerplay_overs_left(&self) -> u16 {
+        let total = (self.powerplay_overs as u16) * 6;
+        total.saturating_sub(self.legal_balls).div_ceil(6)
     }
 
     /// Total balls this innings gets, or `None` when no limit is recorded.
@@ -715,6 +774,9 @@ pub struct MatchState {
     pub officials: MatchOfficials,
     #[serde(default)]
     pub player_of_the_match: Option<Uuid>,
+    /// How many super overs it has taken so far.
+    #[serde(default)]
+    pub super_overs: u8,
     /// Undo stack. Rebuilt by replaying the log, never persisted.
     #[serde(skip)]
     pub history: Vec<MatchStateSnapshot>,
@@ -729,6 +791,7 @@ pub struct MatchStateSnapshot {
     pub winner: Option<MatchSide>,
     pub margin: Option<String>,
     pub player_of_the_match: Option<Uuid>,
+    pub super_overs: u8,
 }
 
 impl Default for MatchState {
@@ -759,6 +822,7 @@ impl Default for MatchState {
             agreed_away: None,
             officials: MatchOfficials::default(),
             player_of_the_match: None,
+            super_overs: 0,
             history: vec![],
         }
     }
@@ -829,6 +893,19 @@ impl MatchState {
             }
         }
         None
+    }
+
+    /// The scores are level and the match is over: it needs a super over.
+    pub fn needs_a_super_over(&self) -> bool {
+        self.status == MatchStatus::Complete
+            && self.winner.is_none()
+            && self.innings.len() >= 2
+            && self.innings.len() % 2 == 0
+    }
+
+    /// Which side bats first in the super over: whoever batted second last.
+    pub fn super_over_first_batting(&self) -> Option<MatchSide> {
+        self.innings.last().map(|inn| inn.batting)
     }
 
     /// Anyone appointed to stand or to score — they may score the match.
