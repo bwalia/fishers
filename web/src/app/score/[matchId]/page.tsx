@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, getStoredUser } from "@/lib/api";
+import { api, getAccessToken, getStoredUser, type ClubMemberRow } from "@/lib/api";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
 import { Icon } from "@/components/Icon";
@@ -260,7 +260,8 @@ function Stages({
       </div>
     );
   }
-  if (!agreed) return <ConditionsPanel st={st} send={send} canAct={canAct} />;
+  if (!agreed)
+    return <ConditionsPanel st={st} send={send} canAct={canAct} clubId={match.club_id} />;
   if (!st.toss_winner) return <TossPanel st={st} send={send} canAct={canAct} />;
   if (st.home_xi.length === 0 || st.away_xi.length === 0)
     return <XiPanel st={st} matchId={match.id} canAct={canAct} onPicked={onPicked} />;
@@ -272,10 +273,12 @@ function ConditionsPanel({
   st,
   send,
   canAct,
+  clubId,
 }: {
   st: MatchState;
   send: (kind: Record<string, unknown>) => Promise<void>;
   canAct: boolean;
+  clubId: string;
 }) {
   const [c, setC] = useState<MatchConditions>(st.conditions ?? DEFAULT_CONDITIONS);
   const [by, setBy] = useState<Side>("home");
@@ -322,10 +325,12 @@ function ConditionsPanel({
             <option value="away">{st.away_name}</option>
           </select>
         </label>
-        <label>
-          Captain&apos;s name
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ravi" />
-        </label>
+        <CaptainPicker
+          clubId={clubId}
+          label="Proposing captain"
+          value={name}
+          onChange={setName}
+        />
       </div>
 
       <button
@@ -351,7 +356,7 @@ function ConditionsPanel({
       </div>
 
       {st.conditions_proposed_by && (
-        <AgreeRow st={st} send={send} canAct={canAct} />
+        <AgreeRow st={st} send={send} canAct={canAct} clubId={clubId} />
       )}
     </div>
   );
@@ -361,21 +366,24 @@ function AgreeRow({
   st,
   send,
   canAct,
+  clubId,
 }: {
   st: MatchState;
   send: (kind: Record<string, unknown>) => Promise<void>;
   canAct: boolean;
+  clubId: string;
 }) {
   const pending: Side = st.agreed_home ? "away" : "home";
   const [name, setName] = useState("");
   return (
     <div style={{ marginTop: "1rem" }}>
       <h3>Agreement from {pending === "home" ? st.home_name : st.away_name}</h3>
-      <div className="select-row">
-        <input
-          placeholder="Their captain's name"
+      <div className="field-row">
+        <CaptainPicker
+          clubId={clubId}
+          label="Their captain"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={setName}
         />
         <button
           className="btn primary"
@@ -389,6 +397,71 @@ function AgreeRow({
         </button>
       </div>
     </div>
+  );
+}
+
+/// Captains come from the club's own members rather than being typed.
+///
+/// Still allows a name to be written in: the visiting captain is usually not a
+/// Fishers member at all, and refusing to record them would stop the match.
+function CaptainPicker({
+  clubId,
+  label,
+  value,
+  onChange,
+}: {
+  clubId: string;
+  label: string;
+  value: string;
+  onChange: (name: string) => void;
+}) {
+  const [members, setMembers] = useState<ClubMemberRow[]>([]);
+  const [typing, setTyping] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setMembers(await api<ClubMemberRow[]>("GET", `/clubs/${clubId}/members`));
+      } catch {
+        // No members to offer just means typing the name.
+        setTyping(true);
+      }
+    })();
+  }, [clubId]);
+
+  if (typing || members.length === 0) {
+    return (
+      <label>
+        {label}
+        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Their name" />
+      </label>
+    );
+  }
+
+  return (
+    <label>
+      {label}
+      <select
+        value={members.some((m) => m.name === value) ? value : ""}
+        onChange={(e) => {
+          if (e.target.value === "__other") {
+            setTyping(true);
+            onChange("");
+          } else {
+            onChange(e.target.value);
+          }
+        }}
+      >
+        <option value="">Choose…</option>
+        {members.map((m) => (
+          <option key={m.user_id} value={m.name}>
+            {m.name}
+            {m.role !== "member" ? ` — ${m.role.replaceAll("_", " ")}` : ""}
+          </option>
+        ))}
+        <option value="__other">Someone else…</option>
+      </select>
+    </label>
   );
 }
 

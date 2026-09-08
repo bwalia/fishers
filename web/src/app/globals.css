@@ -1084,3 +1084,65 @@ textarea { line-height: 1.5; resize: vertical; }
   font-weight: 700;
 }
 .result-side.won .result-score { color: var(--primary); }
+
+/* ---------- QR codes and tabs ---------- */
+
+.qr-grid {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  margin-top: var(--s3);
+}
+.qr-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s3);
+  background: var(--surface);
+  text-align: center;
+}
+.qr-card .panel-head { justify-content: center; margin-bottom: var(--s2); }
+.qr-image {
+  display: flex;
+  justify-content: center;
+}
+.qr-image svg {
+  width: 100%;
+  max-width: 190px;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+.qr-payload {
+  word-break: break-all;
+  margin: var(--s2) 0;
+}
+.qr-video {
+  width: 100%;
+  max-width: 320px;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+.tabs {
+  display: flex;
+  gap: var(--s1);
+  flex-wrap: wrap;
+  margin-bottom: var(--s3);
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--fg-muted);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tab:hover { color: var(--fg); }
+.tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}

@@ -218,3 +218,45 @@ export function money(cents: number, currency = "GBP") {
     currency,
   }).format(cents / 100);
 }
+
+export type Team = {
+  id: string;
+  club_id: string;
+  name: string;
+  sport: string;
+};
+
+export type ClubMemberRow = {
+  user_id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  position_role?: string | null;
+  skill_level?: string | null;
+};
+
+/// A club or team's QR code, already drawn.
+export type QrCode = {
+  id: string;
+  name: string;
+  qr_token: string;
+  /// "club" or "team"
+  kind: string;
+  club_id: string;
+  club_name: string;
+  sport?: string | null;
+  payload: string;
+  svg: string;
+};
+
+/// What a scanned or searched opponent resolves to.
+export type OpponentIdentity = {
+  id: string;
+  name: string;
+  qr_token: string;
+  kind: string;
+  club_id: string;
+  club_name: string;
+  sport?: string | null;
+};

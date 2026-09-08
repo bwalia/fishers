@@ -674,7 +674,16 @@ async fn squad(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    require_club_member(&state, row.club_id, auth.user_id).await?;
+    // Either club may look: the visiting captain has to reach this screen to
+    // name their own side, and they are not a member of the home club.
+    let home_member = require_club_member(&state, row.club_id, auth.user_id).await.is_ok();
+    let away_member = match row.opponent_club_id {
+        Some(club) => require_club_member(&state, club, auth.user_id).await.is_ok(),
+        None => false,
+    };
+    if !home_member && !away_member {
+        return Err(ApiError::forbidden("you are not in either side"));
+    }
     let projection = cricket_repo::parse_state(&row);
 
     let scorer = may_score(&state, &row, auth.user_id).await;
