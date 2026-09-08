@@ -3,13 +3,19 @@ import SwiftUI
 struct HomeFeedView: View {
     @EnvironmentObject private var clubContext: ClubContextStore
     @State private var events: [Event] = []
+    @State private var live: [CricketFixtureRow] = []
     @State private var error: String?
     @State private var unread = 0
+
+    /// A fixture that has already been played is not something to turn up to.
+    private var upcoming: [Event] {
+        events.filter { $0.startAt > .now }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if events.isEmpty && error == nil {
+                if events.isEmpty && live.isEmpty && error == nil {
                     ContentUnavailableView {
                         Label("No sessions yet", systemImage: "calendar.badge.plus")
                     } description: {
@@ -38,7 +44,38 @@ struct HomeFeedView: View {
                             }
                         }
                         Section {
-                            ForEach(events) { event in
+                            OverviewTiles(
+                                clubs: clubContext.clubs.count,
+                                upcoming: upcoming.count,
+                                live: live.count
+                            )
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                        }
+
+                        // Above the fixture list on purpose: a match being
+                        // played now is the only thing here with something to
+                        // do about it right this minute.
+                        if !live.isEmpty {
+                            Section {
+                                ForEach(live) { fixture in
+                                    NavigationLink(value: fixture) {
+                                        LiveFixtureRow(fixture: fixture)
+                                    }
+                                }
+                            } header: {
+                                HStack {
+                                    Text("In progress")
+                                        .font(FishersTheme.overline)
+                                        .tracking(0.8)
+                                    Spacer()
+                                    LivePip()
+                                }
+                            }
+                        }
+
+                        Section {
+                            ForEach(upcoming) { event in
                                 NavigationLink(value: event) {
                                     EventRow(event: event)
                                 }
@@ -47,6 +84,11 @@ struct HomeFeedView: View {
                             Text("Upcoming")
                                 .font(FishersTheme.overline)
                                 .tracking(0.8)
+                        } footer: {
+                            if upcoming.isEmpty {
+                                Text("Nothing in the diary yet.")
+                                    .font(FishersTheme.footnote)
+                            }
                         }
                     }
                     .listStyle(.insetGrouped)
@@ -79,6 +121,13 @@ struct HomeFeedView: View {
                 }
             }
             .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }
+            // Through the fixture, not straight into scoring: EventDetailView
+            // is where the question of whether *this* person may score it is
+            // already answered, and answering it twice is how the two answers
+            // start to differ.
+            .navigationDestination(for: CricketFixtureRow.self) {
+                EventDetailView(eventId: $0.eventId)
+            }
             .task { await load() }
             .task { await loadUnread() }
             .onChange(of: clubContext.activeClubId) { _, _ in
@@ -97,8 +146,15 @@ struct HomeFeedView: View {
 
     private func load() async {
         do {
-            let all = try await FishersAPI.events(clubId: clubContext.activeClubId)
-            events = all
+            // Both at once: the fixture list and what is being played are
+            // independent questions, and waiting for one to ask the other adds
+            // a round trip to a screen that is opened constantly.
+            async let all = FishersAPI.events(clubId: clubContext.activeClubId)
+            async let inPlay = FishersAPI.cricketFixtures(
+                clubId: clubContext.activeClubId, state: "live", perPage: 10
+            )
+            events = try await all
+            live = try await inPlay.items
             error = nil
         } catch {
             self.error = error.localizedDescription

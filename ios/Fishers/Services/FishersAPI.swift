@@ -787,6 +787,25 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/cricket/matches/\(id.uuidString)")
     }
 
+    /// Fixtures with their match state already joined on — score, status and
+    /// result in the row.
+    ///
+    /// One request answers "what is happening right now", which the alternative
+    /// could not: asking `/events` and then `/events/{id}/cricket-match` for
+    /// every cricket fixture is a request per fixture, on a phone, at a ground.
+    /// `state` is `live`, `upcoming` or `finished`.
+    static func cricketFixtures(
+        clubId: UUID? = nil,
+        state: String? = nil,
+        page: Int = 1,
+        perPage: Int = 20
+    ) async throws -> APIPage<CricketFixtureRow> {
+        var path = "/cricket/fixtures?page=\(page)&per_page=\(perPage)&"
+        if let clubId { path += "club_id=\(clubId.uuidString)&" }
+        if let state { path += "state=\(state)&" }
+        return try await NetworkService.shared.request("GET", path: path)
+    }
+
     /// `force` takes the match off a scorer whose phone has died mid-innings.
     static func claimScorer(
         matchId: UUID,
