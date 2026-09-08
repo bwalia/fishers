@@ -1366,6 +1366,26 @@ textarea { line-height: 1.5; resize: vertical; }
   gap: var(--s2);
   margin-top: var(--s3);
 }
+.share-scoreboard {
+  margin-top: var(--s4);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+.share-scoreboard .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.share-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  max-width: 28rem;
+}
+.live-share-root {
+  min-height: 100vh;
+}
 
 .status-pill {
   display: inline-flex;

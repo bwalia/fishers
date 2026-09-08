@@ -3,10 +3,11 @@
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { apiV1 } from "@/lib/api";
 import { WagonWheel } from "@/components/WagonWheel";
+import { Scorecard } from "@/components/Scorecard";
+import { ReshareLiveLink } from "@/components/ReshareLiveLink";
 import {
   commentaryFor,
   overs,
-  type Innings,
   type MatchConditions,
   type MatchState,
 } from "@/lib/cricket";
@@ -84,13 +85,22 @@ export default function LiveScoreboardPage({
 
   const current = useMemo(() => board?.state.innings.at(-1) ?? null, [board]);
 
+  const fullState: MatchState | null = useMemo(() => {
+    if (!board) return null;
+    return {
+      ...board.state,
+      home_name: board.state.home_name || board.home_name,
+      away_name: board.state.away_name || board.away_name,
+    };
+  }, [board]);
+
   return (
-    <main className="shell live-board">
+    <main id="main" className="shell live-board">
       <header className="live-hero">
         <p className="tag">Live scoreboard</p>
         <h1>Fishers</h1>
         <p className="muted">
-          Secure match link — refreshes every few seconds. No sign-in required.
+          Full match scoreboard — refreshes every few seconds. No sign-in required.
         </p>
       </header>
 
@@ -100,7 +110,7 @@ export default function LiveScoreboardPage({
           <h2>Link unavailable</h2>
           <p className="error">{error}</p>
           <p className="muted">
-            Ask the scorer to share a fresh scoreboard link in chat.
+            Ask the scorer to share a fresh scoreboard link.
           </p>
         </div>
       )}
@@ -175,75 +185,25 @@ export default function LiveScoreboardPage({
             {error && <p className="muted">Refresh issue: {error}</p>}
           </section>
 
+          <ReshareLiveLink homeName={board.home_name} awayName={board.away_name} />
+
           {board.state.player_of_the_match && (
             <p className="tag">
               Player of the match: {nameOf(board, board.state.player_of_the_match)}
             </p>
           )}
+
+          {fullState && (
+            <Scorecard st={fullState} nameOf={(id) => nameOf(board, id)} />
+          )}
+
           {board.state.innings.map((inn) => (
             <section key={inn.index} className="panel">
               <h2>
-                {inn.super_over ? "Super over" : `Innings ${inn.index + 1}`} ·{" "}
-                {inn.runs}/{inn.wickets} ({overs(inn.legal_balls)})
+                {inn.super_over ? "Super over" : `Innings ${inn.index + 1}`} · wagon
+                wheel &amp; commentary
               </h2>
               {inn.free_hit && <p className="tag">Free hit</p>}
-              <h3>Batting</h3>
-              <div className="table-wrap"><table className="score-table">
-                <thead>
-                  <tr>
-                    <th>Batter</th>
-                    <th>R</th>
-                    <th>B</th>
-                    <th>4s</th>
-                    <th>6s</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inn.batters
-                    .filter(
-                      (b) =>
-                        b.balls > 0 ||
-                        b.out ||
-                        b.player_id === inn.striker_id ||
-                        b.player_id === inn.non_striker_id,
-                    )
-                    .map((b) => (
-                      <tr key={b.player_id}>
-                        <td>
-                          {nameOf(board, b.player_id)}
-                          {b.out ? "" : " *"}
-                        </td>
-                        <td>{b.runs}</td>
-                        <td>{b.balls}</td>
-                        <td>{b.fours}</td>
-                        <td>{b.sixes}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table></div>
-              <h3>Bowling</h3>
-              <div className="table-wrap"><table className="score-table">
-                <thead>
-                  <tr>
-                    <th>Bowler</th>
-                    <th>O</th>
-                    <th>M</th>
-                    <th>R</th>
-                    <th>W</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inn.bowlers.map((b) => (
-                    <tr key={b.player_id}>
-                      <td>{nameOf(board, b.player_id)}</td>
-                      <td>{overs(b.balls)}</td>
-                      <td>{b.maidens}</td>
-                      <td>{b.runs}</td>
-                      <td>{b.wickets}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table></div>
               <h3>Wagon wheel</h3>
               <WagonWheel deliveries={inn.deliveries || []} />
 
@@ -260,7 +220,11 @@ export default function LiveScoreboardPage({
                             {ball.over}.{ball.ball_in_over}
                           </span>
                           <span>
-                            {commentaryFor(ball, (id) => nameOf(board, id), board.state.left_handers || [])}
+                            {commentaryFor(
+                              ball,
+                              (id) => nameOf(board, id),
+                              board.state.left_handers || []
+                            )}
                           </span>
                         </li>
                       ))}

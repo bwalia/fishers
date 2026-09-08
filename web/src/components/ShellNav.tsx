@@ -26,6 +26,11 @@ export function ShellNav() {
     setUser(getStoredUser());
   }, [pathname]);
 
+  // Public live boards keep the club chrome out of the way.
+  if (pathname.startsWith("/live/")) {
+    return null;
+  }
+
   return (
     <header className="topbar">
       <Link href="/" className="brand">

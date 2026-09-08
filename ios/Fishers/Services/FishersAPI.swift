@@ -821,8 +821,9 @@ enum FishersAPI {
         )
     }
 
-    /// Mint a secure live scoreboard link and (by default) post it into club chat.
-    static func shareScoreboard(matchId: UUID, postToChat: Bool = true) async throws -> ScoreboardShareResponse {
+    /// Mint a secure live scoreboard link. Pass `postToChat: true` to also drop
+    /// it into club chat; external WhatsApp/Mail shares usually leave it false.
+    static func shareScoreboard(matchId: UUID, postToChat: Bool = false) async throws -> ScoreboardShareResponse {
         struct Body: Encodable {
             let post_to_chat: Bool
             let ttl_hours: Int

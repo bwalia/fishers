@@ -50,6 +50,7 @@ struct LiveScorerView: View {
     @State private var aiLines: [String: String] = [:]
     @State private var isSharing = false
     @State private var shareNotice: String?
+    @State private var shareSheetItems: [Any]?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// A ball waiting on the wagon wheel before it is written to the log.
@@ -127,6 +128,16 @@ struct LiveScorerView: View {
         .sheet(isPresented: $showPenalty) { PenaltySheet(store: store) }
         .sheet(isPresented: $showCorrection) { BallCorrectionSheet(store: store) }
         .sheet(isPresented: $showField) { FieldSheet(store: store) }
+        .sheet(isPresented: Binding(
+            get: { shareSheetItems != nil },
+            set: { if !$0 { shareSheetItems = nil } }
+        )) {
+            if let items = shareSheetItems {
+                ShareSheet(items: items) {
+                    shareSheetItems = nil
+                }
+            }
+        }
         .sheet(item: $pendingShot) { pending in
             WagonWheelPicker(
                 batterName: pending.batterName,
@@ -158,17 +169,26 @@ struct LiveScorerView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    Task { await shareLiveLink() }
+                Menu {
+                    Button {
+                        Task { await shareLiveLink(postToChat: false, presentSheet: true) }
+                    } label: {
+                        Label("Share via WhatsApp, Mail…", systemImage: "square.and.arrow.up")
+                    }
+                    Button {
+                        Task { await shareLiveLink(postToChat: true, presentSheet: true) }
+                    } label: {
+                        Label("Share and post to club chat", systemImage: "bubble.left.and.bubble.right")
+                    }
                 } label: {
                     if isSharing {
                         ProgressView()
                     } else {
-                        Label("Share live", systemImage: "square.and.arrow.up")
+                        Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
                 .disabled(isSharing || store.matchId == nil)
-                .accessibilityLabel("Share live scoreboard to chat")
+                .accessibilityLabel("Share live scoreboard")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -641,8 +661,9 @@ struct LiveScorerView: View {
         }
     }
 
-    /// Mint a secure live link and post it into the fixture/club chat thread.
-    private func shareLiveLink() async {
+    /// Mint a secure live link, then open the system share sheet so it can go
+    /// straight to WhatsApp, Mail, Messages, and the rest.
+    private func shareLiveLink(postToChat: Bool, presentSheet: Bool) async {
         guard let matchId = store.matchId else {
             shareNotice = "Match is not synced yet — keep scoring, then try again."
             return
@@ -650,12 +671,24 @@ struct LiveScorerView: View {
         isSharing = true
         defer { isSharing = false }
         do {
-            let share = try await FishersAPI.shareScoreboard(matchId: matchId, postToChat: true)
+            let share = try await FishersAPI.shareScoreboard(
+                matchId: matchId,
+                postToChat: postToChat
+            )
             UIPasteboard.general.string = share.url
-            if share.conversationId != nil {
-                shareNotice = "Live link posted to chat and copied."
+            let headline = "\(store.state.homeName) vs \(store.state.awayName) — live scoreboard"
+            let message = "\(headline)\n\(share.url)"
+            if presentSheet {
+                var items: [Any] = [message]
+                if let url = URL(string: share.url) {
+                    items.append(url)
+                }
+                shareSheetItems = items
+            }
+            if postToChat, share.conversationId != nil {
+                shareNotice = "Link ready to share — also posted to club chat."
             } else {
-                shareNotice = "Live link copied. Open chat if it was not posted automatically."
+                shareNotice = "Link ready — pick WhatsApp, Mail, or copy."
             }
             UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
