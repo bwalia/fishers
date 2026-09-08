@@ -7,6 +7,12 @@
 #   API_BASE=http://192.168.1.70:7312 ./scripts/seed-demo.sh
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/dev-ports.sh"
+if [ -z "${API_BASE:-}" ] && load_ports_file; then
+  API_BASE="http://127.0.0.1:${API_PORT}"
+fi
 API_BASE="${API_BASE:-http://127.0.0.1:7312}"
 
 curl -sf -m 5 "${API_BASE}/health" >/dev/null || {

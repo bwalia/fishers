@@ -19,9 +19,11 @@ Everything at once — Postgres, the API and the dashboard:
 ./scripts/start.sh --stop   # stop everything
 ```
 
-It picks free ports (so it coexists with other local projects), prints the URLs
-it chose, writes `web/.env.local`, and builds the API in Docker when there is no
-local Rust toolchain. The steps below are the manual equivalent.
+It reserves **7311 / 7312 / 7313** (web / API / Postgres) when free, steps over
+anything busy, **holds** the API and web ports while Docker starts so they cannot
+collide with Postgres, prints the URLs, writes `.dev/ports.env` + `web/.env.local`,
+and builds the API in Docker when there is no local Rust toolchain. Prefer this
+over starting pieces by hand. The steps below are the manual equivalent.
 
 ### 1. Database
 
