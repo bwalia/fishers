@@ -26,7 +26,9 @@ const USER_KEY = "fishers_user";
 export type PublicUser = {
   id: string;
   name: string;
-  email: string;
+  /// Absent for somebody who registered with a mobile number instead.
+  email?: string | null;
+  phone?: string | null;
   profile_complete?: boolean;
 };
 

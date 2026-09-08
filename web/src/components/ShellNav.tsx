@@ -58,10 +58,15 @@ export function ShellNav() {
             Sign out
           </button>
         ) : (
-          <Link href="/login">
-            <Icon name="signIn" size={16} />
-            Sign in
-          </Link>
+          <>
+            <Link href="/login">
+              <Icon name="signIn" size={16} />
+              Sign in
+            </Link>
+            <Link href="/register" className="active">
+              Join
+            </Link>
+          </>
         )}
       </nav>
     </header>
