@@ -1146,3 +1146,15 @@ textarea { line-height: 1.5; resize: vertical; }
   color: var(--primary);
   border-bottom-color: var(--primary);
 }
+
+/* Starting a match with no fixture behind it */
+.instant-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  border-left: 3px solid var(--accent);
+}
+.instant-start h2 { margin-bottom: var(--s1); }
+.instant-start p { margin: 0; }
