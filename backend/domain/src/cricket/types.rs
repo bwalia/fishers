@@ -504,6 +504,15 @@ pub enum ScoringEventKind {
         winner: Option<MatchSide>,
         margin: String,
     },
+    /// Called off, with no result.
+    ///
+    /// Distinct from `MatchCompleted`: a limited-overs game stopped by rain or
+    /// a hurt player is not a win for anybody, and the scorecard has to say so
+    /// rather than inventing a margin. Whatever was scored stays in the log —
+    /// the innings happened, and averages are worked out from it.
+    MatchAbandoned {
+        reason: String,
+    },
     UndoLast,
 }
 
@@ -888,6 +897,10 @@ pub struct MatchState {
     pub target: Option<u16>,
     pub winner: Option<MatchSide>,
     pub margin: Option<String>,
+    /// Called off with no result. `winner` is None either way, so a flag is
+    /// what separates "abandoned" from "still being played".
+    #[serde(default)]
+    pub abandoned: bool,
     pub last_seq: i64,
     /// Every player named on either sheet, so the card reads as names.
     #[serde(default)]
@@ -939,6 +952,7 @@ impl Default for MatchState {
         Self {
             status: MatchStatus::Scheduled,
             overs_limit: 20,
+            abandoned: false,
             home_name: "Home".into(),
             away_name: "Away".into(),
             toss_winner: None,

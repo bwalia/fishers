@@ -52,6 +52,30 @@ impl AppState {
             ollama: Ollama::from_env(),
         }
     }
+
+    /// Tell somebody something happened.
+    ///
+    /// Always stored, then pushed. The push half is still an APNs stub, so
+    /// storing is what makes a notification real: the app reads them back the
+    /// next time it is opened, and a promise of "they'll be told" stops being
+    /// a lie whether or not a device is registered.
+    pub async fn notify(
+        &self,
+        user_id: uuid::Uuid,
+        kind: &str,
+        title: &str,
+        body: &str,
+        payload: serde_json::Value,
+    ) {
+        if let Err(error) =
+            fishers_db::repos::notifications::record(&self.pool, user_id, kind, &payload).await
+        {
+            tracing::warn!(%error, kind, "could not store a notification");
+        }
+        if let Err(error) = self.push.send(user_id, kind, title, body, payload).await {
+            tracing::warn!(%error, kind, "push failed");
+        }
+    }
 }
 
 /// The built-in table is a documented approximation. A league holding the

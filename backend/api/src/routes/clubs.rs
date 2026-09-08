@@ -2,7 +2,9 @@ use axum::extract::{Path, State};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use fishers_db::repos::clubs as clubs_repo;
-use fishers_db::repos::clubs::{ClubMemberDetail, ClubSettings, QrIdentity, UpdateClubSettings};
+use fishers_db::repos::clubs::{
+    ClubMemberDetail, ClubMembership, ClubSettings, QrIdentity, UpdateClubSettings,
+};
 use fishers_domain::{
     parse_role, permissions_for, AddMemberRequest, Club, ClubMember, CreateClubRequest,
     CreateTeamRequest, CreateVenueRequest, Permission, Team, TeamMember, UserRole, Venue,
@@ -49,7 +51,7 @@ async fn create_club(
 async fn list_clubs(
     State(state): State<AppState>,
     auth: AuthUser,
-) -> ApiResult<Json<Vec<Club>>> {
+) -> ApiResult<Json<Vec<ClubMembership>>> {
     Ok(Json(
         clubs_repo::list_clubs_for_user(&state.pool, auth.user_id).await?,
     ))
@@ -116,9 +118,14 @@ async fn list_members(
 
 #[derive(serde::Deserialize)]
 struct AddMemberBody {
-    #[serde(flatten)]
-    inner: AddMemberRequest,
-    /// Add by email when the secretary does not know the user id.
+    /// Every field is optional because a secretary supplies exactly one of an
+    /// id or an identifier — flattening `AddMemberRequest` here would demand
+    /// the id they came to look up.
+    user_id: Option<Uuid>,
+    role: Option<UserRole>,
+    /// Add by email or mobile number when the secretary does not know the id.
+    identifier: Option<String>,
+    /// The old name for the same thing, so existing callers keep working.
     email: Option<String>,
 }
 
@@ -131,21 +138,30 @@ async fn add_member(
     // Only a secretary adds members, and only a secretary appoints captains.
     require_secretary(&state, id, auth.user_id).await?;
 
-    let user_id = match body.email.as_deref() {
-        Some(email) if !email.is_empty() => {
-            clubs_repo::find_user_by_email(&state.pool, email)
-                .await?
-                .map(|(id, _, _)| id)
-                .ok_or_else(|| {
-                    ApiError::not_found("nobody with that email has a Fishers account yet")
-                })?
-        }
-        _ => body.inner.user_id,
+    // An email or a mobile number: a member who registered with a number has no
+    // address to be looked up by, and asking for one would make them
+    // impossible to add.
+    let given = body
+        .identifier
+        .as_deref()
+        .or(body.email.as_deref())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let user_id = match given {
+        Some(identifier) => clubs_repo::find_user_by_identifier(&state.pool, identifier)
+            .await?
+            .map(|(id, _, _)| id)
+            .ok_or_else(|| {
+                ApiError::not_found("nobody with that email or number has a Fishers account yet")
+            })?,
+        None => body.user_id.ok_or_else(|| {
+            ApiError::bad_request("give a user_id, an email address or a mobile number")
+        })?,
     };
 
     let request = AddMemberRequest {
         user_id,
-        role: body.inner.role,
+        role: body.role,
     };
     Ok(Json(clubs_repo::add_member(&state.pool, id, &request).await?))
 }
@@ -470,12 +486,16 @@ struct SearchQuery {
 /// Find an opposition by name, for when nobody has a code to scan.
 async fn search_opponents(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     axum::extract::Query(query): axum::extract::Query<SearchQuery>,
 ) -> ApiResult<Json<Vec<QrIdentity>>> {
     let q = query.q.trim();
     if q.len() < 2 {
         return Err(ApiError::bad_request("give at least two letters to search on"));
     }
-    Ok(Json(clubs_repo::search_clubs(&state.pool, q, 25).await?))
+    // Who is asking decides what they can see: their own clubs are findable
+    // even when invite-only.
+    Ok(Json(
+        clubs_repo::search_opponents(&state.pool, q, auth.user_id, 25).await?,
+    ))
 }

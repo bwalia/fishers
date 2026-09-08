@@ -155,11 +155,13 @@ async fn chase_match_fees(
         {
             warn!(error = %e, "fee push failed");
         }
-        if let Err(e) = email
-            .send(&row.email, &format!("Match fee for {}", row.title), &body)
-            .await
-        {
-            warn!(error = %e, "fee email failed");
+        if let Some(address) = row.email.as_deref() {
+            if let Err(e) = email
+                .send(address, &format!("Match fee for {}", row.title), &body)
+                .await
+            {
+                warn!(error = %e, "fee email failed");
+            }
         }
         selection_repo::mark_fee_reminded(pool, row.event_id, row.user_id).await?;
     }

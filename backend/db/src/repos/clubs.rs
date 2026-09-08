@@ -55,11 +55,24 @@ pub async fn create_club(
     Ok(club)
 }
 
-pub async fn list_clubs_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<Club>, sqlx::Error> {
-    sqlx::query_as::<_, Club>(
+/// A club plus what the asker is in it — the list is only ever read by
+/// somebody who is in them, and the role is the first thing they look for.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ClubMembership {
+    #[serde(flatten)]
+    #[sqlx(flatten)]
+    pub club: Club,
+    pub role: UserRole,
+}
+
+pub async fn list_clubs_for_user(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<ClubMembership>, sqlx::Error> {
+    sqlx::query_as::<_, ClubMembership>(
         r#"
         SELECT c.id, c.name, c.sport_types, c.visibility, c.owner_id, c.description,
-               c.is_informal_group, c.created_at, c.updated_at
+               c.is_informal_group, c.created_at, c.updated_at, m.role
         FROM clubs c
         INNER JOIN club_members m ON m.club_id = c.id
         WHERE m.user_id = $1 AND m.status = 'active'
@@ -88,7 +101,7 @@ pub async fn list_members(pool: &PgPool, club_id: Uuid) -> Result<Vec<ClubMember
     sqlx::query_as::<_, ClubMember>(
         r#"
         SELECT club_id, user_id, role, status, joined_at
-        FROM club_members WHERE club_id = $1
+        FROM club_members WHERE club_id = $1 AND status = 'active'
         ORDER BY joined_at
         "#,
     )
@@ -345,7 +358,8 @@ pub async fn remove_member(
 pub struct ClubMemberDetail {
     pub user_id: Uuid,
     pub name: String,
-    pub email: String,
+    /// Absent for anyone who registered with a mobile number instead.
+    pub email: Option<String>,
     pub phone: Option<String>,
     pub role: UserRole,
     pub status: MembershipStatus,
@@ -364,7 +378,7 @@ pub async fn list_member_details(
                u.position_role, u.skill_level
         FROM club_members cm
         JOIN users u ON u.id = cm.user_id
-        WHERE cm.club_id = $1
+        WHERE cm.club_id = $1 AND cm.status = 'active'
         ORDER BY
           CASE cm.role
             WHEN 'super_admin' THEN 0 WHEN 'club_admin' THEN 1
@@ -378,15 +392,20 @@ pub async fn list_member_details(
     .await
 }
 
-/// Find someone by email so a secretary can add them without knowing their id.
-pub async fn find_user_by_email(
+/// Find somebody to add to a club by whatever the secretary was given.
+///
+/// An email or a mobile number: since a member can register with either, being
+/// asked for an address they never had would make them impossible to add.
+pub async fn find_user_by_identifier(
     pool: &PgPool,
-    email: &str,
-) -> Result<Option<(Uuid, String, String)>, sqlx::Error> {
-    sqlx::query_as::<_, (Uuid, String, String)>(
-        "SELECT id, name, email FROM users WHERE lower(email) = lower($1)",
+    identifier: &str,
+) -> Result<Option<(Uuid, String, Option<String>)>, sqlx::Error> {
+    sqlx::query_as::<_, (Uuid, String, Option<String>)>(
+        "SELECT id, name, email FROM users
+         WHERE LOWER(email) = LOWER($1) OR phone = $1
+         LIMIT 1",
     )
-    .bind(email)
+    .bind(identifier.trim())
     .fetch_optional(pool)
     .await
 }
@@ -575,22 +594,58 @@ pub async fn rotate_club_qr(pool: &PgPool, club_id: Uuid) -> Result<String, sqlx
 }
 
 /// Clubs whose name matches, for picking an opposition without a QR code.
-pub async fn search_clubs(
+/// Find an opposition by name.
+///
+/// Three things this has to get right, none of which it used to:
+///
+/// * An invite-only club is not discoverable. That is what the setting means,
+///   and the QR code is how those sides are found instead. Your own clubs stay
+///   visible to you whatever their setting, or you could not find your own 2nd XI.
+/// * Teams are searchable too. They already resolve by QR, so being unfindable
+///   by name was an inconsistency a scorer would hit the moment they typed.
+/// * A name that starts with what you typed sorts above one that merely
+///   contains it — "Hemel Hempstead CC" before "Old Hemelians".
+///
+/// The `ILIKE '%x%'` is backed by the trigram indexes in
+/// `20260908000002_searchable_clubs_and_teams.sql`; without them this is a
+/// sequential scan of every club on every keystroke.
+pub async fn search_opponents(
     pool: &PgPool,
     query: &str,
+    viewer: Uuid,
     limit: i64,
 ) -> Result<Vec<QrIdentity>, sqlx::Error> {
     sqlx::query_as::<_, QrIdentity>(
         r#"
-        SELECT c.id, c.name, c.qr_token, 'club' AS kind, c.id AS club_id,
-               c.name AS club_name, NULL::TEXT AS sport
-        FROM clubs c
-        WHERE c.name ILIKE '%' || $1 || '%'
-        ORDER BY c.name
-        LIMIT $2
+        WITH mine AS (
+            SELECT club_id FROM club_members
+            WHERE user_id = $2 AND status = 'active'
+        )
+        SELECT id, name, qr_token, kind, club_id, club_name, sport
+        FROM (
+            SELECT c.id, c.name, c.qr_token, 'club' AS kind, c.id AS club_id,
+                   c.name AS club_name, NULL::TEXT AS sport,
+                   (c.name ILIKE $1 || '%') AS starts_with
+            FROM clubs c
+            WHERE c.name ILIKE '%' || $1 || '%'
+              AND (c.visibility = 'public' OR c.id IN (SELECT club_id FROM mine))
+
+            UNION ALL
+
+            SELECT t.id, t.name, t.qr_token, 'team' AS kind, t.club_id,
+                   c.name AS club_name, t.sport::TEXT AS sport,
+                   ((t.name ILIKE $1 || '%') OR (c.name ILIKE $1 || '%')) AS starts_with
+            FROM teams t
+            JOIN clubs c ON c.id = t.club_id
+            WHERE (t.name ILIKE '%' || $1 || '%' OR c.name ILIKE '%' || $1 || '%')
+              AND (c.visibility = 'public' OR c.id IN (SELECT club_id FROM mine))
+        ) hits
+        ORDER BY starts_with DESC, length(name), name
+        LIMIT $3
         "#,
     )
     .bind(query)
+    .bind(viewer)
     .bind(limit.clamp(1, 25))
     .fetch_all(pool)
     .await

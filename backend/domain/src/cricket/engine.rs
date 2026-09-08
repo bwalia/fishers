@@ -477,6 +477,23 @@ impl MatchState {
                 self.margin = Some(margin.clone());
                 self.status = MatchStatus::Complete;
             }
+            ScoringEventKind::MatchAbandoned { reason } => {
+                if self.status == MatchStatus::Complete {
+                    return Err(DomainError::Conflict(
+                        "this match already has a result".into(),
+                    ));
+                }
+                // No winner, and the reason is the margin: that is what goes
+                // on a scorecard for a game that did not finish.
+                self.winner = None;
+                self.margin = Some(if reason.trim().is_empty() {
+                    "Abandoned — no result".to_string()
+                } else {
+                    format!("Abandoned — {} (no result)", reason.trim())
+                });
+                self.abandoned = true;
+                self.status = MatchStatus::Complete;
+            }
             ScoringEventKind::UndoLast => unreachable!(),
         }
 

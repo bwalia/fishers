@@ -157,7 +157,7 @@ pub async fn accept_invite(
                     r#"
                     INSERT INTO club_members (club_id, user_id, role, status)
                     VALUES ($1, $2, 'member', 'active')
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT (club_id, user_id) DO UPDATE SET status = 'active'
                     "#,
                 )
                 .bind(inv.target_id)

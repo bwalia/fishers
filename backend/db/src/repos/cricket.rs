@@ -487,6 +487,156 @@ fn side_str(side: fishers_domain::MatchSide) -> &'static str {
 /// Apply a batch of client events inside one transaction: replay the stored log
 /// to rebuild state (and its undo stack), apply what is new, append it, and
 /// cache the projection. All of it lands or none of it does.
+/// A cricket fixture as the scoring list needs it: the fixture, plus the match
+/// behind it when somebody has started one.
+///
+/// The list used to fetch every event and then ask about each one separately —
+/// one round trip per fixture, and no paging, so a club with a season of
+/// history made a hundred requests to draw one screen. This is a single query.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct CricketFixtureRow {
+    pub event_id: Uuid,
+    pub club_id: Uuid,
+    pub title: String,
+    pub start_at: chrono::DateTime<chrono::Utc>,
+    pub event_status: String,
+    pub match_id: Option<Uuid>,
+    pub match_status: Option<String>,
+    pub home_name: Option<String>,
+    pub away_name: Option<String>,
+    pub opponent_club_id: Option<Uuid>,
+    pub active_scorer_user_id: Option<Uuid>,
+    pub last_seq: Option<i64>,
+    pub state_json: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FixtureFilter {
+    pub club_id: Option<Uuid>,
+    /// `live`, `upcoming` or `finished` — what a scorer is actually looking for.
+    pub state: Option<String>,
+    pub search: Option<String>,
+    pub descending: bool,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+pub async fn list_cricket_fixtures(
+    pool: &PgPool,
+    viewer_id: Uuid,
+    filter: &FixtureFilter,
+) -> Result<super::events::Page<CricketFixtureRow>, sqlx::Error> {
+    let mut where_sql = String::from(
+        r#"
+        WHERE e.sport = 'cricket'
+          AND e.status <> 'cancelled'
+          AND (
+            EXISTS (
+              SELECT 1 FROM club_members cm
+              WHERE cm.club_id = e.club_id AND cm.user_id = $1 AND cm.status = 'active'
+            )
+            OR EXISTS (
+              SELECT 1 FROM club_members cm
+              WHERE cm.club_id = m.opponent_club_id AND cm.user_id = $1 AND cm.status = 'active'
+            )
+          )
+        "#,
+    );
+
+    let mut next = 2;
+    let club_p = filter.club_id.map(|_| { let p = next; next += 1; p });
+    let search_p = filter.search.as_ref().map(|_| { let p = next; next += 1; p });
+
+    if let Some(p) = club_p {
+        where_sql.push_str(&format!(" AND e.club_id = ${p}"));
+    }
+    if let Some(p) = search_p {
+        where_sql.push_str(&format!(
+            " AND (e.title ILIKE '%' || ${p} || '%'                 OR m.home_name ILIKE '%' || ${p} || '%'                 OR m.away_name ILIKE '%' || ${p} || '%')"
+        ));
+    }
+    // What a scorer is looking for, not what the database calls it.
+    match filter.state.as_deref() {
+        Some("live") => where_sql.push_str(
+            " AND m.status IN ('live','innings_break','ready','selecting_xi','toss','preparing')",
+        ),
+        Some("finished") => where_sql.push_str(" AND m.status IN ('complete','published')"),
+        Some("upcoming") => where_sql.push_str(" AND m.id IS NULL"),
+        _ => {}
+    }
+
+    macro_rules! bind_filters {
+        ($q:expr) => {{
+            let mut q = $q.bind(viewer_id);
+            if let Some(v) = filter.club_id {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.search.as_deref() {
+                q = q.bind(v.to_string());
+            }
+            q
+        }};
+    }
+
+    let from_sql = "FROM events e LEFT JOIN cricket_matches m ON m.event_id = e.id";
+    let count_sql = format!("SELECT COUNT(*) {from_sql} {where_sql}");
+    let total: i64 = bind_filters!(sqlx::query_scalar::<_, i64>(&count_sql))
+        .fetch_one(pool)
+        .await?;
+
+    let per_page = filter.per_page.clamp(1, 100);
+    let page = filter.page.max(1);
+    let offset = (page - 1) * per_page;
+    let direction = if filter.descending { "DESC" } else { "ASC" };
+    let sql = format!(
+        r#"
+        SELECT e.id AS event_id, e.club_id, e.title, e.start_at,
+               e.status::TEXT AS event_status,
+               m.id AS match_id, m.status::TEXT AS match_status,
+               m.home_name, m.away_name, m.opponent_club_id,
+               m.active_scorer_user_id, m.last_seq, m.state_json
+        {from_sql}
+        {where_sql}
+        ORDER BY e.start_at {direction}, e.id {direction}
+        LIMIT ${} OFFSET ${}
+        "#,
+        next,
+        next + 1,
+    );
+    let items = bind_filters!(sqlx::query_as::<_, CricketFixtureRow>(&sql))
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?;
+
+    Ok(super::events::Page {
+        has_more: offset + (items.len() as i64) < total,
+        items,
+        total,
+        page,
+        per_page,
+    })
+}
+
+/// Remove a match and its log.
+///
+/// Only ever called for a match nothing has been scored in — the API checks
+/// that, because a log with balls in it is a record, not a draft. The events
+/// go with it rather than being orphaned.
+pub async fn delete_match(pool: &PgPool, match_id: Uuid) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("DELETE FROM cricket_scoring_events WHERE match_id = $1")
+        .bind(match_id)
+        .execute(&mut *tx)
+        .await?;
+    let result = sqlx::query("DELETE FROM cricket_matches WHERE id = $1")
+        .bind(match_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn apply_event_batch(
     pool: &PgPool,
     match_id: Uuid,
@@ -513,6 +663,37 @@ pub async fn apply_event_batch(
     }
     let seen: std::collections::HashSet<Uuid> =
         stored.iter().map(|e| e.client_event_id).collect();
+
+    // The seeding above only holds until the log is replayed. Unless the first
+    // event records the names, a later replay falls back to the engine's
+    // "Home" and "Away" and the real names are gone — so put them in the log
+    // here, once, whichever door is writing. Every caller used to have to
+    // remember this; only the browser did.
+    let mut prepared: Vec<ScoringEvent> = Vec::new();
+    let needs_prepare = state.last_seq == 0
+        && !matches!(
+            events.first().map(|e| &e.kind),
+            Some(fishers_domain::ScoringEventKind::MatchPrepared { .. })
+        );
+    if needs_prepare {
+        prepared.push(ScoringEvent {
+            client_event_id: Uuid::new_v4(),
+            seq: 1,
+            kind: fishers_domain::ScoringEventKind::MatchPrepared {
+                overs_limit: row.overs_limit.clamp(1, 255) as u8,
+                home_name: row.home_name.clone(),
+                away_name: row.away_name.clone(),
+            },
+            at: Some(chrono::Utc::now()),
+        });
+        // Everything the caller sent shuffles up by one.
+        for (offset, event) in events.iter().enumerate() {
+            let mut shifted = event.clone();
+            shifted.seq = 2 + offset as i64;
+            prepared.push(shifted);
+        }
+    }
+    let events: &[ScoringEvent] = if needs_prepare { &prepared } else { events };
 
     for event in events {
         if seen.contains(&event.client_event_id) {
