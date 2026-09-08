@@ -285,6 +285,18 @@ extension MatchState {
             self.margin = margin
             status = .complete
 
+        case let .matchAbandoned(reason):
+            guard status != .complete else {
+                throw CricketEngineError.conflict("this match already has a result")
+            }
+            let trimmed = reason.trimmingCharacters(in: .whitespaces)
+            winner = nil
+            margin = trimmed.isEmpty
+                ? "Abandoned — no result"
+                : "Abandoned — \(trimmed) (no result)"
+            abandoned = true
+            status = .complete
+
         case .undoLast:
             break
         }

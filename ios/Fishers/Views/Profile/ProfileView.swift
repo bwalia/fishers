@@ -88,7 +88,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(user.name)
                         .font(FishersTheme.contentTitle)
-                    Text(user.email)
+                    Text(user.email ?? user.phone ?? "No contact details")
                         .font(FishersTheme.subhead)
                         .foregroundStyle(.secondary)
                     if let primary = user.primaryProfile, let sport = primary.sportKind {
