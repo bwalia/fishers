@@ -29,18 +29,20 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0.0
-        # The API and web hosts this build talks to. Base/Debug use the LAN Mac
-        # so physical iPhones can reach the API. Release is blank — set both
+        # The API and web hosts this build talks to. Release is blank — set both
         # before shipping. The web host is where shared live-scoreboard links point.
-        FISHERS_API_BASE_URL: "http://192.168.1.99:7312"
-        FISHERS_WEB_BASE_URL: "http://192.168.1.99:7311"
+        FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
+        FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
       configs:
         Debug:
-          # LAN host for physical iPhone testing (Simulator can use the same
-          # addresses when the API/web bind 0.0.0.0). API is :7312; web/share
-          # links are :7311 — Next does not serve /api/v1.
-          FISHERS_API_BASE_URL: "http://192.168.1.99:7312"
-          FISHERS_WEB_BASE_URL: "http://192.168.1.99:7311"
+          # Loopback, because the Simulator shares the Mac's network stack and
+          # this is the only address that stays right when DHCP moves the Mac.
+          # A LAN address here broke the app on every new lease. scripts/start.sh
+          # passes today's LAN address in at launch instead; physical iPhones get
+          # it from FISHERS_API_URL in the scheme. API is :7312; web/share links
+          # are :7311 — Next does not serve /api/v1.
+          FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
+          FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
         Release:
           FISHERS_API_BASE_URL: ""
           FISHERS_WEB_BASE_URL: ""
@@ -48,8 +50,9 @@ targets:
       path: Fishers/Resources/Info.plist
       properties:
         CFBundleDisplayName: Fishers
-        # Debug/base expand to the LAN Mac. Release must set production hosts
-        # before shipping (empty values fail closed in AppConfig).
+        # Debug/base expand to loopback; scripts/start.sh overrides at launch.
+        # Release must set production hosts before shipping (empty values fail
+        # closed in AppConfig).
         FishersAPIBaseURL: "$(FISHERS_API_BASE_URL)"
         FishersWebBaseURL: "$(FISHERS_WEB_BASE_URL)"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
@@ -69,6 +72,9 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        # NSAllowsLocalNetworking covers cleartext to any RFC1918 address, so a
+        # LAN Mac needs no exception domain of its own — listing one meant every
+        # change of address needed a project edit and a rebuild.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
@@ -76,8 +82,6 @@ targets:
               NSExceptionAllowsInsecureHTTPLoads: true
               NSIncludesSubdomains: true
             127.0.0.1:
-              NSExceptionAllowsInsecureHTTPLoads: true
-            192.168.1.99:
               NSExceptionAllowsInsecureHTTPLoads: true
         # Scanning the other club's QR code at the toss is the only camera use.
         NSCameraUsageDescription: >-

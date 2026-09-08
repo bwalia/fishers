@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Rebase (including the rebase half of `git pull --rebase`) and commit --amend.
+# Git feeds the rewritten commits on stdin; the stamp check reads the worktree
+# instead, so drain it and ignore it.
+set -euo pipefail
+cat >/dev/null
+exec "$(git rev-parse --show-toplevel)/scripts/git-hooks/sync-xcodeproj.sh"

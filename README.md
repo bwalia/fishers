@@ -11,17 +11,47 @@ Multi-sport club management — organise recurring activities (cricket nets, foo
 
 ## Quick start
 
-Everything at once — Postgres, the API and the dashboard:
+One command brings up the whole stack — Postgres, the API, the dashboard, and
+the app in a Simulator — all pointed at this Mac's LAN address, so a phone on
+the same Wi-Fi reaches the same API:
 
 ```bash
-./scripts/start.sh          # Ctrl-C stops the API and web; Postgres keeps running
-./scripts/seed-demo.sh      # demo@fishers.test / password123, with data to look at
-./scripts/start.sh --stop   # stop everything
+./scripts/start.sh                # everything
+./scripts/start.sh --no-ios       # just the API and dashboard (a second or two)
+./scripts/start.sh --seed         # …and demo@fishers.test / password123 to sign in with
 ```
 
-It picks free ports (so it coexists with other local projects), prints the URLs
-it chose, writes `web/.env.local`, and builds the API in Docker when there is no
-local Rust toolchain. The steps below are the manual equivalent.
+Then open the dashboard at `http://<your-lan-ip>:7311/login` — the script prints
+the address it found.
+
+Services run detached, so re-running is safe and Ctrl-C during an Xcode build
+does not take the API down with it:
+
+```bash
+./scripts/start.sh --status       # what is running, and where
+./scripts/start.sh --logs api     # follow api | web | ios-build
+./scripts/start.sh --restart      # replace whatever is running
+./scripts/start.sh --stop         # stop the API and dashboard
+./scripts/start.sh --stop --all   # …and Postgres
+./scripts/start.sh --reset        # wipe the database and start clean
+./scripts/start.sh --ios-only     # rebuild and relaunch just the app
+```
+
+Two things it deliberately does *not* do, because both used to cost an
+afternoon:
+
+- **It does not move to a free port.** 7311/7312/7313 are fixed (override them
+  in `.env`). A drifting API port left the app, the dashboard and every share
+  link pointing at nothing. If a port is held by something outside this project
+  the script names the process and stops rather than killing it.
+- **It does not bake an IP address into anything.** The LAN address is resolved
+  from the default route on every run and handed to the app at launch, so a new
+  DHCP lease costs a re-run instead of an edit to `AppConfig.swift`.
+
+It also checks that the API can actually reach Postgres before saying it is up.
+`/health` is a constant string, so an API whose database has gone away keeps
+answering it while every real request hangs — `/health/ready` is what the script
+waits on. The steps below are the manual equivalent.
 
 ### 1. Database
 
@@ -32,7 +62,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-If that is somehow taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` port in `.env` — or just use `./scripts/start.sh`, which steps over anything busy.
+If that is taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` port in `.env`.
 
 ### 2. Backend
 
@@ -41,11 +71,11 @@ If that is somehow taken, set `POSTGRES_PORT` and the matching `DATABASE_URL` po
 # or: cd backend && cargo run -p fishers-api
 ```
 
-API: `http://192.168.1.99:7312` · Health: `GET /health` · Swagger: `http://192.168.1.99:7312/swagger-ui` · Routes: `/api/v1/...`
+API: `http://127.0.0.1:7312` · Liveness: `GET /health` · Readiness: `GET /health/ready` (checks Postgres) · Swagger: `/swagger-ui` · Routes: `/api/v1/...`
 
 Keep this process running while using the Simulator, a physical iPhone, or the web dashboard. Migrations run on startup.
 
-**Device / LAN tip:** Debug builds and the web dashboard talk to `http://192.168.1.99:7312`. Bind the API with `API_HOST=0.0.0.0`. If sign-in fails with a connection error, the API is not running or not reachable on the LAN.
+**Device / LAN tip:** bind with `API_HOST=[::]` (dual-stack) and set `PUBLIC_WEB_BASE` and `CORS_ALLOWED_ORIGINS` to this Mac's LAN address — `./scripts/start.sh` does all three for you. If sign-in fails with a connection error, the API is not running or not reachable on the LAN.
 
 Optional smoke test (signup → London Lords club → Wednesday nets, Saturday league, Sunday social):
 
@@ -55,24 +85,39 @@ chmod +x scripts/smoke.sh && ./scripts/smoke.sh
 
 ### 3. iOS
 
+`./scripts/start.sh` generates the project, builds it, boots a Simulator and
+launches the app already pointed at the API. `--device "iPhone 16 Pro"` picks a
+specific one; otherwise it uses whichever Simulator is already booted, or the
+newest iPhone installed.
+
+To work in Xcode instead:
+
 ```bash
 cd ios
 xcodegen generate
 open Fishers.xcodeproj
 ```
 
-Run on Simulator or a physical iPhone. Debug API base URL is `http://192.168.1.99:7312` in `Fishers/Config/AppConfig.swift`.
+No server address is compiled into the app. `AppConfig` resolves it from
+`FISHERS_API_URL` in the environment, then `FishersAPIBaseURL` in UserDefaults,
+then Info.plist, and falls back to loopback — which is the right answer on the
+Simulator, since it shares the Mac's network stack. `start.sh` writes today's
+LAN address into the Simulator's defaults, so running from Xcode afterwards
+still reaches the same API. For a physical iPhone, set `FISHERS_API_URL` to the
+LAN address the script prints in the scheme's run arguments.
 
 ### 4. Web dashboard
 
 ```bash
 cd web
-cp .env.local.example .env.local
 npm install
 npm run dev
 ```
 
-Open [http://192.168.1.99:7311](http://192.168.1.99:7311).
+Open `http://127.0.0.1:7311`, or this Mac's LAN address on the same port from
+another device. The dashboard derives the API host from whatever address the
+page was loaded on, so one dev server serves both without a rebuild;
+`start.sh` writes the port into `web/.env.local`.
 
 Signed-out pages show a sign-in prompt rather than data. `./scripts/seed-demo.sh`
 creates `demo@fishers.test` / `password123` with a club, fixtures, shop stock and
@@ -122,7 +167,8 @@ backend/          Cargo workspace
 ios/              SwiftUI app (XcodeGen)
 web/              Next.js dashboard
 scripts/
-  start.sh        Postgres + API + dashboard, free-port aware
+  start.sh        the whole stack: Postgres, API, dashboard, app in a Simulator
+  run-api.sh      shorthand for start.sh --api-only
   seed-demo.sh    demo account with club, fixtures, shop and a live match
   smoke.sh        End-to-end API check
 ```
