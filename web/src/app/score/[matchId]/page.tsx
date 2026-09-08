@@ -10,6 +10,7 @@ import { Icon } from "@/components/Icon";
 import { PersonPicker, type Person } from "@/components/PersonPicker";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { ShotIcon, SHOT_SHAPES } from "@/components/ShotIcon";
+import { ShareScoreboardButton } from "@/components/ShareScoreboardButton";
 import {
   BALLS,
   DEFAULT_CONDITIONS,
@@ -191,6 +192,13 @@ export default function ScorerPage({
             </>
           )}
         </div>
+        {match.can_score && (
+          <ShareScoreboardButton
+            matchId={matchId}
+            homeName={st.home_name}
+            awayName={st.away_name}
+          />
+        )}
       </section>
 
       {isSetup && <SetupRail st={st} hasScorer={!!match.active_scorer_user_id} />}
