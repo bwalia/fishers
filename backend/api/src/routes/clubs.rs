@@ -346,6 +346,33 @@ struct QrResponse {
     /// Encoded into the QR image. A phone camera that is not Fishers opens the
     /// club's page; the app pulls the token out of it.
     payload: String,
+    /// The code already drawn, so a browser can show it without carrying a QR
+    /// encoder of its own — error correction is not a few lines of JavaScript.
+    svg: String,
+}
+
+/// The payload as a scannable square.
+fn qr_svg(payload: &str) -> String {
+    use qrcode::render::svg;
+    match qrcode::QrCode::new(payload.as_bytes()) {
+        Ok(code) => {
+            let drawn = code
+                .render()
+                .min_dimensions(220, 220)
+                .dark_color(svg::Color("#0b2f1e"))
+                .light_color(svg::Color("#ffffff"))
+                .build();
+            // Drop the XML declaration so a client can drop this straight into
+            // a page rather than having to parse it out.
+            match drawn.find("<svg") {
+                Some(at) => drawn[at..].to_string(),
+                None => drawn,
+            }
+        }
+        // A code that will not encode is not worth failing the request over —
+        // the payload is still shown and can be typed in.
+        Err(_) => String::new(),
+    }
 }
 
 fn qr_payload(identity: &QrIdentity) -> String {
@@ -366,7 +393,8 @@ async fn club_qr(
         .await?
         .ok_or_else(|| ApiError::not_found("club not found"))?;
     let payload = qr_payload(&identity);
-    Ok(Json(QrResponse { identity, payload }))
+    let svg = qr_svg(&payload);
+    Ok(Json(QrResponse { identity, payload, svg }))
 }
 
 async fn team_qr(
@@ -382,7 +410,8 @@ async fn team_qr(
         .await?
         .ok_or_else(|| ApiError::not_found("team not found"))?;
     let payload = qr_payload(&identity);
-    Ok(Json(QrResponse { identity, payload }))
+    let svg = qr_svg(&payload);
+    Ok(Json(QrResponse { identity, payload, svg }))
 }
 
 /// Retire a code that has been handed out too widely.
@@ -397,7 +426,8 @@ async fn rotate_qr(
         .await?
         .ok_or_else(|| ApiError::not_found("club not found"))?;
     let payload = qr_payload(&identity);
-    Ok(Json(QrResponse { identity, payload }))
+    let svg = qr_svg(&payload);
+    Ok(Json(QrResponse { identity, payload, svg }))
 }
 
 #[derive(Deserialize)]

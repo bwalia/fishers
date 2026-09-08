@@ -54,6 +54,11 @@ struct CreateMatchBody {
     home_name: String,
     #[serde(default = "default_away")]
     away_name: String,
+    /// The other side, when they were matched to a Fishers club by QR or by
+    /// name. Without this their captain has no way in and no squad to pick
+    /// from, which is why the column existed but nothing ever filled it.
+    #[serde(default)]
+    opponent_club_id: Option<Uuid>,
 }
 
 fn default_overs() -> i32 {
@@ -129,6 +134,7 @@ async fn create_or_get_match(
         body.match_id,
         event_id,
         event.club_id,
+        body.opponent_club_id,
         auth.user_id,
         &body.home_name,
         &body.away_name,

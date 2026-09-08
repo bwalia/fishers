@@ -52,6 +52,7 @@ pub async fn create_match(
     match_id: Option<Uuid>,
     event_id: Uuid,
     club_id: Uuid,
+    opponent_club_id: Option<Uuid>,
     created_by: Uuid,
     home_name: &str,
     away_name: &str,
@@ -66,17 +67,21 @@ pub async fn create_match(
     sqlx::query_as::<_, CricketMatchRow>(&format!(
         r#"
         INSERT INTO cricket_matches (
-            id, event_id, club_id, status, overs_limit, home_name, away_name,
-            state_json, created_by
+            id, event_id, club_id, opponent_club_id, status, overs_limit,
+            home_name, away_name, state_json, created_by
         )
-        VALUES (COALESCE($1, gen_random_uuid()), $2, $3, 'scheduled', $4, $5, $6, $7, $8)
-        ON CONFLICT (event_id) DO UPDATE SET updated_at = NOW()
+        VALUES (COALESCE($1, gen_random_uuid()), $2, $3, $4, 'scheduled', $5, $6, $7, $8, $9)
+        ON CONFLICT (event_id) DO UPDATE SET
+            -- Naming the opposition later must stick; the rest is create-or-get.
+            opponent_club_id = COALESCE(EXCLUDED.opponent_club_id, cricket_matches.opponent_club_id),
+            updated_at = NOW()
         RETURNING {MATCH_COLS}
         "#
     ))
     .bind(match_id)
     .bind(event_id)
     .bind(club_id)
+    .bind(opponent_club_id)
     .bind(overs_limit)
     .bind(home_name)
     .bind(away_name)
