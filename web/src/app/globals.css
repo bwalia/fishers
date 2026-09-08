@@ -1246,3 +1246,973 @@ textarea { line-height: 1.5; resize: vertical; }
   margin-top: 0;
   padding: 0 var(--s3);
 }
+
+/* --- Clubs: roster, chips, invite links ---------------------------------- */
+
+/* A whole card is the link, so it must not inherit the anchor's underline. */
+.club-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.club-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) {
+  .club-card { transition: none; }
+  .club-card:hover { transform: none; }
+}
+
+.hero-tags {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  margin-top: var(--s2);
+}
+
+.chip-set {
+  border: 0;
+  padding: 0;
+  margin: var(--s4) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.chip-set legend {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+  padding: 0;
+  margin-bottom: var(--s2);
+}
+.chip {
+  /* 44px tall so it is a real touch target, not a decorative pill. */
+  min-height: 44px;
+  padding: 0 var(--s4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+.chip.on {
+  border-color: var(--primary);
+  background: var(--pitch-50);
+  color: var(--pitch-700);
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .chip.on {
+    background: var(--surface-3);
+    color: var(--pitch-100, #d7f0e1);
+  }
+}
+.chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.add-member {
+  padding: var(--s4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  margin-bottom: var(--s5);
+}
+
+.invite-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+/* The token is long; it scrolls in its own box rather than widening the page. */
+.invite-link code {
+  flex: 1;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+/* --- Match setup: header, progress rail, agreement --------------------- */
+
+.match-head {
+  padding: var(--s5) 0 var(--s4);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--s5);
+}
+.match-head-sides {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.match-head-v {
+  font-size: 0.5em;
+  font-weight: 500;
+  color: var(--fg-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.match-head-side.away { color: var(--fg-muted); }
+.match-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 2px var(--s3);
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--surface-3);
+  color: var(--fg-muted);
+}
+.status-pill.live {
+  background: var(--live);
+  color: #fff;
+}
+/* A live match is the one thing on the page worth a heartbeat. */
+.status-pill.live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) {
+  .status-pill.live::before { animation: none; }
+}
+
+/* Four steps, so it stays a strip on a phone rather than wrapping to two. */
+.setup-rail {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s1);
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--s5);
+  counter-reset: none;
+}
+.rail-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  position: relative;
+  color: var(--fg-subtle);
+  font-size: 0.78rem;
+  text-align: center;
+}
+/* The connector sits behind the dots and stops at the last one. */
+.rail-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 13px;
+  left: calc(50% + 16px);
+  right: calc(-50% + 16px);
+  height: 2px;
+  background: var(--border);
+}
+.rail-step.done:not(:last-child)::after { background: var(--primary); }
+.rail-dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  position: relative;
+  z-index: 1;
+}
+.rail-step.done .rail-dot {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.rail-step.now .rail-dot {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+.rail-step.now { color: var(--fg); font-weight: 600; }
+
+.claim-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  align-items: center;
+  justify-content: space-between;
+  border-color: var(--primary);
+}
+.claim-panel h2 { margin: 0 0 var(--s1); }
+.claim-panel p { margin: 0; }
+
+.setup-panel { padding: var(--s5); }
+.setup-head { margin-bottom: var(--s5); }
+.setup-head h2 { margin: 0 0 var(--s2); }
+.setup-head p { margin: 0; }
+
+.setup-group {
+  border: 0;
+  border-top: 1px solid var(--border);
+  padding: var(--s4) 0 0;
+  margin: 0 0 var(--s5);
+}
+.setup-group legend {
+  padding: 0 var(--s3) 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.setup-group[disabled] { opacity: 0.45; }
+.setup-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s4);
+}
+.setup-fields label { margin: 0; }
+.setup-fields .subtle { display: block; margin-top: var(--s1); }
+
+/* Picking a side is a two-way choice — two cards read faster than a menu. */
+.side-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.side-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
+  min-height: 72px;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.side-card:hover { border-color: var(--border-strong); }
+.side-card.on {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface-2));
+}
+.side-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.side-card-name { font-weight: 600; }
+.side-card-role {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.side-card.on .side-card-role { color: var(--primary); }
+@media (prefers-reduced-motion: reduce) { .side-card { transition: none; } }
+
+.btn.lg {
+  width: 100%;
+  min-height: 52px;
+  font-size: 1rem;
+}
+
+.agree-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s3);
+  margin: var(--s5) 0;
+}
+.agree-card {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.agree-card.done { border-left-color: var(--primary); }
+.agree-side { font-weight: 600; }
+.agree-state {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  margin-top: 2px;
+  font-size: 0.85rem;
+  color: var(--fg-subtle);
+}
+.agree-card.done .agree-state { color: var(--primary); }
+
+.agree-pending {
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--border);
+}
+.agree-pending h3 { margin: 0 0 var(--s3); font-size: 1rem; }
+
+@media (max-width: 480px) {
+  .setup-panel { padding: var(--s4); }
+  .agree-strip { grid-template-columns: 1fr; }
+  .rail-label { font-size: 0.7rem; }
+}
+
+@media (max-width: 560px) {
+  /* Stacked, the "v" belongs on its own line — trailing one side reads as a
+     typo rather than a fixture. */
+  .match-head-sides {
+    display: grid;
+    justify-items: start;
+    gap: var(--s1);
+  }
+  .match-head-v { line-height: 1; }
+}
+
+/* --- Person picker: type a name, pick from the squad ------------------- */
+
+.person-picker { position: relative; display: block; }
+.person-picker > label {
+  display: block;
+  margin-bottom: var(--s1);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.person-picker > input { width: 100%; }
+
+.person-list {
+  position: absolute;
+  z-index: var(--z-modal);
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: var(--s1) 0 0;
+  padding: var(--s1);
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+}
+.person-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  width: 100%;
+  /* A name in a list is still a touch target. */
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.person-row.active { background: var(--surface-3); }
+.person-name { font-weight: 500; }
+.person-note {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.person-empty {
+  padding: var(--s3);
+  font-size: 0.85rem;
+  color: var(--fg-subtle);
+}
+
+/* Terms as a fact sheet, not a form you have to re-read. */
+.terms-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s3);
+  margin: 0 0 var(--s5);
+  padding: var(--s4);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+.terms-summary > div { min-width: 0; }
+.terms-summary dt {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.terms-summary dd {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+/* --- Notifications bell ------------------------------------------------- */
+
+.bell { position: relative; display: inline-flex; }
+.bell-button {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.bell-button:hover { background: var(--surface-2); color: var(--fg); }
+.bell-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* The count, not just a dot — "3 waiting" is a different decision to "1". */
+.bell-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--live);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.bell-panel {
+  position: absolute;
+  z-index: var(--z-modal);
+  top: calc(100% + var(--s2));
+  right: 0;
+  width: min(360px, calc(100vw - var(--s4) * 2));
+  padding: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+}
+.bell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+.bell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.bell-list li { border-radius: var(--radius-sm); }
+/* Unread earns a marker, not a different background that fights the panel. */
+.bell-list li.unread { border-left: 3px solid var(--primary); }
+.bell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding: var(--s2) var(--s3);
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+a.bell-item:hover { background: var(--surface-2); }
+
+/* --- Team sheets -------------------------------------------------------- */
+
+.sheet-panel { padding: var(--s5); }
+.sheet-panel.done { opacity: 0.85; }
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.sheet-head h2 { margin: 0; }
+.sheet-sub {
+  margin: var(--s5) 0 var(--s3);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+/* "7 of 11" — a captain is counting towards a number, so show the number. */
+.count-pill {
+  padding: 4px var(--s3);
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.count-pill.full { background: var(--primary); color: var(--on-primary); }
+.count-pill strong { font-size: 0.95rem; }
+
+/* The picked side, in the order they will bat. */
+.picked-xi,
+.named-xi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: xi;
+}
+.picked-xi li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 48px;
+  padding: 0 var(--s2);
+  border-bottom: 1px solid var(--border);
+}
+.picked-xi li:last-child { border-bottom: 0; }
+.pick-no {
+  width: 22px;
+  color: var(--fg-subtle);
+  font-size: 0.8rem;
+  text-align: right;
+}
+.pick-name { flex: 1; font-weight: 500; }
+
+.role-toggle {
+  min-width: 40px;
+  height: 32px;
+  padding: 0 var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg-subtle);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.role-toggle.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.role-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.pick-remove {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg-subtle);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.pick-remove:hover { background: var(--surface-2); color: var(--danger); }
+
+.named-xi li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+  font-size: 0.9rem;
+}
+.named-xi li::before {
+  counter-increment: xi;
+  content: counter(xi);
+  width: 20px;
+  color: var(--fg-subtle);
+  font-size: 0.75rem;
+  text-align: right;
+}
+.role-badge {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--fg-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.role-badge.c { background: var(--accent); color: #fff; }
+
+/* The squad to pick from: one tap adds, so each name is a real target. */
+.squad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--s2);
+}
+.squad-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.squad-chip:hover { border-color: var(--primary); }
+.squad-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.squad-chip span:first-of-type { flex: 1; }
+
+.add-guest { margin-top: var(--s4); }
+.guest-row { margin-top: var(--s4); }
+
+/* Nothing to do but wait — said once, quietly, not as an error. */
+.waiting-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* The toss, once it has happened — both sides ask about it immediately. */
+.toss-result {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s5);
+  border-radius: var(--radius);
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  color: var(--fg-muted);
+}
+.toss-result p { margin: 0; }
+.toss-result strong { color: var(--fg); }
+
+/* A link inside a sentence, so it reads as prose rather than a control. */
+.link-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* --- Fixture list: filter, sort, page ----------------------------------- */
+
+.fixture-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.fixture-tools {
+  display: flex;
+  gap: var(--s2);
+  flex: 1;
+  min-width: 240px;
+  justify-content: flex-end;
+}
+.fixture-tools input {
+  flex: 1;
+  max-width: 280px;
+  min-height: 44px;
+}
+.fixture-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  padding-top: var(--s4);
+  margin-top: var(--s3);
+  border-top: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.pager-buttons { display: flex; gap: var(--s2); }
+
+/* Calling a match off — kept quiet until asked for, then unmistakable.
+   `.btn.danger` is already defined with the other button variants. */
+.call-off { margin-top: var(--s4); }
+.danger-panel { border-color: var(--danger); }
+.danger-panel h2 { margin-top: 0; }
+
+@media (max-width: 560px) {
+  .fixture-tools { justify-content: stretch; }
+  .fixture-tools input { max-width: none; }
+  .pager { justify-content: center; }
+}
+
+/* --- Openers: laid out like the pitch ----------------------------------- */
+
+.crease {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: var(--s3);
+  margin-bottom: var(--s5);
+}
+.crease-end {
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.crease-role {
+  display: inline-block;
+  margin-bottom: var(--s2);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.crease-role.on-strike { color: var(--primary); }
+/* The striker faces the next ball; the two ends are not interchangeable. */
+.crease-end:first-child { border-left: 3px solid var(--primary); }
+
+/* The 22 yards between them, drawn as a strip so the two ends read as ends. */
+.crease-pitch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  align-self: center;
+  padding: var(--s3) 0;
+  position: relative;
+}
+.crease-pitch::before {
+  content: "";
+  position: absolute;
+  inset: 0 50%;
+  width: 2px;
+  transform: translateX(-1px);
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--border-strong) 0 6px,
+    transparent 6px 12px
+  );
+}
+.crease-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  background: var(--surface);
+  padding: 0 4px;
+  position: relative;
+}
+/* Swapping ends is the correction scorers make most; it earns a real target. */
+.swap-ends {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--fg-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  position: relative;
+}
+.swap-ends:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.swap-ends:disabled { opacity: 0.4; cursor: not-allowed; }
+.swap-ends:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.bowling-end {
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  margin-bottom: var(--s5);
+}
+
+/* --- Player picker ------------------------------------------------------ */
+
+.player-picker { position: relative; }
+.player-picker > label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.player-picker-hint {
+  display: block;
+  margin-bottom: var(--s2);
+  font-size: 0.75rem;
+  color: var(--fg-subtle);
+}
+
+/* The chosen name and the search box share one field, so typing reads as
+   replacing whoever is in it. */
+.player-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 48px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.player-field.open { border-color: var(--primary); }
+.player-caret { color: var(--fg-subtle); flex-shrink: 0; }
+.player-field.open .player-caret { color: var(--primary); transform: rotate(180deg); }
+.player-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  min-height: 46px;
+  color: var(--fg);
+  font: inherit;
+}
+.player-field input:focus { outline: none; }
+.player-chosen {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.player-no {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--fg-subtle);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.player-list {
+  position: absolute;
+  z-index: var(--z-modal);
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: var(--s1) 0 0;
+  padding: var(--s1);
+  list-style: none;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+}
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--s2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.player-row.active { background: var(--surface-3); }
+.player-row.chosen .player-name { font-weight: 700; color: var(--primary); }
+/* Somebody already at the crease stays listed with the reason — otherwise the
+   scorer wonders where they went. */
+.player-row.taken { opacity: 0.5; cursor: not-allowed; }
+.player-name { flex: 1; }
+.player-taken {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+.player-empty { padding: var(--s3); font-size: 0.85rem; color: var(--fg-subtle); }
+
+@media (max-width: 640px) {
+  /* Stacked, the pitch runs top to bottom and the swap sits between. */
+  .crease { grid-template-columns: 1fr; }
+  .crease-pitch { flex-direction: row; justify-content: center; padding: 0; }
+  .crease-pitch::before { inset: 50% 0; width: auto; height: 2px; transform: translateY(-1px);
+    background: repeating-linear-gradient(to right,
+      var(--border-strong) 0 6px, transparent 6px 12px); }
+}
+
+/* A chosen recipient in a chip grid — same control as the squad picker. */
+.squad-chip.on {
+  border-color: var(--primary);
+  background: var(--pitch-50);
+  color: var(--pitch-700);
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .squad-chip.on {
+    background: var(--surface-3);
+    color: var(--pitch-100);
+  }
+}
+
+/* One card per sport — adding a sport should never disturb the others. */
+.sport-card {
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  margin-bottom: var(--s3);
+}
+.sport-card h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  font-size: 1rem;
+}
+.sport-card .terms-summary { margin-bottom: 0; background: transparent; padding: 0; }

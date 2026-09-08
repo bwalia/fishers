@@ -134,11 +134,16 @@ export type MatchState = {
   super_overs?: number;
 };
 
+export type Side = "home" | "away";
+
 /// What `GET/POST /cricket/matches/{id}` replies with.
 export type MatchResponse = {
   id: string;
   event_id: string;
   club_id: string;
+  /// The visiting club, when they are on Fishers — their captain comes from
+  /// their roster, not ours.
+  opponent_club_id?: string | null;
   status: string;
   overs_limit: number;
   home_name: string;
@@ -147,6 +152,12 @@ export type MatchResponse = {
   active_scorer_user_id?: string | null;
   active_scorer_device_id?: string | null;
   can_score: boolean;
+  /// The side this viewer actually plays for, when they are in one of the
+  /// clubs. A scorer may act for both but belongs to one.
+  my_club_side?: Side | null;
+  /// The sides this viewer may propose or agree terms for. A scorer gets both;
+  /// a captain on their own phone gets their own.
+  my_sides: Side[];
   dls?: { par: number; ahead_by: number; target: number; method: string };
   state: MatchState;
 };

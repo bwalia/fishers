@@ -8,65 +8,94 @@ import {
   type Club,
   type EventRow,
   type OpponentIdentity,
+  type Page,
   type Team,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { OppositionPicker } from "@/components/OppositionPicker";
 import { overs, titleCase, type MatchResponse } from "@/lib/cricket";
 
-/// A fixture with whatever match already exists on it, so the list can say
-/// "start" or "resume" rather than silently dropping you into someone's innings.
-type Row = { event: EventRow; match: MatchResponse | null };
+/// A fixture and the match on it, as `GET /cricket/fixtures` returns them —
+/// one paged request rather than a fetch per row.
+type Fixture = {
+  event_id: string;
+  club_id: string;
+  title: string;
+  start_at: string;
+  event_status: string;
+  match_id: string | null;
+  match_status: string | null;
+  home_name: string | null;
+  away_name: string | null;
+  has_scorer: boolean;
+  score: string | null;
+  result: string | null;
+};
 
-/// The score, or the result once it is over. Null before a ball is bowled, so
-/// the caller does not end up printing the status twice.
-function summarise(m: MatchResponse): string | null {
-  if (m.state.status === "complete") return m.state.margin || "Complete";
-  const inn = m.state.innings[m.state.innings.length - 1];
-  if (!inn) return null;
-  return `${inn.runs}/${inn.wickets} (${overs(inn.legal_balls)} ov)`;
-}
+type StateFilter = "" | "live" | "upcoming" | "finished";
+
+const STATE_TABS: { value: StateFilter; label: string }[] = [
+  { value: "", label: "All" },
+  { value: "live", label: "In progress" },
+  { value: "upcoming", label: "Not started" },
+  { value: "finished", label: "Finished" },
+];
+
+const PER_PAGE = 20;
 
 export default function ScoreIndexPage() {
   const router = useRouter();
-  const [rows, setRows] = useState<Row[]>([]);
+  const [page, setPage] = useState<Page<Fixture> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [opening, setOpening] = useState<EventRow | null>(null);
   /// A match with no fixture behind it yet — two sides who just turned up.
   const [instant, setInstant] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Filtering, sorting and paging all happen in the database. A club with a
+  // season behind it is not something to download and sift through here.
+  const [stateFilter, setStateFilter] = useState<StateFilter>("");
+  const [search, setSearch] = useState("");
+  const [newestFirst, setNewestFirst] = useState(false);
+  const [pageNo, setPageNo] = useState(1);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const all = await api<EventRow[]>("GET", "/events");
-      const cricket = all.filter((e) => e.sport === "cricket");
-      const withMatches = await Promise.all(
-        cricket.map(async (event) => {
-          try {
-            // 404 simply means nobody has started this one yet.
-            const match = await api<MatchResponse>(
-              "GET",
-              `/events/${event.id}/cricket-match`
-            );
-            return { event, match };
-          } catch {
-            return { event, match: null };
-          }
-        })
-      );
-      setRows(withMatches);
+      const params = new URLSearchParams({
+        page: String(pageNo),
+        per_page: String(PER_PAGE),
+        order: newestFirst ? "desc" : "asc",
+      });
+      if (stateFilter) params.set("state", stateFilter);
+      // One letter matches most of the table; the API refuses it anyway.
+      if (search.trim().length >= 2) params.set("q", search.trim());
+      setPage(await api<Page<Fixture>>("GET", `/cricket/fixtures?${params}`));
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load fixtures");
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [pageNo, stateFilter, search, newestFirst]);
 
   useEffect(() => {
     if (!getAccessToken()) {
       setError("Sign in to score a match.");
+      setLoading(false);
       return;
     }
-    load();
-  }, [load]);
+    // Typing should not fire a request per keystroke.
+    const timer = setTimeout(load, search ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [load, search]);
+
+  // Any change of filter starts again at the first page, or you land on an
+  // empty page 3 of a one-page result.
+  useEffect(() => {
+    setPageNo(1);
+  }, [stateFilter, search, newestFirst]);
 
   /// Start a match, creating the fixture first when there is not one.
   ///
@@ -131,14 +160,50 @@ export default function ScoreIndexPage() {
 
       {error && <p className="error">{error}</p>}
 
+      <div className="fixture-controls">
+        <div className="tabs" role="tablist" aria-label="Which fixtures">
+          {STATE_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              role="tab"
+              aria-selected={stateFilter === tab.value}
+              className={`tab${stateFilter === tab.value ? " active" : ""}`}
+              type="button"
+              onClick={() => setStateFilter(tab.value)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="fixture-tools">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search fixtures or teams"
+            aria-label="Search fixtures"
+          />
+          <button
+            className="btn sm"
+            type="button"
+            onClick={() => setNewestFirst((v) => !v)}
+          >
+            {newestFirst ? "Newest first" : "Soonest first"}
+          </button>
+        </div>
+      </div>
+
       <div className="panel">
-        {rows.map(({ event, match }) => (
-          <div key={event.id} className="row">
+        {loading && !page && <div className="skeleton" style={{ height: 72 }} />}
+
+        {page?.items.map((f) => (
+          <div key={f.event_id} className="row">
             <div>
-              <div>{event.title}</div>
-              <div className="tag">{event.event_subtype.replaceAll("_", " ")}</div>
+              <div style={{ fontWeight: 600 }}>
+                {f.home_name && f.away_name ? `${f.home_name} v ${f.away_name}` : f.title}
+              </div>
               <div className="muted">
-                {new Date(event.start_at).toLocaleString("en-GB", {
+                {new Date(f.start_at).toLocaleString("en-GB", {
                   weekday: "short",
                   day: "numeric",
                   month: "short",
@@ -146,43 +211,88 @@ export default function ScoreIndexPage() {
                   minute: "2-digit",
                 })}
               </div>
-              {match && (
-                <div className="muted">
-                  {match.state.home_name} v {match.state.away_name} ·{" "}
-                  {titleCase(match.state.status)}
-                  {summarise(match) && ` · ${summarise(match)}`}
-                  {!match.can_score && " · you cannot score this one"}
-                </div>
-              )}
+              <div className="fixture-tags">
+                {f.match_status ? (
+                  <span className={`status-pill ${f.match_status}`}>
+                    {titleCase(f.match_status)}
+                  </span>
+                ) : (
+                  <span className="tag grey">Not started</span>
+                )}
+                {f.score && <span className="tag num">{f.score}</span>}
+                {f.result && <span className="tag gold">{f.result}</span>}
+                {f.has_scorer && f.match_status !== "complete" && (
+                  <span className="tag grey">Being scored</span>
+                )}
+              </div>
             </div>
 
-            {match ? (
+            {f.match_id ? (
               <button
-                className={match.state.status === "complete" ? "btn" : "btn primary"}
+                className={f.match_status === "complete" ? "btn" : "btn primary"}
                 type="button"
-                onClick={() => router.push(`/score/${match.id}`)}
+                onClick={() => router.push(`/score/${f.match_id}`)}
               >
-                {match.state.status === "complete"
-                  ? "View scorecard"
-                  : match.can_score
-                    ? "Resume scoring"
-                    : "Watch"}
+                {f.match_status === "complete" ? "View scorecard" : "Open"}
               </button>
             ) : (
               <button
                 className="btn primary"
                 type="button"
-                onClick={() => setOpening(event)}
+                onClick={() =>
+                  setOpening({
+                    id: f.event_id,
+                    club_id: f.club_id,
+                    title: f.title,
+                    sport: "cricket",
+                    event_subtype: "league_match",
+                    start_at: f.start_at,
+                    end_at: f.start_at,
+                    status: f.event_status,
+                  })
+                }
               >
                 Set up match
               </button>
             )}
           </div>
         ))}
-        {!error && rows.length === 0 && (
-          <p className="muted">No cricket fixtures. Create one under Fixtures first.</p>
+
+        {page && page.items.length === 0 && !loading && (
+          <div className="empty">
+            <Icon name="bat" size={28} />
+            <p>{search || stateFilter ? "Nothing matches that." : "No cricket fixtures yet."}</p>
+          </div>
+        )}
+
+        {page && page.total > 0 && (
+          <div className="pager">
+            <span className="muted">
+              {(page.page - 1) * page.per_page + 1}–
+              {(page.page - 1) * page.per_page + page.items.length} of {page.total}
+            </span>
+            <div className="pager-buttons">
+              <button
+                className="btn sm"
+                type="button"
+                disabled={page.page <= 1 || loading}
+                onClick={() => setPageNo((n) => n - 1)}
+              >
+                Previous
+              </button>
+              <button
+                className="btn sm"
+                type="button"
+                disabled={!page.has_more || loading}
+                onClick={() => setPageNo((n) => n + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
+
 
       {(opening || instant) && (
         <MatchSetupSheet

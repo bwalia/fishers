@@ -2,10 +2,13 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, getStoredUser, type ClubMemberRow } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { api, getAccessToken, getStoredUser, roleLabel, type ClubMemberRow } from "@/lib/api";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
 import { Icon } from "@/components/Icon";
+import { PersonPicker, type Person } from "@/components/PersonPicker";
+import { PlayerPicker } from "@/components/PlayerPicker";
 import { ShotIcon, SHOT_SHAPES } from "@/components/ShotIcon";
 import {
   BALLS,
@@ -23,6 +26,7 @@ import {
   type MatchConditions,
   type MatchResponse,
   type MatchState,
+  type Side,
   type SideSquad,
   type SquadResponse,
 } from "@/lib/cricket";
@@ -39,6 +43,10 @@ function deviceId() {
   return id;
 }
 
+/// A full side. Not enforced — the engine happily plays nine a side — but it
+/// is the number a captain is counting towards, so the screen says so.
+const XI_SIZE = 11;
+
 function ballClass(ball: { runs: number; is_wicket: boolean }) {
   if (ball.is_wicket) return "wicket";
   if (ball.runs >= 6) return "six";
@@ -46,7 +54,6 @@ function ballClass(ball: { runs: number; is_wicket: boolean }) {
   return undefined;
 }
 
-type Side = "home" | "away";
 
 const other = (s: Side): Side => (s === "home" ? "away" : "home");
 
@@ -56,6 +63,7 @@ export default function ScorerPage({
   params: Promise<{ matchId: string }>;
 }) {
   const { matchId } = use(params);
+  const router = useRouter();
   const [match, setMatch] = useState<MatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -161,38 +169,71 @@ export default function ScorerPage({
   const nameOf = (id?: string | null) =>
     !id ? "—" : st.player_names[id] || st.player_names[id.toLowerCase()] || id.slice(0, 8);
 
+  // Before the first ball the screen is a setup flow, and saying which step
+  // you are on is most of what makes it feel like one.
+  const isSetup = st.status !== "complete" && st.innings.length === 0;
+
   return (
     <main>
-      <section className="hero">
-        <h1>
-          {st.home_name} vs {st.away_name}
-        </h1>
-        <p>
-          {titleCase(st.status)}
-          {st.conditions &&
-            ` · ${st.conditions.overs_limit} overs · ${st.conditions.ball} ball · ${st.conditions.ground} ground`}
-        </p>
+      <section className="match-head">
+        <div className="match-head-sides">
+          <span className="match-head-side">{st.home_name}</span>
+          <span className="match-head-v">v</span>
+          <span className="match-head-side away">{st.away_name}</span>
+        </div>
+        <div className="match-head-meta">
+          <span className={`status-pill ${st.status}`}>{titleCase(st.status)}</span>
+          {st.conditions && (
+            <>
+              <span className="tag">{st.conditions.overs_limit} overs</span>
+              <span className="tag">{titleCase(st.conditions.ball)} ball</span>
+              <span className="tag">{titleCase(st.conditions.ground)} ground</span>
+            </>
+          )}
+        </div>
       </section>
+
+      {isSetup && <SetupRail st={st} hasScorer={!!match.active_scorer_user_id} />}
+
+      {isSetup && st.toss_winner && <TossResult st={st} />}
 
       {error && <p className="error">{error}</p>}
 
-      {!match.can_score && (
-        <p className="error">
-          You do not have permission to score this match. A captain or club secretary can
-          give it to you.
-        </p>
+      {/* Two red boxes about the book are noise for a visiting captain who came
+          here to say yes to the terms. Whoever cannot score is only told so
+          once the match actually needs a scorer. */}
+      {/* A spectator is not doing anything wrong by watching, so this is a
+          note about the page, not an error about them. */}
+      {!match.can_score && !isSetup && (
+        <div className="waiting-note">
+          <Icon name="radio" size={18} />
+          <span>
+            Following along. {match.active_scorer_user_id ? "Someone else is" : "Nobody is"}{" "}
+            scoring this match — the scorecard below updates as they do.
+          </span>
+        </div>
       )}
 
       {match.can_score && !match.active_scorer_user_id && (
-        <div className="panel">
-          <p>Nobody is scoring this match yet.</p>
-          <button className="btn primary" type="button" disabled={busy} onClick={() => claim(false)}>
-            Take the book
+        <div className="panel claim-panel">
+          <div>
+            <h2>Nobody is scoring yet</h2>
+            <p className="muted">
+              Whoever takes the book records every ball. It can be handed over later.
+            </p>
+          </div>
+          <button
+            className="btn primary lg"
+            type="button"
+            disabled={busy}
+            onClick={() => claim(false)}
+          >
+            <Icon name="book" size={18} /> Take the book
           </button>
         </div>
       )}
 
-      {heldBySomeoneElse && (
+      {heldBySomeoneElse && match.can_score && (
         <div className="panel">
           <p className="error">
             Someone else is scoring this match. Only they can record a ball until they hand
@@ -209,12 +250,288 @@ export default function ScorerPage({
 
       <Stages match={match} send={send} canAct={canAct} nameOf={nameOf} onPicked={setMatch} />
 
+      {heldByMe && <HandOver match={match} onChanged={setMatch} />}
+
+      <CallItOff match={match} onChanged={setMatch} onGone={() => router.push("/score")} />
+
       <Scorecard st={st} nameOf={nameOf} />
 
       <p className="muted" style={{ marginTop: "1rem" }}>
         <Link href="/score">← All fixtures</Link>
       </p>
     </main>
+  );
+}
+
+/// Passing the book to somebody else.
+///
+/// Whoever holds it records every ball, so it has to be handed over on
+/// purpose: a scorer going for tea, a phone about to die. Only people who may
+/// score this match are offered, because the server refuses anyone else and a
+/// list of names that will be rejected is worse than no list.
+function HandOver({
+  match,
+  onChanged,
+}: {
+  match: MatchResponse;
+  onChanged: (next: MatchResponse) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [candidates, setCandidates] = useState<ClubMemberRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [choice, setChoice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const me = getStoredUser();
+
+  useEffect(() => {
+    if (!open || candidates.length > 0) return;
+    setLoading(true);
+    (async () => {
+      // The book belongs to the side running the match, so its members are
+      // who can take it. Anyone else needs appointing as an official first.
+      const rows = await api<ClubMemberRow[]>("GET", `/clubs/${match.club_id}/members`).catch(
+        () => [] as ClubMemberRow[]
+      );
+      setCandidates(
+        rows.filter((r) => r.user_id !== me?.id && r.role !== "member" && r.role !== "guest")
+      );
+      setLoading(false);
+    })();
+  }, [open, candidates.length, match.club_id, me?.id]);
+
+  const hand = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      onChanged(
+        await api<MatchResponse>("POST", `/cricket/matches/${match.id}/handover`, {
+          to_user_id: choice,
+        })
+      );
+      setOpen(false);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "";
+      try {
+        setError(JSON.parse(raw).error ?? "Could not hand it over");
+      } catch {
+        setError(raw || "Could not hand it over");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button className="btn ghost sm call-off" type="button" onClick={() => setOpen(true)}>
+        <Icon name="book" size={14} /> Hand the book to somebody else
+      </button>
+    );
+  }
+
+  return (
+    <div className="panel">
+      <h2>Hand over the book</h2>
+      <p className="muted">
+        They take over recording every ball from the next one. You keep watching, and can
+        be handed it back.
+      </p>
+
+      {loading && <div className="skeleton" style={{ height: 48 }} />}
+
+      {!loading && candidates.length === 0 && (
+        <p className="muted">
+          Nobody else at {match.state.home_name} can score this match. A secretary can
+          appoint them, or make them a captain.
+        </p>
+      )}
+
+      {candidates.length > 0 && (
+        <div className="squad-grid">
+          {candidates.map((c) => (
+            <button
+              key={c.user_id}
+              type="button"
+              className={`squad-chip${choice === c.user_id ? " on" : ""}`}
+              aria-pressed={choice === c.user_id}
+              onClick={() => setChoice(c.user_id)}
+            >
+              <span>{c.name}</span>
+              <span className="tag grey">{roleLabel(c.role)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && <p className="error">{error}</p>}
+
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn primary" type="button" disabled={!choice || busy} onClick={hand}>
+          {busy ? "Handing over…" : "Hand it over"}
+        </button>
+        <button className="btn" type="button" onClick={() => setOpen(false)}>
+          Keep the book
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/// Calling the match off.
+///
+/// Two different things, and the difference matters: a match with balls in it
+/// is abandoned — the scorecard survives, the averages count, and it goes down
+/// as no result. One nobody has scored in was a mistake, and is deleted. The
+/// server enforces the line; this only offers the one that applies.
+function CallItOff({
+  match,
+  onChanged,
+  onGone,
+}: {
+  match: MatchResponse;
+  onChanged: (next: MatchResponse) => void;
+  onGone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const st = match.state;
+  const bowled = st.innings.some((i) => i.legal_balls > 0 || i.runs > 0);
+  // Only somebody who can run the fixture sees this at all. `my_sides` is the
+  // closest the client has; the server has the final say either way.
+  const mayManage = (match.my_sides ?? []).length > 0;
+  if (st.status === "complete" || !mayManage) return null;
+
+  const run = async (what: "abandon" | "delete") => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (what === "abandon") {
+        onChanged(
+          await api<MatchResponse>("POST", `/cricket/matches/${match.id}/abandon`, {
+            reason: reason.trim(),
+          })
+        );
+        setOpen(false);
+      } else {
+        await api("DELETE", `/cricket/matches/${match.id}`);
+        onGone();
+      }
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "";
+      try {
+        setError(JSON.parse(raw).error ?? "That did not work");
+      } catch {
+        setError(raw || "That did not work");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button className="btn ghost sm call-off" type="button" onClick={() => setOpen(true)}>
+        {bowled ? "Abandon this match" : "Call this match off"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="panel danger-panel">
+      <h2>{bowled ? "Abandon this match" : "Call this match off"}</h2>
+      {bowled ? (
+        <>
+          <p className="muted">
+            It goes down as no result. The scorecard and everything scored so far stay —
+            they happened, and the averages count. This cannot be undone.
+          </p>
+          <label>
+            Why (goes on the scorecard)
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Rain, bad light, ground unfit…"
+              autoFocus
+            />
+          </label>
+        </>
+      ) : (
+        <p className="muted">
+          Nothing has been scored, so the match is removed entirely and the fixture stays.
+          If a ball has been bowled you would abandon it instead, and keep the scorecard.
+        </p>
+      )}
+
+      {error && <p className="error">{error}</p>}
+
+      <div className="field-row">
+        <button
+          className="btn danger"
+          type="button"
+          disabled={busy}
+          onClick={() => run(bowled ? "abandon" : "delete")}
+        >
+          {busy ? "Working…" : bowled ? "Abandon — no result" : "Delete the match"}
+        </button>
+        <button className="btn" type="button" onClick={() => setOpen(false)}>
+          Keep playing
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/// Who won the toss and what they did with it — the thing both sides ask about
+/// the moment it happens.
+function TossResult({ st }: { st: MatchState }) {
+  const winner = st.toss_winner === "home" ? st.home_name : st.away_name;
+  const loser = st.toss_winner === "home" ? st.away_name : st.home_name;
+  const batting =
+    st.toss_decision === "bat"
+      ? winner
+      : st.toss_decision === "bowl"
+        ? loser
+        : null;
+  return (
+    <div className="toss-result">
+      <Icon name="trophy" size={18} />
+      <p>
+        <strong>{winner}</strong> won the toss and chose to{" "}
+        <strong>{st.toss_decision === "bat" ? "bat" : "bowl"}</strong>.
+        {batting && <> {batting} bat first.</>}
+      </p>
+    </div>
+  );
+}
+
+/// Where the setup has got to. Reads the same state `Stages` switches on, so
+/// the two can never disagree about which step you are on.
+function SetupRail({ st, hasScorer }: { st: MatchState; hasScorer: boolean }) {
+  const steps = [
+    { label: "Scorer", done: hasScorer },
+    { label: "Terms", done: !!st.agreed_home && !!st.agreed_away },
+    { label: "Toss", done: !!st.toss_winner },
+    { label: "Team sheets", done: st.home_xi.length > 0 && st.away_xi.length > 0 },
+  ];
+  const current = steps.findIndex((s) => !s.done);
+
+  return (
+    <ol className="setup-rail" aria-label="Match setup">
+      {steps.map((step, i) => (
+        <li
+          key={step.label}
+          className={`rail-step${step.done ? " done" : ""}${i === current ? " now" : ""}`}
+          aria-current={i === current ? "step" : undefined}
+        >
+          <span className="rail-dot">{step.done ? <Icon name="check" size={12} /> : i + 1}</span>
+          <span className="rail-label">{step.label}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -261,208 +578,519 @@ function Stages({
     );
   }
   if (!agreed)
-    return <ConditionsPanel st={st} send={send} canAct={canAct} clubId={match.club_id} />;
-  if (!st.toss_winner) return <TossPanel st={st} send={send} canAct={canAct} />;
+    return (
+      <ConditionsPanel
+        st={st}
+        send={send}
+        canAct={canAct}
+        matchId={match.id}
+        mySides={match.my_sides ?? []}
+        myClubSide={match.my_club_side ?? null}
+        theirClub={
+          (match.my_club_side ?? "home") === "home"
+            ? !!match.opponent_club_id
+            : true
+        }
+        onAgreed={onPicked}
+      />
+    );
+  if (!st.toss_winner)
+    return canAct ? (
+      <TossPanel st={st} send={send} canAct={canAct} />
+    ) : (
+      <ScorersTurn
+        title="Waiting on the toss"
+        note="Whoever is scoring records the toss. This page updates when they do."
+      />
+    );
   if (st.home_xi.length === 0 || st.away_xi.length === 0)
-    return <XiPanel st={st} matchId={match.id} canAct={canAct} onPicked={onPicked} />;
-  if (needsInnings) return <OpenersPanel st={st} send={send} canAct={canAct} nameOf={nameOf} />;
+    return (
+      <XiPanel
+        st={st}
+        matchId={match.id}
+        myClubSide={match.my_club_side ?? null}
+        onPicked={onPicked}
+      />
+    );
+  if (needsInnings)
+    return canAct ? (
+      <OpenersPanel st={st} send={send} canAct={canAct} nameOf={nameOf} />
+    ) : (
+      <ScorersTurn
+        title="Waiting for the first ball"
+        note="The scorer names the openers and the bowler. This page updates when they do."
+      />
+    );
   return <LivePanel match={match} send={send} canAct={canAct} nameOf={nameOf} />;
+}
+
+/// Somebody else's move. Said once, quietly — not as an error, and not as a
+/// form that will be refused.
+function ScorersTurn({ title, note }: { title: string; note: string }) {
+  return (
+    <div className="panel setup-panel">
+      <div className="setup-head">
+        <h2>{title}</h2>
+      </div>
+      <div className="waiting-note">
+        <Icon name="clock" size={18} />
+        <span>{note}</span>
+      </div>
+    </div>
+  );
 }
 
 function ConditionsPanel({
   st,
   send,
   canAct,
-  clubId,
+  matchId,
+  mySides,
+  myClubSide,
+  theirClub,
+  onAgreed,
 }: {
   st: MatchState;
   send: (kind: Record<string, unknown>) => Promise<void>;
   canAct: boolean;
-  clubId: string;
+  matchId: string;
+  mySides: Side[];
+  myClubSide: Side | null;
+  /// True when the other side is a Fishers club with a captain of their own.
+  theirClub: boolean;
+  onAgreed: (next: MatchResponse) => void;
+}) {
+  const squad = useSquad(matchId);
+  const [editing, setEditing] = useState(false);
+
+  // Two screens, not one. Once terms are on the table the form has done its
+  // job, and leaving it up next to the agreement asks the reader to work out
+  // which half applies to them.
+  const proposed = !!st.conditions_proposed_by;
+  if (proposed && !editing) {
+    return (
+      <WaitingPanel
+        st={st}
+        canAct={canAct}
+        matchId={matchId}
+        mySides={mySides}
+        myClubSide={myClubSide}
+        theirClub={theirClub}
+        squad={squad}
+        onChange={() => setEditing(true)}
+        onAgreed={onAgreed}
+      />
+    );
+  }
+
+  return (
+    <ProposePanel
+      st={st}
+      matchId={matchId}
+      squad={squad}
+      mySides={mySides}
+      myClubSide={myClubSide}
+      onProposed={onAgreed}
+      onDone={() => setEditing(false)}
+      onCancel={proposed ? () => setEditing(false) : undefined}
+    />
+  );
+}
+
+function ProposePanel({
+  st,
+  matchId,
+  squad,
+  mySides,
+  myClubSide,
+  onProposed,
+  onDone,
+  onCancel,
+}: {
+  st: MatchState;
+  matchId: string;
+  squad: ReturnType<typeof useSquad>;
+  mySides: Side[];
+  myClubSide: Side | null;
+  onProposed: (next: MatchResponse) => void;
+  onDone: () => void;
+  onCancel?: () => void;
 }) {
   const [c, setC] = useState<MatchConditions>(st.conditions ?? DEFAULT_CONDITIONS);
-  const [by, setBy] = useState<Side>("home");
+  // You propose for your own side. There is no choice here on purpose:
+  // proposing counts as that side agreeing, so offering the opposition as an
+  // option meant one wrong tap signed for them and left them nothing to
+  // accept. Recording the other captain's agreement is a real thing scorers
+  // do — but it is an agreement, and it belongs on the next screen.
+  const [by, setBy] = useState<Side>(myClubSide ?? mySides[0] ?? "home");
+  // Only somebody in neither club has a genuine question to answer.
+  const mustChooseSide = myClubSide === null && mySides.length > 1;
   const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const propose = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      onProposed(
+        await api<MatchResponse>("POST", `/cricket/matches/${matchId}/propose`, {
+          conditions: c,
+          by,
+          by_name: name.trim(),
+        })
+      );
+      onDone();
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "";
+      try {
+        setError(JSON.parse(raw).error ?? "Could not propose those terms");
+      } catch {
+        setError(raw || "Could not propose those terms");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const num = (k: keyof MatchConditions) => ({
-    type: "number",
+    type: "number" as const,
+    inputMode: "numeric" as const,
     value: c[k] as number,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
       setC({ ...c, [k]: Number(e.target.value) }),
   });
 
   return (
-    <div className="panel">
-      <h2>Match conditions</h2>
-      <p className="muted">
-        Both captains have to agree the terms before the toss. Proposing counts as the
-        proposer agreeing; changing anything later clears both agreements.
-      </p>
+    <div className="panel setup-panel">
+      <div className="setup-head">
+        <h2>Agree the terms</h2>
+        <p className="muted">
+          Set how the game is being played, then say who is proposing it. The other
+          captain gets asked to agree.
+        </p>
+      </div>
 
-      <div className="form">
-        <label>Overs <input {...num("overs_limit")} /></label>
-        <label>Overs per bowler (0 = no limit) <input {...num("overs_per_bowler")} /></label>
-        <label>
-          Ground
-          <select value={c.ground} onChange={(e) => setC({ ...c, ground: e.target.value })}>
-            {GROUNDS.map((g) => <option key={g} value={g}>{titleCase(g)}</option>)}
-          </select>
-        </label>
-        <label>
-          Ball
-          <select value={c.ball} onChange={(e) => setC({ ...c, ball: e.target.value })}>
-            {BALLS.map((b) => <option key={b} value={b}>{titleCase(b)}</option>)}
-          </select>
-        </label>
-        <label>Powerplay overs <input {...num("powerplay_overs")} /></label>
-        <label>Fielders outside in the powerplay <input {...num("fielders_outside_powerplay")} /></label>
-        <label>Fielders outside after it <input {...num("fielders_outside_normal")} /></label>
-        <label>Target overs per hour (0 = not counted) <input {...num("target_overs_per_hour")} /></label>
-        <label>
-          Proposing captain
-          <select value={by} onChange={(e) => setBy(e.target.value as Side)}>
-            <option value="home">{st.home_name}</option>
-            <option value="away">{st.away_name}</option>
-          </select>
-        </label>
-        <CaptainPicker
-          clubId={clubId}
-          label="Proposing captain"
+      <fieldset className="setup-group">
+        <legend>Format</legend>
+        <div className="setup-fields">
+          <label>Overs <input {...num("overs_limit")} /></label>
+          <label>
+            Ball
+            <select value={c.ball} onChange={(e) => setC({ ...c, ball: e.target.value })}>
+              {BALLS.map((b) => <option key={b} value={b}>{titleCase(b)}</option>)}
+            </select>
+          </label>
+          <label>
+            Ground
+            <select value={c.ground} onChange={(e) => setC({ ...c, ground: e.target.value })}>
+              {GROUNDS.map((g) => <option key={g} value={g}>{titleCase(g)}</option>)}
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="setup-group">
+        <legend>Bowling and fielding</legend>
+        <div className="setup-fields">
+          <label>
+            Overs per bowler
+            <input {...num("overs_per_bowler")} />
+            <span className="subtle">0 for no limit</span>
+          </label>
+          <label>Powerplay overs <input {...num("powerplay_overs")} /></label>
+          <label>
+            Fielders out, powerplay
+            <input {...num("fielders_outside_powerplay")} />
+          </label>
+          <label>
+            Fielders out, after
+            <input {...num("fielders_outside_normal")} />
+          </label>
+          <label>
+            Overs per hour
+            <input {...num("target_overs_per_hour")} />
+            <span className="subtle">0 to not count it</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="setup-group">
+        <legend>Your captain</legend>
+        {mustChooseSide && (
+          <div className="side-choice">
+            {mySides.map((side) => (
+              <button
+                key={side}
+                type="button"
+                className={`side-card${by === side ? " on" : ""}`}
+                aria-pressed={by === side}
+                onClick={() => {
+                  setBy(side);
+                  // The name belonged to the other club's list.
+                  setName("");
+                }}
+              >
+                <span className="side-card-name">
+                  {side === "home" ? st.home_name : st.away_name}
+                </span>
+                <span className="side-card-role">
+                  {side === "home" ? "Home" : "Away"}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="muted">
+          Proposing on behalf of <strong>{by === "home" ? st.home_name : st.away_name}</strong>.{" "}
+          {other(by) === "home" ? st.home_name : st.away_name} will be asked to accept.
+        </p>
+        <PersonPicker
+          label={`Captain of ${by === "home" ? st.home_name : st.away_name}`}
+          people={squad.people(by)}
           value={name}
           onChange={setName}
+          loading={squad.loading}
+          emptyHint="Nobody on Fishers for that side — type their captain's name."
         />
-      </div>
+      </fieldset>
+
+      {error && <p className="error">{error}</p>}
 
       <button
-        className="btn primary"
+        className="btn primary lg"
         type="button"
-        disabled={!canAct || !name.trim()}
-        onClick={() =>
-          send({ type: "conditions_proposed", conditions: c, by, by_name: name.trim() })
-        }
+        disabled={busy || !name.trim()}
+        onClick={propose}
       >
-        Propose these terms
+        {busy ? "Proposing…" : "Propose these terms"}
       </button>
-
-      <div className="row" style={{ marginTop: "1rem" }}>
-        <div>
-          <div>{st.home_name}</div>
-          <div className="muted">{st.agreed_home ? `Agreed — ${st.agreed_home}` : "Not agreed"}</div>
-        </div>
-        <div>
-          <div>{st.away_name}</div>
-          <div className="muted">{st.agreed_away ? `Agreed — ${st.agreed_away}` : "Not agreed"}</div>
-        </div>
-      </div>
-
-      {st.conditions_proposed_by && (
-        <AgreeRow st={st} send={send} canAct={canAct} clubId={clubId} />
+      {onCancel && (
+        <button className="btn" type="button" onClick={onCancel} style={{ width: "100%" }}>
+          Keep the terms as they were
+        </button>
       )}
     </div>
   );
 }
 
-function AgreeRow({
+/// Terms are on the table. One thing to do, said in one sentence.
+function WaitingPanel({
   st,
-  send,
   canAct,
-  clubId,
+  matchId,
+  mySides,
+  myClubSide,
+  theirClub,
+  squad,
+  onChange,
+  onAgreed,
 }: {
   st: MatchState;
-  send: (kind: Record<string, unknown>) => Promise<void>;
   canAct: boolean;
-  clubId: string;
+  matchId: string;
+  mySides: Side[];
+  myClubSide: Side | null;
+  theirClub: boolean;
+  squad: ReturnType<typeof useSquad>;
+  onChange: () => void;
+  onAgreed: (next: MatchResponse) => void;
 }) {
   const pending: Side = st.agreed_home ? "away" : "home";
+  const pendingName = pending === "home" ? st.home_name : st.away_name;
+  // The one that caused "only this side's captain or the scorer can agree
+  // these terms": the form was shown to whoever was looking, but only the
+  // pending side's own captain — or the scorer — can submit it.
+  const canAgree = mySides.includes(pending);
+  // Accepting your own side's match reads differently to a scorer writing
+  // down what the two captains just said to each other.
+  const isMine = pending === myClubSide;
+  // Their captain answers for them. A scorer with both captains in front of
+  // them can still write it down — but that is asked for, not the default,
+  // or one tap agrees on behalf of a club that has not seen the terms.
+  const theirsToAnswer = canAgree && !isMine && theirClub;
+  const [recording, setRecording] = useState(false);
+  const proposer = st.agreed_home ?? st.agreed_away ?? "";
   const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const c = st.conditions ?? DEFAULT_CONDITIONS;
+
+  const agree = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      onAgreed(
+        await api<MatchResponse>("POST", `/cricket/matches/${matchId}/agree`, {
+          side: pending,
+          captain_name: name.trim(),
+        })
+      );
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "";
+      try {
+        setError(JSON.parse(raw).error ?? "Could not record that agreement");
+      } catch {
+        setError(raw || "Could not record that agreement");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div style={{ marginTop: "1rem" }}>
-      <h3>Agreement from {pending === "home" ? st.home_name : st.away_name}</h3>
-      <div className="field-row">
-        <CaptainPicker
-          clubId={clubId}
-          label="Their captain"
-          value={name}
-          onChange={setName}
-        />
-        <button
-          className="btn primary"
-          type="button"
-          disabled={!canAct || !name.trim()}
-          onClick={() =>
-            send({ type: "conditions_agreed", side: pending, captain_name: name.trim() })
-          }
-        >
-          Agree the terms
-        </button>
+    <div className="panel setup-panel">
+      <div className="setup-head">
+        <h2>
+          {isMine && canAgree
+            ? "Do you accept these terms?"
+            : recording
+              ? `${pendingName}, do you agree?`
+              : `Waiting on ${pendingName}`}
+        </h2>
+        <p className="muted">
+          {isMine && canAgree
+            ? `${proposer} has proposed this match. Check it over — once you accept, the toss is next.`
+            : recording
+              ? `Record ${pendingName}'s captain agreeing and the toss is next.`
+              : `${proposer} has proposed these terms. ${pendingName} has to accept before the toss.`}
+        </p>
       </div>
+
+      <dl className="terms-summary">
+        <div><dt>Overs</dt><dd className="num">{c.overs_limit}</dd></div>
+        <div><dt>Ball</dt><dd>{titleCase(c.ball)}</dd></div>
+        <div><dt>Ground</dt><dd>{titleCase(c.ground)}</dd></div>
+        <div>
+          <dt>Overs per bowler</dt>
+          <dd className="num">{c.overs_per_bowler || "No limit"}</dd>
+        </div>
+        <div><dt>Powerplay</dt><dd className="num">{c.powerplay_overs} overs</dd></div>
+        <div>
+          <dt>Fielders out</dt>
+          <dd className="num">
+            {c.fielders_outside_powerplay} then {c.fielders_outside_normal}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="agree-strip">
+        {(["home", "away"] as const).map((side) => {
+          const who = side === "home" ? st.agreed_home : st.agreed_away;
+          return (
+            <div key={side} className={`agree-card${who ? " done" : ""}`}>
+              <div className="agree-side">{side === "home" ? st.home_name : st.away_name}</div>
+              <div className="agree-state">
+                {who ? <><Icon name="check" size={14} /> {who}</> : "Not yet"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {canAgree && (!theirsToAnswer || recording) ? (
+        <>
+          <fieldset className="setup-group">
+            <legend>{isMine ? "Accepted by" : `${pendingName} agrees`}</legend>
+            <PersonPicker
+              label={isMine ? "Your captain's name" : `Captain of ${pendingName}`}
+              people={squad.people(pending)}
+              value={name}
+              onChange={setName}
+              loading={squad.loading}
+              emptyHint="Type their captain's name."
+            />
+          </fieldset>
+
+          {error && <p className="error">{error}</p>}
+
+          <button
+            className="btn primary lg"
+            type="button"
+            disabled={busy || !name.trim()}
+            onClick={agree}
+          >
+            {busy
+              ? "Saving…"
+              : isMine
+                ? `Accept — ${name.trim() || "name your captain"}`
+                : name.trim()
+                  ? `${name.trim()} agrees`
+                  : "Agree the terms"}
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="waiting-note">
+            <Icon name="clock" size={18} />
+            <span>
+              {pendingName}&rsquo;s captain accepts from their own phone — they have been
+              told. This page updates when they do.
+            </span>
+          </div>
+          {theirsToAnswer && (
+            <button
+              className="btn ghost sm"
+              type="button"
+              style={{ marginTop: "var(--s3)" }}
+              onClick={() => setRecording(true)}
+            >
+              Their captain is here — record it
+            </button>
+          )}
+        </>
+      )}
+
+      {canAct && (
+        <>
+          <button className="btn" type="button" onClick={onChange} style={{ width: "100%" }}>
+            Change the terms
+          </button>
+          <p className="subtle">Changing anything asks both captains again.</p>
+        </>
+      )}
     </div>
   );
 }
 
-/// Captains come from the club's own members rather than being typed.
+/// Both squads, from the match rather than from the clubs.
 ///
-/// Still allows a name to be written in: the visiting captain is usually not a
-/// Fishers member at all, and refusing to record them would stop the match.
-function CaptainPicker({
-  clubId,
-  label,
-  value,
-  onChange,
-}: {
-  clubId: string;
-  label: string;
-  value: string;
-  onChange: (name: string) => void;
-}) {
-  const [members, setMembers] = useState<ClubMemberRow[]>([]);
-  const [typing, setTyping] = useState(false);
+/// `/clubs/{id}/members` is the obvious place to look and the wrong one: a
+/// scorer is normally in the home club only, so reading the opposition's
+/// roster 403s and their captain list comes back empty. The match knows who is
+/// playing in it and is already permissioned for whoever is scoring, so it
+/// answers for both sides in one request.
+function useSquad(matchId: string) {
+  const [squad, setSquad] = useState<SquadResponse | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let live = true;
     (async () => {
       try {
-        setMembers(await api<ClubMemberRow[]>("GET", `/clubs/${clubId}/members`));
+        const found = await api<SquadResponse>("GET", `/cricket/matches/${matchId}/squad`);
+        if (live) setSquad(found);
       } catch {
-        // No members to offer just means typing the name.
-        setTyping(true);
+        // No squad to offer just means the names get typed.
+      } finally {
+        if (live) setLoading(false);
       }
     })();
-  }, [clubId]);
+    return () => {
+      live = false;
+    };
+  }, [matchId]);
 
-  if (typing || members.length === 0) {
-    return (
-      <label>
-        {label}
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Their name" />
-      </label>
-    );
-  }
-
-  return (
-    <label>
-      {label}
-      <select
-        value={members.some((m) => m.name === value) ? value : ""}
-        onChange={(e) => {
-          if (e.target.value === "__other") {
-            setTyping(true);
-            onChange("");
-          } else {
-            onChange(e.target.value);
-          }
-        }}
-      >
-        <option value="">Choose…</option>
-        {members.map((m) => (
-          <option key={m.user_id} value={m.name}>
-            {m.name}
-            {m.role !== "member" ? ` — ${m.role.replaceAll("_", " ")}` : ""}
-          </option>
-        ))}
-        <option value="__other">Someone else…</option>
-      </select>
-    </label>
-  );
+  return {
+    loading,
+    people: (side: Side): Person[] =>
+      (squad?.[side].players ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        // "member" only means nobody has said whether they are coming.
+        note: p.standing === "member" ? undefined : STANDING_LABEL[p.standing],
+      })),
+  };
 }
 
 function TossPanel({
@@ -474,29 +1102,64 @@ function TossPanel({
   send: (kind: Record<string, unknown>) => Promise<void>;
   canAct: boolean;
 }) {
-  const [winner, setWinner] = useState<Side>("home");
-  const [decision, setDecision] = useState<"bat" | "bowl">("bat");
+  const [winner, setWinner] = useState<Side | null>(null);
+  const [decision, setDecision] = useState<"bat" | "bowl" | null>(null);
+
   return (
-    <div className="panel">
-      <h2>Toss</h2>
-      <div className="select-row">
-        <select value={winner} onChange={(e) => setWinner(e.target.value as Side)}>
-          <option value="home">{st.home_name}</option>
-          <option value="away">{st.away_name}</option>
-        </select>
-        <select value={decision} onChange={(e) => setDecision(e.target.value as "bat" | "bowl")}>
-          <option value="bat">chose to bat</option>
-          <option value="bowl">chose to bowl</option>
-        </select>
-        <button
-          className="btn primary"
-          type="button"
-          disabled={!canAct}
-          onClick={() => send({ type: "toss_recorded", winner, decision })}
-        >
-          Record the toss
-        </button>
+    <div className="panel setup-panel">
+      <div className="setup-head">
+        <h2>The toss</h2>
+        <p className="muted">Who called it, and what they did with it.</p>
       </div>
+
+      <fieldset className="setup-group">
+        <legend>Won the toss</legend>
+        <div className="side-choice">
+          {(["home", "away"] as const).map((side) => (
+            <button
+              key={side}
+              type="button"
+              className={`side-card${winner === side ? " on" : ""}`}
+              aria-pressed={winner === side}
+              onClick={() => setWinner(side)}
+            >
+              <span className="side-card-name">
+                {side === "home" ? st.home_name : st.away_name}
+              </span>
+              <span className="side-card-role">{side === "home" ? "Home" : "Away"}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="setup-group" disabled={!winner}>
+        <legend>And chose to</legend>
+        <div className="side-choice">
+          {(["bat", "bowl"] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={`side-card${decision === d ? " on" : ""}`}
+              aria-pressed={decision === d}
+              onClick={() => setDecision(d)}
+            >
+              <Icon name={d === "bat" ? "bat" : "ball"} size={22} />
+              <span className="side-card-name">{d === "bat" ? "Bat" : "Bowl"}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <button
+        className="btn primary lg"
+        type="button"
+        disabled={!canAct || !winner || !decision}
+        onClick={() => send({ type: "toss_recorded", winner, decision })}
+      >
+        {winner && decision
+          ? `${winner === "home" ? st.home_name : st.away_name} chose to ${decision}`
+          : "Record the toss"}
+      </button>
     </div>
   );
 }
@@ -504,12 +1167,12 @@ function TossPanel({
 function XiPanel({
   st,
   matchId,
-  canAct,
+  myClubSide,
   onPicked,
 }: {
   st: MatchState;
   matchId: string;
-  canAct: boolean;
+  myClubSide: Side | null;
   onPicked: (next: MatchResponse) => void;
 }) {
   const [squad, setSquad] = useState<SquadResponse | null>(null);
@@ -530,21 +1193,28 @@ function XiPanel({
   if (error) return <p className="error">{error}</p>;
   if (!squad) return <div className="panel"><div className="skeleton" style={{ height: 80 }} /></div>;
 
+  const mine = myClubSide !== null;
+  // Your own side first — it is the one you came here to fill in.
+  const order: Side[] =
+    myClubSide === "away" ? ["away", "home"] : ["home", "away"];
+
   return (
     <>
       <div className="panel">
-        <h2>Team sheets</h2>
+        <h2>{mine ? "Pick your side" : "Team sheets"}</h2>
         <p className="muted">
-          Each captain names their own side. The match starts once both are in.
+          {mine
+            ? "Name the eleven who turned up. The match starts once both captains have."
+            : "Each captain names their own side. The match starts once both are in."}
         </p>
       </div>
-      {(["home", "away"] as const).map((side) => (
+      {order.map((side) => (
         <SideSheet
           key={side}
           side={squad[side]}
           st={st}
           matchId={matchId}
-          canAct={canAct}
+          isMine={side === myClubSide}
           onPicked={(next) => {
             onPicked(next);
             load();
@@ -555,22 +1225,35 @@ function XiPanel({
   );
 }
 
+/// Naming one side.
+///
+/// Built around what a captain actually does: read down the squad, tap the
+/// eleven who turned up, mark the skipper and the keeper. Picked players move
+/// to a numbered list so the batting order is visible while it is being made,
+/// rather than being inferred from checkbox positions.
 function SideSheet({
   side,
   st,
   matchId,
-  canAct,
+  isMine,
   onPicked,
 }: {
   side: SideSquad;
   st: MatchState;
   matchId: string;
-  canAct: boolean;
+  isMine: boolean;
   onPicked: (next: MatchResponse) => void;
 }) {
   const already = side.side === "home" ? st.home_xi : st.away_xi;
+  // Their captain names their own side. The scorer *can* do it for them, and
+  // sometimes has to — a captain who has not turned up, a phone with no
+  // signal — but doing it by default means naming eleven strangers off a list,
+  // which is slower and more likely to be wrong than waiting a minute.
+  const theirsToName = !isMine && side.club_id !== null;
+  const [namingForThem, setNamingForThem] = useState(false);
   const [chosen, setChosen] = useState<string[]>([]);
   const [extras, setExtras] = useState<{ id: string; name: string; bats_left: boolean }[]>([]);
+  const [addingGuest, setAddingGuest] = useState(false);
   const [newName, setNewName] = useState("");
   const [newLeft, setNewLeft] = useState(false);
   const [captain, setCaptain] = useState("");
@@ -578,173 +1261,273 @@ function SideSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (already.length > 0) {
-    return (
-      <div className="panel">
-        <div className="panel-head">
-          <h2>{side.team_name}</h2>
-          <span className="tag"><Icon name="check" size={12} /> named</span>
-        </div>
-        <p className="muted">
-          {already.length} players — {already.map((id) => st.player_names[id] || "…").join(", ")}
-        </p>
-      </div>
-    );
-  }
+  const named = already.length > 0;
 
-  if (!side.can_pick) {
-    return (
-      <div className="panel">
-        <div className="panel-head">
-          <h2>{side.team_name}</h2>
-          <span className="tag grey">waiting</span>
-        </div>
-        <p className="muted">Their captain has not named a side yet.</p>
-      </div>
-    );
-  }
+  // Order matters: it is the batting order, so picks keep the order they were
+  // tapped in rather than the order the squad happens to be listed in.
+  const picked = useMemo(
+    () => [
+      ...chosen.flatMap((id) => {
+        const p = side.players.find((q) => q.id === id);
+        return p ? [{ id: p.id, name: p.name, bats_left: p.bats_left }] : [];
+      }),
+      ...extras,
+    ],
+    [chosen, extras, side.players]
+  );
 
-  const picked = [
-    ...side.players.filter((p) => chosen.includes(p.id)).map((p) => ({
-      id: p.id,
-      name: p.name,
-      bats_left: p.bats_left,
-    })),
-    ...extras,
-  ];
+  const toggle = (id: string) =>
+    setChosen((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const drop = (id: string) => {
+    setChosen((prev) => prev.filter((x) => x !== id));
+    setExtras((prev) => prev.filter((x) => x.id !== id));
+    if (captain === id) setCaptain("");
+    if (keeper === id) setKeeper("");
+  };
 
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      const next = await api<MatchResponse>("POST", `/cricket/matches/${matchId}/xi`, {
-        side: side.side,
-        players: picked,
-        captain_id: captain || null,
-        keeper_id: keeper || null,
-      });
-      onPicked(next);
+      onPicked(
+        await api<MatchResponse>("POST", `/cricket/matches/${matchId}/xi`, {
+          side: side.side,
+          players: picked,
+          captain_id: captain || null,
+          keeper_id: keeper || null,
+        })
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save the sheet");
+      const raw = err instanceof Error ? err.message : "";
+      try {
+        setError(JSON.parse(raw).error ?? "Could not save the sheet");
+      } catch {
+        setError(raw || "Could not save the sheet");
+      }
     } finally {
       setBusy(false);
     }
   };
 
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <h2>{side.team_name}</h2>
-        <span className={picked.length >= 2 ? "tag" : "tag grey"}>{picked.length} picked</span>
-      </div>
-
-      {side.players.length === 0 ? (
-        <p className="muted">
-          Not a Fishers club, so there is no squad to pick from — add them by name below.
-        </p>
-      ) : (
-        <ul className="plain-list">
-          {side.players.map((p) => (
-            <li key={p.id}>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={chosen.includes(p.id)}
-                  onChange={(e) =>
-                    setChosen((prev) =>
-                      e.target.checked ? [...prev, p.id] : prev.filter((x) => x !== p.id)
-                    )
-                  }
-                />
-                {p.name}
-                <span className="tag grey">{STANDING_LABEL[p.standing] ?? p.standing}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {extras.length > 0 && (
-        <ul className="plain-list" style={{ marginTop: "var(--s2)" }}>
-          {extras.map((p) => (
-            <li key={p.id}>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked
-                  onChange={() => setExtras((prev) => prev.filter((x) => x.id !== p.id))}
-                />
-                {p.name}
-                <span className="tag gold">added today</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="field-row" style={{ marginTop: "var(--s3)" }}>
-        <label>
-          Someone not on the list
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Name of whoever turned up"
-          />
-        </label>
-        <label className="checkbox">
-          <input type="checkbox" checked={newLeft} onChange={(e) => setNewLeft(e.target.checked)} />
-          Left-handed
-        </label>
-        <button
-          className="btn"
-          type="button"
-          disabled={!newName.trim()}
-          onClick={() => {
-            setExtras((prev) => [
-              ...prev,
-              { id: crypto.randomUUID(), name: newName.trim(), bats_left: newLeft },
-            ]);
-            setNewName("");
-            setNewLeft(false);
-          }}
-        >
-          <Icon name="plus" size={16} /> Add
-        </button>
-      </div>
-
-      {picked.length > 0 && (
-        <div className="select-row" style={{ marginTop: "var(--s3)" }}>
-          <label>
-            Captain
-            <select value={captain} onChange={(e) => setCaptain(e.target.value)}>
-              <option value="">—</option>
-              {picked.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </label>
-          <label>
-            Keeper
-            <select value={keeper} onChange={(e) => setKeeper(e.target.value)}>
-              <option value="">—</option>
-              {picked.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </label>
+  if (named) {
+    return (
+      <div className="panel sheet-panel done">
+        <div className="sheet-head">
+          <h2>{side.team_name}</h2>
+          <span className="tag"><Icon name="check" size={12} /> Named</span>
         </div>
+        <ol className="named-xi">
+          {already.map((id) => (
+            <li key={id}>
+              {st.player_names[id] || "…"}
+              {id === (side.side === "home" ? st.home_captain : st.away_captain) && (
+                <span className="role-badge c">C</span>
+              )}
+              {id === (side.side === "home" ? st.home_keeper : st.away_keeper) && (
+                <span className="role-badge wk">WK</span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+
+  if (!side.can_pick || (theirsToName && !namingForThem)) {
+    return (
+      <div className="panel sheet-panel">
+        <div className="sheet-head">
+          <h2>{side.team_name}</h2>
+          <span className="tag grey">Waiting</span>
+        </div>
+        <div className="waiting-note">
+          <Icon name="clock" size={18} />
+          <span>
+            Their captain names this side from their own phone. They have been told it is
+            their turn.
+          </span>
+        </div>
+        {side.can_pick && (
+          <button
+            className="btn ghost sm"
+            type="button"
+            style={{ marginTop: "var(--s3)" }}
+            onClick={() => setNamingForThem(true)}
+          >
+            Name them myself
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const available = side.players.filter((p) => !chosen.includes(p.id));
+  const short = XI_SIZE - picked.length;
+
+  return (
+    <div className="panel sheet-panel">
+      <div className="sheet-head">
+        <h2>{side.team_name}</h2>
+        <span className={`count-pill${picked.length >= XI_SIZE ? " full" : ""}`}>
+          <strong className="num">{picked.length}</strong> of {XI_SIZE}
+        </span>
+      </div>
+
+      {namingForThem && (
+        <div className="waiting-note" style={{ marginBottom: "var(--s4)" }}>
+          <Icon name="clock" size={18} />
+          <span>
+            You are naming {side.team_name} for them. Their captain can still do it
+            themselves until you confirm.{" "}
+            <button className="link-button" type="button" onClick={() => setNamingForThem(false)}>
+              Leave it to them
+            </button>
+          </span>
+        </div>
+      )}
+
+      {picked.length > 0 ? (
+        <ol className="picked-xi">
+          {picked.map((p, i) => (
+            <li key={p.id}>
+              <span className="pick-no num">{i + 1}</span>
+              <span className="pick-name">{p.name}</span>
+              <button
+                type="button"
+                className={`role-toggle${captain === p.id ? " on" : ""}`}
+                aria-pressed={captain === p.id}
+                title="Captain"
+                onClick={() => setCaptain(captain === p.id ? "" : p.id)}
+              >
+                C
+              </button>
+              <button
+                type="button"
+                className={`role-toggle${keeper === p.id ? " on" : ""}`}
+                aria-pressed={keeper === p.id}
+                title="Wicketkeeper"
+                onClick={() => setKeeper(keeper === p.id ? "" : p.id)}
+              >
+                WK
+              </button>
+              <button
+                type="button"
+                className="pick-remove"
+                aria-label={`Take ${p.name} out`}
+                onClick={() => drop(p.id)}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="muted">Tap the players who turned up. They go in batting order.</p>
+      )}
+
+      {available.length > 0 && (
+        <>
+          <h3 className="sheet-sub">Squad</h3>
+          <div className="squad-grid">
+            {available.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="squad-chip"
+                onClick={() => toggle(p.id)}
+              >
+                <Icon name="plus" size={14} />
+                <span>{p.name}</span>
+                {p.standing !== "member" && (
+                  <span className={`tag ${p.standing === "selected" ? "gold" : "grey"}`}>
+                    {STANDING_LABEL[p.standing] ?? p.standing}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {side.players.length === 0 && (
+        <p className="muted">
+          Not a Fishers club, so there is no squad to pick from. Add whoever turned up.
+        </p>
+      )}
+
+      {addingGuest ? (
+        <div className="field-row guest-row">
+          <label>
+            Their name
+            <input
+              value={newName}
+              autoFocus
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Whoever turned up"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newName.trim()) {
+                  e.preventDefault();
+                  addGuest();
+                }
+              }}
+            />
+          </label>
+          <label className="checkbox">
+            <input type="checkbox" checked={newLeft} onChange={(e) => setNewLeft(e.target.checked)} />
+            Left-handed
+          </label>
+          <button className="btn" type="button" disabled={!newName.trim()} onClick={addGuest}>
+            Add
+          </button>
+          <button className="btn ghost" type="button" onClick={() => setAddingGuest(false)}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button className="btn ghost sm add-guest" type="button" onClick={() => setAddingGuest(true)}>
+          <Icon name="plus" size={14} /> Someone not in the squad
+        </button>
       )}
 
       {error && <p className="error">{error}</p>}
 
       <button
-        className="btn primary"
+        className="btn primary lg"
         type="button"
-        disabled={!canAct || busy || picked.length < 2}
+        disabled={busy || picked.length < 2}
         onClick={submit}
       >
-        {busy ? "Saving…" : `Confirm ${side.team_name} (${picked.length})`}
+        {busy ? "Saving…" : `Confirm ${side.team_name}`}
       </button>
+      {/* Say what is missing rather than leaving a dead button. */}
+      <p className="subtle">
+        {picked.length < 2
+          ? "Pick at least two players."
+          : short > 0
+            ? `${short} short of a full XI — you can still confirm if that is the side.`
+            : "A full XI. Confirm when you are happy."}
+      </p>
     </div>
   );
+
+  function addGuest() {
+    setExtras((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: newName.trim(), bats_left: newLeft },
+    ]);
+    setNewName("");
+    setNewLeft(false);
+    setAddingGuest(false);
+  }
 }
 
+/// Naming the two batters and the bowler who starts.
+///
+/// Laid out the way they actually stand: a striker at one end, a non-striker
+/// at the other, the bowler running in. A scorer looking up from the pitch is
+/// matching the screen to what is in front of them, and three identical
+/// dropdowns in a row do not help with that.
 function OpenersPanel({
   st,
   send,
@@ -765,56 +1548,120 @@ function OpenersPanel({
   const batting: Side = index % 2 === 0 ? first : other(first);
   const battingXi = batting === "home" ? st.home_xi : st.away_xi;
   const bowlingXi = batting === "home" ? st.away_xi : st.home_xi;
+  const battingName = batting === "home" ? st.home_name : st.away_name;
+  const bowlingName = batting === "home" ? st.away_name : st.home_name;
 
   const [striker, setStriker] = useState(battingXi[0] ?? "");
   const [nonStriker, setNonStriker] = useState(battingXi[1] ?? "");
   const [bowler, setBowler] = useState(bowlingXi[0] ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const listFor = (xi: string[], taken: Record<string, string>) =>
+    xi.map((id, i) => ({
+      id,
+      name: nameOf(id),
+      position: i + 1,
+      takenBy: taken[id],
+    }));
+
+  const swap = () => {
+    setStriker(nonStriker);
+    setNonStriker(striker);
+  };
+
+  const ready = !!striker && !!nonStriker && striker !== nonStriker && !!bowler;
 
   return (
-    <div className="panel">
-      <h2>Start innings {index + 1}</h2>
-      <p className="muted">
-        {batting === "home" ? st.home_name : st.away_name} batting
-        {st.target ? ` · chasing ${st.target}` : ""}
-      </p>
-      <div className="select-row">
-        <label>
-          Striker{" "}
-          <select value={striker} onChange={(e) => setStriker(e.target.value)}>
-            {battingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
-          </select>
-        </label>
-        <label>
-          Non-striker{" "}
-          <select value={nonStriker} onChange={(e) => setNonStriker(e.target.value)}>
-            {battingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
-          </select>
-        </label>
-        <label>
-          Opening bowler{" "}
-          <select value={bowler} onChange={(e) => setBowler(e.target.value)}>
-            {bowlingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
-          </select>
-        </label>
+    <div className="panel setup-panel">
+      <div className="setup-head">
+        <h2>{index === 0 ? "Who is opening?" : `Innings ${index + 1}`}</h2>
+        <p className="muted">
+          <strong>{battingName}</strong> batting, <strong>{bowlingName}</strong> in the field
+          {st.target ? ` · chasing ${st.target}` : ""}.
+        </p>
       </div>
+
+      <div className="crease">
+        <div className="crease-end">
+          <span className="crease-role on-strike">On strike</span>
+          <PlayerPicker
+            label="Striker"
+            hint="Faces the first ball"
+            players={listFor(battingXi, nonStriker ? { [nonStriker]: "at the other end" } : {})}
+            value={striker}
+            onChange={setStriker}
+          />
+        </div>
+
+        {/* The pitch between them, and the one correction scorers make most. */}
+        <div className="crease-pitch">
+          <button
+            className="swap-ends"
+            type="button"
+            onClick={swap}
+            disabled={!striker || !nonStriker}
+            aria-label="Swap the batters over"
+            title="Swap ends"
+          >
+            ⇄
+          </button>
+          <span className="crease-label">22 yards</span>
+        </div>
+
+        <div className="crease-end">
+          <span className="crease-role">Other end</span>
+          <PlayerPicker
+            label="Non-striker"
+            hint="Backing up"
+            players={listFor(battingXi, striker ? { [striker]: "on strike" } : {})}
+            value={nonStriker}
+            onChange={setNonStriker}
+          />
+        </div>
+      </div>
+
+      <div className="bowling-end">
+        <PlayerPicker
+          label="Opening bowler"
+          hint={`${bowlingName} — bowls the first over`}
+          players={listFor(bowlingXi, {})}
+          value={bowler}
+          onChange={setBowler}
+        />
+      </div>
+
       <button
-        className="btn primary"
+        className="btn primary lg"
         type="button"
-        disabled={!canAct || !striker || !nonStriker || striker === nonStriker || !bowler}
-        onClick={() =>
-          send({
-            type: "innings_started",
-            innings_index: index,
-            batting,
-            striker_id: striker,
-            non_striker_id: nonStriker,
-            bowler_id: bowler,
-            super_over: false,
-          })
-        }
+        disabled={!canAct || busy || !ready}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await send({
+              type: "innings_started",
+              innings_index: index,
+              batting,
+              striker_id: striker,
+              non_striker_id: nonStriker,
+              bowler_id: bowler,
+              super_over: false,
+            });
+          } finally {
+            setBusy(false);
+          }
+        }}
       >
-        Start the innings
+        {busy ? "Starting…" : "Start the innings"}
       </button>
+      <p className="subtle">
+        {!striker || !nonStriker
+          ? "Name both batters."
+          : striker === nonStriker
+            ? "The same player cannot be at both ends."
+            : !bowler
+              ? "Name the bowler taking the first over."
+              : `${nameOf(bowler)} to ${nameOf(striker)}, first ball.`}
+      </p>
     </div>
   );
 }
@@ -1158,8 +2005,10 @@ function LivePanel({
         </div>
       </div>
 
-      {/* ---- controls ---- */}
-      <div className="controls">
+      {/* ---- controls ----
+           Only for whoever is actually scoring. Somebody following the match
+           came to watch it, and a dial they cannot press is furniture. */}
+      {canAct && <div className="controls">
         {needsBowler && (
           <div className="panel" style={{ borderColor: "var(--accent)" }}>
             <div className="panel-head">
@@ -1241,7 +2090,7 @@ function LivePanel({
             </button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ---- the guided ball flow ---- */}
       {draft && draft.step === "detail" && (

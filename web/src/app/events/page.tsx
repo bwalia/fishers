@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, type EventRow } from "@/lib/api";
+import { api, getAccessToken, type Page, type EventRow } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
 
 const SUBTYPE_ICON: Record<string, IconName> = {
@@ -30,7 +30,7 @@ export default function EventsPage() {
     }
     (async () => {
       try {
-        setEvents(await api<EventRow[]>("GET", "/events"));
+        setEvents((await api<Page<EventRow>>("GET", "/events?per_page=50")).items);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load");
       } finally {

@@ -29,7 +29,69 @@ export type PublicUser = {
   /// Absent for somebody who registered with a mobile number instead.
   email?: string | null;
   phone?: string | null;
+  avatar_url?: string | null;
+  emergency_contact?: string | null;
+  /// The sport they lead with; the rest hang off it.
+  primary_sport?: string | null;
+  /// One entry per sport played, each with its own position and numbers.
+  sport_profiles?: SportProfile[];
+  location?: PlayerLocation | null;
   profile_complete?: boolean;
+};
+
+/// One sport a player plays, with whatever that sport measures.
+///
+/// `stats` is a free map on purpose: a bowling average and a tennis first-serve
+/// percentage do not share a schema, and inventing columns for every sport
+/// would mean a migration each time one is added. Cricket's real numbers come
+/// from the scoring log instead — this is what the player says about
+/// themselves for the sports the app does not yet score.
+export type SportProfile = {
+  sport: string;
+  position?: string | null;
+  skill_level?: string | null;
+  current_division?: string | null;
+  target_division?: string | null;
+  age_group?: string | null;
+  team_name?: string | null;
+  years_playing?: number | null;
+  stats?: Record<string, string>;
+};
+
+export type PlayerLocation = {
+  area?: string | null;
+  postcode?: string | null;
+  travel_radius_miles?: number | null;
+  /// `driverWithSeats` | `driver` | `publicTransport` | `needsLift`
+  transport?: string | null;
+  spare_seats?: number | null;
+  notes?: string | null;
+};
+
+/// The standards a player picks from, in the words a club uses.
+export const SKILL_LEVELS = [
+  { value: "beginner", label: "Beginner" },
+  { value: "improver", label: "Improver" },
+  { value: "club", label: "Club standard" },
+  { value: "league", label: "League standard" },
+  { value: "county", label: "County / semi-pro" },
+] as const;
+
+export function skillLabel(value?: string | null): string {
+  if (!value) return "Not said";
+  return SKILL_LEVELS.find((s) => s.value === value)?.label ?? value;
+}
+
+/// What each sport calls its positions. Adding a sport is a line here, not a
+/// migration — and an unknown sport still works, it just takes free text.
+export const SPORT_POSITIONS: Record<string, string[]> = {
+  cricket: ["Batter", "Bowler", "All-rounder", "Wicketkeeper"],
+  football: ["Goalkeeper", "Defender", "Midfielder", "Forward"],
+  badminton: ["Singles", "Doubles", "Mixed doubles"],
+  paddle: ["Right side", "Left side"],
+  pickleball: ["Singles", "Doubles"],
+  tennis: ["Singles", "Doubles"],
+  other: [],
 };
 
 export type Club = {
@@ -37,6 +99,29 @@ export type Club = {
   name: string;
   sport_types: string[];
   description?: string | null;
+  visibility?: string;
+  owner_id?: string;
+};
+
+/// What `GET /clubs/{id}/my-role` answers — the club decides what you may do,
+/// so the page asks rather than guessing from a role name.
+export type MyRole = {
+  role: string;
+  display_name: string;
+  is_secretary: boolean;
+  is_captain: boolean;
+  can_invite_to_play: boolean;
+  can_score_match: boolean;
+  permissions: string[];
+};
+
+/// A page of anything the API pages: `{ items, total, page, per_page, has_more }`.
+export type Page<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_more: boolean;
 };
 
 export type EventRow = {
@@ -81,6 +166,12 @@ export function saveSession(tokens: {
   localStorage.setItem(TOKEN_KEY, tokens.access_token);
   localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
   localStorage.setItem(USER_KEY, JSON.stringify(tokens.user));
+}
+
+/// Replace the cached user after an edit, so the nav and greeting follow.
+export function saveUser(user: PublicUser) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
 export function getStoredUser(): PublicUser | null {
@@ -231,7 +322,9 @@ export type Team = {
 export type ClubMemberRow = {
   user_id: string;
   name: string;
-  email: string;
+  /// One of these is absent: people register with an address or a number.
+  email?: string | null;
+  phone?: string | null;
   role: string;
   status: string;
   position_role?: string | null;
@@ -262,3 +355,73 @@ export type OpponentIdentity = {
   club_name: string;
   sport?: string | null;
 };
+
+/// Something that happened which you need to know about.
+export type AppNotification = {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  sent_at: string;
+  read_at?: string | null;
+};
+
+/// One line of plain English per notification. A player is not going to read
+/// `match_terms_proposed`.
+export function notificationLine(n: AppNotification): { title: string; href?: string } {
+  const p = n.payload as { home_name?: string; away_name?: string; match_id?: string };
+  switch (n.type) {
+    case "match_terms_proposed":
+      return {
+        title: `${p.home_name ?? "A side"} v ${p.away_name ?? "another"} — the other captain has proposed the terms. Tap to agree.`,
+        href: p.match_id ? `/score/${p.match_id}` : undefined,
+      };
+    case "match_pick_your_xi":
+      return {
+        title: `${p.home_name ?? "A side"} v ${p.away_name ?? "another"} — the toss is done. Pick your side.`,
+        href: p.match_id ? `/score/${p.match_id}` : undefined,
+      };
+    case "match_terms_agreed":
+      return {
+        title: "Both captains have agreed the terms. You can do the toss.",
+        href: p.match_id ? `/score/${p.match_id}` : undefined,
+      };
+    case "invite":
+      return { title: "You have a new invite." };
+    default:
+      return { title: n.type.replaceAll("_", " ") };
+  }
+}
+
+export type Invite = {
+  id: string;
+  target_type: string;
+  target_id: string;
+  invited_user_id?: string | null;
+  invited_email?: string | null;
+  token: string;
+  status: string;
+  created_at: string;
+};
+
+/// The roles a secretary can appoint, in the words the product uses.
+export const CLUB_ROLES = [
+  { value: "member", label: "Member" },
+  { value: "team_vice_captain", label: "Vice captain" },
+  { value: "team_captain", label: "Captain" },
+  { value: "club_admin", label: "Secretary" },
+] as const;
+
+export function roleLabel(role: string): string {
+  return CLUB_ROLES.find((r) => r.value === role)?.label ?? role.replaceAll("_", " ");
+}
+
+/// Exactly what the API's SportType accepts — anything else is rejected.
+export const SPORTS = [
+  "cricket",
+  "football",
+  "badminton",
+  "paddle",
+  "pickleball",
+  "tennis",
+  "other",
+] as const;

@@ -40,7 +40,10 @@ export default function RegisterPage() {
         false
       );
       saveSession(tokens);
-      router.push("/");
+      // An invite link sends people here to sign up; land them back on it so
+      // they actually join the club they were invited to.
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
     } catch (err) {
       // The API says what is wrong — already registered, too short — and those
       // are worth passing on rather than flattening.
