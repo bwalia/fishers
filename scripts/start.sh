@@ -16,7 +16,8 @@ API_CONTAINER=fishers-api-dev
 
 if [ "${1:-}" = "--stop" ]; then
   docker rm -f "$API_CONTAINER" >/dev/null 2>&1 || true
-  docker compose down
+  # Prefer matching compose project; fall back to container name.
+  docker compose down 2>/dev/null || docker rm -f fishers-postgres >/dev/null 2>&1 || true
   echo "Stopped API + Postgres. Data volume kept — 'docker compose down -v' to wipe it."
   echo "The dashboard runs in your terminal, not Docker — Ctrl-C it there."
   exit 0
@@ -29,6 +30,13 @@ if [ -n "$(docker ps -q -f name="^${API_CONTAINER}$" 2>/dev/null)" ]; then
   exit 1
 fi
 
+# Stale cargo-run APIs from a previous Ctrl-C leave the health check hanging.
+if pgrep -f 'target/debug/fishers-api' >/dev/null 2>&1; then
+  echo "Stopping a leftover fishers-api process…"
+  pkill -f 'target/debug/fishers-api' 2>/dev/null || true
+  sleep 1
+fi
+
 [ -f .env ] || { cp .env.example .env; echo "Created .env from .env.example"; }
 
 set -a
@@ -36,11 +44,35 @@ set -a
 source "$ROOT/.env"
 set +a
 
-# First free TCP port at or above $1.
+# True when something is already listening on TCP $1 (IPv4 or IPv6).
+port_busy() {
+  local p=$1
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1 && return 0
+    return 1
+  fi
+  # Linux fallback when lsof is missing.
+  ss -ltn 2>/dev/null | grep -Eq ":${p}\\b" && return 0
+  return 1
+}
+
+# First free TCP port at or above $1, skipping any ports listed after it.
 free_port() {
   local p=$1
-  while lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1; do p=$((p + 1)); done
-  echo "$p"
+  shift
+  local skip=("$@")
+  while true; do
+    local taken=0
+    local s
+    for s in "${skip[@]+"${skip[@]}"}"; do
+      if [ -n "$s" ] && [ "$p" -eq "$s" ]; then taken=1; break; fi
+    done
+    if [ "$taken" -eq 0 ] && ! port_busy "$p"; then
+      echo "$p"
+      return 0
+    fi
+    p=$((p + 1))
+  done
 }
 
 # Reuse the running container's published port so we never recreate the DB just
@@ -61,22 +93,51 @@ if [ -n "$PG_RUNNING" ] && [ "$PG_RUNNING" = "$PG_WANT" ]; then
 else
   POSTGRES_PORT="$(free_port "$PG_WANT")"
 fi
-API_PORT="$(free_port "${API_PORT:-7312}")"
-WEB_PORT="$(free_port "${WEB_PORT:-7311}")"
+
+# API and web must never land on the Postgres host port. Pick them after the
+# DB port is known, and reserve each choice so the next pick cannot collide.
+# Ignore stale API_PORT/WEB_PORT from .env when they clash with Postgres.
+API_WANT="${API_PORT:-7312}"
+WEB_WANT="${WEB_PORT:-7311}"
+if [ "$API_WANT" -eq "$POSTGRES_PORT" ]; then API_WANT=7312; fi
+if [ "$WEB_WANT" -eq "$POSTGRES_PORT" ] || [ "$WEB_WANT" -eq "$API_WANT" ]; then WEB_WANT=7311; fi
+
+API_PORT="$(free_port "$API_WANT" "$POSTGRES_PORT")"
+WEB_PORT="$(free_port "$WEB_WANT" "$POSTGRES_PORT" "$API_PORT")"
 export POSTGRES_PORT API_PORT WEB_PORT
 
 # Share links and the iOS app need an address reachable from other devices.
-LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)"
+LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+if [ -z "${LAN_IP:-}" ]; then
+  LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
+LAN_IP="${LAN_IP:-127.0.0.1}"
 WEB_BASE="http://${LAN_IP}:${WEB_PORT}"
 API_BASE="http://${LAN_IP}:${API_PORT}"
+
+echo "==> Ports"
+echo "    Postgres  ${POSTGRES_PORT}"
+echo "    API       ${API_PORT}   (LAN ${API_BASE})"
+echo "    Web       ${WEB_PORT}   (LAN ${WEB_BASE})"
 
 echo "==> Postgres"
 docker compose up -d
 until docker exec fishers-postgres pg_isready -U fishers -d fishers >/dev/null 2>&1; do sleep 1; done
 
+# After Docker publishes Postgres, confirm the API port is still ours.
+if port_busy "$API_PORT"; then
+  echo "API port ${API_PORT} became busy after Postgres started — picking another." >&2
+  API_PORT="$(free_port $((API_PORT + 1)) "$POSTGRES_PORT" "$WEB_PORT")"
+  export API_PORT
+  API_BASE="http://${LAN_IP}:${API_PORT}"
+  echo "    API now ${API_PORT}   (LAN ${API_BASE})"
+fi
+
 echo "==> API"
 docker rm -f "$API_CONTAINER" >/dev/null 2>&1 || true
 
+# Only pass DLS_RESOURCE_TABLE when it actually points at a file — an empty
+# string makes the API try to open path "" and log a scary (harmless) error.
 API_ENV=(
   "API_HOST=0.0.0.0"
   "API_PORT=${API_PORT}"
@@ -89,15 +150,26 @@ API_ENV=(
   "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}"
   "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}"
   "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}"
-  "DLS_RESOURCE_TABLE=${DLS_RESOURCE_TABLE:-}"
   "DLS_G50=${DLS_G50:-245}"
   "OLLAMA_URL=${OLLAMA_URL:-}"
   "OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}"
 )
+if [ -n "${DLS_RESOURCE_TABLE:-}" ]; then
+  API_ENV+=("DLS_RESOURCE_TABLE=${DLS_RESOURCE_TABLE}")
+fi
+
+api_ready() {
+  # Prefer IPv4 loopback; also try localhost (may be ::1) in case of dual-stack quirks.
+  curl -sf -m 2 "http://127.0.0.1:${API_PORT}/health" >/dev/null 2>&1 \
+    || curl -sf -m 2 "http://localhost:${API_PORT}/health" >/dev/null 2>&1 \
+    || curl -sf -m 2 "http://[::1]:${API_PORT}/health" >/dev/null 2>&1
+}
 
 if command -v cargo >/dev/null 2>&1; then
-  export DATABASE_URL="postgres://fishers:fishers@localhost:${POSTGRES_PORT}/fishers"
+  export DATABASE_URL="postgres://fishers:fishers@127.0.0.1:${POSTGRES_PORT}/fishers"
   for kv in "${API_ENV[@]}"; do export "${kv?}"; done
+  # Clear an empty DLS path inherited from .env so the API uses the built-in table.
+  if [ -z "${DLS_RESOURCE_TABLE:-}" ]; then unset DLS_RESOURCE_TABLE; fi
   (cd backend && cargo run -p fishers-api) &
   API_PID=$!
 else
@@ -130,13 +202,22 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 printf '    waiting for the API'
-until curl -sf -m 2 "http://127.0.0.1:${API_PORT}/health" >/dev/null 2>&1; do
+tries=0
+until api_ready; do
+  tries=$((tries + 1))
   if [ -n "${API_PID:-}" ] && ! kill -0 "$API_PID" 2>/dev/null; then
     echo; echo "API exited — see the output above." >&2; exit 1
   fi
   if [ -z "${API_PID:-}" ] && [ -z "$(docker ps -q -f name="$API_CONTAINER")" ]; then
     echo; echo "API container exited:" >&2
     docker logs "$API_CONTAINER" 2>&1 | tail -20 >&2; exit 1
+  fi
+  if [ "$tries" -ge 90 ]; then
+    echo
+    echo "API did not become healthy on port ${API_PORT} within three minutes." >&2
+    echo "What is listening there:" >&2
+    lsof -nP -iTCP:"${API_PORT}" -sTCP:LISTEN 2>/dev/null >&2 || true
+    exit 1
   fi
   printf '.'; sleep 2
 done
@@ -164,10 +245,10 @@ cat <<EOF
   Dashboard   http://127.0.0.1:${WEB_PORT}       (LAN: ${WEB_BASE})
   API         http://127.0.0.1:${API_PORT}       (LAN: ${API_BASE})
   Swagger     http://127.0.0.1:${API_PORT}/swagger-ui
-  Postgres    postgres://fishers:fishers@localhost:${POSTGRES_PORT}/fishers
+  Postgres    postgres://fishers:fishers@127.0.0.1:${POSTGRES_PORT}/fishers
 
-  Score a match at http://127.0.0.1:${WEB_PORT}/score — the iOS app is the one
-  that works offline. Point the app at ${API_BASE}.
+  Score a match at http://127.0.0.1:${WEB_PORT}/score — then Share full scoreboard.
+  Point the iOS app at ${API_BASE}.
 
   Ctrl-C stops the API and web. Postgres keeps running.
 

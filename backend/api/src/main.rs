@@ -58,7 +58,17 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr: SocketAddr = format!("{host}:{port}").parse()?;
+    // Bind IPv4 explicitly for `0.0.0.0` so health checks and phones on the LAN
+    // hit the API on 127.0.0.1 / the Mac's IPv4 address. Parsing `"::"` / dual
+    // stack quirks on macOS previously left the API on `[::]` while curl and
+    // browsers used IPv4 — looking "up" but unreachable.
+    let addr: SocketAddr = if host == "0.0.0.0" || host == "*" {
+        SocketAddr::from(([0, 0, 0, 0], port))
+    } else {
+        format!("{host}:{port}")
+            .parse()
+            .with_context(|| format!("invalid API_HOST/API_PORT: {host}:{port}"))?
+    };
     tracing::info!(%addr, "Fishers API listening");
     tracing::info!("Swagger UI http://{addr}/swagger-ui");
     let listener = tokio::net::TcpListener::bind(addr)
