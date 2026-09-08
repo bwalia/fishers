@@ -265,6 +265,14 @@ impl MatchState {
                         "the two openers must be different players".into(),
                     ));
                 }
+                // Both captains have to have named a side. Nothing enforced
+                // this, so a match could start with one team sheet in and the
+                // other side's batters invented as they came to the crease.
+                if self.home_xi.is_empty() || self.away_xi.is_empty() {
+                    return Err(DomainError::Validation(
+                        "both sides need a team sheet before the first ball".into(),
+                    ));
+                }
                 let bowling = batting.opposite();
                 let batting_xi = self.xi(*batting).to_vec();
                 let mut batters: Vec<BatterStats> =
@@ -2860,6 +2868,76 @@ mod tests {
             shot: None,
         });
         assert!(result.is_err(), "a wide starts the over just as a legal ball does");
+    }
+
+    #[test]
+    fn an_innings_needs_both_team_sheets() {
+        let mut state = MatchState::default();
+        let home = team("Home", 2);
+        let away = team("Away", 2);
+        let mut seq = 0;
+        // A rejected event is not recorded, so it does not consume a sequence
+        // number — the next one still takes this slot.
+        let mut push = |state: &mut MatchState, kind: ScoringEventKind| {
+            seq += 1;
+            let result = state.apply(&evt(seq, kind));
+            if result.is_err() {
+                seq -= 1;
+            }
+            result
+        };
+        push(&mut state, ScoringEventKind::MatchPrepared {
+            overs_limit: 20,
+            home_name: "Lords".into(),
+            away_name: "Hemel".into(),
+        })
+        .unwrap();
+        push(&mut state, ScoringEventKind::ConditionsProposed {
+            conditions: MatchConditions::standard(20),
+            by: MatchSide::Home,
+            by_name: "Home captain".into(),
+        })
+        .unwrap();
+        push(&mut state, ScoringEventKind::ConditionsAgreed {
+            side: MatchSide::Away,
+            captain_name: "Away captain".into(),
+        })
+        .unwrap();
+        push(&mut state, ScoringEventKind::TossRecorded {
+            winner: MatchSide::Home,
+            decision: TossDecision::Bat,
+        })
+        .unwrap();
+        push(&mut state, ScoringEventKind::XiSelected {
+            side: MatchSide::Home,
+            players: home.clone(),
+            captain_id: Some(home[0].id),
+            keeper_id: None,
+        })
+        .unwrap();
+
+        // Only one sheet in: the first ball must wait for the other captain.
+        let start = ScoringEventKind::InningsStarted {
+            innings_index: 0,
+            batting: MatchSide::Home,
+            striker_id: home[0].id,
+            non_striker_id: home[1].id,
+            bowler_id: away[0].id,
+            super_over: false,
+        };
+        assert!(
+            push(&mut state, start.clone()).is_err(),
+            "one team sheet is not enough to start"
+        );
+
+        push(&mut state, ScoringEventKind::XiSelected {
+            side: MatchSide::Away,
+            players: away.clone(),
+            captain_id: Some(away[0].id),
+            keeper_id: None,
+        })
+        .unwrap();
+        assert!(push(&mut state, start).is_ok(), "both sheets in, play");
     }
 
     // MARK: the wagon wheel

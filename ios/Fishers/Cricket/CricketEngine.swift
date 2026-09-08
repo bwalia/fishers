@@ -195,6 +195,14 @@ extension MatchState {
             guard striker != non else {
                 throw CricketEngineError.validation("the two openers must be different players")
             }
+            // Both captains have to have named a side. Nothing enforced this,
+            // so a match could start with one team sheet in and the other
+            // side's batters invented as they came to the crease.
+            guard !homeXi.isEmpty, !awayXi.isEmpty else {
+                throw CricketEngineError.validation(
+                    "both sides need a team sheet before the first ball"
+                )
+            }
             var batters = xi(batting).map { BatterStats(playerId: $0) }
             for id in [striker, non] where !batters.contains(where: { $0.playerId == id }) {
                 batters.append(BatterStats(playerId: id))
