@@ -477,6 +477,31 @@ impl MatchState {
         Ok(())
     }
 
+    /// The same bowler carrying straight on into the next over.
+    ///
+    /// `check_bowler_available` only ran when a scorer explicitly changed
+    /// bowler, so simply not changing one bowled the whole innings with one
+    /// man — legal-looking, and against the Laws. Checked at the first ball of
+    /// an over; mid-over the bowler is of course unchanged.
+    fn check_new_over_bowler(&self) -> Result<()> {
+        let Some(inn) = self.current_innings() else {
+            return Ok(());
+        };
+        if inn.balls_in_current_over != 0 {
+            return Ok(());
+        }
+        let Some(bowler) = inn.bowler_id else {
+            return Ok(());
+        };
+        if inn.last_over_bowler == Some(bowler) && self.xi(inn.bowling).len() > 1 {
+            return Err(DomainError::Validation(format!(
+                "{} bowled the last over — change the bowler before the next one",
+                self.name_for(bowler)
+            )));
+        }
+        Ok(())
+    }
+
     /// Two Laws and one agreement: nobody bowls consecutive overs, nobody
     /// exceeds the allocation the captains settled, and a side with a single
     /// bowler is excused the first of those.
@@ -516,6 +541,7 @@ impl MatchState {
         six: bool,
         shot: Option<ShotRecord>,
     ) -> Result<()> {
+        self.check_new_over_bowler()?;
         let inn = self
             .current_innings_mut()
             .ok_or_else(|| DomainError::Validation("no live innings".into()))?;
@@ -605,6 +631,7 @@ impl MatchState {
         off_the_bat: bool,
         shot: Option<ShotRecord>,
     ) -> Result<()> {
+        self.check_new_over_bowler()?;
         let inn = self
             .current_innings_mut()
             .ok_or_else(|| DomainError::Validation("no live innings".into()))?;
@@ -743,6 +770,12 @@ impl MatchState {
         runs: u8,
         on_extra: bool,
     ) -> Result<()> {
+        // A wicket uses a ball, so it can open an over just as a delivery can.
+        // Retiring does not use one, and `on_extra` means the ball was already
+        // counted by the extra it came off — neither starts an over.
+        if kind.uses_a_ball() && !on_extra {
+            self.check_new_over_bowler()?;
+        }
         let inn = self
             .current_innings_mut()
             .ok_or_else(|| DomainError::Validation("no live innings".into()))?;
@@ -1183,10 +1216,20 @@ mod tests {
 
         fn try_push(&mut self, kind: ScoringEventKind) -> Result<()> {
             self.seq += 1;
-            self.state.apply(&evt(self.seq, kind))
+            let result = self.state.apply(&evt(self.seq, kind));
+            if result.is_err() {
+                // A rejected event is not recorded, so it does not consume a
+                // sequence number — the next one still takes this slot.
+                self.seq -= 1;
+            }
+            result
         }
 
+        /// Bowl one legal ball, taking the next over with the other opening
+        /// bowler. Nobody bowls two in a row, so a helper that spans an over
+        /// has to rotate or it is not scoring a legal game.
         fn runs(&mut self, runs: u8) {
+            self.rotate_if_new_over();
             self.push(ScoringEventKind::DeliveryRecorded {
                 runs,
                 is_legal: true,
@@ -1194,6 +1237,24 @@ mod tests {
                 is_boundary_six: runs == 6,
                 shot: None,
             });
+        }
+
+        fn rotate_if_new_over(&mut self) {
+            let Some(inn) = self.state.current_innings() else {
+                return;
+            };
+            if inn.balls_in_current_over != 0 || inn.complete {
+                return;
+            }
+            if inn.bowler_id.is_none() || inn.last_over_bowler != inn.bowler_id {
+                return;
+            }
+            let next = if inn.bowler_id == Some(self.away[0].id) {
+                self.away[1].id
+            } else {
+                self.away[0].id
+            };
+            self.push(ScoringEventKind::BowlerChanged { bowler_id: next });
         }
 
         fn innings(&self) -> &InningsState {
@@ -2215,7 +2276,6 @@ mod tests {
         ] {
             let result = m.try_push(wicket(striker, kind, Some(m.home[2].id)));
             assert!(result.is_err(), "{kind:?} should not stand on a free hit");
-            m.seq -= 1;
         }
 
         m.push(wicket(striker, DismissalKind::RunOut, Some(m.home[2].id)));
@@ -2685,6 +2745,8 @@ mod tests {
             .unwrap();
 
         for ball in 0..12 {
+            // A new over means a new bowler — nobody bowls two in a row.
+            m.rotate_if_new_over();
             m.seq += 1;
             m.state
                 .apply(&evt_at(
@@ -2724,6 +2786,8 @@ mod tests {
             .unwrap();
         // Six overs in twenty minutes: eighteen an hour.
         for ball in 0..36 {
+            // A new over means a new bowler — nobody bowls two in a row.
+            m.rotate_if_new_over();
             m.seq += 1;
             m.state
                 .apply(&evt_at(
@@ -2741,6 +2805,61 @@ mod tests {
         }
         let behind = m.innings().overs_behind(14).unwrap();
         assert!(behind < 0.0, "ahead of the clock reads negative, got {behind}");
+    }
+
+    #[test]
+    fn the_same_bowler_cannot_simply_carry_on_into_the_next_over() {
+        let mut m = Fixture::new(20);
+        // A whole over, without ever touching the bowler.
+        for _ in 0..6 {
+            m.push(ScoringEventKind::DeliveryRecorded {
+                runs: 0,
+                is_legal: true,
+                is_boundary_four: false,
+                is_boundary_six: false,
+                shot: None,
+            });
+        }
+        let result = m.try_push(ScoringEventKind::DeliveryRecorded {
+            runs: 1,
+            is_legal: true,
+            is_boundary_four: false,
+            is_boundary_six: false,
+            shot: None,
+        });
+        assert!(
+            result.is_err(),
+            "the seventh ball is a new over and needs a new bowler"
+        );
+
+        // Change the bowler and the over proceeds.
+        let other = m.away[1].id;
+        m.push(ScoringEventKind::BowlerChanged { bowler_id: other });
+        m.runs(1);
+        assert_eq!(m.innings().legal_balls, 7);
+    }
+
+    /// A wide is a delivery too, so the Law applies to it just the same.
+    #[test]
+    fn a_new_over_cannot_open_with_an_extra_from_the_same_bowler() {
+        let mut m = Fixture::new(20);
+        for _ in 0..6 {
+            m.push(ScoringEventKind::DeliveryRecorded {
+                runs: 0,
+                is_legal: true,
+                is_boundary_four: false,
+                is_boundary_six: false,
+                shot: None,
+            });
+        }
+        let result = m.try_push(ScoringEventKind::ExtrasRecorded {
+            kind: ExtraKind::Wide,
+            runs: 0,
+            boundary: false,
+            off_the_bat: false,
+            shot: None,
+        });
+        assert!(result.is_err(), "a wide starts the over just as a legal ball does");
     }
 
     // MARK: the wagon wheel

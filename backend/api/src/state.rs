@@ -1,3 +1,4 @@
+use crate::services::ollama::Ollama;
 use fishers_agent::AgentService;
 use fishers_domain::ResourceTable;
 use fishers_notifications::{EmailService, PushService};
@@ -19,6 +20,9 @@ pub struct AppState {
     /// `DLS_RESOURCE_TABLE` at a CSV of `overs,w0,w1,…,w9` rows.
     pub dls: ResourceTable,
     pub g50: f64,
+    /// Writes a line of colour over the top of the one the log already gives.
+    /// `None` without OLLAMA_URL, and commentary then stays as written.
+    pub ollama: Option<Ollama>,
 }
 
 impl AppState {
@@ -45,6 +49,7 @@ impl AppState {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(fishers_domain::dls::DEFAULT_G50),
+            ollama: Ollama::from_env(),
         }
     }
 }

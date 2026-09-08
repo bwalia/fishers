@@ -97,3 +97,13 @@ struct ScorerHandover: Codable, Identifiable, Equatable {
 
     var isOverride: Bool { reason == "override" }
 }
+
+/// What the API's commentary endpoint replies with.
+///
+/// `line` is optional on purpose: no model configured, or one that contradicted
+/// the ball and was thrown away, both come back as nothing — and the caller
+/// keeps the line the app already wrote from the log.
+struct BallCommentary: Codable, Equatable {
+    let line: String?
+    let model: String?
+}

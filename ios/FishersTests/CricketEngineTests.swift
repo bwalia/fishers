@@ -22,12 +22,25 @@ final class CricketEngineTests: XCTestCase {
             try state.apply(.make(seq: seq, kind: kind))
         }
 
+        /// Bowl one legal ball, taking the next over with the other opening
+        /// bowler. Nobody bowls two in a row, so a helper that spans an over
+        /// has to rotate or it is not scoring a legal game.
         mutating func runs(_ runs: UInt8) throws {
+            try rotateIfNewOver()
             try push(.deliveryRecorded(
                 runs: runs, isLegal: true,
                 isBoundaryFour: runs == 4, isBoundarySix: runs == 6,
                 shot: nil
             ))
+        }
+
+        mutating func rotateIfNewOver() throws {
+            guard let inn = state.currentInnings, !inn.complete else { return }
+            guard inn.ballsInCurrentOver == 0,
+                  let bowler = inn.bowlerId,
+                  inn.lastOverBowler == bowler else { return }
+            let next = bowler == away[0].id ? away[1].id : away[0].id
+            try push(.bowlerChanged(bowlerId: next))
         }
 
         var innings: InningsState { state.currentInnings! }
@@ -888,6 +901,8 @@ final class CricketEngineTests: XCTestCase {
             kind: .fieldSet(outsideCircle: 2, behindSquareLeg: 2), at: start
         ))
         for ball in 0..<12 {
+            // A new over means a new bowler — nobody bowls two in a row.
+            try f.rotateIfNewOver()
             f.seq += 1
             try f.state.apply(ScoringEvent(
                 clientEventId: UUID(), seq: f.seq,

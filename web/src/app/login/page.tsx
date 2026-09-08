@@ -29,7 +29,10 @@ export default function LoginPage() {
         false
       );
       saveSession(tokens);
-      router.push("/");
+      // Come back to whatever expired — a scorer sent here mid-over lands back
+      // on the same match. Only same-origin paths, never an absolute URL.
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -38,7 +41,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main>
+    <main id="main">
       <section className="hero">
         <h1>Sign in</h1>
         <p>Same accounts as the iOS app and API.</p>

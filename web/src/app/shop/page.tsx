@@ -50,17 +50,11 @@ export default function ShopPage() {
 
   const visible = useMemo(() => {
     if (filter === "all") return products;
-    if (filter === "sportswear") {
-      return products.filter((p) =>
-        ["merchandise"].includes(p.category) &&
-        /shirt|polo|hoodie|cap|trousers|shoe|spike/i.test(p.name)
-      );
-    }
     return products.filter((p) => p.category === filter);
   }, [products, filter]);
 
   return (
-    <main>
+    <main id="main">
       <section className="hero">
         <h1>Club shop</h1>
         <p>Cricket bats, balls, pads, shoes, clubwear and hire — browse by club.</p>

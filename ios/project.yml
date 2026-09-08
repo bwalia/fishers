@@ -32,15 +32,15 @@ targets:
         # The API and web hosts this build talks to. Base/Debug use the LAN Mac
         # so physical iPhones can reach the API. Release is blank — set both
         # before shipping. The web host is where shared live-scoreboard links point.
-        FISHERS_API_BASE_URL: "http://192.168.1.99:8080"
-        FISHERS_WEB_BASE_URL: "http://192.168.1.99:3000"
+        FISHERS_API_BASE_URL: "http://192.168.1.99:7312"
+        FISHERS_WEB_BASE_URL: "http://192.168.1.99:7311"
       configs:
         Debug:
           # LAN host for physical iPhone testing (Simulator can use the same
-          # addresses when the API/web bind 0.0.0.0). API is :8080; web/share
-          # links are :3000 — Next does not serve /api/v1.
-          FISHERS_API_BASE_URL: "http://192.168.1.99:8080"
-          FISHERS_WEB_BASE_URL: "http://192.168.1.99:3000"
+          # addresses when the API/web bind 0.0.0.0). API is :7312; web/share
+          # links are :7311 — Next does not serve /api/v1.
+          FISHERS_API_BASE_URL: "http://192.168.1.99:7312"
+          FISHERS_WEB_BASE_URL: "http://192.168.1.99:7311"
         Release:
           FISHERS_API_BASE_URL: ""
           FISHERS_WEB_BASE_URL: ""

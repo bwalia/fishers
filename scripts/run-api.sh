@@ -13,9 +13,9 @@ set -a
 source "$ROOT/.env"
 set +a
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/backend/target}"
-export DATABASE_URL="${DATABASE_URL:-postgres://fishers:fishers@localhost:5433/fishers}"
+export DATABASE_URL="${DATABASE_URL:-postgres://fishers:fishers@localhost:7313/fishers}"
 export API_HOST="${API_HOST:-0.0.0.0}"
-export API_PORT="${API_PORT:-8080}"
+export API_PORT="${API_PORT:-7312}"
 
 echo "Building fishers-api…"
 cargo build -p fishers-api

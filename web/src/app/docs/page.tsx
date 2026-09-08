@@ -1,10 +1,14 @@
-const API_ORIGIN =
-  process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ||
-  "http://192.168.1.99:8080";
+"use client";
+
+import { useEffect, useState } from "react";
+import { apiOrigin } from "@/lib/api";
 
 export default function DocsPage() {
-  const swagger = `${API_ORIGIN}/swagger-ui`;
-  const yaml = `${API_ORIGIN}/api-docs/openapi.yaml`;
+  // Resolved in the browser, so the links point at the host you are actually on.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(apiOrigin()), []);
+  const swagger = `${origin}/swagger-ui`;
+  const yaml = `${origin}/api-docs/openapi.yaml`;
 
   return (
     <main>

@@ -174,8 +174,8 @@ struct WagonWheelPicker: View {
 
     private var colour: Color {
         switch runs {
-        case 6: return FishersTheme.seam
-        case 4: return FishersTheme.pitch
+        case 6: return FishersTheme.six
+        case 4: return FishersTheme.four
         default: return FishersTheme.accent
         }
     }
@@ -192,6 +192,8 @@ struct WagonWheelPicker: View {
         reach = runs >= 4 ? 1.0 : min(1.0, max(0.15, distance / radius))
     }
 
+    /// The strokes as pictograms rather than a row of words — each draws where
+    /// that shot goes, so the grid is read at a glance between balls.
     private var shotChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -199,19 +201,32 @@ struct WagonWheelPicker: View {
                     Button {
                         kind = shot
                     } label: {
-                        Text(shot.label)
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                kind == shot
-                                    ? FishersTheme.accent.opacity(0.18)
-                                    : Color.secondary.opacity(0.10),
-                                in: Capsule()
-                            )
-                            .foregroundStyle(kind == shot ? FishersTheme.accent : .primary)
+                        VStack(spacing: 2) {
+                            ShotIconView(kind: shot, size: 36)
+                            Text(shot.label)
+                                .font(.caption2.weight(.semibold))
+                                .lineLimit(1)
+                            Text(shot.iconHint)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .frame(width: 92, height: 82)
+                        .background(
+                            kind == shot
+                                ? FishersTheme.accent.opacity(0.18)
+                                : Color.secondary.opacity(0.10),
+                            in: RoundedRectangle(cornerRadius: 10)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(kind == shot ? FishersTheme.accent : .clear, lineWidth: 2)
+                        )
+                        .foregroundStyle(kind == shot ? FishersTheme.accent : .primary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("\(shot.label), \(shot.iconHint)")
+                    .accessibilityAddTraits(kind == shot ? [.isSelected] : [])
                 }
             }
             .padding(.horizontal)
@@ -296,8 +311,8 @@ struct WagonWheelChart: View {
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 14) {
-                    legend(FishersTheme.seam, "Six")
-                    legend(FishersTheme.pitch, "Four")
+                    legend(FishersTheme.six, "Six")
+                    legend(FishersTheme.four, "Four")
                     legend(FishersTheme.accent, "Runs")
                 }
                 .font(.caption2)
@@ -315,8 +330,8 @@ struct WagonWheelChart: View {
     }
 
     private func colour(for delivery: DeliveryRecord) -> Color {
-        if delivery.runs >= 6 { return FishersTheme.seam }
-        if delivery.runs >= 4 { return FishersTheme.pitch }
+        if delivery.runs >= 6 { return FishersTheme.six }
+        if delivery.runs >= 4 { return FishersTheme.four }
         return FishersTheme.accent.opacity(0.65)
     }
 

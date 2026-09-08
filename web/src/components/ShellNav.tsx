@@ -4,14 +4,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { clearSession, getStoredUser, type PublicUser } from "@/lib/api";
+import { Icon, type IconName } from "@/components/Icon";
 
-const links = [
-  { href: "/", label: "Overview" },
-  { href: "/events", label: "Fixtures" },
-  { href: "/shop", label: "Shop" },
-  { href: "/stats", label: "Stats" },
-  { href: "/clubs", label: "Clubs" },
-  { href: "/docs", label: "API docs" },
+const links: { href: string; label: string; icon: IconName }[] = [
+  { href: "/", label: "Overview", icon: "home" },
+  { href: "/events", label: "Fixtures", icon: "calendar" },
+  { href: "/score", label: "Score", icon: "bat" },
+  { href: "/stats", label: "Stats", icon: "chart" },
+  { href: "/shop", label: "Shop", icon: "shop" },
+  { href: "/clubs", label: "Clubs", icon: "users" },
 ];
 
 export function ShellNav() {
@@ -26,21 +27,26 @@ export function ShellNav() {
   return (
     <header className="topbar">
       <Link href="/" className="brand">
+        <Icon name="ball" size={22} />
         Fishers
       </Link>
-      <nav className="nav">
-        {links.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className={pathname === l.href ? "active" : undefined}
-          >
-            {l.label}
-          </Link>
-        ))}
+      <nav className="nav" aria-label="Main">
+        {links.map((l) => {
+          const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={active ? "active" : undefined}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon name={l.icon} size={16} />
+              {l.label}
+            </Link>
+          );
+        })}
         {user ? (
           <button
-            className="btn ghost"
             type="button"
             onClick={() => {
               clearSession();
@@ -48,10 +54,14 @@ export function ShellNav() {
               router.push("/login");
             }}
           >
+            <Icon name="signOut" size={16} />
             Sign out
           </button>
         ) : (
-          <Link href="/login">Sign in</Link>
+          <Link href="/login">
+            <Icon name="signIn" size={16} />
+            Sign in
+          </Link>
         )}
       </nav>
     </header>

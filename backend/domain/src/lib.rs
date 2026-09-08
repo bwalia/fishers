@@ -33,7 +33,7 @@ pub use cricket::{
     dls, evt, BallType, BatterStats, BowlerStats, DeliveryRecord, DismissalKind, DlsMethod, DlsPar,
     ExtraKind, FallOfWicket, GroundType, InningsResources, InningsState, MatchConditions,
     MatchPlayer, MatchSide, MatchState, MatchStatus, ResourceTable, ScoringEvent, ScoringEventKind,
-    ShotKind, ShotRecord, TossDecision,
+    region_for, ShotKind, ShotRecord, TossDecision,
 };
 pub use enums::*;
 pub use event::*;

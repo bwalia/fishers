@@ -6,3 +6,4 @@ pub mod agent_apply;
 pub mod club_briefing;
 pub mod platform_bus;
 pub mod play_cricket;
+pub mod ollama;

@@ -45,6 +45,9 @@ struct LiveScorerView: View {
     @State private var showField = false
     @State private var confirmEndInnings = false
     @State private var pendingShot: PendingShot?
+    /// Model-written lines keyed by ball. The line the app writes from the log
+    /// shows instantly; this replaces it only if something better arrives.
+    @State private var aiLines: [String: String] = [:]
     @State private var isSharing = false
     @State private var shareNotice: String?
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -60,6 +63,20 @@ struct LiveScorerView: View {
 
     private var innings: InningsState? { store.state.currentInnings }
     private var isLive: Bool { store.state.status == .live && innings?.complete == false }
+
+    /// An over has finished and the same bowler is still down for the next one.
+    ///
+    /// The engine refuses this — nobody bowls two in a row — so the controls
+    /// have to refuse it too, or a scorer meets a rejection instead of a
+    /// question.
+    private var needsNewBowler: Bool {
+        guard let inn = innings, !inn.complete else { return false }
+        guard inn.ballsInCurrentOver == 0,
+              inn.legalBalls > 0,
+              let bowler = inn.bowlerId,
+              inn.lastOverBowler == bowler else { return false }
+        return store.state.xi(inn.bowling).count > 1
+    }
     private var wheelMode: WagonWheelMode {
         WagonWheelMode(rawValue: wheelModeRaw) ?? .everyScoringShot
     }
@@ -70,13 +87,18 @@ struct LiveScorerView: View {
                 HStack(alignment: .top, spacing: 16) {
                     ScrollView { VStack(spacing: 14) { scoreHeader; commentaryPanel } }
                         .frame(maxWidth: .infinity)
-                    controls.frame(maxWidth: .infinity)
+                    VStack(spacing: 10) {
+                        bowlerGate
+                        controls
+                    }
+                    .frame(maxWidth: .infinity)
                 }
             } else {
                 VStack(spacing: 12) {
                     scoreHeader
                     commentaryPanel
                     Spacer(minLength: 0)
+                    bowlerGate
                     controls
                 }
             }
@@ -356,7 +378,8 @@ struct LiveScorerView: View {
     private func ballColour(_ ball: DeliveryRecord) -> Color {
         if ball.isWicket { return FishersTheme.seam }
         if !ball.isLegal { return FishersTheme.maybe }
-        if ball.runs >= 4 { return FishersTheme.pitch }
+        if ball.runs >= 6 { return FishersTheme.six }
+        if ball.runs >= 4 { return FishersTheme.four }
         return FishersTheme.ink
     }
 
@@ -450,7 +473,7 @@ struct LiveScorerView: View {
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .frame(width: 34, alignment: .leading)
-                        Text(entry.text)
+                        Text(aiLines[entry.id] ?? entry.text)
                             .font(.caption)
                             .foregroundStyle(entry.isWicket ? FishersTheme.seam : .primary)
                             .lineLimit(2)
@@ -461,28 +484,50 @@ struct LiveScorerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+            .task(id: inn.deliveries.count) { await fetchCommentary(for: inn) }
         }
+    }
+
+    /// Colour for the ball just bowled.
+    ///
+    /// Deliberately after the fact and deliberately silent on failure: the
+    /// model sits on the network and takes seconds, the ball is already in the
+    /// log, and the line written from that log is correct on its own. Nothing
+    /// here blocks scoring, and a failure leaves the written line alone.
+    private func fetchCommentary(for inn: InningsState) async {
+        guard let matchId = store.matchId, let ball = inn.deliveries.last else { return }
+        let key = "\(ball.over).\(ball.ballInOver)-\(ball.label)-\(ball.runs)"
+        guard aiLines[key] == nil else { return }
+        guard let reply = try? await FishersAPI.commentary(
+            matchId: matchId,
+            over: Int(ball.over),
+            ballInOver: Int(ball.ballInOver)
+        ), let line = reply.line else { return }
+        aiLines[key] = line
     }
 
     // MARK: Controls
 
     private var controls: some View {
         VStack(spacing: 10) {
+            // Three rows, the six on its own and larger: the shot you most
+            // want to hit is the easiest to reach, and hardest to mis-tap.
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
                 spacing: 10
             ) {
-                ForEach(0..<7, id: \.self) { runs in
+                ForEach(0..<6, id: \.self) { runs in
                     runButton(runs)
                 }
-                Button { showExtras = true } label: {
-                    Text("Extras")
-                        .font(FishersTheme.headline)
-                        .frame(maxWidth: .infinity, minHeight: 64)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Extras")
             }
+            runButton(6, big: true)
+            Button { showExtras = true } label: {
+                Text("Extras")
+                    .font(FishersTheme.headline)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Extras")
             HStack(spacing: 10) {
                 Button { showWicket = true } label: {
                     Text("Wicket")
@@ -513,21 +558,55 @@ struct LiveScorerView: View {
             }
             .font(FishersTheme.subhead)
         }
-        .disabled(!isLive)
-        .opacity(isLive ? 1 : 0.5)
+        .disabled(!isLive || needsNewBowler)
+        .opacity(isLive && !needsNewBowler ? 1 : 0.5)
     }
 
-    private func runButton(_ runs: Int) -> some View {
+    /// Says why the buttons are dead, and offers the way out.
+    @ViewBuilder
+    private var bowlerGate: some View {
+        if needsNewBowler, let inn = innings {
+            let last = inn.lastOverBowler.map { store.name(for: $0) } ?? "That bowler"
+            Button { showBowler = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Over \(Int(inn.legalBalls) / 6) done — who bowls next?")
+                            .font(FishersTheme.headline)
+                        Text("\(last) bowled it, and nobody bowls two in a row.")
+                            .font(FishersTheme.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(FishersTheme.maybe.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Choose the next bowler to carry on scoring")
+        }
+    }
+
+    private func runButton(_ runs: Int, big: Bool = false) -> some View {
         Button {
             score(runs)
         } label: {
             Text("\(runs)")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .frame(maxWidth: .infinity, minHeight: 64)
+                .font(.system(size: big ? 40 : 28, weight: .bold, design: .rounded))
+                .frame(maxWidth: .infinity, minHeight: big ? 84 : 64)
         }
         .buttonStyle(.borderedProminent)
-        .tint(runs >= 4 ? FishersTheme.pitch : FishersTheme.accent)
+        .tint(runButtonTint(runs))
         .accessibilityLabel("\(runs) run\(runs == 1 ? "" : "s")")
+    }
+
+    private func runButtonTint(_ runs: Int) -> Color {
+        switch runs {
+        case 6: return FishersTheme.six
+        case 4: return FishersTheme.four
+        default: return FishersTheme.accent
+        }
     }
 
     /// The wheel is asked for *before* the ball is written, so the shot rides
@@ -586,10 +665,7 @@ struct LiveScorerView: View {
     }
 
     private func promptForBowlerIfOverEnded() {
-        guard let inn = store.state.currentInnings, !inn.complete else { return }
-        if inn.ballsInCurrentOver == 0 && inn.legalBalls > 0 {
-            showBowler = true
-        }
+        if needsNewBowler { showBowler = true }
     }
 
     // MARK: Sync chip

@@ -18,7 +18,7 @@ Scorers can mint a **secure, revocable** link to the live cricket scoreboard and
 | DELETE | `/api/v1/cricket/matches/{id}/share` | JWT scorer | Body: `{ token }` — revoke |
 | GET | `/api/v1/public/scoreboard/{token}` | none | Live `MatchState` + player names |
 
-Set `PUBLIC_WEB_BASE` (or `WEB_BASE_URL`) on the API so minted links point at the web app (e.g. `http://127.0.0.1:3000`).
+Set `PUBLIC_WEB_BASE` (or `WEB_BASE_URL`) on the API so minted links point at the web app (e.g. `http://127.0.0.1:7311`).
 
 ## Security
 

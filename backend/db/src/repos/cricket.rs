@@ -6,7 +6,7 @@
 //! that was stored in an earlier batch.
 
 use chrono::{DateTime, Utc};
-use fishers_domain::{MatchState, MatchStatus, ScoringEvent, ScoringEventKind};
+use fishers_domain::{MatchSide, MatchState, MatchStatus, ScoringEvent, ScoringEventKind};
 use serde_json::Value;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -510,6 +510,15 @@ pub async fn apply_event_batch(
         if seen.contains(&event.client_event_id) {
             continue; // already applied — the client is retrying a batch
         }
+        if event.seq <= state.last_seq {
+            // The client worked from a state it had already moved past — two
+            // quick taps both numbering the same ball, say. The engine treats
+            // this as applied and does nothing, so inserting it anyway would
+            // collide with the row already holding that sequence number, and
+            // the scorer would see a duplicate key error for a ball that was
+            // recorded perfectly well.
+            continue;
+        }
         state.apply(event)?;
 
         let payload = serde_json::to_value(&event.kind)?;
@@ -751,10 +760,103 @@ async fn record_match_outcomes(
         .await?;
     }
 
-    // 3. The tournament table, if this fixture is in one. Without this a
+    // 3. The club's season board. Until now only the Play-Cricket sync wrote
+    //    this, so a club scoring its own matches showed "Played 0" forever.
+    record_club_season(tx, club_id, season_year, state).await?;
+
+    // 4. The tournament table, if this fixture is in one. Without this a
     //    ball-by-ball scored tournament game left the table blank and somebody
     //    had to type the result in a second time.
     record_tournament_result(tx, event_id, state).await?;
+
+    Ok(())
+}
+
+/// Fold one finished match into the club's season board.
+///
+/// Which side the club batted as is not recorded anywhere, so it is worked out
+/// from the team sheets: the XI holding more of the club's own members is the
+/// club's side. A guest-only match falls back to the home side, which is the
+/// convention everywhere else in the app.
+async fn record_club_season(
+    tx: &mut Transaction<'_, Postgres>,
+    club_id: Uuid,
+    season_year: i32,
+    state: &MatchState,
+) -> Result<(), sqlx::Error> {
+    const MEMBERS_IN_XI: &str =
+        "SELECT COUNT(*) FROM club_members WHERE club_id = $1 AND user_id = ANY($2)";
+    let home_members: i64 = sqlx::query_scalar(MEMBERS_IN_XI)
+        .bind(club_id)
+        .bind(&state.home_xi[..])
+        .fetch_one(&mut **tx)
+        .await?;
+    let away_members: i64 = sqlx::query_scalar(MEMBERS_IN_XI)
+        .bind(club_id)
+        .bind(&state.away_xi[..])
+        .fetch_one(&mut **tx)
+        .await?;
+    let club_side = if away_members > home_members {
+        MatchSide::Away
+    } else {
+        MatchSide::Home
+    };
+
+    // Runs and wickets across every innings, from the club's point of view.
+    let (mut runs_for, mut runs_against) = (0i32, 0i32);
+    let (mut wickets_taken, mut wickets_lost) = (0i32, 0i32);
+    for inn in &state.innings {
+        if inn.batting == club_side {
+            runs_for += inn.runs as i32;
+            wickets_lost += inn.wickets as i32;
+        } else {
+            runs_against += inn.runs as i32;
+            wickets_taken += inn.wickets as i32;
+        }
+    }
+
+    let (win, loss, draw, no_result) = match state.winner {
+        Some(side) if side == club_side => (1, 0, 0, 0),
+        Some(_) => (0, 1, 0, 0),
+        // A finished match with no winner is a tie; anything else abandoned.
+        None if state.innings.iter().all(|i| i.complete) => (0, 0, 1, 0),
+        None => (0, 0, 0, 1),
+    };
+
+    sqlx::query(
+        r#"
+        INSERT INTO club_season_stats (
+            club_id, team_id, sport, season_year, source,
+            matches_played, wins, losses, draws, no_results,
+            runs_for, runs_against, wickets_taken, wickets_lost
+        ) VALUES ($1, NULL, 'cricket', $2, 'fishers_scoring',
+                  1, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (club_id, sport, season_year, source) WHERE team_id IS NULL
+        DO UPDATE SET
+            matches_played = club_season_stats.matches_played + 1,
+            wins           = club_season_stats.wins + EXCLUDED.wins,
+            losses         = club_season_stats.losses + EXCLUDED.losses,
+            draws          = club_season_stats.draws + EXCLUDED.draws,
+            no_results     = club_season_stats.no_results + EXCLUDED.no_results,
+            runs_for       = club_season_stats.runs_for + EXCLUDED.runs_for,
+            runs_against   = club_season_stats.runs_against + EXCLUDED.runs_against,
+            wickets_taken  = club_season_stats.wickets_taken + EXCLUDED.wickets_taken,
+            wickets_lost   = club_season_stats.wickets_lost + EXCLUDED.wickets_lost,
+            updated_at     = NOW()
+        "#,
+    )
+    .bind(club_id)
+    .bind(season_year)
+    .bind(win)
+    .bind(loss)
+    .bind(draw)
+    .bind(no_result)
+    .bind(runs_for)
+    .bind(runs_against)
+    .bind(wickets_taken)
+    .bind(wickets_lost)
+    .execute(&mut **tx)
+    .await?;
 
     Ok(())
 }

@@ -14,11 +14,11 @@ cleanup() { kill "$API_PID" 2>/dev/null || true; }
 trap cleanup EXIT
 
 for _ in $(seq 1 40); do
-  curl -sf http://localhost:8080/health >/dev/null && break
+  curl -sf http://localhost:7312/health >/dev/null && break
   sleep 0.5
 done
 
-curl -sf http://localhost:8080/health >/dev/null
+curl -sf http://localhost:7312/health >/dev/null
 echo "health: ok"
 
 python3 - <<'PY'
@@ -26,7 +26,7 @@ import json, urllib.request
 
 def post(path, body, token=None):
     req = urllib.request.Request(
-        f"http://localhost:8080/api/v1{path}",
+        f"http://localhost:7312/api/v1{path}",
         data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {token}"} if token else {})},
         method="POST",
