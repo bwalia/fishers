@@ -85,6 +85,12 @@ fn load_dls_table() -> ResourceTable {
     let Ok(path) = std::env::var("DLS_RESOURCE_TABLE") else {
         return ResourceTable::default();
     };
+    // Set-but-empty is "use the built-in table", not "open a file named ''".
+    // .env.example ships `DLS_RESOURCE_TABLE=`, so every plain `cargo run`
+    // logged a read error at startup for a file nobody asked for.
+    if path.trim().is_empty() {
+        return ResourceTable::default();
+    }
     match std::fs::read_to_string(&path) {
         Ok(csv) => match parse_resource_csv(&csv) {
             Ok(table) => {

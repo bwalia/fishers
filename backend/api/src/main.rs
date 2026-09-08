@@ -58,7 +58,11 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr: SocketAddr = format!("{host}:{port}").parse()?;
+    // Named, because the bare AddrParseError says only "invalid socket address"
+    // and never mentions which variable to go and look at.
+    let addr: SocketAddr = format!("{host}:{port}")
+        .parse()
+        .with_context(|| format!("invalid API_HOST/API_PORT: {host}:{port}"))?;
     tracing::info!(%addr, "Fishers API listening");
     tracing::info!("Swagger UI http://{addr}/swagger-ui");
     let listener = tokio::net::TcpListener::bind(addr)
