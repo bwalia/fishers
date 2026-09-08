@@ -11,7 +11,8 @@ use crate::reliability::ReliabilityScore;
 pub struct User {
     pub id: Uuid,
     pub name: String,
-    pub email: String,
+    /// Absent for somebody who registered with a mobile number instead.
+    pub email: Option<String>,
     pub phone: Option<String>,
     pub apple_id: Option<String>,
     pub avatar_url: Option<String>,
@@ -36,7 +37,7 @@ pub struct User {
 pub struct PublicUser {
     pub id: Uuid,
     pub name: String,
-    pub email: String,
+    pub email: Option<String>,
     pub phone: Option<String>,
     pub avatar_url: Option<String>,
     pub sports_played: Vec<String>,
@@ -88,17 +89,35 @@ impl PublicUser {
 pub struct SignupRequest {
     #[validate(length(min = 1, max = 120))]
     pub name: String,
+    /// One of these two is required — the API says which is missing rather
+    /// than insisting on an address somebody may not have.
     #[validate(email)]
-    pub email: String,
+    pub email: Option<String>,
+    pub phone: Option<String>,
     #[validate(length(min = 8, max = 128))]
     pub password: String,
-    pub phone: Option<String>,
+}
+
+impl SignupRequest {
+    /// The email or the phone, whichever they gave, trimmed.
+    pub fn identifiers(&self) -> (Option<String>, Option<String>) {
+        let clean = |v: &Option<String>| {
+            v.as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        (clean(&self.email), clean(&self.phone))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct LoginRequest {
-    #[validate(email)]
-    pub email: String,
+    /// An email or a mobile number. `email` is still accepted so anything
+    /// already pointed at this endpoint keeps working.
+    #[serde(alias = "email")]
+    #[validate(length(min = 1))]
+    pub identifier: String,
     #[validate(length(min = 1))]
     pub password: String,
 }

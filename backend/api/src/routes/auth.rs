@@ -24,11 +24,23 @@ async fn signup(
     Json(body): Json<SignupRequest>,
 ) -> ApiResult<Json<AuthTokens>> {
     body.validate()?;
-    if users_repo::find_by_email(&state.pool, &body.email)
-        .await?
-        .is_some()
-    {
-        return Err(ApiError::conflict("email already registered"));
+    let (email, phone) = body.identifiers();
+    // One of the two identifies a person. Requiring an address keeps out
+    // members who have a phone and nothing else.
+    if email.is_none() && phone.is_none() {
+        return Err(ApiError::bad_request(
+            "give an email address or a mobile number",
+        ));
+    }
+    if let Some(address) = email.as_deref() {
+        if users_repo::find_by_email(&state.pool, address).await?.is_some() {
+            return Err(ApiError::conflict("that email is already registered"));
+        }
+    }
+    if let Some(number) = phone.as_deref() {
+        if users_repo::find_by_phone(&state.pool, number).await?.is_some() {
+            return Err(ApiError::conflict("that mobile number is already registered"));
+        }
     }
 
     let salt = SaltString::generate(&mut OsRng);
@@ -40,9 +52,9 @@ async fn signup(
     let user = users_repo::create_user(
         &state.pool,
         &body.name,
-        &body.email,
+        email.as_deref(),
         &hash,
-        body.phone.as_deref(),
+        phone.as_deref(),
     )
     .await?;
 
@@ -54,7 +66,8 @@ async fn login(
     Json(body): Json<LoginRequest>,
 ) -> ApiResult<Json<AuthTokens>> {
     body.validate()?;
-    let user = users_repo::find_by_email(&state.pool, &body.email)
+    // Either identifier signs you in, whichever you registered with.
+    let user = users_repo::find_by_identifier(&state.pool, &body.identifier)
         .await?
         .ok_or_else(|| ApiError::unauthorized("invalid credentials"))?;
 

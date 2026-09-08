@@ -66,12 +66,16 @@ async fn request_reconfirmations(
             warn!(error = %e, "reconfirm push failed");
         }
         // Email needs the address; the push path already has the user id.
+        // Somebody who registered with a mobile number has no address, and the
+        // push notification is how they hear about it.
         if let Ok(Some(user)) = fishers_db::repos::users::find_by_id(pool, row.user_id).await {
-            if let Err(e) = email
-                .send(&user.email, &format!("Confirm: {}", row.title), &body)
-                .await
-            {
-                warn!(error = %e, "reconfirm email failed");
+            if let Some(address) = user.email.as_deref() {
+                if let Err(e) = email
+                    .send(address, &format!("Confirm: {}", row.title), &body)
+                    .await
+                {
+                    warn!(error = %e, "reconfirm email failed");
+                }
             }
         }
         selection_repo::mark_reminded(pool, row.event_id, row.user_id).await?;
