@@ -192,12 +192,17 @@ export default function ScorerPage({
             </>
           )}
         </div>
-        {match.can_score && (
+        {/* Anyone signed in can mint a public live link — not only the scorer. */}
+        {getAccessToken() ? (
           <ShareScoreboardButton
             matchId={matchId}
             homeName={st.home_name}
             awayName={st.away_name}
           />
+        ) : (
+          <p className="muted share-hint" style={{ marginTop: "1rem" }}>
+            Sign in to share a live scoreboard link for WhatsApp or email.
+          </p>
         )}
       </section>
 
