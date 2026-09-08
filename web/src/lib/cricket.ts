@@ -333,3 +333,32 @@ export function extrasLine(inn: Innings): string {
   if (inn.penalties) parts.push(`p ${inn.penalties}`);
   return parts.length ? `(${parts.join(", ")})` : "";
 }
+
+/// What `GET /cricket/matches/{id}/squad` returns: who each captain picks from.
+export type SquadPlayer = {
+  id: string;
+  name: string;
+  /// "selected" | "reserve" | "available" | "unavailable" | "member"
+  standing: string;
+  bats_left: boolean;
+};
+
+export type SideSquad = {
+  side: "home" | "away";
+  team_name: string;
+  /// Null when this side is not a club in Fishers — the scorer names them.
+  club_id: string | null;
+  can_pick: boolean;
+  submitted: boolean;
+  players: SquadPlayer[];
+};
+
+export type SquadResponse = { home: SideSquad; away: SideSquad };
+
+export const STANDING_LABEL: Record<string, string> = {
+  selected: "picked",
+  reserve: "reserve",
+  available: "available",
+  unavailable: "said no",
+  member: "member",
+};

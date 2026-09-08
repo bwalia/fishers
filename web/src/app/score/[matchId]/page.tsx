@@ -14,6 +14,7 @@ import {
   DISMISSALS_WITH_FIELDER,
   EXTRA_KINDS,
   GROUNDS,
+  STANDING_LABEL,
   commentaryFor,
   overs,
   requiredRate,
@@ -22,6 +23,8 @@ import {
   type MatchConditions,
   type MatchResponse,
   type MatchState,
+  type SideSquad,
+  type SquadResponse,
 } from "@/lib/cricket";
 
 /// The device the book is held on. The API ties the scoring lock to it, so it
@@ -204,7 +207,7 @@ export default function ScorerPage({
         </div>
       )}
 
-      <Stages match={match} send={send} canAct={canAct} nameOf={nameOf} />
+      <Stages match={match} send={send} canAct={canAct} nameOf={nameOf} onPicked={setMatch} />
 
       <Scorecard st={st} nameOf={nameOf} />
 
@@ -222,11 +225,13 @@ function Stages({
   send,
   canAct,
   nameOf,
+  onPicked,
 }: {
   match: MatchResponse;
   send: (kind: Record<string, unknown>) => Promise<void>;
   canAct: boolean;
   nameOf: (id?: string | null) => string;
+  onPicked: (next: MatchResponse) => void;
 }) {
   const st = match.state;
   const agreed = !!st.agreed_home && !!st.agreed_away;
@@ -258,7 +263,7 @@ function Stages({
   if (!agreed) return <ConditionsPanel st={st} send={send} canAct={canAct} />;
   if (!st.toss_winner) return <TossPanel st={st} send={send} canAct={canAct} />;
   if (st.home_xi.length === 0 || st.away_xi.length === 0)
-    return <XiPanel st={st} send={send} canAct={canAct} />;
+    return <XiPanel st={st} matchId={match.id} canAct={canAct} onPicked={onPicked} />;
   if (needsInnings) return <OpenersPanel st={st} send={send} canAct={canAct} nameOf={nameOf} />;
   return <LivePanel match={match} send={send} canAct={canAct} nameOf={nameOf} />;
 }
@@ -423,88 +428,245 @@ function TossPanel({
   );
 }
 
-/// One name per line, `(L)` after a left-hander so the wagon wheel mirrors them.
-function parseXi(text: string) {
-  return text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const batsLeft = /\(l\)\s*$/i.test(line);
-      return {
-        id: crypto.randomUUID(),
-        name: line.replace(/\(l\)\s*$/i, "").trim(),
-        bats_left: batsLeft,
-      };
-    });
-}
-
 function XiPanel({
   st,
-  send,
+  matchId,
   canAct,
+  onPicked,
 }: {
   st: MatchState;
-  send: (kind: Record<string, unknown>) => Promise<void>;
+  matchId: string;
   canAct: boolean;
+  onPicked: (next: MatchResponse) => void;
 }) {
-  const side: Side = st.home_xi.length === 0 ? "home" : "away";
-  const label = side === "home" ? st.home_name : st.away_name;
-  const [text, setText] = useState("");
-  const players = useMemo(() => parseXi(text), [text]);
-  const [captain, setCaptain] = useState(0);
-  const [keeper, setKeeper] = useState(1);
+  const [squad, setSquad] = useState<SquadResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setSquad(await api<SquadResponse>("GET", `/cricket/matches/${matchId}/squad`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load the squads");
+    }
+  }, [matchId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (error) return <p className="error">{error}</p>;
+  if (!squad) return <div className="panel"><div className="skeleton" style={{ height: 80 }} /></div>;
+
+  return (
+    <>
+      <div className="panel">
+        <h2>Team sheets</h2>
+        <p className="muted">
+          Each captain names their own side. The match starts once both are in.
+        </p>
+      </div>
+      {(["home", "away"] as const).map((side) => (
+        <SideSheet
+          key={side}
+          side={squad[side]}
+          st={st}
+          matchId={matchId}
+          canAct={canAct}
+          onPicked={(next) => {
+            onPicked(next);
+            load();
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+function SideSheet({
+  side,
+  st,
+  matchId,
+  canAct,
+  onPicked,
+}: {
+  side: SideSquad;
+  st: MatchState;
+  matchId: string;
+  canAct: boolean;
+  onPicked: (next: MatchResponse) => void;
+}) {
+  const already = side.side === "home" ? st.home_xi : st.away_xi;
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [extras, setExtras] = useState<{ id: string; name: string; bats_left: boolean }[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newLeft, setNewLeft] = useState(false);
+  const [captain, setCaptain] = useState("");
+  const [keeper, setKeeper] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (already.length > 0) {
+    return (
+      <div className="panel">
+        <div className="panel-head">
+          <h2>{side.team_name}</h2>
+          <span className="tag"><Icon name="check" size={12} /> named</span>
+        </div>
+        <p className="muted">
+          {already.length} players — {already.map((id) => st.player_names[id] || "…").join(", ")}
+        </p>
+      </div>
+    );
+  }
+
+  if (!side.can_pick) {
+    return (
+      <div className="panel">
+        <div className="panel-head">
+          <h2>{side.team_name}</h2>
+          <span className="tag grey">waiting</span>
+        </div>
+        <p className="muted">Their captain has not named a side yet.</p>
+      </div>
+    );
+  }
+
+  const picked = [
+    ...side.players.filter((p) => chosen.includes(p.id)).map((p) => ({
+      id: p.id,
+      name: p.name,
+      bats_left: p.bats_left,
+    })),
+    ...extras,
+  ];
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await api<MatchResponse>("POST", `/cricket/matches/${matchId}/xi`, {
+        side: side.side,
+        players: picked,
+        captain_id: captain || null,
+        keeper_id: keeper || null,
+      });
+      onPicked(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the sheet");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="panel">
-      <h2>Team sheet — {label}</h2>
-      <p className="muted">
-        One name per line, in batting order. Add <code>(L)</code> after a left-hander so
-        the wagon wheel mirrors their shots. Two to fifteen players.
-      </p>
-      <div className="form">
+      <div className="panel-head">
+        <h2>{side.team_name}</h2>
+        <span className={picked.length >= 2 ? "tag" : "tag grey"}>{picked.length} picked</span>
+      </div>
+
+      {side.players.length === 0 ? (
+        <p className="muted">
+          Not a Fishers club, so there is no squad to pick from — add them by name below.
+        </p>
+      ) : (
+        <ul className="plain-list">
+          {side.players.map((p) => (
+            <li key={p.id}>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={chosen.includes(p.id)}
+                  onChange={(e) =>
+                    setChosen((prev) =>
+                      e.target.checked ? [...prev, p.id] : prev.filter((x) => x !== p.id)
+                    )
+                  }
+                />
+                {p.name}
+                <span className="tag grey">{STANDING_LABEL[p.standing] ?? p.standing}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {extras.length > 0 && (
+        <ul className="plain-list" style={{ marginTop: "var(--s2)" }}>
+          {extras.map((p) => (
+            <li key={p.id}>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked
+                  onChange={() => setExtras((prev) => prev.filter((x) => x.id !== p.id))}
+                />
+                {p.name}
+                <span className="tag gold">added today</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="field-row" style={{ marginTop: "var(--s3)" }}>
         <label>
-          Players
-          <textarea
-            rows={12}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={"Ravi Sharma\nSam Blake (L)\n…"}
-            style={{ width: "100%", fontFamily: "inherit", padding: "0.5rem" }}
+          Someone not on the list
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Name of whoever turned up"
           />
         </label>
+        <label className="checkbox">
+          <input type="checkbox" checked={newLeft} onChange={(e) => setNewLeft(e.target.checked)} />
+          Left-handed
+        </label>
+        <button
+          className="btn"
+          type="button"
+          disabled={!newName.trim()}
+          onClick={() => {
+            setExtras((prev) => [
+              ...prev,
+              { id: crypto.randomUUID(), name: newName.trim(), bats_left: newLeft },
+            ]);
+            setNewName("");
+            setNewLeft(false);
+          }}
+        >
+          <Icon name="plus" size={16} /> Add
+        </button>
       </div>
-      {players.length > 0 && (
-        <div className="select-row">
+
+      {picked.length > 0 && (
+        <div className="select-row" style={{ marginTop: "var(--s3)" }}>
           <label>
-            Captain{" "}
-            <select value={captain} onChange={(e) => setCaptain(Number(e.target.value))}>
-              {players.map((p, i) => <option key={p.id} value={i}>{p.name}</option>)}
+            Captain
+            <select value={captain} onChange={(e) => setCaptain(e.target.value)}>
+              <option value="">—</option>
+              {picked.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
           <label>
-            Keeper{" "}
-            <select value={keeper} onChange={(e) => setKeeper(Number(e.target.value))}>
-              {players.map((p, i) => <option key={p.id} value={i}>{p.name}</option>)}
+            Keeper
+            <select value={keeper} onChange={(e) => setKeeper(e.target.value)}>
+              <option value="">—</option>
+              {picked.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
         </div>
       )}
+
+      {error && <p className="error">{error}</p>}
+
       <button
         className="btn primary"
         type="button"
-        disabled={!canAct || players.length < 2}
-        onClick={() =>
-          send({
-            type: "xi_selected",
-            side,
-            players,
-            captain_id: players[captain]?.id ?? null,
-            keeper_id: players[keeper]?.id ?? null,
-          })
-        }
+        disabled={!canAct || busy || picked.length < 2}
+        onClick={submit}
       >
-        Confirm {label} ({players.length})
+        {busy ? "Saving…" : `Confirm ${side.team_name} (${picked.length})`}
       </button>
     </div>
   );
