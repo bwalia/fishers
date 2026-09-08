@@ -1383,6 +1383,20 @@ textarea { line-height: 1.5; resize: vertical; }
   font-size: 0.85rem;
   max-width: 28rem;
 }
+/* The link itself, shown once minted. Over plain HTTP the clipboard is not
+   available, so this is the only way to get the link off the page — it has to
+   be selectable and wide enough to read, not a truncated decoration. */
+.share-link {
+  width: 100%;
+  max-width: 28rem;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+}
 .live-share-root {
   min-height: 100vh;
 }

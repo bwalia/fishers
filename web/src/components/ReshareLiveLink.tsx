@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { copyText } from "@/lib/clipboard";
 import { Icon } from "@/components/Icon";
 
 /// Recipients of a live link can pass it on again without signing in.
@@ -31,8 +32,13 @@ export function ReshareLiveLink({
           }
         }
       }
-      await navigator.clipboard.writeText(url);
-      setNote("Link copied — paste into WhatsApp, Mail, or Messages.");
+      // The clipboard is absent over plain HTTP; the address bar still has the
+      // link, so say that rather than failing on a page they are already on.
+      setNote(
+        (await copyText(url))
+          ? "Link copied — paste into WhatsApp, Mail, or Messages."
+          : "Copy this page's address from the address bar to share it."
+      );
     } catch (err) {
       setNote(err instanceof Error ? err.message : "Could not share");
     }

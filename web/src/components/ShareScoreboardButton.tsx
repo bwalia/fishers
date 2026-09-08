@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { copyText } from "@/lib/clipboard";
 import { Icon } from "@/components/Icon";
 
 type ShareResponse = {
@@ -27,10 +28,13 @@ export function ShareScoreboardButton({
 }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Kept so the link survives a failed copy. Losing it meant minting another.
+  const [link, setLink] = useState<string | null>(null);
 
   const share = async () => {
     setBusy(true);
     setNote(null);
+    setLink(null);
     try {
       const res = await api<ShareResponse>(
         "POST",
@@ -39,6 +43,7 @@ export function ShareScoreboardButton({
       );
       const title = `${homeName} vs ${awayName} — live scoreboard`;
       const text = `${title}\n${res.url}`;
+      setLink(res.url);
 
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
         try {
@@ -53,8 +58,13 @@ export function ShareScoreboardButton({
         }
       }
 
-      await navigator.clipboard.writeText(res.url);
-      setNote("Link copied — paste into WhatsApp, Mail, or Messages.");
+      // Never assume the clipboard is there: it is absent over plain HTTP, which
+      // is how this page is reached from a phone at the ground.
+      setNote(
+        (await copyText(res.url))
+          ? "Link copied — paste into WhatsApp, Mail, or Messages."
+          : "Link ready — copy it below and paste into WhatsApp, Mail, or Messages."
+      );
     } catch (err) {
       setNote(err instanceof Error ? err.message : "Could not create a share link");
     } finally {
@@ -73,6 +83,16 @@ export function ShareScoreboardButton({
         them. The full scorecard updates every few seconds.
       </p>
       {note && <p className="tag">{note}</p>}
+      {link && (
+        <input
+          className="share-link"
+          type="text"
+          value={link}
+          readOnly
+          onFocus={(e) => e.currentTarget.select()}
+          aria-label="Live scoreboard link"
+        />
+      )}
     </div>
   );
 }

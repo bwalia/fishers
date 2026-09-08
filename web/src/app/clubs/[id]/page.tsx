@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { QrCard } from "@/components/QrCard";
+import { copyText } from "@/lib/clipboard";
 
 export default function ClubPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -324,7 +325,7 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
           <button
             className="btn sm"
             type="button"
-            onClick={() => navigator.clipboard?.writeText(invite)}
+            onClick={() => void copyText(invite)}
           >
             Copy
           </button>

@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getAccessToken, getStoredUser, roleLabel, type ClubMemberRow } from "@/lib/api";
+import { randomUUID } from "@/lib/uuid";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
 import { Icon } from "@/components/Icon";
@@ -38,7 +39,7 @@ function deviceId() {
   const KEY = "fishers_device_id";
   let id = localStorage.getItem(KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = randomUUID();
     localStorage.setItem(KEY, id);
   }
   return id;
@@ -108,7 +109,7 @@ export default function ScorerPage({
       // revert to "Home"/"Away" the moment a second batch arrived.
       if (seq === 0 && kind.type !== "match_prepared") {
         events.push({
-          client_event_id: crypto.randomUUID(),
+          client_event_id: randomUUID(),
           seq: ++seq,
           kind: {
             type: "match_prepared",
@@ -121,7 +122,7 @@ export default function ScorerPage({
       }
       // The engine demands the next seq exactly; it is the server's count,
       // never a local one.
-      events.push({ client_event_id: crypto.randomUUID(), seq: ++seq, kind, at });
+      events.push({ client_event_id: randomUUID(), seq: ++seq, kind, at });
 
       try {
         const next = await api<MatchResponse>(
@@ -1527,7 +1528,7 @@ function SideSheet({
   function addGuest() {
     setExtras((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), name: newName.trim(), bats_left: newLeft },
+      { id: randomUUID(), name: newName.trim(), bats_left: newLeft },
     ]);
     setNewName("");
     setNewLeft(false);
