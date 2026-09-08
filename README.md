@@ -79,10 +79,12 @@ creates `demo@fishers.test` / `password123` with a club, fixtures, shop stock an
 a part-scored match, and prints a public live-scoreboard link. It is safe to
 re-run — it reuses what already exists instead of duplicating it.
 
-**CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md).
+**CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md) — same Fastlane + Vault pattern as KubePilot.
 
 - PR build + tests: `.github/workflows/ios.yml`
-- TestFlight / App Store: `.github/workflows/ios_release.yml` (Vault + fastlane, same pattern as KubePilot)
+- **Auto TestFlight on merge to `main`** (when `ios/**` changes): `.github/workflows/ios_release.yml`
+- Patch tags on `main`: `.github/workflows/auto-tag.yml`
+- Manual TestFlight / App Store: same release workflow (`workflow_dispatch`)
 
 ## Squad selection
 
