@@ -187,3 +187,54 @@ struct TicketBooking: Codable, Equatable {
     let summary: TicketSummary
     let tickets: [EventTicket]
 }
+
+/// A cricket fixture with its match state already joined on.
+///
+/// The scoring list and the Home overview both want the same thing: what is
+/// happening, with enough on the row to decide whether to open it. `score` and
+/// `result` arrive already formatted by the API, because a half-built innings
+/// reads differently from a finished one and the server is the side that knows.
+struct CricketFixtureRow: Codable, Identifiable, Hashable {
+    let eventId: UUID
+    let clubId: UUID
+    let title: String
+    let startAt: Date
+    let eventStatus: String
+    /// Absent until a match is created on the fixture.
+    let matchId: UUID?
+    /// `setup`, `live` or `complete`.
+    let matchStatus: String?
+    let homeName: String?
+    let awayName: String?
+    /// Somebody is scoring it — not necessarily you.
+    let hasScorer: Bool
+    /// "20/1 (2.0 ov)", as the API formats it.
+    let score: String?
+    let result: String?
+
+    /// The fixture is the identity: there is at most one match on it, and rows
+    /// without a match yet still need to be listed.
+    var id: UUID { eventId }
+
+    /// "London Lords v Watford", falling back to the fixture's own title before
+    /// a match names the sides.
+    var sides: String {
+        guard let homeName, let awayName else { return title }
+        return "\(homeName) v \(awayName)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case eventId = "event_id"
+        case clubId = "club_id"
+        case title
+        case startAt = "start_at"
+        case eventStatus = "event_status"
+        case matchId = "match_id"
+        case matchStatus = "match_status"
+        case homeName = "home_name"
+        case awayName = "away_name"
+        case hasScorer = "has_scorer"
+        case score
+        case result
+    }
+}
