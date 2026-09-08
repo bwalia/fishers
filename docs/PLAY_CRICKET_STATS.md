@@ -40,7 +40,7 @@ Sample squad (8 extra players): `20260905000009_play_cricket_sample_squad.sql`
 
 Sign in as `demo@fishers.test` / `password123` for the sample showcase season (412 runs, 23 wickets).
 
-If Profile shows a decode/network error under Season stats, confirm the API is running (`./scripts/run-api.sh`) and rebuild the iOS app so fractional ISO-8601 timestamps decode correctly.
+If Profile shows a decode/network error under Season stats, confirm the API is running and serving (`./scripts/start.sh --status`) and rebuild the iOS app so fractional ISO-8601 timestamps decode correctly.
 
 ## Live sync (optional)
 

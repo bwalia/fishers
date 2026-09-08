@@ -33,6 +33,12 @@ def call(method, path, body=None, token=None):
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"{method} {path} -> {e.code}: {e.read().decode()[:200]}") from None
 
+# Some list endpoints are paged ({"items": [...]}), others still return a bare
+# array. Reading either the same way keeps seeding working as more of them are
+# paged — iterating the envelope silently yields its keys instead of its rows.
+def rows(data):
+    return data["items"] if isinstance(data, dict) and "items" in data else data
+
 # Re-runnable: sign in if the demo account already exists.
 try:
     auth = call("POST", "/auth/login", {"email": EMAIL, "password": PASSWORD})
@@ -44,7 +50,7 @@ except RuntimeError:
 tok = auth["access_token"]
 
 CLUB = "London Lords CC"
-club = next((c for c in call("GET", "/clubs", None, tok) if c["name"] == CLUB), None)
+club = next((c for c in rows(call("GET", "/clubs", None, tok)) if c["name"] == CLUB), None)
 if club:
     print(f"club: {CLUB} (existing)")
 else:
@@ -57,7 +63,7 @@ else:
 now = datetime.datetime.now(datetime.timezone.utc)
 iso = lambda d: d.isoformat().replace("+00:00", "Z")
 
-have = {e["title"] for e in call("GET", f"/events?club_id={club['id']}", None, tok)}
+have = {e["title"] for e in rows(call("GET", f"/events?club_id={club['id']}", None, tok))}
 for title, subtype, days, cap, fee in [
     ("Wednesday Nets", "nets", 2, 18, 600),
     ("Saturday League vs Hemel", "league_match", 4, 22, 1500),
@@ -72,7 +78,7 @@ for title, subtype, days, cap, fee in [
         "capacity": cap, "fee_amount_cents": fee}, tok)
 print("fixtures: 3")
 
-stocked = {p["name"] for p in call("GET", f"/clubs/{club['id']}/products", None, tok)}
+stocked = {p["name"] for p in rows(call("GET", f"/clubs/{club['id']}/products", None, tok))}
 for name, category, cents in [
     ("Kookaburra Match Ball", "equipment", 2400),
     ("Gray-Nicolls Player Bat", "equipment", 18500),
@@ -90,7 +96,7 @@ print("shop: 6 products")
 
 # A live match, part-scored, so the public scoreboard has something to render.
 LIVE = "Lords vs Hemel — live"
-event = next((e for e in call("GET", f"/events?club_id={club['id']}", None, tok)
+event = next((e for e in rows(call("GET", f"/events?club_id={club['id']}", None, tok))
               if e["title"] == LIVE), None)
 if event is None:
     event = call("POST", "/events", {
@@ -183,7 +189,7 @@ for i, (name, left) in enumerate(SQUAD):
     squad.append({"id": uid, "name": name, "bats_left": left})
 
 RESULT = "League vs Watford — result"
-revent = next((e for e in call("GET", f"/events?club_id={club['id']}", None, tok)
+revent = next((e for e in rows(call("GET", f"/events?club_id={club['id']}", None, tok))
                if e["title"] == RESULT), None)
 if revent is None:
     revent = call("POST", "/events", {

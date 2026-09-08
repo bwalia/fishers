@@ -45,3 +45,7 @@ Secrets.xcconfig
 
 # Docker
 postgres-data/
+ios/.xcodegen-stamp
+
+# Local dev stack: pidfiles, service logs, iOS DerivedData (scripts/start.sh)
+.dev/
