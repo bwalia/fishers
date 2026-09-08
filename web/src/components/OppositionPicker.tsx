@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type OpponentIdentity } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { isSecureContextAvailable } from "@/lib/clipboard";
 
 /// Three ways to name the other side, because a ground is not a laboratory:
 /// scan their code, paste the link they sent, or search for them by name. A
@@ -139,10 +140,17 @@ export function OppositionPicker({
 /// says plainly when it is not.
 function QrScanner({ onScan }: { onScan: (token: string) => void }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [state, setState] = useState<"idle" | "running" | "unsupported" | "denied">("idle");
+  const [state, setState] = useState<
+    "idle" | "running" | "unsupported" | "denied" | "insecure"
+  >("idle");
 
   useEffect(() => {
-    if (!("BarcodeDetector" in window)) setState("unsupported");
+    // getUserMedia is secure-context only, so it is missing over plain HTTP on
+    // a LAN address — the way a captain reaches this from the boundary. Saying
+    // "no camera access" there sends them to Settings to grant a permission
+    // that was never the problem.
+    if (!isSecureContextAvailable() || !navigator.mediaDevices) setState("insecure");
+    else if (!("BarcodeDetector" in window)) setState("unsupported");
   }, []);
 
   useEffect(() => {
@@ -188,6 +196,14 @@ function QrScanner({ onScan }: { onScan: (token: string) => void }) {
     };
   }, [state, onScan]);
 
+  if (state === "insecure") {
+    return (
+      <p className="muted">
+        The camera needs an https address, so scanning is off over this LAN link. Paste
+        their link instead, or search by name.
+      </p>
+    );
+  }
   if (state === "unsupported") {
     return (
       <p className="muted">

@@ -1,6 +1,7 @@
 "use client";
 
 import type { QrCode } from "@/lib/api";
+import { copyText } from "@/lib/clipboard";
 
 /// A club or team's code, as an opposition captain sees it at the ground.
 ///
@@ -26,7 +27,7 @@ export function QrCard({ qr }: { qr: QrCode }) {
       <button
         className="btn sm ghost"
         type="button"
-        onClick={() => navigator.clipboard?.writeText(qr.payload)}
+        onClick={() => void copyText(qr.payload)}
       >
         Copy link
       </button>
