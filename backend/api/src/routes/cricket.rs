@@ -3,7 +3,10 @@
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use fishers_db::repos::{cricket as cricket_repo, events as events_repo};
+use fishers_db::repos::{
+    clubs as clubs_repo, cricket as cricket_repo, events as events_repo,
+    selection as selection_repo, users as users_repo,
+};
 use fishers_domain::{
     DlsPar, MatchState, MatchStatus, Permission, ScoringEvent, ScoringEventKind, UserRole,
 };
@@ -40,6 +43,8 @@ pub fn router() -> Router<AppState> {
         .route("/cricket/matches/{id}/handover", post(handover))
         .route("/cricket/matches/{id}/scorer-trail", get(scorer_trail))
         .route("/cricket/matches/{id}/commentary", post(commentary))
+        .route("/cricket/matches/{id}/squad", get(squad))
+        .route("/cricket/matches/{id}/xi", post(submit_xi))
 }
 
 #[derive(Deserialize)]
@@ -620,4 +625,217 @@ async fn commentary(
         line,
         model: Some(ollama.model().to_string()),
     }))
+}
+
+
+// MARK: Squads and team sheets
+
+#[derive(Serialize)]
+struct SquadPlayer {
+    id: Uuid,
+    name: String,
+    /// "selected", "reserve", "available", "unavailable" or "member" — enough
+    /// for a captain to see who was picked for this fixture and who was not.
+    standing: String,
+    bats_left: bool,
+}
+
+#[derive(Serialize)]
+struct SideSquad {
+    side: &'static str,
+    team_name: String,
+    /// Null when this side is not a club in Fishers — the scorer names them.
+    club_id: Option<Uuid>,
+    /// Whether the caller may submit this side's sheet.
+    can_pick: bool,
+    /// Already named, if the captain has been.
+    submitted: bool,
+    players: Vec<SquadPlayer>,
+}
+
+#[derive(Serialize)]
+struct SquadResponse {
+    home: SideSquad,
+    away: SideSquad,
+}
+
+/// Who each captain has to pick from.
+///
+/// The home side comes from the fixture's own selection board — the squad that
+/// was picked, with availability already worked out — because that is what a
+/// squad for this game means. The away side comes from the opposing club's
+/// members when the opposition was matched by QR; a club that is not in Fishers
+/// has no pool, and the scorer names them as before.
+async fn squad(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<SquadResponse>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    require_club_member(&state, row.club_id, auth.user_id).await?;
+    let projection = cricket_repo::parse_state(&row);
+
+    let scorer = may_score(&state, &row, auth.user_id).await;
+    let home_pick = scorer
+        || may_manage_selection(&state, Some(row.club_id), auth.user_id).await;
+    let away_pick = scorer
+        || may_manage_selection(&state, row.opponent_club_id, auth.user_id).await;
+
+    // The fixture's board: who was picked, who is a reserve, who said no.
+    let mut home_players: Vec<SquadPlayer> = selection_repo::candidates(&state.pool, row.event_id)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|c| SquadPlayer {
+            id: c.user_id,
+            standing: standing_of(&c),
+            bats_left: projection.left_handers.contains(&c.user_id),
+            name: c.name,
+        })
+        .collect();
+    home_players.sort_by(|a, b| standing_rank(&a.standing).cmp(&standing_rank(&b.standing)));
+
+    // Members carry no name of their own, so look them up as the scoreboard does.
+    let away_players = match row.opponent_club_id {
+        Some(club) => {
+            let members = clubs_repo::list_members(&state.pool, club)
+                .await
+                .unwrap_or_default();
+            let ids: Vec<Uuid> = members.iter().map(|m| m.user_id).collect();
+            let names: std::collections::HashMap<Uuid, String> =
+                users_repo::names_for(&state.pool, &ids)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect();
+            members
+                .into_iter()
+                .map(|m| SquadPlayer {
+                    id: m.user_id,
+                    name: names.get(&m.user_id).cloned().unwrap_or_else(|| "Player".into()),
+                    standing: "member".into(),
+                    bats_left: projection.left_handers.contains(&m.user_id),
+                })
+                .collect()
+        }
+        None => Vec::new(),
+    };
+
+    Ok(Json(SquadResponse {
+        home: SideSquad {
+            side: "home",
+            team_name: projection.home_name.clone(),
+            club_id: Some(row.club_id),
+            can_pick: home_pick,
+            submitted: !projection.home_xi.is_empty(),
+            players: home_players,
+        },
+        away: SideSquad {
+            side: "away",
+            team_name: projection.away_name.clone(),
+            club_id: row.opponent_club_id,
+            can_pick: away_pick,
+            submitted: !projection.away_xi.is_empty(),
+            players: away_players,
+        },
+    }))
+}
+
+fn standing_of(c: &fishers_domain::Candidate) -> String {
+    use fishers_domain::{AvailabilityStatus, SelectionState};
+    match c.state {
+        SelectionState::Selected => "selected".into(),
+        SelectionState::Reserve => "reserve".into(),
+        _ => match c.availability {
+            Some(AvailabilityStatus::Available) => "available".into(),
+            Some(AvailabilityStatus::Unavailable) => "unavailable".into(),
+            _ => "member".into(),
+        },
+    }
+}
+
+fn standing_rank(standing: &str) -> u8 {
+    match standing {
+        "selected" => 0,
+        "reserve" => 1,
+        "available" => 2,
+        "member" => 3,
+        _ => 4,
+    }
+}
+
+async fn may_manage_selection(state: &AppState, club: Option<Uuid>, user_id: Uuid) -> bool {
+    let Some(club) = club else { return false };
+    require_permission(state, club, user_id, None, Permission::ManageSelection)
+        .await
+        .is_ok()
+}
+
+#[derive(Deserialize)]
+struct XiRequest {
+    side: fishers_domain::MatchSide,
+    players: Vec<fishers_domain::MatchPlayer>,
+    #[serde(default)]
+    captain_id: Option<Uuid>,
+    #[serde(default)]
+    keeper_id: Option<Uuid>,
+}
+
+/// A captain names their own side.
+///
+/// Separate from the scoring log's usual door because the two captains are not
+/// the scorer: each names their own eleven, from their own device, and neither
+/// has to hold the book to do it. The sequence number is worked out here rather
+/// than sent, so two captains submitting at once cannot collide on one.
+///
+/// Players do not have to be club members. A side short on the morning can be
+/// made up by whoever turns up, and that player is recorded on the sheet by
+/// name like any other.
+async fn submit_xi(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<XiRequest>,
+) -> ApiResult<Json<MatchResponse>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+
+    let owning_club = match body.side {
+        fishers_domain::MatchSide::Home => Some(row.club_id),
+        fishers_domain::MatchSide::Away => row.opponent_club_id,
+    };
+    let allowed = may_score(&state, &row, auth.user_id).await
+        || may_manage_selection(&state, owning_club, auth.user_id).await;
+    if !allowed {
+        return Err(ApiError::forbidden(
+            "only this side's captain or the scorer can name this team sheet",
+        ));
+    }
+
+    let projection = cricket_repo::parse_state(&row);
+    let event = ScoringEvent {
+        client_event_id: Uuid::new_v4(),
+        seq: projection.last_seq + 1,
+        kind: ScoringEventKind::XiSelected {
+            side: body.side,
+            players: body.players,
+            captain_id: body.captain_id,
+            keeper_id: body.keeper_id,
+        },
+        at: Some(chrono::Utc::now()),
+    };
+    let state_out =
+        cricket_repo::apply_event_batch(&state.pool, id, &[event], auth.user_id, None)
+            .await
+            .map_err(|e| ApiError::conflict(e.to_string()))?;
+
+    let refreshed = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    let can_score = may_score(&state, &refreshed, auth.user_id).await;
+    let _ = state_out;
+    Ok(Json(to_response(&state, &refreshed, can_score)))
 }

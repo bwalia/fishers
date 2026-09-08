@@ -405,15 +405,16 @@ struct CricketScoringFlowView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
 
+            // One side at a time, because each captain names their own and the
+            // engine now refuses to start until both sheets are in.
             VStack(spacing: 6) {
-                Text("\(homeName) \(homeSheet.count) · \(awayName) \(awaySheet.count) · \(umpires.count) umpire\(umpires.count == 1 ? "" : "s")")
+                Text("\(umpires.count) umpire\(umpires.count == 1 ? "" : "s") appointed")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Button("Confirm team sheets") { commitSheets() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(FishersTheme.accent)
-                    .frame(maxWidth: .infinity)
-                    .disabled(homeSheet.count < 2 || awaySheet.count < 2)
+                HStack(spacing: 8) {
+                    sideConfirmButton(side: .home, name: homeName, sheet: homeSheet)
+                    sideConfirmButton(side: .away, name: awayName, sheet: awaySheet)
+                }
                 if let message {
                     Text(message).font(.caption).foregroundStyle(FishersTheme.unavailable)
                 }
@@ -568,28 +569,53 @@ struct CricketScoringFlowView: View {
         step = .agreement
     }
 
-    private func commitSheets() {
-        guard homeSheet.count >= 2, awaySheet.count >= 2 else { return }
-        var ok = store.append(.xiSelected(
-            side: .home, players: homeSheet,
-            captainId: homeCaptain, keeperId: homeKeeper
-        )) && store.append(.xiSelected(
-            side: .away, players: awaySheet,
-            captainId: awayCaptain, keeperId: awayKeeper
-        ))
-        if ok && !(umpires.isEmpty && scorers.isEmpty) {
-            ok = store.append(.officialsAppointed(
+    @ViewBuilder
+    private func sideConfirmButton(side: MatchSide, name: String, sheet: [MatchPlayer]) -> some View {
+        let named = !store.state.xi(side).isEmpty
+        Button {
+            commitSheet(side: side, players: sheet)
+        } label: {
+            Label(
+                named ? "\(name) named" : "Confirm \(name) (\(sheet.count))",
+                systemImage: named ? "checkmark.circle.fill" : "person.3"
+            )
+            .font(FishersTheme.caption)
+            .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(named ? FishersTheme.available : FishersTheme.accent)
+        .disabled(named || sheet.count < 2)
+    }
+
+    /// Name one side, then move on once both are in.
+    private func commitSheet(side: MatchSide, players: [MatchPlayer]) {
+        let captain = side == .home ? homeCaptain : awayCaptain
+        let keeper = side == .home ? homeKeeper : awayKeeper
+        guard store.append(.xiSelected(
+            side: side, players: players, captainId: captain, keeperId: keeper
+        )) else {
+            message = store.lastError
+            return
+        }
+        message = nil
+        if !store.state.homeXi.isEmpty && !store.state.awayXi.isEmpty {
+            commitOfficialsAndAdvance()
+        }
+    }
+
+    private func commitOfficialsAndAdvance() {
+        if !(umpires.isEmpty && scorers.isEmpty) {
+            guard store.append(.officialsAppointed(
                 officials: MatchOfficials(umpires: umpires, scorers: scorers)
-            ))
+            )) else {
+                message = store.lastError
+                return
+            }
             // Appointed officials can score the match, so tell the API too.
             Task { await grantScoringToOfficials() }
         }
-        if ok {
-            message = nil
-            step = .openers
-        } else {
-            message = store.lastError
-        }
+        message = nil
+        step = .openers
     }
 
     private func startInnings(batting: MatchSide) {

@@ -107,3 +107,50 @@ struct BallCommentary: Codable, Equatable {
     let line: String?
     let model: String?
 }
+
+/// One name a captain may put on the sheet, and where they stand for this
+/// fixture: picked, a reserve, available, or just a club member.
+struct SquadPlayer: Codable, Identifiable, Equatable {
+    let id: UUID
+    let name: String
+    let standing: String
+    let batsLeft: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, standing
+        case batsLeft = "bats_left"
+    }
+
+    var standingLabel: String {
+        switch standing {
+        case "selected": return "picked"
+        case "reserve": return "reserve"
+        case "available": return "available"
+        case "unavailable": return "said no"
+        default: return "member"
+        }
+    }
+}
+
+struct SideSquad: Codable, Equatable {
+    let side: String
+    let teamName: String
+    /// Null when this side is not a club in Fishers — the scorer names them.
+    let clubId: UUID?
+    let canPick: Bool
+    let submitted: Bool
+    let players: [SquadPlayer]
+
+    enum CodingKeys: String, CodingKey {
+        case side
+        case teamName = "team_name"
+        case clubId = "club_id"
+        case canPick = "can_pick"
+        case submitted, players
+    }
+}
+
+struct MatchSquads: Codable, Equatable {
+    let home: SideSquad
+    let away: SideSquad
+}

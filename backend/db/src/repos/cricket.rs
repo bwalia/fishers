@@ -16,6 +16,9 @@ pub struct CricketMatchRow {
     pub id: Uuid,
     pub event_id: Uuid,
     pub club_id: Uuid,
+    /// The other side, when they were matched to a Fishers club by QR. Null for
+    /// a friendly against a club that is not in the app.
+    pub opponent_club_id: Option<Uuid>,
     pub status: String,
     pub overs_limit: i32,
     pub overs_per_bowler: i32,
@@ -36,7 +39,7 @@ pub struct CricketMatchRow {
     pub updated_at: DateTime<Utc>,
 }
 
-const MATCH_COLS: &str = "id, event_id, club_id, status::TEXT, overs_limit, overs_per_bowler, \
+const MATCH_COLS: &str = "id, event_id, club_id, opponent_club_id, status::TEXT, overs_limit, overs_per_bowler, \
      powerplay_overs, super_overs, ground_type, ball_type, agreed_home, agreed_away, \
      home_name, away_name, \
      active_scorer_user_id, active_scorer_device_id, last_seq, state_json, created_by, \

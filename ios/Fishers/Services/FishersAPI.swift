@@ -434,6 +434,46 @@ enum FishersAPI {
         )
     }
 
+    /// Who each captain has to pick from: the fixture's squad for the home
+    /// side, the opposing club's members when they are a Fishers club.
+    static func squads(matchId: UUID) async throws -> MatchSquads {
+        try await NetworkService.shared.request(
+            "GET", path: "/cricket/matches/\(matchId.uuidString)/squad"
+        )
+    }
+
+    /// Name one side. A separate door from the scoring log: a captain does this
+    /// from their own phone without taking the book off whoever is scoring.
+    static func submitXi(
+        matchId: UUID,
+        side: MatchSide,
+        players: [MatchPlayer],
+        captainId: UUID?,
+        keeperId: UUID?
+    ) async throws -> CricketMatchDTO {
+        try await NetworkService.shared.request(
+            "POST",
+            path: "/cricket/matches/\(matchId.uuidString)/xi",
+            body: XiRequest(
+                side: side, players: players,
+                captainId: captainId, keeperId: keeperId
+            )
+        )
+    }
+
+    private struct XiRequest: Encodable {
+        let side: MatchSide
+        let players: [MatchPlayer]
+        let captainId: UUID?
+        let keeperId: UUID?
+
+        enum CodingKeys: String, CodingKey {
+            case side, players
+            case captainId = "captain_id"
+            case keeperId = "keeper_id"
+        }
+    }
+
     private struct CommentaryRequest: Encodable {
         let over: Int
         let ballInOver: Int
