@@ -1203,7 +1203,10 @@ textarea { line-height: 1.5; resize: vertical; }
 .auth-card h2 { margin-bottom: var(--s1); }
 .auth-card > p { color: var(--fg-muted); margin: 0 0 var(--s4); font-size: 0.92rem; }
 .auth-form { display: grid; gap: var(--s3); }
-.auth-form .btn { width: 100%; margin-top: var(--s2); }
+/* The submit button only — a descendant selector here also caught the
+   show/hide button nested inside the password label and stretched it across
+   the row, squashing the input it sits next to. */
+.auth-form > .btn { width: 100%; margin-top: var(--s2); }
 .auth-alt {
   margin-top: var(--s4);
   padding-top: var(--s4);
@@ -1225,12 +1228,21 @@ textarea { line-height: 1.5; resize: vertical; }
   display: flex;
   gap: var(--s2);
   align-items: stretch;
+  margin-top: var(--s1);
 }
-.password-field input { flex: 1; }
+/* The margin lives on the row, so the two sit level with each other. */
+.password-field input {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
 /* Stretching it to the input's height also keeps it a full-size tap target,
    which `.btn.sm` on its own is not. */
 .password-field .btn {
   flex: 0 0 auto;
+  width: auto;
   align-self: stretch;
   min-height: 44px;
+  margin-top: 0;
+  padding: 0 var(--s3);
 }
