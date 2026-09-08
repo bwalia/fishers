@@ -64,12 +64,13 @@ export function ShareScoreboardButton({
 
   return (
     <div className={className ?? "share-scoreboard"}>
-      <button type="button" className="btn primary" onClick={() => void share()} disabled={busy}>
-        <Icon name="share" size={16} />
-        {busy ? "Preparing link…" : "Share scoreboard"}
+      <button type="button" className="btn primary lg" onClick={() => void share()} disabled={busy}>
+        <Icon name="share" size={18} />
+        {busy ? "Preparing link…" : "Share full scoreboard"}
       </button>
       <p className="muted share-hint">
-        Sends a live link anyone can open — WhatsApp, email, or Messages. No login needed.
+        Creates a live link anyone can open (WhatsApp, email, Messages). No login needed for
+        them. The full scorecard updates every few seconds.
       </p>
       {note && <p className="tag">{note}</p>}
     </div>
