@@ -3,13 +3,22 @@ import SwiftUI
 struct AuthView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var mode: Mode = .login
+    @State private var method: Method = .email
     @State private var name = ""
-    @State private var email = ""
+    /// One field for both: signing in, it is an address or a number; signing
+    /// up, it is whichever `method` says.
+    @State private var identifier = ""
     @State private var password = ""
     @FocusState private var focused: Field?
 
     enum Mode { case login, signup }
-    enum Field { case name, email, password }
+    enum Field { case name, identifier, password }
+
+    enum Method: String, CaseIterable, Identifiable {
+        case email, phone
+        var id: String { rawValue }
+        var label: String { self == .email ? "Email" : "Mobile number" }
+    }
 
     var body: some View {
         NavigationStack {
@@ -35,12 +44,27 @@ struct AuthView: View {
                             if mode == .signup {
                                 field("Name", text: $name, field: .name)
                                     .textContentType(.name)
+
+                                Picker("Register with", selection: $method) {
+                                    ForEach(Method.allCases) { Text($0.label).tag($0) }
+                                }
+                                .pickerStyle(.segmented)
                             }
-                            field("Email", text: $email, field: .email)
-                                .textContentType(.emailAddress)
-                                .keyboardType(.emailAddress)
+                            if mode == .signup && method == .phone {
+                                field("Mobile number", text: $identifier, field: .identifier)
+                                    .textContentType(.telephoneNumber)
+                                    .keyboardType(.phonePad)
+                            } else {
+                                field(
+                                    mode == .login ? "Email or mobile number" : "Email",
+                                    text: $identifier,
+                                    field: .identifier
+                                )
+                                .textContentType(mode == .login ? .username : .emailAddress)
+                                .keyboardType(mode == .login ? .default : .emailAddress)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
+                            }
                             SecureField("Password", text: $password)
                                 .font(FishersTheme.body)
                                 .padding(.horizontal, 14)
@@ -99,13 +123,19 @@ struct AuthView: View {
         .tint(FishersTheme.accent)
     }
 
+    private var trimmedIdentifier: String {
+        identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var canSubmit: Bool {
-        let emailOk = !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let passwordOk = password.count >= 6
+        // The API asks for eight on signup; matching it here saves a round trip
+        // that only ever comes back as an error.
+        let passwordOk = mode == .signup ? password.count >= 8 : password.count >= 6
+        guard !trimmedIdentifier.isEmpty, passwordOk else { return false }
         if mode == .signup {
-            return emailOk && passwordOk && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-        return emailOk && passwordOk
+        return true
     }
 
     private func field(_ title: String, text: Binding<String>, field: Field) -> some View {
@@ -119,9 +149,16 @@ struct AuthView: View {
 
     private func submit() async {
         if mode == .login {
-            await session.login(email: email, password: password)
+            await session.login(identifier: trimmedIdentifier, password: password)
         } else {
-            await session.signUp(name: name, email: email, password: password)
+            // Send only the one they chose; the other stays absent rather than
+            // an empty string the API would have to interpret.
+            await session.signUp(
+                name: name,
+                email: method == .email ? trimmedIdentifier : nil,
+                phone: method == .phone ? trimmedIdentifier : nil,
+                password: password
+            )
         }
     }
 }

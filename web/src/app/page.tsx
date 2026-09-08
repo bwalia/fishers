@@ -8,6 +8,7 @@ import {
   getStoredUser,
   type Club,
   type EventRow,
+  type Page,
   type PublicUser,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
@@ -27,7 +28,7 @@ export default function HomePage() {
       try {
         const [c, e] = await Promise.all([
           api<Club[]>("GET", "/clubs"),
-          api<EventRow[]>("GET", "/events"),
+          api<Page<EventRow>>("GET", "/events?per_page=50").then((p) => p.items),
         ]);
         setClubs(c);
         setEvents(e);

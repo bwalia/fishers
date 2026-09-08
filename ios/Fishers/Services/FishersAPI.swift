@@ -13,20 +13,32 @@ enum FishersAPI {
         )
     }
 
-    static func signup(name: String, email: String, password: String) async throws -> AuthTokens {
-        struct Body: Encodable { let name, email, password: String }
+    /// An address or a mobile number — whichever they actually use. Sending
+    /// both as nil is rejected by the API, not silently accepted.
+    static func signup(
+        name: String,
+        email: String?,
+        phone: String?,
+        password: String
+    ) async throws -> AuthTokens {
+        struct Body: Encodable {
+            let name: String
+            let email: String?
+            let phone: String?
+            let password: String
+        }
         return try await NetworkService.shared.request(
             "POST", path: "/auth/signup",
-            body: Body(name: name, email: email, password: password),
+            body: Body(name: name, email: email, phone: phone, password: password),
             authorized: false
         )
     }
 
-    static func login(email: String, password: String) async throws -> AuthTokens {
-        struct Body: Encodable { let email, password: String }
+    static func login(identifier: String, password: String) async throws -> AuthTokens {
+        struct Body: Encodable { let identifier, password: String }
         return try await NetworkService.shared.request(
             "POST", path: "/auth/login",
-            body: Body(email: email, password: password),
+            body: Body(identifier: identifier, password: password),
             authorized: false
         )
     }
@@ -442,6 +454,40 @@ enum FishersAPI {
         )
     }
 
+    /// A captain accepts the terms. A separate door from the scoring lock, so
+    /// the visiting captain can agree from their own phone — they will never
+    /// have scoring rights in the home club.
+    static func agreeTerms(
+        matchId: UUID,
+        side: MatchSide,
+        captainName: String
+    ) async throws {
+        struct Body: Encodable {
+            let side: String
+            let captain_name: String
+        }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/cricket/matches/\(matchId.uuidString)/agree",
+            body: Body(side: side.rawValue, captain_name: captainName)
+        )
+    }
+
+    // MARK: Notifications
+
+    /// What is waiting for you. Push is still an APNs stub, so reading these
+    /// back on open is the only delivery that actually works.
+    static func notifications() async throws -> NotificationFeed {
+        try await NetworkService.shared.request("GET", path: "/notifications")
+    }
+
+    /// One notification, or every unread one when `id` is nil.
+    static func markNotificationRead(id: UUID?) async throws {
+        struct Body: Encodable { let id: UUID? }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/notifications/read", body: Body(id: id)
+        )
+    }
+
     /// Name one side. A separate door from the scoring log: a captain does this
     /// from their own phone without taking the book off whoever is scoring.
     static func submitXi(
@@ -494,21 +540,41 @@ enum FishersAPI {
         )
     }
 
-    /// Add someone already on Fishers to the club, by email.
+    /// Add someone already on Fishers to the club, by whatever they signed up
+    /// with — an email address or a mobile number.
     static func addClubMember(
         clubId: UUID,
-        email: String,
+        identifier: String,
         role: ClubRole
     ) async throws {
         struct Body: Encodable {
-            let user_id: UUID
-            let email: String
+            let identifier: String
             let role: String
         }
         try await NetworkService.shared.requestVoid(
             "POST", path: "/clubs/\(clubId.uuidString)/members",
-            // The server resolves the email; the id is ignored when one is given.
-            body: Body(user_id: UUID(), email: email, role: role.rawValue)
+            body: Body(identifier: identifier, role: role.rawValue)
+        )
+    }
+
+    /// A link for somebody with no account yet: they follow it, sign up, and
+    /// land in the club. Sending it is the secretary's job — share sheet,
+    /// WhatsApp, however they already talk to their players.
+    static func createClubInvite(clubId: UUID, email: String?) async throws -> ClubInvite {
+        struct Body: Encodable {
+            let target_type = "club"
+            let target_id: UUID
+            let invited_email: String?
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/invites",
+            body: Body(target_id: clubId, invited_email: email)
+        )
+    }
+
+    static func acceptInvite(token: String) async throws -> ClubInvite {
+        try await NetworkService.shared.request(
+            "POST", path: "/invites/\(token)/accept"
         )
     }
 
@@ -549,16 +615,40 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/clubs")
     }
 
-    static func createClub(name: String, sports: [String], informal: Bool = false) async throws -> Club {
+    static func createClub(
+        name: String,
+        sports: [String],
+        informal: Bool = false,
+        visibility: String = "invite_only",
+        description: String? = nil
+    ) async throws -> Club {
         struct Body: Encodable {
             let name: String
             let sport_types: [String]
             let is_informal_group: Bool
             let visibility: String
+            let description: String?
         }
         return try await NetworkService.shared.request(
             "POST", path: "/clubs",
-            body: Body(name: name, sport_types: sports, is_informal_group: informal, visibility: "invite_only")
+            body: Body(
+                name: name,
+                sport_types: sports,
+                is_informal_group: informal,
+                visibility: visibility,
+                description: description
+            )
+        )
+    }
+
+    static func createTeam(clubId: UUID, name: String, sport: String) async throws -> Team {
+        struct Body: Encodable {
+            let name: String
+            let sport: String
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/clubs/\(clubId.uuidString)/teams",
+            body: Body(name: name, sport: sport)
         )
     }
 
@@ -566,8 +656,27 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/clubs/\(clubId.uuidString)/teams")
     }
 
-    static func events(clubId: UUID? = nil, cricketSeason: Bool = false) async throws -> [Event] {
-        var path = "/events?"
+    /// `GET /events` pages now, so the array has to be unwrapped. The app asks
+    /// for a big first page rather than paging: a season's fixtures on one
+    /// screen is what a phone shows, and 200 is the server's ceiling anyway.
+    static func events(
+        clubId: UUID? = nil,
+        cricketSeason: Bool = false,
+        page: Int = 1,
+        perPage: Int = 200
+    ) async throws -> [Event] {
+        try await eventPage(
+            clubId: clubId, cricketSeason: cricketSeason, page: page, perPage: perPage
+        ).items
+    }
+
+    static func eventPage(
+        clubId: UUID? = nil,
+        cricketSeason: Bool = false,
+        page: Int = 1,
+        perPage: Int = 200
+    ) async throws -> APIPage<Event> {
+        var path = "/events?page=\(page)&per_page=\(perPage)&"
         if let clubId { path += "club_id=\(clubId.uuidString)&" }
         if cricketSeason { path += "cricket_season=true&" }
         return try await NetworkService.shared.request("GET", path: path)

@@ -11,6 +11,34 @@ const USER_COLUMNS: &str = "id, name, email, phone, apple_id, avatar_url, sports
      position_role, skill_level, emergency_contact, primary_sport, sport_profiles, \
      location, profile_completed_at, password_hash, created_at, updated_at";
 
+/// Find somebody by an email or a mobile number, whichever they signed up with.
+///
+/// Case and stray spaces are the two things people reliably get wrong typing an
+/// address on a phone, so neither is allowed to stop them signing in.
+pub async fn find_by_identifier(
+    pool: &PgPool,
+    identifier: &str,
+) -> Result<Option<User>, sqlx::Error> {
+    let trimmed = identifier.trim();
+    sqlx::query_as::<_, User>(&format!(
+        "SELECT {USER_COLUMNS} FROM users
+         WHERE LOWER(email) = LOWER($1) OR phone = $1
+         LIMIT 1"
+    ))
+    .bind(trimmed)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn find_by_phone(pool: &PgPool, phone: &str) -> Result<Option<User>, sqlx::Error> {
+    sqlx::query_as::<_, User>(&format!(
+        "SELECT {USER_COLUMNS} FROM users WHERE phone = $1"
+    ))
+    .bind(phone.trim())
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, sqlx::Error> {
     sqlx::query_as::<_, User>(&format!(
         "SELECT {USER_COLUMNS} FROM users WHERE lower(email) = lower($1)"
@@ -32,7 +60,7 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<User>, sqlx::E
 pub async fn create_user(
     pool: &PgPool,
     name: &str,
-    email: &str,
+    email: Option<&str>,
     password_hash: &str,
     phone: Option<&str>,
 ) -> Result<User, sqlx::Error> {

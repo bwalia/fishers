@@ -3,7 +3,8 @@ import Foundation
 struct PublicUser: Codable, Identifiable, Equatable {
     let id: UUID
     var name: String
-    var email: String
+    /// Absent for somebody who registered with a mobile number instead.
+    var email: String?
     var phone: String?
     var avatarUrl: String?
     var sportsPlayed: [String]
@@ -86,9 +87,12 @@ struct Club: Codable, Identifiable, Hashable {
     var ownerId: UUID
     var description: String?
     var isInformalGroup: Bool
+    /// What you are in this club. Only `GET /clubs` fills it in — a club
+    /// fetched on its own says nothing about the reader.
+    var role: ClubRole?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, visibility, description
+        case id, name, visibility, description, role
         case sportTypes = "sport_types"
         case ownerId = "owner_id"
         case isInformalGroup = "is_informal_group"

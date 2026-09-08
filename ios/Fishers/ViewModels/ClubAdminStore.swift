@@ -14,6 +14,8 @@ final class ClubAdminStore: ObservableObject {
     @Published var isSaving = false
     @Published var isChasing = false
     @Published var errorMessage: String?
+    /// Set once an invite is made, so the sheet can offer it to share.
+    @Published var invite: ClubInvite?
 
     private let clubId: UUID
     private var saveTask: Task<Void, Never>?
@@ -43,14 +45,30 @@ final class ClubAdminStore: ObservableObject {
 
     // MARK: Roster
 
-    func add(email: String, role: ClubRole) async {
+    /// `identifier` is an email address or a mobile number — a member who
+    /// registered with a number has no address to be looked up by.
+    func add(identifier: String, role: ClubRole) async {
         do {
             try await FishersAPI.addClubMember(
                 clubId: clubId,
-                email: email.trimmingCharacters(in: .whitespaces),
+                identifier: identifier.trimmingCharacters(in: .whitespaces),
                 role: role
             )
             await load()
+        } catch {
+            errorMessage = message(from: error)
+        }
+    }
+
+    /// For somebody with no account: a single-use link that joins them once
+    /// they have signed up.
+    func makeInvite(email: String?) async {
+        do {
+            let trimmed = email?.trimmingCharacters(in: .whitespaces)
+            invite = try await FishersAPI.createClubInvite(
+                clubId: clubId,
+                email: (trimmed?.isEmpty ?? true) ? nil : trimmed
+            )
         } catch {
             errorMessage = message(from: error)
         }

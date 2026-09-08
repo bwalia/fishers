@@ -64,61 +64,213 @@ pub async fn get_event(pool: &PgPool, event_id: Uuid) -> Result<Option<Event>, s
 
 /// Fixtures the user is entitled to see. Without a `club_id` this is every
 /// club they belong to — never the whole table.
+/// A page of results, with the total so a list can say "21–40 of 143" rather
+/// than leaving the reader to guess whether there is more.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Page<T> {
+    pub items: Vec<T>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+    pub has_more: bool,
+}
+
+/// What a list can be ordered by.
+///
+/// An enum rather than a string, because the only safe way to put a column
+/// name into SQL is to never take one from the caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EventSort {
+    StartAt,
+    Title,
+    CreatedAt,
+}
+
+impl Default for EventSort {
+    fn default() -> Self {
+        Self::StartAt
+    }
+}
+
+impl EventSort {
+    fn column(self) -> &'static str {
+        match self {
+            Self::StartAt => "e.start_at",
+            // Case-insensitive, or "aardvark" sorts after "Zebra".
+            Self::Title => "LOWER(e.title)",
+            Self::CreatedAt => "e.created_at",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct EventFilter {
+    pub club_id: Option<Uuid>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    /// Cricket nets and match subtypes only — the season view.
+    pub cricket_season: bool,
+    pub sport: Option<String>,
+    pub subtype: Option<String>,
+    pub status: Option<String>,
+    /// Matched against the title.
+    pub search: Option<String>,
+    pub sort: EventSort,
+    pub descending: bool,
+    /// 1-based.
+    pub page: i64,
+    pub per_page: i64,
+}
+
+/// Fixtures this person can see, filtered, sorted and paged in the database.
+///
+/// Everything a list screen needs happens here rather than in the browser:
+/// a club with five seasons of history is not something to download and then
+/// filter, and "showing 20 of 143" needs a count the client cannot work out
+/// from a truncated page.
 pub async fn list_events(
     pool: &PgPool,
     viewer_id: Uuid,
-    club_id: Option<Uuid>,
-    from: Option<DateTime<Utc>>,
-    to: Option<DateTime<Utc>>,
-    cricket_season: bool,
-    limit: i64,
-) -> Result<Vec<Event>, sqlx::Error> {
-    let mut sql = String::from(
+    filter: &EventFilter,
+) -> Result<Page<Event>, sqlx::Error> {
+    // Built once and used for both the count and the page, so the two can
+    // never disagree about what is being asked for.
+    let mut where_sql = String::from(
+        r#"
+        WHERE e.status <> 'cancelled'
+          AND (
+            EXISTS (
+              SELECT 1 FROM club_members cm
+              WHERE cm.club_id = e.club_id AND cm.user_id = $1 AND cm.status = 'active'
+            )
+            -- The visiting club has to see the fixture too. Without this the
+            -- opposition captain cannot open the match they are being asked to
+            -- agree terms for, and any notification about it leads nowhere.
+            OR EXISTS (
+              SELECT 1 FROM cricket_matches m
+              JOIN club_members cm ON cm.club_id = m.opponent_club_id
+                                  AND cm.user_id = $1 AND cm.status = 'active'
+              WHERE m.event_id = e.id
+            )
+          )
+        "#,
+    );
+
+    let mut next = 2;
+    let mut bind = |used: bool| {
+        used.then(|| {
+            let p = next;
+            next += 1;
+            p
+        })
+    };
+    let club_p = bind(filter.club_id.is_some());
+    let from_p = bind(filter.from.is_some());
+    let to_p = bind(filter.to.is_some());
+    let sport_p = bind(filter.sport.is_some());
+    let subtype_p = bind(filter.subtype.is_some());
+    let status_p = bind(filter.status.is_some());
+    let search_p = bind(filter.search.is_some());
+
+    if let Some(p) = club_p {
+        where_sql.push_str(&format!(" AND e.club_id = ${p}"));
+    }
+    if let Some(p) = from_p {
+        where_sql.push_str(&format!(" AND e.start_at >= ${p}"));
+    }
+    if let Some(p) = to_p {
+        where_sql.push_str(&format!(" AND e.start_at <= ${p}"));
+    }
+    if let Some(p) = sport_p {
+        where_sql.push_str(&format!(" AND e.sport::TEXT = ${p}"));
+    }
+    if let Some(p) = subtype_p {
+        where_sql.push_str(&format!(" AND e.event_subtype::TEXT = ${p}"));
+    }
+    if let Some(p) = status_p {
+        where_sql.push_str(&format!(" AND e.status::TEXT = ${p}"));
+    }
+    if let Some(p) = search_p {
+        where_sql.push_str(&format!(" AND e.title ILIKE '%' || ${p} || '%'"));
+    }
+    if filter.cricket_season {
+        where_sql.push_str(
+            " AND e.sport = 'cricket' \
+              AND e.event_subtype IN ('nets','friendly','league_match','tournament')",
+        );
+    }
+
+    /// Every filter binds in the same order for both queries.
+    macro_rules! bind_filters {
+        ($q:expr) => {{
+            let mut q = $q.bind(viewer_id);
+            if let Some(v) = filter.club_id {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.from {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.to {
+                q = q.bind(v);
+            }
+            if let Some(v) = filter.sport.as_deref() {
+                q = q.bind(v.to_string());
+            }
+            if let Some(v) = filter.subtype.as_deref() {
+                q = q.bind(v.to_string());
+            }
+            if let Some(v) = filter.status.as_deref() {
+                q = q.bind(v.to_string());
+            }
+            if let Some(v) = filter.search.as_deref() {
+                q = q.bind(v.to_string());
+            }
+            q
+        }};
+    }
+
+    // The query borrows the string, so it has to outlive the statement.
+    let count_sql = format!("SELECT COUNT(*) FROM events e {where_sql}");
+    let total: i64 = bind_filters!(sqlx::query_scalar::<_, i64>(&count_sql))
+        .fetch_one(pool)
+        .await?;
+
+    let per_page = filter.per_page.clamp(1, 200);
+    let page = filter.page.max(1);
+    let offset = (page - 1) * per_page;
+    let direction = if filter.descending { "DESC" } else { "ASC" };
+    // `id` breaks ties, or two fixtures at the same time can swap between
+    // pages and one of them is never seen.
+    let sql = format!(
         r#"
         SELECT e.id, e.club_id, e.team_id, e.sport, e.event_subtype, e.title, e.venue_id,
                e.start_at, e.end_at, e.recurrence_rule, e.recurrence_parent_id,
                e.capacity, e.fee_amount_cents, e.fee_currency, e.status, e.status_note,
                e.rescheduled_to, e.metadata, e.created_by, e.created_at, e.updated_at
         FROM events e
-        JOIN club_members cm ON cm.club_id = e.club_id
-                            AND cm.user_id = $1
-                            AND cm.status = 'active'
-        WHERE e.status <> 'cancelled'
+        {where_sql}
+        ORDER BY {} {direction}, e.id {direction}
+        LIMIT ${} OFFSET ${}
         "#,
+        filter.sort.column(),
+        next,
+        next + 1,
     );
-    let mut next = 2;
-    let club_param = club_id.map(|_| { let p = next; next += 1; p });
-    let from_param = from.map(|_| { let p = next; next += 1; p });
-    let to_param = to.map(|_| { let p = next; next += 1; p });
 
-    if let Some(p) = club_param {
-        sql.push_str(&format!(" AND e.club_id = ${p}"));
-    }
-    if let Some(p) = from_param {
-        sql.push_str(&format!(" AND e.start_at >= ${p}"));
-    }
-    if let Some(p) = to_param {
-        sql.push_str(&format!(" AND e.start_at <= ${p}"));
-    }
-    if cricket_season {
-        sql.push_str(
-            " AND e.sport = 'cricket' \
-              AND e.event_subtype IN ('nets','friendly','league_match','tournament')",
-        );
-    }
-    sql.push_str(&format!(" ORDER BY e.start_at ASC LIMIT ${next}"));
+    let items = bind_filters!(sqlx::query_as::<_, Event>(&sql))
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?;
 
-    let mut query = sqlx::query_as::<_, Event>(&sql).bind(viewer_id);
-    if let Some(id) = club_id {
-        query = query.bind(id);
-    }
-    if let Some(f) = from {
-        query = query.bind(f);
-    }
-    if let Some(t) = to {
-        query = query.bind(t);
-    }
-    query.bind(limit.clamp(1, 500)).fetch_all(pool).await
+    Ok(Page {
+        has_more: offset + (items.len() as i64) < total,
+        items,
+        total,
+        page,
+        per_page,
+    })
 }
 
 pub async fn update_event(

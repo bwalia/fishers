@@ -61,7 +61,7 @@ private struct RosterList: View {
     let canManage: Bool
 
     @State private var isAdding = false
-    @State private var newEmail = ""
+    @State private var newIdentifier = ""
     @State private var newRole: ClubRole = .member
     @State private var editing: ClubMemberDetail?
 
@@ -136,7 +136,7 @@ private struct RosterList: View {
                     if !member.subtitle.isEmpty {
                         Text(member.subtitle).font(.caption2).foregroundStyle(.secondary)
                     }
-                    Text(member.email).font(.caption2).foregroundStyle(.secondary)
+                    Text(member.contact).font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()
                 RoleBadge(role: member.role)
@@ -151,17 +151,21 @@ private struct RosterList: View {
         .accessibilityLabel("\(member.name), \(member.role.displayName)")
     }
 
+    private var trimmedIdentifier: String {
+        newIdentifier.trimmingCharacters(in: .whitespaces)
+    }
+
     private var addSheet: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Email they signed up with", text: $newEmail)
+                    TextField("Email or mobile number", text: $newIdentifier)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
-                    Text("They need a Fishers account already. Invite links are next on the list.")
+                    Text("Whatever they signed up with. Somebody who registered with a mobile number has no address to look up.")
                 }
                 Section("Role") {
                     Picker("Role", selection: $newRole) {
@@ -172,24 +176,45 @@ private struct RosterList: View {
                     .pickerStyle(.inline)
                     .labelsHidden()
                 }
+                Section {
+                    Button {
+                        Task { await store.makeInvite(email: trimmedIdentifier) }
+                    } label: {
+                        Label("Make an invite link instead", systemImage: "link")
+                    }
+                    if let invite = store.invite,
+                       let url = invite.url(webBase: AppConfig.webBaseURL.absoluteString) {
+                        ShareLink(item: url) {
+                            Label(url.absoluteString, systemImage: "square.and.arrow.up")
+                                .font(.footnote)
+                                .lineLimit(2)
+                        }
+                    }
+                } footer: {
+                    Text("An invite link works for somebody with no Fishers account. It joins them to the club once they sign up, and can only be used once.")
+                }
             }
             .navigationTitle("Add a member")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { isAdding = false }
+                    Button("Cancel") {
+                        isAdding = false
+                        store.invite = nil
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        let email = newEmail
+                        let identifier = trimmedIdentifier
                         let role = newRole
                         isAdding = false
-                        newEmail = ""
+                        newIdentifier = ""
                         newRole = .member
-                        Task { await store.add(email: email, role: role) }
+                        store.invite = nil
+                        Task { await store.add(identifier: identifier, role: role) }
                     }
                     .bold()
-                    .disabled(newEmail.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(trimmedIdentifier.isEmpty)
                 }
             }
         }

@@ -15,6 +15,9 @@ chrono = { workspace = true }
 dotenvy = { workspace = true }
 fishers-agent = { path = "../agent" }
 reqwest = { workspace = true }
+# Renders club QR codes as SVG so every client just displays one, rather than
+# each platform carrying its own encoder.
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 fishers-db = { path = "../db" }
 fishers-domain = { path = "../domain" }
 fishers-jobs = { path = "../jobs" }

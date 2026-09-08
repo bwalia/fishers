@@ -3,6 +3,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
 use fishers_db::repos::events as events_repo;
+use fishers_db::repos::events::EventSort;
 use fishers_db::repos::invites as invites_repo;
 use fishers_domain::{
     AttendeeSummary, CreateEventRequest, Event, EventInvite, Permission, RsvpRequest,
@@ -35,7 +36,18 @@ pub struct EventQuery {
     pub to: Option<DateTime<Utc>>,
     /// When true, filter cricket nets + match subtypes (season view).
     pub cricket_season: Option<bool>,
-    pub limit: Option<i64>,
+    pub sport: Option<String>,
+    pub subtype: Option<String>,
+    pub status: Option<String>,
+    /// Free text against the fixture title.
+    pub q: Option<String>,
+    /// `start_at` (default), `title` or `created_at`.
+    pub sort: Option<EventSort>,
+    /// `asc` (default) or `desc`.
+    pub order: Option<String>,
+    /// 1-based.
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
 }
 
 async fn create_event(
@@ -63,21 +75,53 @@ async fn list_events(
     State(state): State<AppState>,
     auth: AuthUser,
     Query(q): Query<EventQuery>,
-) -> ApiResult<Json<Vec<Event>>> {
+) -> ApiResult<Json<events_repo::Page<Event>>> {
     if let Some(club_id) = q.club_id {
         require_club_member(&state, club_id, auth.user_id).await?;
     }
+
+    let order = q.order.as_deref().unwrap_or("asc");
+    if !matches!(order, "asc" | "desc") {
+        return Err(ApiError::bad_request("order must be asc or desc"));
+    }
+    if let Some(page) = q.page {
+        if page < 1 {
+            return Err(ApiError::bad_request("page starts at 1"));
+        }
+    }
+    if let Some(per_page) = q.per_page {
+        if !(1..=200).contains(&per_page) {
+            return Err(ApiError::bad_request("per_page must be between 1 and 200"));
+        }
+    }
+    // A one-letter search matches most of the table and costs a scan for
+    // nothing useful; the club search has the same floor.
+    let search = q
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    if search.as_deref().is_some_and(|s| s.chars().count() < 2) {
+        return Err(ApiError::bad_request("give at least two letters to search on"));
+    }
+
+    let filter = events_repo::EventFilter {
+        club_id: q.club_id,
+        from: q.from,
+        to: q.to,
+        cricket_season: q.cricket_season.unwrap_or(false),
+        sport: q.sport.clone(),
+        subtype: q.subtype.clone(),
+        status: q.status.clone(),
+        search,
+        sort: q.sort.unwrap_or_default(),
+        descending: order == "desc",
+        page: q.page.unwrap_or(1),
+        per_page: q.per_page.unwrap_or(20),
+    };
     Ok(Json(
-        events_repo::list_events(
-            &state.pool,
-            auth.user_id,
-            q.club_id,
-            q.from,
-            q.to,
-            q.cricket_season.unwrap_or(false),
-            q.limit.unwrap_or(200),
-        )
-        .await?,
+        events_repo::list_events(&state.pool, auth.user_id, &filter).await?,
     ))
 }
 

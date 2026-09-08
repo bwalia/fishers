@@ -1,19 +1,16 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, saveSession, type PublicUser } from "@/lib/api";
-
-type AuthTokens = {
-  access_token: string;
-  refresh_token: string;
-  user: PublicUser;
-};
+import { api, saveSession, type AuthTokens } from "@/lib/api";
+import { AuthPitch } from "@/components/AuthPitch";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("demo@fishers.test");
-  const [password, setPassword] = useState("password123");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -25,7 +22,7 @@ export default function LoginPage() {
       const tokens = await api<AuthTokens>(
         "POST",
         "/auth/login",
-        { email, password },
+        { identifier: identifier.trim(), password },
         false
       );
       saveSession(tokens);
@@ -33,45 +30,68 @@ export default function LoginPage() {
       // on the same match. Only same-origin paths, never an absolute URL.
       const next = new URLSearchParams(window.location.search).get("next");
       router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+    } catch {
+      // Never say which half was wrong: that tells anyone guessing whether an
+      // account exists.
+      setError("That email or number and password do not match.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main id="main">
-      <section className="hero">
-        <h1>Sign in</h1>
-        <p>Same accounts as the iOS app and API.</p>
-      </section>
-      <form className="panel form" onSubmit={onSubmit}>
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-            required
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button className="btn primary" type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+    <main id="main" className="auth-shell">
+      <AuthPitch />
+
+      <div className="auth-card">
+        <h2>Sign in</h2>
+        <p>The same account as the iOS app.</p>
+
+        <form className="auth-form" onSubmit={onSubmit}>
+          <label>
+            Email or mobile number
+            <input
+              type="text"
+              inputMode="email"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              autoComplete="username"
+              placeholder="you@club.test or 07700 900123"
+              required
+            />
+          </label>
+          <label>
+            Password
+            <span className="password-field">
+              <input
+                type={show ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                className="btn ghost sm"
+                onClick={() => setShow((v) => !v)}
+                aria-label={show ? "Hide password" : "Show password"}
+              >
+                {show ? "Hide" : "Show"}
+              </button>
+            </span>
+          </label>
+
+          {error && <p className="error">{error}</p>}
+
+          <button className="btn primary" type="submit" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+
+        <p className="auth-alt">
+          New here? <Link href="/register">Create an account</Link>
+        </p>
+      </div>
     </main>
   );
 }

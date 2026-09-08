@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { clearSession, getStoredUser, type PublicUser } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/", label: "Overview", icon: "home" },
@@ -13,6 +14,7 @@ const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/stats", label: "Stats", icon: "chart" },
   { href: "/shop", label: "Shop", icon: "shop" },
   { href: "/clubs", label: "Clubs", icon: "users" },
+  { href: "/profile", label: "Profile", icon: "book" },
 ];
 
 export function ShellNav() {
@@ -45,6 +47,7 @@ export function ShellNav() {
             </Link>
           );
         })}
+        {user && <NotificationBell />}
         {user ? (
           <button
             type="button"
@@ -58,10 +61,15 @@ export function ShellNav() {
             Sign out
           </button>
         ) : (
-          <Link href="/login">
-            <Icon name="signIn" size={16} />
-            Sign in
-          </Link>
+          <>
+            <Link href="/login">
+              <Icon name="signIn" size={16} />
+              Sign in
+            </Link>
+            <Link href="/register" className="active">
+              Join
+            </Link>
+          </>
         )}
       </nav>
     </header>

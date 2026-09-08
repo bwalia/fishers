@@ -25,7 +25,6 @@ pub fn router() -> Router<AppState> {
             "/events/{id}/cricket-match",
             post(create_or_get_match).get(get_match_for_event),
         )
-        .route("/cricket/matches/{id}", get(get_match))
         .route("/cricket/matches/{id}/claim-scorer", post(claim_scorer))
         .route(
             "/cricket/matches/{id}/events",
@@ -45,6 +44,14 @@ pub fn router() -> Router<AppState> {
         .route("/cricket/matches/{id}/commentary", post(commentary))
         .route("/cricket/matches/{id}/squad", get(squad))
         .route("/cricket/matches/{id}/xi", post(submit_xi))
+        .route("/cricket/matches/{id}/propose", post(propose_terms))
+        .route("/cricket/matches/{id}/agree", post(agree_terms))
+        .route(
+            "/cricket/matches/{id}",
+            get(get_match).delete(delete_match),
+        )
+        .route("/cricket/matches/{id}/abandon", post(abandon_match))
+        .route("/cricket/fixtures", get(list_fixtures))
 }
 
 #[derive(Deserialize)]
@@ -59,6 +66,11 @@ struct CreateMatchBody {
     home_name: String,
     #[serde(default = "default_away")]
     away_name: String,
+    /// The other side, when they were matched to a Fishers club by QR or by
+    /// name. Without this their captain has no way in and no squad to pick
+    /// from, which is why the column existed but nothing ever filled it.
+    #[serde(default)]
+    opponent_club_id: Option<Uuid>,
 }
 
 fn default_overs() -> i32 {
@@ -76,6 +88,10 @@ struct MatchResponse {
     id: Uuid,
     event_id: Uuid,
     club_id: Uuid,
+    /// The visiting club, when they are on Fishers. The setup screen needs it
+    /// to offer the away captain from the right roster rather than the home
+    /// club's.
+    opponent_club_id: Option<Uuid>,
     status: String,
     overs_limit: i32,
     home_name: String,
@@ -85,6 +101,19 @@ struct MatchResponse {
     active_scorer_device_id: Option<String>,
     /// True when the caller is allowed to score this match.
     can_score: bool,
+    /// The side this caller actually plays for, when they are in one of the
+    /// clubs. Distinct from `my_sides`: a scorer may act for both, but they
+    /// only belong to one, and proposing terms on behalf of the opposition is
+    /// something you do because their captain is standing next to you — never
+    /// by accident.
+    my_club_side: Option<fishers_domain::MatchSide>,
+    /// Which sides this caller may propose or agree terms for.
+    ///
+    /// The scorer at the ground gets both, because they record the
+    /// conversation both captains are having in front of them. A captain on
+    /// their own phone gets their own side only — showing them the other
+    /// club's agreement form asks for something the server will always refuse.
+    my_sides: Vec<fishers_domain::MatchSide>,
     /// Where the chase stands on DLS, from the first ball of the second innings.
     #[serde(skip_serializing_if = "Option::is_none")]
     dls: Option<DlsPar>,
@@ -95,6 +124,8 @@ fn to_response(
     state: &AppState,
     row: &cricket_repo::CricketMatchRow,
     can_score: bool,
+    my_sides: Vec<fishers_domain::MatchSide>,
+    my_club_side: Option<fishers_domain::MatchSide>,
 ) -> MatchResponse {
     let projection = cricket_repo::parse_state(row);
     let dls = projection.dls_par(&state.dls, state.g50);
@@ -102,6 +133,7 @@ fn to_response(
         id: row.id,
         event_id: row.event_id,
         club_id: row.club_id,
+        opponent_club_id: row.opponent_club_id,
         status: row.status.clone(),
         overs_limit: row.overs_limit,
         home_name: row.home_name.clone(),
@@ -110,6 +142,8 @@ fn to_response(
         active_scorer_user_id: row.active_scorer_user_id,
         active_scorer_device_id: row.active_scorer_device_id.clone(),
         can_score,
+        my_club_side,
+        my_sides,
         dls,
         state: projection,
     }
@@ -134,13 +168,16 @@ async fn create_or_get_match(
         body.match_id,
         event_id,
         event.club_id,
+        body.opponent_club_id,
         auth.user_id,
         &body.home_name,
         &body.away_name,
         body.overs_limit,
     )
     .await?;
-    Ok(Json(to_response(&state, &row, true)))
+    let sides = sides_for(&state, &row, auth.user_id).await;
+    let mine = club_side_for(&state, &row, auth.user_id).await;
+    Ok(Json(to_response(&state, &row, true, sides, mine)))
 }
 
 async fn get_match_for_event(
@@ -148,15 +185,19 @@ async fn get_match_for_event(
     auth: AuthUser,
     Path(event_id): Path<Uuid>,
 ) -> ApiResult<Json<MatchResponse>> {
-    let event = events_repo::get_event(&state.pool, event_id)
+    events_repo::get_event(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))?;
-    require_club_member(&state, event.club_id, auth.user_id).await?;
     let row = cricket_repo::get_match_by_event(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("cricket match not started"))?;
+    // Checked against the match, not the event: the visiting club is on the
+    // match, and the fixture belongs to the host.
+    require_either_side(&state, &row, auth.user_id).await?;
     let can_score = may_score(&state, &row, auth.user_id).await;
-    Ok(Json(to_response(&state, &row, can_score)))
+    let sides = sides_for(&state, &row, auth.user_id).await;
+    let mine = club_side_for(&state, &row, auth.user_id).await;
+    Ok(Json(to_response(&state, &row, can_score, sides, mine)))
 }
 
 async fn get_match(
@@ -167,9 +208,11 @@ async fn get_match(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    require_club_member(&state, row.club_id, auth.user_id).await?;
+    require_either_side(&state, &row, auth.user_id).await?;
     let can_score = may_score(&state, &row, auth.user_id).await;
-    Ok(Json(to_response(&state, &row, can_score)))
+    let sides = sides_for(&state, &row, auth.user_id).await;
+    let mine = club_side_for(&state, &row, auth.user_id).await;
+    Ok(Json(to_response(&state, &row, can_score, sides, mine)))
 }
 
 #[derive(Deserialize)]
@@ -230,7 +273,9 @@ async fn claim_scorer(
         "cricket",
     )
     .await;
-    Ok(Json(to_response(&state, &updated, true)))
+    let sides = sides_for(&state, &updated, auth.user_id).await;
+    let mine = club_side_for(&state, &updated, auth.user_id).await;
+    Ok(Json(to_response(&state, &updated, true, sides, mine)))
 }
 
 #[derive(Deserialize)]
@@ -273,6 +318,16 @@ async fn post_events(
     .await
     .map_err(|e| ApiError::conflict(e.to_string()))?;
 
+    // The other captain has to be told the terms are on the table, or the match
+    // waits on somebody who does not know they are being waited on.
+    if body
+        .events
+        .iter()
+        .any(|e| matches!(e.kind, ScoringEventKind::ConditionsProposed { .. }))
+    {
+        notify_opposition_of_terms(&state, &row, &state_out, auth.user_id).await;
+    }
+
     if !prev_complete && state_out.status == fishers_domain::MatchStatus::Complete {
         platform_bus::match_completed(
             &state,
@@ -289,7 +344,9 @@ async fn post_events(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    let mut resp = to_response(&state, &row, true);
+    let sides = sides_for(&state, &row, auth.user_id).await;
+    let mine = club_side_for(&state, &row, auth.user_id).await;
+    let mut resp = to_response(&state, &row, true, sides, mine);
     resp.dls = state_out.dls_par(&state.dls, state.g50);
     resp.state = state_out;
     Ok(Json(resp))
@@ -316,7 +373,7 @@ async fn list_events(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    require_club_member(&state, row.club_id, auth.user_id).await?;
+    require_either_side(&state, &row, auth.user_id).await?;
     let after = q.after_seq.unwrap_or(0);
     let rows = cricket_repo::list_events_after(&state.pool, id, after).await?;
     let mut out = Vec::new();
@@ -348,7 +405,7 @@ async fn scorecard(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    require_club_member(&state, row.club_id, auth.user_id).await?;
+    require_either_side(&state, &row, auth.user_id).await?;
     let projection = cricket_repo::parse_state(&row);
     let dls = projection.dls_par(&state.dls, state.g50);
     Ok(Json(ScorecardResponse {
@@ -404,7 +461,7 @@ async fn list_officials(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    require_club_member(&state, row.club_id, auth.user_id).await?;
+    require_either_side(&state, &row, auth.user_id).await?;
     Ok(Json(cricket_repo::list_officials(&state.pool, id).await?))
 }
 
@@ -473,7 +530,9 @@ async fn handover(
     let updated = cricket_repo::handover(&state.pool, id, auth.user_id, body.to_user_id)
         .await?
         .ok_or_else(|| ApiError::conflict("the book has already moved on"))?;
-    Ok(Json(to_response(&state, &updated, false)))
+    let sides = sides_for(&state, &updated, auth.user_id).await;
+    let mine = club_side_for(&state, &updated, auth.user_id).await;
+    Ok(Json(to_response(&state, &updated, false, sides, mine)))
 }
 
 /// Who has held the book, and how it changed hands.
@@ -485,7 +544,7 @@ async fn scorer_trail(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    require_club_member(&state, row.club_id, auth.user_id).await?;
+    require_either_side(&state, &row, auth.user_id).await?;
     Ok(Json(cricket_repo::handover_trail(&state.pool, id).await?))
 }
 
@@ -518,6 +577,68 @@ async fn may_score(
     require_can_score(state, row, user_id).await.is_ok()
 }
 
+/// The side this user actually plays for.
+async fn club_side_for(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    user_id: Uuid,
+) -> Option<fishers_domain::MatchSide> {
+    use fishers_domain::MatchSide;
+    if require_club_member(state, row.club_id, user_id).await.is_ok() {
+        return Some(MatchSide::Home);
+    }
+    if let Some(club) = row.opponent_club_id {
+        if require_club_member(state, club, user_id).await.is_ok() {
+            return Some(MatchSide::Away);
+        }
+    }
+    None
+}
+
+/// The sides this user may speak for.
+///
+/// Deliberately the same test `agree_terms` and `submit_xi` apply, so the app
+/// can never put a form in front of somebody the server will then refuse.
+async fn sides_for(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    user_id: Uuid,
+) -> Vec<fishers_domain::MatchSide> {
+    use fishers_domain::MatchSide;
+    if may_score(state, row, user_id).await {
+        return vec![MatchSide::Home, MatchSide::Away];
+    }
+    let mut sides = Vec::new();
+    if may_manage_selection(state, Some(row.club_id), user_id).await {
+        sides.push(MatchSide::Home);
+    }
+    if may_manage_selection(state, row.opponent_club_id, user_id).await {
+        sides.push(MatchSide::Away);
+    }
+    sides
+}
+
+/// A match belongs to both sides.
+///
+/// Checking only the home club locked the visiting captain out of the fixture
+/// they are playing in — they could not open it, so they could not agree the
+/// terms they were being asked to agree.
+async fn require_either_side(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    user_id: Uuid,
+) -> ApiResult<()> {
+    if require_club_member(state, row.club_id, user_id).await.is_ok() {
+        return Ok(());
+    }
+    if let Some(club) = row.opponent_club_id {
+        if require_club_member(state, club, user_id).await.is_ok() {
+            return Ok(());
+        }
+    }
+    Err(ApiError::forbidden("you are not in either side"))
+}
+
 #[derive(Deserialize)]
 struct CommentaryRequest {
     /// Which ball to call. Defaults to the last one bowled.
@@ -547,7 +668,7 @@ async fn commentary(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    require_club_member(&state, row.club_id, auth.user_id).await?;
+    require_either_side(&state, &row, auth.user_id).await?;
 
     let Some(ollama) = state.ollama.clone() else {
         return Ok(Json(CommentaryResponse { line: None, model: None }));
@@ -668,7 +789,7 @@ async fn squad(
     let row = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
-    require_club_member(&state, row.club_id, auth.user_id).await?;
+    require_either_side(&state, &row, auth.user_id).await?;
     let projection = cricket_repo::parse_state(&row);
 
     let scorer = may_score(&state, &row, auth.user_id).await;
@@ -737,6 +858,136 @@ async fn squad(
     }))
 }
 
+fn side_name(projection: &fishers_domain::MatchState, side: fishers_domain::MatchSide) -> String {
+    match side {
+        fishers_domain::MatchSide::Home => projection.home_name.clone(),
+        fishers_domain::MatchSide::Away => projection.away_name.clone(),
+    }
+}
+
+/// Tell everyone in both clubs who is involved in running the match.
+async fn notify_both_sides(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    projection: &fishers_domain::MatchState,
+    kind: &str,
+    body: String,
+    except: Uuid,
+) {
+    let title = format!("{} v {}", projection.home_name, projection.away_name);
+    let payload = serde_json::json!({
+        "match_id": row.id,
+        "home_name": projection.home_name,
+        "away_name": projection.away_name,
+    });
+    for club in [Some(row.club_id), row.opponent_club_id].into_iter().flatten() {
+        for member in clubs_repo::list_members(&state.pool, club)
+            .await
+            .unwrap_or_default()
+        {
+            if member.user_id == except || !member.role.can_score_match() {
+                continue;
+            }
+            state
+                .notify(member.user_id, kind, &title, &body, payload.clone())
+                .await;
+        }
+    }
+}
+
+/// Tell the other side's captains it is their turn.
+///
+/// Without this the flow stalls on somebody who does not know they are being
+/// waited on: the match cannot start until both sides are named, and nothing
+/// told them.
+async fn notify_side_to_pick(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    projection: &fishers_domain::MatchState,
+    side: fishers_domain::MatchSide,
+    except: Uuid,
+) {
+    let club = match side {
+        fishers_domain::MatchSide::Home => Some(row.club_id),
+        fishers_domain::MatchSide::Away => row.opponent_club_id,
+    };
+    let Some(club) = club else { return };
+
+    let title = format!("{} v {}", projection.home_name, projection.away_name);
+    let body = match (projection.toss_winner, projection.toss_decision) {
+        (Some(winner), Some(decision)) => format!(
+            "{} won the toss and chose to {}. Pick your side to get the match started.",
+            side_name(projection, winner),
+            format!("{decision:?}").to_lowercase(),
+        ),
+        _ => "The other side is named. Pick yours to get the match started.".into(),
+    };
+    let payload = serde_json::json!({
+        "match_id": row.id,
+        "home_name": projection.home_name,
+        "away_name": projection.away_name,
+    });
+
+    for member in clubs_repo::list_members(&state.pool, club)
+        .await
+        .unwrap_or_default()
+    {
+        if member.user_id == except || !member.role.can_score_match() {
+            continue;
+        }
+        state
+            .notify(member.user_id, "match_pick_your_xi", &title, &body, payload.clone())
+            .await;
+    }
+}
+
+/// Tell whoever can agree for the other side that terms are waiting on them.
+///
+/// Goes to the side that has *not* agreed: proposing counts as the proposer
+/// agreeing, so it is the other club's captains and secretary who need to act.
+async fn notify_opposition_of_terms(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    projection: &fishers_domain::MatchState,
+    proposer: Uuid,
+) {
+    // Whichever side is still outstanding decides which club hears about it.
+    let waiting_home = projection.agreed_home.is_none();
+    let club = if waiting_home {
+        Some(row.club_id)
+    } else {
+        row.opponent_club_id
+    };
+    let Some(club) = club else { return };
+
+    let members = clubs_repo::list_members(&state.pool, club)
+        .await
+        .unwrap_or_default();
+    let title = format!("{} v {}", projection.home_name, projection.away_name);
+    let body = format!(
+        "{} overs, {:?} ball. Open the match to agree the terms.",
+        projection.conditions.overs_limit,
+        projection.conditions.ball
+    )
+    .to_lowercase();
+    let payload = serde_json::json!({
+        "match_id": row.id,
+        "event_id": row.event_id,
+        "home_name": projection.home_name,
+        "away_name": projection.away_name,
+    });
+
+    for member in members {
+        // The proposer already knows; anyone who cannot agree cannot act on it.
+        if member.user_id == proposer || !member.role.can_score_match() {
+            continue;
+        }
+        state
+            .notify(member.user_id, "match_terms_proposed", &title, &body, payload.clone())
+            .await;
+    }
+}
+
 fn standing_of(c: &fishers_domain::Candidate) -> String {
     use fishers_domain::{AvailabilityStatus, SelectionState};
     match c.state {
@@ -787,6 +1038,410 @@ struct XiRequest {
 /// Players do not have to be club members. A side short on the morning can be
 /// made up by whoever turns up, and that player is recorded on the sheet by
 /// name like any other.
+#[derive(Deserialize)]
+struct FixtureQuery {
+    club_id: Option<Uuid>,
+    /// `live`, `upcoming` or `finished`.
+    state: Option<String>,
+    q: Option<String>,
+    /// `asc` (default, next fixture first) or `desc`.
+    order: Option<String>,
+    page: Option<i64>,
+    per_page: Option<i64>,
+}
+
+#[derive(Serialize)]
+struct FixtureSummary {
+    event_id: Uuid,
+    club_id: Uuid,
+    title: String,
+    start_at: chrono::DateTime<chrono::Utc>,
+    event_status: String,
+    match_id: Option<Uuid>,
+    match_status: Option<String>,
+    home_name: Option<String>,
+    away_name: Option<String>,
+    /// Whoever is holding the book, so the list can say so without asking.
+    has_scorer: bool,
+    /// The live score, when there is one — "128/4 (14.2 ov)".
+    score: Option<String>,
+    result: Option<String>,
+}
+
+/// Cricket fixtures for the scoring list: one query, paged and filtered.
+///
+/// This replaces fetching every event and then asking about each one — a
+/// round trip per fixture, and no paging at all, which is a hundred requests
+/// for a club with a season behind it.
+async fn list_fixtures(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(q): Query<FixtureQuery>,
+) -> ApiResult<Json<serde_json::Value>> {
+    if let Some(club_id) = q.club_id {
+        require_club_member(&state, club_id, auth.user_id).await?;
+    }
+    let order = q.order.as_deref().unwrap_or("asc");
+    if !matches!(order, "asc" | "desc") {
+        return Err(ApiError::bad_request("order must be asc or desc"));
+    }
+    if let Some(s) = q.state.as_deref() {
+        if !matches!(s, "live" | "upcoming" | "finished") {
+            return Err(ApiError::bad_request(
+                "state must be live, upcoming or finished",
+            ));
+        }
+    }
+    if let Some(page) = q.page {
+        if page < 1 {
+            return Err(ApiError::bad_request("page starts at 1"));
+        }
+    }
+    if let Some(per_page) = q.per_page {
+        if !(1..=100).contains(&per_page) {
+            return Err(ApiError::bad_request("per_page must be between 1 and 100"));
+        }
+    }
+    let search = q
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    if search.as_deref().is_some_and(|s| s.chars().count() < 2) {
+        return Err(ApiError::bad_request("give at least two letters to search on"));
+    }
+
+    let filter = cricket_repo::FixtureFilter {
+        club_id: q.club_id,
+        state: q.state.clone(),
+        search,
+        descending: order == "desc",
+        page: q.page.unwrap_or(1),
+        per_page: q.per_page.unwrap_or(20),
+    };
+    let found = cricket_repo::list_cricket_fixtures(&state.pool, auth.user_id, &filter).await?;
+
+    let items: Vec<FixtureSummary> = found
+        .items
+        .iter()
+        .map(|row| {
+            // The projection is already stored; parsing it here costs nothing
+            // and saves the list a request per fixture.
+            let projection: Option<fishers_domain::MatchState> = row
+                .state_json
+                .clone()
+                .and_then(|v| serde_json::from_value(v).ok());
+            let score = projection.as_ref().and_then(|p| {
+                p.innings.last().map(|inn| {
+                    format!(
+                        "{}/{} ({}.{} ov)",
+                        inn.runs,
+                        inn.wickets,
+                        inn.legal_balls / 6,
+                        inn.legal_balls % 6
+                    )
+                })
+            });
+            FixtureSummary {
+                event_id: row.event_id,
+                club_id: row.club_id,
+                title: row.title.clone(),
+                start_at: row.start_at,
+                event_status: row.event_status.clone(),
+                match_id: row.match_id,
+                match_status: row.match_status.clone(),
+                home_name: row.home_name.clone(),
+                away_name: row.away_name.clone(),
+                has_scorer: row.active_scorer_user_id.is_some(),
+                score,
+                result: projection.as_ref().and_then(|p| p.margin.clone()),
+            }
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({
+        "items": items,
+        "total": found.total,
+        "page": found.page,
+        "per_page": found.per_page,
+        "has_more": found.has_more,
+    })))
+}
+
+#[derive(Deserialize)]
+struct AbandonRequest {
+    /// "rain", "bad light", "ground unfit" — whatever goes in the book.
+    #[serde(default)]
+    reason: String,
+}
+
+/// Call the match off with no result.
+///
+/// Recorded as an event, not a deletion: an innings that was played happened,
+/// the averages count, and a scorecard has to be able to say why it stopped.
+/// Only a captain or secretary — abandoning is a decision about the fixture,
+/// not a scoring action, so holding the book is not enough.
+async fn abandon_match(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AbandonRequest>,
+) -> ApiResult<Json<MatchResponse>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    require_match_manager(&state, &row, auth.user_id).await?;
+
+    let projection = cricket_repo::parse_state(&row);
+    if projection.status == MatchStatus::Complete {
+        return Err(ApiError::conflict("this match already has a result"));
+    }
+
+    let event = ScoringEvent {
+        client_event_id: Uuid::new_v4(),
+        seq: projection.last_seq + 1,
+        kind: ScoringEventKind::MatchAbandoned {
+            reason: body.reason.trim().to_string(),
+        },
+        at: Some(chrono::Utc::now()),
+    };
+    let state_out =
+        cricket_repo::apply_event_batch(&state.pool, id, &[event], auth.user_id, None)
+            .await
+            .map_err(|e| ApiError::conflict(e.to_string()))?;
+
+    notify_both_sides(
+        &state,
+        &row,
+        &state_out,
+        "match_abandoned",
+        state_out
+            .margin
+            .clone()
+            .unwrap_or_else(|| "Abandoned — no result".into()),
+        auth.user_id,
+    )
+    .await;
+
+    let refreshed = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    let can_score = may_score(&state, &refreshed, auth.user_id).await;
+    let sides = sides_for(&state, &refreshed, auth.user_id).await;
+    let mine = club_side_for(&state, &refreshed, auth.user_id).await;
+    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine)))
+}
+
+/// Remove a match set up by mistake.
+///
+/// Only while nothing has been scored. Once a ball has been bowled the log is
+/// a record of something that happened to real people, and the way to end it
+/// is to abandon it — which keeps the scorecard — not to delete it.
+async fn delete_match(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    require_match_manager(&state, &row, auth.user_id).await?;
+
+    let projection = cricket_repo::parse_state(&row);
+    if projection.innings.iter().any(|i| i.legal_balls > 0 || i.runs > 0) {
+        return Err(ApiError::conflict(
+            "balls have been bowled — abandon the match instead, so the scorecard survives",
+        ));
+    }
+
+    let removed = cricket_repo::delete_match(&state.pool, id).await?;
+    Ok(Json(serde_json::json!({ "deleted": removed })))
+}
+
+/// Calling a match off is the club's decision, not the scorer's.
+async fn require_match_manager(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    user_id: Uuid,
+) -> ApiResult<()> {
+    for club in [Some(row.club_id), row.opponent_club_id].into_iter().flatten() {
+        if require_permission(state, club, user_id, None, Permission::ManageEvents)
+            .await
+            .is_ok()
+        {
+            return Ok(());
+        }
+    }
+    Err(ApiError::forbidden(
+        "only a captain or club secretary can call a match off",
+    ))
+}
+
+#[derive(Deserialize)]
+struct ProposeRequest {
+    conditions: fishers_domain::MatchConditions,
+    by: fishers_domain::MatchSide,
+    by_name: String,
+}
+
+/// A captain puts terms on the table.
+///
+/// The same separate door as agreeing, for the same reason: going through the
+/// scoring log meant only whoever held the book could propose, so a captain
+/// opening the match on their own phone was shown a form they could not
+/// submit.
+async fn propose_terms(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ProposeRequest>,
+) -> ApiResult<Json<MatchResponse>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+
+    // You propose for your own side. Proposing counts as that side agreeing, so
+    // letting a scorer propose "on behalf of" the opposition signed for a club
+    // that had not seen the terms and left them nothing to accept. Recording
+    // the other captain's agreement is a separate act — `agree_terms` — and
+    // that one still allows it, because at a ground both captains are present.
+    match club_side_for(&state, &row, auth.user_id).await {
+        Some(mine) if mine != body.by => {
+            return Err(ApiError::forbidden(
+                "propose for your own side — the opposition is asked to accept",
+            ));
+        }
+        // Somebody in neither club, an appointed neutral scorer, may propose
+        // for whichever side asked them to.
+        None if !sides_for(&state, &row, auth.user_id).await.contains(&body.by) => {
+            return Err(ApiError::forbidden(
+                "only this side's captain or the scorer can propose for them",
+            ));
+        }
+        _ => {}
+    }
+
+    let name = body.by_name.trim();
+    if name.is_empty() {
+        return Err(ApiError::bad_request("put a name against the proposal"));
+    }
+
+    let projection = cricket_repo::parse_state(&row);
+    let event = ScoringEvent {
+        client_event_id: Uuid::new_v4(),
+        seq: projection.last_seq + 1,
+        kind: ScoringEventKind::ConditionsProposed {
+            conditions: body.conditions,
+            by: body.by,
+            by_name: name.to_string(),
+        },
+        at: Some(chrono::Utc::now()),
+    };
+    let state_out =
+        cricket_repo::apply_event_batch(&state.pool, id, &[event], auth.user_id, None)
+            .await
+            .map_err(|e| ApiError::conflict(e.to_string()))?;
+
+    notify_opposition_of_terms(&state, &row, &state_out, auth.user_id).await;
+
+    let refreshed = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+    let can_score = may_score(&state, &refreshed, auth.user_id).await;
+    let sides = sides_for(&state, &refreshed, auth.user_id).await;
+    let mine = club_side_for(&state, &refreshed, auth.user_id).await;
+    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine)))
+}
+
+#[derive(Deserialize)]
+struct AgreeRequest {
+    side: fishers_domain::MatchSide,
+    captain_name: String,
+}
+
+/// A captain accepts the terms on the table.
+///
+/// A separate door from the scoring log, for the same reason naming an XI is:
+/// agreeing is not scoring. Going through `post_events` meant the visiting
+/// captain needed scoring rights in the *home* club, which they will never
+/// have, so the one thing they were being asked to do was the one thing they
+/// could not.
+async fn agree_terms(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AgreeRequest>,
+) -> ApiResult<Json<MatchResponse>> {
+    let row = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+
+    let owning_club = match body.side {
+        fishers_domain::MatchSide::Home => Some(row.club_id),
+        fishers_domain::MatchSide::Away => row.opponent_club_id,
+    };
+    // The scorer at the ground records both agreements on one device; a captain
+    // on their own phone agrees for their own side only.
+    let allowed = may_score(&state, &row, auth.user_id).await
+        || may_manage_selection(&state, owning_club, auth.user_id).await;
+    if !allowed {
+        return Err(ApiError::forbidden(
+            "only this side's captain or the scorer can agree these terms",
+        ));
+    }
+
+    let name = body.captain_name.trim();
+    if name.is_empty() {
+        return Err(ApiError::bad_request("put a name against the agreement"));
+    }
+
+    let projection = cricket_repo::parse_state(&row);
+    let event = ScoringEvent {
+        client_event_id: Uuid::new_v4(),
+        seq: projection.last_seq + 1,
+        kind: ScoringEventKind::ConditionsAgreed {
+            side: body.side,
+            captain_name: name.to_string(),
+        },
+        at: Some(chrono::Utc::now()),
+    };
+    cricket_repo::apply_event_batch(&state.pool, id, &[event], auth.user_id, None)
+        .await
+        .map_err(|e| ApiError::conflict(e.to_string()))?;
+
+    let refreshed = cricket_repo::get_match(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("match not found"))?;
+
+    // Both in: whoever is holding the book can get on with the toss.
+    let settled = cricket_repo::parse_state(&refreshed);
+    if settled.agreed_home.is_some() && settled.agreed_away.is_some() {
+        if let Some(scorer) = refreshed.active_scorer_user_id {
+            if scorer != auth.user_id {
+                state
+                    .notify(
+                        scorer,
+                        "match_terms_agreed",
+                        &format!("{} v {}", settled.home_name, settled.away_name),
+                        "Both captains have agreed. You can do the toss.",
+                        serde_json::json!({
+                            "match_id": refreshed.id,
+                            "home_name": settled.home_name,
+                            "away_name": settled.away_name,
+                        }),
+                    )
+                    .await;
+            }
+        }
+    }
+
+    let can_score = may_score(&state, &refreshed, auth.user_id).await;
+    let sides = sides_for(&state, &refreshed, auth.user_id).await;
+    let mine = club_side_for(&state, &refreshed, auth.user_id).await;
+    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine)))
+}
+
 async fn submit_xi(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -829,7 +1484,16 @@ async fn submit_xi(
     let refreshed = cricket_repo::get_match(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("match not found"))?;
+
+    // One side named: the other has a job to do, and nothing else would tell
+    // them. The match cannot start until both are in.
+    let waiting = body.side.opposite();
+    if state_out.xi(waiting).is_empty() {
+        notify_side_to_pick(&state, &refreshed, &state_out, waiting, auth.user_id).await;
+    }
+
     let can_score = may_score(&state, &refreshed, auth.user_id).await;
-    let _ = state_out;
-    Ok(Json(to_response(&state, &refreshed, can_score)))
+    let sides = sides_for(&state, &refreshed, auth.user_id).await;
+    let mine = club_side_for(&state, &refreshed, auth.user_id).await;
+    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine)))
 }

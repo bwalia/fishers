@@ -433,7 +433,7 @@ pub struct OutstandingFeeRow {
     pub fee_currency: String,
     pub user_id: Uuid,
     pub name: String,
-    pub email: String,
+    pub email: Option<String>,
     pub fee_reminders_sent: i32,
     pub last_fee_reminder_at: Option<DateTime<Utc>>,
 }

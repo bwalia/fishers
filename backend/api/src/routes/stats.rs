@@ -48,7 +48,9 @@ async fn user_stats(
         // Soft gate: must share at least one club.
         let my_clubs = fishers_db::repos::clubs::list_clubs_for_user(&state.pool, auth.user_id).await?;
         let their = fishers_db::repos::clubs::list_clubs_for_user(&state.pool, id).await?;
-        let overlap = my_clubs.iter().any(|c| their.iter().any(|t| t.id == c.id));
+        let overlap = my_clubs
+            .iter()
+            .any(|c| their.iter().any(|t| t.club.id == c.club.id));
         if !overlap {
             return Err(ApiError::forbidden("not in a shared club"));
         }
@@ -66,7 +68,9 @@ async fn user_achievements(
     if id != auth.user_id {
         let my_clubs = fishers_db::repos::clubs::list_clubs_for_user(&state.pool, auth.user_id).await?;
         let their = fishers_db::repos::clubs::list_clubs_for_user(&state.pool, id).await?;
-        let overlap = my_clubs.iter().any(|c| their.iter().any(|t| t.id == c.id));
+        let overlap = my_clubs
+            .iter()
+            .any(|c| their.iter().any(|t| t.club.id == c.club.id));
         if !overlap {
             return Err(ApiError::forbidden("not in a shared club"));
         }

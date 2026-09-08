@@ -493,6 +493,10 @@ enum ScoringEventKind: Codable, Equatable {
     case bowlerChanged(bowlerId: UUID)
     case inningsCompleted
     case matchCompleted(winner: MatchSide?, margin: String)
+    /// Called off, with no result. Distinct from `matchCompleted`: a game
+    /// stopped by rain is not a win for anybody, and the scorecard has to say
+    /// so rather than inventing a margin.
+    case matchAbandoned(reason: String)
     case undoLast
 
     private enum CodingKeys: String, CodingKey {
@@ -551,6 +555,7 @@ enum ScoringEventKind: Codable, Equatable {
         case .bowlerChanged: return "bowler_changed"
         case .inningsCompleted: return "innings_completed"
         case .matchCompleted: return "match_completed"
+        case .matchAbandoned: return "match_abandoned"
         case .undoLast: return "undo_last"
         }
     }
@@ -628,6 +633,8 @@ enum ScoringEventKind: Codable, Equatable {
         case let .matchCompleted(winner, margin):
             try c.encodeIfPresent(winner, forKey: .winner)
             try c.encode(margin, forKey: .margin)
+        case let .matchAbandoned(reason):
+            try c.encode(reason, forKey: .reason)
         }
     }
 
@@ -734,6 +741,8 @@ enum ScoringEventKind: Codable, Equatable {
                 winner: try c.decodeIfPresent(MatchSide.self, forKey: .winner),
                 margin: try c.decode(String.self, forKey: .margin)
             )
+        case "match_abandoned":
+            self = .matchAbandoned(reason: try c.decode(String.self, forKey: .reason))
         case "undo_last":
             self = .undoLast
         default:
@@ -1251,6 +1260,9 @@ struct MatchState: Codable, Equatable {
     var target: UInt16?
     var winner: MatchSide?
     var margin: String?
+    /// Called off with no result. `winner` is nil either way, so a flag is
+    /// what separates "abandoned" from "still being played".
+    var abandoned = false
     var lastSeq: Int64
     /// Keyed by lowercase UUID string: Swift encodes `[UUID: String]` as a flat
     /// array, and Rust writes lowercase keys, so the string form is the one

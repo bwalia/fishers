@@ -3,7 +3,6 @@ import SwiftUI
 struct ClubsTeamsView: View {
     @State private var clubs: [Club] = []
     @State private var showCreate = false
-    @State private var newName = ""
     @State private var message: String?
 
     var body: some View {
@@ -17,10 +16,17 @@ struct ClubsTeamsView: View {
                             Text(club.sportTypes.joined(separator: " · ").capitalized)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            if club.isInformalGroup {
-                                Text("Friend group")
-                                    .font(.caption2)
-                                    .foregroundStyle(FishersTheme.accent)
+                            HStack(spacing: 6) {
+                                if let role = club.role {
+                                    Text(role.displayName)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(FishersTheme.accent)
+                                }
+                                if club.isInformalGroup {
+                                    Text("Friend group")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -36,23 +42,7 @@ struct ClubsTeamsView: View {
                 }
             }
             .sheet(isPresented: $showCreate) {
-                NavigationStack {
-                    Form {
-                        TextField("Club name", text: $newName)
-                        Button("Create London Lords-style club") {
-                            Task { await create(informal: false) }
-                        }
-                        Button("Create friend group") {
-                            Task { await create(informal: true) }
-                        }
-                    }
-                    .navigationTitle("New club")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { showCreate = false }
-                        }
-                    }
-                }
+                NewClubSheet { showCreate = false; Task { await load() } }
             }
             .task { await load() }
             .refreshable { await load() }
@@ -67,19 +57,105 @@ struct ClubsTeamsView: View {
         }
     }
 
-    private func create(informal: Bool) async {
-        do {
-            _ = try await FishersAPI.createClub(
-                name: newName.isEmpty ? (informal ? "Friday Pickup" : "London Lords CC") : newName,
-                sports: ["cricket"],
-                informal: informal
-            )
-            showCreate = false
-            newName = ""
-            await load()
-        } catch {
-            message = error.localizedDescription
+}
+
+/// Whoever creates the club is its first secretary, so this is also how a new
+/// account gets somewhere to add people to.
+private struct NewClubSheet: View {
+    let onCreated: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var sports: Set<String> = ["cricket"]
+    @State private var blurb = ""
+    @State private var isInformal = false
+    @State private var isPublic = false
+    @State private var isSaving = false
+    @State private var message: String?
+
+    /// Exactly what the API's SportType accepts — anything else is rejected.
+    private static let allSports = [
+        "cricket", "football", "badminton", "paddle", "pickleball", "tennis", "other",
+    ]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Name") {
+                    TextField("Fishers CC", text: $name)
+                }
+                Section("Sports played") {
+                    ForEach(Self.allSports, id: \.self) { sport in
+                        Button {
+                            if sports.contains(sport) { sports.remove(sport) } else { sports.insert(sport) }
+                        } label: {
+                            HStack {
+                                Text(sport.capitalized).foregroundStyle(.primary)
+                                Spacer()
+                                if sports.contains(sport) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(FishersTheme.accent)
+                                }
+                            }
+                        }
+                        .frame(minHeight: FishersTheme.minTap)
+                        .accessibilityAddTraits(sports.contains(sport) ? .isSelected : [])
+                    }
+                }
+                Section {
+                    Toggle("Anyone can find it", isOn: $isPublic)
+                    Toggle("A friend group, not a club", isOn: $isInformal)
+                    TextField("Sunday friendlies, Hemel Hempstead", text: $blurb)
+                } footer: {
+                    Text("You become its secretary, so you can add members straight away.")
+                }
+                if let message {
+                    Text(message).foregroundStyle(.red)
+                }
+            }
+            .navigationTitle("Start a club")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") { Task { await create() } }
+                        .bold()
+                        .disabled(isSaving || name.trimmingCharacters(in: .whitespaces).count < 2 || sports.isEmpty)
+                }
+            }
         }
+    }
+
+    private func create() async {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let trimmedBlurb = blurb.trimmingCharacters(in: .whitespaces)
+            _ = try await FishersAPI.createClub(
+                name: name.trimmingCharacters(in: .whitespaces),
+                sports: Self.allSports.filter(sports.contains),
+                informal: isInformal,
+                visibility: isPublic ? "public" : "invite_only",
+                description: trimmedBlurb.isEmpty ? nil : trimmedBlurb
+            )
+            onCreated()
+            dismiss()
+        } catch {
+            message = readable(error)
+        }
+    }
+
+    /// The API's own words are more use than "the operation could not be completed".
+    private func readable(_ error: Error) -> String {
+        guard case let APIError.http(_, body) = error,
+              let data = body.data(using: .utf8),
+              let payload = try? JSONDecoder().decode([String: String].self, from: data),
+              let reason = payload["error"] else {
+            return error.localizedDescription
+        }
+        return reason
     }
 }
 

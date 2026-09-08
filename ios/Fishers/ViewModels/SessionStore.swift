@@ -24,15 +24,19 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    func signUp(name: String, email: String, password: String) async {
+    func signUp(name: String, email: String?, phone: String?, password: String) async {
         await authenticate {
-            try await FishersAPI.signup(name: name, email: email, password: password)
+            try await FishersAPI.signup(
+                name: name, email: email, phone: phone, password: password
+            )
         }
     }
 
-    func login(email: String, password: String) async {
+    /// `identifier` is an email address or a mobile number; the API works out
+    /// which, so the app does not have to guess.
+    func login(identifier: String, password: String) async {
         await authenticate {
-            try await FishersAPI.login(email: email, password: password)
+            try await FishersAPI.login(identifier: identifier, password: password)
         }
     }
 

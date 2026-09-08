@@ -40,6 +40,10 @@ struct CricketScoringFlowView: View {
     @State private var agreeingSide: MatchSide?
     @State private var isNamingCaptain = false
     @State private var captainName = ""
+    /// The visitors' own members, once a QR scan or a search has told us which
+    /// club they are. Their captain and their XI come from here — offering our
+    /// own players for their side was how the wrong club got named.
+    @State private var opponentPlayers: [MatchPlayer] = []
 
     enum Step: Hashable {
         case setup, agreement, toss, sheets, openers, live
@@ -83,6 +87,7 @@ struct CricketScoringFlowView: View {
                 opponent = identity
             }
         }
+        .task(id: opponent?.clubId) { await loadOpponentPlayers() }
     }
 
     // MARK: Step 1 — the match
@@ -267,12 +272,15 @@ struct CricketScoringFlowView: View {
                 }
             }
         }
-        .alert("Captain's name", isPresented: $isNamingCaptain) {
-            TextField("Name", text: $captainName)
-            Button("Agree") { confirmAgreement() }
-            Button("Cancel", role: .cancel) { agreeingSide = nil }
-        } message: {
-            Text("Recorded against the agreement, so there is no argument later.")
+        .sheet(isPresented: $isNamingCaptain) {
+            CaptainNameSheet(
+                teamName: agreeingSide.map { store.state.name(for: $0) } ?? "",
+                candidates: agreeingSide.map(captainCandidates) ?? [],
+                name: $captainName,
+                onAgree: confirmAgreement,
+                onCancel: { agreeingSide = nil }
+            )
+            .presentationDetents([.medium])
         }
     }
 
@@ -308,9 +316,36 @@ struct CricketScoringFlowView: View {
             .joined(separator: " and ")
     }
 
+    /// Names to offer for one side's captain, so it is picked rather than typed.
+    private func captainCandidates(for side: MatchSide) -> [MatchPlayer] {
+        side == .home ? clubPlayers : opponentPlayers
+    }
+
     private func suggestedCaptainName(for side: MatchSide) -> String {
         // The home captain is usually whoever is holding the phone.
         side == .home ? (session.user?.name ?? "") : ""
+    }
+
+    /// The visitors' players, asked for in the order that actually works.
+    ///
+    /// The match knows who is playing in it and lets whoever is scoring read
+    /// both sides; `/clubs/{id}/members` does not — a scorer is normally in the
+    /// home club only, so asking the opposition's club directly comes back 403
+    /// and the list is empty exactly when it is needed. The club call stays as
+    /// a fallback for a match that has not reached the server yet.
+    private func loadOpponentPlayers() async {
+        guard let club = opponent?.clubId else {
+            opponentPlayers = []
+            return
+        }
+        if let matchId = store.matchId,
+           let squads = try? await FishersAPI.squads(matchId: matchId),
+           !squads.away.players.isEmpty {
+            opponentPlayers = squads.away.players.map { MatchPlayer(id: $0.id, name: $0.name) }
+            return
+        }
+        let members = (try? await FishersAPI.clubMembers(clubId: club)) ?? []
+        opponentPlayers = members.map { MatchPlayer(id: $0.userId, name: $0.name) }
     }
 
     private func confirmAgreement() {
@@ -321,10 +356,20 @@ struct CricketScoringFlowView: View {
             message = "Put a name against the agreement."
             return
         }
-        if store.append(.conditionsAgreed(side: side, captainName: name)) {
-            message = nil
-        } else {
+        guard store.append(.conditionsAgreed(side: side, captainName: name)) else {
             message = store.lastError
+            return
+        }
+        message = nil
+        // The local log is the source of truth and syncs on its own; this is
+        // the door a captain agreeing on their own phone goes through, since
+        // they will never have scoring rights in the other club.
+        if let matchId = store.matchId {
+            Task {
+                try? await FishersAPI.agreeTerms(
+                    matchId: matchId, side: side, captainName: name
+                )
+            }
         }
     }
 
@@ -391,7 +436,9 @@ struct CricketScoringFlowView: View {
                     players: $awaySheet,
                     captain: $awayCaptain,
                     keeper: $awayKeeper,
-                    clubPlayers: clubPlayers,
+                    // Their club's members when they are on Fishers; otherwise
+                    // nothing to offer, and the scorer types the names.
+                    clubPlayers: opponentPlayers,
                     alreadyPicked: Set(homeSheet.map(\.id))
                 )
                 .tabItem { Label(awayName, systemImage: "figure.walk") }
@@ -835,5 +882,86 @@ private struct OfficialsEditor: View {
         guard !name.isEmpty else { return }
         append(MatchPlayer(name: name))
         guestName = ""
+    }
+}
+
+/// Naming the captain who agreed the terms.
+///
+/// Picked from that side's own club where we can read it, typed where we
+/// cannot — a visiting club that is not on Fishers has no roster to offer, and
+/// refusing to record their captain would stop the match.
+private struct CaptainNameSheet: View {
+    let teamName: String
+    let candidates: [MatchPlayer]
+    @Binding var name: String
+    let onAgree: () -> Void
+    let onCancel: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var search = ""
+
+    /// A club of two hundred is a scroll; typing two letters is not. A name
+    /// that starts with what was typed comes first.
+    private var matches: [MatchPlayer] {
+        let term = search.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !term.isEmpty else { return candidates }
+        let starts = candidates.filter { $0.name.lowercased().hasPrefix(term) }
+        let contains = candidates.filter {
+            !$0.name.lowercased().hasPrefix(term) && $0.name.lowercased().contains(term)
+        }
+        return starts + contains
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if !candidates.isEmpty {
+                    Section("Their squad") {
+                        if matches.isEmpty {
+                            Text("Nobody in the squad matches. Type the name below to record them anyway.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(matches) { player in
+                            Button {
+                                name = player.name
+                            } label: {
+                                HStack {
+                                    Text(player.name).foregroundStyle(.primary)
+                                    Spacer()
+                                    if name == player.name {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(FishersTheme.accent)
+                                    }
+                                }
+                            }
+                            .frame(minHeight: FishersTheme.minTap)
+                            .accessibilityAddTraits(name == player.name ? .isSelected : [])
+                        }
+                    }
+                }
+                Section {
+                    TextField("Name", text: $name)
+                        .textContentType(.name)
+                } header: {
+                    Text(candidates.isEmpty ? "Captain" : "Somebody else")
+                } footer: {
+                    Text("Recorded against the agreement, so there is no argument later.")
+                }
+            }
+            .searchable(text: $search, prompt: "Find a player")
+            .navigationTitle("Captain of \(teamName)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onCancel(); dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Agree") { onAgree(); dismiss() }
+                        .bold()
+                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
     }
 }

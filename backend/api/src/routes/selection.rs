@@ -514,12 +514,15 @@ async fn chase_fees(
             row.title,
             row.start_at.format("%-d %b")
         );
-        if let Err(error) = state
-            .email
-            .send(&row.email, &format!("Match fee for {}", row.title), &body)
-            .await
-        {
-            warn!(%error, "fee email failed");
+        // Phone-only members are chased by push alone.
+        if let Some(address) = row.email.as_deref() {
+            if let Err(error) = state
+                .email
+                .send(address, &format!("Match fee for {}", row.title), &body)
+                .await
+            {
+                warn!(%error, "fee email failed");
+            }
         }
         if let Err(error) = state
             .push

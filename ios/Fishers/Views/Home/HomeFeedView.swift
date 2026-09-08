@@ -4,6 +4,7 @@ struct HomeFeedView: View {
     @EnvironmentObject private var clubContext: ClubContextStore
     @State private var events: [Event] = []
     @State private var error: String?
+    @State private var unread = 0
 
     var body: some View {
         NavigationStack {
@@ -56,6 +57,20 @@ struct HomeFeedView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
+                        NotificationsView()
+                    } label: {
+                        // The count, not just a dot — "3 waiting" is a
+                        // different decision to "1".
+                        Image(systemName: unread > 0 ? "bell.badge.fill" : "bell")
+                            .symbolRenderingMode(unread > 0 ? .palette : .monochrome)
+                            .foregroundStyle(FishersTheme.accent, .primary)
+                    }
+                    .accessibilityLabel(
+                        unread > 0 ? "\(unread) unread notifications" : "Notifications"
+                    )
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
                         ShopView()
                     } label: {
                         Image(systemName: "bag")
@@ -65,11 +80,19 @@ struct HomeFeedView: View {
             }
             .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }
             .task { await load() }
+            .task { await loadUnread() }
             .onChange(of: clubContext.activeClubId) { _, _ in
                 Task { await load() }
             }
-            .refreshable { await load() }
+            .refreshable {
+                await load()
+                await loadUnread()
+            }
         }
+    }
+
+    private func loadUnread() async {
+        unread = (try? await FishersAPI.notifications().unread) ?? 0
     }
 
     private func load() async {
