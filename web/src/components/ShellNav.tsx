@@ -36,6 +36,9 @@ export function ShellNav() {
 
   return (
     <header className="topbar">
+      {/* The bar itself is full width so it reads as the edge of the app;
+          this inner track keeps its contents on the same grid as the page. */}
+      <div className="topbar-inner">
       <Link href="/" className="brand">
         <Icon name="ball" size={22} />
         Fishers
@@ -87,6 +90,7 @@ export function ShellNav() {
             </Link>
           </>
         )}
+      </div>
       </div>
     </header>
   );

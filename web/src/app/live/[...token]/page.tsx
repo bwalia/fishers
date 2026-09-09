@@ -47,13 +47,30 @@ function nameOf(board: PublicScoreboard, id?: string | null) {
   return board.player_names[id] || id.slice(0, 8);
 }
 
+/// A share token is hex; anything from the first non-hex character on was
+/// never part of it. See `clean_token` in the API, which does the same.
+function cleanToken(segment: string): string {
+  return /^[0-9a-f]*/i.exec(segment)?.[0] ?? "";
+}
+
 export default function LiveScoreboardPage({
   params,
 }: {
-  // Next.js 15 hands route params to a client component as a promise.
-  params: Promise<{ token: string }>;
+  // Next.js 15 hands route params to a client component as a promise. This is
+  // a catch-all so that a link with the share message stuck to it — which
+  // splits across several segments — still lands here rather than on a 404.
+  params: Promise<{ token: string[] }>;
 }) {
-  const { token } = use(params);
+  const raw = use(params).token;
+  const token = cleanToken(raw[0] ?? "");
+
+  // Put the honest address in the bar, so a bookmark, a re-share and a copy
+  // all carry the link rather than the wreckage of one.
+  useEffect(() => {
+    if (token && raw.join("/") !== token) {
+      window.history.replaceState(null, "", `/live/${token}`);
+    }
+  }, [token, raw]);
   const [board, setBoard] = useState<PublicScoreboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

@@ -17,5 +17,47 @@ services:
       timeout: 5s
       retries: 10
 
+  # Object storage for what people upload — profile pictures today. MinIO
+  # speaks S3, so the same code path works against S3 in production without a
+  # second implementation.
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: fishers-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-fishers}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-fishers-dev-secret}
+    ports:
+      # 9002/9003 rather than the usual 9000/9001, which collide with the other
+      # projects on this machine.
+      - "${MINIO_PORT:-9002}:9000"
+      - "${MINIO_CONSOLE_PORT:-9003}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Runs once, makes the bucket, and opens it for reading. Avatars are served
+  # straight to the browser, so the objects have to be publicly readable —
+  # writing still needs the signed credentials.
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    container_name: fishers-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-fishers} ${S3_SECRET_KEY:-fishers-dev-secret} &&
+      mc mb --ignore-existing local/${S3_BUCKET:-fishers} &&
+      mc anonymous set download local/${S3_BUCKET:-fishers} &&
+      echo 'bucket ready'
+      "
+    restart: "no"
+
 volumes:
   postgres-data:
+  minio-data:

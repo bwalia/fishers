@@ -77,6 +77,12 @@ const PATHS = {
   ),
   plus: <path d="M12 5v14M5 12h14" />,
   arrowLeft: <path d="M11 6l-6 6 6 6M5 12h14" />,
+  camera: (
+    <>
+      <path d="M3 8.5h3.5L8 6h8l1.5 2.5H21V19H3z" />
+      <circle cx="12" cy="13.2" r="3.4" />
+    </>
+  ),
   share: (
     <>
       <circle cx="18" cy="5" r="2.5" />

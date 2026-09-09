@@ -41,16 +41,23 @@ if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable}`}>
+    // `suppressHydrationWarning` belongs here and only here: THEME_BOOT sets
+    // `data-theme` on this element before React hydrates, so the server HTML
+    // and the client tree differ by exactly that attribute — on purpose, since
+    // the alternative is a flash of the wrong theme on every navigation. It
+    // suppresses one level, so nothing inside is affected.
+    <html
+      lang="en"
+      className={`${barlow.variable} ${barlowCondensed.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
       <body>
         <a className="skip-link" href="#main">Skip to main content</a>
-        <div className="shell">
-          <ShellNav />
-          {children}
-        </div>
+        <ShellNav />
+        <div className="shell">{children}</div>
       </body>
     </html>
   );

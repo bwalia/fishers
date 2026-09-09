@@ -8,6 +8,7 @@ import {
   getStoredUser,
   roleLabel,
   CLUB_ROLES,
+  NO_ICON_PLAYER,
   SPORTS,
   type Club,
   type ClubMemberRow,
@@ -18,6 +19,7 @@ import {
   type Team,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { Avatar } from "@/components/Avatar";
 import { QrCard } from "@/components/QrCard";
 import { copyText } from "@/lib/clipboard";
 
@@ -89,7 +91,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
 
       <Teams clubId={id} teams={teams} isSecretary={isSecretary} onChanged={load} />
 
-      {isSecretary && <PublicPage clubId={id} clubName={club.name} />}
+      {isSecretary && <PublicPage clubId={id} clubName={club.name} members={members} />}
 
       <Codes clubId={id} teams={teams} />
     </main>
@@ -164,6 +166,11 @@ function Members({
         <h2>Members</h2>
         <span className="tag grey">{members.length}</span>
       </div>
+      <p className="muted">
+        A role is what somebody is allowed to <em>run</em>, not whether they play.
+        Everybody here is picked from for a side, the secretary included — and the
+        levels stack, so a secretary already has a captain&rsquo;s powers.
+      </p>
 
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
 
@@ -198,8 +205,11 @@ function Members({
               return (
                 <tr key={m.user_id}>
                   <td>
-                    {m.name}
-                    {m.user_id === meId && <span className="tag grey"> you</span>}
+                    <span className="person">
+                      <Avatar name={m.name} url={m.avatar_url} size={30} />
+                      {m.name}
+                      {m.user_id === meId && <span className="tag grey">you</span>}
+                    </span>
                   </td>
                   <td className="subtle">{m.email || m.phone || "—"}</td>
                   <td>
@@ -211,7 +221,9 @@ function Members({
                         aria-label={`Role for ${m.name}`}
                       >
                         {CLUB_ROLES.map((r) => (
-                          <option key={r.value} value={r.value}>{r.label}</option>
+                          <option key={r.value} value={r.value} title={r.can}>
+                            {r.label}
+                          </option>
                         ))}
                       </select>
                     ) : (
@@ -411,7 +423,15 @@ function Teams({
 }
 
 /// The club's own public site, without them having to build one.
-function PublicPage({ clubId, clubName }: { clubId: string; clubName: string }) {
+function PublicPage({
+  clubId,
+  clubName,
+  members,
+}: {
+  clubId: string;
+  clubName: string;
+  members: ClubMemberRow[];
+}) {
   const [page, setPage] = useState<ClubPageSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -502,6 +522,12 @@ function PublicPage({ clubId, clubName }: { clubId: string; clubName: string }) 
         </label>
       </div>
 
+      <IconPlayerPicker
+        members={members}
+        chosen={page.icon_player_id ?? null}
+        onPick={(id) => set({ icon_player_id: id })}
+      />
+
       <label>
         One line about the club
         <input
@@ -546,6 +572,71 @@ function PublicPage({ clubId, clubName }: { clubId: string; clubName: string }) 
         </span>
       </div>
     </div>
+  );
+}
+
+/// The one player the club leads with — a face on the front page.
+///
+/// Optional by design: a club with no photos on file still gets a page, and
+/// "Nobody for now" is a real answer rather than a stuck field.
+function IconPlayerPicker({
+  members,
+  chosen,
+  onPick,
+}: {
+  members: ClubMemberRow[];
+  chosen: string | null;
+  onPick: (id: string) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const term = filter.trim().toLowerCase();
+  const shown = term
+    ? members.filter((m) => m.name.toLowerCase().includes(term))
+    : members;
+
+  return (
+    <fieldset className="icon-pick">
+      <legend>Your icon player</legend>
+      <p className="muted">
+        Their photo leads the public page. They upload it themselves from their profile —
+        anyone without one still shows, just as initials.
+      </p>
+      {members.length > 6 && (
+        <input
+          className="icon-pick-search"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Search the squad"
+          aria-label="Search the squad"
+        />
+      )}
+      <div className="icon-pick-grid">
+        {/* NO_ICON_PLAYER, not an empty string: the API reads a null as
+            "field untouched", so clearing needs a value of its own. */}
+        <button
+          type="button"
+          className={`icon-pick-card${chosen ? "" : " on"}`}
+          aria-pressed={!chosen}
+          onClick={() => onPick(NO_ICON_PLAYER)}
+        >
+          <span className="icon-pick-face none">—</span>
+          <span className="icon-pick-name">Nobody for now</span>
+        </button>
+        {shown.map((m) => (
+          <button
+            key={m.user_id}
+            type="button"
+            className={`icon-pick-card${chosen === m.user_id ? " on" : ""}`}
+            aria-pressed={chosen === m.user_id}
+            onClick={() => onPick(m.user_id)}
+          >
+            <Avatar name={m.name} url={m.avatar_url} size={56} />
+            <span className="icon-pick-name">{m.name}</span>
+            {m.position_role && <span className="icon-pick-role">{m.position_role}</span>}
+          </button>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

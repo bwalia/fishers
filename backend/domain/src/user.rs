@@ -122,7 +122,7 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate)]
+#[derive(Default, Debug, Clone, Deserialize, Validate)]
 pub struct UpdateProfileRequest {
     #[validate(length(min = 1, max = 120))]
     pub name: Option<String>,

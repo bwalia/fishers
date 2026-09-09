@@ -306,6 +306,21 @@ export async function api<T>(
   return (await res.json()) as T;
 }
 
+/// A file upload. Separate from `api` because the browser must set the
+/// multipart boundary itself — sending our own Content-Type breaks the body.
+export async function upload<T>(path: string, file: File): Promise<T> {
+  const token = await usableToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${apiV1()}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  return (await res.json()) as T;
+}
+
 export function money(cents: number, currency = "GBP") {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -327,6 +342,8 @@ export type ClubPageSettings = {
   contact_email: string | null;
   website: string | null;
   public_page: boolean;
+  /// The one player the club leads its page with.
+  icon_player_id: string | null;
 };
 
 export type Team = {
@@ -346,7 +363,12 @@ export type ClubMemberRow = {
   status: string;
   position_role?: string | null;
   skill_level?: string | null;
+  avatar_url?: string | null;
 };
+
+/// Sent as `icon_player_id` to mean "nobody". A JSON null means the editor did
+/// not touch the field, so clearing needs a value the API can tell apart.
+export const NO_ICON_PLAYER = "00000000-0000-0000-0000-000000000000";
 
 /// A club or team's QR code, already drawn.
 export type QrCode = {
@@ -460,13 +482,35 @@ export type Invite = {
   created_at: string;
 };
 
-/// The roles a secretary can appoint, in the words the product uses.
+/// What somebody is allowed to do in the club — an office, not a job that
+/// replaces playing.
+///
+/// The levels stack: a secretary already has everything a captain has, so the
+/// same person being both is one choice rather than two. And everybody in the
+/// club is a candidate for selection whatever their role, including the
+/// secretary — the roster is who plays, this is who runs it.
 export const CLUB_ROLES = [
-  { value: "member", label: "Member" },
-  { value: "team_vice_captain", label: "Vice captain" },
-  { value: "team_captain", label: "Captain" },
-  { value: "club_admin", label: "Secretary" },
+  { value: "member", label: "Member", can: "Plays, and answers for their own availability." },
+  {
+    value: "team_vice_captain",
+    label: "Vice captain",
+    can: "Everything a member can, plus picking a side.",
+  },
+  {
+    value: "team_captain",
+    label: "Captain",
+    can: "Picks the side, agrees terms, and scores a match.",
+  },
+  {
+    value: "club_admin",
+    label: "Secretary",
+    can: "Everything a captain can, plus the roster, fixtures and fees.",
+  },
 ] as const;
+
+export function roleBlurb(role: string): string | undefined {
+  return CLUB_ROLES.find((r) => r.value === role)?.can;
+}
 
 export function roleLabel(role: string): string {
   return CLUB_ROLES.find((r) => r.value === role)?.label ?? role.replaceAll("_", " ");

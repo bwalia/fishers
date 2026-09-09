@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { apiV1 } from "@/lib/api";
+import { Avatar } from "@/components/Avatar";
 
 type ClubPage = {
   club: {
@@ -28,6 +29,7 @@ type ClubPage = {
   top_batters: { player_name?: string; runs?: number; wickets?: number }[];
   top_bowlers: { player_name?: string; runs?: number; wickets?: number }[];
   fixtures: { title: string; start_at: string }[];
+  icon_player: { name: string; avatar_url: string | null; position: string | null } | null;
 };
 
 /// A club's own page, for anybody at all.
@@ -103,6 +105,24 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
             <div><dt>Lost</dt><dd className="num">{record.lost}</dd></div>
             <div><dt>Drawn</dt><dd className="num">{record.drawn}</dd></div>
           </dl>
+        </section>
+      )}
+
+      {page.icon_player && (
+        <section className="club-icon" aria-label="Icon player">
+          <Avatar
+            name={page.icon_player.name}
+            url={page.icon_player.avatar_url}
+            size={132}
+            className="club-icon-face"
+          />
+          <div>
+            <p className="club-eyebrow">Icon player</p>
+            <h2>{page.icon_player.name}</h2>
+            {page.icon_player.position && (
+              <p className="club-icon-role">{page.icon_player.position}</p>
+            )}
+          </div>
         </section>
       )}
 

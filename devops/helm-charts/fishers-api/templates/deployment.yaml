@@ -68,6 +68,20 @@ spec:
             - name: DLS_RESOURCE_TABLE
               value: {{ . | quote }}
             {{- end }}
+            {{- if .Values.config.s3.enabled }}
+            # Uploads. The endpoint is the in-cluster service; the public base
+            # is where a browser fetches the object from, which is a different
+            # address. The keys arrive in the secret alongside the database
+            # password.
+            - name: S3_ENDPOINT
+              value: {{ .Values.config.s3.endpoint | quote }}
+            - name: S3_BUCKET
+              value: {{ .Values.config.s3.bucket | quote }}
+            - name: S3_REGION
+              value: {{ .Values.config.s3.region | quote }}
+            - name: S3_PUBLIC_BASE
+              value: {{ .Values.config.s3.publicBase | quote }}
+            {{- end }}
           envFrom:
             - secretRef:
                 name: {{ include "fishers-api.name" . }}

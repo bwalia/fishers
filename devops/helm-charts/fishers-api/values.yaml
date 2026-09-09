@@ -73,6 +73,16 @@ database:
   password: ""
 
 config:
+  # Object storage for uploads, served by the fishers-minio chart in the same
+  # namespace. The access keys go in the secret, not here.
+  s3:
+    enabled: false
+    endpoint: "http://fishers-minio:9000"
+    bucket: fishers
+    region: us-east-1
+    # Where a browser fetches an uploaded picture from — set per ring.
+    publicBase: ""
+
   jwtAccessTtlSecs: 900
   jwtRefreshTtlSecs: 2592000
   rustLog: "fishers_api=info,tower_http=warn,sqlx=warn"
@@ -89,6 +99,11 @@ config:
   ollamaModel: "llama3.1:8b"
 
 secret:
+  # Both empty here on purpose — the workflow passes them with --set, and the
+  # same values install the minio chart.
+  s3AccessKey: ""
+  s3SecretKey: ""
+
   # JWT signing key. Passed with --set from a CI secret; a deploy with this
   # empty is refused by the template rather than silently signing tokens with
   # a default that every environment shares.

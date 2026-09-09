@@ -1,0 +1,43 @@
+{{- /*
+  Makes the bucket and opens it for reading, once per install or upgrade.
+
+  Avatars are fetched straight by the browser, so the objects have to be
+  publicly readable; writing still needs the signed credentials. A hook rather
+  than an init container, because it is a property of the environment rather
+  than of the pod, and it must not re-run on every restart.
+*/ -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "fishers-minio.name" . }}-bucket
+  labels:
+    {{- include "fishers-minio.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "fishers-minio.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+          envFrom:
+            - secretRef:
+                name: {{ include "fishers-minio.name" . }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              until mc alias set target \
+                http://{{ include "fishers-minio.name" . }}:{{ .Values.service.port }} \
+                "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+                echo "waiting for minio"; sleep 3
+              done
+              mc mb --ignore-existing target/{{ .Values.bucket }}
+              mc anonymous set download target/{{ .Values.bucket }}
+              echo "bucket {{ .Values.bucket }} ready"

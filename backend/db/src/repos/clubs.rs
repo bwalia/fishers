@@ -70,10 +70,12 @@ pub struct ClubPage {
     pub contact_email: Option<String>,
     pub website: Option<String>,
     pub public_page: bool,
+    /// The one player the club puts on its own front page.
+    pub icon_player_id: Option<Uuid>,
 }
 
 const PAGE_COLS: &str = "id, name, slug, sport_types, tagline, about, ground, \
-     founded_year, contact_email, website, public_page";
+     founded_year, contact_email, website, public_page, icon_player_id";
 
 /// By the address in the URL. Only a club that has switched its page on is
 /// reachable — a page nobody published is not a page.
@@ -103,6 +105,7 @@ pub struct UpdateClubPage {
     pub founded_year: Option<i32>,
     pub contact_email: Option<String>,
     pub website: Option<String>,
+    pub icon_player_id: Option<Uuid>,
 }
 
 /// COALESCE throughout: the editor sends only the fields it changed.
@@ -121,6 +124,12 @@ pub async fn update_page(
             founded_year = COALESCE($7, founded_year),
             contact_email = COALESCE($8, contact_email),
             website = COALESCE($9, website),
+            -- A null means the editor did not touch the field, so COALESCE
+            -- has no way to say none. The nil uuid is that way.
+            icon_player_id = CASE
+                WHEN $10::uuid IS NULL THEN icon_player_id
+                WHEN $10 = '00000000-0000-0000-0000-000000000000'::uuid THEN NULL
+                ELSE $10 END,
             updated_at = NOW()
          WHERE id = $1
          RETURNING {PAGE_COLS}"
@@ -134,6 +143,7 @@ pub async fn update_page(
     .bind(req.founded_year)
     .bind(req.contact_email.as_deref())
     .bind(req.website.as_deref())
+    .bind(req.icon_player_id)
     .fetch_one(pool)
     .await
 }
@@ -449,6 +459,7 @@ pub struct ClubMemberDetail {
     pub joined_at: chrono::DateTime<chrono::Utc>,
     pub position_role: Option<String>,
     pub skill_level: Option<String>,
+    pub avatar_url: Option<String>,
 }
 
 pub async fn list_member_details(
@@ -458,7 +469,7 @@ pub async fn list_member_details(
     sqlx::query_as::<_, ClubMemberDetail>(
         r#"
         SELECT cm.user_id, u.name, u.email, u.phone, cm.role, cm.status, cm.joined_at,
-               u.position_role, u.skill_level
+               u.position_role, u.skill_level, u.avatar_url
         FROM club_members cm
         JOIN users u ON u.id = cm.user_id
         WHERE cm.club_id = $1 AND cm.status = 'active'

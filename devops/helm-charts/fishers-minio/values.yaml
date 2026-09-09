@@ -1,0 +1,49 @@
+# One MinIO per environment, in that environment's namespace.
+#
+# The same shape as the Postgres chart and for the same reason: a StatefulSet
+# with a single replica and its own PVC, so the volume is reattached to the
+# same pod identity across a restart. Uploads are not something to lose during
+# a rollout.
+#
+# MinIO speaks S3, so the API's storage client is the same code here as it
+# would be against real S3 — swap the endpoint and the keys.
+env: int
+
+image:
+  repository: minio/minio
+  tag: "RELEASE.2025-04-22T22-12-26Z"
+  pullPolicy: IfNotPresent
+
+auth:
+  # Never set here — the workflow passes these with --set from CI secrets, and
+  # the same values go to the API chart so the two agree.
+  accessKey: ""
+  secretKey: ""
+
+bucket: fishers
+
+service:
+  port: 9000
+  consolePort: 9001
+
+# Where a browser fetches an uploaded picture from. Empty means the in-cluster
+# service, which only works if something else proxies it — set this per ring to
+# the public host.
+publicBase: ""
+
+persistence:
+  enabled: true
+  size: 20Gi
+  storageClass: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+podSecurityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsNonRoot: true

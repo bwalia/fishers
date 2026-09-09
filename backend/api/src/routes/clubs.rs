@@ -2,6 +2,7 @@ use axum::extract::{Path, State};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use fishers_db::repos::clubs as clubs_repo;
+use fishers_db::repos::users as users_repo;
 use fishers_db::repos::clubs::{
     ClubMemberDetail, ClubMembership, ClubSettings, QrIdentity, UpdateClubSettings,
 };
@@ -49,6 +50,15 @@ struct PublicClubPage {
     top_batters: Vec<fishers_domain::PlayerSeasonStatsView>,
     top_bowlers: Vec<fishers_domain::PlayerSeasonStatsView>,
     fixtures: Vec<PublicFixture>,
+    /// The player the club chose to lead with.
+    icon_player: Option<IconPlayer>,
+}
+
+#[derive(Serialize)]
+struct IconPlayer {
+    name: String,
+    avatar_url: Option<String>,
+    position: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -114,7 +124,31 @@ async fn public_page(
         })
         .collect();
 
+    // Only what a club would put on a poster: a name, a face, a position.
+    let icon_player = match club.icon_player_id {
+        Some(id) => users_repo::find_by_id(&state.pool, id).await.ok().flatten().map(|u| {
+            // Their position for the sport they lead with. `position_role` is
+            // the single-sport column this replaced, kept as the fallback for
+            // anyone who has not filled a sport profile in.
+            let position = u
+                .sport_profiles
+                .0
+                .iter()
+                .find(|p| Some(&p.sport) == u.primary_sport.as_ref())
+                .or_else(|| u.sport_profiles.0.first())
+                .and_then(|p| p.position.clone())
+                .or(u.position_role);
+            IconPlayer {
+                name: u.name,
+                avatar_url: u.avatar_url,
+                position,
+            }
+        }),
+        None => None,
+    };
+
     Ok(Json(PublicClubPage {
+        icon_player,
         club,
         record,
         top_batters: board.as_ref().map(|b| b.top_batters.clone()).unwrap_or_default(),
