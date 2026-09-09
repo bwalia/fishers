@@ -367,21 +367,46 @@ export type AppNotification = {
 
 /// One line of plain English per notification. A player is not going to read
 /// `match_terms_proposed`.
-export function notificationLine(n: AppNotification): { title: string; href?: string } {
-  const p = n.payload as { home_name?: string; away_name?: string; match_id?: string };
+export function notificationLine(n: AppNotification): {
+  title: string;
+  href?: string;
+  /// Which fixture this is, when there are several against the same side.
+  when?: string;
+} {
+  const p = n.payload as {
+    home_name?: string;
+    away_name?: string;
+    match_id?: string;
+    start_at?: string;
+  };
+  // Two clubs often play each other several times a season, so the sides alone
+  // do not say which match — and following the wrong one lands you in a
+  // different game than the one you are scoring.
+  const when = p.start_at
+    ? new Date(p.start_at).toLocaleString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : undefined;
   switch (n.type) {
     case "match_terms_proposed":
       return {
+        when,
         title: `${p.home_name ?? "A side"} v ${p.away_name ?? "another"} — the other captain has proposed the terms. Tap to agree.`,
         href: p.match_id ? `/score/${p.match_id}` : undefined,
       };
     case "match_pick_your_xi":
       return {
+        when,
         title: `${p.home_name ?? "A side"} v ${p.away_name ?? "another"} — the toss is done. Pick your side.`,
         href: p.match_id ? `/score/${p.match_id}` : undefined,
       };
     case "match_terms_agreed":
       return {
+        when,
         title: "Both captains have agreed the terms. You can do the toss.",
         href: p.match_id ? `/score/${p.match_id}` : undefined,
       };

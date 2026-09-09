@@ -185,6 +185,19 @@ export default function ScorerPage({
         </div>
         <div className="match-head-meta">
           <span className={`status-pill ${st.status}`}>{titleCase(st.status)}</span>
+          {/* Which fixture. A club plays the same side more than once a season,
+              and following an old notification lands you in the wrong one. */}
+          {match.start_at && (
+            <span className="tag gold">
+              {new Date(match.start_at).toLocaleString("en-GB", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          )}
           {st.conditions && (
             <>
               <span className="tag">{st.conditions.overs_limit} overs</span>

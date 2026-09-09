@@ -152,6 +152,9 @@ export type MatchResponse = {
   active_scorer_user_id?: string | null;
   active_scorer_device_id?: string | null;
   can_score: boolean;
+  /// When the fixture is. Two clubs play each other several times a season, so
+  /// the sides alone do not say which match you have opened.
+  start_at?: string | null;
   /// The side this viewer actually plays for, when they are in one of the
   /// clubs. A scorer may act for both but belongs to one.
   my_club_side?: Side | null;

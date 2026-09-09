@@ -126,6 +126,23 @@ events = [
 status, _ = call("POST", f"/cricket/matches/{played}/events", {"events": events}, home_tok)
 check("a ball is bowled", status, 200)
 
+# A scorer with several fixtures against the same side will open the wrong one.
+# Recording a toss there used to be accepted and set the status back to
+# selecting XI, unpicking a game in progress.
+_, playing = call("GET", f"/cricket/matches/{played}", token=home_tok)
+status, refused = call("POST", f"/cricket/matches/{played}/events", {"events": [{
+    "client_event_id": str(uuid.uuid4()), "seq": playing["last_seq"] + 1,
+    "kind": {"type": "toss_recorded", "winner": "away", "decision": "bowl"}}]}, home_tok)
+check("a started match refuses another toss", status, 409)
+check("and says why", "already started" in str(refused), True)
+_, intact = call("GET", f"/cricket/matches/{played}", token=home_tok)
+check("the innings is untouched",
+      intact["state"]["innings"][0]["runs"], playing["state"]["innings"][0]["runs"])
+check("the status is untouched", intact["state"]["status"], playing["state"]["status"])
+check("and the log did not move", intact["last_seq"], playing["last_seq"])
+check("the fixture date is on the match, so you know which one it is",
+      intact.get("start_at") is not None, True)
+
 check("a played match cannot be deleted",
       call("DELETE", f"/cricket/matches/{played}", token=home_tok)[0], 409)
 check("a plain member cannot abandon it",

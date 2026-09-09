@@ -211,6 +211,17 @@ impl MatchState {
                         "both captains have to agree the overs, ground and ball first".into(),
                     ));
                 }
+                // Once a ball has been bowled the toss is history. Recording
+                // another one used to be accepted and set the status back to
+                // `SelectingXi`, throwing a live match backwards into team
+                // selection with its innings still attached — so a scorer who
+                // opened the wrong match could unpick a game in progress.
+                if !self.innings.is_empty() {
+                    return Err(DomainError::Conflict(
+                        "this match has already started — the toss cannot be recorded again"
+                            .into(),
+                    ));
+                }
                 self.toss_winner = Some(*winner);
                 self.toss_decision = Some(*decision);
                 self.status = MatchStatus::SelectingXi;
@@ -1285,6 +1296,85 @@ mod tests {
         fn innings(&self) -> &InningsState {
             self.state.current_innings().unwrap()
         }
+    }
+
+    /// Opening the wrong match and recording a toss used to throw a game in
+    /// progress back into team selection, with its innings still attached.
+    /// A scorer with several fixtures of the same name will do this.
+    #[test]
+    fn a_started_match_refuses_a_second_toss() {
+        let mut f = Fixture::new(20);
+        f.runs(4);
+        assert_eq!(f.state.status, MatchStatus::Live);
+
+        let err = f
+            .try_push(ScoringEventKind::TossRecorded {
+                winner: MatchSide::Away,
+                decision: TossDecision::Bowl,
+            })
+            .expect_err("a live match must not accept another toss");
+        assert!(err.to_string().contains("already started"), "{err}");
+
+        // Nothing moved: the innings, the status and the original toss stand.
+        assert_eq!(f.state.status, MatchStatus::Live);
+        assert_eq!(f.state.toss_winner, Some(MatchSide::Home));
+        assert_eq!(f.state.innings.len(), 1);
+        assert_eq!(f.state.innings[0].runs, 4);
+    }
+
+    /// Before a ball is bowled it is a correction, not a rewrite — a scorer who
+    /// tapped the wrong side has to be able to put it right.
+    #[test]
+    fn the_toss_can_be_corrected_before_play_starts() {
+        let mut state = MatchState::default();
+        let mut seq = 0;
+        let mut push = |state: &mut MatchState, kind| {
+            seq += 1;
+            state.apply(&evt(seq, kind))
+        };
+        push(
+            &mut state,
+            ScoringEventKind::MatchPrepared {
+                overs_limit: 20,
+                home_name: "Lords".into(),
+                away_name: "Hemel".into(),
+            },
+        )
+        .unwrap();
+        push(
+            &mut state,
+            ScoringEventKind::ConditionsProposed {
+                conditions: MatchConditions::standard(20),
+                by: MatchSide::Home,
+                by_name: "Home captain".into(),
+            },
+        )
+        .unwrap();
+        push(
+            &mut state,
+            ScoringEventKind::ConditionsAgreed {
+                side: MatchSide::Away,
+                captain_name: "Away captain".into(),
+            },
+        )
+        .unwrap();
+        push(
+            &mut state,
+            ScoringEventKind::TossRecorded {
+                winner: MatchSide::Home,
+                decision: TossDecision::Bat,
+            },
+        )
+        .unwrap();
+        push(
+            &mut state,
+            ScoringEventKind::TossRecorded {
+                winner: MatchSide::Away,
+                decision: TossDecision::Bowl,
+            },
+        )
+        .expect("no ball has been bowled, so the toss is still correctable");
+        assert_eq!(state.toss_winner, Some(MatchSide::Away));
     }
 
     #[test]

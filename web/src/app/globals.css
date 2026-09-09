@@ -1797,6 +1797,13 @@ textarea { line-height: 1.5; resize: vertical; }
 .bell-list li { border-radius: var(--radius-sm); }
 /* Unread earns a marker, not a different background that fights the panel. */
 .bell-list li.unread { border-left: 3px solid var(--primary); }
+/* Which fixture this is about, so several against the same side are telling
+   apart at a glance. */
+.bell-when {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+}
 .bell-item {
   display: flex;
   flex-direction: column;
