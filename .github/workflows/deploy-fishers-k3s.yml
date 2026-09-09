@@ -121,13 +121,58 @@ jobs:
           chmod 600 "$RUNNER_TEMP/kubeconfig"
           echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
 
-      - name: Check cluster reachability
+      - name: Preflight
         run: |
           set -euo pipefail
-          # Fail here with a clear message rather than 200 lines into a helm
-          # upgrade that was never going to connect.
+          # Read the class the chart will actually ask for rather than repeating
+          # it here — a preflight that checks a different value than the deploy
+          # uses is worse than no preflight.
+          INGRESS_CLASS=$(helm template fishers-web "$CHARTS/fishers-web" \
+              -f "$CHARTS/fishers-web/values.yaml" \
+              -f "$CHARTS/fishers-web/values-$TARGET_ENV.yaml" \
+              --set hostname=preflight.invalid \
+            | awk '/ingressClassName:/ {print $2; exit}')
+          [ -n "$INGRESS_CLASS" ] || { echo "::error::could not read ingressClassName from the web chart."; exit 1; }
+          echo "chart asks for IngressClass: $INGRESS_CLASS"
+          # Everything here is a precondition the charts assume. Checked up
+          # front and named, because each one otherwise fails much later and
+          # much less legibly: a missing IngressClass produces an Ingress that
+          # no controller ever picks up (the host simply never answers, with
+          # nothing in any log saying why), and a missing StorageClass leaves
+          # the Postgres PVC Pending until helm --wait times out on what looks
+          # like a slow database.
           kubectl version -o yaml >/dev/null
+          echo "--- nodes ---"
           kubectl get nodes -o wide
+
+          fail=0
+
+          echo "--- ingress classes ---"
+          kubectl get ingressclass -o custom-columns=NAME:.metadata.name,CONTROLLER:.spec.controller --no-headers || true
+          if ! kubectl get ingressclass "$INGRESS_CLASS" >/dev/null 2>&1; then
+            echo "::error::IngressClass '$INGRESS_CLASS' does not exist on this cluster."
+            echo "::error::The charts set ingress.ingressClassName=$INGRESS_CLASS. Either install that controller,"
+            echo "::error::or set ingress.ingressClassName in devops/helm-charts/fishers-web/values-*.yaml to one listed above."
+            fail=1
+          else
+            echo "  ok  IngressClass $INGRESS_CLASS"
+          fi
+
+          echo "--- storage classes ---"
+          kubectl get storageclass -o custom-columns=NAME:.metadata.name,DEFAULT:.metadata.annotations."storageclass\.kubernetes\.io/is-default-class" --no-headers || true
+          if [ "${{ inputs.deploy_postgres }}" = "true" ]; then
+            default_sc=$(kubectl get storageclass -o json \
+              | jq -r '.items[] | select(.metadata.annotations."storageclass.kubernetes.io/is-default-class"=="true") | .metadata.name' | head -1)
+            if [ -z "$default_sc" ]; then
+              echo "::error::no default StorageClass, and fishers-postgres asks for a PVC without naming one."
+              echo "::error::Set persistence.storageClass in devops/helm-charts/fishers-postgres/values-*.yaml to one listed above."
+              fail=1
+            else
+              echo "  ok  default StorageClass $default_sc"
+            fi
+          fi
+
+          exit $fail
 
       - name: Ensure namespace and registry pull secret
         env:
