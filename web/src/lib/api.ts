@@ -124,6 +124,7 @@ export type Page<T> = {
   has_more: boolean;
 };
 
+/// Whether you are playing, and what you said about it.
 export type EventRow = {
   id: string;
   club_id: string;
@@ -377,6 +378,7 @@ export function notificationLine(n: AppNotification): {
     home_name?: string;
     away_name?: string;
     match_id?: string;
+    event_id?: string;
     start_at?: string;
   };
   // Two clubs often play each other several times a season, so the sides alone
@@ -409,6 +411,20 @@ export function notificationLine(n: AppNotification): {
         when,
         title: "Both captains have agreed the terms. You can do the toss.",
         href: p.match_id ? `/score/${p.match_id}` : undefined,
+      };
+    case "fixture_scheduled":
+      return {
+        when,
+        title: `${(n.payload as { title?: string }).title ?? "A fixture"} — can you play?`,
+        href: p.event_id ? `/events?fixture=${p.event_id}` : undefined,
+      };
+    case "player_responded":
+      return {
+        when,
+        title: `${(n.payload as { player?: string }).player ?? "A player"} answered for ${
+          (n.payload as { title?: string }).title ?? "a fixture"
+        }.`,
+        href: p.event_id ? `/events?fixture=${p.event_id}` : undefined,
       };
     case "invite":
       return { title: "You have a new invite." };

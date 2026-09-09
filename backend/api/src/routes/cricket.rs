@@ -174,7 +174,9 @@ async fn create_or_get_match(
         body.match_id,
         event_id,
         event.club_id,
-        body.opponent_club_id,
+        // Scheduled fixtures already say who they are against; only a match
+        // arranged in the car park has to name the opposition here.
+        body.opponent_club_id.or(event.opponent_club_id),
         auth.user_id,
         &body.home_name,
         &body.away_name,
@@ -1025,13 +1027,18 @@ async fn notify_opposition_of_terms(
 }
 
 fn standing_of(c: &fishers_domain::Candidate) -> String {
-    use fishers_domain::{AvailabilityStatus, SelectionState};
+    use fishers_domain::{AvailabilityStatus, RsvpStatus, SelectionState};
     match c.state {
         SelectionState::Selected => "selected".into(),
         SelectionState::Reserve => "reserve".into(),
-        _ => match c.availability {
-            Some(AvailabilityStatus::Available) => "available".into(),
-            Some(AvailabilityStatus::Unavailable) => "unavailable".into(),
+        // Their answer to this fixture beats their standing calendar: "yes, I
+        // can play on Sunday" is the thing a captain picks off. The calendar
+        // only speaks for players who have not answered.
+        _ => match (c.rsvp, c.availability) {
+            (Some(RsvpStatus::Going), _) => "available".into(),
+            (Some(RsvpStatus::NotGoing), _) => "unavailable".into(),
+            (_, Some(AvailabilityStatus::Available)) => "available".into(),
+            (_, Some(AvailabilityStatus::Unavailable)) => "unavailable".into(),
             _ => "member".into(),
         },
     }

@@ -18,18 +18,19 @@ pub async fn create_event(
     sqlx::query_as::<_, Event>(
         r#"
         INSERT INTO events (
-            club_id, team_id, sport, event_subtype, title, venue_id,
+            club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
             start_at, end_at, recurrence_rule, capacity, fee_amount_cents,
             fee_currency, status, metadata, created_by
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'scheduled',$13,$14)
-        RETURNING id, club_id, team_id, sport, event_subtype, title, venue_id,
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'scheduled',$14,$15)
+        RETURNING id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
                   capacity, fee_amount_cents, fee_currency, status, status_note,
                   rescheduled_to, metadata, created_by, created_at, updated_at
         "#,
     )
     .bind(req.club_id)
+    .bind(req.opponent_club_id)
     .bind(req.team_id)
     .bind(req.sport)
     .bind(req.event_subtype)
@@ -50,7 +51,7 @@ pub async fn create_event(
 pub async fn get_event(pool: &PgPool, event_id: Uuid) -> Result<Option<Event>, sqlx::Error> {
     sqlx::query_as::<_, Event>(
         r#"
-        SELECT id, club_id, team_id, sport, event_subtype, title, venue_id,
+        SELECT id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                start_at, end_at, recurrence_rule, recurrence_parent_id,
                capacity, fee_amount_cents, fee_currency, status, status_note,
                rescheduled_to, metadata, created_by, created_at, updated_at
@@ -244,7 +245,7 @@ pub async fn list_events(
     // pages and one of them is never seen.
     let sql = format!(
         r#"
-        SELECT e.id, e.club_id, e.team_id, e.sport, e.event_subtype, e.title, e.venue_id,
+        SELECT e.id, e.club_id, e.opponent_club_id, e.team_id, e.sport, e.event_subtype, e.title, e.venue_id,
                e.start_at, e.end_at, e.recurrence_rule, e.recurrence_parent_id,
                e.capacity, e.fee_amount_cents, e.fee_currency, e.status, e.status_note,
                e.rescheduled_to, e.metadata, e.created_by, e.created_at, e.updated_at
@@ -298,7 +299,7 @@ pub async fn update_event(
             capacity = $6, fee_amount_cents = $7, status = $8,
             metadata = $9, updated_at = NOW()
         WHERE id = $1
-        RETURNING id, club_id, team_id, sport, event_subtype, title, venue_id,
+        RETURNING id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
                   capacity, fee_amount_cents, fee_currency, status, status_note,
                   rescheduled_to, metadata, created_by, created_at, updated_at
@@ -321,7 +322,7 @@ pub async fn cancel_event(pool: &PgPool, event_id: Uuid) -> Result<Event, sqlx::
     sqlx::query_as::<_, Event>(
         r#"
         UPDATE events SET status = $2, updated_at = NOW() WHERE id = $1
-        RETURNING id, club_id, team_id, sport, event_subtype, title, venue_id,
+        RETURNING id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
                   capacity, fee_amount_cents, fee_currency, status, status_note,
                   rescheduled_to, metadata, created_by, created_at, updated_at
@@ -417,7 +418,7 @@ pub async fn list_block_events(
 ) -> Result<Vec<fishers_domain::Event>, sqlx::Error> {
     sqlx::query_as::<_, fishers_domain::Event>(
         r#"
-        SELECT id, club_id, team_id, sport, event_subtype, title, venue_id, start_at, end_at,
+        SELECT id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id, start_at, end_at,
                recurrence_rule, recurrence_parent_id, capacity, fee_amount_cents, fee_currency,
                status, status_note, rescheduled_to, metadata, created_by, created_at, updated_at
         FROM events

@@ -2337,3 +2337,6 @@ a.bell-item:hover { background: var(--surface-2); }
 .figure-figs { font-weight: 700; white-space: nowrap; }
 
 .following .named-xi li { color: var(--fg-muted); }
+
+/* "Can you play?" on the fixture row — the one question a fixture asks. */
+.rsvp { display: flex; gap: var(--s2); }

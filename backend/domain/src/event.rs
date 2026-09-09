@@ -10,6 +10,9 @@ use crate::{EventStatus, EventSubtype, HomeOrAway, SportType};
 pub struct Event {
     pub id: Uuid,
     pub club_id: Uuid,
+    /// The visiting club, when the fixture is against another Fishers club.
+    /// Known at scheduling time so both sides can be asked who is available.
+    pub opponent_club_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub sport: SportType,
     pub event_subtype: EventSubtype,
@@ -47,6 +50,9 @@ pub struct MatchResult {
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CreateEventRequest {
     pub club_id: Uuid,
+    /// Who it is against, when they are a Fishers club — their members get
+    /// asked about their availability too.
+    pub opponent_club_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub sport: SportType,
     pub event_subtype: EventSubtype,
