@@ -25,6 +25,7 @@ import {
   requiredRate,
   runRate,
   titleCase,
+  type Innings,
   type MatchConditions,
   type MatchResponse,
   type MatchState,
@@ -2034,7 +2035,9 @@ function LivePanel({
 
       {/* ---- controls ----
            Only for whoever is actually scoring. Somebody following the match
-           came to watch it, and a dial they cannot press is furniture. */}
+           came to watch it, and a dial they cannot press is furniture — but
+           the column should not just be left empty either. */}
+      {!canAct && <Following st={st} inn={inn} nameOf={nameOf} />}
       {canAct && <div className="controls">
         {needsBowler && (
           <div className="panel" style={{ borderColor: "var(--accent)" }}>
@@ -2253,6 +2256,130 @@ function LivePanel({
           bowlingXi={bowlingXi}
           nameOf={nameOf}
         />
+      )}
+    </div>
+  );
+}
+
+/// What the right column holds for somebody watching rather than scoring.
+///
+/// Not a repeat of the scorecard below — the live things a spectator keeps
+/// looking back at: how the partnership is going, who is bowling well, what is
+/// needed, and who is next in.
+function Following({
+  st,
+  inn,
+  nameOf,
+}: {
+  st: MatchState;
+  inn: Innings;
+  nameOf: (id?: string | null) => string;
+}) {
+  const balls = inn.legal_balls || 0;
+  const rr = balls > 0 ? (inn.runs * 6) / balls : 0;
+  const target = st.target ?? null;
+  const ballsLeft = (inn.overs_available ?? st.overs_limit) * 6 - balls;
+  const need = target != null ? target - inn.runs : null;
+  const req = need != null && ballsLeft > 0 ? (need * 6) / ballsLeft : null;
+
+  // Best figures first: a spectator scans for who is doing the damage.
+  const bowlers = [...(inn.bowlers ?? [])]
+    .filter((b) => b.balls > 0)
+    .sort((a, b) => b.wickets - a.wickets || a.runs - b.runs)
+    .slice(0, 3);
+
+  // The engine lists the whole XI as batters from the start, so "has a row"
+  // is not "has batted" — everybody looked already in, and nobody was ever
+  // yet to bat. The scorecard draws the same line.
+  const faced = new Set(
+    (inn.batters ?? []).filter((b) => b.balls > 0 || b.out).map((b) => b.player_id)
+  );
+  const atCrease = new Set([inn.striker_id, inn.non_striker_id].filter(Boolean) as string[]);
+  const battingXi = inn.batting === "home" ? st.home_xi : st.away_xi;
+  const toBat = battingXi.filter((id) => !faced.has(id) && !atCrease.has(id));
+  const lastWicket = (inn.fall ?? [])[(inn.fall ?? []).length - 1];
+
+  return (
+    <div className="following">
+      {need != null && (
+        <div className="panel chase-panel">
+          <h2>The chase</h2>
+          <p className="chase-line">
+            <strong className="num">{Math.max(need, 0)}</strong> to win from{" "}
+            <strong className="num">{Math.max(ballsLeft, 0)}</strong> balls
+          </p>
+          <dl className="terms-summary">
+            <div><dt>Run rate</dt><dd className="num">{rr.toFixed(2)}</dd></div>
+            <div>
+              <dt>Required</dt>
+              <dd className="num">{req != null ? req.toFixed(2) : "—"}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
+
+      <div className="panel">
+        <h2>At the crease</h2>
+        <dl className="terms-summary">
+          <div>
+            <dt>Partnership</dt>
+            <dd className="num">
+              {inn.partnership_runs ?? 0}
+              <span className="subtle"> ({inn.partnership_balls ?? 0})</span>
+            </dd>
+          </div>
+          <div><dt>Run rate</dt><dd className="num">{rr.toFixed(2)}</dd></div>
+          <div>
+            <dt>Overs</dt>
+            <dd className="num">
+              {overs(balls)}
+              <span className="subtle"> of {inn.overs_available ?? st.overs_limit}</span>
+            </dd>
+          </div>
+          <div><dt>Extras</dt><dd className="num">{inn.extras ?? 0}</dd></div>
+        </dl>
+        {lastWicket && (
+          <p className="subtle">
+            Last out: {nameOf(lastWicket.batter_id)} at {lastWicket.score}-{lastWicket.wickets}{" "}
+            ({lastWicket.over_ball})
+          </p>
+        )}
+      </div>
+
+      {bowlers.length > 0 && (
+        <div className="panel">
+          {/* The full figures are on the scorecard below; this is the pair
+              doing the damage right now. */}
+          <h2>Leading the attack</h2>
+          <ul className="figures">
+            {bowlers.map((b) => (
+              <li key={b.player_id} className={b.player_id === inn.bowler_id ? "on" : ""}>
+                <span className="figure-name">
+                  {nameOf(b.player_id)}
+                  {b.player_id === inn.bowler_id && <span className="tag grey">bowling</span>}
+                </span>
+                <span className="figure-figs num">
+                  {b.wickets}-{b.runs}
+                  <span className="subtle"> ({overs(b.balls)})</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {toBat.length > 0 && (
+        <div className="panel">
+          {/* Who walks in on the next wicket. The whole list is on the
+              scorecard; here it is only the next few. */}
+          <h2>Next in</h2>
+          <ol className="named-xi">
+            {toBat.slice(0, 3).map((id) => <li key={id}>{nameOf(id)}</li>)}
+          </ol>
+          {toBat.length > 3 && (
+            <p className="subtle">and {toBat.length - 3} more on the scorecard</p>
+          )}
+        </div>
       )}
     </div>
   );

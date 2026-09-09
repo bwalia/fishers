@@ -2284,3 +2284,56 @@ a.bell-item:hover { background: var(--surface-2); }
   font-size: 1rem;
 }
 .sport-card .terms-summary { margin-bottom: 0; background: transparent; padding: 0; }
+
+/* --- Following a match you are not scoring ------------------------------ */
+
+.following {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+@media (min-width: 1000px) {
+  /* The commentary runs long; the state of the game should not scroll away
+     with it. */
+  .following {
+    position: sticky;
+    top: 80px;
+  }
+}
+.following .panel { margin-bottom: 0; }
+.following h2 { margin-top: 0; font-size: 1rem; }
+.following .terms-summary {
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.chase-panel { border-left: 3px solid var(--accent); }
+.chase-line {
+  margin: 0 0 var(--s4);
+  font-size: 1.05rem;
+}
+.chase-line strong { font-size: 1.6rem; }
+
+/* Bowling figures, best first — a spectator scans for who is doing damage. */
+.figures { list-style: none; margin: 0; padding: 0; }
+.figures li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.figures li:last-child { border-bottom: 0; }
+.figures li.on .figure-name { font-weight: 600; color: var(--fg); }
+.figure-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--fg-muted);
+}
+.figure-figs { font-weight: 700; white-space: nowrap; }
+
+.following .named-xi li { color: var(--fg-muted); }
