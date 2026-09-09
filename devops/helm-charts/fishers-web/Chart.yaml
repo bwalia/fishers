@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fishers-web
+description: Fishers dashboard — Next.js. Owns the ingress for the whole environment.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

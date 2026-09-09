@@ -1,0 +1,151 @@
+name: Cloudflare DNS reconcile
+
+# Belt-and-braces DNS reconciler for fishers.cloud.
+#
+# The primary write path is ExternalDNS, which watches the ingress annotation
+# each ring's web chart sets. This is the safety net for when that does not
+# happen: ExternalDNS crashed or is on a stale replica, someone deleted a
+# record by hand, a ring was stood up before ExternalDNS was running, or an
+# ingress shipped without the annotation.
+#
+# Source of truth is the cluster, not a list in this file. Hosts are discovered
+# by suffix from live ingresses, which is what makes it catch the ingress that
+# forgot its annotation — a hard-coded list would only ever re-assert what
+# somebody already remembered to write down.
+#
+# Only ever writes CNAME. Never TXT: that is ExternalDNS's ownership registry,
+# and writing it here would have the two fighting over every record.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "devops/helm-charts/**"
+      - ".github/workflows/cloudflare-dns-reconcile.yml"
+  schedule:
+    # Hourly. ExternalDNS is normally minutes; this catches the hours it isn't.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      # Ring Promoter dispatches the standard triple. Accepting all three, even
+      # the two this ignores, means no per-input overrides on the promoter.
+      ENV:
+        description: "Ring to reconcile (or `all`)"
+        type: choice
+        required: true
+        default: all
+        options: [all, int, test, acc, prod]
+      DEPLOY_BRANCH:
+        description: "Reserved — reconcile always runs against the live cluster."
+        type: string
+        required: false
+        default: main
+      DEPLOY_MODE:
+        description: "Reserved — ignored."
+        type: string
+        required: false
+        default: full
+      DRY_RUN:
+        description: "Show what would change without writing"
+        type: boolean
+        required: false
+        default: false
+
+env:
+  ZONE: fishers.cloud
+  CNAME_TARGET: lon1.pop0.uk
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fishers-dns-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile ${{ inputs.ENV || 'all' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write kubeconfig
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.MY_K3S1_CONFIG }}" ]; then
+            echo "::error::MY_K3S1_CONFIG is not set on this repository."; exit 1
+          fi
+          echo "${{ secrets.MY_K3S1_CONFIG }}" | base64 -d > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Discover hosts from live ingresses
+        id: discover
+        run: |
+          set -euo pipefail
+          RING="${{ inputs.ENV || 'all' }}"
+          if [ "$RING" = "all" ]; then
+            NAMESPACES=$(kubectl get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
+              | grep -E '^fishers-(int|test|acc|prod)$' || true)
+          else
+            NAMESPACES="fishers-$RING"
+          fi
+          echo "namespaces: $(echo $NAMESPACES | tr '\n' ' ')"
+
+          HOSTS=""
+          for ns in $NAMESPACES; do
+            kubectl get ingress -n "$ns" -o json 2>/dev/null > /tmp/ing.json || continue
+            # Discover by hostname suffix, not by whether the ExternalDNS
+            # annotation is present — catching the ones that forgot it is the
+            # entire point of a backstop.
+            found=$(jq -r --arg z "$ZONE" \
+              '.items[].spec.rules[]?.host | select(. != null) | select(endswith($z))' /tmp/ing.json || true)
+            HOSTS="$HOSTS $found"
+          done
+          HOSTS=$(echo "$HOSTS" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
+          if [ -z "$HOSTS" ]; then
+            echo "::warning::no *.${ZONE} ingresses found — nothing to reconcile."
+          fi
+          echo "hosts=$HOSTS" >> "$GITHUB_OUTPUT"
+          echo "discovered: $HOSTS"
+
+      - name: Upsert CNAMEs
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          HOSTS: ${{ steps.discover.outputs.hosts }}
+          DRY_RUN: ${{ inputs.DRY_RUN }}
+        run: |
+          set -euo pipefail
+          [ -n "${HOSTS:-}" ] || { echo "nothing to do."; exit 0; }
+          if [ -z "${CF_API_TOKEN:-}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set."; exit 1
+          fi
+          api="https://api.cloudflare.com/client/v4"
+          auth=(-H "Authorization: Bearer ${CF_API_TOKEN}" -H "Content-Type: application/json")
+          zone_id=$(curl -fsS "${auth[@]}" "$api/zones?name=${ZONE}" | jq -r '.result[0].id // empty')
+          [ -n "$zone_id" ] || { echo "::error::zone ${ZONE} not visible to this token."; exit 1; }
+
+          fail=0
+          # Each host reconciles on its own: one rate-limit on host A must not
+          # stop hosts B, C and D from being fixed.
+          for HOST in $HOSTS; do
+            cur=$(curl -fsS "${auth[@]}" "$api/zones/$zone_id/dns_records?type=CNAME&name=${HOST}" \
+              | jq -r '.result[0] | [(.id // ""), (.content // "")] | @tsv' || echo -e "\t")
+            rec_id=$(echo "$cur" | cut -f1); content=$(echo "$cur" | cut -f2)
+            if [ "$content" = "$CNAME_TARGET" ]; then
+              echo "  ok      ${HOST} -> ${CNAME_TARGET}"; continue
+            fi
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "  WOULD   ${HOST} -> ${CNAME_TARGET} (currently '${content:-none}')"; continue
+            fi
+            body=$(jq -nc --arg name "$HOST" --arg content "$CNAME_TARGET" \
+              '{type:"CNAME",name:$name,content:$content,ttl:1,proxied:false}')
+            if [ -n "$rec_id" ]; then
+              curl -fsS "${auth[@]}" -X PUT "$api/zones/$zone_id/dns_records/$rec_id" --data "$body" >/dev/null \
+                && echo "  updated ${HOST} -> ${CNAME_TARGET} (was '${content}')" || { echo "  FAIL    ${HOST}"; fail=1; }
+            else
+              curl -fsS "${auth[@]}" -X POST "$api/zones/$zone_id/dns_records" --data "$body" >/dev/null \
+                && echo "  created ${HOST} -> ${CNAME_TARGET}" || { echo "  FAIL    ${HOST}"; fail=1; }
+            fi
+          done
+          exit $fail

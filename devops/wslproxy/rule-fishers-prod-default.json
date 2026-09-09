@@ -1,0 +1,32 @@
+{
+  "id": "fishers-prod-default",
+  "name": "fishers-prod-default",
+  "profile_id": "prod",
+  "priority": 1,
+  "rules_tags": ["fishers", "prod"],
+  "match": {
+    "rules": {
+      "path": "/",
+      "path_key": "starts_with"
+    },
+    "response": {
+      "strip_path": false,
+      "code": 305,
+      "routing": { "mode": "least_conn" },
+      "backends": [
+        {
+          "weight": 100,
+          "address": "193.237.176.232:8888",
+          "label": "k3s1 traefik ingress entry. Traefik routes by Host to the fishers-<ring> namespace, so all four rings share this backend and still reach four different releases."
+        }
+      ],
+      "redirect_uri": "193.237.176.232:8888"
+    }
+  },
+  "servers": [
+    "host:int.fishers.cloud",
+    "host:test.fishers.cloud",
+    "host:acc.fishers.cloud",
+    "host:www.fishers.cloud"
+  ]
+}

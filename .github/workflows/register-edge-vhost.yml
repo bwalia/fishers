@@ -1,0 +1,165 @@
+name: Register edge vhost (Cloudflare + wslproxy)
+
+# Makes a ring publicly reachable: a Cloudflare CNAME to the edge, and a
+# wslproxy vhost so the edge knows what to do with the Host header. Until the
+# vhost exists the edge answers "Host not configured", which looks like a
+# broken deploy but is not one.
+#
+# Idempotent and safe to re-run: the CNAME is upserted, and an existing vhost
+# is left alone rather than recreated.
+#
+# Run once per ring when it is first stood up, and again only if the edge
+# configuration is lost. Day to day, DNS is maintained by ExternalDNS from the
+# ingress annotation, with cloudflare-dns-reconcile.yml as the backstop.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ENV:
+        description: "Ring to register (or `all`)"
+        type: choice
+        required: true
+        default: all
+        options: [all, int, test, acc, prod]
+      DEPLOY_BRANCH:
+        description: "Reserved — Ring Promoter passes this; ignored."
+        type: string
+        required: false
+        default: main
+      DEPLOY_MODE:
+        description: "Reserved — ignored."
+        type: string
+        required: false
+        default: full
+
+env:
+  CNAME_TARGET: lon1.pop0.uk
+  ZONE: fishers.cloud
+
+permissions:
+  contents: read
+
+jobs:
+  register:
+    name: Register ${{ inputs.ENV }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve hosts
+        id: hosts
+        run: |
+          set -euo pipefail
+          case "${{ inputs.ENV }}" in
+            int)  HOSTS="int.fishers.cloud" ;;
+            test) HOSTS="test.fishers.cloud" ;;
+            acc)  HOSTS="acc.fishers.cloud" ;;
+            prod) HOSTS="www.fishers.cloud" ;;
+            all)  HOSTS="int.fishers.cloud test.fishers.cloud acc.fishers.cloud www.fishers.cloud" ;;
+            *) echo "::error::unknown ring '${{ inputs.ENV }}'"; exit 1 ;;
+          esac
+          echo "hosts=$HOSTS" >> "$GITHUB_OUTPUT"
+          echo "Registering: $HOSTS"
+
+      - name: Ensure Cloudflare CNAMEs
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          HOSTS: ${{ steps.hosts.outputs.hosts }}
+        run: |
+          set -euo pipefail
+          # Soft-skip without a token: ExternalDNS normally owns these records,
+          # and this step is the belt-and-braces, not the primary write path.
+          if [ -z "${CF_API_TOKEN:-}" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN not set — leaving DNS to ExternalDNS."
+            exit 0
+          fi
+          api="https://api.cloudflare.com/client/v4"
+          auth=(-H "Authorization: Bearer ${CF_API_TOKEN}" -H "Content-Type: application/json")
+          zone_id=$(curl -fsS "${auth[@]}" "$api/zones?name=${ZONE}" | jq -r '.result[0].id // empty')
+          if [ -z "$zone_id" ]; then
+            echo "::error::zone ${ZONE} not visible to this Cloudflare token."
+            exit 1
+          fi
+          for HOST in $HOSTS; do
+            rec_id=$(curl -fsS "${auth[@]}" \
+              "$api/zones/$zone_id/dns_records?type=CNAME&name=${HOST}" \
+              | jq -r '.result[0].id // empty')
+            # proxied:false — the wslproxy edge terminates TLS and issues the
+            # certificate itself. Proxying through Cloudflare as well would put
+            # a second terminator in front of it and break the ACME http-01
+            # challenge the vhost renews with.
+            body=$(jq -nc --arg name "$HOST" --arg content "$CNAME_TARGET" \
+              '{type:"CNAME",name:$name,content:$content,ttl:1,proxied:false}')
+            if [ -n "$rec_id" ]; then
+              curl -fsS "${auth[@]}" -X PUT "$api/zones/$zone_id/dns_records/$rec_id" --data "$body" >/dev/null
+              echo "  updated CNAME ${HOST} -> ${CNAME_TARGET}"
+            else
+              curl -fsS "${auth[@]}" -X POST "$api/zones/$zone_id/dns_records" --data "$body" >/dev/null
+              echo "  created CNAME ${HOST} -> ${CNAME_TARGET}"
+            fi
+          done
+
+      - name: Register wslproxy vhosts
+        env:
+          WSLPROXY_USER: ${{ secrets.WSLPROXY_USER }}
+          WSLPROXY_PASSWORD: ${{ secrets.WSLPROXY_PASSWORD }}
+          WSLPROXY_GATEWAY_URL: ${{ secrets.WSLPROXY_GATEWAY_URL }}
+          HOSTS: ${{ steps.hosts.outputs.hosts }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WSLPROXY_USER:-}" ] || [ -z "${WSLPROXY_PASSWORD:-}" ] || [ -z "${WSLPROXY_GATEWAY_URL:-}" ]; then
+            echo "::error::WSLPROXY_USER / WSLPROXY_PASSWORD / WSLPROXY_GATEWAY_URL must all be set."
+            exit 1
+          fi
+          GW="$WSLPROXY_GATEWAY_URL"
+          TOKEN=$(curl -fsS -X POST "$GW/api/user/login" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -nc --arg e "$WSLPROXY_USER" --arg p "$WSLPROXY_PASSWORD" '{email:$e,password:$p}')" \
+            | jq -r '.data.accessToken')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "::error::wslproxy login failed for ${WSLPROXY_USER} at ${GW}."; exit 1
+          fi
+
+          for HOST in $HOSTS; do
+            SPEC="devops/wslproxy/host-${HOST}.json"
+            [ -f "$SPEC" ] || { echo "::error::missing spec $SPEC"; exit 1; }
+            # The spec must name the host it claims to be, or a copy-paste puts
+            # one ring's config on another ring's hostname.
+            spec_host=$(jq -r '.server_name' "$SPEC")
+            [ "$spec_host" = "$HOST" ] || { echo "::error::$SPEC server_name=$spec_host != $HOST"; exit 1; }
+
+            existing=$(curl -fsS -X GET "$GW/api/servers" -H "Authorization: Bearer $TOKEN" \
+              | jq -r --arg h "$HOST" '.data[]? | select(.server_name==$h) | .id' | head -1)
+            if [ -n "$existing" ]; then
+              echo "  ${HOST} already registered (id=$existing)"
+              continue
+            fi
+            resp=$(curl -fsS -X POST "$GW/api/servers" \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              -d @"$SPEC")
+            sid=$(echo "$resp" | jq -r '.data.id // empty')
+            [ -n "$sid" ] || { echo "::error::create failed for ${HOST}: $resp"; exit 1; }
+            echo "  registered ${HOST} (id=$sid)"
+          done
+
+      - name: Verify through the edge
+        env:
+          HOSTS: ${{ steps.hosts.outputs.hosts }}
+        run: |
+          set -euo pipefail
+          # pop0 picks up a new vhost within about a minute via its config sync,
+          # and a fresh certificate takes a little longer still.
+          fail=0
+          for HOST in $HOSTS; do
+            ok=0
+            for i in $(seq 1 20); do
+              code=$(curl -sS -o /tmp/body -m 10 -w '%{http_code}' "https://${HOST}/health" || echo 000)
+              if [ "$code" = "200" ] && ! grep -qi 'Host not configured' /tmp/body; then
+                echo "  ok   https://${HOST}/health"; ok=1; break
+              fi
+              echo "  [$i] https://${HOST}/health -> $code"
+              sleep 15
+            done
+            [ "$ok" = 1 ] || { echo "  FAIL ${HOST} never answered through the edge"; fail=1; }
+          done
+          exit $fail

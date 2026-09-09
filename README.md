@@ -124,6 +124,10 @@ creates `demo@fishers.test` / `password123` with a club, fixtures, shop stock an
 a part-scored match, and prints a public live-scoreboard link. It is safe to
 re-run — it reuses what already exists instead of duplicating it.
 
+**Deploying:** see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — four rings on
+`fishers.cloud` (int / test / acc / www), promoted by
+[Ring Promoter](https://rp.workstation.co.uk/).
+
 **CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md) — same Fastlane + Vault pattern as KubePilot.
 
 - PR build + tests: `.github/workflows/ios.yml`
@@ -168,6 +172,10 @@ backend/          Cargo workspace
   agent/          Claude client for the chat assistant
 ios/              SwiftUI app (XcodeGen)
 web/              Next.js dashboard
+devops/
+  helm-charts/    fishers-api, fishers-web, fishers-postgres (one release per ring)
+  wslproxy/       edge vhost + routing rule specs
+  ring-promoter/  the app registry entries to paste into Ring Promoter
 scripts/
   start.sh        the whole stack: Postgres, API, dashboard, app in a Simulator
   run-api.sh      shorthand for start.sh --api-only

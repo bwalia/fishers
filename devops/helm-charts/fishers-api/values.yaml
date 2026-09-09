@@ -1,0 +1,110 @@
+# Defaults shared by every environment. Anything that differs per ring lives in
+# values-<env>.yaml, and the deploy workflow passes -f values.yaml -f values-<env>.yaml.
+env: int
+# The public host for this ring. Always set from values-<env>.yaml; empty is
+# refused, because it would render "https://" into PUBLIC_WEB_BASE and mint
+# share links that go nowhere.
+hostname: ""
+replicaCount: 1
+
+image:
+  repository: nebulacr.workstation.co.uk/fishers/fishers-api
+  tag: latest
+  pullPolicy: Always
+imagePullSecrets:
+  - name: fishers-registry
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# The ingress lives in the fishers-web chart, which owns `/` for the host and
+# routes /api and /swagger-ui here. One ingress per host means one certificate
+# and one wslproxy vhost, and it cannot disagree with itself about which
+# service serves which path.
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+# Liveness is /health — a constant string, so it answers while the process is
+# alive whatever the database is doing. That is exactly what liveness should
+# test: restarting the pod cannot fix a database outage, and a liveness probe
+# wired to the database turns one failed dependency into a crash-loop.
+livenessProbe:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Readiness is /health/ready, which touches the pool. A pod that cannot reach
+# Postgres should leave the Service — it has nothing to serve — but it should
+# not be killed.
+readinessProbe:
+  enabled: true
+  path: /health/ready
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Migrations replay on boot and take a moment on a fresh database; startup has
+# its own budget so a slow first start is not mistaken for a hang.
+startupProbe:
+  enabled: true
+  path: /health
+  periodSeconds: 5
+  failureThreshold: 30
+
+database:
+  # Points at the fishers-postgres release in the same namespace by default.
+  host: fishers-postgres
+  port: 5432
+  name: fishers
+  user: fishers
+  # Never set here. The workflow passes it with --set from a CI secret, and it
+  # lands in the chart's Secret.
+  password: ""
+
+config:
+  jwtAccessTtlSecs: 900
+  jwtRefreshTtlSecs: 2592000
+  rustLog: "fishers_api=info,tower_http=warn,sqlx=warn"
+  dlsG50: 245
+  # Optional integrations. Empty means unset — the API treats an empty
+  # DLS_RESOURCE_TABLE as "use the built-in table", and an absent
+  # ANTHROPIC_API_KEY as "chat assistant disabled".
+  anthropicApiKey: ""
+  agentModel: "claude-opus-5"
+  stripeSecretKey: ""
+  stripeWebhookSecret: ""
+  dlsResourceTable: ""
+  ollamaUrl: ""
+  ollamaModel: "llama3.1:8b"
+
+secret:
+  # JWT signing key. Passed with --set from a CI secret; a deploy with this
+  # empty is refused by the template rather than silently signing tokens with
+  # a default that every environment shares.
+  jwtSecret: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fishers-api.name" . }}
+  labels:
+    {{- include "fishers-api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "fishers-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fishers-api.labels" . | nindent 8 }}
+      annotations:
+        # Roll the pods when the Secret changes. Without this a rotated JWT
+        # signing key or database password sits in the Secret while the running
+        # pods keep the old one, and the mismatch only shows up at the next
+        # unrelated restart.
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: API_HOST
+              value: "[::]"
+            - name: API_PORT
+              value: {{ .Values.service.targetPort | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.config.rustLog | quote }}
+            - name: JWT_ACCESS_TTL_SECS
+              value: {{ .Values.config.jwtAccessTtlSecs | quote }}
+            - name: JWT_REFRESH_TTL_SECS
+              value: {{ .Values.config.jwtRefreshTtlSecs | quote }}
+            - name: DLS_G50
+              value: {{ .Values.config.dlsG50 | quote }}
+            - name: FISHERS_AGENT_MODEL
+              value: {{ .Values.config.agentModel | quote }}
+            # Same host serves the dashboard and the API, so share links point
+            # at the host the person is already on and CORS never enters into
+            # it. Set explicitly all the same: the API mints these links into
+            # chat, where they outlive the request that made them.
+            - name: PUBLIC_WEB_BASE
+              value: "https://{{ include "fishers-api.hostname" . }}"
+            - name: CORS_ALLOWED_ORIGINS
+              value: "https://{{ include "fishers-api.hostname" . }}"
+            {{- with .Values.config.ollamaUrl }}
+            - name: OLLAMA_URL
+              value: {{ . | quote }}
+            - name: OLLAMA_MODEL
+              value: {{ $.Values.config.ollamaModel | quote }}
+            {{- end }}
+            {{- with .Values.config.dlsResourceTable }}
+            - name: DLS_RESOURCE_TABLE
+              value: {{ . | quote }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "fishers-api.name" . }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            # readOnlyRootFilesystem is on, and the process still wants a
+            # scratch area.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

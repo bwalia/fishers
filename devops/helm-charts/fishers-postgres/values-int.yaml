@@ -1,0 +1,13 @@
+# int ring — see values.yaml for everything not repeated here.
+env: int
+
+persistence:
+  enabled: true
+  size: 8Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
