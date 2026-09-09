@@ -208,9 +208,31 @@ a:hover { text-decoration: underline; }
   scrollbar-width: none;
 }
 .nav::-webkit-scrollbar { display: none; }
+/* Cut mid-word, a horizontal scroller reads as broken text. The fade says
+   there is more to the right. */
+@media (max-width: 900px) {
+  .nav {
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+}
 
-.nav a,
-.nav button {
+/* Sign out and the bell sit outside the scroller: a dropdown inside an
+   element with `overflow` is clipped by it, however high its z-index. */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  flex-shrink: 0;
+  /* The panel hangs off this group, not off the bell. The bell sits to the
+     left of Sign out, so anchoring to it pushed a 360px panel off the left of
+     a phone screen. */
+  position: relative;
+}
+
+.nav > a,
+.nav > button,
+.nav-actions > a,
+.nav-actions > button {
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
@@ -226,17 +248,22 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
-.nav a:hover,
-.nav button:hover {
+.nav > a:hover,
+.nav > button:hover,
+.nav-actions > a:hover,
+.nav-actions > button:hover {
   background: var(--surface-2);
   color: var(--fg);
   text-decoration: none;
 }
-.nav a.active {
+.nav > a.active,
+.nav-actions > a.active {
   background: var(--primary);
   color: var(--on-primary);
 }
-.nav a.active svg { color: currentColor; }
+.nav > a.active svg,
+.nav-actions > a.active svg { color: currentColor; }
+
 
 /* ---------- Page header ---------- */
 
@@ -1708,7 +1735,7 @@ textarea { line-height: 1.5; resize: vertical; }
 
 /* --- Notifications bell ------------------------------------------------- */
 
-.bell { position: relative; display: inline-flex; }
+.bell { display: inline-flex; }
 .bell-button {
   display: grid;
   place-items: center;

@@ -52,6 +52,13 @@ export function ShellNav() {
             </Link>
           );
         })}
+      </nav>
+
+      {/* Outside the nav on purpose. `.nav` scrolls sideways on a narrow
+          screen, and an ancestor that scrolls clips an absolutely-positioned
+          dropdown — the bell opened, and its panel was cut off where nobody
+          could see it. Actions that own a popover live in their own group. */}
+      <div className="nav-actions">
         {user && <NotificationBell />}
         {user ? (
           <button
@@ -76,7 +83,7 @@ export function ShellNav() {
             </Link>
           </>
         )}
-      </nav>
+      </div>
     </header>
   );
 }
