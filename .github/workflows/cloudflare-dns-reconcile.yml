@@ -84,7 +84,20 @@ jobs:
         run: |
           set -euo pipefail
           RING="${{ inputs.ENV || 'all' }}"
+
+          # Prove the cluster is reachable before reading anything from it.
+          # Without this an unreachable cluster and a cluster with nothing
+          # deployed look identical — both produce no namespaces — and the
+          # reconciler reports "nothing to do" while DNS quietly rots.
+          if ! kubectl version -o yaml >/dev/null 2>&1; then
+            echo "::error::cannot reach the cluster with MY_K3S1_CONFIG."
+            exit 1
+          fi
+
           if [ "$RING" = "all" ]; then
+            # grep exits 1 when it matches nothing, which is the ordinary state
+            # before the first ring is deployed — not a failure. `|| true` keeps
+            # `set -e` out of it.
             NAMESPACES=$(kubectl get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
               | grep -E '^fishers-(int|test|acc|prod)$' || true)
           else
@@ -102,12 +115,16 @@ jobs:
               '.items[].spec.rules[]?.host | select(. != null) | select(endswith($z))' /tmp/ing.json || true)
             HOSTS="$HOSTS $found"
           done
-          HOSTS=$(echo "$HOSTS" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
+          # Same grep-on-empty trap as above, and this one is inside a command
+          # substitution feeding an assignment, so under pipefail it took the
+          # whole step down with exit 1 on a cluster that simply had nothing
+          # deployed yet. tr/sort alone normalise the list without it.
+          HOSTS=$(echo "$HOSTS" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^ *//;s/ *$//')
           if [ -z "$HOSTS" ]; then
-            echo "::warning::no *.${ZONE} ingresses found — nothing to reconcile."
+            echo "::notice::no *.${ZONE} ingresses found — nothing to reconcile yet."
           fi
           echo "hosts=$HOSTS" >> "$GITHUB_OUTPUT"
-          echo "discovered: $HOSTS"
+          echo "discovered: ${HOSTS:-<none>}"
 
       - name: Upsert CNAMEs
         env:
