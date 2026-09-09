@@ -24,12 +24,27 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#1b7f4c",
+  // The browser chrome follows the theme, so a dark phone does not frame a
+  // cream page in a light bar.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f4ed" },
+    { media: "(prefers-color-scheme: dark)", color: "#111712" },
+  ],
 };
+
+/// Applied before the first paint.
+///
+/// Without this the page renders in the system theme and then swaps to the
+/// chosen one — a white flash on a dark phone, every navigation.
+const THEME_BOOT = `try{var t=localStorage.getItem('fishers_theme');
+if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body>
         <a className="skip-link" href="#main">Skip to main content</a>
         <div className="shell">

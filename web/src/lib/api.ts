@@ -313,6 +313,22 @@ export function money(cents: number, currency = "GBP") {
   }).format(cents / 100);
 }
 
+/// A club's public page, as the club writes it. The record and the leading
+/// players are computed, so they are not here.
+export type ClubPageSettings = {
+  id: string;
+  name: string;
+  slug: string | null;
+  sport_types: string[];
+  tagline: string | null;
+  about: string | null;
+  ground: string | null;
+  founded_year: number | null;
+  contact_email: string | null;
+  website: string | null;
+  public_page: boolean;
+};
+
 export type Team = {
   id: string;
   club_id: string;

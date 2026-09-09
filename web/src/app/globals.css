@@ -1,50 +1,83 @@
-/* Fishers design system — Data-Dense Dashboard, sporting theme.
+/* Fishers design system — sage, cream and gold.
  *
- * Palette note: the generator proposed team-red as primary. Cricket reads green
- * — the pitch, and the wagon wheel already draws its field in #1b7f4c — so green
- * is primary here with championship gold as the accent, and red is kept for what
- * it means everywhere else in the app: live, danger, a wicket.
+ * The four colours the club chose are the source: sage #8FA28A, pale sage
+ * #C7D3C0, cream #F7F4ED, gold #C8A96B. They are lovely and they are all light,
+ * so none of them carries white text — sage on white is 2.7:1. The ramp below
+ * darkens each towards a deep bottle green until it does, and every pair used
+ * for text was checked:
+ *
+ *   sage-600 #667964 + white  4.68:1     ink-900 on cream  13.5:1
+ *   gold-700 #7E673A + white  5.40:1     ink-500 on cream   6.5:1
+ *
+ * The chosen four survive as surfaces and marks — the cream is the page, the
+ * pale sage is a raised card, the gold is a badge — which is where they read
+ * best anyway.
+ *
+ * Dark is not a grey inversion: the surfaces are mixed from the same sage hue,
+ * so the two themes are the same room at different times of day.
  *
  * Spacing is a 4px scale. Numbers in tables use tabular figures so columns do
  * not jitter as a score changes.
  */
 
 :root {
-  /* Brand */
-  --pitch-900: #0b2f1e;
-  --pitch-800: #11402a;
-  --pitch-700: #17603c;
-  --pitch-600: #1b7f4c;
-  --pitch-500: #26a063;
-  --pitch-100: #dcf1e5;
-  --pitch-50: #f1f9f4;
+  /* The four, as given. */
+  --sage: #8fa28a;
+  --sage-pale: #c7d3c0;
+  --cream: #f7f4ed;
+  --gold: #c8a96b;
 
-  --gold-600: #b4831f;
-  --gold-500: #d8a13a;
-  --gold-100: #fbf0d9;
+  /* Darkened until they carry text. */
+  --sage-400: #8fa28a;
+  --sage-500: #798c76;
+  --sage-600: #667964;
+  --sage-700: #556754;
+  --sage-800: #445645;
+  --sage-900: #2c3a2d;
 
-  --red-600: #c62828;
-  --red-500: #e14545;
-  --red-100: #fde8e8;
+  --gold-400: #c8a96b;
+  --gold-500: #ac9058;
+  --gold-600: #927947;
+  --gold-700: #7e673a;
+
+  --ink-900: #202a21;
+  --ink-700: #374337;
+  --ink-500: #4e5c4d;
+
+  --red-600: #b3402f;
+  --red-500: #c8533f;
+  --red-100: #f7e3df;
+
+  /* The old names, repointed — every screen moves at once. */
+  --pitch-900: var(--sage-900);
+  --pitch-800: var(--sage-800);
+  --pitch-700: var(--sage-700);
+  --pitch-600: var(--sage-600);
+  --pitch-500: var(--sage-500);
+  --pitch-100: var(--sage-pale);
+  --pitch-50: #eef2ea;
+  --gold-100: #f4ecda;
 
   /* Semantic — light */
-  --bg: #f6f8f6;
+  --bg: var(--cream);
   --surface: #ffffff;
-  --surface-2: #f0f4f1;
-  --surface-3: #e6ede8;
-  --fg: #10231a;
-  --fg-muted: #5a6b61;
-  --fg-subtle: #7d8b83;
-  --border: #d9e3dc;
-  --border-strong: #bccbc2;
+  --surface-2: #f1efe6;
+  --surface-3: #e6e6da;
+  --fg: var(--ink-900);
+  --fg-muted: var(--ink-500);
+  --fg-subtle: #5e6b5d;
+  --border: #e0ded1;
+  --border-strong: #c9c8b8;
 
-  --primary: var(--pitch-600);
-  --primary-hover: var(--pitch-700);
+  --primary: var(--sage-600);
+  --primary-hover: var(--sage-700);
   --on-primary: #ffffff;
-  --accent: var(--gold-600);
+  /* Primary as *text*, which needs more than primary as a fill. */
+  --primary-ink: var(--sage-700);
+  --accent: var(--gold-700);
   --danger: var(--red-600);
   --live: var(--red-600);
-  --ring: var(--pitch-500);
+  --ring: var(--sage-600);
 
   /* Spacing (density 8 — dashboard) */
   --s1: 4px;
@@ -54,13 +87,13 @@
   --s5: 24px;
   --s6: 32px;
 
-  --radius: 10px;
-  --radius-sm: 6px;
+  --radius: 14px;
+  --radius-sm: 8px;
   --radius-pill: 999px;
 
-  --shadow-1: 0 1px 2px rgb(16 35 26 / 6%);
-  --shadow-2: 0 2px 8px rgb(16 35 26 / 8%);
-  --shadow-3: 0 8px 28px rgb(16 35 26 / 12%);
+  --shadow-1: 0 1px 2px rgb(32 42 33 / 6%);
+  --shadow-2: 0 2px 10px rgb(32 42 33 / 8%);
+  --shadow-3: 0 12px 32px rgb(32 42 33 / 14%);
 
   --font-display: var(--font-barlow-condensed), "Barlow Condensed", system-ui, sans-serif;
   --font-body: var(--font-barlow), Barlow, system-ui, -apple-system, sans-serif;
@@ -74,32 +107,75 @@
   color-scheme: light;
 }
 
+/* The same room after dark. Surfaces are mixed from the sage hue rather than
+   neutral grey, so the palette still reads as itself. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b1310;
-    --surface: #111d17;
-    --surface-2: #16261e;
-    --surface-3: #1d3227;
-    --fg: #e8f1ec;
-    --fg-muted: #9db0a5;
-    --fg-subtle: #7d9187;
-    --border: #21362b;
-    --border-strong: #2e4a3a;
+    --bg: #111712;
+    --surface: #171d17;
+    --surface-2: #1c231c;
+    --surface-3: #242c24;
+    --fg: #eef2ea;
+    --fg-muted: #adbcab;
+    --fg-subtle: #8b9a89;
+    --border: #2a332a;
+    --border-strong: #3c483c;
 
-    --primary: var(--pitch-500);
-    --primary-hover: #2fb772;
-    --on-primary: #04150c;
-    --accent: var(--gold-500);
+    --primary: var(--sage-400);
+    --primary-hover: var(--sage-pale);
+    --on-primary: #14210f;
+    --primary-ink: var(--sage-400);
+    --accent: var(--gold-400);
     --danger: var(--red-500);
-    --live: var(--red-500);
+    /* White on red-500 is 4.41:1 — under the bar for the small caps in a live
+       pill, so the badge keeps the darker red in both themes. */
+    --live: var(--red-600);
+    --ring: var(--sage-400);
+
+    --pitch-50: #1d251d;
+    --pitch-100: var(--sage-pale);
+    --gold-100: #2e2717;
 
     --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
-    --shadow-2: 0 2px 8px rgb(0 0 0 / 45%);
-    --shadow-3: 0 8px 28px rgb(0 0 0 / 55%);
+    --shadow-2: 0 2px 10px rgb(0 0 0 / 45%);
+    --shadow-3: 0 12px 32px rgb(0 0 0 / 55%);
 
     color-scheme: dark;
   }
 }
+
+/* Chosen explicitly, so the toggle wins over the system in both directions. */
+:root[data-theme="dark"] {
+  --bg: #111712;
+  --surface: #171d17;
+  --surface-2: #1c231c;
+  --surface-3: #242c24;
+  --fg: #eef2ea;
+  --fg-muted: #adbcab;
+  --fg-subtle: #8b9a89;
+  --border: #2a332a;
+  --border-strong: #3c483c;
+
+  --primary: var(--sage-400);
+  --primary-hover: var(--sage-pale);
+  --on-primary: #14210f;
+  --primary-ink: var(--sage-400);
+  --accent: var(--gold-400);
+  --danger: var(--red-500);
+  --live: var(--red-600);
+  --ring: var(--sage-400);
+
+  --pitch-50: #1d251d;
+  --pitch-100: var(--sage-pale);
+  --gold-100: #2e2717;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-2: 0 2px 10px rgb(0 0 0 / 45%);
+  --shadow-3: 0 12px 32px rgb(0 0 0 / 55%);
+
+  color-scheme: dark;
+}
+
 
 * {
   box-sizing: border-box;
@@ -166,10 +242,16 @@ a:hover { text-decoration: underline; }
 /* ---------- Shell ---------- */
 
 .shell {
-  max-width: 1180px;
+  /* Was a hard 1180px, which left a wide screen mostly margin. The page now
+     grows with the window and only stops where a line of text gets too long
+     to scan. Reading-width content narrows itself; dashboards do not. */
+  max-width: 1680px;
   margin: 0 auto;
-  padding: 0 var(--s4) var(--s6);
+  padding: 0 clamp(var(--s4), 3vw, var(--s6)) var(--s6);
 }
+
+/* Long-form prose stays readable however wide the window gets. */
+.prose { max-width: 68ch; }
 
 .topbar {
   position: sticky;
@@ -379,12 +461,12 @@ a:hover { text-decoration: underline; }
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--pitch-700);
+  color: var(--sage-800);
   background: var(--pitch-100);
   border-radius: var(--radius-pill);
   padding: 3px var(--s2);
 }
-.tag.gold { color: var(--gold-600); background: var(--gold-100); }
+.tag.gold { color: var(--gold-700); background: var(--gold-100); }
 .tag.grey { color: var(--fg-muted); background: var(--surface-3); }
 .tag.live {
   color: #fff;
@@ -1110,7 +1192,7 @@ textarea { line-height: 1.5; resize: vertical; }
   font-size: 1.8rem;
   font-weight: 700;
 }
-.result-side.won .result-score { color: var(--primary); }
+.result-side.won .result-score { color: var(--primary-ink); }
 
 /* ---------- QR codes and tabs ---------- */
 
@@ -1170,7 +1252,7 @@ textarea { line-height: 1.5; resize: vertical; }
 }
 .tab:hover { color: var(--fg); }
 .tab.active {
-  color: var(--primary);
+  color: var(--primary-ink);
   border-bottom-color: var(--primary);
 }
 
@@ -1326,7 +1408,7 @@ textarea { line-height: 1.5; resize: vertical; }
 .chip.on {
   border-color: var(--primary);
   background: var(--pitch-50);
-  color: var(--pitch-700);
+  color: var(--sage-800);
   font-weight: 600;
 }
 @media (prefers-color-scheme: dark) {
@@ -1992,7 +2074,7 @@ a.bell-item:hover { background: var(--surface-2); }
   border: 0;
   padding: 0;
   background: none;
-  color: var(--primary);
+  color: var(--primary-ink);
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
@@ -2258,7 +2340,7 @@ a.bell-item:hover { background: var(--surface-2); }
 .squad-chip.on {
   border-color: var(--primary);
   background: var(--pitch-50);
-  color: var(--pitch-700);
+  color: var(--sage-800);
   font-weight: 600;
 }
 @media (prefers-color-scheme: dark) {
@@ -2340,3 +2422,186 @@ a.bell-item:hover { background: var(--surface-2); }
 
 /* "Can you play?" on the fixture row — the one question a fixture asks. */
 .rsvp { display: flex; gap: var(--s2); }
+
+/* --- Theme toggle -------------------------------------------------------- */
+
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.theme-toggle:hover { background: var(--surface-2); color: var(--fg); }
+.theme-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .theme-toggle { transition: none; } }
+
+/* The dashboard grid follows the wider shell instead of stopping at three. */
+@media (min-width: 1400px) {
+  .grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+}
+
+/* --- A club's own public page -------------------------------------------
+   Deliberately not the app: no nav, wider air, bigger type. Somebody arrives
+   here from a search result, not from a dashboard. */
+
+/* The app shell adds its own gutters; this page sets its own. */
+.shell:has(.club-site) { max-width: none; padding: 0; }
+
+.club-site {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: clamp(var(--s5), 6vw, 80px) clamp(var(--s4), 5vw, var(--s6)) 80px;
+}
+.club-site section { margin-bottom: clamp(var(--s6), 7vw, 72px); }
+.club-site h2 {
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  margin: 0 0 var(--s4);
+}
+.club-site h3 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  margin: 0 0 var(--s3);
+}
+
+.club-hero { margin-bottom: clamp(var(--s6), 6vw, 64px); }
+.club-eyebrow {
+  margin: 0 0 var(--s3);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.club-hero h1 {
+  font-size: clamp(2.6rem, 9vw, 5rem);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.club-tagline {
+  margin: var(--s4) 0 0;
+  font-size: clamp(1.05rem, 2.4vw, 1.35rem);
+  color: var(--fg-muted);
+  max-width: 34ch;
+}
+.club-ground {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s4) 0 0;
+  color: var(--fg-subtle);
+  font-size: 0.92rem;
+}
+
+/* The record, led by the one number a club is judged on. */
+.club-record {
+  padding: clamp(var(--s5), 4vw, var(--s6));
+  border-radius: var(--radius);
+  background: var(--sage-pale);
+  color: var(--ink-900);
+}
+:root[data-theme="dark"] .club-record,
+:root:not([data-theme="light"]) .club-record {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .club-record {
+    background: var(--sage-pale);
+    color: var(--ink-900);
+  }
+}
+.record-headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+.record-pct {
+  font-family: var(--font-display);
+  font-size: clamp(3.4rem, 12vw, 5.5rem);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+}
+.record-label { font-size: 1.05rem; font-weight: 600; }
+.record-label small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.record-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s3);
+  margin: 0;
+  padding-top: var(--s4);
+  border-top: 1px solid rgb(32 42 33 / 12%);
+}
+:root[data-theme="dark"] .record-grid { border-top-color: var(--border); }
+.record-grid dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.record-grid dd { margin: 2px 0 0; font-size: 1.5rem; font-weight: 700; }
+
+.club-about p { font-size: 1.05rem; line-height: 1.7; color: var(--fg-muted); }
+
+.player-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: clamp(var(--s5), 5vw, var(--s6));
+}
+.club-leaders { list-style: none; margin: 0; padding: 0; }
+.club-leaders li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.club-leaders li:last-child { border-bottom: 0; }
+.club-leaders .num { font-weight: 700; font-size: 1.1rem; }
+
+.club-join {
+  padding: clamp(var(--s5), 4vw, var(--s6));
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  text-align: center;
+}
+.club-join p { color: var(--fg-muted); margin: 0 0 var(--s5); }
+.club-join-actions {
+  display: flex;
+  gap: var(--s3);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.club-join-actions .btn.lg { width: auto; min-width: 220px; }
+
+.club-foot {
+  padding-top: var(--s5);
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--fg-subtle);
+  text-align: center;
+}
+.club-empty { padding: 80px 0; text-align: center; }
+
+@media (max-width: 560px) {
+  .record-grid { grid-template-columns: repeat(2, 1fr); gap: var(--s4); }
+}

@@ -14,6 +14,7 @@ import {
   type Invite,
   type MyRole,
   type QrCode,
+  type ClubPageSettings,
   type Team,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
@@ -87,6 +88,8 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       />
 
       <Teams clubId={id} teams={teams} isSecretary={isSecretary} onChanged={load} />
+
+      {isSecretary && <PublicPage clubId={id} clubName={club.name} />}
 
       <Codes clubId={id} teams={teams} />
     </main>
@@ -403,6 +406,145 @@ function Teams({
         </div>
       )}
       {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/// The club's own public site, without them having to build one.
+function PublicPage({ clubId, clubName }: { clubId: string; clubName: string }) {
+  const [page, setPage] = useState<ClubPageSettings | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api<ClubPageSettings>("GET", `/clubs/${clubId}/page`).then(setPage).catch(() => {});
+  }, [clubId]);
+
+  if (!page) return null;
+
+  const set = (patch: Partial<ClubPageSettings>) => setPage({ ...page, ...patch });
+
+  const save = async (patch: Partial<ClubPageSettings>) => {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      setPage(await api<ClubPageSettings>("PATCH", `/clubs/${clubId}/page`, patch));
+      setSaved(true);
+    } catch (err) {
+      setError(readError(err, "Could not save the page"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // A default anyone can live with, from the name they already chose.
+  const suggested = clubName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const address = page.slug ?? suggested;
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h2>Your public page</h2>
+        {page.public_page && page.slug && (
+          <a className="btn ghost sm" href={`/c/${page.slug}`} target="_blank" rel="noreferrer">
+            View it
+          </a>
+        )}
+      </div>
+      <p className="muted">
+        A page anyone can open — no login. Your record and top players are worked out from
+        the matches you have played; the rest is yours to write.
+      </p>
+
+      <div className="setup-fields">
+        <label>
+          Web address
+          <input
+            value={address}
+            onChange={(e) => set({ slug: e.target.value })}
+            placeholder={suggested}
+          />
+          <span className="subtle">fishers.cloud/c/{address || suggested}</span>
+        </label>
+        <label>
+          Ground
+          <input
+            value={page.ground ?? ""}
+            onChange={(e) => set({ ground: e.target.value })}
+            placeholder="Highbury Fields, London N5"
+          />
+        </label>
+        <label>
+          Founded
+          <input
+            type="number"
+            inputMode="numeric"
+            value={page.founded_year ?? ""}
+            onChange={(e) =>
+              set({ founded_year: e.target.value === "" ? null : Number(e.target.value) })
+            }
+            placeholder="1974"
+          />
+        </label>
+        <label>
+          Email for new players
+          <input
+            type="email"
+            value={page.contact_email ?? ""}
+            onChange={(e) => set({ contact_email: e.target.value })}
+            placeholder="hello@yourclub.test"
+          />
+        </label>
+      </div>
+
+      <label>
+        One line about the club
+        <input
+          value={page.tagline ?? ""}
+          onChange={(e) => set({ tagline: e.target.value })}
+          placeholder="Sunday cricket in north London since 1974."
+        />
+      </label>
+
+      <label>
+        The longer version
+        <textarea
+          rows={4}
+          value={page.about ?? ""}
+          onChange={(e) => set({ about: e.target.value })}
+          placeholder="Who you are, where you play, who you are looking for."
+        />
+      </label>
+
+      {error && <p className="error">{error}</p>}
+      {saved && !error && <p className="muted">Saved.</p>}
+
+      <div className="field-row">
+        <button
+          className="btn primary"
+          type="button"
+          disabled={busy}
+          onClick={() => save({ ...page, slug: address })}
+        >
+          {busy ? "Saving…" : "Save"}
+        </button>
+        <button
+          className="btn"
+          type="button"
+          disabled={busy}
+          onClick={() => save({ slug: address, public_page: !page.public_page })}
+        >
+          {page.public_page ? "Take it offline" : "Publish it"}
+        </button>
+        <span className={`tag ${page.public_page ? "" : "grey"}`}>
+          {page.public_page ? "Live" : "Not published"}
+        </span>
+      </div>
     </div>
   );
 }

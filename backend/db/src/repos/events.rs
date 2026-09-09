@@ -274,6 +274,33 @@ pub async fn list_events(
     })
 }
 
+/// The next few fixtures, for a club's public page. No viewer, because there
+/// is not one — this is what a passer-by sees.
+pub async fn upcoming_for_club(
+    pool: &PgPool,
+    club_id: Uuid,
+    limit: i64,
+) -> Result<Vec<Event>, sqlx::Error> {
+    sqlx::query_as::<_, Event>(
+        r#"
+        SELECT id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
+               start_at, end_at, recurrence_rule, recurrence_parent_id,
+               capacity, fee_amount_cents, fee_currency, status, status_note,
+               rescheduled_to, metadata, created_by, created_at, updated_at
+        FROM events
+        WHERE (club_id = $1 OR opponent_club_id = $1)
+          AND status = 'scheduled'
+          AND start_at >= NOW()
+        ORDER BY start_at
+        LIMIT $2
+        "#,
+    )
+    .bind(club_id)
+    .bind(limit.clamp(1, 20))
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn update_event(
     pool: &PgPool,
     event_id: Uuid,

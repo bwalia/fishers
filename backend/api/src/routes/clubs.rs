@@ -36,6 +36,137 @@ pub fn router() -> Router<AppState> {
         .route("/teams/{id}/qr", get(team_qr))
         .route("/opponents/lookup", post(lookup_opponent))
         .route("/opponents/search", get(search_opponents))
+        .route("/clubs/{id}/page", get(get_page).patch(update_page))
+        // No auth: this is the club's shop window.
+        .route("/public/clubs/{slug}", get(public_page))
+}
+
+#[derive(Serialize)]
+struct PublicClubPage {
+    club: clubs_repo::ClubPage,
+    /// Played, won, lost — and the percentage every club leads with.
+    record: Option<SeasonRecord>,
+    top_batters: Vec<fishers_domain::PlayerSeasonStatsView>,
+    top_bowlers: Vec<fishers_domain::PlayerSeasonStatsView>,
+    fixtures: Vec<PublicFixture>,
+}
+
+#[derive(Serialize)]
+struct SeasonRecord {
+    season: i32,
+    played: i32,
+    won: i32,
+    lost: i32,
+    drawn: i32,
+    no_result: i32,
+    /// Of the matches that produced a result — a rained-off game is not a loss.
+    win_percent: Option<i32>,
+}
+
+#[derive(Serialize)]
+struct PublicFixture {
+    title: String,
+    start_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// A club's public page, for anybody at all.
+///
+/// Deliberately unauthenticated and deliberately narrow: the club's own words,
+/// the record they have played to, the players at the top of it, and when they
+/// are next out. No rosters, no contact details for members, nothing a club
+/// would not put on a noticeboard.
+async fn public_page(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+) -> ApiResult<Json<PublicClubPage>> {
+    let club = clubs_repo::page_by_slug(&state.pool, &slug)
+        .await?
+        .ok_or_else(|| ApiError::not_found("no club has that address"))?;
+
+    let season = chrono::Utc::now().format("%Y").to_string().parse().unwrap_or(2026);
+    let board = fishers_db::repos::stats::club_board(&state.pool, club.id, season)
+        .await
+        .ok()
+        .flatten();
+
+    let record = board.as_ref().map(|b| {
+        let c = &b.club;
+        let decided = c.wins + c.losses + c.draws;
+        SeasonRecord {
+            season: c.season_year,
+            played: c.matches_played,
+            won: c.wins,
+            lost: c.losses,
+            drawn: c.draws,
+            no_result: c.no_results,
+            // A no-result is not a loss, so it is out of the sum entirely.
+            win_percent: (decided > 0).then(|| (c.wins * 100) / decided),
+        }
+    });
+
+    let fixtures = fishers_db::repos::events::upcoming_for_club(&state.pool, club.id, 5)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|e| PublicFixture {
+            title: e.title,
+            start_at: e.start_at,
+        })
+        .collect();
+
+    Ok(Json(PublicClubPage {
+        club,
+        record,
+        top_batters: board.as_ref().map(|b| b.top_batters.clone()).unwrap_or_default(),
+        top_bowlers: board.as_ref().map(|b| b.top_bowlers.clone()).unwrap_or_default(),
+        fixtures,
+    }))
+}
+
+async fn get_page(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<clubs_repo::ClubPage>> {
+    require_club_member(&state, id, auth.user_id).await?;
+    clubs_repo::page_for(&state.pool, id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("club not found"))
+}
+
+async fn update_page(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<clubs_repo::UpdateClubPage>,
+) -> ApiResult<Json<clubs_repo::ClubPage>> {
+    require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
+
+    if let Some(slug) = body.slug.as_deref() {
+        let clean = slug.trim().to_lowercase();
+        // It goes in a URL, so keep it to what survives one.
+        if clean.len() < 3
+            || !clean
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
+            return Err(ApiError::bad_request(
+                "the address needs at least three letters, numbers or hyphens",
+            ));
+        }
+    }
+
+    clubs_repo::update_page(&state.pool, id, &body)
+        .await
+        .map(Json)
+        .map_err(|e| {
+            if e.to_string().contains("clubs_slug_key") {
+                ApiError::conflict("another club already has that address")
+            } else {
+                ApiError::from(e)
+            }
+        })
 }
 
 async fn create_club(

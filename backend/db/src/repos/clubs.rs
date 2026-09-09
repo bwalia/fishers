@@ -55,6 +55,89 @@ pub async fn create_club(
     Ok(club)
 }
 
+/// A club's own public page: what they write about themselves, plus the
+/// record and the players worked out from what they have played.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ClubPage {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: Option<String>,
+    pub sport_types: Vec<String>,
+    pub tagline: Option<String>,
+    pub about: Option<String>,
+    pub ground: Option<String>,
+    pub founded_year: Option<i32>,
+    pub contact_email: Option<String>,
+    pub website: Option<String>,
+    pub public_page: bool,
+}
+
+const PAGE_COLS: &str = "id, name, slug, sport_types, tagline, about, ground, \
+     founded_year, contact_email, website, public_page";
+
+/// By the address in the URL. Only a club that has switched its page on is
+/// reachable — a page nobody published is not a page.
+pub async fn page_by_slug(pool: &PgPool, slug: &str) -> Result<Option<ClubPage>, sqlx::Error> {
+    sqlx::query_as::<_, ClubPage>(&format!(
+        "SELECT {PAGE_COLS} FROM clubs WHERE LOWER(slug) = LOWER($1) AND public_page"
+    ))
+    .bind(slug.trim())
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn page_for(pool: &PgPool, club_id: Uuid) -> Result<Option<ClubPage>, sqlx::Error> {
+    sqlx::query_as::<_, ClubPage>(&format!("SELECT {PAGE_COLS} FROM clubs WHERE id = $1"))
+        .bind(club_id)
+        .fetch_optional(pool)
+        .await
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct UpdateClubPage {
+    pub slug: Option<String>,
+    pub public_page: Option<bool>,
+    pub tagline: Option<String>,
+    pub about: Option<String>,
+    pub ground: Option<String>,
+    pub founded_year: Option<i32>,
+    pub contact_email: Option<String>,
+    pub website: Option<String>,
+}
+
+/// COALESCE throughout: the editor sends only the fields it changed.
+pub async fn update_page(
+    pool: &PgPool,
+    club_id: Uuid,
+    req: &UpdateClubPage,
+) -> Result<ClubPage, sqlx::Error> {
+    sqlx::query_as::<_, ClubPage>(&format!(
+        "UPDATE clubs SET
+            slug = COALESCE($2, slug),
+            public_page = COALESCE($3, public_page),
+            tagline = COALESCE($4, tagline),
+            about = COALESCE($5, about),
+            ground = COALESCE($6, ground),
+            founded_year = COALESCE($7, founded_year),
+            contact_email = COALESCE($8, contact_email),
+            website = COALESCE($9, website),
+            updated_at = NOW()
+         WHERE id = $1
+         RETURNING {PAGE_COLS}"
+    ))
+    .bind(club_id)
+    .bind(req.slug.as_deref().map(str::trim))
+    .bind(req.public_page)
+    .bind(req.tagline.as_deref())
+    .bind(req.about.as_deref())
+    .bind(req.ground.as_deref())
+    .bind(req.founded_year)
+    .bind(req.contact_email.as_deref())
+    .bind(req.website.as_deref())
+    .fetch_one(pool)
+    .await
+}
+
 /// A club plus what the asker is in it — the list is only ever read by
 /// somebody who is in them, and the role is the first thing they look for.
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]

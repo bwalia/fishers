@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { clearSession, getStoredUser, type PublicUser } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/", label: "Overview", icon: "home" },
@@ -26,8 +27,10 @@ export function ShellNav() {
     setUser(getStoredUser());
   }, [pathname]);
 
-  // Public live boards keep the club chrome out of the way.
-  if (pathname.startsWith("/live/")) {
+  // A public board or a club's own page is not the app: somebody arrives
+  // there from a search result or a shared link, and the club chrome would
+  // only ask them to sign in to something they are not part of.
+  if (pathname.startsWith("/live/") || pathname.startsWith("/c/")) {
     return null;
   }
 
@@ -59,6 +62,7 @@ export function ShellNav() {
           dropdown — the bell opened, and its panel was cut off where nobody
           could see it. Actions that own a popover live in their own group. */}
       <div className="nav-actions">
+        <ThemeToggle />
         {user && <NotificationBell />}
         {user ? (
           <button
