@@ -463,6 +463,14 @@ async fn add_official(
     )
     .await?;
     cricket_repo::add_official(&state.pool, id, body.user_id, &body.role, auth.user_id).await?;
+
+    // Naming an umpire before anyone has picked the book up puts it in their
+    // hands, because at club level the square-leg umpire keeps it. Once
+    // somebody is scoring, appointing an umpire must not take the book off
+    // them mid-over — they hand it over themselves.
+    if body.role == "umpire" && row.active_scorer_user_id.is_none() {
+        cricket_repo::set_scorer(&state.pool, id, body.user_id).await?;
+    }
     Ok(Json(cricket_repo::list_officials(&state.pool, id).await?))
 }
 
@@ -523,20 +531,10 @@ async fn handover(
     if body.to_user_id == auth.user_id {
         return Err(ApiError::bad_request("you already have it"));
     }
-    // Whoever receives it has to be allowed to score.
-    let recipient_may_score = cricket_repo::is_official(&state.pool, id, body.to_user_id).await?
-        || require_permission(
-            &state,
-            row.club_id,
-            body.to_user_id,
-            None,
-            Permission::ScoreMatch,
-        )
-        .await
-        .is_ok();
-    if !recipient_may_score {
+    if !may_hold_the_book(&state, &row, body.to_user_id).await? {
         return Err(ApiError::bad_request(
-            "that person cannot score this match — appoint them as an official first",
+            "that person is not playing this match and is not an official — \
+             appoint them as an umpire or scorer first",
         ));
     }
 
@@ -562,6 +560,41 @@ async fn scorer_trail(
     Ok(Json(cricket_repo::handover_trail(&state.pool, id).await?))
 }
 
+/// Who may be handed the book.
+///
+/// Anyone in either XI, and anyone in either club — club cricket is scored by
+/// a batter waiting to go in as often as by an appointed scorer, the twelfth
+/// man does it as often as either, and the book crosses between teams all
+/// afternoon. Plus the named officials.
+///
+/// The two clubs, not just the two elevens, on purpose: this is exactly the
+/// pool the squad screen offers, and a picker that lists names the server
+/// then refuses is worse than no picker. Anybody outside both clubs has to be
+/// appointed an official first, which is a deliberate step.
+///
+/// Deliberately wider than `require_can_score`: that one guards *taking* the
+/// book unasked, this one guards *being given* it by whoever holds it.
+async fn may_hold_the_book(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    user_id: Uuid,
+) -> ApiResult<bool> {
+    if cricket_repo::is_official(&state.pool, row.id, user_id).await? {
+        return Ok(true);
+    }
+    let playing = cricket_repo::parse_state(row);
+    if playing.home_xi.contains(&user_id) || playing.away_xi.contains(&user_id) {
+        return Ok(true);
+    }
+    if clubs_repo::is_club_member(&state.pool, row.club_id, user_id).await? {
+        return Ok(true);
+    }
+    match row.opponent_club_id {
+        Some(other) => Ok(clubs_repo::is_club_member(&state.pool, other, user_id).await?),
+        None => Ok(false),
+    }
+}
+
 /// Scoring is for club officers with `score_match`, plus anyone named on the
 /// match as a scorer — a club's regular scorer needn't be a captain.
 async fn require_can_score(
@@ -569,6 +602,12 @@ async fn require_can_score(
     row: &cricket_repo::CricketMatchRow,
     user_id: Uuid,
 ) -> ApiResult<UserRole> {
+    // Holding the book *is* the permission. Without this an opposition player
+    // handed the book could not write a ball in it, which is the whole point
+    // of handing it to them.
+    if row.active_scorer_user_id == Some(user_id) {
+        return Ok(UserRole::Member);
+    }
     if cricket_repo::is_official(&state.pool, row.id, user_id).await? {
         return Ok(UserRole::Member); // granted via the officials list
     }
