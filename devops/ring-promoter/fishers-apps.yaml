@@ -1,0 +1,95 @@
+# Fishers, as Ring Promoter sees it.
+#
+# Paste these two entries into the `apps:` list of Ring Promoter's ConfigMap
+# (ring-system/ring-promoter-config on k3s1) and restart the deployment. There
+# is no code change and no rebuild — the app registry is configuration.
+#
+#   kubectl -n ring-system edit configmap ring-promoter-config
+#   kubectl -n ring-system rollout restart deploy/ring-promoter
+#
+# Both apps dispatch the same workflow, deploy-single-environment.yml, which
+# takes ENV / DEPLOY_BRANCH / DEPLOY_MODE — the github deployer's own defaults,
+# so nothing here needs per-input overrides.
+#
+# Ordering matters in this file the way it matters in the cluster: fishers-api
+# is listed first because the dashboard is useless without it, and `depends_on`
+# makes that explicit to the promoter rather than leaving it to whoever clicks.
+
+- name: fishers-api
+  display_name: "Fishers API"
+  location: { lat: 51.5074, lng: -0.1278, city: London, region: GB }
+  deployer: github
+  github:
+    owner: bwalia
+    repo: fishers
+    workflow: deploy-single-environment.yml
+    ref: main
+    deploy_mode: full
+    token_env: RP_GITHUB_TOKEN
+    poll_interval: 15s
+    run_lookup_timeout: 90s
+  rings:
+    # /health/ready, not /health. /health is a constant string that keeps
+    # answering after Postgres has gone away underneath a running API — a
+    # promotion gated on it would wave through a ring where every real request
+    # hangs. /health/ready touches the pool.
+    int:  { target_env: int,  health_url: "https://int.fishers.cloud/health/ready" }
+    test: { target_env: test, health_url: "https://test.fishers.cloud/health/ready" }
+    acc:  { target_env: acc,  health_url: "https://acc.fishers.cloud/health/ready" }
+    prod: { target_env: prod, health_url: "https://www.fishers.cloud/health/ready" }
+
+- name: fishers-web
+  display_name: "Fishers dashboard"
+  location: { lat: 51.5074, lng: -0.1278, city: London, region: GB }
+  depends_on: [fishers-api]
+  deployer: github
+  github:
+    owner: bwalia
+    repo: fishers
+    workflow: deploy-single-environment.yml
+    ref: main
+    deploy_mode: full
+    token_env: RP_GITHUB_TOKEN
+    poll_interval: 15s
+    run_lookup_timeout: 90s
+  rings:
+    # /login rather than /: it is a real rendered page that does not depend on
+    # a session, so a 200 means Next is serving, not merely listening.
+    int:  { target_env: int,  health_url: "https://int.fishers.cloud/login" }
+    test: { target_env: test, health_url: "https://test.fishers.cloud/login" }
+    acc:  { target_env: acc,  health_url: "https://acc.fishers.cloud/login" }
+    prod: { target_env: prod, health_url: "https://www.fishers.cloud/login" }
+  # Production is the one ring where an unattended promotion should have to
+  # wait for a human to be awake. Uncomment to gate it to a window; ad-hoc
+  # windows opened from the Ring Promoter UI are unioned with these.
+  #
+  # promotion_policy:
+  #   maintenance_window:
+  #     rings: [prod]
+  #     recurring:
+  #       - days: [Tue, Wed, Thu]
+  #         start: "09:00"
+  #         end:   "17:00"
+  #         timezone: Europe/London
+
+- name: fishers-dns
+  display_name: "Fishers DNS"
+  location: { lat: 51.5074, lng: -0.1278, city: London, region: GB }
+  deployer: github
+  github:
+    owner: bwalia
+    repo: fishers
+    workflow: cloudflare-dns-reconcile.yml
+    ref: main
+    deploy_mode: full
+    token_env: RP_GITHUB_TOKEN
+    poll_interval: 15s
+    run_lookup_timeout: 90s
+  rings:
+    # The reconciler's own success only says the workflow exited 0. These probe
+    # the outcome — a host answering through the edge is what a correct record
+    # actually buys — so a green run that fixed nothing still shows up red.
+    int:  { target_env: int,  health_url: "https://int.fishers.cloud/health" }
+    test: { target_env: test, health_url: "https://test.fishers.cloud/health" }
+    acc:  { target_env: acc,  health_url: "https://acc.fishers.cloud/health" }
+    prod: { target_env: prod, health_url: "https://www.fishers.cloud/health" }

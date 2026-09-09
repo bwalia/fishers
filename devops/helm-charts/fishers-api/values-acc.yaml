@@ -1,0 +1,18 @@
+# acc ring — see values.yaml for everything not repeated here.
+env: acc
+hostname: acc.fishers.cloud
+replicaCount: 2
+
+image:
+  repository: nebulacr.workstation.co.uk/fishers/fishers-api
+  tag: latest
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    memory: 768Mi
+
+config:
+  rustLog: "fishers_api=info,tower_http=warn,sqlx=warn"

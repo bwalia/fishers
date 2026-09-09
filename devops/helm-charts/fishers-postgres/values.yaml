@@ -1,0 +1,48 @@
+# One Postgres per environment, in that environment's namespace.
+#
+# A StatefulSet with a single replica and its own PVC, not a Deployment: the
+# volume must be reattached to the same pod identity across a restart, and a
+# Deployment with a PVC will happily start a second pod against the same disk
+# during a rollout.
+#
+# This is the ring's own database, deliberately not shared with another ring.
+# A restore into test must not be able to touch acc.
+env: int
+
+image:
+  repository: postgres
+  tag: "16-alpine"
+  pullPolicy: IfNotPresent
+
+auth:
+  database: fishers
+  username: fishers
+  # Never set here — the workflow passes it with --set from a CI secret, and
+  # the same value goes to the API chart so the two agree.
+  password: ""
+
+service:
+  port: 5432
+
+persistence:
+  enabled: true
+  size: 8Gi
+  # Empty means the cluster default StorageClass.
+  storageClass: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+podSecurityContext:
+  fsGroup: 70        # postgres in the alpine image
+  runAsUser: 70
+  runAsGroup: 70
+  runAsNonRoot: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

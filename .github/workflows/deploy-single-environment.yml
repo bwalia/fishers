@@ -1,0 +1,75 @@
+name: "Deploy Single Environment (build from ref + deploy one ring)"
+
+# The entry point Ring Promoter dispatches, one ring at a time.
+#
+# Input names are the Ring Promoter github deployer's defaults, so the promoter
+# needs no per-input overrides:
+#   ENV           <- ring target_env      (int | test | acc | prod)
+#   DEPLOY_BRANCH <- the promoted version (git ref to build and deploy)
+#   DEPLOY_MODE   <- reserved             ("full" = build + deploy)
+#
+# Build once, promote many. int and test build images from the given ref; acc
+# and prod do not build at all — they deploy the same :latest those builds
+# already pushed. Rebuilding for production would ship an artefact nobody
+# tested, from source that only probably matches.
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      ENV:
+        description: "Ring to deploy (one only)"
+        type: choice
+        required: true
+        default: "int"
+        options: [int, test, acc, prod]
+      DEPLOY_BRANCH:
+        description: "Git ref to build and deploy (branch/tag/sha)"
+        type: string
+        required: true
+        default: "main"
+      DEPLOY_MODE:
+        description: "Reserved. 'full' = build + deploy."
+        type: string
+        required: false
+        default: "full"
+      REGISTRY_PROVIDER:
+        description: "Container registry"
+        type: choice
+        required: false
+        default: "NEBULACR"
+        options: [NEBULACR, GHCR]
+
+concurrency:
+  group: single-env-deploy-${{ github.event.inputs.ENV }}
+  cancel-in-progress: false
+
+jobs:
+  # int and test build. acc and prod deploy what those builds produced.
+  build-images:
+    if: ${{ github.event.inputs.ENV == 'int' || github.event.inputs.ENV == 'test' }}
+    uses: ./.github/workflows/build-images.yml
+    with:
+      ref: ${{ github.event.inputs.DEPLOY_BRANCH }}
+      image_tag: latest
+      registry_provider: ${{ github.event.inputs.REGISTRY_PROVIDER || 'NEBULACR' }}
+    secrets: inherit
+
+  deploy:
+    # `always()` with an explicit result check: acc and prod skip the build on
+    # purpose, and a skipped `needs` would otherwise mark this skipped too.
+    needs: [build-images]
+    if: >
+      always() &&
+      (needs.build-images.result == 'success' ||
+       needs.build-images.result == 'skipped')
+    uses: ./.github/workflows/deploy-fishers-k3s.yml
+    with:
+      target_env: ${{ github.event.inputs.ENV }}
+      image_tag: latest
+      registry_provider: ${{ github.event.inputs.REGISTRY_PROVIDER || 'NEBULACR' }}
+      deploy_postgres: true
+    secrets: inherit

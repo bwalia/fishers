@@ -1,0 +1,237 @@
+name: Deploy Fishers (K3s)
+
+# Installs one ring: Postgres, then the API, then the dashboard.
+#
+# Order matters and is not incidental:
+#   postgres -> the API's readiness probe touches the pool, so an API rolled
+#               out first never goes Ready and the deploy fails on a missing
+#               dependency rather than a real fault.
+#   api      -> the ingress the web chart creates routes /api here. An ingress
+#               whose backend Service does not exist yet answers 503, which
+#               reads as a broken release when it is only an ordering artefact.
+#   web      -> owns the ingress for the host, so it goes last.
+
+on:
+  workflow_call:
+    inputs:
+      target_env:
+        description: "int | test | acc | prod"
+        type: string
+        required: true
+      image_tag:
+        type: string
+        required: false
+        default: latest
+      registry_provider:
+        type: string
+        required: false
+        default: NEBULACR
+      deploy_postgres:
+        description: "Install/upgrade the in-cluster Postgres for this ring."
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      MY_K3S1_CONFIG:        { required: true }
+      NEBULACR_REGISTRY:     { required: false }
+      NEBULACR_USERNAME:     { required: false }
+      NEBULACR_PASSWORD:     { required: false }
+      FISHERS_JWT_SECRET:    { required: true }
+      FISHERS_DB_PASSWORD:   { required: true }
+      ANTHROPIC_API_KEY:     { required: false }
+      STRIPE_SECRET_KEY:     { required: false }
+      STRIPE_WEBHOOK_SECRET: { required: false }
+  workflow_dispatch:
+    inputs:
+      target_env:
+        type: choice
+        required: true
+        default: int
+        options: [int, test, acc, prod]
+      image_tag:
+        type: string
+        required: false
+        default: latest
+      registry_provider:
+        type: choice
+        required: false
+        default: NEBULACR
+        options: [NEBULACR, GHCR]
+      deploy_postgres:
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fishers-deploy-${{ inputs.target_env }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.target_env }}
+    runs-on: ubuntu-latest
+    env:
+      TARGET_ENV: ${{ inputs.target_env }}
+      IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
+      CHARTS: devops/helm-charts
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve ring
+        id: ring
+        run: |
+          set -euo pipefail
+          # One host per ring; the ingress splits / and /api behind it.
+          case "$TARGET_ENV" in
+            int)  HOSTNAME=int.fishers.cloud  ;;
+            test) HOSTNAME=test.fishers.cloud ;;
+            acc)  HOSTNAME=acc.fishers.cloud  ;;
+            prod) HOSTNAME=www.fishers.cloud  ;;
+            *) echo "::error::unknown environment '$TARGET_ENV'"; exit 1 ;;
+          esac
+          # Namespace per ring. `fishers-prod` rather than `prod` so this does
+          # not collide with another project's namespace on a shared cluster.
+          echo "namespace=fishers-$TARGET_ENV" >> "$GITHUB_OUTPUT"
+          echo "hostname=$HOSTNAME"            >> "$GITHUB_OUTPUT"
+
+          case "${{ inputs.registry_provider || 'NEBULACR' }}" in
+            GHCR) echo "registry=ghcr.io" >> "$GITHUB_OUTPUT"
+                  echo "ns=ghcr.io/${{ github.repository_owner }}" >> "$GITHUB_OUTPUT" ;;
+            *)    REG="${{ secrets.NEBULACR_REGISTRY || 'nebulacr.workstation.co.uk' }}"
+                  echo "registry=$REG"       >> "$GITHUB_OUTPUT"
+                  echo "ns=$REG/fishers"     >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Set up kubectl and helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Write kubeconfig
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.MY_K3S1_CONFIG }}" ]; then
+            echo "::error::MY_K3S1_CONFIG is not set on this repository."
+            exit 1
+          fi
+          echo "${{ secrets.MY_K3S1_CONFIG }}" | base64 -d > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Check cluster reachability
+        run: |
+          set -euo pipefail
+          # Fail here with a clear message rather than 200 lines into a helm
+          # upgrade that was never going to connect.
+          kubectl version -o yaml >/dev/null
+          kubectl get nodes -o wide
+
+      - name: Ensure namespace and registry pull secret
+        env:
+          NS: ${{ steps.ring.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
+          if [ -n "${{ secrets.NEBULACR_USERNAME }}" ]; then
+            kubectl create secret docker-registry fishers-registry \
+              --docker-server="${{ steps.ring.outputs.registry }}" \
+              --docker-username="${{ secrets.NEBULACR_USERNAME }}" \
+              --docker-password="${{ secrets.NEBULACR_PASSWORD }}" \
+              --namespace "$NS" \
+              --dry-run=client -o yaml | kubectl apply -f -
+          else
+            echo "::notice::no registry credentials — assuming the images are public or the secret already exists."
+          fi
+
+      - name: Deploy Postgres
+        if: ${{ inputs.deploy_postgres }}
+        env:
+          NS: ${{ steps.ring.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          helm upgrade --install fishers-postgres "$CHARTS/fishers-postgres" \
+            --namespace "$NS" \
+            -f "$CHARTS/fishers-postgres/values.yaml" \
+            -f "$CHARTS/fishers-postgres/values-$TARGET_ENV.yaml" \
+            --set auth.password='${{ secrets.FISHERS_DB_PASSWORD }}' \
+            --wait --timeout 10m
+
+      - name: Deploy API
+        env:
+          NS: ${{ steps.ring.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          # --wait blocks on readiness, and readiness here means the pool
+          # answers — so a green step means the schema migrated and the
+          # database is actually reachable, not just that a pod started.
+          helm upgrade --install fishers-api "$CHARTS/fishers-api" \
+            --namespace "$NS" \
+            -f "$CHARTS/fishers-api/values.yaml" \
+            -f "$CHARTS/fishers-api/values-$TARGET_ENV.yaml" \
+            --set image.repository='${{ steps.ring.outputs.ns }}/fishers-api' \
+            --set image.tag="$IMAGE_TAG" \
+            --set hostname='${{ steps.ring.outputs.hostname }}' \
+            --set secret.jwtSecret='${{ secrets.FISHERS_JWT_SECRET }}' \
+            --set database.password='${{ secrets.FISHERS_DB_PASSWORD }}' \
+            --set config.anthropicApiKey='${{ secrets.ANTHROPIC_API_KEY }}' \
+            --set config.stripeSecretKey='${{ secrets.STRIPE_SECRET_KEY }}' \
+            --set config.stripeWebhookSecret='${{ secrets.STRIPE_WEBHOOK_SECRET }}' \
+            --wait --timeout 10m
+
+      - name: Deploy dashboard
+        env:
+          NS: ${{ steps.ring.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          helm upgrade --install fishers-web "$CHARTS/fishers-web" \
+            --namespace "$NS" \
+            -f "$CHARTS/fishers-web/values.yaml" \
+            -f "$CHARTS/fishers-web/values-$TARGET_ENV.yaml" \
+            --set image.repository='${{ steps.ring.outputs.ns }}/fishers-web' \
+            --set image.tag="$IMAGE_TAG" \
+            --set hostname='${{ steps.ring.outputs.hostname }}' \
+            --wait --timeout 10m
+
+      - name: Smoke test from inside the cluster
+        env:
+          NS: ${{ steps.ring.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          # In-cluster, so this passes or fails on the deploy alone — before
+          # DNS, the edge or a certificate can be blamed for it. The public
+          # check is Ring Promoter's health_url, which comes after.
+          fail=0
+          # Exit code, not grepped output: kubectl run propagates the container's
+          # status, and curl -f already fails on any non-2xx. Matching on stdout
+          # would also match the pod-lifecycle chatter kubectl interleaves with it.
+          probe() { # name url
+            if kubectl run "smoke-$1-$RANDOM" --rm -i --restart=Never --namespace "$NS" \
+                 --image=curlimages/curl:8.10.1 --quiet --command -- \
+                 curl -fsS -m 10 -o /dev/null "$2"; then
+              echo "  ok   $1"
+            else
+              echo "  FAIL $1 ($2)"; fail=1
+            fi
+          }
+          probe api-ready "http://fishers-api:8080/health/ready"
+          probe web-login "http://fishers-web:80/login"
+          exit $fail
+
+      - name: Report
+        if: always()
+        env:
+          NS: ${{ steps.ring.outputs.namespace }}
+        run: |
+          {
+            echo "### Fishers — $TARGET_ENV"
+            echo "- host: https://${{ steps.ring.outputs.hostname }}"
+            echo "- namespace: \`$NS\`"
+            echo "- image tag: \`$IMAGE_TAG\`"
+            echo
+            echo '```'
+            kubectl get deploy,statefulset,svc,ingress -n "$NS" 2>&1 | head -30
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,18 @@
+# int ring — see values.yaml for everything not repeated here.
+env: int
+hostname: int.fishers.cloud
+replicaCount: 1
+
+image:
+  repository: nebulacr.workstation.co.uk/fishers/fishers-api
+  tag: latest
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+config:
+  rustLog: "fishers_api=debug,tower_http=info,sqlx=warn"

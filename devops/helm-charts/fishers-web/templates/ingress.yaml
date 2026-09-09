@@ -1,0 +1,48 @@
+{{- if .Values.ingress.enabled }}
+{{- $host := include "fishers-web.hostname" . -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "fishers-web.name" . }}
+  labels:
+    {{- include "fishers-web.labels" . | nindent 4 }}
+  annotations:
+    # ExternalDNS reads this and keeps the Cloudflare record. The reconcile
+    # workflow is the backup for when it doesn't — it derives hosts from live
+    # ingresses, so this annotation is not what makes a host discoverable.
+    external-dns.alpha.kubernetes.io/hostname: {{ $host | quote }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ include "fishers-web.name" . }}-tls
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          # API prefixes first. Traefik matches on rule specificity within a
+          # host, but listing `/` first still invites a future edit to reorder
+          # them into a bug, so the order here is the intended precedence.
+          {{- range .Values.ingress.apiPaths }}
+          - path: {{ . | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Values.apiServiceName }}
+                port:
+                  number: {{ $.Values.apiServicePort }}
+          {{- end }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "fishers-web.name" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

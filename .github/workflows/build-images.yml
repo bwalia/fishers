@@ -1,0 +1,138 @@
+name: Build images
+
+# Builds and pushes fishers-api and fishers-web from a given git ref.
+#
+# Called by deploy-single-environment.yml, and dispatchable on its own when you
+# want an image without a deploy. int and test build; acc and prod do not —
+# they deploy the tag those builds already pushed, so what reaches production
+# is the artefact that was tested, not a rebuild of the same source that might
+# not be the same artefact.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to build"
+        type: string
+        required: true
+      image_tag:
+        description: "Tag to push"
+        type: string
+        required: false
+        default: latest
+      registry_provider:
+        type: string
+        required: false
+        default: NEBULACR
+    secrets:
+      NEBULACR_REGISTRY:     { required: false }
+      NEBULACR_USERNAME:     { required: false }
+      NEBULACR_PASSWORD:     { required: false }
+      GHCR_TOKEN:            { required: false }
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build"
+        type: string
+        required: true
+        default: main
+      image_tag:
+        description: "Tag to push"
+        type: string
+        required: false
+        default: latest
+      registry_provider:
+        type: choice
+        required: false
+        default: NEBULACR
+        options: [NEBULACR, GHCR]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-images-${{ inputs.image_tag || 'latest' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Resolve registry
+        id: reg
+        run: |
+          set -euo pipefail
+          case "${{ inputs.registry_provider || 'NEBULACR' }}" in
+            GHCR)
+              HOST="ghcr.io"
+              USER="${{ github.actor }}"
+              PASS="${{ secrets.GHCR_TOKEN || github.token }}"
+              NS="ghcr.io/${{ github.repository_owner }}"
+              ;;
+            *)
+              HOST="${{ secrets.NEBULACR_REGISTRY || 'nebulacr.workstation.co.uk' }}"
+              USER="${{ secrets.NEBULACR_USERNAME }}"
+              PASS="${{ secrets.NEBULACR_PASSWORD }}"
+              NS="$HOST/fishers"
+              ;;
+          esac
+          if [ -z "$USER" ] || [ -z "$PASS" ]; then
+            echo "::error::registry credentials are not set for ${{ inputs.registry_provider || 'NEBULACR' }}."
+            echo "::error::Add NEBULACR_USERNAME / NEBULACR_PASSWORD (or GHCR_TOKEN) to this repository."
+            exit 1
+          fi
+          echo "host=$HOST"      >> "$GITHUB_OUTPUT"
+          echo "user=$USER"      >> "$GITHUB_OUTPUT"
+          echo "api=$NS/fishers-api" >> "$GITHUB_OUTPUT"
+          echo "web=$NS/fishers-web" >> "$GITHUB_OUTPUT"
+          echo "::add-mask::$PASS"
+          echo "pass=$PASS"      >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.reg.outputs.host }}
+          username: ${{ steps.reg.outputs.user }}
+          password: ${{ steps.reg.outputs.pass }}
+
+      # Both images also carry the commit sha, so a ring can be pinned to an
+      # exact build when :latest has already moved on.
+      - name: Build and push fishers-api
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.reg.outputs.api }}:${{ inputs.image_tag || 'latest' }}
+            ${{ steps.reg.outputs.api }}:${{ github.sha }}
+          cache-from: type=gha,scope=fishers-api
+          cache-to: type=gha,scope=fishers-api,mode=max
+
+      - name: Build and push fishers-web
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          file: ./web/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.reg.outputs.web }}:${{ inputs.image_tag || 'latest' }}
+            ${{ steps.reg.outputs.web }}:${{ github.sha }}
+          cache-from: type=gha,scope=fishers-web
+          cache-to: type=gha,scope=fishers-web,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### Images pushed"
+            echo "- \`${{ steps.reg.outputs.api }}:${{ inputs.image_tag || 'latest' }}\`"
+            echo "- \`${{ steps.reg.outputs.web }}:${{ inputs.image_tag || 'latest' }}\`"
+            echo "- also tagged \`${{ github.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

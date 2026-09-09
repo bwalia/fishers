@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fishers-api
+description: Fishers API — Rust/Axum, with the schema compiled in and replayed at startup
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

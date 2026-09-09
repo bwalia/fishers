@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fishers-postgres
+description: PostgreSQL 16 for a Fishers environment — one StatefulSet, one PVC
+type: application
+version: 0.1.0
+appVersion: "16"

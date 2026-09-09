@@ -1,0 +1,89 @@
+# Defaults shared by every environment; per-ring differences live in
+# values-<env>.yaml.
+env: int
+# The public host for this ring. Empty is refused — it is the ingress rule.
+hostname: ""
+replicaCount: 1
+
+image:
+  repository: nebulacr.workstation.co.uk/fishers/fishers-web
+  tag: latest
+  pullPolicy: Always
+imagePullSecrets:
+  - name: fishers-registry
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+# This chart owns the ingress for the whole host.
+#
+# One host per environment, split by path: `/` is the dashboard, `/api` and
+# `/swagger-ui` are the API. That means one certificate, one Cloudflare CNAME
+# and one wslproxy vhost per ring instead of two of each — and, because the
+# browser never leaves the origin it loaded, no CORS configuration to keep in
+# step with four environments.
+#
+# It lives in the web chart rather than the api chart because the web chart is
+# deployed last: by the time the ingress exists, both Services it names are
+# already there. An ingress created ahead of its backend answers 503 until the
+# backend catches up, which reads as a broken deploy.
+ingress:
+  enabled: true
+  # traefik-edge is the only ingress controller on the cloud nodes; the
+  # wslproxy controller runs on the home-LAN nodes, which have no pod route
+  # here, so an ingress left on that class times out at the edge.
+  ingressClassName: traefik-edge
+  # Longest prefix first. Traefik does not sort by specificity, so `/` listed
+  # before `/api` would swallow the API.
+  apiPaths:
+    - /api
+    - /swagger-ui
+    - /health
+  annotations: {}
+  tls: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+# Next serves /login without touching the API, so this tests the web process
+# and nothing behind it — which is what a probe on this pod should test.
+livenessProbe:
+  enabled: true
+  path: /login
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  path: /login
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Name of the API service the ingress routes /api to.
+apiServiceName: fishers-api
+apiServicePort: 8080
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

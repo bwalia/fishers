@@ -1,0 +1,13 @@
+# prod ring — see values.yaml for everything not repeated here.
+env: prod
+
+persistence:
+  enabled: true
+  size: 32Gi
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 256Mi
+  limits:
+    memory: 2Gi
