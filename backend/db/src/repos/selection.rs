@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use fishers_domain::{
-    AvailabilityStatus, Candidate, EventStatus, SelectionState, SquadRequirements,
+    AvailabilityStatus, Candidate, EventStatus, RsvpStatus, SelectionState, SquadRequirements,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -34,6 +34,7 @@ struct CandidateRow {
     position_role: Option<String>,
     skill_level: Option<String>,
     availability: Option<String>,
+    rsvp_status: Option<String>,
     selection_state: Option<String>,
     is_confirmed: Option<bool>,
     invites_received: i64,
@@ -49,7 +50,7 @@ struct CandidateRow {
 /// Everyone eligible for a fixture, with the signals selection weighs.
 pub async fn candidates(pool: &PgPool, event_id: Uuid) -> Result<Vec<Candidate>, sqlx::Error> {
     let rows = sqlx::query_as::<_, CandidateRow>(
-        "SELECT user_id, name, position_role, skill_level, availability, selection_state,
+        "SELECT user_id, name, position_role, skill_level, availability, rsvp_status, selection_state,
                 is_confirmed, invites_received, responded, said_going, turned_up,
                 late_cancellations, fees_due, fees_paid, games_missed_out
          FROM selection_candidates WHERE event_id = $1 ORDER BY name",
@@ -81,6 +82,12 @@ pub async fn candidates(pool: &PgPool, event_id: Uuid) -> Result<Vec<Candidate>,
                     "available" => Some(AvailabilityStatus::Available),
                     "unavailable" => Some(AvailabilityStatus::Unavailable),
                     "maybe" => Some(AvailabilityStatus::Maybe),
+                    _ => None,
+                }),
+                rsvp: row.rsvp_status.as_deref().and_then(|s| match s {
+                    "going" => Some(RsvpStatus::Going),
+                    "not_going" => Some(RsvpStatus::NotGoing),
+                    "maybe" => Some(RsvpStatus::Maybe),
                     _ => None,
                 }),
                 reliability_score: score.score,

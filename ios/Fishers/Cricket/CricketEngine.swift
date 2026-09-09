@@ -166,6 +166,15 @@ extension MatchState {
                     "both captains have to agree the overs, ground and ball first"
                 )
             }
+            // Once a ball has been bowled the toss is history. Recording
+            // another one used to set the status back to `selectingXi`,
+            // throwing a live match backwards into team selection with its
+            // innings still attached.
+            guard innings.isEmpty else {
+                throw CricketEngineError.conflict(
+                    "this match has already started — the toss cannot be recorded again"
+                )
+            }
             tossWinner = winner
             tossDecision = decision
             status = .selectingXi

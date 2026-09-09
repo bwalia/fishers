@@ -101,6 +101,10 @@ struct MatchResponse {
     active_scorer_device_id: Option<String>,
     /// True when the caller is allowed to score this match.
     can_score: bool,
+    /// When the fixture is. A club plays the same opposition several times a
+    /// season, so the sides alone do not say which match you have opened.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_at: Option<chrono::DateTime<chrono::Utc>>,
     /// The side this caller actually plays for, when they are in one of the
     /// clubs. Distinct from `my_sides`: a scorer may act for both, but they
     /// only belong to one, and proposing terms on behalf of the opposition is
@@ -126,6 +130,7 @@ fn to_response(
     can_score: bool,
     my_sides: Vec<fishers_domain::MatchSide>,
     my_club_side: Option<fishers_domain::MatchSide>,
+    start_at: Option<chrono::DateTime<chrono::Utc>>,
 ) -> MatchResponse {
     let projection = cricket_repo::parse_state(row);
     let dls = projection.dls_par(&state.dls, state.g50);
@@ -142,6 +147,7 @@ fn to_response(
         active_scorer_user_id: row.active_scorer_user_id,
         active_scorer_device_id: row.active_scorer_device_id.clone(),
         can_score,
+        start_at,
         my_club_side,
         my_sides,
         dls,
@@ -168,7 +174,9 @@ async fn create_or_get_match(
         body.match_id,
         event_id,
         event.club_id,
-        body.opponent_club_id,
+        // Scheduled fixtures already say who they are against; only a match
+        // arranged in the car park has to name the opposition here.
+        body.opponent_club_id.or(event.opponent_club_id),
         auth.user_id,
         &body.home_name,
         &body.away_name,
@@ -177,7 +185,8 @@ async fn create_or_get_match(
     .await?;
     let sides = sides_for(&state, &row, auth.user_id).await;
     let mine = club_side_for(&state, &row, auth.user_id).await;
-    Ok(Json(to_response(&state, &row, true, sides, mine)))
+    let when = fixture_time(&state, &row).await;
+    Ok(Json(to_response(&state, &row, true, sides, mine, when)))
 }
 
 async fn get_match_for_event(
@@ -197,7 +206,8 @@ async fn get_match_for_event(
     let can_score = may_score(&state, &row, auth.user_id).await;
     let sides = sides_for(&state, &row, auth.user_id).await;
     let mine = club_side_for(&state, &row, auth.user_id).await;
-    Ok(Json(to_response(&state, &row, can_score, sides, mine)))
+    let when = fixture_time(&state, &row).await;
+    Ok(Json(to_response(&state, &row, can_score, sides, mine, when)))
 }
 
 async fn get_match(
@@ -212,7 +222,8 @@ async fn get_match(
     let can_score = may_score(&state, &row, auth.user_id).await;
     let sides = sides_for(&state, &row, auth.user_id).await;
     let mine = club_side_for(&state, &row, auth.user_id).await;
-    Ok(Json(to_response(&state, &row, can_score, sides, mine)))
+    let when = fixture_time(&state, &row).await;
+    Ok(Json(to_response(&state, &row, can_score, sides, mine, when)))
 }
 
 #[derive(Deserialize)]
@@ -275,7 +286,8 @@ async fn claim_scorer(
     .await;
     let sides = sides_for(&state, &updated, auth.user_id).await;
     let mine = club_side_for(&state, &updated, auth.user_id).await;
-    Ok(Json(to_response(&state, &updated, true, sides, mine)))
+    let when = fixture_time(&state, &updated).await;
+    Ok(Json(to_response(&state, &updated, true, sides, mine, when)))
 }
 
 #[derive(Deserialize)]
@@ -346,7 +358,8 @@ async fn post_events(
         .ok_or_else(|| ApiError::not_found("match not found"))?;
     let sides = sides_for(&state, &row, auth.user_id).await;
     let mine = club_side_for(&state, &row, auth.user_id).await;
-    let mut resp = to_response(&state, &row, true, sides, mine);
+    let when = fixture_time(&state, &row).await;
+    let mut resp = to_response(&state, &row, true, sides, mine, when);
     resp.dls = state_out.dls_par(&state.dls, state.g50);
     resp.state = state_out;
     Ok(Json(resp))
@@ -532,7 +545,8 @@ async fn handover(
         .ok_or_else(|| ApiError::conflict("the book has already moved on"))?;
     let sides = sides_for(&state, &updated, auth.user_id).await;
     let mine = club_side_for(&state, &updated, auth.user_id).await;
-    Ok(Json(to_response(&state, &updated, false, sides, mine)))
+    let when = fixture_time(&state, &updated).await;
+    Ok(Json(to_response(&state, &updated, false, sides, mine, when)))
 }
 
 /// Who has held the book, and how it changed hands.
@@ -575,6 +589,18 @@ async fn may_score(
     user_id: Uuid,
 ) -> bool {
     require_can_score(state, row, user_id).await.is_ok()
+}
+
+/// When the fixture behind this match is.
+async fn fixture_time(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    events_repo::get_event(&state.pool, row.event_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|e| e.start_at)
 }
 
 /// The side this user actually plays for.
@@ -865,6 +891,31 @@ fn side_name(projection: &fishers_domain::MatchState, side: fishers_domain::Matc
     }
 }
 
+/// What a notification needs to say *which* match it is about.
+///
+/// A club with several fixtures against the same opposition gets several
+/// identical-looking notifications, and following an old one lands you in a
+/// different match than the one you are scoring. The kick-off time is what
+/// tells them apart.
+async fn match_payload(
+    state: &AppState,
+    row: &cricket_repo::CricketMatchRow,
+    projection: &fishers_domain::MatchState,
+) -> serde_json::Value {
+    let start_at = events_repo::get_event(&state.pool, row.event_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|e| e.start_at);
+    serde_json::json!({
+        "match_id": row.id,
+        "event_id": row.event_id,
+        "home_name": projection.home_name,
+        "away_name": projection.away_name,
+        "start_at": start_at,
+    })
+}
+
 /// Tell everyone in both clubs who is involved in running the match.
 async fn notify_both_sides(
     state: &AppState,
@@ -875,11 +926,7 @@ async fn notify_both_sides(
     except: Uuid,
 ) {
     let title = format!("{} v {}", projection.home_name, projection.away_name);
-    let payload = serde_json::json!({
-        "match_id": row.id,
-        "home_name": projection.home_name,
-        "away_name": projection.away_name,
-    });
+    let payload = match_payload(state, row, projection).await;
     for club in [Some(row.club_id), row.opponent_club_id].into_iter().flatten() {
         for member in clubs_repo::list_members(&state.pool, club)
             .await
@@ -922,11 +969,7 @@ async fn notify_side_to_pick(
         ),
         _ => "The other side is named. Pick yours to get the match started.".into(),
     };
-    let payload = serde_json::json!({
-        "match_id": row.id,
-        "home_name": projection.home_name,
-        "away_name": projection.away_name,
-    });
+    let payload = match_payload(state, row, projection).await;
 
     for member in clubs_repo::list_members(&state.pool, club)
         .await
@@ -970,12 +1013,7 @@ async fn notify_opposition_of_terms(
         projection.conditions.ball
     )
     .to_lowercase();
-    let payload = serde_json::json!({
-        "match_id": row.id,
-        "event_id": row.event_id,
-        "home_name": projection.home_name,
-        "away_name": projection.away_name,
-    });
+    let payload = match_payload(state, row, projection).await;
 
     for member in members {
         // The proposer already knows; anyone who cannot agree cannot act on it.
@@ -989,13 +1027,18 @@ async fn notify_opposition_of_terms(
 }
 
 fn standing_of(c: &fishers_domain::Candidate) -> String {
-    use fishers_domain::{AvailabilityStatus, SelectionState};
+    use fishers_domain::{AvailabilityStatus, RsvpStatus, SelectionState};
     match c.state {
         SelectionState::Selected => "selected".into(),
         SelectionState::Reserve => "reserve".into(),
-        _ => match c.availability {
-            Some(AvailabilityStatus::Available) => "available".into(),
-            Some(AvailabilityStatus::Unavailable) => "unavailable".into(),
+        // Their answer to this fixture beats their standing calendar: "yes, I
+        // can play on Sunday" is the thing a captain picks off. The calendar
+        // only speaks for players who have not answered.
+        _ => match (c.rsvp, c.availability) {
+            (Some(RsvpStatus::Going), _) => "available".into(),
+            (Some(RsvpStatus::NotGoing), _) => "unavailable".into(),
+            (_, Some(AvailabilityStatus::Available)) => "available".into(),
+            (_, Some(AvailabilityStatus::Unavailable)) => "unavailable".into(),
             _ => "member".into(),
         },
     }
@@ -1230,7 +1273,8 @@ async fn abandon_match(
     let can_score = may_score(&state, &refreshed, auth.user_id).await;
     let sides = sides_for(&state, &refreshed, auth.user_id).await;
     let mine = club_side_for(&state, &refreshed, auth.user_id).await;
-    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine)))
+    let when = fixture_time(&state, &refreshed).await;
+    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine, when)))
 }
 
 /// Remove a match set up by mistake.
@@ -1351,7 +1395,8 @@ async fn propose_terms(
     let can_score = may_score(&state, &refreshed, auth.user_id).await;
     let sides = sides_for(&state, &refreshed, auth.user_id).await;
     let mine = club_side_for(&state, &refreshed, auth.user_id).await;
-    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine)))
+    let when = fixture_time(&state, &refreshed).await;
+    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine, when)))
 }
 
 #[derive(Deserialize)]
@@ -1419,17 +1464,14 @@ async fn agree_terms(
     if settled.agreed_home.is_some() && settled.agreed_away.is_some() {
         if let Some(scorer) = refreshed.active_scorer_user_id {
             if scorer != auth.user_id {
+                let payload = match_payload(&state, &refreshed, &settled).await;
                 state
                     .notify(
                         scorer,
                         "match_terms_agreed",
                         &format!("{} v {}", settled.home_name, settled.away_name),
                         "Both captains have agreed. You can do the toss.",
-                        serde_json::json!({
-                            "match_id": refreshed.id,
-                            "home_name": settled.home_name,
-                            "away_name": settled.away_name,
-                        }),
+                        payload,
                     )
                     .await;
             }
@@ -1439,7 +1481,8 @@ async fn agree_terms(
     let can_score = may_score(&state, &refreshed, auth.user_id).await;
     let sides = sides_for(&state, &refreshed, auth.user_id).await;
     let mine = club_side_for(&state, &refreshed, auth.user_id).await;
-    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine)))
+    let when = fixture_time(&state, &refreshed).await;
+    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine, when)))
 }
 
 async fn submit_xi(
@@ -1495,5 +1538,6 @@ async fn submit_xi(
     let can_score = may_score(&state, &refreshed, auth.user_id).await;
     let sides = sides_for(&state, &refreshed, auth.user_id).await;
     let mine = club_side_for(&state, &refreshed, auth.user_id).await;
-    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine)))
+    let when = fixture_time(&state, &refreshed).await;
+    Ok(Json(to_response(&state, &refreshed, can_score, sides, mine, when)))
 }

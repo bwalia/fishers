@@ -96,6 +96,9 @@ export function NotificationBell() {
               const body = (
                 <>
                   <span>{line.title}</span>
+                  {/* Which fixture, not just when the notification was sent —
+                      two clubs play each other more than once a season. */}
+                  {line.when && <span className="bell-when">{line.when}</span>}
                   <span className="subtle">{new Date(n.sent_at).toLocaleString()}</span>
                 </>
               );

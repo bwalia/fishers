@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::enums::AvailabilityStatus;
+use crate::enums::RsvpStatus;
 
 /// Where a player sits in the selection for one fixture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,7 +65,12 @@ pub struct Candidate {
     pub name: String,
     pub position: Option<String>,
     pub skill_level: Option<String>,
+    /// Their general calendar for that date, if they keep one.
     pub availability: Option<AvailabilityStatus>,
+    /// Their answer to *this* fixture — "can you play on Sunday?". The direct
+    /// answer, and the one a captain picks off; the calendar above is a
+    /// weaker, standing signal.
+    pub rsvp: Option<RsvpStatus>,
     pub reliability_score: i64,
     pub reliability_band: String,
     /// Fixtures they were available for but left out of, last 60 days.
@@ -436,6 +442,9 @@ mod tests {
             position: None,
             skill_level: None,
             availability,
+            // These tests weigh the standing calendar; the fixture answer is
+            // exercised where selection is read, not where it is ranked.
+            rsvp: None,
             reliability_score: 70,
             reliability_band: "dependable".into(),
             games_missed_out: 0,

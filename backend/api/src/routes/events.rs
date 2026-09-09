@@ -2,6 +2,7 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
+use fishers_db::repos::clubs as clubs_repo;
 use fishers_db::repos::events as events_repo;
 use fishers_db::repos::events::EventSort;
 use fishers_db::repos::invites as invites_repo;
@@ -67,8 +68,68 @@ async fn create_event(
         Permission::ManageEvents,
     )
     .await?;
+    // Scheduling against another club needs their permission in the sense
+    // that it puts the fixture in their diary and asks their players — so it
+    // has to be a real club, not an id somebody guessed.
+    if let Some(opponent) = body.opponent_club_id {
+        if opponent == body.club_id {
+            return Err(ApiError::bad_request("a club cannot play itself"));
+        }
+        if clubs_repo::get_club(&state.pool, opponent).await?.is_none() {
+            return Err(ApiError::not_found("that opposition club does not exist"));
+        }
+    }
+
     let event = events_repo::create_event(&state.pool, auth.user_id, &body).await?;
+    ask_who_is_available(&state, &event, auth.user_id).await;
     Ok(Json(event))
+}
+
+/// Put the fixture in front of everyone who might play in it.
+///
+/// A fixture nobody is told about is a diary entry. Every active member of
+/// each side gets an invite row — which is what the selection board reads —
+/// and a notification asking whether they can play. Without this a captain
+/// picks a side from people who were never asked.
+async fn ask_who_is_available(state: &AppState, event: &Event, scheduler: Uuid) {
+    let when = event.start_at.format("%a %-d %b, %H:%M");
+    let body = format!("{when}. Can you play?");
+
+    for club in [Some(event.club_id), event.opponent_club_id]
+        .into_iter()
+        .flatten()
+    {
+        for member in clubs_repo::list_members(&state.pool, club)
+            .await
+            .unwrap_or_default()
+        {
+            // The invite is what makes them a candidate for selection; the
+            // notification is what makes them aware of it.
+            if let Err(error) =
+                invites_repo::invite_to_event(&state.pool, event.id, member.user_id, scheduler)
+                    .await
+            {
+                tracing::warn!(%error, "could not invite a member to the fixture");
+                continue;
+            }
+            if member.user_id == scheduler {
+                continue; // they just made it
+            }
+            state
+                .notify(
+                    member.user_id,
+                    "fixture_scheduled",
+                    &event.title,
+                    &body,
+                    serde_json::json!({
+                        "event_id": event.id,
+                        "title": event.title,
+                        "start_at": event.start_at,
+                    }),
+                )
+                .await;
+        }
+    }
 }
 
 async fn list_events(
@@ -157,9 +218,81 @@ async fn rsvp(
     Json(body): Json<RsvpRequest>,
 ) -> ApiResult<Json<EventInvite>> {
     require_event_permission(&state, id, auth.user_id, Permission::RespondAsPlayer).await?;
-    Ok(Json(
-        invites_repo::rsvp(&state.pool, id, auth.user_id, body.status).await?,
-    ))
+    let invite = invites_repo::rsvp(&state.pool, id, auth.user_id, body.status).await?;
+    tell_the_selectors(&state, id, auth.user_id, body.status).await;
+    Ok(Json(invite))
+}
+
+/// A captain picking a side needs to know who put their hand up.
+///
+/// Only the side the player belongs to hears it, and only the people who
+/// actually pick — everyone else does not need their evening interrupted by
+/// somebody else's availability.
+async fn tell_the_selectors(
+    state: &AppState,
+    event_id: Uuid,
+    player: Uuid,
+    status: fishers_domain::RsvpStatus,
+) {
+    let Ok(Some(event)) = events_repo::get_event(&state.pool, event_id).await else {
+        return;
+    };
+    // Which side they are on decides who hears about it.
+    let mut theirs = None;
+    for club in [Some(event.club_id), event.opponent_club_id]
+        .into_iter()
+        .flatten()
+    {
+        if clubs_repo::club_role(&state.pool, club, player)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
+        {
+            theirs = Some(club);
+            break;
+        }
+    }
+    let Some(club) = theirs else { return };
+
+    let name = fishers_db::repos::users::find_by_id(&state.pool, player)
+        .await
+        .ok()
+        .flatten()
+        .map(|u| u.name)
+        .unwrap_or_else(|| "A player".into());
+    let answer = match status {
+        fishers_domain::RsvpStatus::Going => "is available",
+        fishers_domain::RsvpStatus::NotGoing => "cannot play",
+        _ => "has not decided",
+    };
+    let body = format!("{name} {answer} for {}.", event.title);
+
+    for member in clubs_repo::list_members(&state.pool, club)
+        .await
+        .unwrap_or_default()
+    {
+        if member.user_id == player
+            || !fishers_domain::permissions_for(member.role)
+                .contains(&Permission::ManageSelection)
+        {
+            continue;
+        }
+        state
+            .notify(
+                member.user_id,
+                "player_responded",
+                &event.title,
+                &body,
+                serde_json::json!({
+                    "event_id": event.id,
+                    "title": event.title,
+                    "start_at": event.start_at,
+                    "player": name,
+                }),
+            )
+            .await;
+    }
 }
 
 async fn attendees(
