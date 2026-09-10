@@ -14,6 +14,7 @@ const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/chat", label: "Chats", icon: "chat" },
   { href: "/availability", label: "Availability", icon: "clock" },
   { href: "/score", label: "Score", icon: "bat" },
+  { href: "/tournaments", label: "Tournaments", icon: "trophy" },
   { href: "/stats", label: "Stats", icon: "chart" },
   { href: "/shop", label: "Shop", icon: "shop" },
   { href: "/clubs", label: "Clubs", icon: "users" },

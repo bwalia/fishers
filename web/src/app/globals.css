@@ -3423,3 +3423,11 @@ a.bell-item:hover { background: var(--surface-2); }
   .pick-list > li { grid-template-columns: auto minmax(0, 1fr); }
   .pick-actions { grid-column: 1 / -1; }
 }
+
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+.field-inline input[type="checkbox"] { width: auto; margin: 0; }

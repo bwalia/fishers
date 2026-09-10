@@ -9,6 +9,7 @@ import {
   getStoredUser,
   roleLabel,
   CLUB_ROLES,
+  money,
   NO_ICON_PLAYER,
   SPORTS,
   type Club,
@@ -17,6 +18,7 @@ import {
   type MyRole,
   type QrCode,
   type ClubPageSettings,
+  type OutstandingFees,
   type Team,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
@@ -91,6 +93,8 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       />
 
       <Teams clubId={id} teams={teams} isSecretary={isSecretary} onChanged={load} />
+
+      {isSecretary && <Fees clubId={id} />}
 
       {isSecretary && <PublicPage clubId={id} clubName={club.name} members={members} />}
 
@@ -419,6 +423,105 @@ function Teams({
         </div>
       )}
       {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/// Who has not paid for what.
+///
+/// One row per person per fixture, because that is how anybody actually
+/// chases: "you owe for the Watford game", not "you owe £24". The scheduler
+/// sends reminders on its own — this is the button for doing it now, and it
+/// says how many have already gone so nobody gets nagged twice in a morning.
+function Fees({ clubId }: { clubId: string }) {
+  const [fees, setFees] = useState<OutstandingFees | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setFees(await api<OutstandingFees>("GET", `/clubs/${clubId}/fees/outstanding`));
+    } catch {
+      // A member without the selector role simply does not see this panel.
+      setFees(null);
+    }
+  }, [clubId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (!fees) return null;
+
+  const chase = async () => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      await api("POST", `/clubs/${clubId}/fees/chase`, {});
+      setNote("Reminders sent.");
+      await load();
+    } catch (err) {
+      setError(readErr(err, "Could not send those reminders"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h2>Match fees owed</h2>
+        <span className={fees.count > 0 ? "tag gold" : "tag"}>
+          {money(fees.total_cents)}
+        </span>
+      </div>
+
+      {fees.count === 0 ? (
+        <p className="muted">Everybody is square. Nothing outstanding.</p>
+      ) : (
+        <>
+          <p className="muted">
+            {fees.count} unpaid {fees.count === 1 ? "fee" : "fees"} across your fixtures.
+          </p>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Who</th><th>Fixture</th><th>When</th>
+                  <th className="n">Owes</th><th className="n">Chased</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fees.owed.map((row) => (
+                  <tr key={`${row.user_id}-${row.event_id}`}>
+                    <td>
+                      <span className="person">
+                        <Avatar name={row.name} size={28} />
+                        {row.name}
+                      </span>
+                    </td>
+                    <td>{row.fixture}</td>
+                    <td className="subtle">
+                      {new Date(row.start_at).toLocaleDateString("en-GB", {
+                        day: "numeric", month: "short",
+                      })}
+                    </td>
+                    <td className="n num">{money(row.amount_cents ?? 0, row.currency)}</td>
+                    <td className="n num">{row.reminders_sent || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {error && <p className="error">{error}</p>}
+          {note && !error && <p className="muted">{note}</p>}
+          <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+            <button className="btn primary" type="button" disabled={busy} onClick={chase}>
+              {busy ? "Sending…" : "Remind everybody now"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

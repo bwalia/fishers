@@ -359,6 +359,25 @@ export type ClubPageSettings = {
   icon_player_id: string | null;
 };
 
+/// Unpaid match fees for a club (`GET /clubs/{id}/fees/outstanding`).
+///
+/// One row per person per fixture, because that is how a club chases them —
+/// "you owe for the Watford game", not "you owe £24".
+export type OutstandingFees = {
+  total_cents: number;
+  count: number;
+  owed: {
+    user_id: string;
+    name: string;
+    event_id: string;
+    fixture: string;
+    start_at: string;
+    amount_cents: number | null;
+    currency: string;
+    reminders_sent: number;
+  }[];
+};
+
 export type Team = {
   id: string;
   club_id: string;
