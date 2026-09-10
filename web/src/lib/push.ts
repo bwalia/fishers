@@ -76,6 +76,21 @@ export async function enablePush(): Promise<PushState> {
   return "on";
 }
 
+/// A subscription that can no longer deliver anything.
+///
+/// Permission can be revoked in site settings long after subscribing, which
+/// leaves a live subscription the browser will never fire and a row on the
+/// server that is pushed to on every notification. Neither end notices on its
+/// own, so whichever end finds out first tears it down. Quiet: nobody asked
+/// for this and there is nothing for them to decide.
+export async function cleanUpIfBlocked(): Promise<void> {
+  if (!pushSupported() || Notification.permission !== "denied") return;
+  const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+  await disablePush();
+}
+
 /// Unsubscribe here and forget it on the server.
 ///
 /// Both, in that order: dropping the server row while the browser stays

@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, readErr } from "@/lib/api";
-import { disablePush, enablePush, pushState, type PushState } from "@/lib/push";
+import {
+  cleanUpIfBlocked,
+  disablePush,
+  enablePush,
+  pushState,
+  type PushState,
+} from "@/lib/push";
 import { Icon } from "@/components/Icon";
 
 /// Turning browser notifications on.
@@ -18,7 +24,15 @@ export function PushToggle() {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
-    pushState().then(setState).catch(() => setState("unsupported"));
+    pushState()
+      .then((next) => {
+        setState(next);
+        // Somebody can revoke permission in site settings long after they
+        // subscribed, leaving a subscription that will never fire and a row
+        // the server pushes to forever. Tear it down when we find it.
+        if (next === "denied") void cleanUpIfBlocked();
+      })
+      .catch(() => setState("unsupported"));
   }, []);
 
   useEffect(() => {
