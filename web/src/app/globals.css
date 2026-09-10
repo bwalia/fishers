@@ -3526,3 +3526,22 @@ a.bell-item:hover { background: var(--surface-2); }
     padding: var(--s3) 0;
   }
 }
+
+/* The first screen after signing up: one thing to do, said plainly. */
+.first-run {
+  display: grid;
+  justify-items: center;
+  gap: var(--s3);
+  text-align: center;
+  padding: var(--s6) var(--s4);
+  margin-bottom: var(--s4);
+  border-color: var(--primary);
+  background: linear-gradient(var(--pitch-50), var(--surface));
+}
+.first-run h2 { margin: 0; }
+.first-run .muted { max-width: 48ch; margin: 0; }
+.first-run > svg { color: var(--primary-ink); }
+
+/* An invitation nobody has acted on yet. Gold, like everything the club is
+   waiting on you for. */
+.invites { border-color: color-mix(in srgb, var(--gold) 50%, transparent); }

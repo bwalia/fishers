@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, getAccessToken, roleLabel, SPORTS, type Club } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { PendingInvites } from "@/components/PendingInvites";
 
 /// `GET /clubs` returns each club with the role you hold in it.
 type Membership = Club & { role: string };
@@ -74,6 +75,8 @@ export default function ClubsPage() {
           </Link>
         ))}
       </div>
+
+      <PendingInvites onJoined={load} />
 
       {!loading && !error && clubs.length === 0 && !creating && (
         <div className="panel">
