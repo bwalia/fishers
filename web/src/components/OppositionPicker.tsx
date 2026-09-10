@@ -16,6 +16,8 @@ export function OppositionPicker({
   const [tab, setTab] = useState<"scan" | "code" | "search">("search");
   const [code, setCode] = useState("");
   const [query, setQuery] = useState("");
+  /// A club that is not on Fishers at all: a name and nothing else.
+  const [plain, setPlain] = useState("");
   const [results, setResults] = useState<OpponentIdentity[]>([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -25,6 +27,7 @@ export function OppositionPicker({
     setNote(null);
     try {
       const identity = await api<OpponentIdentity>("POST", "/opponents/lookup", { token });
+      setPlain("");
       onPick(identity, identity.name);
       setNote(`Matched ${identity.name}.`);
     } catch {
@@ -86,6 +89,7 @@ export function OppositionPicker({
                   className="btn sm"
                   type="button"
                   onClick={() => {
+                    setPlain("");
                     onPick(r, r.name);
                     setNote(`Matched ${r.name}.`);
                   }}
@@ -96,11 +100,32 @@ export function OppositionPicker({
               </li>
             ))}
             {query.trim().length >= 2 && results.length === 0 && (
-              <li className="muted">
-                Nobody by that name in Fishers — type it as a plain name below and play anyway.
-              </li>
+              <li className="muted">Nobody by that name in Fishers.</li>
             )}
           </ul>
+
+          {/* Most opposition clubs are not on Fishers, and a fixture against
+              one still has to be schedulable. This used to say "type it as a
+              plain name below" with no field below it, so a club whose
+              opponent was not a member could not schedule a match at all. */}
+          <label style={{ marginTop: "var(--s3)" }}>
+            Or just their name
+            <input
+              value={plain}
+              onChange={(e) => {
+                setPlain(e.target.value);
+                // A typed name and a matched club are alternatives, so typing
+                // clears whatever was matched — otherwise the fixture is
+                // scheduled against the club they abandoned.
+                onPick(null, e.target.value);
+                setNote(null);
+              }}
+              placeholder="Hackney Wanderers"
+            />
+            <span className="subtle">
+              They will not be asked who is available — only your side is.
+            </span>
+          </label>
         </>
       )}
 

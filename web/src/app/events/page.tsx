@@ -225,6 +225,16 @@ function ScheduleMatch({
     }
   };
 
+  // In the order the form asks, so the answer is always the next thing down
+  // the page rather than something they have to hunt for.
+  const missing = [
+    !clubId && "which of your clubs is playing",
+    !opponent && !oppositionName.trim() && "who you are playing",
+    !start && "when",
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   return (
     <div className="panel setup-panel">
       <div className="panel-head">
@@ -289,10 +299,16 @@ function ScheduleMatch({
 
       {error && <p className="error">{error}</p>}
 
+      {/* A dead button with no explanation reads as a broken app. Say which
+          piece is missing, in the order the form asks for them. */}
+      {!busy && missing && (
+        <p className="muted" role="status">Still needed: {missing}.</p>
+      )}
+
       <button
         className="btn primary lg"
         type="button"
-        disabled={busy || !clubId || !start || (!opponent && !oppositionName.trim())}
+        disabled={busy || !!missing}
         onClick={submit}
       >
         {busy ? "Scheduling…" : "Schedule and ask who is available"}

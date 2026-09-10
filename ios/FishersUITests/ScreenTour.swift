@@ -116,10 +116,13 @@ final class ScreenTour: XCTestCase {
         }
         clubs.firstMatch.tap()
 
-        // The roster rows are links now; the first one that is not me.
-        let link = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Open their profile'"))
+        // Any element type: a SwiftUI NavigationLink surfaces as a button on
+        // some OS versions and a cell or link on others, and querying only
+        // `.buttons` turned a real assertion into a silent skip.
+        let link = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS 'Open their profile'"))
             .firstMatch
-        guard link.waitForExistence(timeout: 10) else {
+        guard link.waitForExistence(timeout: 15) else {
             throw XCTSkip("this account's club has no other members to open")
         }
         link.tap()
