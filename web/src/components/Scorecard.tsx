@@ -63,80 +63,76 @@ export function Scorecard({
         </div>
       )}
 
-      <div className="card-split">
-        <div>
-          <h3 className="section-head">Batting</h3>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Batter</th>
-                  <th></th>
-                  <th className="n">R</th>
-                  <th className="n">B</th>
-                  <th className="n">4s</th>
-                  <th className="n">6s</th>
-                  <th className="n">SR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {batted.map((b) => (
-                  <tr key={b.player_id}>
-                    {/* The dismissal column already says "not out"; an asterisk
-                        is how a scorebook marks it without repeating itself. */}
-                    <td>
-                      {nameOf(b.player_id)}
-                      {!b.out && atCrease.has(b.player_id) ? " *" : ""}
-                    </td>
-                    <td className="subtle">{howOut(b, nameOf)}</td>
-                    <td className="n"><strong>{b.runs}</strong></td>
-                    <td className="n">{b.balls}</td>
-                    <td className="n">{b.fours}</td>
-                    <td className="n">{b.sixes}</td>
-                    <td className="n">{strikeRate(b.runs, b.balls)}</td>
-                  </tr>
-                ))}
-                <tr>
-                  <td>Extras</td>
-                  <td className="subtle">{extrasLine(inn)}</td>
-                  <td className="n"><strong>{inn.extras}</strong></td>
-                  <td colSpan={4}></td>
-                </tr>
-                <tr>
-                  <td><strong>Total</strong></td>
-                  <td className="subtle">
-                    {overs(inn.legal_balls)} ov
-                    {inn.legal_balls > 0 &&
-                      ` · RR ${((inn.runs * 6) / inn.legal_balls).toFixed(2)}`}
-                  </td>
-                  <td className="n">
-                    <strong>
-                      {inn.runs}-{inn.wickets}
-                    </strong>
-                  </td>
-                  <td colSpan={4}></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="section-head">Yet to bat</h3>
-          {yetToBat.length === 0 ? (
-            <p className="muted">Everybody batted.</p>
-          ) : (
-            <ul className="plain-list">
-              {yetToBat.map((id) => (
-                <li key={id}>{nameOf(id)}</li>
-              ))}
-            </ul>
-          )}
-          <p className="subtle" style={{ marginTop: "var(--s3)" }}>
-            {battingName} batting
-          </p>
-        </div>
+      <h3 className="section-head">{battingName} batting</h3>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Batter</th>
+              <th className="n">R</th>
+              <th className="n">B</th>
+              <th className="n">4s</th>
+              <th className="n">6s</th>
+              <th className="n">SR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {batted.map((b) => (
+              <tr key={b.player_id}>
+                {/* The dismissal line already says "not out"; an asterisk is
+                    how a scorebook marks it without repeating itself. */}
+                <td>
+                  <span className="cell-name">
+                    {nameOf(b.player_id)}
+                    {!b.out && atCrease.has(b.player_id) ? "\u00a0*" : ""}
+                  </span>
+                  <span className="cell-sub">{howOut(b, nameOf)}</span>
+                </td>
+                <td className="n"><strong>{b.runs}</strong></td>
+                <td className="n">{b.balls}</td>
+                <td className="n">{b.fours}</td>
+                <td className="n">{b.sixes}</td>
+                <td className="n">{strikeRate(b.runs, b.balls)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td>
+                <span className="cell-name">Extras</span>
+                <span className="cell-sub">{extrasLine(inn)}</span>
+              </td>
+              <td className="n"><strong>{inn.extras}</strong></td>
+              <td colSpan={4}></td>
+            </tr>
+            <tr>
+              <td>
+                <span className="cell-name"><strong>Total</strong></span>
+                <span className="cell-sub">
+                  {overs(inn.legal_balls)} ov
+                  {inn.legal_balls > 0 &&
+                    ` · RR ${((inn.runs * 6) / inn.legal_balls).toFixed(2)}`}
+                </span>
+              </td>
+              <td className="n">
+                <strong>
+                  {inn.runs}-{inn.wickets}
+                </strong>
+              </td>
+              <td colSpan={4}></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+
+      {yetToBat.length > 0 && (
+        <>
+          <h3 className="section-head">Yet to bat</h3>
+          <ul className="chip-list">
+            {yetToBat.map((id) => (
+              <li key={id} className="tag">{nameOf(id)}</li>
+            ))}
+          </ul>
+        </>
+      )}
 
       <h3 className="section-head">Bowling</h3>
       <div className="table-wrap">

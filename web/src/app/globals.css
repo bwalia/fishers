@@ -934,19 +934,40 @@ textarea { line-height: 1.5; resize: vertical; }
   line-height: 1.25;
 }
 
-/* ---------- Scoring layout: state on the left, controls on the right ------- */
-
+/* ---------- Scoring layout ----------
+ *
+ * On a phone the order is the order somebody scoring needs: what the score
+ * is, who is in, the dial, then the commentary. The dial used to sit below a
+ * full over-by-over commentary — 1800px down an 844px screen, two screens of
+ * scrolling before you could record a ball.
+ *
+ * On a wide screen the commentary rejoins the state in the left column and
+ * the dial sits beside them, within reach without scrolling at all.
+ */
 .score-layout {
   display: grid;
   gap: var(--s4);
   grid-template-columns: 1fr;
   align-items: start;
 }
+.score-state { order: 1; }
+.controls,
+.following { order: 2; }
+.score-comm { order: 3; }
+
 @media (min-width: 1000px) {
   .score-layout {
     grid-template-columns: minmax(0, 1.1fr) minmax(330px, 0.9fr);
   }
-  .score-layout .controls {
+  /* Explicit placement, because `order` alone cannot put two blocks in one
+     column and a third alongside both. */
+  .score-state { grid-column: 1; grid-row: 1; }
+  .score-comm { grid-column: 1; grid-row: 2; }
+  .controls,
+  .following {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: start;
     position: sticky;
     top: 84px;
   }
@@ -1147,13 +1168,15 @@ textarea { line-height: 1.5; resize: vertical; }
 }
 .section-head:first-child { margin-top: 0; }
 
-.card-split {
-  display: grid;
-  gap: var(--s4);
-  grid-template-columns: 1fr;
-}
-@media (min-width: 860px) {
-  .card-split { grid-template-columns: minmax(0, 3fr) minmax(150px, 1fr); }
+/* Names that read as a row, not a column — a batting order is short and
+   wide, and stacked it pushed the bowling figures a screen further down. */
+.chip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
 }
 
 .plain-list {
@@ -1732,17 +1755,6 @@ textarea { line-height: 1.5; resize: vertical; }
   .setup-panel { padding: var(--s4); }
   .agree-strip { grid-template-columns: 1fr; }
   .rail-label { font-size: 0.7rem; }
-}
-
-@media (max-width: 560px) {
-  /* Stacked, the "v" belongs on its own line — trailing one side reads as a
-     typo rather than a fixture. */
-  .match-head-sides {
-    display: grid;
-    justify-items: start;
-    gap: var(--s1);
-  }
-  .match-head-v { line-height: 1; }
 }
 
 /* --- Person picker: type a name, pick from the squad ------------------- */
@@ -3653,4 +3665,246 @@ a.bell-item:hover { background: var(--surface-2); }
   margin-top: var(--s4);
   padding-top: var(--s4);
   border-top: 1px solid var(--border);
+}
+
+/* ---------- Mobile navigation ---------- */
+
+/* Below this the top bar's link scroller is hidden entirely and the bottom
+   tab bar takes over. Ten links never fitted: squeezed between the brand and
+   the actions the scroller collapsed to 37px and showed two of them. */
+@media (max-width: 860px) {
+  .nav { display: none; }
+  .topbar-inner { justify-content: space-between; }
+
+  /* Room for the bar, plus whatever the phone's home indicator needs. */
+  .shell { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+}
+
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-nav);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.tabbar a,
+.tabbar button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  /* Comfortably over the 44px minimum, because this is the control a thumb
+     hits most often and hits without looking. */
+  min-height: 56px;
+  padding: var(--s2) 2px;
+  border: none;
+  background: none;
+  color: var(--fg-subtle);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tabbar a.on,
+.tabbar button.on { color: var(--primary-ink); }
+.tabbar a:hover { text-decoration: none; }
+.tabbar a:focus-visible,
+.tabbar button:focus-visible { outline: 2px solid var(--ring); outline-offset: -3px; }
+
+/* The current tab gets a bar as well as a colour, so it does not depend on
+   telling two greens apart. */
+.tabbar a.on::before,
+.tabbar button.on::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 28px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--primary);
+}
+.tabbar a, .tabbar button { position: relative; }
+
+.more-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  z-index: var(--z-nav);
+  padding: var(--s4);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-3);
+  animation: sheet-up 160ms var(--ease);
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .more-sheet { animation: none; }
+}
+
+.more-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: var(--s2);
+}
+
+.more-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: 76px;
+  padding: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--fg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+}
+.more-item:hover { background: var(--surface-2); text-decoration: none; }
+.more-item.on { border-color: var(--primary); background: var(--pitch-50); color: var(--primary-ink); }
+
+/* ---------- The ⋯ menu ---------- */
+
+.overflow { position: relative; }
+
+.overflow-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.overflow-button:hover { background: var(--surface-2); color: var(--fg); }
+.overflow-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.overflow-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--s2));
+  z-index: var(--z-nav);
+  min-width: min(300px, calc(100vw - var(--s5)));
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+}
+
+.overflow-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--s2) var(--s3);
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.overflow-item:hover { background: var(--surface-2); }
+
+/* The share block loses its own framing inside the menu — the menu is the
+   frame. */
+.share-in-menu .btn { width: 100%; }
+.share-in-menu .share-hint { font-size: 0.78rem; margin: var(--s2) 0 0; }
+
+.match-head-actions {
+  position: absolute;
+  top: var(--s3);
+  right: var(--s3);
+}
+.match-head { position: relative; }
+
+/* ---------- Score screen on a phone ----------
+ *
+ * The dial has to be reachable when the page loads. Everything above it is
+ * measured against that: the two batters sit side by side rather than stacked,
+ * the header gives up a line, and the over-by-over strip — which is history,
+ * not state — moves below the dial with the rest of the history.
+ */
+@media (max-width: 860px) {
+  /* Two batters across, then the bowler. Three stacked cards cost 230px. */
+  .who { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+  .who .card { padding: var(--s2); }
+  .who .card .who-name { font-size: 0.9rem; }
+
+  /* The sides are already in the page title and the scoreline; one compact
+     line is enough here. */
+  /* One line: "Lords v Hemel". At this size it fits, and the two lines it
+     saves are two lines the dial moves up by. */
+  .match-head-sides { font-size: 1.3rem; gap: var(--s2); flex-wrap: nowrap; }
+  .match-head-side { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .match-head-v { line-height: 1; }
+  .match-head { padding: var(--s3) 0 var(--s2); margin-bottom: var(--s3); }
+  .match-head-meta { gap: var(--s1); margin-top: var(--s2); }
+  .match-head-actions { top: var(--s2); right: 0; }
+  /* The ⋯ button is absolute; the rows it sits over have to leave it room. */
+  .match-head-sides,
+  .match-head-meta { padding-right: 52px; }
+
+  /* The bowler spans the row under the two batters, laid out along it
+     rather than stacked — the same three facts in a third of the height. */
+  .who .card.bowler {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--s1) var(--s2);
+  }
+  .who .card.bowler .who-sub { margin-left: auto; }
+}
+
+/* A list row's actions wrap; without this the pills run off a phone screen.
+   The title is the link into the item, so the row needs no "Open" button. */
+.row-main { min-width: 0; flex: 1 1 12rem; }
+.row-title { font-weight: 600; color: inherit; text-decoration: none; }
+.row-title:hover { text-decoration: underline; }
+.row-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* A table cell that carries a name and a quieter second line under it. Keeping
+   the name unwrapped is what makes every row the same height. */
+.cell-name {
+  display: block;
+  white-space: nowrap;
+}
+.cell-sub {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--fg-subtle);
+  font-variant-numeric: normal;
+}
+
+/* Phone-only chrome. This has to sit after the .tabbar rules: a media query
+   adds no specificity, so above them `display: grid` simply won. */
+@media (min-width: 861px) {
+  .tabbar,
+  .more-sheet { display: none; }
 }

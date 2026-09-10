@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import { ShellNav } from "@/components/ShellNav";
+import { MobileNav } from "@/components/MobileNav";
 
 // next/font self-hosts and sets font-display: swap, so no FOIT and no layout
 // shift waiting on Google.
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <a className="skip-link" href="#main">Skip to main content</a>
         <ShellNav />
         <div className="shell">{children}</div>
+        <MobileNav />
       </body>
     </html>
   );

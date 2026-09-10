@@ -13,6 +13,7 @@ import { PersonPicker, type Person } from "@/components/PersonPicker";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { ShotIcon, SHOT_SHAPES } from "@/components/ShotIcon";
 import { ShareScoreboardButton } from "@/components/ShareScoreboardButton";
+import { OverflowMenu } from "@/components/OverflowMenu";
 import {
   BALLS,
   DEFAULT_CONDITIONS,
@@ -71,6 +72,11 @@ export default function ScorerPage({
   const router = useRouter();
   const [match, setMatch] = useState<MatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /// Handing the book over, opened from the ⋯ menu rather than owning a
+  /// button of its own. Declared here with the other hooks: below the
+  /// `if (!match) return` guards the hook count changes between the
+  /// loading render and the loaded one, and React blanks the page.
+  const [handingOver, setHandingOver] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -209,17 +215,29 @@ export default function ScorerPage({
             </>
           )}
         </div>
-        {/* Anyone signed in can mint a public live link — not only the scorer. */}
-        {getAccessToken() ? (
-          <ShareScoreboardButton
-            matchId={matchId}
-            homeName={st.home_name}
-            awayName={st.away_name}
-          />
-        ) : (
-          <p className="muted share-hint" style={{ marginTop: "1rem" }}>
-            Sign in to share a live scoreboard link for WhatsApp or email.
-          </p>
+        {/* Anyone signed in can mint a public live link — not only the scorer.
+            Behind the ⋯ because it is used once a match, and the top of a
+            phone screen belongs to the score and the dial. */}
+        {getAccessToken() && (
+          <div className="match-head-actions">
+            <OverflowMenu label="Match options">
+              <ShareScoreboardButton
+                matchId={matchId}
+                homeName={st.home_name}
+                awayName={st.away_name}
+                className="share-in-menu"
+              />
+              {heldByMe && (
+                <button
+                  className="overflow-item"
+                  type="button"
+                  onClick={() => setHandingOver(true)}
+                >
+                  <Icon name="book" size={16} /> Hand the book over
+                </button>
+              )}
+            </OverflowMenu>
+          </div>
         )}
       </section>
 
@@ -282,7 +300,13 @@ export default function ScorerPage({
 
       <Stages match={match} send={send} canAct={canAct} nameOf={nameOf} onPicked={setMatch} />
 
-      {heldByMe && <HandOver match={match} onChanged={setMatch} />}
+      {heldByMe && handingOver && (
+        <HandOver
+          match={match}
+          onChanged={(next) => { setMatch(next); setHandingOver(false); }}
+          onClose={() => setHandingOver(false)}
+        />
+      )}
 
       <CallItOff match={match} onChanged={setMatch} onGone={() => router.push("/score")} />
 
@@ -469,11 +493,12 @@ function Umpires({
 function HandOver({
   match,
   onChanged,
+  onClose,
 }: {
   match: MatchResponse;
   onChanged: (next: MatchResponse) => void;
+  onClose: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [squad, setSquad] = useState<SquadResponse | null>(null);
   const [officials, setOfficials] = useState<MatchOfficial[]>([]);
   const [loading, setLoading] = useState(false);
@@ -483,7 +508,7 @@ function HandOver({
   const me = getStoredUser();
 
   useEffect(() => {
-    if (!open || squad) return;
+    if (squad) return;
     setLoading(true);
     (async () => {
       const [sq, offs] = await Promise.all([
@@ -496,7 +521,7 @@ function HandOver({
       setOfficials(offs);
       setLoading(false);
     })();
-  }, [open, squad, match.id]);
+  }, [squad, match.id]);
 
   const tabs = useMemo(
     () =>
@@ -514,21 +539,12 @@ function HandOver({
           to_user_id: choice,
         })
       );
-      setOpen(false);
     } catch (err) {
       setError(readErr(err, "Could not hand it over"));
     } finally {
       setBusy(false);
     }
   };
-
-  if (!open) {
-    return (
-      <button className="btn ghost sm call-off" type="button" onClick={() => setOpen(true)}>
-        <Icon name="book" size={14} /> Hand the book to somebody else
-      </button>
-    );
-  }
 
   return (
     <div className="panel">
@@ -555,7 +571,7 @@ function HandOver({
         <button className="btn primary" type="button" disabled={!choice || busy} onClick={hand}>
           {busy ? "Handing over…" : "Hand it over"}
         </button>
-        <button className="btn" type="button" onClick={() => setOpen(false)}>
+        <button className="btn" type="button" onClick={onClose}>
           Keep the book
         </button>
       </div>
@@ -2082,7 +2098,12 @@ function LivePanel({
 
   return (
     <div className="score-layout">
-      <div>
+      {/* Three blocks, deliberately siblings rather than two columns of
+          stacked content: on a phone the dial has to come between the state
+          of the match and the commentary, and it cannot do that from inside
+          another element. Desktop puts state and commentary back in one
+          column with CSS. */}
+      <div className="score-state">
         <div className="matchbar">
           <div>
             <span className="scoreline">
@@ -2129,7 +2150,7 @@ function LivePanel({
           <div className="who">
             <BatterCard id={inn.striker_id} nameOf={nameOf} b={batterOf(inn.striker_id)} onStrike />
             <BatterCard id={inn.non_striker_id} nameOf={nameOf} b={batterOf(inn.non_striker_id)} />
-            <div className="card">
+            <div className="card bowler">
               <div className="who-name">{nameOf(inn.bowler_id)}</div>
               <div className="who-figs">
                 {(() => {
@@ -2147,31 +2168,38 @@ function LivePanel({
             </div>
           </div>
 
-          {overGroups.length > 0 && (
-            <div className="overs-strip" style={{ marginTop: "var(--s3)" }}>
-              {overGroups.map(([over, balls]) => {
-                const legal = balls.filter((b) => b.is_legal).length;
-                const total = balls.reduce((sum, b) => sum + b.runs, 0);
-                return (
-                  <div className="over-row" key={over}>
-                    <span className="over-label">Over {over + 1}</span>
-                    {balls.map((b, i) => (
-                      <span key={i} className={`ball-chip ${chipClass(b)}`} title={b.label}>
-                        {b.is_wicket ? "W" : b.label}
-                      </span>
-                    ))}
-                    {Array.from({ length: Math.max(0, 6 - legal) }, (_, i) => (
-                      <span key={`p${i}`} className="ball-chip pending">
-                        ·
-                      </span>
-                    ))}
-                    <span className="over-total">= {total}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
+
+      </div>
+
+      <div className="score-comm">
+        {overGroups.length > 0 && (
+          <div className="panel over-history">
+            <h2>This over, and the last</h2>
+            <div className="overs-strip">
+            {overGroups.map(([over, balls]) => {
+              const legal = balls.filter((b) => b.is_legal).length;
+              const total = balls.reduce((sum, b) => sum + b.runs, 0);
+              return (
+                <div className="over-row" key={over}>
+                  <span className="over-label">Over {over + 1}</span>
+                  {balls.map((b, i) => (
+                    <span key={i} className={`ball-chip ${chipClass(b)}`} title={b.label}>
+                      {b.is_wicket ? "W" : b.label}
+                    </span>
+                  ))}
+                  {Array.from({ length: Math.max(0, 6 - legal) }, (_, i) => (
+                    <span key={`p${i}`} className="ball-chip pending">
+                      ·
+                    </span>
+                  ))}
+                  <span className="over-total">= {total}</span>
+                </div>
+              );
+            })}
+            </div>
+          </div>
+        )}
 
         <div className="panel">
           <h2>Commentary</h2>

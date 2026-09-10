@@ -37,9 +37,11 @@ export function WagonWheel({
 }) {
   const shots = deliveries.filter((d) => d.shot);
   const centre = size / 2;
-  // Room inside the rope for the sector names.
+  // Room inside the rope for the sector names. They are set on two lines and
+  // pulled well inside the rope, because at 0.86 a name like "mid-wicket"
+  // reached past the boundary and was clipped by the viewBox.
   const radius = size / 2 - 6;
-  const labelRadius = radius * 0.86;
+  const labelRadius = radius * 0.76;
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!onPick) return;
@@ -110,19 +112,24 @@ export function WagonWheel({
 
         {SECTOR_MIDPOINTS.map((a) => {
           const { x, y } = point(a, labelRadius);
+          // "mid-wicket" is half as wide over two lines as it is over one.
+          const words = regionFor(a, batsLeft).split(/[\s-]/);
           return (
             <text
               key={a}
               x={x}
               y={y}
               textAnchor="middle"
-              dominantBaseline="middle"
               fontSize={size * 0.042}
               fill="currentColor"
               opacity={0.55}
               style={{ pointerEvents: "none", textTransform: "lowercase" }}
             >
-              {regionFor(a, batsLeft)}
+              {words.map((word, i) => (
+                <tspan key={word} x={x} dy={i === 0 ? `${(1 - words.length) * 0.5 + 0.32}em` : "1em"}>
+                  {word}
+                </tspan>
+              ))}
             </text>
           );
         })}

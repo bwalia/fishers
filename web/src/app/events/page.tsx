@@ -80,8 +80,10 @@ export default function EventsPage() {
         {loading && <div className="skeleton" style={{ height: 64 }} />}
         {events.map((e) => (
           <div key={e.id} className="row">
-            <div>
-              <div style={{ fontWeight: 600 }}>{e.title}</div>
+            <div className="row-main">
+              <Link className="row-title" href={`/events/${e.id}`}>
+                {e.title}
+              </Link>
               <div style={{ display: "flex", gap: "var(--s2)", alignItems: "center", marginTop: 2 }}>
                 <span className="tag">
                   <Icon name={SUBTYPE_ICON[e.event_subtype] ?? "calendar"} size={12} />
@@ -90,12 +92,11 @@ export default function EventsPage() {
                 <span className="muted">{when(e.start_at)}</span>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--s3)" }}>
+            <div className="row-actions">
               {e.fee_amount_cents != null && (
                 <span className="price">£{(e.fee_amount_cents / 100).toFixed(0)}</span>
               )}
               <Availability eventId={e.id} />
-              <Link className="btn sm" href={`/events/${e.id}`}>Open</Link>
               <Link className="btn sm" href={`/events/${e.id}/selection`}>Squad</Link>
               {e.ticket_price_cents != null && (
                 <Link className="btn sm" href={`/events/${e.id}/tickets`}>Tickets</Link>
