@@ -429,6 +429,16 @@ export type ClubSettings = {
   fee_chase_max_reminders: number;
 };
 
+/// Somewhere a club plays (`backend/domain/src/club.rs`).
+export type Venue = {
+  id: string;
+  club_id: string;
+  name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+};
+
 export type Team = {
   id: string;
   club_id: string;

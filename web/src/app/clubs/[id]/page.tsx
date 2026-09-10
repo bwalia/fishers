@@ -20,6 +20,7 @@ import {
   type ClubPageSettings,
   type ClubSettings,
   type OutstandingFees,
+  type Venue,
   type Team,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
@@ -94,6 +95,8 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       />
 
       <Teams clubId={id} teams={teams} isSecretary={isSecretary} onChanged={load} />
+
+      <Venues clubId={id} canEdit={isSecretary} />
 
       {isSecretary && <Settings clubId={id} />}
 
@@ -426,6 +429,123 @@ function Teams({
         </div>
       )}
       {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/// Where the club plays.
+///
+/// A fixture carries a venue, and until somebody has entered one there is
+/// nothing to carry — which is why "where are we playing?" ends up in the
+/// group chat every Saturday morning.
+function Venues({ clubId, canEdit }: { clubId: string; canEdit: boolean }) {
+  const [venues, setVenues] = useState<Venue[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setVenues(await api<Venue[]>("GET", `/clubs/${clubId}/venues`).catch(() => []));
+  }, [clubId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (venues === null) return null;
+
+  const add = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api("POST", `/clubs/${clubId}/venues`, {
+        name: name.trim(),
+        address: address.trim() || null,
+      });
+      setName("");
+      setAddress("");
+      setAdding(false);
+      await load();
+    } catch (err) {
+      setError(readErr(err, "Could not add that ground"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h2>Grounds</h2>
+        <span className="tag grey">{venues.length}</span>
+      </div>
+
+      {venues.length === 0 ? (
+        <p className="muted">
+          No grounds yet. Add the ones you play at and they can be picked when a fixture is
+          scheduled.
+        </p>
+      ) : (
+        <ul className="pick-list">
+          {venues.map((v) => (
+            <li key={v.id}>
+              <span className="thread-mark" aria-hidden>
+                <Icon name="pin" size={18} />
+              </span>
+              <div className="pick-who">
+                <strong>{v.name}</strong>
+                {v.address && <span className="subtle">{v.address}</span>}
+              </div>
+              {v.address && (
+                <div className="pick-actions">
+                  {/* Somebody standing in a car park wants the map, not the
+                      address as text. */}
+                  <a
+                    className="btn ghost sm"
+                    href={`https://maps.google.com/?q=${encodeURIComponent(`${v.name} ${v.address}`)}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    Map
+                  </a>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {canEdit && !adding && (
+        <button className="btn" type="button" onClick={() => setAdding(true)}
+                style={{ marginTop: "var(--s3)" }}>
+          <Icon name="plus" size={16} /> Add a ground
+        </button>
+      )}
+
+      {canEdit && adding && (
+        <>
+          <div className="setup-fields">
+            <label>
+              Name
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                     placeholder="Highbury Fields" maxLength={160} />
+            </label>
+            <label>
+              Address
+              <input value={address} onChange={(e) => setAddress(e.target.value)}
+                     placeholder="Highbury Fields, London N5 1AR" />
+            </label>
+          </div>
+          {error && <p className="error">{error}</p>}
+          <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+            <button className="btn primary" type="button" disabled={busy || !name.trim()}
+                    onClick={add}>
+              {busy ? "Adding…" : "Add it"}
+            </button>
+            <button className="btn" type="button" onClick={() => setAdding(false)}>Cancel</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

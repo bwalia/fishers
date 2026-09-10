@@ -209,7 +209,18 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
             ) : (
               <ul className="pick-list">
                 {tickets.map((t) => (
-                  <TicketRow key={t.id} ticket={t} />
+                  <TicketRow
+                    key={t.id}
+                    ticket={t}
+                    busy={busy !== null}
+                    onPaid={(method) =>
+                      act(
+                        t.id,
+                        () => api("POST", `/tickets/${t.id}/mark-paid`, { method }),
+                        `${t.name ?? "That booking"} marked paid.`
+                      )
+                    }
+                  />
                 ))}
               </ul>
             )}
@@ -240,7 +251,15 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
   );
 }
 
-function TicketRow({ ticket }: { ticket: EventTicket }) {
+function TicketRow({
+  ticket,
+  busy,
+  onPaid,
+}: {
+  ticket: EventTicket;
+  busy: boolean;
+  onPaid: (method: "cash" | "transfer") => void;
+}) {
   const who = ticket.name ?? "A member";
   return (
     <li className={ticket.status === "cancelled" ? "reserve" : undefined}>
@@ -258,6 +277,20 @@ function TicketRow({ ticket }: { ticket: EventTicket }) {
       </div>
       <div className="pick-actions">
         <span className={`tag ${ticket.status === "paid" ? "" : "grey"}`}>{ticket.status}</span>
+        {/* Cash at the door is how most club events are actually paid for.
+            Whoever is collecting needs to record it without a card reader. */}
+        {ticket.status === "reserved" && (
+          <>
+            <button className="btn ghost sm" type="button" disabled={busy}
+                    onClick={() => onPaid("cash")}>
+              Cash
+            </button>
+            <button className="btn ghost sm" type="button" disabled={busy}
+                    onClick={() => onPaid("transfer")}>
+              Transfer
+            </button>
+          </>
+        )}
       </div>
     </li>
   );
