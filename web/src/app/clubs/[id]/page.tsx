@@ -217,11 +217,11 @@ function Members({
               return (
                 <tr key={m.user_id}>
                   <td>
-                    <span className="person">
+                    <Link className="person" href={`/players/${m.user_id}`}>
                       <Avatar name={m.name} url={m.avatar_url} size={30} />
                       {m.name}
                       {m.user_id === meId && <span className="tag grey">you</span>}
-                    </span>
+                    </Link>
                   </td>
                   <td className="subtle">{m.email || m.phone || "—"}</td>
                   <td>
@@ -472,7 +472,9 @@ function TeamRow({ team }: { team: Team }) {
               <li key={m.user_id}>
                 <Avatar name={m.name} url={m.avatar_url} size={30} />
                 <div className="pick-who">
-                  <strong>{m.name}</strong>
+                  <strong>
+                    <Link href={`/players/${m.user_id}`}>{m.name}</Link>
+                  </strong>
                   <span className="pick-signals">
                     {m.role !== "member" && (
                       <span className="tag">{roleLabel(m.role)}</span>

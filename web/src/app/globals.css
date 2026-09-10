@@ -3435,8 +3435,18 @@ a.bell-item:hover { background: var(--surface-2); }
   align-items: center;
   gap: var(--s2);
   margin-top: var(--s3);
+  /* The label is the tap target, not the box — tapping the words toggles it,
+     which is the whole reason a checkbox lives inside its label. */
+  min-height: 44px;
+  cursor: pointer;
 }
-.field-inline input[type="checkbox"] { width: auto; margin: 0; }
+.field-inline input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  /* A 20px box is fiddly with a thumb even when the label is generous. */
+  min-width: 22px;
+  min-height: 22px;
+}
 
 /* ---------- Shop basket ---------- */
 
@@ -3567,3 +3577,80 @@ a.bell-item:hover { background: var(--surface-2); }
 .team-head > span:first-child { display: inline-flex; align-items: center; gap: var(--s2); }
 .team-head:hover strong { color: var(--primary-ink); }
 .team-head:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* ---------- Notifications ---------- */
+
+.bell-all {
+  display: block;
+  padding: var(--s3) 0 var(--s1);
+  margin-top: var(--s2);
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-weight: 600;
+}
+
+.push-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+.push-toggle h2 { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2); }
+.push-toggle .muted { margin: 0; max-width: 60ch; }
+
+.note-list { list-style: none; margin: var(--s4) 0 0; padding: 0; display: grid; gap: var(--s2); }
+
+.note-list > li > a,
+.note-list > li > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--s1) var(--s3);
+  width: 100%;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.note-list > li > a:hover,
+.note-list > li > button:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+/* Unread is a bar down the side as well as a weight, so it does not depend on
+   noticing a shade of green. */
+.note-list > li.unread > a,
+.note-list > li.unread > button {
+  box-shadow: inset 3px 0 0 var(--primary);
+  background: var(--pitch-50);
+}
+.note-list > li.unread .note-title { font-weight: 700; }
+
+.note-kind {
+  grid-column: 1 / -1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary-ink);
+}
+.note-title { overflow-wrap: anywhere; }
+.note-when { grid-column: 1 / -1; font-size: 0.84rem; color: var(--fg-muted); }
+.note-list time { white-space: nowrap; }
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--border);
+}

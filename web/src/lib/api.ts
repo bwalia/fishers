@@ -507,6 +507,64 @@ export type AppNotification = {
 
 /// One line of plain English per notification. A player is not going to read
 /// `match_terms_proposed`.
+/// Another player, as their club-mates may see them.
+///
+/// Deliberately narrower than `PublicUser`: no email, no phone, no emergency
+/// contact, no home location. Sharing a club is not consent to hand over
+/// somebody's mobile number.
+export type TeammateProfile = {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  position_role: string | null;
+  skill_level: string | null;
+  primary_sport: string | null;
+  sport_profiles: SportProfile[];
+  reliability?: {
+    score: number;
+    attendance_rate: number;
+    response_rate: number;
+    band?: string;
+  } | null;
+  /// Clubs you and they are both in.
+  shared_clubs: string[];
+};
+
+/// One page of notifications, as `GET /notifications` serves it.
+///
+/// `unread` counts everything, not the page — it is what the bell shows, and a
+/// filter must not change it. `kinds` is every type this person has been sent,
+/// so the filter offers only what would match something.
+export type NotificationPage = {
+  items: AppNotification[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_more: boolean;
+  unread: number;
+  kinds: string[];
+};
+
+/// The words for a notification type. Anything not listed falls back to the
+/// raw type with its underscores knocked out, so a new kind on the server
+/// shows up as readable-ish rather than blank.
+export const NOTIFICATION_KIND: Record<string, string> = {
+  invite: "Invitations",
+  selection_published: "Squads",
+  squad_promoted: "Squads",
+  selection_reconfirm: "Confirmations",
+  match_terms_proposed: "Match setup",
+  match_terms_agreed: "Match setup",
+  match_scheduled: "Fixtures",
+  availability_request: "Availability",
+  fee_reminder: "Match fees",
+  scoreboard_shared: "Scoreboards",
+};
+
+export function kindLabel(kind: string): string {
+  return NOTIFICATION_KIND[kind] ?? kind.replaceAll("_", " ");
+}
+
 export function notificationLine(n: AppNotification): {
   title: string;
   href?: string;

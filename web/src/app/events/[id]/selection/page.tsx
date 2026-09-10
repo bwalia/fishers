@@ -352,7 +352,11 @@ function PickRow({
     <li className={picked ? "picked" : reserve ? "reserve" : undefined}>
       <Avatar name={c.name} size={34} />
       <div className="pick-who">
-        <strong>{c.name}</strong>
+        <strong>
+          {/* A captain choosing between two names wants to see what each has
+              actually done. */}
+          <Link href={`/players/${c.user_id}`}>{c.name}</Link>
+        </strong>
         <span className="pick-signals">
           {c.rsvp && c.rsvp !== "invited" && (
             <span className={`tag ${c.rsvp === "going" ? "" : c.rsvp === "not_going" ? "danger" : "grey"}`}>

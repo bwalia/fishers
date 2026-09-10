@@ -34,9 +34,10 @@ pub struct SubscriptionKeys {
 #[derive(Debug)]
 pub enum PushOutcome {
     Delivered,
-    /// The push service says this subscription is dead. Browsers rotate them
-    /// on reinstall and clear them on "clear site data", so this is routine
-    /// rather than exceptional — the row should go.
+    /// This subscription can never be pushed to by this server. Browsers
+    /// rotate them on reinstall and clear them on "clear site data", so it is
+    /// routine rather than exceptional — the row should go, and the browser
+    /// makes a fresh one next time somebody opens the app.
     Gone,
     /// Something else. Worth a log, not worth deleting anybody's subscription.
     Failed(String),
@@ -184,9 +185,14 @@ impl WebPushService {
 
         match send.send().await {
             Ok(response) if response.status().is_success() => PushOutcome::Delivered,
-            // 404 and 410 are the protocol's way of saying the subscription no
-            // longer exists. Anything else might work next time.
-            Ok(response) if matches!(response.status().as_u16(), 404 | 410) => PushOutcome::Gone,
+            // 404 and 410 mean the subscription is gone. 403 means it was made
+            // against different VAPID keys — which happens to *every* existing
+            // subscription the moment the keys are rotated, and no amount of
+            // retrying will fix it. Without this, one key change leaves every
+            // subscriber failing forever and the rows never reaped.
+            Ok(response) if retires_subscription(response.status().as_u16()) => {
+                PushOutcome::Gone
+            }
             Ok(response) => {
                 let status = response.status();
                 let detail = response.text().await.unwrap_or_default();
@@ -195,6 +201,16 @@ impl WebPushService {
             Err(error) => PushOutcome::Failed(error.to_string()),
         }
     }
+}
+
+/// Statuses after which this subscription will never work again.
+///
+/// 404 and 410: the push service has forgotten it. 403: it was created
+/// against different VAPID keys, which is true of every subscription in
+/// existence the moment those keys are rotated. Everything else — rate
+/// limits, outages — is worth another go later.
+fn retires_subscription(status: u16) -> bool {
+    matches!(status, 403 | 404 | 410)
 }
 
 #[cfg(test)]
@@ -219,6 +235,22 @@ mod tests {
         // break a subscription we would otherwise be able to push to.
         let back = serde_json::to_string(&sub).unwrap();
         assert!(back.contains("p256dh"));
+    }
+
+    /// Which HTTP statuses mean "stop trying".
+    ///
+    /// Rotating the VAPID keys invalidates every subscription already handed
+    /// out, and push services answer those with 403. Treating that as a
+    /// retryable failure means every notification, forever, tries to reach
+    /// subscriptions that can never work.
+    #[test]
+    fn the_statuses_that_retire_a_subscription() {
+        for status in [403u16, 404, 410] {
+            assert!(retires_subscription(status), "{status} must retire it");
+        }
+        for status in [429u16, 500, 502, 503] {
+            assert!(!retires_subscription(status), "{status} is worth retrying");
+        }
     }
 
     #[tokio::test]

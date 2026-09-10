@@ -10,6 +10,10 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 
+/// How many the panel shows. A dropdown is a glance, not an archive — the
+/// rest are a click away on /notifications, where they are paged.
+const PREVIEW = 6;
+
 type Feed = { unread: number; items: AppNotification[] };
 
 /// What is waiting for you.
@@ -25,7 +29,7 @@ export function NotificationBell() {
   const load = useCallback(async () => {
     if (!getAccessToken()) return;
     try {
-      setFeed(await api<Feed>("GET", "/notifications"));
+      setFeed(await api<Feed>("GET", `/notifications?per_page=${PREVIEW}`));
     } catch {
       // A bell that cannot load is a bell with nothing in it.
     }
@@ -123,6 +127,9 @@ export function NotificationBell() {
               );
             })}
           </ul>
+          <Link className="bell-all" href="/notifications" onClick={() => setOpen(false)}>
+            View all notifications
+          </Link>
         </div>
       )}
     </div>

@@ -86,8 +86,12 @@ PROBE = r"""
     if (r < need) bad.push({ t: el.textContent.trim().slice(0,32), r: +r.toFixed(2), need, size });
   }
   for (const el of document.querySelectorAll('main button, main a, main input, main select, .topbar button, .topbar a')) {
-    const b = el.getBoundingClientRect();
-    if (b.width && b.height < 44 && b.height > 0) small.push({ t: (el.textContent||el.getAttribute('aria-label')||'').trim().slice(0,24), h: Math.round(b.height) });
+    // A control inside a <label> is tapped by tapping the label, so the
+    // label's box is the target. Measuring the checkbox alone reports a
+    // failure that does not exist for anybody actually using it.
+    const target = el.closest('label') ?? el;
+    const b = target.getBoundingClientRect();
+    if (b.width && b.height < 44 && b.height > 0) small.push({ t: (el.textContent||el.getAttribute('aria-label')||target.textContent||'').trim().slice(0,24), h: Math.round(b.height) });
   }
   return JSON.stringify({
     overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
