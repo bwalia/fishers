@@ -11,6 +11,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/", label: "Overview", icon: "home" },
   { href: "/events", label: "Fixtures", icon: "calendar" },
+  { href: "/chat", label: "Chats", icon: "chat" },
+  { href: "/availability", label: "Availability", icon: "clock" },
   { href: "/score", label: "Score", icon: "bat" },
   { href: "/stats", label: "Stats", icon: "chart" },
   { href: "/shop", label: "Shop", icon: "shop" },

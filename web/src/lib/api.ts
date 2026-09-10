@@ -321,6 +321,19 @@ export async function upload<T>(path: string, file: File): Promise<T> {
   return (await res.json()) as T;
 }
 
+/// The sentence to put in front of somebody.
+///
+/// The API answers a refusal as `{"error": "..."}`, written to be read. Showing
+/// the raw body instead hands them the plumbing.
+export function readErr(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : "";
+  try {
+    return JSON.parse(raw).error ?? fallback;
+  } catch {
+    return raw || fallback;
+  }
+}
+
 export function money(cents: number, currency = "GBP") {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",

@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, getAccessToken, getStoredUser, roleLabel, type ClubMemberRow } from "@/lib/api";
+import { api, getAccessToken, getStoredUser, readErr, roleLabel, type ClubMemberRow } from "@/lib/api";
 import { randomUUID } from "@/lib/uuid";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
@@ -295,16 +295,6 @@ export default function ScorerPage({
   );
 }
 
-/// The API answers with `{"error": "..."}`; a network failure answers with
-/// nothing useful at all. Both end up as one line under the button.
-function readErr(err: unknown, fallback: string): string {
-  const raw = err instanceof Error ? err.message : "";
-  try {
-    return JSON.parse(raw).error ?? fallback;
-  } catch {
-    return raw || fallback;
-  }
-}
 
 /// Naming the umpires, before the toss.
 ///

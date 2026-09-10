@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   api,
+  readErr,
   getAccessToken,
   saveUser,
   skillLabel,
@@ -155,7 +156,7 @@ function AvatarUploader({ me, onSaved }: { me: PublicUser; onSaved: () => void }
       saveUser(user);
       onSaved();
     } catch (err) {
-      setError(readError(err, "That picture would not upload"));
+      setError(readErr(err, "That picture would not upload"));
     } finally {
       setBusy(false);
       // Let the same file be chosen again after a failure.
@@ -567,7 +568,7 @@ function Details({ me, onSaved }: { me: PublicUser; onSaved: () => void }) {
       setEditing(false);
       onSaved();
     } catch (err) {
-      setError(readError(err, "Could not save that"));
+      setError(readErr(err, "Could not save that"));
     } finally {
       setBusy(false);
     }
@@ -659,7 +660,7 @@ function SportCard({
       setEditing(false);
       onSaved();
     } catch (err) {
-      setError(readError(err, "Could not save that"));
+      setError(readErr(err, "Could not save that"));
     } finally {
       setBusy(false);
     }
@@ -826,11 +827,3 @@ function titleOf(sport: string) {
   return sport.charAt(0).toUpperCase() + sport.slice(1);
 }
 
-function readError(err: unknown, fallback: string): string {
-  const raw = err instanceof Error ? err.message : "";
-  try {
-    return JSON.parse(raw).error ?? fallback;
-  } catch {
-    return raw || fallback;
-  }
-}

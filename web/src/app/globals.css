@@ -3131,3 +3131,257 @@ a.bell-item:hover { background: var(--surface-2); }
   gap: var(--s1);
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
+
+/* ---------- Chat ---------- */
+
+.thread-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+
+.thread-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.thread-row:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.thread-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--pitch-50);
+  color: var(--primary-ink);
+}
+
+.thread-body { min-width: 0; }
+.thread-head { display: flex; justify-content: space-between; gap: var(--s3); align-items: baseline; }
+/* One line, ellipsised: a chat list is scanned, not read. */
+.thread-last {
+  display: block;
+  color: var(--fg-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thread-badges { display: flex; align-items: center; gap: var(--s1); flex-shrink: 0; }
+
+/* The thread itself fills what is left of the window, so the composer stays
+   put and only the messages move. */
+.thread {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: calc(100dvh - 140px);
+}
+
+.thread-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--border);
+}
+.thread-top h1 { flex: 1; min-width: 0; margin: 0; font-size: 1.3rem; }
+
+.thread-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s4) 0;
+}
+
+.thread-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: fit-content;
+  margin: var(--s4) auto var(--s3);
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.thread-system {
+  margin: var(--s3) auto;
+  max-width: 46ch;
+  text-align: center;
+  color: var(--fg-subtle);
+  font-size: 0.86rem;
+}
+
+.bubble-row { display: flex; align-items: flex-end; gap: var(--s2); margin-bottom: var(--s2); }
+.bubble-row.mine { flex-direction: row-reverse; }
+
+.bubble {
+  max-width: min(62ch, 78%);
+  padding: var(--s2) var(--s3);
+  border-radius: 16px 16px 16px 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.bubble-row.mine .bubble {
+  border-radius: 16px 16px 4px 16px;
+  background: var(--pitch-50);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.bubble.agent { background: var(--gold-100); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+
+.bubble-who { margin: 0 0 2px; font-size: 0.78rem; font-weight: 700; color: var(--primary-ink); }
+.bubble-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble-at { display: block; margin-top: 2px; font-size: 0.72rem; color: var(--fg-subtle); }
+
+.thread-compose {
+  display: flex;
+  gap: var(--s2);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+}
+.thread-compose input { flex: 1; }
+
+/* What the assistant thinks should happen next — never applied on its own. */
+.proposals { display: grid; gap: var(--s2); margin: var(--s3) 0; }
+
+.proposal {
+  padding: var(--s3) var(--s4);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.proposal header { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2); }
+.proposal p { margin: 0 0 var(--s3); }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Availability calendar ---------- */
+
+.flip { transform: rotate(180deg); }
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.cal-head h2 { margin: 0; }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cal-weekday {
+  padding-bottom: var(--s1);
+  text-align: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.cal-blank { aspect-ratio: 1; }
+
+.cal-day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  /* A day is a tap target before it is a square. */
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.cal-day:hover { border-color: var(--border-strong); }
+.cal-day:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.cal-day[disabled] { cursor: progress; opacity: 0.6; }
+
+/* Today is marked by a ring, not a fill — a fill would compete with the three
+   states the cell is actually for. */
+.cal-day.today { box-shadow: inset 0 0 0 2px var(--border-strong); }
+.cal-day.chosen { box-shadow: inset 0 0 0 2px var(--primary); }
+
+/* Status never rides on colour alone: available and unavailable also differ in
+   weight and, at the bottom of the panel, in a written key. */
+.cal-day.is-available { background: var(--pitch-100); border-color: var(--primary); color: var(--sage-900); }
+.cal-day.is-maybe { background: var(--gold-100); border-color: var(--gold-600); color: var(--gold-700); }
+.cal-day.is-unavailable { background: var(--red-100); border-color: var(--red-500); color: var(--red-600); }
+
+/* A dot for a fixture that day, so nobody rules themselves out blind. */
+.cal-fixture {
+  position: absolute;
+  bottom: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.cal-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  margin-top: var(--s4);
+  font-size: 0.86rem;
+  color: var(--fg-muted);
+}
+.cal-key-item { display: inline-flex; align-items: center; gap: var(--s2); }
+
+.cal-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+}
+.cal-swatch.is-available { background: var(--pitch-100); border-color: var(--primary); }
+.cal-swatch.is-maybe { background: var(--gold-100); border-color: var(--gold-600); }
+.cal-swatch.is-unavailable { background: var(--red-100); border-color: var(--red-500); }
+.cal-swatch.has-fixture { background: var(--accent); border-radius: 50%; border: none; }
+
+.cal-bulk { display: grid; gap: var(--s2); }
+
+.cal-bulk-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.cal-bulk-day {
+  width: 3.5rem;
+  font-weight: 700;
+  color: var(--fg-muted);
+}
+.chip.is-available:hover { border-color: var(--primary); }
+.chip.is-maybe:hover { border-color: var(--gold-600); }
+.chip.is-unavailable:hover { border-color: var(--red-500); }

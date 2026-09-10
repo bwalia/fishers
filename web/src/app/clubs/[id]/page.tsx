@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   api,
+  readErr,
   getAccessToken,
   getStoredUser,
   roleLabel,
@@ -50,7 +51,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       setTeams(t);
       setMyRole(role);
     } catch (err) {
-      setError(readError(err, "Could not load the club"));
+      setError(readErr(err, "Could not load the club"));
     } finally {
       setLoading(false);
     }
@@ -140,7 +141,7 @@ function Members({
       await api("PATCH", `/clubs/${clubId}/members/${userId}`, { role });
       onChanged();
     } catch (err) {
-      setError(readError(err, "Could not change that role"));
+      setError(readErr(err, "Could not change that role"));
     } finally {
       setBusy(null);
     }
@@ -154,7 +155,7 @@ function Members({
       await api("DELETE", `/clubs/${clubId}/members/${userId}`);
       onChanged();
     } catch (err) {
-      setError(readError(err, "Could not remove them"));
+      setError(readErr(err, "Could not remove them"));
     } finally {
       setBusy(null);
     }
@@ -279,7 +280,7 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
       setNote("Added.");
       onAdded();
     } catch (err) {
-      setNote(readError(err, "Could not add them"));
+      setNote(readErr(err, "Could not add them"));
     } finally {
       setBusy(false);
     }
@@ -297,7 +298,7 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
       setInvite(`${window.location.origin}/invite/${created.token}`);
       setNote(null);
     } catch (err) {
-      setNote(readError(err, "Could not create the invite"));
+      setNote(readErr(err, "Could not create the invite"));
     } finally {
       setBusy(false);
     }
@@ -374,7 +375,7 @@ function Teams({
       setName("");
       onChanged();
     } catch (err) {
-      setError(readError(err, "Could not create the team"));
+      setError(readErr(err, "Could not create the team"));
     } finally {
       setBusy(false);
     }
@@ -453,7 +454,7 @@ function PublicPage({
       setPage(await api<ClubPageSettings>("PATCH", `/clubs/${clubId}/page`, patch));
       setSaved(true);
     } catch (err) {
-      setError(readError(err, "Could not save the page"));
+      setError(readErr(err, "Could not save the page"));
     } finally {
       setBusy(false);
     }
@@ -676,12 +677,3 @@ function Codes({ clubId, teams }: { clubId: string; teams: Team[] }) {
   );
 }
 
-/// The API puts a sentence in `{"error": "..."}`; it is more use than a status.
-function readError(err: unknown, fallback: string): string {
-  const raw = err instanceof Error ? err.message : "";
-  try {
-    return JSON.parse(raw).error ?? fallback;
-  } catch {
-    return raw || fallback;
-  }
-}
