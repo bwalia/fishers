@@ -20,6 +20,7 @@ import {
   type ClubPageSettings,
   type ClubSettings,
   type OutstandingFees,
+  type TeamMemberRow,
   type Venue,
   type Team,
 } from "@/lib/api";
@@ -403,14 +404,7 @@ function Teams({
           keeping separate squads.
         </p>
       )}
-      {teams.map((t) => (
-        <div className="row" key={t.id}>
-          <div>
-            <div style={{ fontWeight: 600 }}>{t.name}</div>
-            <span className="tag">{t.sport}</span>
-          </div>
-        </div>
-      ))}
+      {teams.map((t) => <TeamRow key={t.id} team={t} />)}
       {isSecretary && (
         <div className="field-row" style={{ marginTop: "var(--s3)" }}>
           <label>
@@ -429,6 +423,68 @@ function Teams({
         </div>
       )}
       {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/// One team, and who is in it.
+///
+/// Collapsed by default: a club with four teams should not fetch four rosters
+/// to show a list of four names. Open one and it loads.
+function TeamRow({ team }: { team: Team }) {
+  const [open, setOpen] = useState(false);
+  const [members, setMembers] = useState<TeamMemberRow[] | null>(null);
+
+  useEffect(() => {
+    if (!open || members) return;
+    api<TeamMemberRow[]>("GET", `/teams/${team.id}/members`)
+      .then(setMembers)
+      .catch(() => setMembers([]));
+  }, [open, members, team.id]);
+
+  return (
+    <div className="team-row">
+      <button
+        type="button"
+        className="team-head"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>
+          <strong>{team.name}</strong>
+          <span className="tag grey">{team.sport}</span>
+        </span>
+        <span className="subtle">
+          {members ? `${members.length} in` : ""} {open ? "▴" : "▾"}
+        </span>
+      </button>
+
+      {open && (
+        members === null ? (
+          <div className="skeleton" style={{ height: 48 }} />
+        ) : members.length === 0 ? (
+          <p className="muted">
+            Nobody in this team yet. A secretary or the team captain adds people.
+          </p>
+        ) : (
+          <ul className="pick-list">
+            {members.map((m) => (
+              <li key={m.user_id}>
+                <Avatar name={m.name} url={m.avatar_url} size={30} />
+                <div className="pick-who">
+                  <strong>{m.name}</strong>
+                  <span className="pick-signals">
+                    {m.role !== "member" && (
+                      <span className="tag">{roleLabel(m.role)}</span>
+                    )}
+                    {m.position_role && <span className="subtle">{m.position_role}</span>}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )
+      )}
     </div>
   );
 }

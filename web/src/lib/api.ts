@@ -439,6 +439,14 @@ export type Venue = {
   lng: number | null;
 };
 
+export type TeamMemberRow = {
+  user_id: string;
+  name: string;
+  role: string;
+  avatar_url?: string | null;
+  position_role?: string | null;
+};
+
 export type Team = {
   id: string;
   club_id: string;

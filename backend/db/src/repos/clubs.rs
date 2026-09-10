@@ -256,6 +256,39 @@ pub async fn list_teams(pool: &PgPool, club_id: Uuid) -> Result<Vec<Team>, sqlx:
     .await
 }
 
+/// Who is in a team, with their name — the caller wants a roster, not a list
+/// of uuids to look up one at a time.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct TeamMemberDetail {
+    pub user_id: Uuid,
+    pub name: String,
+    pub role: UserRole,
+    pub avatar_url: Option<String>,
+    pub position_role: Option<String>,
+    pub joined_at: chrono::DateTime<chrono::Utc>,
+}
+
+pub async fn list_team_members(
+    pool: &PgPool,
+    team_id: Uuid,
+) -> Result<Vec<TeamMemberDetail>, sqlx::Error> {
+    sqlx::query_as::<_, TeamMemberDetail>(
+        r#"
+        SELECT tm.user_id, u.name, tm.role, u.avatar_url, u.position_role, tm.joined_at
+        FROM team_members tm
+        JOIN users u ON u.id = tm.user_id
+        WHERE tm.team_id = $1
+        ORDER BY
+            -- Captain first: a roster is read to find out who runs it.
+            CASE WHEN tm.role = 'team_captain' THEN 0 ELSE 1 END,
+            u.name
+        "#,
+    )
+    .bind(team_id)
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn add_team_member(
     pool: &PgPool,
     team_id: Uuid,

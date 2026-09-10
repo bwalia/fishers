@@ -125,10 +125,15 @@ _, pub = call("POST", "/clubs", {
 call("POST", "/clubs", {
     "name": f"Zulu Private CC {STAMP}", "sport_types": ["cricket"], "visibility": "invite_only"}, tok)
 call("POST", f"/clubs/{pub['id']}/teams", {"name": f"Zulu Colts {STAMP}", "sport": "cricket"}, tok)
+# The stamp goes *inside* the searched word, not after it. Search caps at 25
+# hits ordered by prefix then length, so after enough runs a shared term like
+# "Zephyr" matches dozens of old rows and this run's two never make the page —
+# the suite went permanently red on a database that had seen it before.
+ZEPHYR = f"Zephyr{STAMP}"
 call("POST", "/clubs", {
-    "name": f"Old Zephyr CC {STAMP}", "sport_types": ["cricket"], "visibility": "public"}, tok)
+    "name": f"Old {ZEPHYR} CC", "sport_types": ["cricket"], "visibility": "public"}, tok)
 call("POST", "/clubs", {
-    "name": f"Zephyr Town CC {STAMP}", "sport_types": ["cricket"], "visibility": "public"}, tok)
+    "name": f"{ZEPHYR} Town CC", "sport_types": ["cricket"], "visibility": "public"}, tok)
 
 import urllib.parse
 def search(term, token):
@@ -145,8 +150,9 @@ check("a public one is", any("Public" in n for n in found), True)
 check("its teams are too", any("Colts" in n for n in found), True)
 check("but the owner still finds their own private club",
       any("Private" in n for n in search(str(STAMP), tok)), True)
-zephyrs = [n for n in search("Zephyr", outsider) if str(STAMP) in n]
-check("a prefix match ranks first", zephyrs[0].startswith("Zephyr"), True)
+zephyrs = search(ZEPHYR, outsider)
+check("both are found", len(zephyrs), 2)
+check("a prefix match ranks first", zephyrs[0].startswith(ZEPHYR), True)
 check("one letter is refused",
       call("GET", "/opponents/search?q=a", token=tok)[0], 400)
 

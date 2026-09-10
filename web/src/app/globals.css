@@ -3545,3 +3545,25 @@ a.bell-item:hover { background: var(--surface-2); }
 /* An invitation nobody has acted on yet. Gold, like everything the club is
    waiting on you for. */
 .invites { border-color: color-mix(in srgb, var(--gold) 50%, transparent); }
+
+.team-row { border-bottom: 1px solid var(--border); }
+.team-row:last-of-type { border-bottom: none; }
+
+.team-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--s3) 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.team-head > span:first-child { display: inline-flex; align-items: center; gap: var(--s2); }
+.team-head:hover strong { color: var(--primary-ink); }
+.team-head:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

@@ -32,7 +32,10 @@ pub fn router() -> Router<AppState> {
         .route("/clubs/{id}/settings", get(get_settings).patch(update_settings))
         .route("/clubs/{id}/teams", get(list_teams).post(create_team))
         .route("/clubs/{id}/venues", get(list_venues).post(create_venue))
-        .route("/teams/{id}/members", post(add_team_member))
+        .route(
+            "/teams/{id}/members",
+            get(list_team_members).post(add_team_member),
+        )
         .route("/clubs/{id}/qr", get(club_qr).post(rotate_qr))
         .route("/teams/{id}/qr", get(team_qr))
         .route("/opponents/lookup", post(lookup_opponent))
@@ -489,6 +492,20 @@ async fn list_venues(
 struct TeamMemberBody {
     user_id: Uuid,
     role: Option<UserRole>,
+}
+
+/// A team's roster. Any club member may read it — knowing who is in the 2nd XI
+/// is not privileged information inside a club.
+async fn list_team_members(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Vec<clubs_repo::TeamMemberDetail>>> {
+    let team = clubs_repo::get_team(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("team not found"))?;
+    require_club_member(&state, team.club_id, auth.user_id).await?;
+    Ok(Json(clubs_repo::list_team_members(&state.pool, id).await?))
 }
 
 async fn add_team_member(
