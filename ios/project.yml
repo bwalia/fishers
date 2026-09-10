@@ -90,6 +90,25 @@ targets:
         UIBackgroundModes:
           - remote-notification
 
+  # Drives the real app in a Simulator: signs in, walks the screens, and saves
+  # a screenshot of each as a test attachment. It is how the app gets *looked
+  # at* rather than only compiled — a layout that breaks still builds.
+  #
+  # Needs an API on the host: `./scripts/start.sh --no-ios` first. Skips itself
+  # with a clear message when there isn't one, rather than failing as if the app
+  # were broken.
+  FishersUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: FishersUITests
+    dependencies:
+      - target: Fishers
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fishers.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+
   FishersTests:
     type: bundle.unit-test
     platform: iOS
@@ -108,6 +127,18 @@ schemes:
       targets:
         Fishers: all
         FishersTests: [test]
+        FishersUITests: [test]
     test:
       targets:
         - FishersTests
+
+  # Separate scheme: the UI tests need a running API, so they must not be part
+  # of the plain `test` run that CI does on every push.
+  FishersUI:
+    build:
+      targets:
+        Fishers: all
+        FishersUITests: [test]
+    test:
+      targets:
+        - FishersUITests

@@ -12,6 +12,7 @@ struct ClubMemberDetail: Codable, Identifiable, Equatable {
     var joinedAt: Date
     var positionRole: String?
     var skillLevel: String?
+    var avatarUrl: String?
 
     var id: UUID { userId }
 
@@ -21,6 +22,7 @@ struct ClubMemberDetail: Codable, Identifiable, Equatable {
         case joinedAt = "joined_at"
         case positionRole = "position_role"
         case skillLevel = "skill_level"
+        case avatarUrl = "avatar_url"
     }
 
     var isActive: Bool { status == "active" }
@@ -120,6 +122,34 @@ struct APIPage<T: Codable>: Codable {
 struct NotificationFeed: Codable, Equatable {
     let unread: Int
     let items: [AppNotification]
+    /// How many match the current filter, across every page.
+    let total: Int
+    let page: Int
+    let perPage: Int
+    let hasMore: Bool
+    /// Every kind this person has been sent, so a filter only offers what
+    /// would actually match something.
+    let kinds: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case unread, items, total, page, kinds
+        case perPage = "per_page"
+        case hasMore = "has_more"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        unread = try c.decodeIfPresent(Int.self, forKey: .unread) ?? 0
+        items = try c.decodeIfPresent([AppNotification].self, forKey: .items) ?? []
+        // An older API answered with just `unread` and `items`. Defaulting
+        // rather than failing means an app already on somebody's phone keeps
+        // working against a server that has not been deployed yet.
+        total = try c.decodeIfPresent(Int.self, forKey: .total) ?? items.count
+        page = try c.decodeIfPresent(Int.self, forKey: .page) ?? 1
+        perPage = try c.decodeIfPresent(Int.self, forKey: .perPage) ?? items.count
+        hasMore = try c.decodeIfPresent(Bool.self, forKey: .hasMore) ?? false
+        kinds = try c.decodeIfPresent([String].self, forKey: .kinds) ?? []
+    }
 }
 
 /// The knobs a club secretary can turn.

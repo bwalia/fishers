@@ -21,9 +21,10 @@ function apiOrigin() {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ token: string }>;
+  params: Promise<{ token: string[] }>;
 }): Promise<Metadata> {
-  const { token } = await params;
+  // Catch-all, and a mangled link keeps only its leading hex — as the page does.
+  const token = /^[0-9a-f]*/i.exec((await params).token[0] ?? "")?.[0] ?? "";
   const fallback: Metadata = {
     title: "Live scoreboard — Fishers",
     description: "Follow the full live cricket scoreboard. No sign-in required.",

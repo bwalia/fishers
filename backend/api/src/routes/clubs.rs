@@ -2,6 +2,7 @@ use axum::extract::{Path, State};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use fishers_db::repos::clubs as clubs_repo;
+use fishers_db::repos::users as users_repo;
 use fishers_db::repos::clubs::{
     ClubMemberDetail, ClubMembership, ClubSettings, QrIdentity, UpdateClubSettings,
 };
@@ -31,11 +32,178 @@ pub fn router() -> Router<AppState> {
         .route("/clubs/{id}/settings", get(get_settings).patch(update_settings))
         .route("/clubs/{id}/teams", get(list_teams).post(create_team))
         .route("/clubs/{id}/venues", get(list_venues).post(create_venue))
-        .route("/teams/{id}/members", post(add_team_member))
+        .route(
+            "/teams/{id}/members",
+            get(list_team_members).post(add_team_member),
+        )
         .route("/clubs/{id}/qr", get(club_qr).post(rotate_qr))
         .route("/teams/{id}/qr", get(team_qr))
         .route("/opponents/lookup", post(lookup_opponent))
         .route("/opponents/search", get(search_opponents))
+        .route("/clubs/{id}/page", get(get_page).patch(update_page))
+        // No auth: this is the club's shop window.
+        .route("/public/clubs/{slug}", get(public_page))
+}
+
+#[derive(Serialize)]
+struct PublicClubPage {
+    club: clubs_repo::ClubPage,
+    /// Played, won, lost — and the percentage every club leads with.
+    record: Option<SeasonRecord>,
+    top_batters: Vec<fishers_domain::PlayerSeasonStatsView>,
+    top_bowlers: Vec<fishers_domain::PlayerSeasonStatsView>,
+    fixtures: Vec<PublicFixture>,
+    /// The player the club chose to lead with.
+    icon_player: Option<IconPlayer>,
+}
+
+#[derive(Serialize)]
+struct IconPlayer {
+    name: String,
+    avatar_url: Option<String>,
+    position: Option<String>,
+}
+
+#[derive(Serialize)]
+struct SeasonRecord {
+    season: i32,
+    played: i32,
+    won: i32,
+    lost: i32,
+    drawn: i32,
+    no_result: i32,
+    /// Of the matches that produced a result — a rained-off game is not a loss.
+    win_percent: Option<i32>,
+}
+
+#[derive(Serialize)]
+struct PublicFixture {
+    title: String,
+    start_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// A club's public page, for anybody at all.
+///
+/// Deliberately unauthenticated and deliberately narrow: the club's own words,
+/// the record they have played to, the players at the top of it, and when they
+/// are next out. No rosters, no contact details for members, nothing a club
+/// would not put on a noticeboard.
+async fn public_page(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+) -> ApiResult<Json<PublicClubPage>> {
+    let club = clubs_repo::page_by_slug(&state.pool, &slug)
+        .await?
+        .ok_or_else(|| ApiError::not_found("no club has that address"))?;
+
+    let season = chrono::Utc::now().format("%Y").to_string().parse().unwrap_or(2026);
+    let board = fishers_db::repos::stats::club_board(&state.pool, club.id, season)
+        .await
+        .ok()
+        .flatten();
+
+    let record = board.as_ref().map(|b| {
+        let c = &b.club;
+        let decided = c.wins + c.losses + c.draws;
+        SeasonRecord {
+            season: c.season_year,
+            played: c.matches_played,
+            won: c.wins,
+            lost: c.losses,
+            drawn: c.draws,
+            no_result: c.no_results,
+            // A no-result is not a loss, so it is out of the sum entirely.
+            win_percent: (decided > 0).then(|| (c.wins * 100) / decided),
+        }
+    });
+
+    let fixtures = fishers_db::repos::events::upcoming_for_club(&state.pool, club.id, 5)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|e| PublicFixture {
+            title: e.title,
+            start_at: e.start_at,
+        })
+        .collect();
+
+    // Only what a club would put on a poster: a name, a face, a position.
+    let icon_player = match club.icon_player_id {
+        Some(id) => users_repo::find_by_id(&state.pool, id).await.ok().flatten().map(|u| {
+            // Their position for the sport they lead with. `position_role` is
+            // the single-sport column this replaced, kept as the fallback for
+            // anyone who has not filled a sport profile in.
+            let position = u
+                .sport_profiles
+                .0
+                .iter()
+                .find(|p| Some(&p.sport) == u.primary_sport.as_ref())
+                .or_else(|| u.sport_profiles.0.first())
+                .and_then(|p| p.position.clone())
+                .or(u.position_role);
+            IconPlayer {
+                name: u.name,
+                avatar_url: u.avatar_url,
+                position,
+            }
+        }),
+        None => None,
+    };
+
+    Ok(Json(PublicClubPage {
+        icon_player,
+        club,
+        record,
+        top_batters: board.as_ref().map(|b| b.top_batters.clone()).unwrap_or_default(),
+        top_bowlers: board.as_ref().map(|b| b.top_bowlers.clone()).unwrap_or_default(),
+        fixtures,
+    }))
+}
+
+async fn get_page(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<clubs_repo::ClubPage>> {
+    require_club_member(&state, id, auth.user_id).await?;
+    clubs_repo::page_for(&state.pool, id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("club not found"))
+}
+
+async fn update_page(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<clubs_repo::UpdateClubPage>,
+) -> ApiResult<Json<clubs_repo::ClubPage>> {
+    require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
+
+    if let Some(slug) = body.slug.as_deref() {
+        let clean = slug.trim().to_lowercase();
+        // It goes in a URL, so keep it to what survives one.
+        if clean.len() < 3
+            || !clean
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
+            return Err(ApiError::bad_request(
+                "the address needs at least three letters, numbers or hyphens",
+            ));
+        }
+    }
+
+    clubs_repo::update_page(&state.pool, id, &body)
+        .await
+        .map(Json)
+        .map_err(|e| {
+            if e.to_string().contains("clubs_slug_key") {
+                ApiError::conflict("another club already has that address")
+            } else {
+                ApiError::from(e)
+            }
+        })
 }
 
 async fn create_club(
@@ -324,6 +492,20 @@ async fn list_venues(
 struct TeamMemberBody {
     user_id: Uuid,
     role: Option<UserRole>,
+}
+
+/// A team's roster. Any club member may read it — knowing who is in the 2nd XI
+/// is not privileged information inside a club.
+async fn list_team_members(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Vec<clubs_repo::TeamMemberDetail>>> {
+    let team = clubs_repo::get_team(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("team not found"))?;
+    require_club_member(&state, team.club_id, auth.user_id).await?;
+    Ok(Json(clubs_repo::list_team_members(&state.pool, id).await?))
 }
 
 async fn add_team_member(

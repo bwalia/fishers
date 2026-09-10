@@ -31,6 +31,7 @@ async fn create_invite(
     let _ = state
         .push
         .send(
+            &state.pool,
             body.invited_user_id.unwrap_or(auth.user_id),
             "invite",
             "You're invited",

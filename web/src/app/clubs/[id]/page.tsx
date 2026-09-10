@@ -4,19 +4,28 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   api,
+  readErr,
   getAccessToken,
   getStoredUser,
   roleLabel,
   CLUB_ROLES,
+  money,
+  NO_ICON_PLAYER,
   SPORTS,
   type Club,
   type ClubMemberRow,
   type Invite,
   type MyRole,
   type QrCode,
+  type ClubPageSettings,
+  type ClubSettings,
+  type OutstandingFees,
+  type TeamMemberRow,
+  type Venue,
   type Team,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { Avatar } from "@/components/Avatar";
 import { QrCard } from "@/components/QrCard";
 import { copyText } from "@/lib/clipboard";
 
@@ -47,7 +56,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       setTeams(t);
       setMyRole(role);
     } catch (err) {
-      setError(readError(err, "Could not load the club"));
+      setError(readErr(err, "Could not load the club"));
     } finally {
       setLoading(false);
     }
@@ -87,6 +96,14 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       />
 
       <Teams clubId={id} teams={teams} isSecretary={isSecretary} onChanged={load} />
+
+      <Venues clubId={id} canEdit={isSecretary} />
+
+      {isSecretary && <Settings clubId={id} />}
+
+      {isSecretary && <Fees clubId={id} />}
+
+      {isSecretary && <PublicPage clubId={id} clubName={club.name} members={members} />}
 
       <Codes clubId={id} teams={teams} />
     </main>
@@ -135,7 +152,7 @@ function Members({
       await api("PATCH", `/clubs/${clubId}/members/${userId}`, { role });
       onChanged();
     } catch (err) {
-      setError(readError(err, "Could not change that role"));
+      setError(readErr(err, "Could not change that role"));
     } finally {
       setBusy(null);
     }
@@ -149,7 +166,7 @@ function Members({
       await api("DELETE", `/clubs/${clubId}/members/${userId}`);
       onChanged();
     } catch (err) {
-      setError(readError(err, "Could not remove them"));
+      setError(readErr(err, "Could not remove them"));
     } finally {
       setBusy(null);
     }
@@ -161,6 +178,11 @@ function Members({
         <h2>Members</h2>
         <span className="tag grey">{members.length}</span>
       </div>
+      <p className="muted">
+        A role is what somebody is allowed to <em>run</em>, not whether they play.
+        Everybody here is picked from for a side, the secretary included — and the
+        levels stack, so a secretary already has a captain&rsquo;s powers.
+      </p>
 
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
 
@@ -195,8 +217,11 @@ function Members({
               return (
                 <tr key={m.user_id}>
                   <td>
-                    {m.name}
-                    {m.user_id === meId && <span className="tag grey"> you</span>}
+                    <Link className="person" href={`/players/${m.user_id}`}>
+                      <Avatar name={m.name} url={m.avatar_url} size={30} />
+                      {m.name}
+                      {m.user_id === meId && <span className="tag grey">you</span>}
+                    </Link>
                   </td>
                   <td className="subtle">{m.email || m.phone || "—"}</td>
                   <td>
@@ -208,7 +233,9 @@ function Members({
                         aria-label={`Role for ${m.name}`}
                       >
                         {CLUB_ROLES.map((r) => (
-                          <option key={r.value} value={r.value}>{r.label}</option>
+                          <option key={r.value} value={r.value} title={r.can}>
+                            {r.label}
+                          </option>
                         ))}
                       </select>
                     ) : (
@@ -264,7 +291,7 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
       setNote("Added.");
       onAdded();
     } catch (err) {
-      setNote(readError(err, "Could not add them"));
+      setNote(readErr(err, "Could not add them"));
     } finally {
       setBusy(false);
     }
@@ -282,7 +309,7 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
       setInvite(`${window.location.origin}/invite/${created.token}`);
       setNote(null);
     } catch (err) {
-      setNote(readError(err, "Could not create the invite"));
+      setNote(readErr(err, "Could not create the invite"));
     } finally {
       setBusy(false);
     }
@@ -359,7 +386,7 @@ function Teams({
       setName("");
       onChanged();
     } catch (err) {
-      setError(readError(err, "Could not create the team"));
+      setError(readErr(err, "Could not create the team"));
     } finally {
       setBusy(false);
     }
@@ -377,14 +404,7 @@ function Teams({
           keeping separate squads.
         </p>
       )}
-      {teams.map((t) => (
-        <div className="row" key={t.id}>
-          <div>
-            <div style={{ fontWeight: 600 }}>{t.name}</div>
-            <span className="tag">{t.sport}</span>
-          </div>
-        </div>
-      ))}
+      {teams.map((t) => <TeamRow key={t.id} team={t} />)}
       {isSecretary && (
         <div className="field-row" style={{ marginTop: "var(--s3)" }}>
           <label>
@@ -404,6 +424,603 @@ function Teams({
       )}
       {error && <p className="error">{error}</p>}
     </div>
+  );
+}
+
+/// One team, and who is in it.
+///
+/// Collapsed by default: a club with four teams should not fetch four rosters
+/// to show a list of four names. Open one and it loads.
+function TeamRow({ team }: { team: Team }) {
+  const [open, setOpen] = useState(false);
+  const [members, setMembers] = useState<TeamMemberRow[] | null>(null);
+
+  useEffect(() => {
+    if (!open || members) return;
+    api<TeamMemberRow[]>("GET", `/teams/${team.id}/members`)
+      .then(setMembers)
+      .catch(() => setMembers([]));
+  }, [open, members, team.id]);
+
+  return (
+    <div className="team-row">
+      <button
+        type="button"
+        className="team-head"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>
+          <strong>{team.name}</strong>
+          <span className="tag grey">{team.sport}</span>
+        </span>
+        <span className="subtle">
+          {members ? `${members.length} in` : ""} {open ? "▴" : "▾"}
+        </span>
+      </button>
+
+      {open && (
+        members === null ? (
+          <div className="skeleton" style={{ height: 48 }} />
+        ) : members.length === 0 ? (
+          <p className="muted">
+            Nobody in this team yet. A secretary or the team captain adds people.
+          </p>
+        ) : (
+          <ul className="pick-list">
+            {members.map((m) => (
+              <li key={m.user_id}>
+                <Avatar name={m.name} url={m.avatar_url} size={30} />
+                <div className="pick-who">
+                  <strong>
+                    <Link href={`/players/${m.user_id}`}>{m.name}</Link>
+                  </strong>
+                  <span className="pick-signals">
+                    {m.role !== "member" && (
+                      <span className="tag">{roleLabel(m.role)}</span>
+                    )}
+                    {m.position_role && <span className="subtle">{m.position_role}</span>}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )
+      )}
+    </div>
+  );
+}
+
+/// Where the club plays.
+///
+/// A fixture carries a venue, and until somebody has entered one there is
+/// nothing to carry — which is why "where are we playing?" ends up in the
+/// group chat every Saturday morning.
+function Venues({ clubId, canEdit }: { clubId: string; canEdit: boolean }) {
+  const [venues, setVenues] = useState<Venue[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setVenues(await api<Venue[]>("GET", `/clubs/${clubId}/venues`).catch(() => []));
+  }, [clubId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (venues === null) return null;
+
+  const add = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api("POST", `/clubs/${clubId}/venues`, {
+        name: name.trim(),
+        address: address.trim() || null,
+      });
+      setName("");
+      setAddress("");
+      setAdding(false);
+      await load();
+    } catch (err) {
+      setError(readErr(err, "Could not add that ground"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h2>Grounds</h2>
+        <span className="tag grey">{venues.length}</span>
+      </div>
+
+      {venues.length === 0 ? (
+        <p className="muted">
+          No grounds yet. Add the ones you play at and they can be picked when a fixture is
+          scheduled.
+        </p>
+      ) : (
+        <ul className="pick-list">
+          {venues.map((v) => (
+            <li key={v.id}>
+              <span className="thread-mark" aria-hidden>
+                <Icon name="pin" size={18} />
+              </span>
+              <div className="pick-who">
+                <strong>{v.name}</strong>
+                {v.address && <span className="subtle">{v.address}</span>}
+              </div>
+              {v.address && (
+                <div className="pick-actions">
+                  {/* Somebody standing in a car park wants the map, not the
+                      address as text. */}
+                  <a
+                    className="btn ghost sm"
+                    href={`https://maps.google.com/?q=${encodeURIComponent(`${v.name} ${v.address}`)}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    Map
+                  </a>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {canEdit && !adding && (
+        <button className="btn" type="button" onClick={() => setAdding(true)}
+                style={{ marginTop: "var(--s3)" }}>
+          <Icon name="plus" size={16} /> Add a ground
+        </button>
+      )}
+
+      {canEdit && adding && (
+        <>
+          <div className="setup-fields">
+            <label>
+              Name
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                     placeholder="Highbury Fields" maxLength={160} />
+            </label>
+            <label>
+              Address
+              <input value={address} onChange={(e) => setAddress(e.target.value)}
+                     placeholder="Highbury Fields, London N5 1AR" />
+            </label>
+          </div>
+          {error && <p className="error">{error}</p>}
+          <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+            <button className="btn primary" type="button" disabled={busy || !name.trim()}
+                    onClick={add}>
+              {busy ? "Adding…" : "Add it"}
+            </button>
+            <button className="btn" type="button" onClick={() => setAdding(false)}>Cancel</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/// How much the club wants done for it.
+///
+/// These are the deadlines the scheduler works to, so they are written in the
+/// units a secretary thinks in — hours before the start — rather than as cron
+/// settings. Nothing here changes what a captain *can* do; it changes what
+/// happens when nobody does anything.
+function Settings({ clubId }: { clubId: string }) {
+  const [settings, setSettings] = useState<ClubSettings | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<ClubSettings>("GET", `/clubs/${clubId}/settings`).then(setSettings).catch(() => {});
+  }, [clubId]);
+
+  if (!settings) return null;
+
+  const set = (patch: Partial<ClubSettings>) => {
+    setSettings({ ...settings, ...patch });
+    setSaved(false);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      setSettings(await api<ClubSettings>("PATCH", `/clubs/${clubId}/settings`, settings));
+      setSaved(true);
+    } catch (err) {
+      setError(readErr(err, "Could not save those settings"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const hours = (
+    label: string,
+    key: keyof ClubSettings,
+    hint: string
+  ) => (
+    <label>
+      {label}
+      <input
+        type="number"
+        min={0}
+        value={settings[key] as number}
+        onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<ClubSettings>)}
+      />
+      <span className="subtle">{hint}</span>
+    </label>
+  );
+
+  return (
+    <div className="panel">
+      <h2>How the club runs itself</h2>
+
+      <label>
+        Picking a side
+        <select
+          value={settings.selection_autonomy}
+          onChange={(e) => set({ selection_autonomy: e.target.value })}
+        >
+          <option value="off">Captains do it — no help offered</option>
+          <option value="suggest">Offer a squad and wait for the captain</option>
+          <option value="auto_publish">Announce a squad without asking</option>
+        </select>
+        <span className="subtle">
+          {settings.selection_autonomy === "auto_publish"
+            ? "Sides go out on their own. A captain can still change one afterwards."
+            : settings.selection_autonomy === "suggest"
+            ? "Nothing is announced until a captain says so."
+            : "Nothing is suggested at all."}
+        </span>
+      </label>
+
+      <div className="setup-fields">
+        {hours("Ask for confirmation", "confirm_lead_hours",
+               "hours before the start")}
+        {hours("Drop anyone who has not confirmed", "drop_lead_hours",
+               "hours before the start — reserves move up")}
+        {hours("Chase an unpaid fee after", "fee_chase_after_hours",
+               "hours from the fixture")}
+        {hours("Stop chasing after", "fee_chase_max_reminders",
+               "reminders, so nobody is nagged forever")}
+      </div>
+
+      {error && <p className="error">{error}</p>}
+      {saved && !error && <p className="muted">Saved.</p>}
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn primary" type="button" disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/// Who has not paid for what.
+///
+/// One row per person per fixture, because that is how anybody actually
+/// chases: "you owe for the Watford game", not "you owe £24". The scheduler
+/// sends reminders on its own — this is the button for doing it now, and it
+/// says how many have already gone so nobody gets nagged twice in a morning.
+function Fees({ clubId }: { clubId: string }) {
+  const [fees, setFees] = useState<OutstandingFees | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setFees(await api<OutstandingFees>("GET", `/clubs/${clubId}/fees/outstanding`));
+    } catch {
+      // A member without the selector role simply does not see this panel.
+      setFees(null);
+    }
+  }, [clubId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (!fees) return null;
+
+  const chase = async () => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      await api("POST", `/clubs/${clubId}/fees/chase`, {});
+      setNote("Reminders sent.");
+      await load();
+    } catch (err) {
+      setError(readErr(err, "Could not send those reminders"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h2>Match fees owed</h2>
+        <span className={fees.count > 0 ? "tag gold" : "tag"}>
+          {money(fees.total_cents)}
+        </span>
+      </div>
+
+      {fees.count === 0 ? (
+        <p className="muted">Everybody is square. Nothing outstanding.</p>
+      ) : (
+        <>
+          <p className="muted">
+            {fees.count} unpaid {fees.count === 1 ? "fee" : "fees"} across your fixtures.
+          </p>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Who</th><th>Fixture</th><th>When</th>
+                  <th className="n">Owes</th><th className="n">Chased</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fees.owed.map((row) => (
+                  <tr key={`${row.user_id}-${row.event_id}`}>
+                    <td>
+                      <span className="person">
+                        <Avatar name={row.name} size={28} />
+                        {row.name}
+                      </span>
+                    </td>
+                    <td>{row.fixture}</td>
+                    <td className="subtle">
+                      {new Date(row.start_at).toLocaleDateString("en-GB", {
+                        day: "numeric", month: "short",
+                      })}
+                    </td>
+                    <td className="n num">{money(row.amount_cents ?? 0, row.currency)}</td>
+                    <td className="n num">{row.reminders_sent || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {error && <p className="error">{error}</p>}
+          {note && !error && <p className="muted">{note}</p>}
+          <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+            <button className="btn primary" type="button" disabled={busy} onClick={chase}>
+              {busy ? "Sending…" : "Remind everybody now"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/// The club's own public site, without them having to build one.
+function PublicPage({
+  clubId,
+  clubName,
+  members,
+}: {
+  clubId: string;
+  clubName: string;
+  members: ClubMemberRow[];
+}) {
+  const [page, setPage] = useState<ClubPageSettings | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api<ClubPageSettings>("GET", `/clubs/${clubId}/page`).then(setPage).catch(() => {});
+  }, [clubId]);
+
+  if (!page) return null;
+
+  const set = (patch: Partial<ClubPageSettings>) => setPage({ ...page, ...patch });
+
+  const save = async (patch: Partial<ClubPageSettings>) => {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      setPage(await api<ClubPageSettings>("PATCH", `/clubs/${clubId}/page`, patch));
+      setSaved(true);
+    } catch (err) {
+      setError(readErr(err, "Could not save the page"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // A default anyone can live with, from the name they already chose.
+  const suggested = clubName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const address = page.slug ?? suggested;
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h2>Your public page</h2>
+        {page.public_page && page.slug && (
+          <a className="btn ghost sm" href={`/c/${page.slug}`} target="_blank" rel="noreferrer">
+            View it
+          </a>
+        )}
+      </div>
+      <p className="muted">
+        A page anyone can open — no login. Your record and top players are worked out from
+        the matches you have played; the rest is yours to write.
+      </p>
+
+      <div className="setup-fields">
+        <label>
+          Web address
+          <input
+            value={address}
+            onChange={(e) => set({ slug: e.target.value })}
+            placeholder={suggested}
+          />
+          <span className="subtle">fishers.cloud/c/{address || suggested}</span>
+        </label>
+        <label>
+          Ground
+          <input
+            value={page.ground ?? ""}
+            onChange={(e) => set({ ground: e.target.value })}
+            placeholder="Highbury Fields, London N5"
+          />
+        </label>
+        <label>
+          Founded
+          <input
+            type="number"
+            inputMode="numeric"
+            value={page.founded_year ?? ""}
+            onChange={(e) =>
+              set({ founded_year: e.target.value === "" ? null : Number(e.target.value) })
+            }
+            placeholder="1974"
+          />
+        </label>
+        <label>
+          Email for new players
+          <input
+            type="email"
+            value={page.contact_email ?? ""}
+            onChange={(e) => set({ contact_email: e.target.value })}
+            placeholder="hello@yourclub.test"
+          />
+        </label>
+      </div>
+
+      <IconPlayerPicker
+        members={members}
+        chosen={page.icon_player_id ?? null}
+        onPick={(id) => set({ icon_player_id: id })}
+      />
+
+      <label>
+        One line about the club
+        <input
+          value={page.tagline ?? ""}
+          onChange={(e) => set({ tagline: e.target.value })}
+          placeholder="Sunday cricket in north London since 1974."
+        />
+      </label>
+
+      <label>
+        The longer version
+        <textarea
+          rows={4}
+          value={page.about ?? ""}
+          onChange={(e) => set({ about: e.target.value })}
+          placeholder="Who you are, where you play, who you are looking for."
+        />
+      </label>
+
+      {error && <p className="error">{error}</p>}
+      {saved && !error && <p className="muted">Saved.</p>}
+
+      <div className="field-row">
+        <button
+          className="btn primary"
+          type="button"
+          disabled={busy}
+          onClick={() => save({ ...page, slug: address })}
+        >
+          {busy ? "Saving…" : "Save"}
+        </button>
+        <button
+          className="btn"
+          type="button"
+          disabled={busy}
+          onClick={() => save({ slug: address, public_page: !page.public_page })}
+        >
+          {page.public_page ? "Take it offline" : "Publish it"}
+        </button>
+        <span className={`tag ${page.public_page ? "" : "grey"}`}>
+          {page.public_page ? "Live" : "Not published"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/// The one player the club leads with — a face on the front page.
+///
+/// Optional by design: a club with no photos on file still gets a page, and
+/// "Nobody for now" is a real answer rather than a stuck field.
+function IconPlayerPicker({
+  members,
+  chosen,
+  onPick,
+}: {
+  members: ClubMemberRow[];
+  chosen: string | null;
+  onPick: (id: string) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const term = filter.trim().toLowerCase();
+  const shown = term
+    ? members.filter((m) => m.name.toLowerCase().includes(term))
+    : members;
+
+  return (
+    <fieldset className="icon-pick">
+      <legend>Your icon player</legend>
+      <p className="muted">
+        Their photo leads the public page. They upload it themselves from their profile —
+        anyone without one still shows, just as initials.
+      </p>
+      {members.length > 6 && (
+        <input
+          className="icon-pick-search"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Search the squad"
+          aria-label="Search the squad"
+        />
+      )}
+      <div className="icon-pick-grid">
+        {/* NO_ICON_PLAYER, not an empty string: the API reads a null as
+            "field untouched", so clearing needs a value of its own. */}
+        <button
+          type="button"
+          className={`icon-pick-card${chosen ? "" : " on"}`}
+          aria-pressed={!chosen}
+          onClick={() => onPick(NO_ICON_PLAYER)}
+        >
+          <span className="icon-pick-face none">—</span>
+          <span className="icon-pick-name">Nobody for now</span>
+        </button>
+        {shown.map((m) => (
+          <button
+            key={m.user_id}
+            type="button"
+            className={`icon-pick-card${chosen === m.user_id ? " on" : ""}`}
+            aria-pressed={chosen === m.user_id}
+            onClick={() => onPick(m.user_id)}
+          >
+            <Avatar name={m.name} url={m.avatar_url} size={56} />
+            <span className="icon-pick-name">{m.name}</span>
+            {m.position_role && <span className="icon-pick-role">{m.position_role}</span>}
+          </button>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -443,12 +1060,3 @@ function Codes({ clubId, teams }: { clubId: string; teams: Team[] }) {
   );
 }
 
-/// The API puts a sentence in `{"error": "..."}`; it is more use than a status.
-function readError(err: unknown, fallback: string): string {
-  const raw = err instanceof Error ? err.message : "";
-  try {
-    return JSON.parse(raw).error ?? fallback;
-  } catch {
-    return raw || fallback;
-  }
-}

@@ -94,6 +94,7 @@ struct ClubQRView: View {
                 Section { Text(message).font(.footnote).foregroundStyle(.secondary) }
             }
         }
+        .fishersList()
         .navigationTitle("Club QR code")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

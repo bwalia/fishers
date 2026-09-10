@@ -240,6 +240,40 @@ pub async fn override_scorer(
     Ok(updated)
 }
 
+/// Give the book to somebody when nobody holds it.
+///
+/// Only when it is free: the `active_scorer_user_id IS NULL` in the WHERE is
+/// what stops an appointment quietly taking the book off a scorer mid-over.
+/// Returns whether it moved.
+pub async fn set_scorer(
+    pool: &PgPool,
+    match_id: Uuid,
+    to_user: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let updated = sqlx::query(
+        r#"
+        UPDATE cricket_matches
+        SET active_scorer_user_id = $2,
+            -- They claim the device lock on their first sync, as any scorer does.
+            active_scorer_device_id = NULL,
+            updated_at = NOW()
+        WHERE id = $1 AND active_scorer_user_id IS NULL
+        "#,
+    )
+    .bind(match_id)
+    .bind(to_user)
+    .execute(&mut *tx)
+    .await?;
+
+    let moved = updated.rows_affected() > 0;
+    if moved {
+        log_handover(&mut tx, match_id, None, to_user, "appointed", to_user).await?;
+    }
+    tx.commit().await?;
+    Ok(moved)
+}
+
 async fn log_handover(
     tx: &mut Transaction<'_, Postgres>,
     match_id: Uuid,

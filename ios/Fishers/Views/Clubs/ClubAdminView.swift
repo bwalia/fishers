@@ -107,6 +107,7 @@ private struct RosterList: View {
             }
         }
         .listStyle(.insetGrouped)
+            .fishersList()
         .toolbar {
             if canManage {
                 ToolbarItem(placement: .primaryAction) {
@@ -125,30 +126,43 @@ private struct RosterList: View {
         }
     }
 
+    /// Two targets, because there are two things to do with a name.
+    ///
+    /// Tapping the person opens their record — everyone can do that. The role
+    /// badge is the button that changes it, and only a secretary sees it as a
+    /// button. The row used to do nothing at all for anybody who could not
+    /// manage the club, which is most of the club.
     private func row(_ member: ClubMemberDetail) -> some View {
-        Button {
-            guard canManage else { return }
-            editing = member
-        } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(member.name).font(.subheadline.weight(.medium))
-                    if !member.subtitle.isEmpty {
-                        Text(member.subtitle).font(.caption2).foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            NavigationLink {
+                PlayerProfileView(userId: member.userId, knownName: member.name)
+            } label: {
+                HStack(spacing: 10) {
+                    AvatarView(name: member.name, urlString: member.avatarUrl, size: 34)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(member.name).font(.subheadline.weight(.medium))
+                        if !member.subtitle.isEmpty {
+                            Text(member.subtitle).font(.caption2).foregroundStyle(.secondary)
+                        }
+                        Text(member.contact).font(.caption2).foregroundStyle(.secondary)
                     }
-                    Text(member.contact).font(.caption2).foregroundStyle(.secondary)
-                }
-                Spacer()
-                RoleBadge(role: member.role)
-                if canManage {
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
                 }
             }
+            .accessibilityLabel("\(member.name), \(member.role.displayName). Open their profile.")
+
+            if canManage {
+                Button {
+                    editing = member
+                } label: {
+                    RoleBadge(role: member.role)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Change \(member.name)'s role")
+            } else {
+                RoleBadge(role: member.role)
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(member.name), \(member.role.displayName)")
+        .frame(minHeight: FishersTheme.minTap)
     }
 
     private var trimmedIdentifier: String {

@@ -1,0 +1,19 @@
+# Screens for scripts/audit-screens.py. Ids are local to whoever is running it,
+# so copy this and fill in your own — the point is to walk every distinct
+# layout, not every row.
+/
+/availability
+/chat
+/chat/YOUR-CONVERSATION-ID
+/clubs
+/clubs/YOUR-CLUB-ID
+/events
+/events/YOUR-EVENT-ID
+/events/YOUR-EVENT-ID/selection
+/events/YOUR-TICKETED-EVENT-ID/tickets
+/profile
+/score
+/shop
+/stats
+/tournaments
+/tournaments/YOUR-BLOCK-ID

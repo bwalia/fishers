@@ -38,6 +38,7 @@ struct LiveScorerView: View {
     @State private var showSecondInnings = false
     @State private var showRain = false
     @State private var showHandover = false
+    @State private var showCallOff = false
     @State private var showAward = false
     @State private var showSuperOver = false
     @State private var showPenalty = false
@@ -123,6 +124,7 @@ struct LiveScorerView: View {
         .sheet(isPresented: $showSecondInnings) { SecondInningsSheet(store: store) }
         .sheet(isPresented: $showRain) { RevisedOversSheet(store: store) }
         .sheet(isPresented: $showHandover) { HandoverSheet(store: store) }
+        .sheet(isPresented: $showCallOff) { CallItOffSheet(store: store) }
         .sheet(isPresented: $showAward) { AwardSheet(store: store) }
         .sheet(isPresented: $showSuperOver) { SuperOverSheet(store: store) }
         .sheet(isPresented: $showPenalty) { PenaltySheet(store: store) }
@@ -228,6 +230,12 @@ struct LiveScorerView: View {
                         showScorecard = true
                     } label: {
                         Label("Scorecard", systemImage: "list.bullet.rectangle")
+                    }
+                    Divider()
+                    Button(role: .destructive) {
+                        showCallOff = true
+                    } label: {
+                        Label("Call this match off", systemImage: "xmark.octagon")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -476,7 +484,7 @@ struct LiveScorerView: View {
             }
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 10))
             .accessibilityElement(children: .combine)
         }
     }
@@ -503,7 +511,7 @@ struct LiveScorerView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
-            .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+            .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 10))
             .task(id: inn.deliveries.count) { await fetchCommentary(for: inn) }
         }
     }
@@ -806,6 +814,7 @@ private struct ExtrasSheet: View {
                     }
                 }
             }
+            .fishersList()
             .navigationTitle("Extras")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1367,9 +1376,29 @@ private struct HandoverSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var officials: [MatchOfficialRow] = []
+    @State private var squads: MatchSquads?
     @State private var trail: [ScorerHandover] = []
+    @State private var chosen: UUID?
     @State private var isWorking = false
     @State private var message: String?
+
+    /// Officials first — they are usually who it should go to — then each
+    /// side. Nobody appears twice, and you are never offered yourself.
+    private var candidates: [PeoplePickerView.Group] {
+        // Never offer yourself: you are the one holding it.
+        var seen = Set([KeychainStore.get("user_id").flatMap(UUID.init(uuidString:))].compactMap { $0 })
+        func take(_ people: [PeoplePickerView.Person]) -> [PeoplePickerView.Person] {
+            people.filter { seen.insert($0.id).inserted }
+        }
+        return [
+            .init(label: "Umpires",
+                  people: take(officials.map { .init(id: $0.userId, name: $0.name, note: $0.label) })),
+            .init(label: squads?.home.teamName ?? "Home",
+                  people: take((squads?.home.players ?? []).map { .init(id: $0.id, name: $0.name) })),
+            .init(label: squads?.away.teamName ?? "Away",
+                  people: take((squads?.away.players ?? []).map { .init(id: $0.id, name: $0.name) })),
+        ]
+    }
 
     var body: some View {
         NavigationStack {
@@ -1384,38 +1413,30 @@ private struct HandoverSheet: View {
                 }
 
                 Section {
-                    if officials.isEmpty {
-                        Text("Nobody else is appointed to this match. Add an umpire or scorer from the match setup first.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(officials) { official in
-                            Button {
-                                Task { await handOver(to: official) }
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(official.name)
-                                        Text(official.label)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    if isWorking {
-                                        ProgressView()
-                                    } else {
-                                        Image(systemName: "arrow.right.circle")
-                                            .foregroundStyle(FishersTheme.accent)
-                                    }
-                                }
-                            }
-                            .disabled(isWorking)
-                        }
-                    }
+                    PeoplePickerView(
+                        groups: candidates,
+                        chosen: $chosen,
+                        empty: "Nobody else is named on this match yet. Pick the teams first, or appoint an umpire from the match setup."
+                    )
                 } header: {
                     Text("Hand over to")
                 } footer: {
-                    Text("They pick it up on their own phone. Anything you have not synced yet goes up first.")
+                    Text("Anyone playing can take it, from either side. They pick it up on their own phone, and anything you have not synced yet goes up first.")
+                }
+
+                if chosen != nil {
+                    Section {
+                        Button {
+                            Task { await handOver() }
+                        } label: {
+                            HStack {
+                                Text(isWorking ? "Handing over…" : "Hand it over")
+                                Spacer()
+                                if isWorking { ProgressView() }
+                            }
+                        }
+                        .disabled(isWorking)
+                    }
                 }
 
                 if !trail.isEmpty {
@@ -1451,22 +1472,130 @@ private struct HandoverSheet: View {
     private func load() async {
         guard let matchId = store.matchId else { return }
         officials = (try? await FishersAPI.matchOfficials(matchId: matchId)) ?? []
+        squads = try? await FishersAPI.squads(matchId: matchId)
         trail = (try? await FishersAPI.scorerTrail(matchId: matchId)) ?? []
     }
 
-    private func handOver(to official: MatchOfficialRow) async {
-        guard let matchId = store.matchId else { return }
+    private func handOver() async {
+        guard let matchId = store.matchId, let to = chosen else { return }
         isWorking = true
         defer { isWorking = false }
         // Everything scored so far goes up before the book moves, or it would
         // be stranded on this phone.
         await CricketSyncService.shared.flush()
         do {
-            _ = try await FishersAPI.handOverScoring(matchId: matchId, toUserId: official.userId)
+            _ = try await FishersAPI.handOverScoring(matchId: matchId, toUserId: to)
             store.releaseScoring()
             dismiss()
-        } catch {
-            message = error.localizedDescription
+        } catch let failure {
+            message = (failure as? APIError)?.friendlyMessage ?? failure.localizedDescription
+        }
+    }
+}
+
+// MARK: - Calling the match off
+
+/// Two different things, and the difference matters.
+///
+/// A match with balls in it is *abandoned*: the scorecard survives, the
+/// averages count, and it goes down as no result. One nobody has scored in was
+/// a mistake, and is deleted. The server draws the line; this only offers the
+/// one that applies, so nobody is invited to throw away an afternoon's scoring
+/// by tapping the wrong button.
+private struct CallItOffSheet: View {
+    @ObservedObject var store: CricketMatchStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var reason = ""
+    @State private var isWorking = false
+    @State private var message: String?
+
+    private var hasBeenScored: Bool { store.state.lastSeq > 0 && !store.state.innings.isEmpty }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if hasBeenScored {
+                    Section {
+                        TextField("Rain, bad light, ground unfit…", text: $reason)
+                    } header: {
+                        Text("Why")
+                    } footer: {
+                        Text("The scorecard stays exactly as it is and the match goes down as no result. Everything scored so far still counts towards averages.")
+                    }
+
+                    Section {
+                        Button(role: .destructive) {
+                            Task { await abandon() }
+                        } label: {
+                            HStack {
+                                Text(isWorking ? "Calling it off…" : "Abandon — no result")
+                                Spacer()
+                                if isWorking { ProgressView() }
+                            }
+                        }
+                        .disabled(isWorking)
+                    }
+                } else {
+                    Section {
+                        Button(role: .destructive) {
+                            Task { await remove() }
+                        } label: {
+                            HStack {
+                                Text(isWorking ? "Deleting…" : "Delete this match")
+                                Spacer()
+                                if isWorking { ProgressView() }
+                            }
+                        }
+                        .disabled(isWorking)
+                    } footer: {
+                        Text("Nobody has scored a ball, so there is nothing to keep. This removes the match entirely.")
+                    }
+                }
+
+                if let message {
+                    Section {
+                        Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable)
+                    }
+                }
+            }
+            .navigationTitle("Call it off")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Keep playing") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func abandon() async {
+        guard let matchId = store.matchId else { return }
+        isWorking = true
+        defer { isWorking = false }
+        // Anything still on this phone goes up first, or the abandoned card is
+        // missing its last over.
+        await CricketSyncService.shared.flush()
+        do {
+            _ = try await FishersAPI.abandonMatch(
+                matchId: matchId,
+                reason: reason.trimmingCharacters(in: .whitespaces)
+            )
+            dismiss()
+        } catch let failure {
+            message = (failure as? APIError)?.friendlyMessage ?? failure.localizedDescription
+        }
+    }
+
+    private func remove() async {
+        guard let matchId = store.matchId else { return }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await FishersAPI.deleteMatch(matchId: matchId)
+            dismiss()
+        } catch let failure {
+            message = (failure as? APIError)?.friendlyMessage ?? failure.localizedDescription
         }
     }
 }

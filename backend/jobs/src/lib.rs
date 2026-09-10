@@ -55,6 +55,7 @@ async fn request_reconfirmations(
         );
         if let Err(e) = push
             .send(
+                pool,
                 row.user_id,
                 "selection_reconfirm",
                 "Confirm you're playing",
@@ -110,6 +111,7 @@ async fn drop_and_promote(pool: &PgPool, push: &PushService) -> anyhow::Result<(
         for player in &promoted {
             if let Err(e) = push
                 .send(
+                    pool,
                     player.user_id,
                     "squad_promoted",
                     "You're in",
@@ -145,6 +147,7 @@ async fn chase_match_fees(
         );
         if let Err(e) = push
             .send(
+                pool,
                 row.user_id,
                 "fee_reminder",
                 "Match fee due",
@@ -227,14 +230,16 @@ async fn materialise_recurring(pool: &PgPool) -> anyhow::Result<()> {
                 INSERT INTO events (
                     club_id, team_id, sport, event_subtype, title, venue_id,
                     start_at, end_at, recurrence_rule, recurrence_parent_id,
-                    capacity, fee_amount_cents, fee_currency, status, metadata, created_by
+                    capacity, fee_amount_cents, fee_currency,
+               ticket_price_cents, ticket_capacity, guests_allowed, status, metadata, created_by
                 )
                 SELECT
                     club_id, team_id, sport, event_subtype, title, venue_id,
                     start_at + ($2::bigint * INTERVAL '1 week'),
                     end_at + ($2::bigint * INTERVAL '1 week'),
                     NULL, id,
-                    capacity, fee_amount_cents, fee_currency, 'scheduled', metadata, created_by
+                    capacity, fee_amount_cents, fee_currency,
+               ticket_price_cents, ticket_capacity, guests_allowed, 'scheduled', metadata, created_by
                 FROM events WHERE id = $1
                   AND NOT EXISTS (
                       SELECT 1 FROM events child
@@ -287,6 +292,7 @@ async fn send_rsvp_reminders(pool: &PgPool, push: &PushService) -> anyhow::Resul
     for (user_id, event_id, title) in &rows {
         if let Err(e) = push
             .send(
+                pool,
                 *user_id,
                 "rsvp_reminder",
                 "Are you playing?",

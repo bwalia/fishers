@@ -33,6 +33,7 @@ struct SelectionBoardView: View {
                 ProgressView()
             }
         }
+        .fishersList()
         .navigationTitle("Selection")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

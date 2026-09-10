@@ -55,6 +55,99 @@ pub async fn create_club(
     Ok(club)
 }
 
+/// A club's own public page: what they write about themselves, plus the
+/// record and the players worked out from what they have played.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ClubPage {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: Option<String>,
+    pub sport_types: Vec<String>,
+    pub tagline: Option<String>,
+    pub about: Option<String>,
+    pub ground: Option<String>,
+    pub founded_year: Option<i32>,
+    pub contact_email: Option<String>,
+    pub website: Option<String>,
+    pub public_page: bool,
+    /// The one player the club puts on its own front page.
+    pub icon_player_id: Option<Uuid>,
+}
+
+const PAGE_COLS: &str = "id, name, slug, sport_types, tagline, about, ground, \
+     founded_year, contact_email, website, public_page, icon_player_id";
+
+/// By the address in the URL. Only a club that has switched its page on is
+/// reachable — a page nobody published is not a page.
+pub async fn page_by_slug(pool: &PgPool, slug: &str) -> Result<Option<ClubPage>, sqlx::Error> {
+    sqlx::query_as::<_, ClubPage>(&format!(
+        "SELECT {PAGE_COLS} FROM clubs WHERE LOWER(slug) = LOWER($1) AND public_page"
+    ))
+    .bind(slug.trim())
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn page_for(pool: &PgPool, club_id: Uuid) -> Result<Option<ClubPage>, sqlx::Error> {
+    sqlx::query_as::<_, ClubPage>(&format!("SELECT {PAGE_COLS} FROM clubs WHERE id = $1"))
+        .bind(club_id)
+        .fetch_optional(pool)
+        .await
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct UpdateClubPage {
+    pub slug: Option<String>,
+    pub public_page: Option<bool>,
+    pub tagline: Option<String>,
+    pub about: Option<String>,
+    pub ground: Option<String>,
+    pub founded_year: Option<i32>,
+    pub contact_email: Option<String>,
+    pub website: Option<String>,
+    pub icon_player_id: Option<Uuid>,
+}
+
+/// COALESCE throughout: the editor sends only the fields it changed.
+pub async fn update_page(
+    pool: &PgPool,
+    club_id: Uuid,
+    req: &UpdateClubPage,
+) -> Result<ClubPage, sqlx::Error> {
+    sqlx::query_as::<_, ClubPage>(&format!(
+        "UPDATE clubs SET
+            slug = COALESCE($2, slug),
+            public_page = COALESCE($3, public_page),
+            tagline = COALESCE($4, tagline),
+            about = COALESCE($5, about),
+            ground = COALESCE($6, ground),
+            founded_year = COALESCE($7, founded_year),
+            contact_email = COALESCE($8, contact_email),
+            website = COALESCE($9, website),
+            -- A null means the editor did not touch the field, so COALESCE
+            -- has no way to say none. The nil uuid is that way.
+            icon_player_id = CASE
+                WHEN $10::uuid IS NULL THEN icon_player_id
+                WHEN $10 = '00000000-0000-0000-0000-000000000000'::uuid THEN NULL
+                ELSE $10 END,
+            updated_at = NOW()
+         WHERE id = $1
+         RETURNING {PAGE_COLS}"
+    ))
+    .bind(club_id)
+    .bind(req.slug.as_deref().map(str::trim))
+    .bind(req.public_page)
+    .bind(req.tagline.as_deref())
+    .bind(req.about.as_deref())
+    .bind(req.ground.as_deref())
+    .bind(req.founded_year)
+    .bind(req.contact_email.as_deref())
+    .bind(req.website.as_deref())
+    .bind(req.icon_player_id)
+    .fetch_one(pool)
+    .await
+}
+
 /// A club plus what the asker is in it — the list is only ever read by
 /// somebody who is in them, and the role is the first thing they look for.
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
@@ -159,6 +252,39 @@ pub async fn list_teams(pool: &PgPool, club_id: Uuid) -> Result<Vec<Team>, sqlx:
         "#,
     )
     .bind(club_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Who is in a team, with their name — the caller wants a roster, not a list
+/// of uuids to look up one at a time.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct TeamMemberDetail {
+    pub user_id: Uuid,
+    pub name: String,
+    pub role: UserRole,
+    pub avatar_url: Option<String>,
+    pub position_role: Option<String>,
+    pub joined_at: chrono::DateTime<chrono::Utc>,
+}
+
+pub async fn list_team_members(
+    pool: &PgPool,
+    team_id: Uuid,
+) -> Result<Vec<TeamMemberDetail>, sqlx::Error> {
+    sqlx::query_as::<_, TeamMemberDetail>(
+        r#"
+        SELECT tm.user_id, u.name, tm.role, u.avatar_url, u.position_role, tm.joined_at
+        FROM team_members tm
+        JOIN users u ON u.id = tm.user_id
+        WHERE tm.team_id = $1
+        ORDER BY
+            -- Captain first: a roster is read to find out who runs it.
+            CASE WHEN tm.role = 'team_captain' THEN 0 ELSE 1 END,
+            u.name
+        "#,
+    )
+    .bind(team_id)
     .fetch_all(pool)
     .await
 }
@@ -366,6 +492,7 @@ pub struct ClubMemberDetail {
     pub joined_at: chrono::DateTime<chrono::Utc>,
     pub position_role: Option<String>,
     pub skill_level: Option<String>,
+    pub avatar_url: Option<String>,
 }
 
 pub async fn list_member_details(
@@ -375,7 +502,7 @@ pub async fn list_member_details(
     sqlx::query_as::<_, ClubMemberDetail>(
         r#"
         SELECT cm.user_id, u.name, u.email, u.phone, cm.role, cm.status, cm.joined_at,
-               u.position_role, u.skill_level
+               u.position_role, u.skill_level, u.avatar_url
         FROM club_members cm
         JOIN users u ON u.id = cm.user_id
         WHERE cm.club_id = $1 AND cm.status = 'active'

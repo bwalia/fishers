@@ -6,11 +6,15 @@ import { useEffect, useState } from "react";
 import { clearSession, getStoredUser, type PublicUser } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/", label: "Overview", icon: "home" },
   { href: "/events", label: "Fixtures", icon: "calendar" },
+  { href: "/chat", label: "Chats", icon: "chat" },
+  { href: "/availability", label: "Availability", icon: "clock" },
   { href: "/score", label: "Score", icon: "bat" },
+  { href: "/tournaments", label: "Tournaments", icon: "trophy" },
   { href: "/stats", label: "Stats", icon: "chart" },
   { href: "/shop", label: "Shop", icon: "shop" },
   { href: "/clubs", label: "Clubs", icon: "users" },
@@ -26,13 +30,18 @@ export function ShellNav() {
     setUser(getStoredUser());
   }, [pathname]);
 
-  // Public live boards keep the club chrome out of the way.
-  if (pathname.startsWith("/live/")) {
+  // A public board or a club's own page is not the app: somebody arrives
+  // there from a search result or a shared link, and the club chrome would
+  // only ask them to sign in to something they are not part of.
+  if (pathname.startsWith("/live/") || pathname.startsWith("/c/")) {
     return null;
   }
 
   return (
     <header className="topbar">
+      {/* The bar itself is full width so it reads as the edge of the app;
+          this inner track keeps its contents on the same grid as the page. */}
+      <div className="topbar-inner">
       <Link href="/" className="brand">
         <Icon name="ball" size={22} />
         Fishers
@@ -59,6 +68,7 @@ export function ShellNav() {
           dropdown — the bell opened, and its panel was cut off where nobody
           could see it. Actions that own a popover live in their own group. */}
       <div className="nav-actions">
+        <ThemeToggle />
         {user && <NotificationBell />}
         {user ? (
           <button
@@ -83,6 +93,7 @@ export function ShellNav() {
             </Link>
           </>
         )}
+      </div>
       </div>
     </header>
   );

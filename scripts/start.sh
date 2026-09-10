@@ -371,6 +371,14 @@ API_ENV=(
   "DLS_G50=${DLS_G50:-245}"
   "FISHERS_AGENT_MODEL=${FISHERS_AGENT_MODEL:-claude-opus-5}"
   "OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}"
+  # Uploads go to the MinIO in docker-compose. The API writes to the container
+  # on the compose network; the browser fetches from the published port, which
+  # is a different address for the same bucket.
+  "S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}"
+  "S3_BUCKET=${S3_BUCKET:-fishers}"
+  "S3_ACCESS_KEY=${S3_ACCESS_KEY:-fishers}"
+  "S3_SECRET_KEY=${S3_SECRET_KEY:-fishers-dev-secret}"
+  "S3_PUBLIC_BASE=${S3_PUBLIC_BASE:-http://localhost:${MINIO_PORT:-9002}/${S3_BUCKET:-fishers}}"
 )
 
 # Optional integrations are passed only when they are actually configured.

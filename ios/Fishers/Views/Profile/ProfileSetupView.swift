@@ -98,7 +98,7 @@ struct ProfileSetupView: View {
         .padding(.horizontal, FishersTheme.space2)
         .padding(.bottom, FishersTheme.space2)
         .padding(.top, FishersTheme.space1)
-        .background(Color(.systemBackground))
+        .background(FishersTheme.cream)
     }
 
     private var footer: some View {
@@ -208,12 +208,12 @@ private struct ReliabilityStep: View {
                     }
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 14))
 
                 if let reliability, reliability.sampleSize > 0 {
                     ReliabilityCard(reliability: reliability)
                         .padding()
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                        .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 14))
                 } else {
                     Label("You start unproven — three games is enough for a score.", systemImage: "questionmark.circle")
                         .font(.subheadline)

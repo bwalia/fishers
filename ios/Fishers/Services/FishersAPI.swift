@@ -454,6 +454,53 @@ enum FishersAPI {
         )
     }
 
+    /// The match as the server sees it — including which side this caller
+    /// plays for and what they are allowed to act for.
+    static func match(matchId: UUID) async throws -> CricketMatchDTO {
+        try await NetworkService.shared.request(
+            "GET", path: "/cricket/matches/\(matchId.uuidString)"
+        )
+    }
+
+    /// A captain puts terms on the table, for their *own* side.
+    ///
+    /// The server refuses a proposal made on behalf of the opposition: that
+    /// signed for a club which had not seen the terms and left them nothing to
+    /// accept. The opposition is asked, and agrees separately.
+    static func proposeTerms(
+        matchId: UUID,
+        conditions: MatchConditions,
+        side: MatchSide,
+        captainName: String
+    ) async throws -> CricketMatchDTO {
+        struct Body: Encodable {
+            let conditions: MatchConditions
+            let by: String
+            let by_name: String
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/cricket/matches/\(matchId.uuidString)/propose",
+            body: Body(conditions: conditions, by: side.rawValue, by_name: captainName)
+        )
+    }
+
+    /// Rain, bad light, ground unfit. The scorecard survives and the match
+    /// goes down as no result — which is not the same as deleting it.
+    static func abandonMatch(matchId: UUID, reason: String) async throws -> CricketMatchDTO {
+        struct Body: Encodable { let reason: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/cricket/matches/\(matchId.uuidString)/abandon",
+            body: Body(reason: reason)
+        )
+    }
+
+    /// Only a match nobody has scored a ball in — that one was a mistake.
+    static func deleteMatch(matchId: UUID) async throws {
+        try await NetworkService.shared.requestVoid(
+            "DELETE", path: "/cricket/matches/\(matchId.uuidString)"
+        )
+    }
+
     /// A captain accepts the terms. A separate door from the scoring lock, so
     /// the visiting captain can agree from their own phone — they will never
     /// have scoring rights in the home club.
@@ -476,8 +523,51 @@ enum FishersAPI {
 
     /// What is waiting for you. Push is still an APNs stub, so reading these
     /// back on open is the only delivery that actually works.
-    static func notifications() async throws -> NotificationFeed {
-        try await NetworkService.shared.request("GET", path: "/notifications")
+    /// One page of notifications, filtered server-side.
+    ///
+    /// The filtering and paging happen in the database: a club generates
+    /// thousands of these over a season, and pulling the lot down to a phone
+    /// to slice twenty out of them is exactly what a mobile connection is
+    /// worst at.
+    static func notifications(
+        page: Int = 1,
+        perPage: Int = 20,
+        kind: String? = nil,
+        unreadOnly: Bool = false,
+        search: String? = nil
+    ) async throws -> NotificationFeed {
+        var query = [
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "per_page", value: String(perPage)),
+        ]
+        if let kind, !kind.isEmpty { query.append(.init(name: "kind", value: kind)) }
+        if unreadOnly { query.append(.init(name: "unread", value: "true")) }
+        // The server refuses one character; asking is a wasted round trip.
+        if let search, search.trimmingCharacters(in: .whitespaces).count >= 2 {
+            query.append(.init(name: "q", value: search.trimmingCharacters(in: .whitespaces)))
+        }
+        var components = URLComponents()
+        components.queryItems = query
+        let suffix = components.percentEncodedQuery.map { "?\($0)" } ?? ""
+        return try await NetworkService.shared.request("GET", path: "/notifications\(suffix)")
+    }
+
+    /// Another player, as their club-mates may see them. No contact details:
+    /// the server does not send them, on purpose.
+    static func teammate(_ userId: UUID) async throws -> TeammateProfile {
+        try await NetworkService.shared.request("GET", path: "/users/\(userId.uuidString)")
+    }
+
+    static func playerSeasons(_ userId: UUID) async throws -> [PlayerSeasonStats] {
+        try await NetworkService.shared.request(
+            "GET", path: "/users/\(userId.uuidString)/stats"
+        )
+    }
+
+    static func playerAchievements(_ userId: UUID) async throws -> [UserAchievement] {
+        try await NetworkService.shared.request(
+            "GET", path: "/users/\(userId.uuidString)/achievements"
+        )
     }
 
     /// One notification, or every unread one when `id` is nil.
@@ -851,6 +941,20 @@ enum FishersAPI {
             "POST",
             path: "/cricket/matches/\(matchId.uuidString)/share",
             body: Body(post_to_chat: postToChat, ttl_hours: 48)
+        )
+    }
+
+    // MARK: Profile picture
+
+    /// The server sniffs the real bytes and rejects anything that is not a
+    /// JPEG, PNG or WebP, so the mime type sent here is a hint, not a claim
+    /// it will be believed on.
+    static func uploadAvatar(_ data: Data, mimeType: String = "image/jpeg") async throws -> PublicUser {
+        try await NetworkService.shared.upload(
+            path: "/me/avatar",
+            fileName: "avatar.\(mimeType.hasSuffix("png") ? "png" : "jpg")",
+            mimeType: mimeType,
+            data: data
         )
     }
 

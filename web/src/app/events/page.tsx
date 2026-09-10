@@ -5,9 +5,11 @@ import Link from "next/link";
 import {
   api,
   getAccessToken,
+  readErr,
   type Club,
   type EventRow,
   type OpponentIdentity,
+  type Venue,
   type Page,
 } from "@/lib/api";
 import { OppositionPicker } from "@/components/OppositionPicker";
@@ -78,8 +80,10 @@ export default function EventsPage() {
         {loading && <div className="skeleton" style={{ height: 64 }} />}
         {events.map((e) => (
           <div key={e.id} className="row">
-            <div>
-              <div style={{ fontWeight: 600 }}>{e.title}</div>
+            <div className="row-main">
+              <Link className="row-title" href={`/events/${e.id}`}>
+                {e.title}
+              </Link>
               <div style={{ display: "flex", gap: "var(--s2)", alignItems: "center", marginTop: 2 }}>
                 <span className="tag">
                   <Icon name={SUBTYPE_ICON[e.event_subtype] ?? "calendar"} size={12} />
@@ -88,11 +92,15 @@ export default function EventsPage() {
                 <span className="muted">{when(e.start_at)}</span>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "var(--s3)" }}>
+            <div className="row-actions">
               {e.fee_amount_cents != null && (
                 <span className="price">£{(e.fee_amount_cents / 100).toFixed(0)}</span>
               )}
               <Availability eventId={e.id} />
+              <Link className="btn sm" href={`/events/${e.id}/selection`}>Squad</Link>
+              {e.ticket_price_cents != null && (
+                <Link className="btn sm" href={`/events/${e.id}/tickets`}>Tickets</Link>
+              )}
               {e.sport === "cricket" && (
                 <Link className="btn sm" href="/score">Score</Link>
               )}
@@ -171,6 +179,8 @@ function ScheduleMatch({
   const [opponent, setOpponent] = useState<OpponentIdentity | null>(null);
   const [oppositionName, setOppositionName] = useState("");
   const [start, setStart] = useState("");
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [venueId, setVenueId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -181,6 +191,13 @@ function ScheduleMatch({
       if (mine[0]) setClubId(mine[0].id);
     })();
   }, []);
+
+  // The grounds belong to whichever club is hosting, so they follow the club.
+  useEffect(() => {
+    if (!clubId) return;
+    setVenueId("");
+    api<Venue[]>("GET", `/clubs/${clubId}/venues`).then(setVenues).catch(() => setVenues([]));
+  }, [clubId]);
 
   const submit = async () => {
     setBusy(true);
@@ -197,21 +214,27 @@ function ScheduleMatch({
         sport: "cricket",
         event_subtype: "league_match",
         title: `${us} v ${opponent?.name ?? (oppositionName || "opposition")}`,
+        venue_id: venueId || null,
         start_at: from.toISOString(),
         end_at: to.toISOString(),
       });
       onScheduled();
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "";
-      try {
-        setError(JSON.parse(raw).error ?? "Could not schedule that");
-      } catch {
-        setError(raw || "Could not schedule that");
-      }
+      setError(readErr(err, "Could not schedule that"));
     } finally {
       setBusy(false);
     }
   };
+
+  // In the order the form asks, so the answer is always the next thing down
+  // the page rather than something they have to hunt for.
+  const missing = [
+    !clubId && "which of your clubs is playing",
+    !opponent && !oppositionName.trim() && "who you are playing",
+    !start && "when",
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <div className="panel setup-panel">
@@ -228,6 +251,24 @@ function ScheduleMatch({
             {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
+      </fieldset>
+
+      <fieldset className="setup-group">
+        <legend>Where</legend>
+        {venues.length === 0 ? (
+          <p className="muted">
+            No grounds saved for this club yet. Add them on the{" "}
+            <Link href={`/clubs/${clubId}`}>club page</Link> and they show up here.
+          </p>
+        ) : (
+          <label>
+            Ground
+            <select value={venueId} onChange={(e) => setVenueId(e.target.value)}>
+              <option value="">Not decided yet</option>
+              {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </label>
+        )}
       </fieldset>
 
       <fieldset className="setup-group">
@@ -259,10 +300,16 @@ function ScheduleMatch({
 
       {error && <p className="error">{error}</p>}
 
+      {/* A dead button with no explanation reads as a broken app. Say which
+          piece is missing, in the order the form asks for them. */}
+      {!busy && missing && (
+        <p className="muted" role="status">Still needed: {missing}.</p>
+      )}
+
       <button
         className="btn primary lg"
         type="button"
-        disabled={busy || !clubId || !start || (!opponent && !oppositionName.trim())}
+        disabled={busy || !!missing}
         onClick={submit}
       >
         {busy ? "Scheduling…" : "Schedule and ask who is available"}

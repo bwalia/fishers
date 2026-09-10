@@ -42,12 +42,14 @@ export function ShareScoreboardButton({
         { post_to_chat: postToChat, ttl_hours: 48 }
       );
       const title = `${homeName} vs ${awayName} — live scoreboard`;
-      const text = `${title}\n${res.url}`;
       setLink(res.url);
 
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
         try {
-          await navigator.share({ title, text, url: res.url });
+          // `text` must not contain the link as well. A share target appends
+          // `url` to `text`, and the recipient's app then linkifies the two
+          // together into one address that resolves to nothing.
+          await navigator.share({ title, text: title, url: res.url });
           setNote("Shared.");
           return;
         } catch (err) {

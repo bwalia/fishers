@@ -12,7 +12,7 @@ struct AvailabilityCalendarView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+                FishersTheme.mist.ignoresSafeArea()
                 VStack(spacing: 16) {
                     header
                     weekdayHeader

@@ -134,6 +134,10 @@ export type EventRow = {
   start_at: string;
   end_at: string;
   fee_amount_cents?: number | null;
+  /// Set when the event sells tickets — a dinner, a quiz. Distinct from
+  /// `fee_amount_cents`, which is what a player owes for a fixture.
+  ticket_price_cents?: number | null;
+  ticket_capacity?: number | null;
   status: string;
 };
 
@@ -306,12 +310,142 @@ export async function api<T>(
   return (await res.json()) as T;
 }
 
+/// A file upload. Separate from `api` because the browser must set the
+/// multipart boundary itself — sending our own Content-Type breaks the body.
+export async function upload<T>(path: string, file: File): Promise<T> {
+  const token = await usableToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${apiV1()}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  return (await res.json()) as T;
+}
+
+/// The sentence to put in front of somebody.
+///
+/// The API answers a refusal as `{"error": "..."}`, written to be read. Showing
+/// the raw body instead hands them the plumbing.
+export function readErr(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : "";
+  try {
+    return JSON.parse(raw).error ?? fallback;
+  } catch {
+    return raw || fallback;
+  }
+}
+
 export function money(cents: number, currency = "GBP") {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency,
   }).format(cents / 100);
 }
+
+/// A club's public page, as the club writes it. The record and the leading
+/// players are computed, so they are not here.
+export type ClubPageSettings = {
+  id: string;
+  name: string;
+  slug: string | null;
+  sport_types: string[];
+  tagline: string | null;
+  about: string | null;
+  ground: string | null;
+  founded_year: number | null;
+  contact_email: string | null;
+  website: string | null;
+  public_page: boolean;
+  /// The one player the club leads its page with.
+  icon_player_id: string | null;
+};
+
+/// Unpaid match fees for a club (`GET /clubs/{id}/fees/outstanding`).
+///
+/// One row per person per fixture, because that is how a club chases them —
+/// "you owe for the Watford game", not "you owe £24".
+export type OutstandingFees = {
+  total_cents: number;
+  count: number;
+  owed: {
+    user_id: string;
+    name: string;
+    event_id: string;
+    fixture: string;
+    start_at: string;
+    amount_cents: number | null;
+    currency: string;
+    reminders_sent: number;
+  }[];
+};
+
+/// A club shop order (`backend/domain/src/order.rs`).
+export type Order = {
+  id: string;
+  user_id: string;
+  club_id: string;
+  event_id: string | null;
+  /// `draft` | `placed` | `paid` | `fulfilled` | `cancelled`
+  status: string;
+  total_amount_cents: number;
+  currency: string;
+  note: string | null;
+  created_at: string;
+};
+
+export type OrderItem = {
+  id: string;
+  order_id: string;
+  product_id: string;
+  quantity: number;
+  unit_price_cents: number;
+};
+
+export type OrderResponse = { order: Order; items: OrderItem[] };
+
+/// What Stripe needs to take the money. The client secret is handed to
+/// Stripe's own form — it never buys anything on its own.
+export type PaymentIntent = {
+  payment_id: string;
+  client_secret: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+};
+
+/// How a club wants selection and fee-chasing to run itself
+/// (`backend/db/src/repos/clubs.rs`).
+export type ClubSettings = {
+  /// `off` — the captain does everything.
+  /// `suggest` — the assistant offers a squad and waits.
+  /// `auto_publish` — it announces one on its own.
+  selection_autonomy: string;
+  confirm_lead_hours: number;
+  drop_lead_hours: number;
+  fee_chase_after_hours: number;
+  fee_chase_max_reminders: number;
+};
+
+/// Somewhere a club plays (`backend/domain/src/club.rs`).
+export type Venue = {
+  id: string;
+  club_id: string;
+  name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+export type TeamMemberRow = {
+  user_id: string;
+  name: string;
+  role: string;
+  avatar_url?: string | null;
+  position_role?: string | null;
+};
 
 export type Team = {
   id: string;
@@ -330,7 +464,12 @@ export type ClubMemberRow = {
   status: string;
   position_role?: string | null;
   skill_level?: string | null;
+  avatar_url?: string | null;
 };
+
+/// Sent as `icon_player_id` to mean "nobody". A JSON null means the editor did
+/// not touch the field, so clearing needs a value the API can tell apart.
+export const NO_ICON_PLAYER = "00000000-0000-0000-0000-000000000000";
 
 /// A club or team's QR code, already drawn.
 export type QrCode = {
@@ -368,6 +507,64 @@ export type AppNotification = {
 
 /// One line of plain English per notification. A player is not going to read
 /// `match_terms_proposed`.
+/// Another player, as their club-mates may see them.
+///
+/// Deliberately narrower than `PublicUser`: no email, no phone, no emergency
+/// contact, no home location. Sharing a club is not consent to hand over
+/// somebody's mobile number.
+export type TeammateProfile = {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  position_role: string | null;
+  skill_level: string | null;
+  primary_sport: string | null;
+  sport_profiles: SportProfile[];
+  reliability?: {
+    score: number;
+    attendance_rate: number;
+    response_rate: number;
+    band?: string;
+  } | null;
+  /// Clubs you and they are both in.
+  shared_clubs: string[];
+};
+
+/// One page of notifications, as `GET /notifications` serves it.
+///
+/// `unread` counts everything, not the page — it is what the bell shows, and a
+/// filter must not change it. `kinds` is every type this person has been sent,
+/// so the filter offers only what would match something.
+export type NotificationPage = {
+  items: AppNotification[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_more: boolean;
+  unread: number;
+  kinds: string[];
+};
+
+/// The words for a notification type. Anything not listed falls back to the
+/// raw type with its underscores knocked out, so a new kind on the server
+/// shows up as readable-ish rather than blank.
+export const NOTIFICATION_KIND: Record<string, string> = {
+  invite: "Invitations",
+  selection_published: "Squads",
+  squad_promoted: "Squads",
+  selection_reconfirm: "Confirmations",
+  match_terms_proposed: "Match setup",
+  match_terms_agreed: "Match setup",
+  match_scheduled: "Fixtures",
+  availability_request: "Availability",
+  fee_reminder: "Match fees",
+  scoreboard_shared: "Scoreboards",
+};
+
+export function kindLabel(kind: string): string {
+  return NOTIFICATION_KIND[kind] ?? kind.replaceAll("_", " ");
+}
+
 export function notificationLine(n: AppNotification): {
   title: string;
   href?: string;
@@ -444,13 +641,35 @@ export type Invite = {
   created_at: string;
 };
 
-/// The roles a secretary can appoint, in the words the product uses.
+/// What somebody is allowed to do in the club — an office, not a job that
+/// replaces playing.
+///
+/// The levels stack: a secretary already has everything a captain has, so the
+/// same person being both is one choice rather than two. And everybody in the
+/// club is a candidate for selection whatever their role, including the
+/// secretary — the roster is who plays, this is who runs it.
 export const CLUB_ROLES = [
-  { value: "member", label: "Member" },
-  { value: "team_vice_captain", label: "Vice captain" },
-  { value: "team_captain", label: "Captain" },
-  { value: "club_admin", label: "Secretary" },
+  { value: "member", label: "Member", can: "Plays, and answers for their own availability." },
+  {
+    value: "team_vice_captain",
+    label: "Vice captain",
+    can: "Everything a member can, plus picking a side.",
+  },
+  {
+    value: "team_captain",
+    label: "Captain",
+    can: "Picks the side, agrees terms, and scores a match.",
+  },
+  {
+    value: "club_admin",
+    label: "Secretary",
+    can: "Everything a captain can, plus the roster, fixtures and fees.",
+  },
 ] as const;
+
+export function roleBlurb(role: string): string | undefined {
+  return CLUB_ROLES.find((r) => r.value === role)?.can;
+}
 
 export function roleLabel(role: string): string {
   return CLUB_ROLES.find((r) => r.value === role)?.label ?? role.replaceAll("_", " ");

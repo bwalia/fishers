@@ -49,6 +49,7 @@ struct ShopView: View {
             }
         }
         .listStyle(.insetGrouped)
+            .fishersList()
         .navigationTitle("Shop")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

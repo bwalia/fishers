@@ -1,4 +1,5 @@
 use crate::services::ollama::Ollama;
+use crate::services::storage::Storage;
 use fishers_agent::AgentService;
 use fishers_domain::ResourceTable;
 use fishers_notifications::{EmailService, PushService};
@@ -23,6 +24,8 @@ pub struct AppState {
     /// Writes a line of colour over the top of the one the log already gives.
     /// `None` without OLLAMA_URL, and commentary then stays as written.
     pub ollama: Option<Ollama>,
+    /// Object storage for uploads. `None` when the server has no bucket.
+    pub storage: Option<Storage>,
 }
 
 impl AppState {
@@ -50,6 +53,7 @@ impl AppState {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(fishers_domain::dls::DEFAULT_G50),
             ollama: Ollama::from_env(),
+            storage: Storage::from_env(),
         }
     }
 
@@ -72,7 +76,11 @@ impl AppState {
         {
             tracing::warn!(%error, kind, "could not store a notification");
         }
-        if let Err(error) = self.push.send(user_id, kind, title, body, payload).await {
+        if let Err(error) = self
+            .push
+            .send(&self.pool, user_id, kind, title, body, payload)
+            .await
+        {
             tracing::warn!(%error, kind, "push failed");
         }
     }

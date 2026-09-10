@@ -536,8 +536,8 @@ pub async fn ticket_summary(
     event_id: Uuid,
 ) -> Result<TicketSummary, sqlx::Error> {
     sqlx::query_as::<_, TicketSummary>(
-        "SELECT event_id, title, ticket_capacity, ticket_price_cents, bookings, headcount,
-                collected_cents, outstanding_cents
+        "SELECT event_id, title, ticket_capacity, ticket_price_cents, guests_allowed,
+                bookings, headcount, collected_cents, outstanding_cents
          FROM event_ticket_summary WHERE event_id = $1",
     )
     .bind(event_id)

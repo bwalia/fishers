@@ -3,15 +3,17 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, getAccessToken, getStoredUser, roleLabel, type ClubMemberRow } from "@/lib/api";
+import { api, getAccessToken, getStoredUser, readErr, roleLabel, type ClubMemberRow } from "@/lib/api";
 import { randomUUID } from "@/lib/uuid";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
 import { Icon } from "@/components/Icon";
+import { PeoplePicker, type PeopleTab, type Person as PickPerson } from "@/components/PeoplePicker";
 import { PersonPicker, type Person } from "@/components/PersonPicker";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { ShotIcon, SHOT_SHAPES } from "@/components/ShotIcon";
 import { ShareScoreboardButton } from "@/components/ShareScoreboardButton";
+import { OverflowMenu } from "@/components/OverflowMenu";
 import {
   BALLS,
   DEFAULT_CONDITIONS,
@@ -31,6 +33,7 @@ import {
   type MatchState,
   type Side,
   type SideSquad,
+  type MatchOfficial,
   type SquadResponse,
 } from "@/lib/cricket";
 
@@ -69,6 +72,11 @@ export default function ScorerPage({
   const router = useRouter();
   const [match, setMatch] = useState<MatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /// Handing the book over, opened from the ⋯ menu rather than owning a
+  /// button of its own. Declared here with the other hooks: below the
+  /// `if (!match) return` guards the hook count changes between the
+  /// loading render and the loaded one, and React blanks the page.
+  const [handingOver, setHandingOver] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -207,23 +215,37 @@ export default function ScorerPage({
             </>
           )}
         </div>
-        {/* Anyone signed in can mint a public live link — not only the scorer. */}
-        {getAccessToken() ? (
-          <ShareScoreboardButton
-            matchId={matchId}
-            homeName={st.home_name}
-            awayName={st.away_name}
-          />
-        ) : (
-          <p className="muted share-hint" style={{ marginTop: "1rem" }}>
-            Sign in to share a live scoreboard link for WhatsApp or email.
-          </p>
+        {/* Anyone signed in can mint a public live link — not only the scorer.
+            Behind the ⋯ because it is used once a match, and the top of a
+            phone screen belongs to the score and the dial. */}
+        {getAccessToken() && (
+          <div className="match-head-actions">
+            <OverflowMenu label="Match options">
+              <ShareScoreboardButton
+                matchId={matchId}
+                homeName={st.home_name}
+                awayName={st.away_name}
+                className="share-in-menu"
+              />
+              {heldByMe && (
+                <button
+                  className="overflow-item"
+                  type="button"
+                  onClick={() => setHandingOver(true)}
+                >
+                  <Icon name="book" size={16} /> Hand the book over
+                </button>
+              )}
+            </OverflowMenu>
+          </div>
         )}
       </section>
 
       {isSetup && <SetupRail st={st} hasScorer={!!match.active_scorer_user_id} />}
 
       {isSetup && st.toss_winner && <TossResult st={st} />}
+
+      {isSetup && match.can_score && <Umpires match={match} onChanged={setMatch} />}
 
       {error && <p className="error">{error}</p>}
 
@@ -278,7 +300,13 @@ export default function ScorerPage({
 
       <Stages match={match} send={send} canAct={canAct} nameOf={nameOf} onPicked={setMatch} />
 
-      {heldByMe && <HandOver match={match} onChanged={setMatch} />}
+      {heldByMe && handingOver && (
+        <HandOver
+          match={match}
+          onChanged={(next) => { setMatch(next); setHandingOver(false); }}
+          onClose={() => setHandingOver(false)}
+        />
+      )}
 
       <CallItOff match={match} onChanged={setMatch} onGone={() => router.push("/score")} />
 
@@ -291,44 +319,218 @@ export default function ScorerPage({
   );
 }
 
-/// Passing the book to somebody else.
+
+/// Naming the umpires, before the toss.
 ///
-/// Whoever holds it records every ball, so it has to be handed over on
-/// purpose: a scorer going for tea, a phone about to die. Only people who may
-/// score this match are offered, because the server refuses anyone else and a
-/// list of names that will be rejected is worse than no list.
-function HandOver({
+/// Optional — plenty of club games have no neutral umpire, and the app should
+/// not pretend otherwise. But when one is named the book goes to them, because
+/// at this level the square-leg umpire usually keeps it, and they can hand it
+/// on to anybody playing.
+function Umpires({
   match,
   onChanged,
 }: {
   match: MatchResponse;
   onChanged: (next: MatchResponse) => void;
 }) {
+  const [officials, setOfficials] = useState<MatchOfficial[] | null>(null);
+  const [squad, setSquad] = useState<SquadResponse | null>(null);
   const [open, setOpen] = useState(false);
-  const [candidates, setCandidates] = useState<ClubMemberRow[]>([]);
+  const [choice, setChoice] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<MatchOfficial[]>("GET", `/cricket/matches/${match.id}/officials`)
+      .then(setOfficials)
+      .catch(() => setOfficials([]));
+  }, [match.id]);
+
+  useEffect(() => {
+    if (!open || squad) return;
+    api<SquadResponse>("GET", `/cricket/matches/${match.id}/squad`)
+      .then(setSquad)
+      .catch(() => {});
+  }, [open, squad, match.id]);
+
+  // Only the two sides here: somebody already named is not a candidate.
+  const tabs = useMemo(() => {
+    const named = new Set((officials ?? []).map((o) => o.user_id));
+    const side = (label: string, players: { id: string; name: string }[]): PeopleTab => ({
+      label,
+      people: players.filter((p) => !named.has(p.id)).map((p) => ({ id: p.id, name: p.name })),
+    });
+    return [
+      side(match.state.home_name || "Home", squad?.home.players ?? []),
+      side(match.state.away_name || "Away", squad?.away.players ?? []),
+    ];
+  }, [officials, squad, match.state.home_name, match.state.away_name]);
+
+  const appoint = async () => {
+    if (!choice) return;
+    setBusy(choice);
+    setError(null);
+    try {
+      setOfficials(
+        await api<MatchOfficial[]>("POST", `/cricket/matches/${match.id}/officials`, {
+          user_id: choice,
+          role: "umpire",
+        })
+      );
+      setOpen(false);
+      setChoice(null);
+      // Appointing the first umpire may have handed them the book, so the
+      // match this page is drawing has changed underneath it.
+      onChanged(await api<MatchResponse>("GET", `/cricket/matches/${match.id}`));
+    } catch (err) {
+      setError(readErr(err, "Could not appoint them"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const stand = async (userId: string) => {
+    setBusy(userId);
+    setError(null);
+    try {
+      setOfficials(
+        await api<MatchOfficial[]>(
+          "DELETE",
+          `/cricket/matches/${match.id}/officials/${userId}`
+        )
+      );
+    } catch (err) {
+      setError(readErr(err, "Could not stand them down"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (officials === null) return null;
+  const umpires = officials.filter((o) => o.role === "umpire");
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h2>Umpires</h2>
+        <span className="tag grey">optional</span>
+      </div>
+      <p className="muted">
+        Name them and the book starts in their hands. They can pass it to anybody playing,
+        either side. Leave it empty and whoever takes the book keeps it.
+      </p>
+
+      {umpires.length > 0 && (
+        <ul className="named-list">
+          {umpires.map((u) => (
+            <li key={u.user_id}>
+              <span className="people-name">{u.name}</span>
+              <button
+                type="button"
+                className="btn ghost sm"
+                disabled={busy === u.user_id}
+                onClick={() => stand(u.user_id)}
+              >
+                Stand down
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!open ? (
+        <button className="btn" type="button" onClick={() => setOpen(true)}>
+          <Icon name="plus" size={16} /> {umpires.length ? "Another umpire" : "Name an umpire"}
+        </button>
+      ) : (
+        <>
+          {!squad ? (
+            <div className="skeleton" style={{ height: 180 }} />
+          ) : (
+            <PeoplePicker
+              tabs={tabs}
+              chosen={choice}
+              onChoose={setChoice}
+              empty="Nobody left to name. Pick the teams first."
+            />
+          )}
+          <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={!choice || busy !== null}
+              onClick={appoint}
+            >
+              {busy ? "Appointing…" : "Appoint as umpire"}
+            </button>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setChoice(null);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+
+      {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/// Passing the book to somebody else.
+///
+/// Whoever holds it records every ball, so it has to be handed over on
+/// purpose: a scorer going for tea, a phone about to die. Anybody playing is
+/// offered, from either side — at club level the book crosses between teams
+/// all afternoon, and the batter waiting to go in is often the one keeping it.
+/// One team per tab, because thirty names in one list is not a choice, it is
+/// a search problem.
+function HandOver({
+  match,
+  onChanged,
+  onClose,
+}: {
+  match: MatchResponse;
+  onChanged: (next: MatchResponse) => void;
+  onClose: () => void;
+}) {
+  const [squad, setSquad] = useState<SquadResponse | null>(null);
+  const [officials, setOfficials] = useState<MatchOfficial[]>([]);
   const [loading, setLoading] = useState(false);
-  const [choice, setChoice] = useState("");
+  const [choice, setChoice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const me = getStoredUser();
 
   useEffect(() => {
-    if (!open || candidates.length > 0) return;
+    if (squad) return;
     setLoading(true);
     (async () => {
-      // The book belongs to the side running the match, so its members are
-      // who can take it. Anyone else needs appointing as an official first.
-      const rows = await api<ClubMemberRow[]>("GET", `/clubs/${match.club_id}/members`).catch(
-        () => [] as ClubMemberRow[]
-      );
-      setCandidates(
-        rows.filter((r) => r.user_id !== me?.id && r.role !== "member" && r.role !== "guest")
-      );
+      const [sq, offs] = await Promise.all([
+        api<SquadResponse>("GET", `/cricket/matches/${match.id}/squad`).catch(() => null),
+        api<MatchOfficial[]>("GET", `/cricket/matches/${match.id}/officials`).catch(
+          () => [] as MatchOfficial[]
+        ),
+      ]);
+      setSquad(sq);
+      setOfficials(offs);
       setLoading(false);
     })();
-  }, [open, candidates.length, match.club_id, me?.id]);
+  }, [squad, match.id]);
+
+  const tabs = useMemo(
+    () =>
+      sidesAndOfficials(match, squad, officials, me?.id, (o) => o.role),
+    [match, squad, officials, me?.id]
+  );
 
   const hand = async () => {
+    if (!choice) return;
     setBusy(true);
     setError(null);
     try {
@@ -337,59 +539,30 @@ function HandOver({
           to_user_id: choice,
         })
       );
-      setOpen(false);
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "";
-      try {
-        setError(JSON.parse(raw).error ?? "Could not hand it over");
-      } catch {
-        setError(raw || "Could not hand it over");
-      }
+      setError(readErr(err, "Could not hand it over"));
     } finally {
       setBusy(false);
     }
   };
-
-  if (!open) {
-    return (
-      <button className="btn ghost sm call-off" type="button" onClick={() => setOpen(true)}>
-        <Icon name="book" size={14} /> Hand the book to somebody else
-      </button>
-    );
-  }
 
   return (
     <div className="panel">
       <h2>Hand over the book</h2>
       <p className="muted">
         They take over recording every ball from the next one. You keep watching, and can
-        be handed it back.
+        be handed it back. Anyone playing can take it, from either side.
       </p>
 
-      {loading && <div className="skeleton" style={{ height: 48 }} />}
-
-      {!loading && candidates.length === 0 && (
-        <p className="muted">
-          Nobody else at {match.state.home_name} can score this match. A secretary can
-          appoint them, or make them a captain.
-        </p>
-      )}
-
-      {candidates.length > 0 && (
-        <div className="squad-grid">
-          {candidates.map((c) => (
-            <button
-              key={c.user_id}
-              type="button"
-              className={`squad-chip${choice === c.user_id ? " on" : ""}`}
-              aria-pressed={choice === c.user_id}
-              onClick={() => setChoice(c.user_id)}
-            >
-              <span>{c.name}</span>
-              <span className="tag grey">{roleLabel(c.role)}</span>
-            </button>
-          ))}
-        </div>
+      {loading ? (
+        <div className="skeleton" style={{ height: 180 }} />
+      ) : (
+        <PeoplePicker
+          tabs={tabs}
+          chosen={choice}
+          onChoose={setChoice}
+          empty="Nobody else is named on this match yet. Pick the teams first, or have a secretary appoint an umpire."
+        />
       )}
 
       {error && <p className="error">{error}</p>}
@@ -398,12 +571,48 @@ function HandOver({
         <button className="btn primary" type="button" disabled={!choice || busy} onClick={hand}>
           {busy ? "Handing over…" : "Hand it over"}
         </button>
-        <button className="btn" type="button" onClick={() => setOpen(false)}>
+        <button className="btn" type="button" onClick={onClose}>
           Keep the book
         </button>
       </div>
     </div>
   );
+}
+
+/// The three lists both pickers work from: the officials, then each side.
+///
+/// Nobody appears twice — an umpire who is also in the XI belongs under
+/// Umpires, which is the more useful thing to know about them — and the person
+/// asking is never offered themselves.
+function sidesAndOfficials(
+  match: MatchResponse,
+  squad: SquadResponse | null,
+  officials: MatchOfficial[],
+  meId: string | undefined,
+  noteFor: (o: MatchOfficial) => string | undefined
+): PeopleTab[] {
+  const seen = new Set<string>(meId ? [meId] : []);
+  const take = (rows: PickPerson[]) =>
+    rows.filter((r) => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+
+  return [
+    {
+      label: "Umpires",
+      people: take(officials.map((o) => ({ id: o.user_id, name: o.name, note: noteFor(o) }))),
+    },
+    {
+      label: match.state.home_name || "Home",
+      people: take((squad?.home.players ?? []).map((p) => ({ id: p.id, name: p.name }))),
+    },
+    {
+      label: match.state.away_name || "Away",
+      people: take((squad?.away.players ?? []).map((p) => ({ id: p.id, name: p.name }))),
+    },
+  ];
 }
 
 /// Calling the match off.
@@ -449,12 +658,7 @@ function CallItOff({
         onGone();
       }
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "";
-      try {
-        setError(JSON.parse(raw).error ?? "That did not work");
-      } catch {
-        setError(raw || "That did not work");
-      }
+      setError(readErr(err, "That did not work"));
     } finally {
       setBusy(false);
     }
@@ -770,12 +974,7 @@ function ProposePanel({
       );
       onDone();
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "";
-      try {
-        setError(JSON.parse(raw).error ?? "Could not propose those terms");
-      } catch {
-        setError(raw || "Could not propose those terms");
-      }
+      setError(readErr(err, "Could not propose those terms"));
     } finally {
       setBusy(false);
     }
@@ -955,12 +1154,7 @@ function WaitingPanel({
         })
       );
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "";
-      try {
-        setError(JSON.parse(raw).error ?? "Could not record that agreement");
-      } catch {
-        setError(raw || "Could not record that agreement");
-      }
+      setError(readErr(err, "Could not record that agreement"));
     } finally {
       setBusy(false);
     }
@@ -1904,7 +2098,12 @@ function LivePanel({
 
   return (
     <div className="score-layout">
-      <div>
+      {/* Three blocks, deliberately siblings rather than two columns of
+          stacked content: on a phone the dial has to come between the state
+          of the match and the commentary, and it cannot do that from inside
+          another element. Desktop puts state and commentary back in one
+          column with CSS. */}
+      <div className="score-state">
         <div className="matchbar">
           <div>
             <span className="scoreline">
@@ -1951,7 +2150,7 @@ function LivePanel({
           <div className="who">
             <BatterCard id={inn.striker_id} nameOf={nameOf} b={batterOf(inn.striker_id)} onStrike />
             <BatterCard id={inn.non_striker_id} nameOf={nameOf} b={batterOf(inn.non_striker_id)} />
-            <div className="card">
+            <div className="card bowler">
               <div className="who-name">{nameOf(inn.bowler_id)}</div>
               <div className="who-figs">
                 {(() => {
@@ -1969,31 +2168,38 @@ function LivePanel({
             </div>
           </div>
 
-          {overGroups.length > 0 && (
-            <div className="overs-strip" style={{ marginTop: "var(--s3)" }}>
-              {overGroups.map(([over, balls]) => {
-                const legal = balls.filter((b) => b.is_legal).length;
-                const total = balls.reduce((sum, b) => sum + b.runs, 0);
-                return (
-                  <div className="over-row" key={over}>
-                    <span className="over-label">Over {over + 1}</span>
-                    {balls.map((b, i) => (
-                      <span key={i} className={`ball-chip ${chipClass(b)}`} title={b.label}>
-                        {b.is_wicket ? "W" : b.label}
-                      </span>
-                    ))}
-                    {Array.from({ length: Math.max(0, 6 - legal) }, (_, i) => (
-                      <span key={`p${i}`} className="ball-chip pending">
-                        ·
-                      </span>
-                    ))}
-                    <span className="over-total">= {total}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
+
+      </div>
+
+      <div className="score-comm">
+        {overGroups.length > 0 && (
+          <div className="panel over-history">
+            <h2>This over, and the last</h2>
+            <div className="overs-strip">
+            {overGroups.map(([over, balls]) => {
+              const legal = balls.filter((b) => b.is_legal).length;
+              const total = balls.reduce((sum, b) => sum + b.runs, 0);
+              return (
+                <div className="over-row" key={over}>
+                  <span className="over-label">Over {over + 1}</span>
+                  {balls.map((b, i) => (
+                    <span key={i} className={`ball-chip ${chipClass(b)}`} title={b.label}>
+                      {b.is_wicket ? "W" : b.label}
+                    </span>
+                  ))}
+                  {Array.from({ length: Math.max(0, 6 - legal) }, (_, i) => (
+                    <span key={`p${i}`} className="ball-chip pending">
+                      ·
+                    </span>
+                  ))}
+                  <span className="over-total">= {total}</span>
+                </div>
+              );
+            })}
+            </div>
+          </div>
+        )}
 
         <div className="panel">
           <h2>Commentary</h2>

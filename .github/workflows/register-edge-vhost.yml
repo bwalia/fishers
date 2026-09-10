@@ -13,6 +13,18 @@ name: Register edge vhost (Cloudflare + wslproxy)
 # ingress annotation, with cloudflare-dns-reconcile.yml as the backstop.
 
 on:
+  # Called by the CD pipeline before it deploys, so a ring that has never been
+  # stood up gets its DNS and vhost in the same run that first deploys it.
+  # Both steps are idempotent, so running this on every push costs a few
+  # seconds and removes a manual prerequisite that is only ever noticed when
+  # somebody forgets it.
+  workflow_call:
+    inputs:
+      ENV:
+        description: "Ring to register (or `all`)"
+        type: string
+        required: true
+
   workflow_dispatch:
     inputs:
       ENV:

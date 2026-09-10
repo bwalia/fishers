@@ -369,6 +369,10 @@ export type SideSquad = {
 
 export type SquadResponse = { home: SideSquad; away: SideSquad };
 
+/// Somebody appointed to this match. `role` is "umpire" or "scorer"; either
+/// may keep the book.
+export type MatchOfficial = { user_id: string; name: string; role: string };
+
 export const STANDING_LABEL: Record<string, string> = {
   selected: "picked",
   reserve: "reserve",

@@ -1,0 +1,79 @@
+name: CD — deploy int on merge to main
+
+# Continuous deployment for the int ring. Every merge to main lands on
+# https://int.fishers.cloud without anybody dispatching anything.
+#
+# The chain is edge -> build -> deploy, and the order is the point:
+#
+#   edge    Cloudflare CNAME + wslproxy vhost for int.fishers.cloud. Both are
+#           idempotent upserts, so this is a no-op once the ring exists — but
+#           without it a brand-new ring deploys green and is unreachable, and
+#           the wslproxy edge answers the fallback vhost's self-signed cert,
+#           which reads as a broken app rather than missing edge config.
+#   build   Pushes fishers-api and fishers-web. build-images.yml already tags
+#           every build with both :latest and the commit sha.
+#   deploy  Helm, ring int, pinned to this commit's sha.
+#
+# Why the sha and not :latest — the trap this exists to avoid:
+# helm upgrade with an unchanged tag renders an identical Deployment spec, so
+# Kubernetes has nothing to roll and the old pods keep serving. imagePullPolicy
+# Always does not save it: that governs what happens when a pod is CREATED, and
+# no pod is created. The deploy goes green and ships nothing. Pinning the sha
+# changes the pod template every commit, which is what actually triggers the
+# rollout — and it makes a rollback an exact tag rather than a guess about what
+# :latest pointed at.
+#
+# :latest still moves, so the existing promote-to-acc/prod path (which deploys
+# :latest deliberately, build once and promote many) is unchanged.
+#
+# Promotion to test/acc/prod stays manual, via deploy-single-environment.yml.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      # These cannot change what runs in the cluster, and a ten-minute deploy
+      # for a README edit trains people to ignore the pipeline.
+      - "ios/**"
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
+
+# Never two int deploys at once, and never cancel one midway: an interrupted
+# helm upgrade leaves the release in pending-upgrade, which blocks the next one.
+concurrency:
+  group: fishers-cd-int
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Runs alongside the build rather than before it — the images take minutes,
+  # DNS and the vhost take seconds, and only `deploy` needs either of them.
+  edge:
+    name: DNS and edge vhost
+    uses: ./.github/workflows/register-edge-vhost.yml
+    with:
+      ENV: int
+    secrets: inherit
+
+  build:
+    name: Build images
+    uses: ./.github/workflows/build-images.yml
+    with:
+      ref: ${{ github.sha }}
+      image_tag: latest
+    secrets: inherit
+
+  deploy:
+    name: Deploy int
+    needs: [build, edge]
+    uses: ./.github/workflows/deploy-fishers-k3s.yml
+    with:
+      target_env: int
+      # The commit, not :latest — see the note above.
+      image_tag: ${{ github.sha }}
+      deploy_postgres: true
+    secrets: inherit

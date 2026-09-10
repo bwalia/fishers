@@ -99,6 +99,7 @@ struct CricketScorecardView: View {
             }
         }
         .listStyle(.insetGrouped)
+            .fishersList()
     }
 
     // MARK: Commentary

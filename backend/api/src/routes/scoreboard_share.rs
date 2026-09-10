@@ -154,6 +154,7 @@ async fn create_share(
                     let _ = state
                         .push
                         .send(
+                            &state.pool,
                             uid,
                             "scoreboard_share",
                             "Live scoreboard",
@@ -202,10 +203,24 @@ async fn revoke_share(
     Ok(Json(json!({ "ok": true })))
 }
 
+/// A share token is hex, so anything from the first non-hex character on was
+/// never part of it.
+///
+/// Share sheets append the message text to the link, and a recipient's app
+/// then linkifies the lot into one address. Those links are already out in the
+/// world and cannot be recalled, so the trailing rubbish is dropped here
+/// rather than handing somebody a 404 on a match that is being played.
+fn clean_token(raw: &str) -> String {
+    raw.chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect()
+}
+
 async fn public_scoreboard(
     State(state): State<AppState>,
     Path(token): Path<String>,
 ) -> ApiResult<Json<PublicScoreboard>> {
+    let token = clean_token(&token);
     let share = share_repo::find_valid_by_token(&state.pool, &token)
         .await?
         .ok_or_else(|| ApiError::not_found("scoreboard link invalid or expired"))?;
@@ -270,4 +285,21 @@ async fn public_scoreboard(
         expires_at: share.expires_at,
         refreshed_at: chrono::Utc::now(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clean_token;
+
+    #[test]
+    fn a_token_with_the_share_message_stuck_to_it_still_resolves() {
+        let real = "fdcc196f7a29bf81dc55a15698b22d2216d71d23e7dbf246";
+        assert_eq!(clean_token(real), real);
+        // What a share sheet actually produced, once linkified.
+        assert_eq!(
+            clean_token(&format!("{real} Lords vs Hemel - live scoreboard http://x/live/{real}")),
+            real
+        );
+        assert_eq!(clean_token("not-a-token"), "");
+    }
 }

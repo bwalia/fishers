@@ -72,6 +72,7 @@ struct ClubStatsView: View {
                 }
             }
         }
+        .fishersList()
         .navigationTitle(clubName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

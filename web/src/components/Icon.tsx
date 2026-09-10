@@ -76,7 +76,39 @@ const PATHS = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  pin: (
+    <>
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </>
+  ),
+  chat: (
+    <>
+      <path d="M20 14a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2Z" />
+      <path d="M8 9h8M8 12h5" />
+    </>
+  ),
+  send: <path d="M4 12 20 4l-3.5 16-4-6.5L4 12Z" />,
+  sparkle: (
+    <>
+      <path d="M12 3.5 13.6 9l5.4 1.6-5.4 1.6L12 17.6 10.4 12.2 5 10.6 10.4 9 12 3.5Z" />
+      <path d="M18.5 15.5 19.2 18l2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.5Z" />
+    </>
+  ),
   arrowLeft: <path d="M11 6l-6 6 6 6M5 12h14" />,
+  camera: (
+    <>
+      <path d="M3 8.5h3.5L8 6h8l1.5 2.5H21V19H3z" />
+      <circle cx="12" cy="13.2" r="3.4" />
+    </>
+  ),
   share: (
     <>
       <circle cx="18" cy="5" r="2.5" />

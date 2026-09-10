@@ -377,7 +377,7 @@ async fn respond(
         let body = format!("You're in for {} — a place opened up.", event.title);
         if let Err(error) = state
             .push
-            .send(player.user_id, "squad_promoted", &event.title, &body, json!({ "event_id": id }))
+            .send(&state.pool, player.user_id, "squad_promoted", &event.title, &body, json!({ "event_id": id }))
             .await
         {
             warn!(%error, "promotion push failed");
@@ -527,6 +527,7 @@ async fn chase_fees(
         if let Err(error) = state
             .push
             .send(
+                &state.pool,
                 row.user_id,
                 "fee_reminder",
                 "Match fee due",
@@ -729,7 +730,7 @@ async fn notify_squad(state: &AppState, event_id: Uuid, kind: &str, title: &str,
     for user_id in recipients {
         if let Err(error) = state
             .push
-            .send(user_id, kind, title, body, json!({ "event_id": event_id }))
+            .send(&state.pool, user_id, kind, title, body, json!({ "event_id": event_id }))
             .await
         {
             warn!(%error, "squad push failed");

@@ -777,6 +777,10 @@ pub struct TicketSummary {
     pub title: String,
     pub ticket_capacity: Option<i32>,
     pub ticket_price_cents: Option<i32>,
+    /// How many guests one member may bring. Zero means members only, and the
+    /// booking screen needs it — without it, it offers a field the server
+    /// always refuses.
+    pub guests_allowed: i32,
     pub bookings: i64,
     pub headcount: i64,
     pub collected_cents: i64,

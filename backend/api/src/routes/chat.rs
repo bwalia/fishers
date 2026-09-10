@@ -103,6 +103,7 @@ async fn post_message(
         if let Err(error) = state
             .push
             .send(
+                &state.pool,
                 recipient,
                 "chat_message",
                 &sender_name,

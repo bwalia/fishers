@@ -92,6 +92,7 @@ struct HomeFeedView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+            .fishersList()
                 }
             }
             .navigationTitle("Home")

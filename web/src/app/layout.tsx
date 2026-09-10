@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import { ShellNav } from "@/components/ShellNav";
+import { MobileNav } from "@/components/MobileNav";
 
 // next/font self-hosts and sets font-display: swap, so no FOIT and no layout
 // shift waiting on Google.
@@ -24,18 +25,41 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#1b7f4c",
+  // The browser chrome follows the theme, so a dark phone does not frame a
+  // cream page in a light bar.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f4ed" },
+    { media: "(prefers-color-scheme: dark)", color: "#111712" },
+  ],
 };
+
+/// Applied before the first paint.
+///
+/// Without this the page renders in the system theme and then swaps to the
+/// chosen one — a white flash on a dark phone, every navigation.
+const THEME_BOOT = `try{var t=localStorage.getItem('fishers_theme');
+if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable}`}>
+    // `suppressHydrationWarning` belongs here and only here: THEME_BOOT sets
+    // `data-theme` on this element before React hydrates, so the server HTML
+    // and the client tree differ by exactly that attribute — on purpose, since
+    // the alternative is a flash of the wrong theme on every navigation. It
+    // suppresses one level, so nothing inside is affected.
+    <html
+      lang="en"
+      className={`${barlow.variable} ${barlowCondensed.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body>
         <a className="skip-link" href="#main">Skip to main content</a>
-        <div className="shell">
-          <ShellNav />
-          {children}
-        </div>
+        <ShellNav />
+        <div className="shell">{children}</div>
+        <MobileNav />
       </body>
     </html>
   );

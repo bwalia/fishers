@@ -17,12 +17,14 @@ export function ReshareLiveLink({
   const share = async () => {
     const url = window.location.href;
     const title = `${homeName} vs ${awayName} — live scoreboard`;
-    const text = `${title}\n${url}`;
     setNote(null);
     try {
       if (typeof navigator.share === "function") {
         try {
-          await navigator.share({ title, text, url });
+          // `text` must not contain the link as well. A share target appends
+          // `url` to `text`, and the recipient's app then linkifies the two
+          // together into one address that resolves to nothing.
+          await navigator.share({ title, text: title, url });
           setNote("Shared.");
           return;
         } catch (err) {
