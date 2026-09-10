@@ -32,6 +32,7 @@ struct ChatListView: View {
                     }
                 }
             }
+            .fishersList()
             .navigationTitle("Chats")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

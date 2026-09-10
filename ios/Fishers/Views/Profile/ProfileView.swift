@@ -1,62 +1,69 @@
 import SwiftUI
 
-/// Player card: who they are, what they play, how they travel, reliability,
-/// and Play-Cricket season stats (runs, wickets, achievements).
+/// A player's own page — the face, the numbers, the details.
+///
+/// Three tabs, the same three the dashboard has: who they are, what they have
+/// scored, what they have taken. The batting and bowling figures come from the
+/// ball-by-ball log, so they are computed; the overview is what the player has
+/// told us about themselves.
 struct ProfileView: View {
     @EnvironmentObject private var session: SessionStore
+    @State private var tab: Tab = .overview
     @State private var isEditing = false
     @State private var confirmSignOut = false
     @State private var statsRefresh = 0
+    @State private var stats: MeStatsResponse?
+
+    enum Tab: String, CaseIterable, Identifiable {
+        case overview, batting, bowling
+        var id: String { rawValue }
+        var title: String { rawValue.capitalized }
+    }
+
+    /// Whichever club they have played the most for — the one to name in the
+    /// band. Falls back to whatever team they typed on their sport profile.
+    private var club: String? {
+        let played = (stats?.seasons ?? []).reduce(into: [String: Int]()) { tally, season in
+            if let name = season.clubName { tally[name, default: 0] += season.matches }
+        }
+        return played.max { $0.value < $1.value }?.key
+            ?? session.user?.primaryProfile?.teamName
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 if let user = session.user {
-                    header(user)
-
-                    if let reliability = user.reliability {
-                        Section("Reliability") {
-                            ReliabilityCard(reliability: reliability)
-                                .padding(.vertical, 4)
-                                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    Section {
+                        ProfileHeroView(user: user, club: club) { updated in
+                            session.user = updated
                         }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     }
 
-                    // Always rendered — owns its own loading / error / empty states.
-                    SeasonStatsSection()
-                        .id(statsRefresh)
-
-                    ForEach(user.profiles) { profile in
-                        sportSection(profile)
+                    Section {
+                        Picker("Section", selection: $tab) {
+                            ForEach(Tab.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     }
+                    .listRowBackground(Color.clear)
 
-                    if let location = user.location, !location.isEmpty {
-                        locationSection(location)
-                    }
-
-                    contactSection(user)
-                }
-
-                Section("Club shop") {
-                    NavigationLink {
-                        ShopView()
-                    } label: {
-                        Label("Browse kit & food", systemImage: "bag")
-                    }
-                }
-
-                Section("Account") {
-                    LabeledContent("API host", value: AppConfig.apiBaseURL.absoluteString)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Button("Sign out", role: .destructive) {
-                        confirmSignOut = true
+                    switch tab {
+                    case .overview: overview(user)
+                    case .batting:
+                        CareerStatsView(seasons: stats?.seasons ?? [], discipline: .batting)
+                    case .bowling:
+                        CareerStatsView(seasons: stats?.seasons ?? [], discipline: .bowling)
                     }
                 }
             }
             .listStyle(.insetGrouped)
+            .fishersList()
             .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Edit") { isEditing = true }
@@ -71,43 +78,120 @@ struct ProfileView: View {
             } message: {
                 Text("You can sign back in anytime on this device.")
             }
-            .task { await session.refreshProfile() }
+            .task {
+                await session.refreshProfile()
+                await loadStats()
+            }
             .refreshable {
                 await session.refreshProfile()
+                await loadStats()
                 statsRefresh += 1
             }
         }
     }
 
-    // MARK: - Header
+    /// A player with no season on record is not an error — the tabs say so.
+    private func loadStats() async {
+        stats = try? await FishersAPI.mySeasonStats()
+    }
 
-    private func header(_ user: PublicUser) -> some View {
-        Section {
-            HStack(spacing: FishersTheme.space2) {
-                ProfileAvatar(user: user, size: 64)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(user.name)
-                        .font(FishersTheme.contentTitle)
-                    Text(user.email ?? user.phone ?? "No contact details")
-                        .font(FishersTheme.subhead)
-                        .foregroundStyle(.secondary)
-                    if let primary = user.primaryProfile, let sport = primary.sportKind {
-                        Label(
-                            [sport.label, primary.tier?.label].compactMap { $0 }.joined(separator: " · "),
-                            systemImage: sport.systemImage
-                        )
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tint)
+    // MARK: - Overview
+
+    @ViewBuilder
+    private func overview(_ user: PublicUser) -> some View {
+        Section("About \(user.name.split(separator: " ").first.map(String.init) ?? user.name)") {
+            LabeledContent("Email", value: user.email ?? "—")
+            LabeledContent("Mobile", value: user.phone ?? "—")
+            if let emergency = user.emergencyContact {
+                LabeledContent("In an emergency", value: emergency)
+            }
+        }
+
+        if let career = stats?.seasons, !career.isEmpty {
+            careerSummary(Totals(career), seasons: career.count)
+        }
+
+        if let achievements = stats?.achievements, !achievements.isEmpty {
+            Section("Honours") {
+                ForEach(achievements) { award in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(award.title).font(FishersTheme.headline)
+                        if let detail = award.description {
+                            Text(detail).font(FishersTheme.footnote).foregroundStyle(.secondary)
+                        }
                     }
                 }
-                Spacer(minLength: 0)
-                if let reliability = user.reliability {
-                    ReliabilityRing(reliability: reliability, size: 56)
-                }
             }
-            .padding(.vertical, 6)
-            .accessibilityElement(children: .combine)
         }
+
+        if let reliability = user.reliability {
+            Section("Reliability") {
+                ReliabilityCard(reliability: reliability)
+                    .padding(.vertical, 4)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            }
+        }
+
+        // Owns its own loading / error / empty states.
+        SeasonStatsSection()
+            .id(statsRefresh)
+
+        ForEach(user.profiles) { profile in
+            sportSection(profile)
+        }
+
+        if let location = user.location, !location.isEmpty {
+            locationSection(location)
+        }
+
+        contactSection(user)
+
+        Section("Club shop") {
+            NavigationLink {
+                ShopView()
+            } label: {
+                Label("Browse kit & food", systemImage: "bag")
+            }
+        }
+
+        Section("Account") {
+            LabeledContent("API host", value: AppConfig.apiBaseURL.absoluteString)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button("Sign out", role: .destructive) {
+                confirmSignOut = true
+            }
+        }
+    }
+
+    private func careerSummary(_ t: Totals, seasons: Int) -> some View {
+        Section {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
+                      spacing: FishersTheme.space2) {
+                figure("Matches", t.matches)
+                figure("Runs", t.runs)
+                figure("Wickets", t.wickets)
+                figure("Catches", t.catches)
+            }
+            .padding(.vertical, 4)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        } header: {
+            Text("Career")
+        } footer: {
+            Text("Across \(seasons) season\(seasons == 1 ? "" : "s"), worked out from the ball-by-ball log.")
+        }
+    }
+
+    private func figure(_ label: String, _ value: Int) -> some View {
+        VStack(spacing: 2) {
+            Text(String(value))
+                .font(FishersTheme.figure(.title))
+                .foregroundStyle(FishersTheme.pitch)
+            Text(label).font(FishersTheme.footnote).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, FishersTheme.space1)
+        .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 10))
     }
 
     // MARK: - Sport

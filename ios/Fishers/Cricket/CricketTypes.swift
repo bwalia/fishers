@@ -1589,6 +1589,18 @@ struct CricketMatchDTO: Codable {
     let activeScorerUserId: UUID?
     let activeScorerDeviceId: String?
     let canScore: Bool
+    /// The visiting club, when they are on Fishers.
+    let opponentClubId: UUID?
+    /// When the fixture is. A club plays the same opposition several times a
+    /// season, so the two names alone do not say which match this is.
+    let startAt: Date?
+    /// The side this caller actually plays for. Proposing terms on behalf of
+    /// the opposition is something you do because their captain is standing
+    /// next to you — never by accident, which is what a hardcoded `.home` was.
+    let myClubSide: MatchSide?
+    /// Which sides this caller may propose or agree terms for. The scorer at
+    /// the ground gets both; a captain gets only their own.
+    let mySides: [MatchSide]
     let dls: DlsPar?
     let state: MatchState
 
@@ -1603,6 +1615,10 @@ struct CricketMatchDTO: Codable {
         case activeScorerUserId = "active_scorer_user_id"
         case activeScorerDeviceId = "active_scorer_device_id"
         case canScore = "can_score"
+        case opponentClubId = "opponent_club_id"
+        case startAt = "start_at"
+        case myClubSide = "my_club_side"
+        case mySides = "my_sides"
         case dls
     }
 
@@ -1619,6 +1635,12 @@ struct CricketMatchDTO: Codable {
         activeScorerUserId = try c.decodeIfPresent(UUID.self, forKey: .activeScorerUserId)
         activeScorerDeviceId = try c.decodeIfPresent(String.self, forKey: .activeScorerDeviceId)
         canScore = try c.decodeIfPresent(Bool.self, forKey: .canScore) ?? false
+        opponentClubId = try c.decodeIfPresent(UUID.self, forKey: .opponentClubId)
+        startAt = try c.decodeIfPresent(Date.self, forKey: .startAt)
+        myClubSide = try c.decodeIfPresent(MatchSide.self, forKey: .myClubSide)
+        // Older builds of the API did not send this; an empty list reads as
+        // "nothing you may act for", which is the safe way to be wrong.
+        mySides = try c.decodeIfPresent([MatchSide].self, forKey: .mySides) ?? []
         dls = try c.decodeIfPresent(DlsPar.self, forKey: .dls)
         state = try c.decode(MatchState.self, forKey: .state)
     }

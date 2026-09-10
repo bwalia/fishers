@@ -23,6 +23,7 @@ struct NotificationsView: View {
                 row(item)
             }
         }
+        .fishersList()
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

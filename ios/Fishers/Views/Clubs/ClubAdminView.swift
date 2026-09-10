@@ -107,6 +107,7 @@ private struct RosterList: View {
             }
         }
         .listStyle(.insetGrouped)
+            .fishersList()
         .toolbar {
             if canManage {
                 ToolbarItem(placement: .primaryAction) {

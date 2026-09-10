@@ -44,6 +44,10 @@ struct CricketScoringFlowView: View {
     /// club they are. Their captain and their XI come from here — offering our
     /// own players for their side was how the wrong club got named.
     @State private var opponentPlayers: [MatchPlayer] = []
+    /// Which side this phone actually plays for, as the server sees it. Nil
+    /// until the match reaches the server, or when the caller is in neither
+    /// club — a neutral scorer, who proposes for the home side as before.
+    @State private var myClubSide: MatchSide?
 
     enum Step: Hashable {
         case setup, agreement, toss, sheets, openers, live
@@ -77,6 +81,7 @@ struct CricketScoringFlowView: View {
         .task {
             store.replaceContext(modelContext)
             await resumeOrPrepare()
+            await loadMySide()
         }
         .onDisappear {
             CricketSyncService.shared.unregister(store: store)
@@ -602,11 +607,14 @@ struct CricketScoringFlowView: View {
                 return
             }
         }
-        // Whoever is scoring is proposing on behalf of the home side.
+        // You propose for *your own* side. This used to be a hardcoded `.home`,
+        // which signed the away club up to terms they had never seen whenever
+        // the person with the phone was the visiting captain.
+        let proposing = myClubSide ?? .home
         guard store.append(.conditionsProposed(
             conditions: conditions,
-            by: .home,
-            byName: session.user?.name ?? homeName
+            by: proposing,
+            byName: session.user?.name ?? store.state.name(for: proposing)
         )) else {
             message = store.lastError
             return
@@ -614,6 +622,16 @@ struct CricketScoringFlowView: View {
         CricketSyncService.shared.register(store: store)
         message = nil
         step = .agreement
+    }
+
+    /// Ask the server which side this phone belongs to.
+    ///
+    /// Only the server knows: it is the one holding the club memberships for
+    /// both sides. Silent on failure — a match that has not synced yet has no
+    /// answer, and the fallback is the old behaviour.
+    private func loadMySide() async {
+        guard let matchId = store.matchId else { return }
+        myClubSide = (try? await FishersAPI.match(matchId: matchId))?.myClubSide
     }
 
     @ViewBuilder
@@ -777,6 +795,7 @@ private struct TeamSheetEditor: View {
         }
         .environment(\.editMode, .constant(.active))
         .listStyle(.insetGrouped)
+            .fishersList()
     }
 
     private var available: [MatchPlayer] {

@@ -19,6 +19,22 @@ enum APIError: LocalizedError {
             return "Cannot reach API at \(AppConfig.apiBaseURL.absoluteString) — is it running? (\(detail))"
         }
     }
+
+    /// The sentence to put in front of somebody.
+    ///
+    /// The API answers a refusal as `{"error": "..."}`, written for a person to
+    /// read. Showing `HTTP 400: {"error":"that is not a JPEG…"}` throws that
+    /// away and hands them the plumbing instead.
+    var friendlyMessage: String {
+        if case .http(_, let body) = self,
+           let data = body.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let message = object["error"] as? String,
+           !message.isEmpty {
+            return message
+        }
+        return errorDescription ?? "Something went wrong."
+    }
 }
 
 /// Shared JSON decoder for API payloads. Accepts ISO-8601 with or without
@@ -120,6 +136,66 @@ actor NetworkService {
         _ = try await rawRequest(
             method, path: path, body: body, authorized: authorized
         )
+    }
+
+    /// Send one file as multipart/form-data.
+    ///
+    /// Separate from `rawRequest` because the body is not JSON and the
+    /// Content-Type has to carry the boundary. Deliberately not general: one
+    /// file, one field, which is every upload the app makes.
+    func upload<T: Decodable>(
+        path: String,
+        fileName: String,
+        mimeType: String,
+        data fileData: Data,
+        fieldName: String = "file"
+    ) async throws -> T {
+        guard let url = URL(string: AppConfig.apiBaseURL.absoluteString + AppConfig.apiVersionPrefix + path) else {
+            throw APIError.invalidURL
+        }
+        // A fresh token first: a multipart retry would mean rebuilding the body,
+        // and a photo is big enough that sending it twice is worth avoiding.
+        if accessToken == nil, refreshToken != nil {
+            try await refreshAccessToken()
+        }
+
+        let boundary = "fishers.\(UUID().uuidString)"
+        var body = Data()
+        func append(_ text: String) { body.append(Data(text.utf8)) }
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n")
+        append("Content-Type: \(mimeType)\r\n\r\n")
+        body.append(fileData)
+        append("\r\n--\(boundary)--\r\n")
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = body
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            let ns = error as NSError
+            if ns.domain == NSURLErrorDomain {
+                throw APIError.unreachable(error.localizedDescription)
+            }
+            throw error
+        }
+        guard let http = response as? HTTPURLResponse else { throw APIError.empty }
+        guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 401 { throw APIError.unauthorized }
+            throw APIError.http(http.statusCode, String(data: data, encoding: .utf8) ?? "")
+        }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
     }
 
     private func rawRequest(

@@ -32,6 +32,7 @@ struct ClubsTeamsView: View {
                     }
                 }
             }
+            .fishersList()
             .navigationTitle("Clubs & Teams")
             .navigationDestination(for: Club.self) { ClubDetailView(club: $0) }
             .toolbar {

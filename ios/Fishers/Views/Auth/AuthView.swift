@@ -69,7 +69,7 @@ struct AuthView: View {
                                 .font(FishersTheme.body)
                                 .padding(.horizontal, 14)
                                 .frame(minHeight: FishersTheme.minTap)
-                                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .background(FishersTheme.cream, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 .textContentType(mode == .login ? .password : .newPassword)
                                 .focused($focused, equals: .password)
                         }
@@ -110,13 +110,13 @@ struct AuthView: View {
                         }
                     }
                     .padding(FishersTheme.space2)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(FishersTheme.cream, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding(.horizontal, FishersTheme.space2)
 
                     Spacer(minLength: FishersTheme.space4)
                 }
             }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .background(FishersTheme.mist.ignoresSafeArea())
             .scrollDismissesKeyboard(.interactively)
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -143,7 +143,7 @@ struct AuthView: View {
             .font(FishersTheme.body)
             .padding(.horizontal, 14)
             .frame(minHeight: FishersTheme.minTap)
-            .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .focused($focused, equals: field)
     }
 

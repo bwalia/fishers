@@ -41,6 +41,7 @@ struct TournamentView: View {
                 }
             }
         }
+        .fishersList()
         .navigationTitle(block.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

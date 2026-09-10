@@ -90,6 +90,7 @@ struct OppositionPickerView: View {
                     Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
                 }
             }
+            .fishersList()
             .navigationTitle("Opposition")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

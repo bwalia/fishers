@@ -196,6 +196,15 @@ extension View {
             .foregroundStyle(.secondary)
     }
 
+    /// A grouped list on the club's cream rather than the system grey.
+    ///
+    /// A `List` paints its own `systemGroupedBackground`, so repainting the
+    /// palette everywhere else still leaves every screen sitting on iOS grey.
+    func fishersList() -> some View {
+        scrollContentBackground(.hidden)
+            .background(FishersTheme.mist.ignoresSafeArea())
+    }
+
     /// A card in the club's palette: cream paper, a hairline, a soft lift.
     func fishersCard(padding: CGFloat = FishersTheme.space2) -> some View {
         self

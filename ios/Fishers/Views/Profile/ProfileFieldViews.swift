@@ -18,13 +18,70 @@ struct ProfileAvatar: View {
     var size: CGFloat = 48
 
     var body: some View {
+        AvatarView(name: user.name, initials: user.initials,
+                   urlString: user.avatarUrl, size: size)
+    }
+}
+
+/// A face, or initials when there is not one.
+///
+/// Most people never upload a photo, so the fallback is the common case rather
+/// than an error state. The tint is hashed from the name — stable per person,
+/// and nothing to store — and kept inside the sage family so a list of them
+/// still reads as one design.
+struct AvatarView: View {
+    let name: String
+    var initials: String = ""
+    var urlString: String?
+    var size: CGFloat = 48
+
+    var body: some View {
+        Group {
+            if let urlString, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        // Failure and loading look the same on purpose: the
+                        // initials are a real answer, not a placeholder.
+                        letters
+                    }
+                }
+            } else {
+                letters
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay(Circle().strokeBorder(.black.opacity(0.12), lineWidth: 1))
+    }
+
+    private var letters: some View {
         ZStack {
-            Circle().fill(FishersTheme.pitch.gradient)
-            Text(user.initials.isEmpty ? "?" : user.initials)
+            tint
+            Text(shown)
                 .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
         }
-        .frame(width: size, height: size)
+    }
+
+    private var shown: String {
+        if !initials.isEmpty { return initials }
+        let parts = name.split(separator: " ").filter { !$0.isEmpty }
+        guard let first = parts.first?.first else { return "?" }
+        if parts.count > 1, let last = parts.last?.first {
+            return "\(first)\(last)".uppercased()
+        }
+        return String(first).uppercased()
+    }
+
+    private var tint: Color {
+        var h = 0
+        for ch in name.unicodeScalars { h = (h &* 31 &+ Int(ch.value)) % 360 }
+        return Color(hue: Double(90 + h % 60) / 360,
+                     saturation: 0.22,
+                     brightness: Double(34 + (h % 3) * 6) / 100)
     }
 }
 
@@ -106,7 +163,7 @@ struct SportSelectGrid: View {
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 14)
-                            .fill(form.isSelected(sport) ? FishersTheme.accent.opacity(0.16) : Color.secondary.opacity(0.08))
+                            .fill(form.isSelected(sport) ? FishersTheme.accent.opacity(0.16) : FishersTheme.raised)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 14)
@@ -164,7 +221,7 @@ struct TierSelector: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(tier == option ? FishersTheme.accent.opacity(0.12) : Color.secondary.opacity(0.07))
+                            .fill(tier == option ? FishersTheme.accent.opacity(0.12) : FishersTheme.raised)
                     )
                 }
                 .buttonStyle(.plain)
@@ -313,7 +370,7 @@ extension ReliabilityBand {
         case .unproven: return .secondary
         case .patchy: return .orange
         case .dependable: return .blue
-        case .rockSolid: return .green
+        case .rockSolid: return FishersTheme.available
         }
     }
 }
