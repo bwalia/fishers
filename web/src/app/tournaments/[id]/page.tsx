@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, getAccessToken, readErr } from "@/lib/api";
 import {
@@ -101,9 +101,15 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       {tab === "entrants" && <Entrants blockId={id} entrants={entrants} onChanged={load} />}
       {tab === "grid" && <Grid blockId={id} slots={slots} onChanged={load} />}
       {tab === "fixtures" && (
-        <Fixtures blockId={id} fixtures={fixtures} slots={slots} onChanged={load} />
+        <Fixtures
+          blockId={id}
+          fixtures={fixtures}
+          slots={slots}
+          entrants={entrants}
+          onChanged={load}
+        />
       )}
-      {tab === "table" && <Table rows={table} />}
+      {tab === "table" && <Table blockId={id} rows={table} onChanged={load} />}
 
       <p className="muted" style={{ marginTop: "var(--s5)" }}>
         <Link href="/tournaments">← All tournaments</Link>
@@ -348,13 +354,16 @@ function Fixtures({
   blockId,
   fixtures,
   slots,
+  entrants,
   onChanged,
 }: {
   blockId: string;
   fixtures: ScheduleRow[];
   slots: Slot[];
+  entrants: TournamentEntrant[];
   onChanged: () => void;
 }) {
+  const [scoring, setScoring] = useState<ScheduleRow | null>(null);
   const [format, setFormat] = useState<TournamentFormat>("round_robin");
   const [groups, setGroups] = useState(2);
   const [rest, setRest] = useState(30);
@@ -460,7 +469,7 @@ function Fixtures({
               <thead>
                 <tr>
                   <th>When</th><th>Pitch</th><th>Match</th>
-                  <th>Stage</th><th className="n">Result</th>
+                  <th>Stage</th><th className="n">Result</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -477,6 +486,15 @@ function Fixtures({
                         ? `${f.home_score}–${f.away_score}`
                         : "—"}
                     </td>
+                    <td className="n">
+                      <button
+                        className="btn ghost sm"
+                        type="button"
+                        onClick={() => setScoring(f)}
+                      >
+                        {f.home_score != null ? "Change" : "Result"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -484,13 +502,148 @@ function Fixtures({
           </div>
         )}
       </div>
+
+      {scoring && (
+        <RecordResult
+          row={scoring}
+          entrants={entrants}
+          onClose={() => setScoring(null)}
+          onSaved={() => { setScoring(null); onChanged(); }}
+        />
+      )}
     </>
+  );
+}
+
+/// What happened in one game.
+///
+/// Two scores and who won — and a no-result, because rain does not care that
+/// the fixture list said otherwise. Recording this is what moves the table, so
+/// it lives on the fixture row rather than behind another screen.
+function RecordResult({
+  row,
+  entrants,
+  onClose,
+  onSaved,
+}: {
+  row: ScheduleRow;
+  entrants: TournamentEntrant[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const panel = useRef<HTMLDivElement>(null);
+
+  // Below a full fixture list this opens off-screen, and the button looks
+  // like it did nothing.
+  useEffect(() => {
+    panel.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [row.event_id]);
+
+  const find = (name: string | null) => entrants.find((e) => e.name === name);
+  const home = find(row.home_name);
+  const away = find(row.away_name);
+
+  const [homeScore, setHomeScore] = useState(row.home_score?.toString() ?? "");
+  const [awayScore, setAwayScore] = useState(row.away_score?.toString() ?? "");
+  const [washout, setWashout] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!home || !away) {
+      setError("This fixture is not between two known sides yet.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const h = Number(homeScore);
+    const a = Number(awayScore);
+    // Whoever scored more won; equal is a draw. Worked out here rather than
+    // asked, because a scorer who types the scores has already said it.
+    const outcome = (mine: number, theirs: number) =>
+      washout ? "no_result" : mine > theirs ? "win" : mine < theirs ? "loss" : "draw";
+
+    try {
+      await api("POST", `/events/${row.event_id}/result`, {
+        entrants: [
+          { entrant_id: home.id, score: washout ? null : h, result: outcome(h, a) },
+          { entrant_id: away.id, score: washout ? null : a, result: outcome(a, h) },
+        ],
+        summary: summary.trim() || null,
+      });
+      onSaved();
+    } catch (err) {
+      setError(readErr(err, "Could not record that"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel" ref={panel}>
+      <h2>{row.home_name} v {row.away_name}</h2>
+      <div className="setup-fields">
+        <label>
+          {row.home_name}
+          <input
+            type="number"
+            inputMode="numeric"
+            value={homeScore}
+            disabled={washout}
+            onChange={(e) => setHomeScore(e.target.value)}
+          />
+        </label>
+        <label>
+          {row.away_name}
+          <input
+            type="number"
+            inputMode="numeric"
+            value={awayScore}
+            disabled={washout}
+            onChange={(e) => setAwayScore(e.target.value)}
+          />
+        </label>
+      </div>
+      <label className="field-inline">
+        <input type="checkbox" checked={washout} onChange={(e) => setWashout(e.target.checked)} />
+        Abandoned — no result
+      </label>
+      <label>
+        Anything worth remembering
+        <input
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          placeholder="Won off the last ball."
+        />
+      </label>
+      {error && <p className="error">{error}</p>}
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button
+          className="btn primary"
+          type="button"
+          disabled={busy || (!washout && (homeScore === "" || awayScore === ""))}
+          onClick={save}
+        >
+          {busy ? "Recording…" : "Record it"}
+        </button>
+        <button className="btn" type="button" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
   );
 }
 
 /* ---------- Table ---------- */
 
-function Table({ rows }: { rows: Standing[] }) {
+function Table({
+  blockId,
+  rows,
+  onChanged,
+}: {
+  blockId: string;
+  rows: Standing[];
+  onChanged: () => void;
+}) {
   if (rows.length === 0) {
     return (
       <div className="panel empty">
@@ -500,9 +653,11 @@ function Table({ rows }: { rows: Standing[] }) {
     );
   }
 
+  const grouped = byGroup(rows);
+
   return (
     <>
-      {byGroup(rows).map((group) => (
+      {grouped.map((group) => (
         <div className="panel" key={group.label ?? "all"}>
           <h2>{group.label ? `Group ${group.label}` : "Table"}</h2>
           <div className="table-wrap">
@@ -534,7 +689,90 @@ function Table({ rows }: { rows: Standing[] }) {
           </div>
         </div>
       ))}
+
+      {/* Offered whenever there is a table to qualify out of — one group of
+          eight feeding a semi-final is as real as four groups feeding a
+          quarter. The server refuses if the table cannot support it. */}
+      <Knockout blockId={blockId} groups={grouped.length} onChanged={onChanged} />
     </>
+  );
+}
+
+/// Build the knockout from the group tables.
+///
+/// A preview first, like the group stage — an organiser wants to see who came
+/// out of each group before those fixtures land in anybody's calendar.
+function Knockout({
+  blockId,
+  groups,
+  onChanged,
+}: {
+  blockId: string;
+  groups: number;
+  onChanged: () => void;
+}) {
+  const [perGroup, setPerGroup] = useState(2);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (commit: boolean) => {
+    setBusy(commit ? "commit" : "preview");
+    setError(null);
+    setNote(null);
+    try {
+      const out = await api<{ committed?: number; scheduled?: unknown[] }>(
+        "POST",
+        `/fixture-blocks/${blockId}/knockout`,
+        { per_group: perGroup, commit }
+      );
+      const made = out.scheduled?.length ?? 0;
+      setNote(
+        commit
+          ? `${out.committed ?? made} knockout fixtures written.`
+          : `${made} knockout fixtures would be created.`
+      );
+      if (commit) onChanged();
+    } catch (err) {
+      setError(readErr(err, "Could not build the knockout"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="panel">
+      <h2>Into the knockout</h2>
+      <p className="muted">
+        Takes the top of {groups === 1 ? "the table" : `each of the ${groups} groups`} as it
+        stands now. Run it once the group games are done — running it early builds a bracket
+        from an unfinished table.
+      </p>
+      <label>
+        How many go through{groups > 1 ? " from each group" : ""}
+        <input
+          type="number"
+          min={1}
+          value={perGroup}
+          onChange={(e) => setPerGroup(Number(e.target.value))}
+        />
+      </label>
+      {error && <p className="error">{error}</p>}
+      {note && !error && <p className="muted">{note}</p>}
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn" type="button" disabled={busy !== null} onClick={() => run(false)}>
+          {busy === "preview" ? "Working…" : "Preview the bracket"}
+        </button>
+        <button
+          className="btn primary"
+          type="button"
+          disabled={busy !== null}
+          onClick={() => run(true)}
+        >
+          {busy === "commit" ? "Writing…" : "Build it"}
+        </button>
+      </div>
+    </div>
   );
 }
 

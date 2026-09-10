@@ -89,6 +89,46 @@ export type Standing = {
   conceded: number;
 };
 
+/// One line per side. Draws and no-results exist because rain does.
+export type EntrantResult = {
+  entrant_id: string;
+  score: number | null;
+  /// `win` | `loss` | `draw` | `no_result`
+  result: string;
+  score_detail?: Record<string, unknown> | null;
+};
+
+/// A ticketed club event — a dinner, a quiz, a presentation night.
+export type EventTicket = {
+  id: string;
+  event_id: string;
+  user_id: string;
+  name: string | null;
+  guests: number;
+  guest_names: string | null;
+  amount_cents: number;
+  currency: string;
+  /// `reserved` | `paid` | `cancelled`
+  status: string;
+  notes: string | null;
+  created_at: string;
+};
+
+export type TicketSummary = {
+  event_id: string;
+  title: string;
+  ticket_capacity: number | null;
+  ticket_price_cents: number | null;
+  /// How many guests one member may bring. Zero means members only.
+  guests_allowed: number;
+  bookings: number;
+  headcount: number;
+  collected_cents: number;
+  outstanding_cents: number;
+};
+
+export type TicketBooking = { summary: TicketSummary; tickets: EventTicket[] };
+
 export const FORMAT_LABEL: Record<TournamentFormat, string> = {
   round_robin: "Everyone plays everyone",
   groups_knockout: "Groups, then a knockout",

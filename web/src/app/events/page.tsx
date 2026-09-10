@@ -94,6 +94,9 @@ export default function EventsPage() {
               )}
               <Availability eventId={e.id} />
               <Link className="btn sm" href={`/events/${e.id}/selection`}>Squad</Link>
+              {e.ticket_price_cents != null && (
+                <Link className="btn sm" href={`/events/${e.id}/tickets`}>Tickets</Link>
+              )}
               {e.sport === "cricket" && (
                 <Link className="btn sm" href="/score">Score</Link>
               )}

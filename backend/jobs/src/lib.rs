@@ -227,14 +227,16 @@ async fn materialise_recurring(pool: &PgPool) -> anyhow::Result<()> {
                 INSERT INTO events (
                     club_id, team_id, sport, event_subtype, title, venue_id,
                     start_at, end_at, recurrence_rule, recurrence_parent_id,
-                    capacity, fee_amount_cents, fee_currency, status, metadata, created_by
+                    capacity, fee_amount_cents, fee_currency,
+               ticket_price_cents, ticket_capacity, guests_allowed, status, metadata, created_by
                 )
                 SELECT
                     club_id, team_id, sport, event_subtype, title, venue_id,
                     start_at + ($2::bigint * INTERVAL '1 week'),
                     end_at + ($2::bigint * INTERVAL '1 week'),
                     NULL, id,
-                    capacity, fee_amount_cents, fee_currency, 'scheduled', metadata, created_by
+                    capacity, fee_amount_cents, fee_currency,
+               ticket_price_cents, ticket_capacity, guests_allowed, 'scheduled', metadata, created_by
                 FROM events WHERE id = $1
                   AND NOT EXISTS (
                       SELECT 1 FROM events child

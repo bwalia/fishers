@@ -134,6 +134,10 @@ export type EventRow = {
   start_at: string;
   end_at: string;
   fee_amount_cents?: number | null;
+  /// Set when the event sells tickets — a dinner, a quiz. Distinct from
+  /// `fee_amount_cents`, which is what a player owes for a fixture.
+  ticket_price_cents?: number | null;
+  ticket_capacity?: number | null;
   status: string;
 };
 

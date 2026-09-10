@@ -25,6 +25,12 @@ pub struct Event {
     pub capacity: Option<i32>,
     pub fee_amount_cents: Option<i32>,
     pub fee_currency: String,
+    /// A ticketed club event — a dinner, a quiz, presentation night. Distinct
+    /// from `fee_amount_cents`, which is what a *player* owes for a fixture.
+    pub ticket_price_cents: Option<i32>,
+    pub ticket_capacity: Option<i32>,
+    /// How many guests one member may bring to a ticketed event.
+    pub guests_allowed: i32,
     pub status: EventStatus,
     /// "Called off — ground unplayable after Friday's rain."
     pub status_note: Option<String>,
@@ -66,6 +72,13 @@ pub struct CreateEventRequest {
     pub capacity: Option<i32>,
     pub fee_amount_cents: Option<i32>,
     pub fee_currency: Option<String>,
+    /// Set to sell tickets for this one — a dinner, a quiz, a presentation
+    /// night. Separate from `fee_amount_cents`, which is what a player owes
+    /// for a fixture they were picked for.
+    pub ticket_price_cents: Option<i32>,
+    pub ticket_capacity: Option<i32>,
+    /// How many guests one member may bring. Defaults to none.
+    pub guests_allowed: Option<i32>,
     pub metadata: Option<Value>,
 }
 
@@ -77,6 +90,9 @@ pub struct UpdateEventRequest {
     pub end_at: Option<DateTime<Utc>>,
     pub capacity: Option<i32>,
     pub fee_amount_cents: Option<i32>,
+    pub ticket_price_cents: Option<i32>,
+    pub ticket_capacity: Option<i32>,
+    pub guests_allowed: Option<i32>,
     pub status: Option<EventStatus>,
     pub metadata: Option<Value>,
 }
