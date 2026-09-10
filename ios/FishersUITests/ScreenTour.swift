@@ -99,6 +99,59 @@ final class ScreenTour: XCTestCase {
         capture("Profile-figures")
     }
 
+    /// Opening a club-mate's record from the roster, and not seeing their
+    /// phone number when you get there.
+    func testAnotherPlayersProfileShowsFiguresAndNoContactDetails() throws {
+        try skipWithoutAnAPI()
+        signIn()
+
+        app.tabBars.buttons["Clubs"].tap()
+        // Into the first club, then its roster.
+        let firstClub = app.cells.firstMatch
+        XCTAssertTrue(firstClub.waitForExistence(timeout: 15), "no clubs to open")
+        firstClub.tap()
+
+        // The roster rows are links now; the first one that is not me.
+        let link = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Open their profile'"))
+            .firstMatch
+        guard link.waitForExistence(timeout: 10) else {
+            throw XCTSkip("this account's club has no other members to open")
+        }
+        link.tap()
+
+        XCTAssertTrue(app.staticTexts["Career"].waitForExistence(timeout: 15)
+                      || app.staticTexts["Nothing scored yet"].waitForExistence(timeout: 5),
+                      "the profile never loaded")
+
+        // The whole point of the narrower payload: no contact details reach
+        // this screen, so none can be shown on it.
+        let text = app.descendants(matching: .any).allElementsBoundByIndex
+            .compactMap { $0.label }
+            .joined(separator: " ")
+        XCTAssertFalse(text.contains("@fishers.test"), "an email address leaked onto a teammate's profile")
+        XCTAssertFalse(text.lowercased().contains("emergency"), "an emergency contact leaked")
+        capture("Player-profile")
+    }
+
+    /// The notifications screen filters on the server, so the controls have
+    /// to be there for it to be able to.
+    func testNotificationsCanBeFiltered() throws {
+        try skipWithoutAnAPI()
+        signIn()
+
+        app.tabBars.buttons["Home"].tap()
+        let bell = app.buttons["Notifications"].firstMatch
+        guard bell.waitForExistence(timeout: 10) else {
+            throw XCTSkip("no way through to notifications from Home in this build")
+        }
+        bell.tap()
+
+        XCTAssertTrue(app.textFields["Search"].waitForExistence(timeout: 10),
+                      "no search on the notifications screen")
+        XCTAssertTrue(app.switches["Unread only"].exists, "no unread filter")
+        capture("Notifications")
+    }
+
     // MARK: Helpers
 
     private func signIn() {
