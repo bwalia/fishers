@@ -76,7 +76,11 @@ impl AppState {
         {
             tracing::warn!(%error, kind, "could not store a notification");
         }
-        if let Err(error) = self.push.send(user_id, kind, title, body, payload).await {
+        if let Err(error) = self
+            .push
+            .send(&self.pool, user_id, kind, title, body, payload)
+            .await
+        {
             tracing::warn!(%error, kind, "push failed");
         }
     }

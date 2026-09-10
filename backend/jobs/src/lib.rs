@@ -55,6 +55,7 @@ async fn request_reconfirmations(
         );
         if let Err(e) = push
             .send(
+                pool,
                 row.user_id,
                 "selection_reconfirm",
                 "Confirm you're playing",
@@ -110,6 +111,7 @@ async fn drop_and_promote(pool: &PgPool, push: &PushService) -> anyhow::Result<(
         for player in &promoted {
             if let Err(e) = push
                 .send(
+                    pool,
                     player.user_id,
                     "squad_promoted",
                     "You're in",
@@ -145,6 +147,7 @@ async fn chase_match_fees(
         );
         if let Err(e) = push
             .send(
+                pool,
                 row.user_id,
                 "fee_reminder",
                 "Match fee due",
@@ -289,6 +292,7 @@ async fn send_rsvp_reminders(pool: &PgPool, push: &PushService) -> anyhow::Resul
     for (user_id, event_id, title) in &rows {
         if let Err(e) = push
             .send(
+                pool,
                 *user_id,
                 "rsvp_reminder",
                 "Are you playing?",

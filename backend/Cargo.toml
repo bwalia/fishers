@@ -42,3 +42,11 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 validator = { version = "0.19", features = ["derive"] }
+# RFC 8291 payload encryption and RFC 8292 VAPID. Hand-rolling ECDH + HKDF +
+# AES-GCM is exactly the kind of crypto nobody should write themselves.
+#
+# Pure RustCrypto rather than the `web-push` crate, whose `ece` dependency
+# links OpenSSL — this workspace is rustls throughout and the runtime image has
+# no OpenSSL in it. This one hands back an `http::Request` with the encrypted
+# body and the headers to send it with; reqwest posts that perfectly well.
+web-push-native = "0.5"

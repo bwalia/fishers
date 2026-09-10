@@ -154,6 +154,7 @@ async fn create_share(
                     let _ = state
                         .push
                         .send(
+                            &state.pool,
                             uid,
                             "scoreboard_share",
                             "Live scoreboard",

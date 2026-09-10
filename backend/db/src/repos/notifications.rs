@@ -57,6 +57,109 @@ pub async fn list_for(
     .await
 }
 
+/// One page of somebody's notifications.
+#[derive(Debug, Clone, Serialize)]
+pub struct NotificationPage {
+    pub items: Vec<Notification>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+    pub has_more: bool,
+    /// Unread across everything, not just this page — it is what the bell
+    /// shows, and a filtered page must not change it.
+    pub unread: i64,
+    /// Every kind this person has ever been sent, so the filter offers only
+    /// what would actually match something.
+    pub kinds: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct NotificationFilter {
+    /// One `notifications_log.type`.
+    pub kind: Option<String>,
+    pub unread_only: bool,
+    /// Matched against the payload's title and body.
+    pub search: Option<String>,
+    /// 1-based.
+    pub page: i64,
+    pub per_page: i64,
+}
+
+/// Filtered, counted and paged in the database.
+///
+/// An active club generates thousands of these. Sending the lot to a browser
+/// so it can slice twenty out of them is the kind of thing that works for a
+/// month and then does not, and "showing 20 of 1,431" needs a count the client
+/// cannot get from a truncated page.
+pub async fn page_for(
+    pool: &PgPool,
+    user_id: Uuid,
+    filter: &NotificationFilter,
+) -> Result<NotificationPage, sqlx::Error> {
+    let page = filter.page.max(1);
+    let per_page = filter.per_page.clamp(1, 100);
+
+    // One WHERE for the count and the page, so the two can never disagree
+    // about what was asked for.
+    let mut where_sql = String::from("WHERE user_id = $1");
+    if filter.kind.is_some() {
+        where_sql.push_str(" AND type = $2");
+    }
+    if filter.unread_only {
+        where_sql.push_str(" AND read_at IS NULL");
+    }
+    if filter.search.is_some() {
+        // The payload is free-form JSON; title and body are what a person
+        // reads, so they are what a search looks in.
+        where_sql.push_str(
+            " AND (payload->>'title' ILIKE $3 OR payload->>'body' ILIKE $3)",
+        );
+    }
+
+    let like = filter.search.as_ref().map(|s| format!("%{s}%"));
+
+    let total: i64 = sqlx::query_scalar(&format!(
+        "SELECT COUNT(*) FROM notifications_log {where_sql}"
+    ))
+    .bind(user_id)
+    .bind(filter.kind.as_deref())
+    .bind(like.as_deref())
+    .fetch_one(pool)
+    .await?;
+
+    let items = sqlx::query_as::<_, Notification>(&format!(
+        "SELECT id, user_id, type, payload, sent_at, read_at
+         FROM notifications_log
+         {where_sql}
+         ORDER BY sent_at DESC, id DESC
+         LIMIT $4 OFFSET $5"
+    ))
+    .bind(user_id)
+    .bind(filter.kind.as_deref())
+    .bind(like.as_deref())
+    .bind(per_page)
+    .bind((page - 1) * per_page)
+    .fetch_all(pool)
+    .await?;
+
+    let kinds: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT type FROM notifications_log WHERE user_id = $1 ORDER BY type",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(NotificationPage {
+        has_more: page * per_page < total,
+        items,
+        total,
+        page,
+        per_page,
+        unread: unread_count(pool, user_id).await?,
+        kinds,
+    })
+}
+
 pub async fn unread_count(pool: &PgPool, user_id: Uuid) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM notifications_log WHERE user_id = $1 AND read_at IS NULL",
