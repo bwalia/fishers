@@ -212,7 +212,10 @@ h2 { font-size: 1.3rem; }
 h3 { font-size: 1.05rem; }
 
 a {
-  color: var(--primary);
+  /* `--primary-ink`, not `--primary`: sage-600 on cream is 4.26:1, which is
+     under the bar for body-sized text. The token exists for exactly this —
+     primary as *text* needs more than primary as a fill. */
+  color: var(--primary-ink);
   text-decoration: none;
 }
 a:hover { text-decoration: underline; }
@@ -539,7 +542,9 @@ a:hover { text-decoration: underline; }
 .btn.ghost { background: transparent; border-color: var(--border); color: var(--fg-muted); }
 .btn.ghost:hover { background: var(--surface-2); color: var(--fg); }
 
-.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+/* red-600 in both themes: white on red-500 is 4.41:1, under the bar for
+   button text. Same reason `--live` does not follow `--danger` into dark. */
+.btn.danger { background: var(--red-600); border-color: var(--red-600); color: #fff; }
 
 .btn.sm { min-height: 36px; padding: 0 var(--s3); font-size: 0.86rem; }
 
@@ -2616,6 +2621,7 @@ a.bell-item:hover { background: var(--surface-2); }
 
 /* ---------- Faces ---------- */
 
+
 .avatar {
   flex: none;
   display: inline-flex;
@@ -3491,8 +3497,32 @@ a.bell-item:hover { background: var(--surface-2); }
   font-weight: 500;
 }
 
-.btn.danger {
-  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
-  color: var(--danger);
+/* ---------- Tap targets on a touch screen ---------- */
+
+/* The small button is 36px: right for a mouse, wrong for a thumb — Apple and
+ * Material both want 44. Rather than make every dense table taller for
+ * everyone, the minimum applies only where the pointer is coarse. The visual
+ * size is unchanged; the box around it grows.
+ *
+ * Last in the file on purpose. These are single-class selectors raising other
+ * single-class selectors, so source order is what decides — put this block
+ * higher up and it silently loses to the rules it exists to override.
+ */
+@media (pointer: coarse) {
+  .btn.sm,
+  .people-tabs button,
+  .pro-tabs button,
+  .chip,
+  .stepper button,
+  .bell-button,
+  .brand,
+  .theme-toggle {
+    min-height: 44px;
+  }
+
+  /* A bare text link is a tap target too — "← All fixtures" was 17px tall. */
+  main a:not(.btn) {
+    display: inline-block;
+    padding: var(--s3) 0;
+  }
 }
-.btn.danger:hover { background: var(--red-100); border-color: var(--danger); }

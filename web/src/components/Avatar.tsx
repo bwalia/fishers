@@ -48,10 +48,14 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-/// Same name, same colour, every time — a hash into the sage/gold family so
-/// a wall of initials still looks like one design rather than confetti.
+/// Same name, same colour, every time — a hash into the sage family so a wall
+/// of initials reads as one design rather than confetti.
+///
+/// The lightness range is capped at 34%: white on the old 46% was 3.74:1,
+/// which fails, and initials are the label for a person's name — not
+/// decoration. Measured in a browser, not estimated.
 function tint(name: string): string {
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return `hsl(${90 + (h % 60)} 22% ${34 + (h % 3) * 6}%)`;
+  return `hsl(${90 + (h % 60)} 24% ${26 + (h % 3) * 4}%)`;
 }
