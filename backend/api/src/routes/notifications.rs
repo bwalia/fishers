@@ -87,9 +87,13 @@ async fn mark_read(
 /// this needs no auth. When push is not configured the app simply never
 /// offers it, rather than asking for permission it cannot then use.
 async fn web_push_key(State(state): State<AppState>) -> Json<serde_json::Value> {
+    // Withheld unless both halves are present. A client that trusted the key
+    // alone would subscribe against a server that can never sign a push to
+    // it — the browser would report success and nothing would ever arrive.
+    let configured = state.push.web.is_configured();
     Json(json!({
-        "enabled": state.push.web.is_configured(),
-        "public_key": state.push.web.public_key,
+        "enabled": configured,
+        "public_key": configured.then(|| state.push.web.public_key.clone()).flatten(),
     }))
 }
 

@@ -106,10 +106,15 @@ final class ScreenTour: XCTestCase {
         signIn()
 
         app.tabBars.buttons["Clubs"].tap()
-        // Into the first club, then its roster.
-        let firstClub = app.cells.firstMatch
-        XCTAssertTrue(firstClub.waitForExistence(timeout: 15), "no clubs to open")
-        firstClub.tap()
+
+        // Into a club, by the button XCTest can actually press. A SwiftUI
+        // List row surfaces as a cell that is often reported unhittable, and
+        // tapping the cell retries for two minutes before giving up.
+        let clubs = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'CC'"))
+        guard clubs.firstMatch.waitForExistence(timeout: 20) else {
+            throw XCTSkip("this account is in no clubs on this server")
+        }
+        clubs.firstMatch.tap()
 
         // The roster rows are links now; the first one that is not me.
         let link = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Open their profile'"))
@@ -155,11 +160,13 @@ final class ScreenTour: XCTestCase {
     // MARK: Helpers
 
     private func signIn() {
+        // Already in? The session survives between tests on one Simulator, so
+        // check for the tab bar first — waiting fifteen seconds for a login
+        // field that is not there cost every later test a quarter minute.
+        if app.tabBars.firstMatch.waitForExistence(timeout: 3) { return }
+
         let field = app.textFields.firstMatch
-        guard field.waitForExistence(timeout: 15) else {
-            // Already signed in from a previous run on this Simulator.
-            return
-        }
+        guard field.waitForExistence(timeout: 15) else { return }
         field.tap()
         field.typeText(Self.email)
 
