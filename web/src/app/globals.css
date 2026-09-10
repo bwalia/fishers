@@ -3490,3 +3490,9 @@ a.bell-item:hover { background: var(--surface-2); }
   color: var(--primary-ink);
   font-weight: 500;
 }
+
+.btn.danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--danger);
+}
+.btn.danger:hover { background: var(--red-100); border-color: var(--danger); }

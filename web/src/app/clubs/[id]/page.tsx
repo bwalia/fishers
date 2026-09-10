@@ -18,6 +18,7 @@ import {
   type MyRole,
   type QrCode,
   type ClubPageSettings,
+  type ClubSettings,
   type OutstandingFees,
   type Team,
 } from "@/lib/api";
@@ -93,6 +94,8 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       />
 
       <Teams clubId={id} teams={teams} isSecretary={isSecretary} onChanged={load} />
+
+      {isSecretary && <Settings clubId={id} />}
 
       {isSecretary && <Fees clubId={id} />}
 
@@ -423,6 +426,105 @@ function Teams({
         </div>
       )}
       {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/// How much the club wants done for it.
+///
+/// These are the deadlines the scheduler works to, so they are written in the
+/// units a secretary thinks in — hours before the start — rather than as cron
+/// settings. Nothing here changes what a captain *can* do; it changes what
+/// happens when nobody does anything.
+function Settings({ clubId }: { clubId: string }) {
+  const [settings, setSettings] = useState<ClubSettings | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<ClubSettings>("GET", `/clubs/${clubId}/settings`).then(setSettings).catch(() => {});
+  }, [clubId]);
+
+  if (!settings) return null;
+
+  const set = (patch: Partial<ClubSettings>) => {
+    setSettings({ ...settings, ...patch });
+    setSaved(false);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      setSettings(await api<ClubSettings>("PATCH", `/clubs/${clubId}/settings`, settings));
+      setSaved(true);
+    } catch (err) {
+      setError(readErr(err, "Could not save those settings"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const hours = (
+    label: string,
+    key: keyof ClubSettings,
+    hint: string
+  ) => (
+    <label>
+      {label}
+      <input
+        type="number"
+        min={0}
+        value={settings[key] as number}
+        onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<ClubSettings>)}
+      />
+      <span className="subtle">{hint}</span>
+    </label>
+  );
+
+  return (
+    <div className="panel">
+      <h2>How the club runs itself</h2>
+
+      <label>
+        Picking a side
+        <select
+          value={settings.selection_autonomy}
+          onChange={(e) => set({ selection_autonomy: e.target.value })}
+        >
+          <option value="off">Captains do it — no help offered</option>
+          <option value="suggest">Offer a squad and wait for the captain</option>
+          <option value="auto_publish">Announce a squad without asking</option>
+        </select>
+        <span className="subtle">
+          {settings.selection_autonomy === "auto_publish"
+            ? "Sides go out on their own. A captain can still change one afterwards."
+            : settings.selection_autonomy === "suggest"
+            ? "Nothing is announced until a captain says so."
+            : "Nothing is suggested at all."}
+        </span>
+      </label>
+
+      <div className="setup-fields">
+        {hours("Ask for confirmation", "confirm_lead_hours",
+               "hours before the start")}
+        {hours("Drop anyone who has not confirmed", "drop_lead_hours",
+               "hours before the start — reserves move up")}
+        {hours("Chase an unpaid fee after", "fee_chase_after_hours",
+               "hours from the fixture")}
+        {hours("Stop chasing after", "fee_chase_max_reminders",
+               "reminders, so nobody is nagged forever")}
+      </div>
+
+      {error && <p className="error">{error}</p>}
+      {saved && !error && <p className="muted">Saved.</p>}
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn primary" type="button" disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </div>
     </div>
   );
 }

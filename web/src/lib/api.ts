@@ -416,6 +416,19 @@ export type PaymentIntent = {
   status: string;
 };
 
+/// How a club wants selection and fee-chasing to run itself
+/// (`backend/db/src/repos/clubs.rs`).
+export type ClubSettings = {
+  /// `off` — the captain does everything.
+  /// `suggest` — the assistant offers a squad and waits.
+  /// `auto_publish` — it announces one on its own.
+  selection_autonomy: string;
+  confirm_lead_hours: number;
+  drop_lead_hours: number;
+  fee_chase_after_hours: number;
+  fee_chase_max_reminders: number;
+};
+
 export type Team = {
   id: string;
   club_id: string;

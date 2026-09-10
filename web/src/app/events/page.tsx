@@ -93,6 +93,7 @@ export default function EventsPage() {
                 <span className="price">£{(e.fee_amount_cents / 100).toFixed(0)}</span>
               )}
               <Availability eventId={e.id} />
+              <Link className="btn sm" href={`/events/${e.id}`}>Open</Link>
               <Link className="btn sm" href={`/events/${e.id}/selection`}>Squad</Link>
               {e.ticket_price_cents != null && (
                 <Link className="btn sm" href={`/events/${e.id}/tickets`}>Tickets</Link>
