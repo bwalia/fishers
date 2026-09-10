@@ -378,6 +378,40 @@ export type OutstandingFees = {
   }[];
 };
 
+/// A club shop order (`backend/domain/src/order.rs`).
+export type Order = {
+  id: string;
+  user_id: string;
+  club_id: string;
+  event_id: string | null;
+  /// `draft` | `placed` | `paid` | `fulfilled` | `cancelled`
+  status: string;
+  total_amount_cents: number;
+  currency: string;
+  note: string | null;
+  created_at: string;
+};
+
+export type OrderItem = {
+  id: string;
+  order_id: string;
+  product_id: string;
+  quantity: number;
+  unit_price_cents: number;
+};
+
+export type OrderResponse = { order: Order; items: OrderItem[] };
+
+/// What Stripe needs to take the money. The client secret is handed to
+/// Stripe's own form — it never buys anything on its own.
+export type PaymentIntent = {
+  payment_id: string;
+  client_secret: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+};
+
 export type Team = {
   id: string;
   club_id: string;

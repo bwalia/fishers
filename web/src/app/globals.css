@@ -3431,3 +3431,62 @@ a.bell-item:hover { background: var(--surface-2); }
   margin-top: var(--s3);
 }
 .field-inline input[type="checkbox"] { width: auto; margin: 0; }
+
+/* ---------- Shop basket ---------- */
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s3);
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+.stepper button {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.stepper button:hover { background: var(--pitch-50); color: var(--primary-ink); }
+.stepper button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.stepper > span { min-width: 1.5rem; text-align: center; font-weight: 700; }
+
+/* Sticky, because the basket is the thing you came to finish. */
+.basket {
+  position: sticky;
+  bottom: var(--s4);
+  box-shadow: var(--shadow-3);
+}
+
+.basket-lines { list-style: none; margin: var(--s3) 0 0; padding: 0; display: grid; gap: var(--s2); }
+.basket-lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--border);
+}
+.basket-lines li:last-child { border-bottom: none; }
+
+/* Something went right. Sits in the flow rather than floating away, because a
+   toast that fades is no use to somebody checking they actually ordered. */
+.notice {
+  margin: var(--s4) 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--pitch-50);
+  color: var(--primary-ink);
+  font-weight: 500;
+}
