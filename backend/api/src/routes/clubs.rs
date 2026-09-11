@@ -212,6 +212,8 @@ async fn create_club(
     Json(body): Json<CreateClubRequest>,
 ) -> ApiResult<Json<Club>> {
     body.validate()?;
+    // Whoever starts a club runs it, so it must be a real, reachable person.
+    super::verification::require_verified(&state, auth.user_id).await?;
     let club = clubs_repo::create_club(&state.pool, auth.user_id, &body).await?;
     Ok(Json(club))
 }

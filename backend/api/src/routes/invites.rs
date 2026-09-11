@@ -102,6 +102,7 @@ async fn accept_invite(
     auth: AuthUser,
     Path(token): Path<String>,
 ) -> ApiResult<Json<Invite>> {
+    super::verification::require_verified(&state, auth.user_id).await?;
     let invite = invites_repo::accept_invite(&state.pool, &token, auth.user_id)
         .await?
         .ok_or_else(|| ApiError::not_found("invite not found or already used"))?;

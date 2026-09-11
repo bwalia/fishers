@@ -9,7 +9,8 @@ use uuid::Uuid;
 /// Every user query returns the same shape, including the profile JSONB columns.
 const USER_COLUMNS: &str = "id, name, email, phone, apple_id, avatar_url, sports_played, \
      position_role, skill_level, emergency_contact, primary_sport, sport_profiles, \
-     location, profile_completed_at, password_hash, created_at, updated_at";
+     location, profile_completed_at, email_verified_at, phone_verified_at, role_intent, \
+     profile_share_token, password_hash, created_at, updated_at";
 
 /// Find somebody by an email or a mobile number, whichever they signed up with.
 ///
@@ -105,6 +106,7 @@ pub async fn update_profile(
         .location
         .clone()
         .or_else(|| current.location.clone().map(|l| l.0));
+    let role_intent = req.role_intent.clone().or(current.role_intent);
     // Stamped once, the first time the player states a standard.
     let profile_completed_at = current.profile_completed_at.or_else(|| {
         profile_is_complete(&sport_profiles, primary_sport.as_deref()).then(Utc::now)
@@ -123,7 +125,13 @@ pub async fn update_profile(
              sport_profiles = $10,
              location = $11,
              profile_completed_at = $12,
-             updated_at = $13
+             updated_at = $13,
+             role_intent = $14,
+             -- A verified number stays verified only while it is the same
+             -- number. SET's right-hand side reads the old row, so `phone`
+             -- here is the number before this update.
+             phone_verified_at = CASE WHEN phone IS DISTINCT FROM $3
+                                      THEN NULL ELSE phone_verified_at END
          WHERE id = $1
          RETURNING {USER_COLUMNS}"
     ))
@@ -140,7 +148,50 @@ pub async fn update_profile(
     .bind(location.map(Json))
     .bind(profile_completed_at)
     .bind(Utc::now())
+    .bind(role_intent)
     .fetch_one(pool)
+    .await
+}
+
+/// Marks the address a code was sent to as verified — but only if it is still
+/// the user's address. Returns false when it has changed since, so a code sent
+/// to an old number cannot verify a new one.
+pub async fn mark_verified(
+    pool: &PgPool,
+    user_id: Uuid,
+    channel: &str,
+    target: &str,
+) -> Result<bool, sqlx::Error> {
+    let sql = match channel {
+        "email" => "UPDATE users SET email_verified_at = now(), updated_at = now()
+                    WHERE id = $1 AND lower(email) = lower($2)",
+        "phone" => "UPDATE users SET phone_verified_at = now(), updated_at = now()
+                    WHERE id = $1 AND phone = $2",
+        _ => return Ok(false),
+    };
+    let done = sqlx::query(sql).bind(user_id).bind(target).execute(pool).await?;
+    Ok(done.rows_affected() == 1)
+}
+
+/// The player's share token, minted on first use. `COALESCE` keeps an existing
+/// token, so asking twice never breaks a link already sent.
+pub async fn share_token(pool: &PgPool, user_id: Uuid, fresh: &str) -> Result<String, sqlx::Error> {
+    sqlx::query_scalar(
+        "UPDATE users SET profile_share_token = COALESCE(profile_share_token, $2)
+         WHERE id = $1 RETURNING profile_share_token",
+    )
+    .bind(user_id)
+    .bind(fresh)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn find_by_share_token(pool: &PgPool, token: &str) -> Result<Option<User>, sqlx::Error> {
+    sqlx::query_as::<_, User>(&format!(
+        "SELECT {USER_COLUMNS} FROM users WHERE profile_share_token = $1"
+    ))
+    .bind(token)
+    .fetch_optional(pool)
     .await
 }
 

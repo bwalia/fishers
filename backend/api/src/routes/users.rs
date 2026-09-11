@@ -1,8 +1,10 @@
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::users as users_repo;
-use fishers_domain::{reliability, PublicUser, UpdateProfileRequest};
+use fishers_domain::{reliability, PublicUser, SportProfile, UpdateProfileRequest};
+use rand::distributions::{Alphanumeric, DistString};
+use serde::Serialize;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -14,6 +16,54 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/me", get(me).patch(update_me))
         .route("/me/avatar", post(upload_avatar))
+        .route("/me/share-link", post(share_link))
+        .route("/players/card/{token}", get(shared_card))
+}
+
+#[derive(Serialize)]
+struct ShareLink {
+    token: String,
+}
+
+/// The token behind a player's "send my profile to a club" link. Minted once
+/// and kept, so a link already sent to a secretary keeps working.
+async fn share_link(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<ShareLink>> {
+    // 24 alphanumerics ≈ 143 bits: not guessable, and short enough to text.
+    let fresh = Alphanumeric.sample_string(&mut rand::rngs::OsRng, 24);
+    let token = users_repo::share_token(&state.pool, auth.user_id, &fresh).await?;
+    Ok(Json(ShareLink { token }))
+}
+
+/// What a secretary sees on a shared link: enough to decide to invite them —
+/// who, what they play, where — and nothing a stranger should have. No email,
+/// no phone, no emergency contact: those come with club membership, which the
+/// player still has to accept.
+#[derive(Serialize)]
+struct SharedCard {
+    id: Uuid,
+    name: String,
+    avatar_url: Option<String>,
+    primary_sport: Option<String>,
+    sport_profiles: Vec<SportProfile>,
+    area: Option<String>,
+}
+
+async fn shared_card(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Path(token): Path<String>,
+) -> ApiResult<Json<SharedCard>> {
+    let user = users_repo::find_by_share_token(&state.pool, &token)
+        .await?
+        .ok_or_else(|| ApiError::not_found("that profile link is not valid"))?;
+    Ok(Json(SharedCard {
+        id: user.id,
+        name: user.name,
+        avatar_url: user.avatar_url,
+        primary_sport: user.primary_sport,
+        sport_profiles: user.sport_profiles.0,
+        area: user.location.and_then(|l| l.0.area),
+    }))
 }
 
 async fn me(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<PublicUser>> {

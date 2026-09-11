@@ -28,6 +28,16 @@ pub struct Invite {
     pub status: String,
     pub created_at: DateTime<Utc>,
     pub accepted_at: Option<DateTime<Utc>>,
+    /// What the invite is to — the club, "team · club", or the fixture — and
+    /// who sent it. Filled in only when listing somebody's own invites: an
+    /// invite reading "A club invitation" asks people to join without saying
+    /// what they are joining. `default` so every other query can leave them out.
+    #[sqlx(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_name: Option<String>,
+    #[sqlx(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invited_by_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
