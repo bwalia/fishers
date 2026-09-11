@@ -111,7 +111,7 @@ jobs:
             fi
           done
 
-      - name: Register wslproxy vhosts
+      - name: Import wslproxy rules and vhosts
         env:
           WSLPROXY_USER: ${{ secrets.WSLPROXY_USER }}
           WSLPROXY_PASSWORD: ${{ secrets.WSLPROXY_PASSWORD }}
@@ -132,27 +132,60 @@ jobs:
             echo "::error::wslproxy login failed for ${WSLPROXY_USER} at ${GW}."; exit 1
           fi
 
+          # Collect this ring's vhosts, checking each names the host it claims
+          # to be — a copy-paste otherwise puts one ring's config on another's
+          # hostname.
+          SPECS=""
           for HOST in $HOSTS; do
             SPEC="devops/wslproxy/host-${HOST}.json"
             [ -f "$SPEC" ] || { echo "::error::missing spec $SPEC"; exit 1; }
-            # The spec must name the host it claims to be, or a copy-paste puts
-            # one ring's config on another ring's hostname.
             spec_host=$(jq -r '.server_name' "$SPEC")
             [ "$spec_host" = "$HOST" ] || { echo "::error::$SPEC server_name=$spec_host != $HOST"; exit 1; }
-
-            existing=$(curl -fsS -X GET "$GW/api/servers" -H "Authorization: Bearer $TOKEN" \
-              | jq -r --arg h "$HOST" '.data[]? | select(.server_name==$h) | .id' | head -1)
-            if [ -n "$existing" ]; then
-              echo "  ${HOST} already registered (id=$existing)"
-              continue
-            fi
-            resp=$(curl -fsS -X POST "$GW/api/servers" \
-              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-              -d @"$SPEC")
-            sid=$(echo "$resp" | jq -r '.data.id // empty')
-            [ -n "$sid" ] || { echo "::error::create failed for ${HOST}: $resp"; exit 1; }
-            echo "  registered ${HOST} (id=$sid)"
+            SPECS="$SPECS $SPEC"
           done
+
+          # Every vhost names a rule in its `rules` array, and that rule has to
+          # exist on the gateway or the vhost has no backend to proxy to: the
+          # admin UI reports "Could not load rule details" and the edge serves
+          # its Access denied page, which reads as a broken app rather than as
+          # missing edge config.
+          #
+          # /api/projects/import, not POST /api/rules: import keys records on
+          # the id in the file, so `fishers-prod-default` stays the id the
+          # vhosts reference. A plain POST mints a fresh UUID and silently
+          # breaks that link. It is also an upsert, so a committed spec that
+          # changes actually reaches the gateway — the previous create-or-skip
+          # meant an existing vhost was never updated again.
+          #
+          # dataType must be plural: the gateway builds its write path straight
+          # from it (data/<dataType>/<profile_id>/) and reads vhosts back from
+          # data/servers/<profile>/host:<host>.json.
+          import() {
+            local dtype="$1" arr="$2" body resp code
+            body=$(jq -cn --argjson data "$arr" --arg dt "$dtype" '{data: $data, dataType: $dt}')
+            resp=$(curl -sS --max-time 60 -w "\n%{http_code}" \
+              -X POST "${GW%/}/api/projects/import?_format=json" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "x-platform: react-admin" \
+              -H "Content-Type: application/json" \
+              --data-raw "$body")
+            code=$(echo "$resp" | tail -n1)
+            echo "  dataType=$dtype -> HTTP $code"
+            case "$code" in
+              200|201) ;;
+              *) echo "$resp" | sed '$d'; echo "::error::import of $dtype failed (HTTP $code)"; return 1 ;;
+            esac
+          }
+
+          # Rules first, so the vhosts' references resolve the moment they land.
+          RULES_ARR=$(jq -s '.' devops/wslproxy/rule-*.json)
+          echo "Importing $(echo "$RULES_ARR" | jq 'length') rule(s): $(echo "$RULES_ARR" | jq -r '[.[].id] | join(", ")')"
+          import rules "$RULES_ARR"
+
+          # shellcheck disable=SC2086
+          SERVERS_ARR=$(jq -s '.' $SPECS)
+          echo "Importing $(echo "$SERVERS_ARR" | jq 'length') vhost(s): $(echo "$SERVERS_ARR" | jq -r '[.[].server_name] | join(", ")')"
+          import servers "$SERVERS_ARR"
 
       - name: Verify through the edge
         env:
