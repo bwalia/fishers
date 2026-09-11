@@ -24,6 +24,7 @@ import {
   type Venue,
   type Team,
 } from "@/lib/api";
+import { AddByLink } from "@/components/AddByLink";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { QrCard } from "@/components/QrCard";
@@ -91,6 +92,11 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
         clubId={id}
         members={members}
         isSecretary={isSecretary}
+        // A captain can bring a player into their team from a shared link,
+        // as a secretary can into the club.
+        canAddByLink={
+          !!myRole && (myRole.permissions.includes("invite_to_club") || myRole.permissions.includes("invite_to_team"))
+        }
         meId={me?.id}
         onChanged={load}
       />
@@ -114,12 +120,14 @@ function Members({
   clubId,
   members,
   isSecretary,
+  canAddByLink,
   meId,
   onChanged,
 }: {
   clubId: string;
   members: ClubMemberRow[];
   isSecretary: boolean;
+  canAddByLink: boolean;
   meId?: string;
   onChanged: () => void;
 }) {
@@ -185,6 +193,7 @@ function Members({
       </p>
 
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
+      {canAddByLink && <AddByLink clubId={clubId} />}
 
       {members.length > 8 && (
         <label>

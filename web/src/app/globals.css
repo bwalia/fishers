@@ -4176,6 +4176,7 @@ a.bell-item:hover { background: var(--surface-2); }
 .player-card { display: flex; align-items: center; gap: var(--s4); }
 .player-card h1 { margin: 0; font-size: 2rem; }
 .player-card-meta { margin: var(--s1) 0 0; color: var(--fg-muted); text-transform: capitalize; }
+.player-card-meta .plain { text-transform: none; }
 .invite-sent { display: flex; align-items: flex-start; gap: var(--s3); border-color: var(--primary); }
 .invite-sent h2 { margin: 0; }
 .invite-sent-icon {
@@ -4251,3 +4252,20 @@ a.bell-item:hover { background: var(--surface-2); }
   cursor: pointer;
 }
 .thread-new:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+/* ---- Adding a player from their profile link ---- */
+.add-by-link {
+  display: grid;
+  gap: var(--s2);
+  margin: var(--s3) 0;
+  padding: var(--s3) var(--s4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+.add-by-link label { font-weight: 600; }
+.add-by-link-row { display: flex; gap: var(--s2); }
+.add-by-link-row input { flex: 1; min-width: 0; }
+.add-to { margin-top: var(--s2); }
+/* Team names exactly as the club wrote them — "under-13s", not "Under-13s". */
+.add-to .chip { text-transform: none; }
+.add-to-note { margin: var(--s2) 0 0; }

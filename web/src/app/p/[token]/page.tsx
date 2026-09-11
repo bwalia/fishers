@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import {
   api,
   getAccessToken,
@@ -10,28 +10,33 @@ import {
   type Club,
   type MyRole,
   type SharedPlayerCard,
+  type Team,
 } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 
+type Place = { club: Club; role: MyRole; teams: Team[] };
+
 /// Where a player's shared profile link lands.
 ///
-/// The reader is a club secretary deciding whether to invite them, so the page
-/// is the player's card and one button. The invite goes to their account and
-/// waits there for them to accept — sharing a link never puts anyone in a club
-/// they did not agree to join.
+/// The reader is a club secretary or a captain deciding whether to bring them
+/// in, so the page is the player's card and one choice: which club, and which
+/// team in it. The invite goes to their account as a notification they approve
+/// — sharing a link never puts anyone in a club or a team they did not agree
+/// to join.
 export default function SharedProfilePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const [card, setCard] = useState<SharedPlayerCard | null>(null);
-  const [clubs, setClubs] = useState<Club[] | null>(null);
+  const [places, setPlaces] = useState<Place[] | null>(null);
   const [clubId, setClubId] = useState("");
+  /// A team id, or "" for the club as a whole.
+  const [teamId, setTeamId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const me = typeof window !== "undefined" ? getStoredUser() : null;
 
   useEffect(() => {
-    // Not signed in: api() sends them to sign in and back here.
     if (!getAccessToken()) {
       window.location.href = `/login?next=${encodeURIComponent(`/p/${token}`)}`;
       return;
@@ -42,37 +47,49 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
           api<SharedPlayerCard>("GET", `/players/card/${encodeURIComponent(token)}`),
           api<Club[]>("GET", "/clubs"),
         ]);
-        // Only the clubs they can actually invite into.
-        const roles = await Promise.all(
-          mine.map((club) =>
-            api<MyRole>("GET", `/clubs/${club.id}/my-role`).catch(() => null)
-          )
+        const found = await Promise.all(
+          mine.map(async (club) => {
+            const role = await api<MyRole>("GET", `/clubs/${club.id}/my-role`).catch(() => null);
+            // A secretary can add to the club or any team; a captain to a
+            // team. The server has the final word on which team, and says so.
+            if (!role || !(role.permissions.includes("invite_to_club") || role.permissions.includes("invite_to_team")))
+              return null;
+            const teams = await api<Team[]>("GET", `/clubs/${club.id}/teams`).catch(() => [] as Team[]);
+            return { club, role, teams };
+          })
         );
-        const invitable = mine.filter((_, i) => {
-          const r = roles[i];
-          return r && (r.is_secretary || r.permissions.includes("invite_to_club"));
-        });
+        const usable = found.filter((p): p is Place => !!p);
         setCard(c);
-        setClubs(invitable);
-        if (invitable[0]) setClubId(invitable[0].id);
+        setPlaces(usable);
+        // Arriving from "Add by link" on a club or team page: start there.
+        const q = new URLSearchParams(window.location.search);
+        const wantClub = usable.find((p) => p.club.id === q.get("club")) ?? usable[0];
+        if (wantClub) {
+          setClubId(wantClub.club.id);
+          const wantTeam = wantClub.teams.find((t) => t.id === q.get("team"));
+          setTeamId(wantTeam?.id ?? (canInviteToClub(wantClub) ? "" : wantClub.teams[0]?.id ?? ""));
+        }
       } catch (err) {
         setError(readErr(err, "That profile link did not open"));
       }
     })();
   }, [token]);
 
+  const place = useMemo(() => places?.find((p) => p.club.id === clubId) ?? null, [places, clubId]);
+  const team = place?.teams.find((t) => t.id === teamId) ?? null;
+  const target = team ? team.name : place?.club.name;
+
   const invite = async () => {
-    if (!card || !clubId) return;
+    if (!card || !place) return;
     setBusy(true);
     setError(null);
     try {
       await api("POST", "/invites", {
-        target_type: "club",
-        target_id: clubId,
+        target_type: team ? "team" : "club",
+        target_id: team ? team.id : place.club.id,
         invited_user_id: card.id,
       });
-      const club = clubs?.find((c) => c.id === clubId);
-      setSent(club?.name ?? "your club");
+      setSent(team ? `${team.name} at ${place.club.name}` : place.club.name);
     } catch (err) {
       setError(readErr(err, "Could not send the invite"));
     } finally {
@@ -91,7 +108,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
       </main>
     );
   }
-  if (!card || clubs === null) {
+  if (!card || places === null) {
     return (
       <main id="main" className="shared-profile">
         <div className="panel">
@@ -119,7 +136,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
             {[card.primary_sport, sport?.position, sport?.skill_level, card.area]
               .filter(Boolean)
               .map((x) => String(x).replaceAll("_", " "))
-              .join(" · ") || "Profile not filled in yet"}
+              .join(" · ") || <span className="plain">Profile not filled in yet</span>}
           </p>
         </div>
       </div>
@@ -128,8 +145,8 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
         <div className="panel">
           <h2>This is your own link</h2>
           <p className="muted">
-            Send it to your club&apos;s secretary. They open it, invite you, and the invite appears on your
-            dashboard to accept.
+            Send it to your club&apos;s secretary or captain. They add you from it, and you get a
+            notification to approve.
           </p>
           <Link className="btn" href="/">
             Back to your dashboard
@@ -143,18 +160,20 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
           <div>
             <h2>Invite sent</h2>
             <p className="muted">
-              {first} will see it next time they open Fishers. Once they accept, they&apos;re in {sent}.
+              {first} gets a notification to approve. The moment they do, they&apos;re in {sent} — and
+              you&apos;ll be told.
             </p>
             <Link className="btn" href={`/clubs/${clubId}#members`}>
               Go to your members
             </Link>
           </div>
         </div>
-      ) : clubs.length === 0 ? (
+      ) : places.length === 0 ? (
         <div className="panel">
-          <h2>Start a club to invite {first}</h2>
+          <h2>Start a club to add {first}</h2>
           <p className="muted">
-            Invites come from a club&apos;s secretary. Start your club and this link will be waiting.
+            Players are added by a club&apos;s secretary or a team&apos;s captain. Start your club and this
+            link will be waiting.
           </p>
           <Link className="btn primary" href="/clubs?new=1">
             <Icon name="plus" size={16} /> Start your club
@@ -162,28 +181,81 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
         </div>
       ) : (
         <div className="panel">
-          <h2>Invite {first} to your club</h2>
+          <h2>Add {first} to your club</h2>
           <p className="muted">
-            They&apos;ll get an invite to accept — nobody is added to a club without saying yes.
+            They get a notification to approve — nobody is added anywhere without saying yes.
           </p>
-          {clubs.length > 1 && (
+
+          {places.length > 1 && (
             <label>
               Club
-              <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
-                {clubs.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+              <select
+                value={clubId}
+                onChange={(e) => {
+                  const next = places.find((p) => p.club.id === e.target.value);
+                  setClubId(e.target.value);
+                  setTeamId(next && canInviteToClub(next) ? "" : next?.teams[0]?.id ?? "");
+                }}
+              >
+                {places.map((p) => (
+                  <option key={p.club.id} value={p.club.id}>
+                    {p.club.name}
                   </option>
                 ))}
               </select>
             </label>
           )}
-          <button className="btn primary lg" type="button" onClick={invite} disabled={busy}>
-            <Icon name="send" size={16} /> {busy ? "Sending…" : `Invite to ${clubs.find((c) => c.id === clubId)?.name}`}
+
+          {place && (place.teams.length > 0 || !canInviteToClub(place)) && (
+            <fieldset className="chip-set add-to">
+              <legend>Add them to</legend>
+              {canInviteToClub(place) && (
+                <button
+                  type="button"
+                  className={`chip${teamId === "" ? " on" : ""}`}
+                  aria-pressed={teamId === ""}
+                  onClick={() => setTeamId("")}
+                >
+                  The club
+                </button>
+              )}
+              {place.teams.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`chip${teamId === t.id ? " on" : ""}`}
+                  aria-pressed={teamId === t.id}
+                  onClick={() => setTeamId(t.id)}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </fieldset>
+          )}
+          {place && !canInviteToClub(place) && place.teams.length === 0 && (
+            <p className="muted">This club has no teams yet — the secretary adds those first.</p>
+          )}
+
+          <button
+            className="btn primary lg"
+            type="button"
+            onClick={invite}
+            disabled={busy || !place || (!team && !canInviteToClub(place))}
+          >
+            <Icon name="send" size={16} /> {busy ? "Sending…" : `Add to ${target ?? "your club"}`}
           </button>
+          {team && (
+            <p className="subtle add-to-note">
+              Joining {team.name} makes them a member of {place?.club.name} too.
+            </p>
+          )}
           {error && <p className="error">{error}</p>}
         </div>
       )}
     </main>
   );
+}
+
+function canInviteToClub(p: Place) {
+  return p.role.is_secretary || p.role.permissions.includes("invite_to_club");
 }
