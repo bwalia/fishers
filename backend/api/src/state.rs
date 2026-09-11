@@ -31,6 +31,11 @@ pub struct AppState {
     pub storage: Option<Storage>,
     /// Changes to push to connected browsers; see `live`.
     pub live: crate::live::Live,
+    /// VERIFICATION_REQUIRED: whether starting a club or accepting an invite
+    /// needs a confirmed email or phone. Off until the codes are ready to rely
+    /// on — and separate from whether email is configured, so switching on
+    /// SMTP for reminders never locks anybody out by surprise.
+    pub verification_required: bool,
 }
 
 impl AppState {
@@ -63,6 +68,10 @@ impl AppState {
             ollama: Ollama::from_env(),
             storage: Storage::from_env(),
             live,
+            verification_required: matches!(
+                std::env::var("VERIFICATION_REQUIRED").as_deref(),
+                Ok("true" | "1" | "yes")
+            ),
         }
     }
 

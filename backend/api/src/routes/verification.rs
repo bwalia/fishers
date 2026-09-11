@@ -44,6 +44,9 @@ struct ChannelStatus {
 
 #[derive(Serialize)]
 struct Status {
+    /// Whether this server asks for confirmation at all (VERIFICATION_REQUIRED).
+    /// The web app shows the confirm step only when it does.
+    enabled: bool,
     email: ChannelStatus,
     phone: ChannelStatus,
     /// True when starting a club or accepting an invite will be refused until
@@ -55,6 +58,7 @@ struct Status {
 async fn status(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Status>> {
     let user = load(&state, auth.user_id).await?;
     Ok(Json(Status {
+        enabled: state.verification_required,
         email: ChannelStatus {
             available: user.email.is_some() && state.email.enabled(),
             verified: user.email_verified_at.is_some(),
@@ -86,6 +90,9 @@ pub async fn require_verified(state: &AppState, user_id: Uuid) -> ApiResult<()> 
 }
 
 fn needs_verifying(state: &AppState, user: &User) -> bool {
+    if !state.verification_required {
+        return false;
+    }
     let verified = user.email_verified_at.is_some() || user.phone_verified_at.is_some();
     let can_verify = (user.email.is_some() && state.email.enabled())
         || (user.phone.is_some() && state.whatsapp.enabled());

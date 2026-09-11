@@ -92,8 +92,9 @@ export function GettingStarted({
   }, [ownClub?.id]);
 
   const verified = !!(user.email_verified || user.phone_verified);
-  // Only a step when this server can actually send a code.
-  const canVerify = !!verification && (verification.email.available || verification.phone.available);
+  // Only a step when the server asks for confirmation AND can send a code.
+  const canVerify =
+    !!verification?.enabled && (verification.email.available || verification.phone.available);
 
   const steps = useMemo<Step[]>(() => {
     const verify: Step[] = canVerify
