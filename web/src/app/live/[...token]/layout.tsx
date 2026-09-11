@@ -11,11 +11,15 @@ type BoardPreview = {
   };
 };
 
+/// Server-side only: this runs during the render, never in a browser. In the
+/// cluster the API is a Service, so 127.0.0.1 reaches nothing and every shared
+/// scoreboard link rendered without its preview.
 function apiOrigin() {
   const explicit = process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "");
   if (explicit) return explicit;
-  const port = process.env.NEXT_PUBLIC_API_PORT || "7312";
-  return `http://127.0.0.1:${port}`;
+  const internal = process.env.API_INTERNAL_BASE?.replace(/\/$/, "");
+  if (internal) return internal;
+  return `http://127.0.0.1:${process.env.NEXT_PUBLIC_API_PORT || "7312"}`;
 }
 
 export async function generateMetadata({

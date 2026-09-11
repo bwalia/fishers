@@ -10,9 +10,21 @@ export function apiOrigin(): string {
   if (explicit) return explicit;
   const port = process.env.NEXT_PUBLIC_API_PORT || "7312";
   if (typeof window !== "undefined") {
+    // A page served on the default port arrived through the ingress, and the
+    // ingress puts the API on this same origin under /api. Returning an empty
+    // origin makes every call a relative URL: one image serves every ring, and
+    // there is no cross-origin request to need CORS.
+    //
+    // Deriving the port instead sent the browser to
+    // https://int.fishers.cloud:7312, a development port that is not published
+    // and never answers, so nothing could log in.
+    if (!window.location.port) return "";
+    // Development: the dashboard is on 7311 and the API beside it on 7312.
     return `${window.location.protocol}//${window.location.hostname}:${port}`;
   }
-  return `http://127.0.0.1:${port}`;
+  // Server-side render. In the cluster the API is a Service, not a neighbour on
+  // localhost; API_INTERNAL_BASE is read at runtime so it needs no rebuild.
+  return process.env.API_INTERNAL_BASE?.replace(/\/$/, "") || `http://127.0.0.1:${port}`;
 }
 
 export function apiV1(): string {

@@ -40,6 +40,12 @@ spec:
             # the page it loaded, and the ingress puts the API on that same
             # origin under /api — so one image serves int, test, acc and prod
             # without a rebuild, and there is no build-time host to go stale.
+            #
+            # Server-side rendering cannot use that trick: there is no page
+            # origin during a render, and the API is a Service rather than a
+            # neighbour on localhost. Runtime env, so it still needs no rebuild.
+            - name: API_INTERNAL_BASE
+              value: {{ .Values.apiInternalBase | quote }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
             httpGet:

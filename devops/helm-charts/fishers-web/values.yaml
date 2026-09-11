@@ -29,6 +29,10 @@ service:
 # deployed last: by the time the ingress exists, both Services it names are
 # already there. An ingress created ahead of its backend answers 503 until the
 # backend catches up, which reads as a broken deploy.
+# Where a server-side render reaches the API: the in-cluster Service, not the
+# public host. The browser never uses this — it calls /api on its own origin.
+apiInternalBase: http://fishers-api:8080
+
 ingress:
   enabled: true
   # traefik-edge is the only ingress controller on the cloud nodes; the
