@@ -199,10 +199,20 @@ jobs:
             ok=0
             for i in $(seq 1 20); do
               code=$(curl -sS -o /tmp/body -m 10 -w '%{http_code}' "https://${HOST}/health" || echo 000)
-              if [ "$code" = "200" ] && ! grep -qi 'Host not configured' /tmp/body; then
+              # Assert what the API serves, not the absence of one known error
+              # string. wslproxy answers its own pages with 200, so a vhost with
+              # no working rule returned 200 "Access denied" and passed a check
+              # that only looked for "Host not configured" — the edge was broken
+              # and this step was green for it.
+              #
+              # The API's /health handler returns exactly "ok", so matching that
+              # proves the request reached the app rather than merely reaching
+              # the edge.
+              body=$(tr -d '[:space:]' < /tmp/body)
+              if [ "$code" = "200" ] && [ "$body" = "ok" ]; then
                 echo "  ok   https://${HOST}/health"; ok=1; break
               fi
-              echo "  [$i] https://${HOST}/health -> $code"
+              echo "  [$i] https://${HOST}/health -> $code $(head -c 60 /tmp/body | tr -d '\n')"
               sleep 15
             done
             [ "$ok" = 1 ] || { echo "  FAIL ${HOST} never answered through the edge"; fail=1; }
