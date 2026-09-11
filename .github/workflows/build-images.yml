@@ -76,7 +76,18 @@ jobs:
               NS="ghcr.io/${{ github.repository_owner }}"
               ;;
             *)
-              HOST="${{ secrets.NEBULACR_REGISTRY || 'nebulacr.workstation.co.uk' }}"
+              # The registry host is NOT the secret NAME. The NEBULACR_* secrets
+              # hold spectoncr credentials — "nebulacr" survives from the k8s
+              # pull-secret name (nebulacr-login) on the shared platform. The
+              # host this used to default to, nebulacr.workstation.co.uk, has no
+              # wslproxy vhost and so no certificate: docker login failed there
+              # with "certificate is not valid for any names" before it ever got
+              # as far as authenticating.
+              #
+              # One registry for every ring, deliberately: an image is built once
+              # and the same artefact is promoted to acc/prod, so a per-ring host
+              # would mean re-pushing what was already tested.
+              HOST="${{ secrets.NEBULACR_REGISTRY || 'int-spectoncr.diytaxreturn.co.uk' }}"
               USER="${{ secrets.NEBULACR_USERNAME }}"
               PASS="${{ secrets.NEBULACR_PASSWORD }}"
               NS="$HOST/fishers"

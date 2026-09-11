@@ -4,7 +4,7 @@ hostname: int.fishers.cloud
 replicaCount: 1
 
 image:
-  repository: nebulacr.workstation.co.uk/fishers/fishers-api
+  repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-api
   tag: latest
 
 resources:
