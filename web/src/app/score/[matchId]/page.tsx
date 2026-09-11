@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getAccessToken, getStoredUser, readErr, roleLabel, type ClubMemberRow } from "@/lib/api";
 import { randomUUID } from "@/lib/uuid";
+import { subscribeLive } from "@/lib/live";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
 import { Icon } from "@/components/Icon";
@@ -81,7 +82,12 @@ export default function ScorerPage({
 
   const load = useCallback(async () => {
     try {
-      setMatch(await api<MatchResponse>("GET", `/cricket/matches/${matchId}`));
+      const next = await api<MatchResponse>("GET", `/cricket/matches/${matchId}`);
+      // Never step backwards. A refetch started before the scorer's latest
+      // ball can land after it; an older state would briefly undo that ball
+      // on screen. Equal is accepted — a handover changes the match without
+      // adding a ball.
+      setMatch((cur) => (cur && next.last_seq < cur.last_seq ? cur : next));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the match");
     }
@@ -93,7 +99,19 @@ export default function ScorerPage({
       return;
     }
     load();
-  }, [load]);
+    // Live: every ball, the toss, a handover or the result arrives the moment
+    // it is recorded — for everyone watching, players included. The event only
+    // says the match changed; the refetch goes through the normal endpoint.
+    const stop = subscribeLive((e) => {
+      if (e.type === "resync" || (e.type === "match" && e.id === matchId)) load();
+    });
+    // A safety net for when the live stream is down, not the mechanism.
+    const timer = window.setInterval(load, 30_000);
+    return () => {
+      stop();
+      window.clearInterval(timer);
+    };
+  }, [load, matchId]);
 
   /// Every action is one event appended to the log. The server replays the log,
   /// applies the Laws and hands back the new state — the browser never decides
@@ -546,9 +564,11 @@ function HandOver({
     }
   };
 
+  // A pop-up, not a panel: rendered in the page flow it landed far below the
+  // menu it was opened from, so pressing "Hand the book over" looked like
+  // nothing happened.
   return (
-    <div className="panel">
-      <h2>Hand over the book</h2>
+    <Sheet title="Hand over the book" onClose={onClose}>
       <p className="muted">
         They take over recording every ball from the next one. You keep watching, and can
         be handed it back. Anyone playing can take it, from either side.
@@ -557,33 +577,30 @@ function HandOver({
       {loading ? (
         <div className="skeleton" style={{ height: 180 }} />
       ) : (
-        <PeoplePicker
-          tabs={tabs}
-          chosen={choice}
-          onChoose={setChoice}
-          empty="Nobody else is named on this match yet. Pick the teams first, or have a secretary appoint an umpire."
-        />
+        <PeoplePicker tabs={tabs} chosen={choice} onChoose={setChoice} keepTabs />
       )}
 
       {error && <p className="error">{error}</p>}
 
-      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
-        <button className="btn primary" type="button" disabled={!choice || busy} onClick={hand}>
-          {busy ? "Handing over…" : "Hand it over"}
-        </button>
+      <div className="sheet-actions">
         <button className="btn" type="button" onClick={onClose}>
           Keep the book
         </button>
+        <button className="btn primary" type="button" disabled={!choice || busy} onClick={hand}>
+          {busy ? "Handing over…" : "Hand it over"}
+        </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
-/// The three lists both pickers work from: the officials, then each side.
+/// Who the book can go to: each side, then the umpires.
 ///
-/// Nobody appears twice — an umpire who is also in the XI belongs under
-/// Umpires, which is the more useful thing to know about them — and the person
-/// asking is never offered themselves.
+/// Both teams always get their own tab, even an empty one, because "Team A,
+/// Team B" is how anybody at a ground thinks about it; an empty tab says why.
+/// Umpires follow, and only when there are some. Nobody appears twice — an
+/// umpire who is also in the XI belongs under Umpires, the more useful thing to
+/// know about them — and the person asking is never offered themselves.
 function sidesAndOfficials(
   match: MatchResponse,
   squad: SquadResponse | null,
@@ -599,19 +616,23 @@ function sidesAndOfficials(
       return true;
     });
 
+  // Officials claim their people first, so they are not listed twice.
+  const umpires = take(officials.map((o) => ({ id: o.user_id, name: o.name, note: noteFor(o) })));
+  const side = (s: SquadResponse["home"] | undefined, name: string): PeopleTab => ({
+    label: name,
+    people: take((s?.players ?? []).map((p) => ({ id: p.id, name: p.name }))),
+    // A side that is not a club on Fishers is names the scorer typed in:
+    // nobody there has an account the book could go to.
+    emptyText:
+      s && !s.club_id
+        ? `${name} isn't on Fishers, so none of its players has an account the book can go to.`
+        : `Nobody else from ${name} is named on this match yet.`,
+  });
+
   return [
-    {
-      label: "Umpires",
-      people: take(officials.map((o) => ({ id: o.user_id, name: o.name, note: noteFor(o) }))),
-    },
-    {
-      label: match.state.home_name || "Home",
-      people: take((squad?.home.players ?? []).map((p) => ({ id: p.id, name: p.name }))),
-    },
-    {
-      label: match.state.away_name || "Away",
-      people: take((squad?.away.players ?? []).map((p) => ({ id: p.id, name: p.name }))),
-    },
+    side(squad?.home, match.state.home_name || "Home"),
+    side(squad?.away, match.state.away_name || "Away"),
+    ...(umpires.length > 0 ? [{ label: "Umpires", people: umpires }] : []),
   ];
 }
 

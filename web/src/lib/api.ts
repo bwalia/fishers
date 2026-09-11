@@ -59,6 +59,8 @@ export type RoleIntent = "secretary" | "player";
 
 /// `GET /me/verification`.
 export type VerificationStatus = {
+  /// Whether the server asks for confirmation at all (VERIFICATION_REQUIRED).
+  enabled: boolean;
   email: { address?: string | null; verified: boolean; available: boolean };
   phone: { address?: string | null; verified: boolean; available: boolean };
   /// Starting a club or accepting an invite is refused until one is verified.
@@ -291,7 +293,7 @@ export function refreshSession(): Promise<string | null> {
 /// The access token to send, refreshed first if it is about to lapse. Doing it
 /// before the request rather than after a rejection means a ball being scored
 /// never fails on an expired token.
-async function usableToken(): Promise<string | null> {
+export async function usableToken(): Promise<string | null> {
   const token = getAccessToken();
   if (!token) return null;
   const expires = expiryOf(token);

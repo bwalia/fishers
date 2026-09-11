@@ -82,7 +82,7 @@ export function ShareScoreboardButton({
       </button>
       <p className="muted share-hint">
         Creates a live link anyone can open (WhatsApp, email, Messages). No login needed for
-        them. The full scorecard updates every few seconds.
+        them. The full scorecard updates live, ball by ball.
       </p>
       {note && <p className="tag">{note}</p>}
       {link && (

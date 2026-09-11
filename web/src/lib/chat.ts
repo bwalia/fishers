@@ -95,6 +95,25 @@ export function chatTime(iso: string | null): string {
 
 /// Messages arrive newest-last and are grouped under the day they were sent,
 /// because a wall of times with no dates loses the reader by the second scroll.
+/// Messages in the order a chat reads: oldest at the top, newest at the bottom.
+///
+/// The API pages newest-first — "the latest 200" is a LIMIT on a descending
+/// query — so what arrives is upside down for reading, and iOS reverses it for
+/// the same reason. Every way a message reaches the thread (the first load, the
+/// one you just sent, one that arrives live) goes through here, so they cannot
+/// disagree about order again. Duplicates collapse by id: a message you sent
+/// comes back on the live stream too.
+export function mergeMessages(...lists: ChatMessage[][]): ChatMessage[] {
+  const byId = new Map<string, ChatMessage>();
+  for (const list of lists) for (const m of list) byId.set(m.id, m);
+  // As instants, not as text: the API's timestamps vary in fractional
+  // precision ("…03.1Z" beside "…03.123Z"), and as strings "Z" sorts after
+  // every digit, which would put those two the wrong way round.
+  return [...byId.values()].sort(
+    (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id.localeCompare(b.id)
+  );
+}
+
 export function byDay(messages: ChatMessage[]): { day: string; messages: ChatMessage[] }[] {
   const out: { day: string; messages: ChatMessage[] }[] = [];
   for (const message of messages) {

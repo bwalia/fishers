@@ -60,7 +60,8 @@ async fn signup(
 
     // The first code is already on its way when the dashboard loads. In the
     // background: a slow or unreachable mail server must never fail a signup.
-    if user.email.is_some() && state.email.enabled() {
+    // Only while confirmation is asked for — a code nobody needs is spam.
+    if state.verification_required && user.email.is_some() && state.email.enabled() {
         let (state, user) = (state.clone(), user.clone());
         tokio::spawn(async move {
             if let Err(e) = super::verification::issue(&state, &user, "email").await {

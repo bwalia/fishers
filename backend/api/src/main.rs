@@ -1,6 +1,7 @@
 mod auth;
 mod docs;
 mod error;
+mod live;
 mod rbac;
 mod routes;
 mod services;
@@ -45,16 +46,20 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState::new(pool, jwt_secret, push);
 
+    // A layer wraps only the routes already added when it is applied, so the
+    // live stream is merged after the timeout: 30 seconds is right for a
+    // request and would cut every live connection half a minute in.
     let app = Router::new()
         .merge(docs::router())
         .merge(routes::router())
-        .layer(cors_layer())
         // A scoring batch is the largest legitimate body; nothing needs a megabyte.
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
         .layer(TimeoutLayer::with_status_code(
             axum::http::StatusCode::GATEWAY_TIMEOUT,
             std::time::Duration::from_secs(30),
         ))
+        .merge(routes::live_router())
+        .layer(cors_layer())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 

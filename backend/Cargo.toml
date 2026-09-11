@@ -37,6 +37,8 @@ sha2 = "0.10"
 # native-tls, like everything else here: ring and webpki-roots are already in
 # the tree, so this pulls in no OpenSSL.
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "hostname", "tokio1-rustls-tls"] }
+# A Stream to hand axum's SSE response. Already in the tree through axum.
+futures-util = { version = "0.3", default-features = false }
 # tls-rustls-ring-webpki: the Zalando (Spilo) clusters the API runs against in
 # k3s reject every non-TLS connection from another pod (`hostnossl all all all
 # reject` in their pg_hba), so without it the API cannot reach its database at
