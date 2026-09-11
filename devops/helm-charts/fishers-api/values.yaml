@@ -62,25 +62,32 @@ startupProbe:
   periodSeconds: 5
   failureThreshold: 30
 
-database:
-  # Points at the fishers-postgres release in the same namespace by default.
-  host: fishers-postgres
-  port: 5432
+# The fishers-db release (Zalando) in the same namespace. These must match that
+# chart's clusterName, database and owner — the credentials Secret name is
+# derived from them.
+db:
+  clusterName: fishers-db
   name: fishers
-  user: fishers
-  # Never set here. The workflow passes it with --set from a CI secret, and it
-  # lands in the chart's Secret.
-  password: ""
+  owner: fishers
+  sslmode: require
+
+# The Secret the fishers-secrets release syncs from the vault.
+secretsName: fishers-secrets
+
+# Set by the deploy to its run id, so every deploy rolls the pods.
+rolloutId: ""
 
 config:
   # Object storage for uploads, served by the fishers-minio chart in the same
   # namespace. The access keys go in the secret, not here.
   s3:
-    enabled: false
+    enabled: true
     endpoint: "http://fishers-minio:9000"
-    bucket: fishers
+    # Also the public path: https://<host>/media/<key>. Must match the
+    # fishers-minio bucket and the web chart's media.path.
+    bucket: media
     region: us-east-1
-    # Where a browser fetches an uploaded picture from — set per ring.
+    # Empty: derived as https://<hostname>/<bucket>.
     publicBase: ""
 
   jwtAccessTtlSecs: 900
@@ -88,26 +95,12 @@ config:
   rustLog: "fishers_api=info,tower_http=warn,sqlx=warn"
   dlsG50: 245
   # Optional integrations. Empty means unset — the API treats an empty
-  # DLS_RESOURCE_TABLE as "use the built-in table", and an absent
-  # ANTHROPIC_API_KEY as "chat assistant disabled".
-  anthropicApiKey: ""
+  # DLS_RESOURCE_TABLE as "use the built-in table". Credentials for the rest
+  # (ANTHROPIC_API_KEY, STRIPE_*) live in the vault, not here.
   agentModel: "claude-opus-5"
-  stripeSecretKey: ""
-  stripeWebhookSecret: ""
   dlsResourceTable: ""
   ollamaUrl: ""
   ollamaModel: "llama3.1:8b"
-
-secret:
-  # Both empty here on purpose — the workflow passes them with --set, and the
-  # same values install the minio chart.
-  s3AccessKey: ""
-  s3SecretKey: ""
-
-  # JWT signing key. Passed with --set from a CI secret; a deploy with this
-  # empty is refused by the template rather than silently signing tokens with
-  # a default that every environment shares.
-  jwtSecret: ""
 
 podSecurityContext:
   runAsNonRoot: true

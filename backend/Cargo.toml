@@ -33,7 +33,12 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "migrate"] }
+# tls-rustls-ring-webpki: the Zalando (Spilo) clusters the API runs against in
+# k3s reject every non-TLS connection from another pod (`hostnossl all all all
+# reject` in their pg_hba), so without it the API cannot reach its database at
+# all. ring is already in the tree through reqwest, so this adds no toolchain.
+# A plain local Postgres without TLS still works: sslmode defaults to prefer.
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "uuid", "chrono", "json", "migrate"] }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"

@@ -14,11 +14,13 @@ spec:
       labels:
         {{- include "fishers-api.labels" . | nindent 8 }}
       annotations:
-        # Roll the pods when the Secret changes. Without this a rotated JWT
-        # signing key or database password sits in the Secret while the running
-        # pods keep the old one, and the mismatch only shows up at the next
-        # unrelated restart.
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        # A new value every deploy, so every deploy rolls the pods. The
+        # secrets now come from the vault through ESO rather than from this
+        # chart, so there is no rendered Secret to checksum — and the promote
+        # path deploys :latest, where an unchanged tag would otherwise roll
+        # nothing. The deploy force-syncs the vault first, so the new pods
+        # start on the values that were just changed.
+        fishers.cloud/rollout: {{ .Values.rolloutId | default "manual" | quote }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -36,6 +38,26 @@ spec:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
           env:
+            # The database credentials belong to the Zalando operator, which
+            # generates them into its own Secret; they are read straight from
+            # there and never pass through the vault, CI or helm. Defined
+            # before DATABASE_URL so the $(...) references below resolve — the
+            # password is 64 alphanumeric characters, so it is URL-safe as is.
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fishers-api.dbSecret" . }}
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fishers-api.dbSecret" . }}
+                  key: password
+            # sslmode=require: Spilo rejects every non-TLS connection from
+            # another pod. It encrypts without verifying the certificate, which
+            # is what Spilo's self-signed one allows.
+            - name: DATABASE_URL
+              value: "postgres://$(DB_USER):$(DB_PASSWORD)@{{ .Values.db.clusterName }}:5432/{{ .Values.db.name }}?sslmode={{ .Values.db.sslmode }}"
             - name: API_HOST
               value: "[::]"
             - name: API_PORT
@@ -70,9 +92,9 @@ spec:
             {{- end }}
             {{- if .Values.config.s3.enabled }}
             # Uploads. The endpoint is the in-cluster service; the public base
-            # is where a browser fetches the object from, which is a different
-            # address. The keys arrive in the secret alongside the database
-            # password.
+            # is where a browser fetches the object from — the same host, under
+            # the bucket's path, which the web chart's ingress sends to MinIO.
+            # The access keys arrive from the vault with everything else.
             - name: S3_ENDPOINT
               value: {{ .Values.config.s3.endpoint | quote }}
             - name: S3_BUCKET
@@ -80,11 +102,14 @@ spec:
             - name: S3_REGION
               value: {{ .Values.config.s3.region | quote }}
             - name: S3_PUBLIC_BASE
-              value: {{ .Values.config.s3.publicBase | quote }}
+              value: {{ .Values.config.s3.publicBase | default (printf "https://%s/%s" (include "fishers-api.hostname" .) .Values.config.s3.bucket) | quote }}
             {{- end }}
+          # Everything at kv/fishers/<ring>/config: JWT_SECRET, S3 keys, VAPID,
+          # and whichever optional integrations that ring has (Stripe,
+          # Anthropic). A key added in the vault needs no chart change.
           envFrom:
             - secretRef:
-                name: {{ include "fishers-api.name" . }}
+                name: {{ .Values.secretsName }}
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
             httpGet:

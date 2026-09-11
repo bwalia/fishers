@@ -19,6 +19,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- .Values.hostname }}
 {{- end -}}
 
-{{- define "fishers-api.databaseUrl" -}}
-postgres://{{ .Values.database.user }}:{{ .Values.database.password }}@{{ .Values.database.host }}:{{ .Values.database.port }}/{{ .Values.database.name }}
+{{- /* The Secret the Zalando operator writes the owner's credentials into. */ -}}
+{{- define "fishers-api.dbSecret" -}}
+{{ .Values.db.owner }}.{{ .Values.db.clusterName }}.credentials.postgresql.acid.zalan.do
 {{- end -}}

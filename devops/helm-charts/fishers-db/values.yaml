@@ -1,0 +1,36 @@
+env: int
+
+# The operator names everything after this: the master Service is
+# `<clusterName>` and the credentials Secret is
+# `<user>.<clusterName>.credentials.postgresql.acid.zalan.do`. The API chart
+# derives both from the same value, so change it in one place or not at all.
+clusterName: fishers-db
+teamId: fishers
+
+database: fishers
+# The database owner. The API runs its own migrations, so it owns the schema;
+# both extensions it creates (pgcrypto, pg_trgm) are trusted and need no
+# superuser.
+owner: fishers
+
+postgresVersion: "16"
+
+# One instance per ring by default; prod raises it for a streaming standby that
+# Patroni promotes automatically if the master's node goes.
+instances: 1
+
+volume:
+  size: 8Gi
+  # Named, not left to the default: this cluster marks BOTH local-path and
+  # longhorn as default, which leaves the choice to chance. local-path is
+  # node-local — lose the node, lose the data. Longhorn replicates the volume
+  # across nodes.
+  storageClass: longhorn
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi

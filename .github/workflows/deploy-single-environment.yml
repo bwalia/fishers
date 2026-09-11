@@ -48,6 +48,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # DNS and the wslproxy vhost + rule for this ring. Idempotent, so it costs a
+  # few seconds on a ring that already exists — and it is what makes the first
+  # deploy of a new ring reachable rather than green-but-unreachable.
+  edge:
+    uses: ./.github/workflows/register-edge-vhost.yml
+    with:
+      ENV: ${{ github.event.inputs.ENV }}
+    secrets: inherit
+
   # int and test build. acc and prod deploy what those builds produced.
   build-images:
     if: ${{ github.event.inputs.ENV == 'int' || github.event.inputs.ENV == 'test' }}
@@ -61,9 +70,10 @@ jobs:
   deploy:
     # `always()` with an explicit result check: acc and prod skip the build on
     # purpose, and a skipped `needs` would otherwise mark this skipped too.
-    needs: [build-images]
+    needs: [build-images, edge]
     if: >
       always() &&
+      needs.edge.result == 'success' &&
       (needs.build-images.result == 'success' ||
        needs.build-images.result == 'skipped')
     uses: ./.github/workflows/deploy-fishers-k3s.yml
