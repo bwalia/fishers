@@ -477,3 +477,72 @@ pub async fn list_block_events(
     .fetch_all(pool)
     .await
 }
+
+/// A fixture as one player sees it: when, who against, where — and what they
+/// said. What both the fixtures list and the availability calendar are drawn
+/// from, so the two can never disagree about whether you are playing.
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct MyFixture {
+    pub event_id: Uuid,
+    pub title: String,
+    pub sport: String,
+    pub event_subtype: String,
+    pub status: String,
+    pub start_at: DateTime<Utc>,
+    pub end_at: DateTime<Utc>,
+    pub club_id: Uuid,
+    pub club_name: String,
+    pub opponent_club_id: Option<Uuid>,
+    pub opponent_club_name: Option<String>,
+    pub venue_name: Option<String>,
+    /// The scorecard, once the fixture has one.
+    pub match_id: Option<Uuid>,
+    /// `going` | `maybe` | `not_going`; absent until they answer.
+    pub my_answer: Option<String>,
+    pub fee_amount_cents: Option<i32>,
+    pub ticket_price_cents: Option<i32>,
+}
+
+/// Every fixture of either side the player belongs to, starting in
+/// `[from, to)`, soonest first. Cancelled ones are left out, as in the list.
+pub async fn my_fixtures(
+    pool: &PgPool,
+    user_id: Uuid,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<Vec<MyFixture>, sqlx::Error> {
+    sqlx::query_as::<_, MyFixture>(
+        r#"
+        SELECT e.id AS event_id, e.title,
+               e.sport::TEXT AS sport, e.event_subtype::TEXT AS event_subtype,
+               e.status::TEXT AS status, e.start_at, e.end_at,
+               e.club_id, c.name AS club_name,
+               COALESCE(e.opponent_club_id, m.opponent_club_id) AS opponent_club_id,
+               oc.name AS opponent_club_name,
+               v.name AS venue_name,
+               m.id AS match_id,
+               -- 'invited' is the question, not an answer.
+               CASE WHEN i.status IN ('going', 'maybe', 'not_going') THEN i.status::TEXT END AS my_answer,
+               e.fee_amount_cents, e.ticket_price_cents
+        FROM events e
+        JOIN clubs c ON c.id = e.club_id
+        LEFT JOIN cricket_matches m ON m.event_id = e.id
+        LEFT JOIN clubs oc ON oc.id = COALESCE(e.opponent_club_id, m.opponent_club_id)
+        LEFT JOIN venues v ON v.id = e.venue_id
+        LEFT JOIN event_invites i ON i.event_id = e.id AND i.user_id = $1
+        WHERE e.status <> 'cancelled'
+          AND e.start_at >= $2 AND e.start_at < $3
+          AND EXISTS (
+            SELECT 1 FROM club_members cm
+            WHERE cm.user_id = $1 AND cm.status = 'active'
+              AND cm.club_id IN (e.club_id, e.opponent_club_id, m.opponent_club_id)
+          )
+        ORDER BY e.start_at, e.title
+        "#,
+    )
+    .bind(user_id)
+    .bind(from)
+    .bind(to)
+    .fetch_all(pool)
+    .await
+}

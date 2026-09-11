@@ -3357,7 +3357,7 @@ a.bell-item:hover { background: var(--surface-2); }
 /* Status never rides on colour alone: available and unavailable also differ in
    weight and, at the bottom of the panel, in a written key. */
 .cal-day.is-available { background: var(--pitch-100); border-color: var(--primary); color: var(--sage-900); }
-.cal-day.is-maybe { background: var(--gold-100); border-color: var(--gold-600); color: var(--gold-700); }
+.cal-day.is-maybe { background: var(--gold-100); border-color: var(--gold-600); color: var(--accent); }
 .cal-day.is-unavailable { background: var(--red-100); border-color: var(--red-500); color: var(--red-600); }
 
 /* A dot for a fixture that day, so nobody rules themselves out blind. */
@@ -4610,4 +4610,293 @@ a.bell-item:hover { background: var(--surface-2); }
   /* Above the tab bar, not under it: the thread ends clear of the bar and
      the page itself never scrolls. */
   .thread { height: calc(100dvh - 160px - env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ======================================================================
+   Guides: a few numbered steps at the top of a screen, until "Got it".
+   ====================================================================== */
+.guide-card { border-color: var(--primary); }
+.guide-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.guide-card-head h2 { margin: 0; }
+.guide-steps {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.guide-steps li { display: flex; gap: var(--s3); align-items: flex-start; }
+.guide-steps p { margin: 2px 0 0; color: var(--fg-muted); font-size: 0.9rem; }
+.guide-num {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* ---- "Can you play?": one control, on the fixtures list and the calendar ---- */
+.fx-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.fx-seg-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.fx-seg-btn:hover { color: var(--fg); }
+.fx-seg-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.fx-seg-btn[disabled] { cursor: progress; }
+.fx-seg-btn.on.is-going,
+.fx-seg-btn.on.is-available { background: var(--primary); color: var(--on-primary); }
+.fx-seg-btn.on.is-maybe { background: var(--gold-100); color: var(--accent); box-shadow: inset 0 0 0 1px var(--gold-600); }
+.fx-seg-btn.on.is-not_going,
+.fx-seg-btn.on.is-unavailable { background: var(--red-100); color: var(--red-600); box-shadow: inset 0 0 0 1px var(--red-500); }
+.fx-answer-error { margin: var(--s1) 0 0; font-size: 0.85rem; }
+
+.fx-said { font-size: 0.85rem; font-weight: 700; }
+.fx-said.is-going { color: var(--primary-ink); }
+.fx-said.is-maybe { color: var(--accent); }
+.fx-said.is-not_going { color: var(--red-500); }
+.fx-said.is-none { color: var(--fg-muted); }
+.fx-warn { margin: var(--s2) 0 0; color: var(--accent); font-size: 0.85rem; font-weight: 600; }
+.fx-warn::before { content: "! "; }
+
+/* ---- Fixtures ---- */
+.fixtures-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--s3); }
+.fixtures-hero-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+
+.fx-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.fx-stat {
+  display: grid;
+  gap: 2px;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.fx-stat { cursor: pointer; transition: border-color var(--dur) var(--ease); }
+button.fx-stat:hover { border-color: var(--border-strong); }
+button.fx-stat:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.fx-stat.needs { border-color: var(--gold-600); }
+.fx-stat.needs .fx-stat-num { color: var(--accent); }
+.fx-stat.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.fx-stat-num { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; line-height: 1; }
+.fx-stat-label { color: var(--fg-muted); font-size: 0.875rem; }
+
+.fx-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.fx-views, .fx-clubs { margin: 0; }
+.fx-clubs .chip { text-transform: none; }
+
+.fx-day { margin-bottom: var(--s5); }
+.fx-day-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0 0 var(--s2);
+  font-size: 1.05rem;
+  color: var(--fg-muted);
+}
+.fx-day-count { font-family: var(--font-body, inherit); font-size: 0.8rem; font-weight: 600; color: var(--accent); }
+
+.fx-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--s4);
+  margin-bottom: var(--s2);
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+/* The stripe is your answer, and the words beside the control say it too. */
+.fx-card.is-going { border-left-color: var(--primary); }
+.fx-card.is-maybe { border-left-color: var(--gold-600); }
+.fx-card.is-not_going { border-left-color: var(--red-500); }
+.fx-card.is-none { border-left-color: var(--accent); border-left-style: dashed; }
+.fx-card.past { opacity: 0.85; }
+.fx-time { display: grid; gap: 2px; }
+.fx-time strong { font-family: var(--font-display); font-size: 1.4rem; line-height: 1; }
+.fx-time span { color: var(--fg-subtle); font-size: 0.8rem; }
+.fx-tags { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.fx-title {
+  display: block;
+  margin-top: var(--s1);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.fx-meta { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); margin: var(--s1) 0 0; color: var(--fg-muted); font-size: 0.9rem; }
+.fx-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.fx-links { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s3); }
+.fx-side { display: grid; justify-items: end; gap: var(--s2); }
+
+@media (max-width: 760px) {
+  .fx-card { grid-template-columns: 52px minmax(0, 1fr); gap: var(--s3); padding: var(--s3); }
+  .fx-time strong { font-size: 1.15rem; }
+  .fx-side { grid-column: 1 / -1; justify-items: stretch; }
+  .fx-side .fx-seg { display: flex; }
+  .fx-side .fx-seg-btn { flex: 1; padding: 0 8px; }
+}
+
+/* ---- Availability: calendar and the day beside it ---- */
+.avail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  align-items: start;
+  gap: var(--s4);
+  margin-bottom: var(--s4);
+}
+.avail-layout > .panel { margin: 0; }
+.avail-day { position: sticky; top: 80px; }
+.avail-day h2 { margin: 0; }
+.avail-day-block { margin-top: var(--s4); }
+.avail-label {
+  margin: 0 0 var(--s2);
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.avail-day .fx-seg { display: flex; width: 100%; }
+.avail-day .fx-seg-btn { flex: 1; padding: 0 8px; }
+.avail-fixtures { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }
+.avail-fixture {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: 10px;
+}
+.avail-fixture.is-going { border-left-color: var(--primary); }
+.avail-fixture.is-maybe { border-left-color: var(--gold-600); }
+.avail-fixture.is-not_going { border-left-color: var(--red-500); }
+.avail-fixture.is-none { border-left-color: var(--accent); border-left-style: dashed; }
+.avail-fixture p { margin: 0; }
+.avail-fixture-head { display: flex; align-items: baseline; gap: var(--s2); }
+.avail-fixture-time { font-weight: 700; }
+.avail-fixture-title { font-weight: 700; color: var(--fg); overflow-wrap: anywhere; }
+
+.cal-head-end { display: flex; gap: var(--s1); }
+.avail-needs {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  margin: 0 0 var(--s3);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--gold-600);
+  border-radius: 10px;
+  background: var(--gold-100);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.avail-needs .guide-num { background: var(--accent); color: var(--surface); }
+
+/* A day is its number and its fixtures. On a wide screen each fixture is a
+   labelled bar; on a phone, a dot in the colour of your answer. */
+.avail .cal-day {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 4px;
+  min-width: 0;
+  aspect-ratio: auto;
+  min-height: 88px;
+  padding: 6px;
+}
+.avail .cal-day.gone { opacity: 0.6; }
+.avail .cal-day.chosen { box-shadow: inset 0 0 0 2px var(--primary), 0 0 0 2px var(--primary); }
+.cal-num { align-self: flex-start; font-size: 0.9rem; }
+.cal-fxs { display: grid; gap: 3px; min-width: 0; }
+.cal-fx {
+  display: block;
+  min-width: 0;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+}
+.cal-fx-text { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cal-fx.is-going { background: var(--primary); color: var(--on-primary); }
+.cal-fx.is-maybe { background: var(--gold-100); color: var(--accent); box-shadow: inset 0 0 0 1px var(--gold-600); }
+.cal-fx.is-not_going { background: var(--red-100); color: var(--red-600); box-shadow: inset 0 0 0 1px var(--red-500); }
+.cal-fx.is-not_going .cal-fx-text { text-decoration: line-through; }
+.cal-fx.is-none { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* On a day marked available the ground is pale green: a darker bar keeps a
+   "yes" readable against it. */
+.cal-day.is-available .cal-fx.is-going { background: var(--sage-900); color: var(--sage-pale); }
+.cal-fx-more { font-size: 0.7rem; color: var(--fg-muted); }
+.cal-fx.key { display: inline-block; width: 12px; height: 12px; padding: 0; border-radius: 50%; }
+
+@media (max-width: 1023px) {
+  .avail-layout { grid-template-columns: minmax(0, 1fr); }
+  .avail-day { position: static; }
+}
+@media (max-width: 720px) {
+  .avail .cal-day { aspect-ratio: 1; min-height: 44px; padding: 4px 2px; align-items: center; justify-content: space-between; }
+  .cal-num { align-self: center; }
+  .cal-fxs { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
+  .cal-fx { width: 8px; height: 8px; padding: 0; border-radius: 50%; }
+  .cal-fx-text { display: none; }
+  .cal-fx-more { display: none; }
+}
+
+/* A whole month at once: a weekday and three equal choices, on one line. */
+.avail .cal-bulk-row { display: grid; grid-template-columns: 3rem repeat(3, minmax(0, 1fr)); flex-wrap: nowrap; }
+.avail .cal-bulk-row .chip { justify-content: center; text-transform: none; min-width: 0; padding-inline: var(--s2); }
+
+@media (max-width: 760px) {
+  .fx-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); }
+  .fx-stat { padding: var(--s2) var(--s3); }
+  .fx-stat-num { font-size: 1.5rem; }
+  .fx-stat-label { font-size: 0.78rem; line-height: 1.25; }
 }

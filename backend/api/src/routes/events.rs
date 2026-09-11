@@ -24,6 +24,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/events", get(list_events).post(create_event))
+        .route("/events/mine", get(my_fixtures))
         .route("/events/{id}", get(get_event).patch(update_event))
         .route("/events/{id}/rsvp", post(rsvp))
         .route("/events/{id}/attendees", get(attendees))
@@ -186,6 +187,33 @@ async fn list_events(
     ))
 }
 
+#[derive(Debug, Deserialize)]
+struct MineQuery {
+    from: Option<DateTime<Utc>>,
+    to: Option<DateTime<Utc>>,
+}
+
+/// Your fixtures in a window, each with your answer — the calendar's month,
+/// or the fixtures list's next few weeks.
+async fn my_fixtures(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(q): Query<MineQuery>,
+) -> ApiResult<Json<Vec<events_repo::MyFixture>>> {
+    let from = q.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(1));
+    let to = q.to.unwrap_or(from + chrono::Duration::days(60));
+    if to <= from {
+        return Err(ApiError::bad_request("to must be after from"));
+    }
+    // A season and a bit; more is a report, not a screen.
+    if to - from > chrono::Duration::days(400) {
+        return Err(ApiError::bad_request("ask for at most 400 days at a time"));
+    }
+    Ok(Json(
+        events_repo::my_fixtures(&state.pool, auth.user_id, from, to).await?,
+    ))
+}
+
 async fn get_event(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -217,7 +245,19 @@ async fn rsvp(
     Path(id): Path<Uuid>,
     Json(body): Json<RsvpRequest>,
 ) -> ApiResult<Json<EventInvite>> {
-    require_event_permission(&state, id, auth.user_id, Permission::RespondAsPlayer).await?;
+    // Both sides are asked whether they can play, so either side can answer.
+    // Checking the home club alone refused every visiting player — who had
+    // just been sent "Can you play?" — with a 403.
+    let event = events_repo::get_event(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("event not found"))?;
+    let home = require_permission(&state, event.club_id, auth.user_id, event.team_id, Permission::RespondAsPlayer).await;
+    if let Err(refused) = home {
+        let Some(away) = event.opponent_club_id else {
+            return Err(refused);
+        };
+        require_permission(&state, away, auth.user_id, None, Permission::RespondAsPlayer).await?;
+    }
     let invite = invites_repo::rsvp(&state.pool, id, auth.user_id, body.status).await?;
     tell_the_selectors(&state, id, auth.user_id, body.status).await;
     Ok(Json(invite))

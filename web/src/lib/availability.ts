@@ -23,13 +23,6 @@ export const AVAILABILITY_LABEL: Record<AvailabilityStatus, string> = {
   unavailable: "Not available",
 };
 
-/// One tap moves a day on. Matches the phone exactly, so a player who sets
-/// their calendar on the app and checks it on a laptop is not surprised.
-export function nextStatus(current: AvailabilityStatus | undefined): AvailabilityStatus {
-  if (!current) return "available";
-  return current === "available" ? "maybe" : current === "maybe" ? "unavailable" : "available";
-}
-
 /// `YYYY-MM-DD` for a local date.
 ///
 /// `toISOString()` would be wrong: it converts to UTC first, so the evening of
