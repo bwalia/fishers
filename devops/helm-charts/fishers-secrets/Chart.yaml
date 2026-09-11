@@ -1,0 +1,5 @@
+apiVersion: v2
+name: fishers-secrets
+description: Pulls one ring's configuration out of WSLVault into a Kubernetes Secret.
+type: application
+version: 0.1.0

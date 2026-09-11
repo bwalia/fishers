@@ -1,15 +1,24 @@
 name: Deploy Fishers (K3s)
 
-# Installs one ring: Postgres, then the API, then the dashboard.
+# Installs one ring, every part of it through Helm:
 #
-# Order matters and is not incidental:
-#   postgres -> the API's readiness probe touches the pool, so an API rolled
-#               out first never goes Ready and the deploy fails on a missing
-#               dependency rather than a real fault.
-#   api      -> the ingress the web chart creates routes /api here. An ingress
-#               whose backend Service does not exist yet answers 503, which
-#               reads as a broken release when it is only an ordering artefact.
-#   web      -> owns the ingress for the host, so it goes last.
+#   secrets  -> kv/fishers/<ring>/config in WSLVault, synced by an
+#               ExternalSecret. Everything below reads it, so it goes first and
+#               the deploy stops here — naming the vault path and the missing
+#               keys — if the ring has not been configured.
+#   db       -> Postgres, run by the Zalando operator. It generates the owner's
+#               password itself, so there is no database password in the
+#               vault, in CI, or in any helm release.
+#   minio    -> uploads. Its root credentials are the API's S3 keys, from the
+#               same Secret, so the two cannot drift.
+#   api      -> readiness touches the pool, so it has to come after the db or
+#               it never goes Ready. The web chart's ingress routes /api here.
+#   web      -> owns the ingress for the host (/, /api, /media), so it goes
+#               last: an ingress whose backend does not exist yet answers 503.
+#
+# Standing up a new ring (test/acc/prod) is: put its values at
+# kv/fishers/<ring>/config (scripts/vault-seed-ring.sh generates the random
+# ones), then run "Deploy Single Environment" for that ring. Nothing else.
 
 on:
   workflow_call:
@@ -27,20 +36,17 @@ on:
         required: false
         default: NEBULACR
       deploy_postgres:
-        description: "Install/upgrade the in-cluster Postgres for this ring."
+        description: "Install/upgrade the ring's Zalando Postgres cluster."
         type: boolean
         required: false
         default: true
+    # Only what it takes to reach the cluster and pull images. Every
+    # application secret is in the vault.
     secrets:
       MY_K3S1_CONFIG:        { required: true }
       NEBULACR_REGISTRY:     { required: false }
       NEBULACR_USERNAME:     { required: false }
       NEBULACR_PASSWORD:     { required: false }
-      FISHERS_JWT_SECRET:    { required: true }
-      FISHERS_DB_PASSWORD:   { required: true }
-      ANTHROPIC_API_KEY:     { required: false }
-      STRIPE_SECRET_KEY:     { required: false }
-      STRIPE_WEBHOOK_SECRET: { required: false }
   workflow_dispatch:
     inputs:
       target_env:
@@ -160,18 +166,37 @@ jobs:
             echo "  ok  IngressClass $INGRESS_CLASS"
           fi
 
+          # Read what the charts will ask for, not a copy of it here.
+          DB_SC=$(awk '/^  storageClass:/ {print $2; exit}' "$CHARTS/fishers-db/values.yaml")
+          MINIO_SC=$(awk '/^  storageClass:/ {print $2; exit}' "$CHARTS/fishers-minio/values.yaml")
+          STORE=$(awk '/^  name:/ {print $2; exit}' "$CHARTS/fishers-secrets/values.yaml")
+
           echo "--- storage classes ---"
-          kubectl get storageclass -o custom-columns=NAME:.metadata.name,DEFAULT:.metadata.annotations."storageclass\.kubernetes\.io/is-default-class" --no-headers || true
-          if [ "${{ inputs.deploy_postgres }}" = "true" ]; then
-            default_sc=$(kubectl get storageclass -o json \
-              | jq -r '.items[] | select(.metadata.annotations."storageclass.kubernetes.io/is-default-class"=="true") | .metadata.name' | head -1)
-            if [ -z "$default_sc" ]; then
-              echo "::error::no default StorageClass, and fishers-postgres asks for a PVC without naming one."
-              echo "::error::Set persistence.storageClass in devops/helm-charts/fishers-postgres/values-*.yaml to one listed above."
-              fail=1
+          kubectl get storageclass --no-headers -o custom-columns=NAME:.metadata.name,PROVISIONER:.provisioner || true
+          for sc in $(printf '%s\n' "$DB_SC" "$MINIO_SC" | sort -u); do
+            if kubectl get storageclass "$sc" >/dev/null 2>&1; then
+              echo "  ok  StorageClass $sc"
             else
-              echo "  ok  default StorageClass $default_sc"
+              echo "::error::StorageClass '$sc' (named by fishers-db / fishers-minio values) does not exist on this cluster."
+              fail=1
             fi
+          done
+
+          echo "--- Zalando postgres-operator ---"
+          if kubectl get crd postgresqls.acid.zalan.do >/dev/null 2>&1; then
+            echo "  ok  postgresqls.acid.zalan.do"
+          else
+            echo "::error::the Zalando postgres-operator is not installed — fishers-db is a postgresql resource it reconciles."
+            fail=1
+          fi
+
+          echo "--- secret store ---"
+          ready=$(kubectl get clustersecretstore "$STORE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+          if [ "$ready" = "True" ]; then
+            echo "  ok  ClusterSecretStore $STORE"
+          else
+            echo "::error::ClusterSecretStore '$STORE' is missing or not Ready — every ring's secrets come from it."
+            fail=1
           fi
 
           exit $fail
@@ -193,17 +218,101 @@ jobs:
             echo "::notice::no registry credentials — assuming the images are public or the secret already exists."
           fi
 
-      - name: Deploy Postgres
+      - name: Sync secrets from the vault
+        env:
+          NS: ${{ steps.ring.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          VAULT_PATH="kv/fishers/$TARGET_ENV/config"
+          helm upgrade --install fishers-secrets "$CHARTS/fishers-secrets" \
+            --namespace "$NS" \
+            -f "$CHARTS/fishers-secrets/values.yaml" \
+            --set env="$TARGET_ENV"
+
+          # Force a fresh read. ESO otherwise waits out its refresh interval,
+          # so a value changed in the vault a minute ago would roll out as the
+          # old one. "Fresh" is judged by refreshTime CHANGING, not by
+          # comparing it with this runner's clock, which is not the cluster's.
+          before=$(kubectl -n "$NS" get externalsecret fishers-secrets -o jsonpath='{.status.refreshTime}' 2>/dev/null || true)
+          kubectl -n "$NS" annotate externalsecret fishers-secrets force-sync="$(date +%s)" --overwrite >/dev/null
+          synced=0
+          for _ in $(seq 1 45); do
+            now=$(kubectl -n "$NS" get externalsecret fishers-secrets -o jsonpath='{.status.refreshTime}' 2>/dev/null || true)
+            ready=$(kubectl -n "$NS" get externalsecret fishers-secrets -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+            if [ -n "$now" ] && [ "$now" != "$before" ] && [ "$ready" = "True" ]; then synced=1; break; fi
+            sleep 2
+          done
+          if [ "$synced" != 1 ]; then
+            msg=$(kubectl -n "$NS" get externalsecret fishers-secrets -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || true)
+            echo "::error::could not read $VAULT_PATH from the vault: ${msg:-no status yet}"
+            echo "::error::Create it with: scripts/vault-seed-ring.sh $TARGET_ENV"
+            exit 1
+          fi
+          echo "  synced $VAULT_PATH"
+
+          # The keys every ring needs. Optional integrations (Stripe,
+          # Anthropic) are simply absent where unused, so they are not checked.
+          have=$(kubectl -n "$NS" get secret fishers-secrets -o json | jq -r '.data | keys[]')
+          missing=""
+          for k in JWT_SECRET S3_ACCESS_KEY S3_SECRET_KEY; do
+            grep -qx "$k" <<<"$have" || missing="$missing $k"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::$VAULT_PATH is missing:$missing"
+            echo "::error::scripts/vault-seed-ring.sh $TARGET_ENV adds the missing ones and never overwrites existing keys."
+            exit 1
+          fi
+          # A short signing key makes every token on the ring forgeable.
+          jwt_len=$(kubectl -n "$NS" get secret fishers-secrets -o jsonpath='{.data.JWT_SECRET}' | base64 -d | wc -c)
+          if [ "$jwt_len" -lt 32 ]; then
+            echo "::error::JWT_SECRET at $VAULT_PATH is $jwt_len bytes; use at least 32."
+            exit 1
+          fi
+          echo "  keys: $(tr '\n' ' ' <<<"$have")"
+
+      - name: Deploy database (Zalando)
         if: ${{ inputs.deploy_postgres }}
         env:
           NS: ${{ steps.ring.outputs.namespace }}
         run: |
           set -euo pipefail
-          helm upgrade --install fishers-postgres "$CHARTS/fishers-postgres" \
+          helm upgrade --install fishers-db "$CHARTS/fishers-db" \
             --namespace "$NS" \
-            -f "$CHARTS/fishers-postgres/values.yaml" \
-            -f "$CHARTS/fishers-postgres/values-$TARGET_ENV.yaml" \
-            --set auth.password='${{ secrets.FISHERS_DB_PASSWORD }}' \
+            -f "$CHARTS/fishers-db/values.yaml" \
+            -f "$CHARTS/fishers-db/values-$TARGET_ENV.yaml"
+
+          # The operator reports on the postgresql resource, not through helm,
+          # so --wait has nothing to wait on. Wait for Running AND for the
+          # credentials Secret the API reads: the cluster can report Running a
+          # moment before the operator has written it.
+          CLUSTER=$(awk '/^clusterName:/ {print $2; exit}' "$CHARTS/fishers-db/values.yaml")
+          OWNER=$(awk '/^owner:/ {print $2; exit}' "$CHARTS/fishers-db/values.yaml")
+          CREDS="$OWNER.$CLUSTER.credentials.postgresql.acid.zalan.do"
+          for i in $(seq 1 60); do
+            status=$(kubectl -n "$NS" get postgresql "$CLUSTER" -o jsonpath='{.status.PostgresClusterStatus}' 2>/dev/null || true)
+            if [ "$status" = "Running" ] && kubectl -n "$NS" get secret "$CREDS" >/dev/null 2>&1; then
+              echo "  ok  $CLUSTER Running, credentials in $CREDS"
+              exit 0
+            fi
+            [ $((i % 6)) -eq 0 ] && echo "  waiting for $CLUSTER (status: ${status:-none})"
+            sleep 10
+          done
+          echo "::error::$CLUSTER did not reach Running within 10 minutes (status: ${status:-none})"
+          kubectl -n "$NS" describe postgresql "$CLUSTER" | tail -20 || true
+          kubectl -n "$NS" get pods -l cluster-name="$CLUSTER" -o wide || true
+          exit 1
+
+      - name: Deploy MinIO
+        env:
+          NS: ${{ steps.ring.outputs.namespace }}
+        run: |
+          set -euo pipefail
+          # --wait also waits for the post-install hook that creates the bucket
+          # and opens it for anonymous download.
+          helm upgrade --install fishers-minio "$CHARTS/fishers-minio" \
+            --namespace "$NS" \
+            -f "$CHARTS/fishers-minio/values.yaml" \
+            -f "$CHARTS/fishers-minio/values-$TARGET_ENV.yaml" \
             --wait --timeout 10m
 
       - name: Deploy API
@@ -213,7 +322,10 @@ jobs:
           set -euo pipefail
           # --wait blocks on readiness, and readiness here means the pool
           # answers — so a green step means the schema migrated and the
-          # database is actually reachable, not just that a pod started.
+          # database is reachable over TLS, not just that a pod started.
+          # No credentials on this command line: they come from the vault and
+          # the operator. rolloutId rolls the pods every deploy, so a vault
+          # change lands even when the image tag has not moved.
           helm upgrade --install fishers-api "$CHARTS/fishers-api" \
             --namespace "$NS" \
             -f "$CHARTS/fishers-api/values.yaml" \
@@ -221,11 +333,7 @@ jobs:
             --set image.repository='${{ steps.ring.outputs.ns }}/fishers-api' \
             --set image.tag="$IMAGE_TAG" \
             --set hostname='${{ steps.ring.outputs.hostname }}' \
-            --set secret.jwtSecret='${{ secrets.FISHERS_JWT_SECRET }}' \
-            --set database.password='${{ secrets.FISHERS_DB_PASSWORD }}' \
-            --set config.anthropicApiKey='${{ secrets.ANTHROPIC_API_KEY }}' \
-            --set config.stripeSecretKey='${{ secrets.STRIPE_SECRET_KEY }}' \
-            --set config.stripeWebhookSecret='${{ secrets.STRIPE_WEBHOOK_SECRET }}' \
+            --set rolloutId='${{ github.run_id }}-${{ github.run_attempt }}' \
             --wait --timeout 10m
 
       - name: Deploy dashboard
@@ -263,8 +371,9 @@ jobs:
               echo "  FAIL $1 ($2)"; fail=1
             fi
           }
-          probe api-ready "http://fishers-api:8080/health/ready"
-          probe web-login "http://fishers-web:80/login"
+          probe api-ready   "http://fishers-api:8080/health/ready"
+          probe web-login   "http://fishers-web:80/login"
+          probe minio-ready "http://fishers-minio:9000/minio/health/ready"
           exit $fail
 
       - name: Report
@@ -279,6 +388,6 @@ jobs:
             echo "- image tag: \`$IMAGE_TAG\`"
             echo
             echo '```'
-            kubectl get deploy,statefulset,svc,ingress -n "$NS" 2>&1 | head -30
+            kubectl get postgresql,externalsecret,deploy,statefulset,svc,ingress -n "$NS" 2>&1 | head -40
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

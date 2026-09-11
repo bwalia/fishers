@@ -1,0 +1,3 @@
+env: prod
+persistence:
+  size: 50Gi

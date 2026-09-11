@@ -1,0 +1,20 @@
+# The ring this is installed into. The vault path is derived from it, so a ring
+# can only ever read its own secrets.
+env: int
+
+# The platform's store: a ClusterSecretStore pointing at WSLVault's
+# Vault-compatible KV v2 API. Other products on this cluster already sync
+# through it.
+store:
+  kind: ClusterSecretStore
+  name: wslvault-backend
+
+# kv/<vaultPrefix>/<env>/config
+vaultPrefix: fishers
+
+# How often ESO re-reads the vault. The deploy also forces a sync before it
+# rolls any pod, so a deploy never starts on a stale copy.
+refreshInterval: 1m
+
+# The Secret the charts read. Every key at the vault path lands here as-is.
+secretName: fishers-secrets

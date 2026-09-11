@@ -14,13 +14,13 @@ image:
   tag: "RELEASE.2025-04-22T22-12-26Z"
   pullPolicy: IfNotPresent
 
-auth:
-  # Never set here — the workflow passes these with --set from CI secrets, and
-  # the same values go to the API chart so the two agree.
-  accessKey: ""
-  secretKey: ""
+# The vault-synced Secret (fishers-secrets release). MinIO's root credentials
+# are its S3_ACCESS_KEY / S3_SECRET_KEY.
+secretsName: fishers-secrets
 
-bucket: fishers
+# Also the public path, https://<host>/media/<key>: the web chart's ingress
+# sends /media here. Must match the API's config.s3.bucket.
+bucket: media
 
 service:
   port: 9000
@@ -34,7 +34,9 @@ publicBase: ""
 persistence:
   enabled: true
   size: 20Gi
-  storageClass: ""
+  # Named, not left to the default — this cluster marks both local-path and
+  # longhorn as default. Longhorn replicates across nodes; local-path does not.
+  storageClass: longhorn
 
 resources:
   requests:

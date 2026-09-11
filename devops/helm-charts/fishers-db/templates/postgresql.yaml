@@ -1,0 +1,31 @@
+{{- /*
+  The operator turns this into a Patroni-managed Spilo cluster, and generates
+  the owner's password itself into
+  <owner>.<clusterName>.credentials.postgresql.acid.zalan.do.
+
+  There is no database password anywhere in this chart, in the vault, or in
+  CI: nothing to leak into a helm release, nothing to rotate by hand, and no
+  way for two copies of it to disagree.
+*/ -}}
+apiVersion: acid.zalan.do/v1
+kind: postgresql
+metadata:
+  name: {{ .Values.clusterName }}
+  labels:
+    app.kubernetes.io/name: fishers-db
+    app.kubernetes.io/part-of: fishers
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  teamId: {{ .Values.teamId | quote }}
+  numberOfInstances: {{ .Values.instances }}
+  postgresql:
+    version: {{ .Values.postgresVersion | quote }}
+  volume:
+    size: {{ .Values.volume.size }}
+    storageClass: {{ .Values.volume.storageClass }}
+  users:
+    {{ .Values.owner }}: []
+  databases:
+    {{ .Values.database }}: {{ .Values.owner }}
+  resources:
+    {{- toYaml .Values.resources | nindent 4 }}

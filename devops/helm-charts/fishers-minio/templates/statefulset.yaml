@@ -14,6 +14,14 @@ spec:
     metadata:
       labels:
         {{- include "fishers-minio.labels" . | nindent 8 }}
+      annotations:
+        # Restart only when MinIO's own keys change, not on every deploy: it is
+        # a single replica, so a roll is a few seconds without photos. `lookup`
+        # reads the live Secret, which the deploy has just force-synced from
+        # the vault. (Renders empty under `helm template`, which has no
+        # cluster — harmless there.)
+        {{- $live := lookup "v1" "Secret" .Release.Namespace .Values.secretsName }}
+        fishers.cloud/credentials: {{ printf "%v%v" (dig "data" "S3_ACCESS_KEY" "" $live) (dig "data" "S3_SECRET_KEY" "" $live) | sha256sum | trunc 16 | quote }}
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -31,9 +39,20 @@ spec:
               containerPort: {{ .Values.service.port }}
             - name: console
               containerPort: {{ .Values.service.consolePort }}
-          envFrom:
-            - secretRef:
-                name: {{ include "fishers-minio.name" . }}
+          env:
+            # The root credentials ARE the API's S3 keys, read from the same
+            # vault-synced Secret — so the two cannot drift, and there is no
+            # second copy for a deploy to pass on the command line.
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretsName }}
+                  key: S3_ACCESS_KEY
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretsName }}
+                  key: S3_SECRET_KEY
           livenessProbe:
             httpGet:
               path: /minio/health/live

@@ -48,6 +48,15 @@ ingress:
   annotations: {}
   tls: false
 
+# Where the browser fetches an uploaded photo: same host, served by MinIO.
+# `path` must equal the bucket name in the fishers-minio chart and the end of
+# S3_PUBLIC_BASE in the API, or photos upload fine and then never display.
+media:
+  enabled: true
+  path: /media
+  serviceName: fishers-minio
+  servicePort: 9000
+
 resources:
   requests:
     cpu: 50m

@@ -38,6 +38,19 @@ spec:
                 port:
                   number: {{ $.Values.apiServicePort }}
           {{- end }}
+          {{- if .Values.media.enabled }}
+          # Uploaded photos, straight from the bucket. The path is the bucket
+          # name, so MinIO receives a path-style request (/media/<key>) with no
+          # rewrite in between. The bucket is download-only for anonymous
+          # callers; writing still needs the API's signed credentials.
+          - path: {{ .Values.media.path | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.media.serviceName }}
+                port:
+                  number: {{ .Values.media.servicePort }}
+          {{- end }}
           - path: /
             pathType: Prefix
             backend:
