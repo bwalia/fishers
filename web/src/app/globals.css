@@ -4394,3 +4394,187 @@ a.bell-item:hover { background: var(--surface-2); }
 @media (prefers-reduced-motion: reduce) {
   .live-alert { animation: none; }
 }
+
+/* ======================================================================
+   Moments: a four, a six, a wicket — a beat of celebration.
+   Under the top bar, never over the run dial; taps pass straight through.
+   ====================================================================== */
+.moment {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  z-index: calc(var(--z-modal) + 20);
+  width: min(460px, calc(100vw - 2 * var(--s3)));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.moment-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: var(--s4) var(--s5);
+  overflow: hidden;
+  border-radius: 20px;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 35%);
+}
+.moment-word {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 9vw, 4rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-shadow: 0 3px 0 rgb(0 0 0 / 18%);
+}
+.moment-who { position: relative; z-index: 1; font-weight: 700; font-size: 1.05rem; }
+.moment-detail { position: relative; z-index: 1; font-size: 0.875rem; opacity: 0.9; }
+
+/* FOUR — a swing in from the left, and the ball racing along the ground to
+   the rope, a streak of light behind it. */
+.moment-card.four {
+  background: linear-gradient(120deg, #2f80ed, #1a56b8);
+  animation: m-swing 1.9s var(--ease) both;
+}
+.moment-card.four .moment-word { animation: m-slide 1.9s var(--ease) both; }
+.moment-rope {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 85%) 70%, #fff);
+  transform-origin: left;
+  animation: m-rope 0.9s 0.15s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.moment-rope::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: -5px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 12px #fff;
+}
+@keyframes m-swing {
+  0% { opacity: 0; transform: translateX(-40px) skewX(-12deg); }
+  14% { opacity: 1; transform: translateX(6px) skewX(3deg); }
+  22%, 84% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateX(24px); }
+}
+@keyframes m-slide {
+  0%, 8% { opacity: 0; transform: translateX(-24px); }
+  24% { opacity: 1; transform: none; }
+}
+@keyframes m-rope { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* SIX — the word pops, the ball sails up and out, sparks burst. */
+.moment-card.six {
+  background: radial-gradient(circle at 50% 120%, #ffb347, #f2711c 55%, #c2410c);
+  animation: m-pop 2.1s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.moment-card.six .moment-word { animation: m-bounce 2.1s cubic-bezier(0.2, 0.9, 0.3, 1.4) both; }
+/* The arc is two motions: sideways at a steady pace, and up then over. */
+.moment-arc {
+  position: absolute;
+  left: 18%;
+  bottom: 10px;
+  animation: m-arc-x 1.3s 0.1s linear both;
+}
+.moment-ball {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 14px #fff, 0 0 4px #fff;
+  animation: m-arc-y 1.3s 0.1s cubic-bezier(0.1, 0.6, 0.4, 1) both;
+}
+.moment-spark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff4d6;
+  transform: rotate(var(--a)) translateY(0);
+  animation: m-spark 1s 0.2s ease-out both;
+}
+@keyframes m-pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  16% { opacity: 1; transform: scale(1.04); }
+  26%, 86% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+@keyframes m-bounce {
+  0%, 6% { transform: scale(0.3); }
+  22% { transform: scale(1.2); }
+  34% { transform: scale(1); }
+}
+@keyframes m-arc-x { from { transform: translateX(0); } to { transform: translateX(260px); } }
+@keyframes m-arc-y {
+  0% { transform: translateY(0); opacity: 1; }
+  60% { transform: translateY(-120px); opacity: 1; }
+  100% { transform: translateY(-160px) scale(0.5); opacity: 0; }
+}
+@keyframes m-spark {
+  from { opacity: 1; transform: rotate(var(--a)) translateY(0); }
+  to { opacity: 0; transform: rotate(var(--a)) translateY(-90px); }
+}
+
+/* WICKET — the stumps shake, the bails fly, OUT! lands with a thud. */
+.moment-card.wicket {
+  background: linear-gradient(160deg, #d8453a, #8e2418);
+  animation: m-drop 2.5s var(--ease) both;
+}
+.moment-card.wicket .moment-word { animation: m-stamp 2.5s cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+.moment-stumps { margin-bottom: var(--s1); overflow: visible; }
+.moment-stumps rect { fill: #fff; }
+.stumps-set { transform-origin: 32px 70px; animation: m-shake 0.5s 0.2s ease-in-out both; }
+.bail { transform-box: fill-box; transform-origin: center; }
+.bail-l { animation: m-bail-l 0.9s 0.2s cubic-bezier(0.2, 0.6, 0.4, 1) both; }
+.bail-r { animation: m-bail-r 0.9s 0.2s cubic-bezier(0.2, 0.6, 0.4, 1) both; }
+@keyframes m-drop {
+  0% { opacity: 0; transform: translateY(-16px); }
+  10%, 88% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes m-stamp {
+  0%, 22% { opacity: 0; transform: scale(1.8); }
+  34% { opacity: 1; transform: scale(0.94); }
+  42% { transform: scale(1); }
+}
+@keyframes m-shake {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-6deg); }
+  60% { transform: rotate(4deg); }
+}
+@keyframes m-bail-l {
+  to { transform: translate(-34px, -46px) rotate(-220deg); opacity: 0; }
+}
+@keyframes m-bail-r {
+  to { transform: translate(38px, -40px) rotate(260deg); opacity: 0; }
+}
+
+@media (max-width: 1023px) {
+  .moment { top: 72px; }
+}
+
+/* Reduced motion: the news without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .moment-card,
+  .moment-card .moment-word { animation: m-fade 2s linear both !important; }
+  .moment-rope, .moment-arc, .moment-ball, .moment-spark,
+  .stumps-set, .bail { animation: none !important; }
+  .moment-arc, .moment-spark { display: none; }
+}
+@keyframes m-fade {
+  0%, 100% { opacity: 0; }
+  12%, 85% { opacity: 1; }
+}

@@ -15,6 +15,7 @@ import { PlayerPicker } from "@/components/PlayerPicker";
 import { ShotIcon, SHOT_SHAPES } from "@/components/ShotIcon";
 import { ShareScoreboardButton } from "@/components/ShareScoreboardButton";
 import { OverflowMenu } from "@/components/OverflowMenu";
+import { Moments } from "@/components/Moments";
 import {
   BALLS,
   DEFAULT_CONDITIONS,
@@ -204,6 +205,7 @@ export default function ScorerPage({
 
   return (
     <main>
+      <Moments state={st} nameOf={nameOf} />
       <section className="match-head">
         <div className="match-head-sides">
           <span className="match-head-side">{st.home_name}</span>
