@@ -45,15 +45,78 @@ async fn list_conversations(
     ))
 }
 
+/// A group chat bigger than this is a club or team thread by another name.
+const MAX_DIRECT: usize = 50;
+
+/// Two sorts of thread:
+///
+/// - `direct`: you and the people you pick — one person, or a few. Anyone who
+///   shares a club with you, whichever of your clubs that is. Messaging one
+///   person you already have a chat with opens that chat again.
+/// - `club` / `team` / `event`: a club's own thread, for everyone in the club,
+///   one of its teams, or a fixture. You must be in the club, and so must
+///   everyone you add.
+///
+/// Strangers are out either way: without a shared club, nobody can put you in
+/// a chat you did not ask for.
 async fn create_conversation(
     State(state): State<AppState>,
     auth: AuthUser,
-    Json(body): Json<CreateConversationRequest>,
+    Json(mut body): Json<CreateConversationRequest>,
 ) -> ApiResult<Json<Conversation>> {
     body.validate()?;
-    if let Some(club_id) = body.club_id {
-        require_club_member(&state, club_id, auth.user_id).await?;
+    // The creator joins as owner regardless; listing themself changes nothing.
+    body.member_ids.retain(|id| *id != auth.user_id);
+    body.member_ids.sort();
+    body.member_ids.dedup();
+
+    match body.kind.as_deref() {
+        Some("direct") => {
+            if body.member_ids.is_empty() {
+                return Err(ApiError::bad_request("choose who to message"));
+            }
+            if body.member_ids.len() > MAX_DIRECT {
+                return Err(ApiError::bad_request(
+                    "that many people is a club or team thread",
+                ));
+            }
+            if !chat_repo::all_share_a_club(&state.pool, auth.user_id, &body.member_ids).await? {
+                return Err(ApiError::forbidden(
+                    "you can message people who are in one of your clubs",
+                ));
+            }
+            if let [other] = body.member_ids[..] {
+                if let Some(existing) = chat_repo::find_direct(&state.pool, auth.user_id, other).await? {
+                    return Ok(Json(existing));
+                }
+            }
+        }
+        None | Some("club" | "team" | "event") => {
+            let club_id = body
+                .club_id
+                .ok_or_else(|| ApiError::bad_request("a thread belongs to a club"))?;
+            require_club_member(&state, club_id, auth.user_id).await?;
+            if let Some(team_id) = body.team_id {
+                if !chat_repo::team_in_club(&state.pool, team_id, club_id).await? {
+                    return Err(ApiError::bad_request("that team is not in this club"));
+                }
+            }
+            if let Some(event_id) = body.event_id {
+                if !chat_repo::event_in_club(&state.pool, event_id, club_id).await? {
+                    return Err(ApiError::bad_request("that fixture is not this club's"));
+                }
+            }
+            if !body.member_ids.is_empty()
+                && !chat_repo::all_in_club(&state.pool, club_id, &body.member_ids).await?
+            {
+                return Err(ApiError::forbidden(
+                    "everyone in a club's thread has to be in the club",
+                ));
+            }
+        }
+        Some(_) => return Err(ApiError::bad_request("unknown kind of thread")),
     }
+
     Ok(Json(
         chat_repo::create_conversation(&state.pool, auth.user_id, &body).await?,
     ))

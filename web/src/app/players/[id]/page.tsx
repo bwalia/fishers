@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   api,
   getAccessToken,
+  getStoredUser,
   readErr,
   skillLabel,
   type TeammateProfile,
@@ -12,6 +13,7 @@ import {
 import { num, type PlayerSeasonStats } from "@/lib/stats";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
+import { MessageButton } from "@/components/MessageButton";
 
 type Achievement = {
   id: string;
@@ -101,6 +103,11 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
                 <span className="pro-role">{main?.position ?? player.position_role}</span>
               )}
             </div>
+            {player.id !== getStoredUser()?.id && (
+              <div className="pro-actions">
+                <MessageButton userId={player.id} name={player.name} />
+              </div>
+            )}
           </div>
         </div>
       </header>

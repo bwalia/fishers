@@ -9,8 +9,9 @@ use uuid::Uuid;
 const CONVERSATION_COLS: &str =
     "id, club_id, team_id, event_id, kind, title, created_by, created_at, updated_at";
 
-/// Creates the thread and enrols the creator as owner. A club thread with no
-/// explicit member list gets the whole active roster.
+/// Creates the thread and enrols the creator as owner. With no explicit
+/// member list a team thread gets the team and a club thread the whole active
+/// roster. A direct chat belongs to no club: it is between the people in it.
 pub async fn create_conversation(
     pool: &PgPool,
     creator: Uuid,
@@ -26,6 +27,13 @@ pub async fn create_conversation(
         }
     });
 
+    let direct = kind == "direct";
+    let (club_id, team_id, event_id) = if direct {
+        (None, None, None)
+    } else {
+        (req.club_id, req.team_id, req.event_id)
+    };
+
     let mut tx = pool.begin().await?;
 
     let conversation = sqlx::query_as::<_, Conversation>(&format!(
@@ -33,9 +41,9 @@ pub async fn create_conversation(
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING {CONVERSATION_COLS}"
     ))
-    .bind(req.club_id)
-    .bind(req.team_id)
-    .bind(req.event_id)
+    .bind(club_id)
+    .bind(team_id)
+    .bind(event_id)
     .bind(&kind)
     .bind(&req.title)
     .bind(creator)
@@ -53,7 +61,17 @@ pub async fn create_conversation(
     .await?;
 
     if req.member_ids.is_empty() {
-        if let Some(club_id) = req.club_id {
+        if let Some(team_id) = team_id {
+            sqlx::query(
+                "INSERT INTO conversation_members (conversation_id, user_id)
+                 SELECT $1, user_id FROM team_members WHERE team_id = $2
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(conversation.id)
+            .bind(team_id)
+            .execute(&mut *tx)
+            .await?;
+        } else if let Some(club_id) = club_id {
             sqlx::query(
                 "INSERT INTO conversation_members (conversation_id, user_id)
                  SELECT $1, user_id FROM club_members
@@ -79,6 +97,71 @@ pub async fn create_conversation(
 
     tx.commit().await?;
     Ok(conversation)
+}
+
+/// The one-to-one chat between two people, if they already have one — so
+/// "Message" opens it again rather than starting a second.
+pub async fn find_direct(pool: &PgPool, a: Uuid, b: Uuid) -> Result<Option<Conversation>, sqlx::Error> {
+    sqlx::query_as::<_, Conversation>(&format!(
+        "SELECT {CONVERSATION_COLS} FROM conversations c
+         WHERE c.kind = 'direct'
+           AND (SELECT COUNT(*) FROM conversation_members m WHERE m.conversation_id = c.id) = 2
+           AND EXISTS (SELECT 1 FROM conversation_members m WHERE m.conversation_id = c.id AND m.user_id = $1)
+           AND EXISTS (SELECT 1 FROM conversation_members m WHERE m.conversation_id = c.id AND m.user_id = $2)
+         ORDER BY c.updated_at DESC
+         LIMIT 1"
+    ))
+    .bind(a)
+    .bind(b)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Whether every one of `others` shares an active club with `me`: who you
+/// may start a chat with.
+pub async fn all_share_a_club(pool: &PgPool, me: Uuid, others: &[Uuid]) -> Result<bool, sqlx::Error> {
+    let reachable: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT them.user_id)
+         FROM club_members them
+         JOIN club_members mine ON mine.club_id = them.club_id
+                               AND mine.user_id = $1 AND mine.status = 'active'
+         WHERE them.user_id = ANY($2) AND them.status = 'active'",
+    )
+    .bind(me)
+    .bind(others)
+    .fetch_one(pool)
+    .await?;
+    Ok(reachable == others.len() as i64)
+}
+
+/// Whether every one of `users` is an active member of the club.
+pub async fn all_in_club(pool: &PgPool, club_id: Uuid, users: &[Uuid]) -> Result<bool, sqlx::Error> {
+    let found: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT user_id) FROM club_members
+         WHERE club_id = $1 AND user_id = ANY($2) AND status = 'active'",
+    )
+    .bind(club_id)
+    .bind(users)
+    .fetch_one(pool)
+    .await?;
+    Ok(found == users.len() as i64)
+}
+
+/// Whether a team, or a fixture, is the club's own.
+pub async fn team_in_club(pool: &PgPool, team_id: Uuid, club_id: Uuid) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM teams WHERE id = $1 AND club_id = $2)")
+        .bind(team_id)
+        .bind(club_id)
+        .fetch_one(pool)
+        .await
+}
+
+pub async fn event_in_club(pool: &PgPool, event_id: Uuid, club_id: Uuid) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM events WHERE id = $1 AND club_id = $2)")
+        .bind(event_id)
+        .bind(club_id)
+        .fetch_one(pool)
+        .await
 }
 
 pub async fn add_members(
@@ -142,7 +225,18 @@ pub async fn list_for_user(
 ) -> Result<Vec<ConversationSummary>, sqlx::Error> {
     sqlx::query_as::<_, ConversationSummary>(
         r#"
-        SELECT c.id, c.club_id, c.team_id, c.event_id, c.kind, c.title, c.updated_at,
+        SELECT c.id, c.club_id, c.team_id, c.event_id, c.kind,
+               -- A one-to-one chat is called whoever is on the other end,
+               -- which is a different name for each of the two.
+               CASE WHEN c.kind = 'direct'
+                         AND (SELECT COUNT(*) FROM conversation_members x
+                              WHERE x.conversation_id = c.id) = 2
+                    THEN COALESCE((SELECT u.name FROM conversation_members x
+                                   JOIN users u ON u.id = x.user_id
+                                   WHERE x.conversation_id = c.id AND x.user_id <> $1), c.title)
+                    ELSE c.title
+               END AS title,
+               c.updated_at,
                last.body AS last_message_body,
                last.created_at AS last_message_at,
                COALESCE((
@@ -285,6 +379,8 @@ pub async fn conversation_for_announcement(
         r#"
         SELECT id FROM conversations
         WHERE club_id = $1
+          -- Never somebody's private chat, nor a team's corner of the club.
+          AND kind IN ('club', 'event')
         ORDER BY (event_id IS NOT DISTINCT FROM $2) DESC, updated_at DESC
         LIMIT 1
         "#,

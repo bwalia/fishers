@@ -188,9 +188,13 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
           <Icon name="arrowLeft" size={14} /> Chats
         </Link>
         <h1>{thread?.title ?? "Thread"}</h1>
-        <button className="btn ghost sm" type="button" disabled={thinking} onClick={analyse}>
-          <Icon name="sparkle" size={14} /> {thinking ? "Reading…" : "Ask the assistant"}
-        </button>
+        {/* It works for a club, on the club's threads — and has no business
+            reading a private chat. */}
+        {thread && thread.kind !== "direct" && (
+          <button className="btn ghost sm" type="button" disabled={thinking} onClick={analyse}>
+            <Icon name="sparkle" size={14} /> {thinking ? "Reading…" : "Ask the assistant"}
+          </button>
+        )}
       </header>
 
       {error && <p className="error">{error}</p>}
@@ -273,7 +277,15 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Message the club"
+          placeholder={
+            thread?.kind === "direct"
+              ? `Message ${thread.title}`
+              : thread?.kind === "team"
+                ? "Message the team"
+                : thread?.kind === "event"
+                  ? "Message everyone in this fixture"
+                  : "Message the club"
+          }
           aria-label="Message"
           maxLength={4000}
         />

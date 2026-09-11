@@ -25,6 +25,7 @@ import {
   type Team,
 } from "@/lib/api";
 import { AddByLink } from "@/components/AddByLink";
+import { MessageButton } from "@/components/MessageButton";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { QrCard } from "@/components/QrCard";
@@ -226,11 +227,14 @@ function Members({
               return (
                 <tr key={m.user_id}>
                   <td>
-                    <Link className="person" href={`/players/${m.user_id}`}>
-                      <Avatar name={m.name} url={m.avatar_url} size={30} />
-                      {m.name}
-                      {m.user_id === meId && <span className="tag grey">you</span>}
-                    </Link>
+                    <div className="member-cell">
+                      <Link className="person" href={`/players/${m.user_id}`}>
+                        <Avatar name={m.name} url={m.avatar_url} size={30} />
+                        {m.name}
+                        {m.user_id === meId && <span className="tag grey">you</span>}
+                      </Link>
+                      {m.user_id !== meId && <MessageButton userId={m.user_id} name={m.name} compact />}
+                    </div>
                   </td>
                   <td className="subtle">{m.email || m.phone || "—"}</td>
                   <td>

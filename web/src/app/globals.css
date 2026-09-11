@@ -4578,3 +4578,30 @@ a.bell-item:hover { background: var(--surface-2); }
   0%, 100% { opacity: 0; }
   12%, 85% { opacity: 1; }
 }
+
+/* ---- New chat ---- */
+.new-chat-modes { margin-top: var(--s2); }
+.new-chat-modes button { display: inline-flex; align-items: center; gap: var(--s1); }
+.new-chat-clubs { margin: var(--s3) 0 0; }
+.new-chat-people > li.muted { padding: var(--s3); }
+.new-chat-where { display: block; font-weight: 400; font-size: 0.8125rem; }
+/* The action stays in reach at the bottom of the sheet, however long the list. */
+.new-chat-go {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: var(--s3);
+  padding-top: var(--s3);
+  background: var(--surface);
+}
+.new-chat-go .btn { width: 100%; }
+.new-chat-club { margin-top: var(--s3); }
+.new-chat-club .chip,
+.new-chat-clubs .chip { text-transform: none; }
+.new-chat-empty { display: grid; gap: var(--s3); justify-items: start; margin-top: var(--s3); }
+
+/* A member's name and a way to message them, on one line. */
+.member-cell { display: flex; align-items: center; gap: var(--s2); }
+.member-cell .person { flex: 1; min-width: 0; }
+.btn.icon-only { min-width: 40px; min-height: 40px; padding: 0; justify-content: center; }
+.pro-actions { margin-top: var(--s3); display: flex; gap: var(--s2); flex-wrap: wrap; }
