@@ -12,6 +12,13 @@
 # silently breaks every push subscription already handed out. Rotate those on
 # purpose, in the vault, not by re-running this.
 #
+#   scripts/vault-seed-ring.sh <ring> --rotate-vapid
+#
+# replaces the VAPID pair — for a ring seeded before September 2026, when
+# vapid-keys.sh produced a private key that did not match its public one, so
+# every push was refused and every subscription dropped. Those subscriptions
+# are already dead; browsers make fresh ones against the new key on their own.
+#
 # Generated here: JWT_SECRET, S3_ACCESS_KEY, S3_SECRET_KEY, VAPID_PUBLIC_KEY,
 # VAPID_PRIVATE_KEY. Add the rest in the vault by hand when a ring needs them —
 # STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ANTHROPIC_API_KEY — and they reach
@@ -25,7 +32,9 @@
 set -euo pipefail
 
 RING="${1:-}"
-case "$RING" in int|test|acc|prod) ;; *) echo "usage: $0 <int|test|acc|prod>" >&2; exit 2 ;; esac
+case "$RING" in int|test|acc|prod) ;; *) echo "usage: $0 <int|test|acc|prod> [--rotate-vapid]" >&2; exit 2 ;; esac
+ROTATE_VAPID=false
+[ "${2:-}" = "--rotate-vapid" ] && ROTATE_VAPID=true
 
 VAULT_ADDR="${VAULT_ADDR:-https://vault.workstation.co.uk}"
 PATH_KV="fishers/$RING/config"
@@ -50,6 +59,10 @@ case "$code" in
   *)   echo "reading kv/$PATH_KV failed: HTTP $code" >&2; cat /tmp/vault-seed.$$ >&2; rm -f /tmp/vault-seed.$$; exit 1 ;;
 esac
 rm -f /tmp/vault-seed.$$
+
+if $ROTATE_VAPID; then
+  current=$(jq -c 'del(.VAPID_PRIVATE_KEY, .VAPID_PUBLIC_KEY)' <<<"$current")
+fi
 
 has() { jq -e --arg k "$1" 'has($k) and (.[$k] | length > 0)' <<<"$current" >/dev/null; }
 

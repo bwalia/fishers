@@ -63,6 +63,8 @@ async fn create_invite(
                     "inviter": inviter,
                     // Where a tap on the push lands: the dashboard lists it to accept.
                     "url": "/",
+                    // Its own, so two invites both stay on the lock screen.
+                    "tag": format!("invite:{}", invite.id),
                 }),
             )
             .await;
@@ -231,6 +233,7 @@ async fn accept_invite(
                     "event_title": what.event,
                     "club_id": club_id,
                     "url": club_id.map(|c| format!("/clubs/{c}#members")),
+                    "tag": format!("accepted:{}", invite.id),
                 }),
             )
             .await;

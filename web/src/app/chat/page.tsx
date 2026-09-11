@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { PushPrompt } from "@/components/PushPrompt";
 import { subscribeLive } from "@/lib/live";
 import { api, getAccessToken, readErr, type Club } from "@/lib/api";
 import { chatTime, CONVERSATION_KIND, type ConversationSummary } from "@/lib/chat";
@@ -62,6 +63,7 @@ export default function ChatListPage() {
       </section>
 
       {error && <p className="error">{error}</p>}
+      {!error && !loading && <PushPrompt context="new messages from your clubs" />}
 
       {loading && <div className="skeleton" style={{ height: 200 }} />}
 

@@ -15,4 +15,4 @@ resources:
     memory: 512Mi
 
 config:
-  rustLog: "fishers_api=debug,tower_http=warn,sqlx=warn"
+  rustLog: "fishers_api=debug,fishers_notifications=info,fishers_jobs=info,tower_http=warn,sqlx=warn"

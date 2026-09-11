@@ -108,7 +108,10 @@ async fn post_message(
                 "chat_message",
                 &sender_name,
                 &body.body,
-                json!({ "conversation_id": id, "message_id": message.id }),
+                // `url` is where a tap on the notification lands. Without it
+                // the service worker fell back to /notifications — a chat
+                // push that opened a page with no chat on it.
+                json!({ "conversation_id": id, "message_id": message.id, "url": format!("/chat/{id}") }),
             )
             .await
         {

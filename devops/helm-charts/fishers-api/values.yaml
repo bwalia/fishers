@@ -92,7 +92,7 @@ config:
 
   jwtAccessTtlSecs: 900
   jwtRefreshTtlSecs: 2592000
-  rustLog: "fishers_api=info,tower_http=warn,sqlx=warn"
+  rustLog: "fishers_api=info,fishers_notifications=info,fishers_jobs=info,tower_http=warn,sqlx=warn"
   dlsG50: 245
   # Optional integrations. Empty means unset — the API treats an empty
   # DLS_RESOURCE_TABLE as "use the built-in table". Credentials for the rest
