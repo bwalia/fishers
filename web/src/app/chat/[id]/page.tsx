@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { api, getAccessToken, getStoredUser, readErr } from "@/lib/api";
 import { subscribeLive } from "@/lib/live";
+import { refreshInbox } from "@/lib/inbox";
 import {
   byDay,
   chatTime,
@@ -87,14 +88,14 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
     load();
     // Marking read is fire-and-forget: failing to clear a badge is not worth
     // an error in front of somebody who is reading the thread anyway.
-    api("POST", `/conversations/${id}/read`, {}).catch(() => {});
+    api("POST", `/conversations/${id}/read`, {}).then(refreshInbox, () => {});
     const timer = window.setInterval(load, POLL_MS);
     // Live: a message in this thread refetches it (the event carries ids,
     // never content) and marks it read, since it is on screen.
     const stop = subscribeLive((e) => {
       if (e.type === "resync" || (e.type === "message" && e.conversation_id === id)) {
         load();
-        if (e.type === "message") api("POST", `/conversations/${id}/read`, {}).catch(() => {});
+        if (e.type === "message") api("POST", `/conversations/${id}/read`, {}).then(refreshInbox, () => {});
       }
     });
     return () => {

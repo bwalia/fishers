@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/Icon";
+import { ChatBadge } from "@/components/ChatBadge";
 
 /// The four places somebody goes on a phone, and everything else behind More.
 ///
@@ -75,6 +76,7 @@ export function MobileNav() {
           >
             <Icon name={l.icon} size={22} />
             {l.label}
+            {l.href === "/chat" && <ChatBadge />}
           </Link>
         ))}
         <button

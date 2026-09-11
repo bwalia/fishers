@@ -4269,3 +4269,100 @@ a.bell-item:hover { background: var(--surface-2); }
 /* Team names exactly as the club wrote them — "under-13s", not "Under-13s". */
 .add-to .chip { text-transform: none; }
 .add-to-note { margin: var(--s2) 0 0; }
+
+/* ---- Unread count on the Chats item ---- */
+.nav-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--live);
+}
+/* In the tab bar the label sits under the icon; the count rides the icon. */
+.tabbar a { position: relative; }
+.tabbar .nav-badge {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 6px);
+  margin: 0;
+}
+
+/* ---- Alerts: something happened while you were elsewhere ---- */
+.live-alerts {
+  position: fixed;
+  top: 76px;
+  right: var(--s4);
+  z-index: calc(var(--z-modal) - 1);
+  display: grid;
+  gap: var(--s2);
+  width: min(360px, calc(100vw - 2 * var(--s3)));
+}
+.live-alert {
+  display: flex;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+  animation: alert-in 0.24s var(--ease);
+}
+.live-alert-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--s3);
+  padding: var(--s3);
+  text-align: left;
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.live-alert-open:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--radius); }
+.live-alert-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--primary-ink);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.live-alert-text { display: grid; gap: 2px; min-width: 0; }
+.live-alert-text strong { font-size: 0.9rem; }
+.live-alert-text span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--fg-muted);
+}
+.live-alert-close {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin: var(--s1);
+  border: 0;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--fg-subtle);
+  background: none;
+  cursor: pointer;
+}
+.live-alert-close:hover { color: var(--fg); background: var(--surface-2); }
+@keyframes alert-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1023px) {
+  .live-alerts { top: 68px; left: 50%; right: auto; transform: translateX(-50%); }
+}
