@@ -210,7 +210,7 @@ async fn revoke_share(
 /// then linkifies the lot into one address. Those links are already out in the
 /// world and cannot be recalled, so the trailing rubbish is dropped here
 /// rather than handing somebody a 404 on a match that is being played.
-fn clean_token(raw: &str) -> String {
+pub(crate) fn clean_token(raw: &str) -> String {
     raw.chars()
         .take_while(|c| c.is_ascii_hexdigit())
         .collect()

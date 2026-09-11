@@ -35,6 +35,13 @@ pub enum LiveEvent {
         #[serde(default)]
         left: bool,
     },
+    /// Anything about a match changed. `seq` is its event-log position, so a
+    /// browser already showing that ball can skip the refetch.
+    Match {
+        id: Uuid,
+        #[serde(default)]
+        seq: i64,
+    },
     /// Events may have been missed — the LISTEN connection dropped, or a slow
     /// browser fell behind the channel. Clients answer with a full reload.
     #[serde(skip)]
@@ -127,5 +134,11 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(left, LiveEvent::Member { left: true, .. }));
+
+        let ball: LiveEvent = serde_json::from_str(
+            r#"{"kind" : "match", "id" : "d439bcac-7ec8-4102-9048-6c449180dfac", "seq" : 42}"#,
+        )
+        .unwrap();
+        assert!(matches!(ball, LiveEvent::Match { seq: 42, .. }));
     }
 }

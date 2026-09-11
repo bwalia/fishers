@@ -688,6 +688,16 @@ async fn sides_for(
 /// Checking only the home club locked the visiting captain out of the fixture
 /// they are playing in — they could not open it, so they could not agree the
 /// terms they were being asked to agree.
+/// Whether somebody may watch this match — exactly the rule `get_match`
+/// enforces, so the live stream can never tell anyone about a match they could
+/// not open.
+pub(crate) async fn may_watch(state: &AppState, match_id: Uuid, user_id: Uuid) -> bool {
+    match cricket_repo::get_match(&state.pool, match_id).await {
+        Ok(Some(row)) => require_either_side(state, &row, user_id).await.is_ok(),
+        _ => false,
+    }
+}
+
 async fn require_either_side(
     state: &AppState,
     row: &cricket_repo::CricketMatchRow,

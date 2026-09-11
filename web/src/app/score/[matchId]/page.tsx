@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getAccessToken, getStoredUser, readErr, roleLabel, type ClubMemberRow } from "@/lib/api";
 import { randomUUID } from "@/lib/uuid";
+import { subscribeLive } from "@/lib/live";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
 import { Icon } from "@/components/Icon";
@@ -81,7 +82,12 @@ export default function ScorerPage({
 
   const load = useCallback(async () => {
     try {
-      setMatch(await api<MatchResponse>("GET", `/cricket/matches/${matchId}`));
+      const next = await api<MatchResponse>("GET", `/cricket/matches/${matchId}`);
+      // Never step backwards. A refetch started before the scorer's latest
+      // ball can land after it; an older state would briefly undo that ball
+      // on screen. Equal is accepted — a handover changes the match without
+      // adding a ball.
+      setMatch((cur) => (cur && next.last_seq < cur.last_seq ? cur : next));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the match");
     }
@@ -93,7 +99,19 @@ export default function ScorerPage({
       return;
     }
     load();
-  }, [load]);
+    // Live: every ball, the toss, a handover or the result arrives the moment
+    // it is recorded — for everyone watching, players included. The event only
+    // says the match changed; the refetch goes through the normal endpoint.
+    const stop = subscribeLive((e) => {
+      if (e.type === "resync" || (e.type === "match" && e.id === matchId)) load();
+    });
+    // A safety net for when the live stream is down, not the mechanism.
+    const timer = window.setInterval(load, 30_000);
+    return () => {
+      stop();
+      window.clearInterval(timer);
+    };
+  }, [load, matchId]);
 
   /// Every action is one event appended to the log. The server replays the log,
   /// applies the Laws and hands back the new state — the browser never decides
