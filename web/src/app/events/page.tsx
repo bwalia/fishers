@@ -475,6 +475,7 @@ function ScheduleMatch({
       <fieldset className="setup-group">
         <legend>The opposition</legend>
         <OppositionPicker
+          homeClubId={clubId}
           onPick={(found, name) => {
             setOpponent(found);
             setOppositionName(name);

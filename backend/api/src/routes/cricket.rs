@@ -169,14 +169,27 @@ async fn create_or_get_match(
     if !(1..=100).contains(&body.overs_limit) {
         return Err(ApiError::bad_request("overs must be between 1 and 100"));
     }
+    // Scheduled fixtures already say who they are against; only a match
+    // arranged in the car park has to name the opposition here.
+    let opponent = body.opponent_club_id.or(event.opponent_club_id);
+    // A club against itself is two of its own teams playing each other — so
+    // it takes a club with two teams, and two different sides.
+    if opponent == Some(event.club_id) {
+        if clubs_repo::list_teams(&state.pool, event.club_id).await?.len() < 2 {
+            return Err(ApiError::bad_request(
+                "a club can't play itself — it needs two teams to play each other",
+            ));
+        }
+        if body.home_name.trim().eq_ignore_ascii_case(body.away_name.trim()) {
+            return Err(ApiError::bad_request("pick two different teams to play each other"));
+        }
+    }
     let row = cricket_repo::create_match(
         &state.pool,
         body.match_id,
         event_id,
         event.club_id,
-        // Scheduled fixtures already say who they are against; only a match
-        // arranged in the car park has to name the opposition here.
-        body.opponent_club_id.or(event.opponent_club_id),
+        opponent,
         auth.user_id,
         &body.home_name,
         &body.away_name,

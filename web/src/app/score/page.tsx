@@ -381,6 +381,22 @@ function MatchSetupSheet({
     })();
   }, [clubId, clubs]);
 
+  // Switching which club you play for can make the chosen opposition your own.
+  useEffect(() => {
+    setOpponent((o) => (o && o.club_id === clubId && o.kind !== "team" ? null : o));
+  }, [clubId]);
+
+  // Your own club as the opposition means two of its teams: your side has to
+  // be one of them, and not the same one.
+  const internal = !!opponent && opponent.club_id === clubId;
+  const sameSides = !internal
+    ? null
+    : !teams.some((t) => t.name === homeName)
+      ? "For a match between your teams, pick which team is your side."
+      : homeName.trim().toLowerCase() === awayName.trim().toLowerCase()
+        ? "Your side and the opposition are the same team — pick two different teams."
+        : null;
+
   return (
     <div className="sheet-backdrop" role="presentation" onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
@@ -447,7 +463,31 @@ function MatchSetupSheet({
         </label>
 
         <h3 className="section-head">The opposition</h3>
+        {/* Two of your own teams can play each other — a trial, the 1s
+            against the 2s. Only then is your own club the opposition. */}
+        {teams.length >= 2 && (
+          <div className="internal-match">
+            <span className="subtle">Between your teams:</span>
+            {teams
+              .filter((t) => t.name !== homeName)
+              .map((t) => (
+                <button
+                  key={t.id}
+                  className={opponent?.id === t.id ? "btn sm primary" : "btn sm"}
+                  type="button"
+                  onClick={() => {
+                    setOpponent({ id: t.id, name: t.name, qr_token: "", kind: "team", club_id: clubId, club_name: clubName });
+                    setAwayName(t.name);
+                  }}
+                >
+                  {t.name}
+                </button>
+              ))}
+          </div>
+        )}
         <OppositionPicker
+          homeClubId={clubId}
+          ownTeamsAllowed={teams.length >= 2}
           onPick={(identity, name) => {
             setOpponent(identity);
             setAwayName(name);
@@ -465,19 +505,25 @@ function MatchSetupSheet({
             placeholder="Whoever you are playing"
           />
         </label>
-        {opponent && (
+        {opponent && !internal && (
           <p className="muted">
             <Icon name="check" size={14} /> Matched to {opponent.club_name} in Fishers — their
             captain can name their own eleven.
           </p>
         )}
+        {internal && !sameSides && (
+          <p className="muted">
+            <Icon name="check" size={14} /> A match between two {clubName} teams: {homeName} v {awayName}.
+          </p>
+        )}
+        {sameSides && <p className="error">{sameSides}</p>}
 
         <div className="sheet-actions">
           <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
           <button
             className="btn primary"
             type="button"
-            disabled={busy || !homeName.trim() || !awayName.trim()}
+            disabled={busy || !homeName.trim() || !awayName.trim() || !!sameSides}
             onClick={() => onStart({ homeName, awayName, opponent, clubId, kind })}
           >
             {busy ? "Starting…" : "Start match"}

@@ -4923,3 +4923,6 @@ button.fx-stat:focus-visible { outline: 2px solid var(--ring); outline-offset: 2
 .auth-or::before,
 .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 .auth-card > .auth-role { margin: 0 0 var(--s4); }
+
+/* ---- Match setup: two of your own teams ---- */
+.internal-match { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
