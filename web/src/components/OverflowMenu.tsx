@@ -12,9 +12,15 @@ import { Icon } from "@/components/Icon";
 export function OverflowMenu({
   label = "More",
   children,
+  showLabel = false,
+  className = "",
 }: {
   label?: string;
   children: React.ReactNode;
+  /// Print the label beside the icon — in the top bar, where every other item
+  /// has words and an unlabelled "⋯" would be the one nobody finds.
+  showLabel?: boolean;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -34,7 +40,7 @@ export function OverflowMenu({
   }, [open]);
 
   return (
-    <div className="overflow" ref={box}>
+    <div className={`overflow ${className}`.trim()} ref={box}>
       <button
         type="button"
         className="overflow-button"
@@ -44,6 +50,7 @@ export function OverflowMenu({
         onClick={() => setOpen((o) => !o)}
       >
         <Icon name="more" size={20} />
+        {showLabel && <span>{label}</span>}
       </button>
       {open && (
         // Closes on any click inside: every item here either navigates or

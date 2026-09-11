@@ -49,6 +49,31 @@ export type PublicUser = {
   sport_profiles?: SportProfile[];
   location?: PlayerLocation | null;
   profile_complete?: boolean;
+  email_verified?: boolean;
+  phone_verified?: boolean;
+  /// What they said they came to do; absent until they have been asked.
+  role_intent?: RoleIntent | null;
+};
+
+export type RoleIntent = "secretary" | "player";
+
+/// `GET /me/verification`.
+export type VerificationStatus = {
+  email: { address?: string | null; verified: boolean; available: boolean };
+  phone: { address?: string | null; verified: boolean; available: boolean };
+  /// Starting a club or accepting an invite is refused until one is verified.
+  verification_required: boolean;
+};
+
+/// A player's card, as a secretary sees it from a shared link. No contact
+/// details — those come with membership, which the player still accepts.
+export type SharedPlayerCard = {
+  id: string;
+  name: string;
+  avatar_url?: string | null;
+  primary_sport?: string | null;
+  sport_profiles?: SportProfile[];
+  area?: string | null;
 };
 
 /// One sport a player plays, with whatever that sport measures.
@@ -341,6 +366,16 @@ export async function upload<T>(path: string, file: File): Promise<T> {
 ///
 /// The API answers a refusal as `{"error": "..."}`, written to be read. Showing
 /// the raw body instead hands them the plumbing.
+/// The stable reason behind a refusal, where the API gives one — "unverified"
+/// means send them to verify, not to an error message.
+export function errCode(err: unknown): string | undefined {
+  try {
+    return JSON.parse(err instanceof Error ? err.message : "").code;
+  } catch {
+    return undefined;
+  }
+}
+
 export function readErr(err: unknown, fallback: string): string {
   const raw = err instanceof Error ? err.message : "";
   try {
@@ -651,6 +686,9 @@ export type Invite = {
   token: string;
   status: string;
   created_at: string;
+  /// The club, "team · club", or fixture — present on your own invites.
+  target_name?: string | null;
+  invited_by_name?: string | null;
 };
 
 /// What somebody is allowed to do in the club — an office, not a job that

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { clearSession, getStoredUser, type PublicUser } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
 import { NotificationBell } from "@/components/NotificationBell";
+import { OverflowMenu } from "@/components/OverflowMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const links: { href: string; label: string; icon: IconName }[] = [
@@ -21,6 +22,12 @@ const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/profile", label: "Profile", icon: "book" },
 ];
 
+/// The row needs ~1034px. Below that the last of these went off the end — at
+/// 1366 Profile, at 1280 Clubs too, on an iPad half the bar — reachable only
+/// by a sideways scroll nobody knew was there. Under 1440 they move into More;
+/// the first five, the everyday ones, always stay in the bar.
+const PRIMARY = 5;
+
 export function ShellNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -29,6 +36,8 @@ export function ShellNav() {
   useEffect(() => {
     setUser(getStoredUser());
   }, [pathname]);
+
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   // A public board or a club's own page is not the app: somebody arrives
   // there from a search result or a shared link, and the club chrome would
@@ -47,13 +56,14 @@ export function ShellNav() {
         Fishers
       </Link>
       <nav className="nav" aria-label="Main">
-        {links.map((l) => {
-          const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+        {links.map((l, i) => {
+          const active = isActive(l.href);
+          const cls = [active && "active", i >= PRIMARY && "nav-extra"].filter(Boolean).join(" ");
           return (
             <Link
               key={l.href}
               href={l.href}
-              className={active ? "active" : undefined}
+              className={cls || undefined}
               aria-current={active ? "page" : undefined}
             >
               <Icon name={l.icon} size={16} />
@@ -62,6 +72,27 @@ export function ShellNav() {
           );
         })}
       </nav>
+
+      {/* Outside .nav for the same reason as the bell below: .nav scrolls,
+          and a scrolling ancestor would clip the menu. */}
+      <OverflowMenu
+        label="More"
+        showLabel
+        className={`nav-more${links.slice(PRIMARY).some((l) => isActive(l.href)) ? " active" : ""}`}
+      >
+        {links.slice(PRIMARY).map((l) => (
+          <Link
+            key={l.href}
+            href={l.href}
+            role="menuitem"
+            className="overflow-item"
+            aria-current={isActive(l.href) ? "page" : undefined}
+          >
+            <Icon name={l.icon} size={16} />
+            {l.label}
+          </Link>
+        ))}
+      </OverflowMenu>
 
       {/* Outside the nav on purpose. `.nav` scrolls sideways on a narrow
           screen, and an ancestor that scrolls clips an absolutely-positioned

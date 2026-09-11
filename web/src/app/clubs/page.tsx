@@ -2,9 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, roleLabel, SPORTS, type Club } from "@/lib/api";
+import {
+  api,
+  errCode,
+  getAccessToken,
+  readErr,
+  roleLabel,
+  SPORTS,
+  type Club,
+  type VerificationStatus,
+} from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { PendingInvites } from "@/components/PendingInvites";
+import { VerifyContact } from "@/components/VerifyContact";
 
 /// `GET /clubs` returns each club with the role you hold in it.
 type Membership = Club & { role: string };
@@ -13,7 +23,12 @@ export default function ClubsPage() {
   const [clubs, setClubs] = useState<Membership[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // The getting-started guide links here as ?new=1: land with the form open,
+  // not on a page that asks them to press "Start a club" a second time.
   const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") setCreating(true);
+  }, []);
 
   const load = async () => {
     try {
@@ -102,6 +117,9 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: ()
   const [visibility, setVisibility] = useState("invite_only");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the server refuses because the account is not confirmed yet: the
+  // code goes in right here, then the same club is created without retyping.
+  const [verify, setVerify] = useState<VerificationStatus | null>(null);
 
   const toggle = (sport: string) =>
     setSports((current) =>
@@ -120,12 +138,10 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: ()
       });
       onCreated();
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "";
-      try {
-        setError(JSON.parse(raw).error ?? "Could not create the club");
-      } catch {
-        setError(raw || "Could not create the club");
+      if (errCode(err) === "unverified") {
+        setVerify(await api<VerificationStatus>("GET", "/me/verification").catch(() => null));
       }
+      setError(readErr(err, "Could not create the club"));
     } finally {
       setBusy(false);
     }
@@ -180,12 +196,29 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: ()
         />
       </label>
 
-      {error && <p className="error">{error}</p>}
+      {verify ? (
+        <div className="verify-gate">
+          <p className="verify-gate-title">
+            <Icon name="shield" size={16} /> One thing first — confirm it&apos;s you
+          </p>
+          <VerifyContact
+            status={verify}
+            compact
+            onVerified={() => {
+              setVerify(null);
+              setError(null);
+              submit(); // the club they already filled in
+            }}
+          />
+        </div>
+      ) : (
+        error && <p className="error">{error}</p>
+      )}
 
       <button
         className="btn primary"
         type="button"
-        disabled={busy || name.trim().length < 2 || sports.length === 0}
+        disabled={busy || !!verify || name.trim().length < 2 || sports.length === 0}
         onClick={submit}
       >
         {busy ? "Creating…" : "Create club"}
