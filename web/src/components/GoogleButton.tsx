@@ -69,9 +69,21 @@ export function GoogleButton({
   latest.current = { role, onSignedIn };
 
   useEffect(() => {
-    api<Config>("GET", "/auth/google", undefined, false)
-      .then((c) => setClientId(c.enabled ? c.client_id : null))
-      .catch(() => setClientId(null));
+    // An API that is restarting (a deploy, a local rebuild) cannot answer yet;
+    // asking once would leave the button missing until somebody reloads.
+    let gone = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const ask = (tries: number) =>
+      api<Config>("GET", "/auth/google", undefined, false)
+        .then((c) => !gone && setClientId(c.enabled ? c.client_id : null))
+        .catch(() => {
+          if (!gone && tries > 1) timer = setTimeout(() => ask(tries - 1), 3000);
+        });
+    ask(10);
+    return () => {
+      gone = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
