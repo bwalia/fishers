@@ -4,7 +4,7 @@ hostname: test.fishers.cloud
 replicaCount: 1
 
 image:
-  repository: nebulacr.workstation.co.uk/fishers/fishers-web
+  repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-web
   tag: latest
 
 resources:

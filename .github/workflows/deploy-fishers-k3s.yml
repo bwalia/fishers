@@ -100,7 +100,9 @@ jobs:
           case "${{ inputs.registry_provider || 'NEBULACR' }}" in
             GHCR) echo "registry=ghcr.io" >> "$GITHUB_OUTPUT"
                   echo "ns=ghcr.io/${{ github.repository_owner }}" >> "$GITHUB_OUTPUT" ;;
-            *)    REG="${{ secrets.NEBULACR_REGISTRY || 'nebulacr.workstation.co.uk' }}"
+            # See build-images.yml: the NEBULACR_* secrets hold spectoncr
+            # credentials, and this must stay the host CI pushed to.
+            *)    REG="${{ secrets.NEBULACR_REGISTRY || 'int-spectoncr.diytaxreturn.co.uk' }}"
                   echo "registry=$REG"       >> "$GITHUB_OUTPUT"
                   echo "ns=$REG/fishers"     >> "$GITHUB_OUTPUT" ;;
           esac
