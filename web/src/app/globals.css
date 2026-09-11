@@ -4605,3 +4605,9 @@ a.bell-item:hover { background: var(--surface-2); }
 .member-cell .person { flex: 1; min-width: 0; }
 .btn.icon-only { min-width: 40px; min-height: 40px; padding: 0; justify-content: center; }
 .pro-actions { margin-top: var(--s3); display: flex; gap: var(--s2); flex-wrap: wrap; }
+
+@media (max-width: 1023px) {
+  /* Above the tab bar, not under it: the thread ends clear of the bar and
+     the page itself never scrolls. */
+  .thread { height: calc(100dvh - 160px - env(safe-area-inset-bottom, 0px)); }
+}
