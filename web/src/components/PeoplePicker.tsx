@@ -3,7 +3,12 @@
 import { useMemo, useState } from "react";
 
 export type Person = { id: string; name: string; note?: string };
-export type PeopleTab = { label: string; people: Person[] };
+export type PeopleTab = {
+  label: string;
+  people: Person[];
+  /// Said in the tab when it has nobody — why, not just that.
+  emptyText?: string;
+};
 
 /// Pick one person, from tabbed lists.
 ///
@@ -17,6 +22,7 @@ export function PeoplePicker({
   onChoose,
   searchFrom = 8,
   empty = "Nobody to choose from yet.",
+  keepTabs = false,
 }: {
   tabs: PeopleTab[];
   chosen: string | null;
@@ -25,9 +31,14 @@ export function PeoplePicker({
   /// read past.
   searchFrom?: number;
   empty?: string;
+  /// Show every tab even when it is empty. Two teams are the frame people
+  /// think in: with one team's tab hidden, a single list reads as everybody
+  /// mixed together, and nothing says where the other side went.
+  keepTabs?: boolean;
 }) {
-  const shown = tabs.filter((t) => t.people.length > 0);
-  const [active, setActive] = useState(0);
+  const shown = keepTabs ? tabs : tabs.filter((t) => t.people.length > 0);
+  // Open on the first tab that has somebody in it.
+  const [active, setActive] = useState(() => Math.max(0, shown.findIndex((t) => t.people.length > 0)));
   const [filter, setFilter] = useState("");
 
   // A tab can empty out under you — somebody appointed, a squad reloaded.
@@ -40,11 +51,11 @@ export function PeoplePicker({
     return term ? tab.people.filter((p) => p.name.toLowerCase().includes(term)) : tab.people;
   }, [tab, filter]);
 
-  if (shown.length === 0) return <p className="muted">{empty}</p>;
+  if (shown.every((t) => t.people.length === 0) && !keepTabs) return <p className="muted">{empty}</p>;
 
   return (
     <div className="people-picker">
-      {shown.length > 1 && (
+      {(shown.length > 1 || keepTabs) && (
         <div className="people-tabs" role="tablist" aria-label="Which team">
           {shown.map((t, i) => (
             <button
@@ -95,7 +106,12 @@ export function PeoplePicker({
         ))}
       </ul>
 
-      {people.length === 0 && <p className="muted">Nobody by that name in {tab?.label}.</p>}
+      {tab && tab.people.length === 0 && (
+        <p className="muted people-empty">{tab.emptyText ?? `Nobody in ${tab.label}.`}</p>
+      )}
+      {tab && tab.people.length > 0 && people.length === 0 && (
+        <p className="muted">Nobody by that name in {tab.label}.</p>
+      )}
     </div>
   );
 }
