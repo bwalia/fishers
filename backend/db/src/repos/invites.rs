@@ -37,11 +37,19 @@ pub async fn create_invite(
 pub async fn list_my_invites(pool: &PgPool, user_id: Uuid) -> Result<Vec<Invite>, sqlx::Error> {
     sqlx::query_as::<_, Invite>(
         r#"
-        SELECT id, target_type, target_id, invited_user_id, invited_email,
-               invited_by, token, status, created_at, accepted_at
-        FROM invites
-        WHERE invited_user_id = $1 OR invited_email = (SELECT email FROM users WHERE id = $1)
-        ORDER BY created_at DESC
+        SELECT i.id, i.target_type, i.target_id, i.invited_user_id, i.invited_email,
+               i.invited_by, i.token, i.status, i.created_at, i.accepted_at,
+               CASE i.target_type
+                   WHEN 'club' THEN (SELECT name FROM clubs WHERE id = i.target_id)
+                   WHEN 'team' THEN (SELECT t.name || ' · ' || c.name
+                                     FROM teams t JOIN clubs c ON c.id = t.club_id
+                                     WHERE t.id = i.target_id)
+                   WHEN 'event' THEN (SELECT title FROM events WHERE id = i.target_id)
+               END AS target_name,
+               (SELECT name FROM users WHERE id = i.invited_by) AS invited_by_name
+        FROM invites i
+        WHERE i.invited_user_id = $1 OR i.invited_email = (SELECT email FROM users WHERE id = $1)
+        ORDER BY i.created_at DESC
         "#,
     )
     .bind(user_id)

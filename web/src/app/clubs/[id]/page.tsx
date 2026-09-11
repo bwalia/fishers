@@ -173,7 +173,7 @@ function Members({
   };
 
   return (
-    <div className="panel">
+    <div className="panel" id="members">
       <div className="panel-head">
         <h2>Members</h2>
         <span className="tag grey">{members.length}</span>
@@ -393,7 +393,7 @@ function Teams({
   };
 
   return (
-    <div className="panel">
+    <div className="panel" id="teams">
       <div className="panel-head">
         <h2>Teams</h2>
         <span className="tag grey">{teams.length}</span>

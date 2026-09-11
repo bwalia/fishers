@@ -109,17 +109,21 @@
 
 /* The same room after dark. Surfaces are mixed from the sage hue rather than
    neutral grey, so the palette still reads as itself. */
+/* Dark text greys sit well above WCAG AA, and still read as dull: light text
+   on a dark ground optically thins out, and a desaturated grey at small sizes
+   loses to it. So these are lifted for presence, not just for the threshold —
+   muted text is 11.0:1 on a panel, subtle 7.9:1 (from 8.6 and 5.8). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #111712;
     --surface: #171d17;
     --surface-2: #1c231c;
     --surface-3: #242c24;
-    --fg: #eef2ea;
-    --fg-muted: #adbcab;
-    --fg-subtle: #8b9a89;
-    --border: #2a332a;
-    --border-strong: #3c483c;
+    --fg: #f3f6f0;
+    --fg-muted: #c8d2c6;
+    --fg-subtle: #a7b4a5;
+    --border: #303a30;
+    --border-strong: #475547;
 
     --primary: var(--sage-400);
     --primary-hover: var(--sage-pale);
@@ -150,11 +154,11 @@
   --surface: #171d17;
   --surface-2: #1c231c;
   --surface-3: #242c24;
-  --fg: #eef2ea;
-  --fg-muted: #adbcab;
-  --fg-subtle: #8b9a89;
-  --border: #2a332a;
-  --border-strong: #3c483c;
+  --fg: #f3f6f0;
+  --fg-muted: #c8d2c6;
+  --fg-subtle: #a7b4a5;
+  --border: #303a30;
+  --border-strong: #475547;
 
   --primary: var(--sage-400);
   --primary-hover: var(--sage-pale);
@@ -3549,20 +3553,6 @@ a.bell-item:hover { background: var(--surface-2); }
   }
 }
 
-/* The first screen after signing up: one thing to do, said plainly. */
-.first-run {
-  display: grid;
-  justify-items: center;
-  gap: var(--s3);
-  text-align: center;
-  padding: var(--s6) var(--s4);
-  margin-bottom: var(--s4);
-  border-color: var(--primary);
-  background: linear-gradient(var(--pitch-50), var(--surface));
-}
-.first-run h2 { margin: 0; }
-.first-run .muted { max-width: 48ch; margin: 0; }
-.first-run > svg { color: var(--primary-ink); }
 
 /* An invitation nobody has acted on yet. Gold, like everything the club is
    waiting on you for. */
@@ -3671,8 +3661,12 @@ a.bell-item:hover { background: var(--surface-2); }
 
 /* Below this the top bar's link scroller is hidden entirely and the bottom
    tab bar takes over. Ten links never fitted: squeezed between the brand and
-   the actions the scroller collapsed to 37px and showed two of them. */
-@media (max-width: 860px) {
+   the actions the scroller collapsed to 37px and showed two of them.
+
+   1023, not 860: between the two even the five everyday items overran the
+   488px left beside the brand and the actions at 861px. Tablets get the tab
+   bar, as tablet apps do; from 1024 the top bar has room for five and More. */
+@media (max-width: 1023px) {
   .nav { display: none; }
   .topbar-inner { justify-content: space-between; }
 
@@ -3904,7 +3898,336 @@ a.bell-item:hover { background: var(--surface-2); }
 
 /* Phone-only chrome. This has to sit after the .tabbar rules: a media query
    adds no specificity, so above them `display: grid` simply won. */
-@media (min-width: 861px) {
+@media (min-width: 1024px) {
   .tabbar,
   .more-sheet { display: none; }
 }
+
+/* ======================================================================
+   First run: the role question, the getting-started guide, verification,
+   the spotlight tour, and the profile hand-off to a secretary.
+   ====================================================================== */
+
+/* A button that reads as a link, for the quieter actions in running text. */
+.linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--primary-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.linkish:hover { color: var(--primary-hover); }
+.linkish:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 3px; }
+
+/* ---- How will you use Fishers? ---- */
+.welcome { padding: var(--s5); }
+.welcome h2 { margin: 0; font-size: 1.6rem; }
+.welcome > .muted { margin: var(--s1) 0 0; }
+
+.role-options {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  margin-top: var(--s4);
+}
+.role-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s4);
+  text-align: left;
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+.role-option:hover { border-color: var(--primary); box-shadow: var(--shadow-2); transform: translateY(-1px); }
+.role-option:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.role-option:disabled { cursor: progress; opacity: 0.7; }
+.role-option.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+.role-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  color: var(--primary-ink);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.role-text { display: grid; gap: var(--s1); line-height: 1.45; }
+.role-text strong { font-family: var(--font-display); font-size: 1.25rem; letter-spacing: 0.01em; }
+.role-tick { margin-left: auto; color: var(--primary-ink); }
+
+/* On the signup form: two tight choices side by side. */
+.role-chooser.compact .role-options { grid-template-columns: 1fr 1fr; gap: var(--s2); margin-top: 0; }
+.role-chooser.compact .role-option { align-items: center; padding: var(--s3); }
+.role-chooser.compact .role-icon { width: 36px; height: 36px; border-radius: 10px; }
+.role-chooser.compact .role-text strong { font-size: 1rem; }
+.auth-role { border: 0; padding: 0; margin: 0 0 var(--s2); min-width: 0; }
+.auth-role legend { padding: 0; margin-bottom: var(--s2); font-weight: 600; font-size: 0.9rem; }
+
+/* ---- The getting-started guide ---- */
+.gs {
+  padding: var(--s5);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+.gs-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s3); flex-wrap: wrap; }
+.gs-head h2 { margin: 0; font-size: 1.6rem; }
+.gs-head .muted { margin: var(--s1) 0 0; }
+.gs-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--s1);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-ink);
+}
+.gs-progress {
+  height: 6px;
+  margin: var(--s4) 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.gs-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  transition: width 0.5s var(--ease);
+}
+
+.gs-steps { list-style: none; margin: 0; padding: 0; }
+.gs-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: var(--s3);
+  padding: var(--s3) 0;
+}
+/* The line that joins one step to the next; filled once a step is done. */
+.gs-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 52px;
+  bottom: -8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.gs-step.done:not(:last-child)::after { background: var(--primary); }
+
+.gs-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--fg-subtle);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.gs-step.done .gs-marker { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.gs-step.current .gs-marker {
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.gs-body { min-width: 0; }
+.gs-body h3 { margin: 7px 0 0; font-size: 1.05rem; }
+.gs-step.done h3 { color: var(--fg-muted); font-weight: 500; }
+.gs-step.upcoming h3 { color: var(--fg-subtle); font-weight: 500; }
+.gs-step.current h3 { font-size: 1.15rem; }
+.gs-body > .muted { margin: var(--s1) 0 var(--s3); max-width: 62ch; }
+/* Hugs its button, so the spotlight ring hugs it too. */
+.gs-action { display: inline-block; max-width: 100%; }
+.gs-action:has(.verify, .share-profile) { display: block; max-width: 480px; }
+.gs-switch { margin: var(--s4) 0 0; padding-top: var(--s3); border-top: 1px solid var(--border); }
+
+/* ---- Confirm your email / phone ---- */
+.verify { display: grid; gap: var(--s2); }
+.verify-head { display: flex; align-items: flex-start; gap: var(--s3); }
+.verify-head h3 { margin: 0; }
+.verify-head .muted,
+.verify-lede { margin: 2px 0 0; }
+.verify-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--primary-ink);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.verify-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--s2); }
+.verify-code {
+  flex: 0 1 auto;
+  width: 12ch;
+  min-width: 0;
+  padding: var(--s2) var(--s3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.5rem; /* also keeps iOS from zooming into the field */
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-align: center;
+}
+.verify-code::placeholder { color: var(--fg-subtle); letter-spacing: 0.35em; }
+.verify-foot { margin: 0; font-size: 0.875rem; }
+.verify-note { margin: 0; font-size: 0.875rem; color: var(--primary-ink); }
+
+/* A form that stopped for verification: the code goes in here. */
+.verify-gate {
+  margin: var(--s3) 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+.verify-gate-title { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2); font-weight: 700; }
+
+/* ---- The spotlight tour ---- */
+.spot { position: fixed; inset: 0; z-index: calc(var(--z-modal) + 10); pointer-events: none; }
+.spot-pane {
+  position: fixed;
+  pointer-events: auto;
+  background: rgb(6 10 7 / 58%);
+  backdrop-filter: blur(4px) saturate(80%);
+  -webkit-backdrop-filter: blur(4px) saturate(80%);
+}
+.spot-ring {
+  position: fixed;
+  border-radius: 14px;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px var(--primary), 0 0 0 6px color-mix(in srgb, var(--primary) 40%, transparent);
+  animation: spot-pulse 1.8s var(--ease) infinite;
+}
+@keyframes spot-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--primary), 0 0 0 6px color-mix(in srgb, var(--primary) 40%, transparent); }
+  50% { box-shadow: 0 0 0 3px var(--primary), 0 0 0 16px color-mix(in srgb, var(--primary) 0%, transparent); }
+}
+.spot-note {
+  position: fixed;
+  width: min(340px, calc(100vw - 24px));
+  padding: var(--s4);
+  pointer-events: auto;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+  animation: spot-in 0.22s var(--ease);
+}
+.spot-note h2 { margin: 0 0 var(--s1); font-size: 1.3rem; }
+.spot-note p { margin: 0; line-height: 1.5; color: var(--fg-muted); }
+.spot-note .spot-step {
+  margin-bottom: var(--s1);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-ink);
+}
+.spot-actions { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin-top: var(--s4); }
+/* The arrow: a rotated square sharing the note's border, pointing at the target. */
+.spot-arrow {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  transform: translateX(-50%) rotate(45deg);
+}
+.spot-note.below .spot-arrow { top: -9px; border-right: 0; border-bottom: 0; }
+.spot-note.above .spot-arrow { bottom: -9px; border-left: 0; border-top: 0; }
+@keyframes spot-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---- Sending a profile to a secretary ---- */
+.share-profile { display: grid; gap: var(--s3); }
+.share-link { display: flex; gap: var(--s2); }
+.share-link input { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.875rem; }
+.share-ways { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.share-profile > .subtle { margin: 0; }
+
+/* ---- What the secretary sees ---- */
+.shared-profile { max-width: 640px; margin: 0 auto; }
+.shared-kicker { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s3); }
+.player-card { display: flex; align-items: center; gap: var(--s4); }
+.player-card h1 { margin: 0; font-size: 2rem; }
+.player-card-meta { margin: var(--s1) 0 0; color: var(--fg-muted); text-transform: capitalize; }
+.invite-sent { display: flex; align-items: flex-start; gap: var(--s3); border-color: var(--primary); }
+.invite-sent h2 { margin: 0; }
+.invite-sent-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
+@media (max-width: 560px) {
+  .welcome, .gs { padding: var(--s4); }
+  .gs-head h2, .welcome h2 { font-size: 1.35rem; }
+  .role-chooser.compact .role-options { grid-template-columns: 1fr; }
+  .player-card { flex-direction: column; text-align: center; }
+}
+
+@media (pointer: coarse) {
+  .linkish { display: inline-block; padding: var(--s2) 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spot-ring, .spot-note { animation: none; }
+  .role-option, .gs-progress span { transition: none; }
+  .role-option:hover { transform: none; }
+}
+
+/* ---- Top bar: everyday items always, the rest under More below 1440px ---- */
+.nav-more { display: none; }
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .nav .nav-extra { display: none; }
+  .nav-more { display: block; }
+}
+/* In the bar it reads as one more nav item, not the round ⋯ of the score screen. */
+.nav-more .overflow-button {
+  display: inline-flex;
+  gap: 6px;
+  width: auto;
+  height: auto;
+  min-height: 40px;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: none;
+}
+.nav-more .overflow-button:hover { color: var(--fg); background: var(--surface-2); }
+.nav-more.active .overflow-button { color: var(--on-primary); background: var(--primary); }
+.nav-more .overflow-panel { min-width: 220px; }
+.nav-more .overflow-item[aria-current="page"] { color: var(--primary-ink); font-weight: 600; }

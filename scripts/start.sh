@@ -385,7 +385,10 @@ API_ENV=(
 # Passing them through empty is not the same as leaving them unset: an empty
 # DLS_RESOURCE_TABLE made the API try to open "" and log a read error on every
 # single start, which is noise that trains you to ignore the log.
-for var in ANTHROPIC_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET DLS_RESOURCE_TABLE OLLAMA_URL; do
+for var in ANTHROPIC_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET DLS_RESOURCE_TABLE OLLAMA_URL \
+           SMTP_HOST SMTP_PORT SMTP_TLS SMTP_USERNAME SMTP_PASSWORD EMAIL_FROM \
+           WHATSAPP_TOKEN WHATSAPP_PHONE_NUMBER_ID WHATSAPP_TEMPLATE WHATSAPP_TEMPLATE_LANG \
+           WHATSAPP_DEFAULT_COUNTRY; do
   [ -n "${!var:-}" ] && API_ENV+=( "${var}=${!var}" )
 done
 

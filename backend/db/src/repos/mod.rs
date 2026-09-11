@@ -14,3 +14,4 @@ pub mod selection;
 pub mod stats;
 pub mod tournament;
 pub mod users;
+pub mod verification;

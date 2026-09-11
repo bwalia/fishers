@@ -3,8 +3,9 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, saveSession, type AuthTokens } from "@/lib/api";
+import { api, saveSession, saveUser, type AuthTokens, type PublicUser, type RoleIntent } from "@/lib/api";
 import { AuthPitch } from "@/components/AuthPitch";
+import { RoleChooser } from "@/components/RoleChooser";
 
 type Method = "email" | "phone";
 
@@ -18,6 +19,13 @@ export default function RegisterPage() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Somebody arriving from an invite link is joining a club, not starting one.
+  const [role, setRole] = useState<RoleIntent | null>(() =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("next")?.startsWith("/invite/")
+      ? "player"
+      : null
+  );
 
   const tooShort = password.length > 0 && password.length < 8;
 
@@ -40,6 +48,15 @@ export default function RegisterPage() {
         false
       );
       saveSession(tokens);
+      // Saved straight after the account exists, so the dashboard opens on the
+      // right guide instead of asking again.
+      if (role) {
+        try {
+          saveUser(await api<PublicUser>("PATCH", "/me", { role_intent: role }));
+        } catch {
+          /* the dashboard asks instead */
+        }
+      }
       // An invite link sends people here to sign up; land them back on it so
       // they actually join the club they were invited to.
       const next = new URLSearchParams(window.location.search).get("next");
@@ -82,6 +99,11 @@ export default function RegisterPage() {
         </div>
 
         <form className="auth-form" onSubmit={onSubmit}>
+          <fieldset className="auth-role">
+            <legend>I&apos;m here to…</legend>
+            <RoleChooser compact value={role} onPicked={(_, r) => setRole(r)} />
+          </fieldset>
+
           <label>
             Your name
             <input
@@ -114,7 +136,7 @@ export default function RegisterPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 autoComplete="tel"
-                placeholder="07700 900123"
+                placeholder="+44 7700 900123"
                 required
               />
             </label>
@@ -152,8 +174,8 @@ export default function RegisterPage() {
 
         {method === "phone" && (
           <p className="auth-hint">
-            Your number is how you sign in. Nobody sends a code to it yet, so keep it to
-            yourself as you would a password.
+            Your number is how you sign in. Include the country code — we may confirm it with a
+            WhatsApp code.
           </p>
         )}
 

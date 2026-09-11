@@ -18,6 +18,7 @@ import {
 import { economy, num, type MeStats, type PlayerSeasonStats } from "@/lib/stats";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
+import { ShareProfile } from "@/components/ShareProfile";
 
 type Tab = "overview" | "batting" | "bowling";
 
@@ -208,6 +209,15 @@ function Overview({
     <div className="pro-cols">
       <div className="pro-main">
         <Details me={me} onSaved={onSaved} />
+
+        <div className="panel" id="share">
+          <h2>Send your profile to a club</h2>
+          <p className="muted">
+            Joining a new club? Send the secretary this link — they invite you straight from it, without
+            typing your details in.
+          </p>
+          <ShareProfile userId={me.id} />
+        </div>
 
         <div className="panel">
           <div className="panel-head">

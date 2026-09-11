@@ -15,3 +15,4 @@ base64 = { workspace = true }
 reqwest = { workspace = true }
 sqlx = { workspace = true }
 web-push-native = { workspace = true }
+lettre = { workspace = true }

@@ -7,6 +7,9 @@ use serde_json::json;
 pub struct ApiError {
     pub status: StatusCode,
     pub message: String,
+    /// A stable reason a client can branch on, where the message is for
+    /// people. "unverified" means: send them to verify, not to an error page.
+    pub code: Option<&'static str>,
 }
 
 impl ApiError {
@@ -14,6 +17,7 @@ impl ApiError {
         Self {
             status: StatusCode::BAD_REQUEST,
             message: msg.into(),
+            code: None,
         }
     }
 
@@ -21,6 +25,7 @@ impl ApiError {
         Self {
             status: StatusCode::UNAUTHORIZED,
             message: msg.into(),
+            code: None,
         }
     }
 
@@ -28,6 +33,7 @@ impl ApiError {
         Self {
             status: StatusCode::FORBIDDEN,
             message: msg.into(),
+            code: None,
         }
     }
 
@@ -35,6 +41,7 @@ impl ApiError {
         Self {
             status: StatusCode::NOT_FOUND,
             message: msg.into(),
+            code: None,
         }
     }
 
@@ -42,6 +49,7 @@ impl ApiError {
         Self {
             status: StatusCode::CONFLICT,
             message: msg.into(),
+            code: None,
         }
     }
 
@@ -49,13 +57,40 @@ impl ApiError {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: msg.into(),
+            code: None,
+        }
+    }
+}
+
+impl ApiError {
+    pub fn with_code(mut self, code: &'static str) -> Self {
+        self.code = Some(code);
+        self
+    }
+
+    pub fn too_many(msg: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: msg.into(),
+            code: None,
+        }
+    }
+
+    pub fn unavailable(msg: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            message: msg.into(),
+            code: None,
         }
     }
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let body = Json(json!({ "error": self.message }));
+        let body = Json(match self.code {
+            Some(code) => json!({ "error": self.message, "code": code }),
+            None => json!({ "error": self.message }),
+        });
         (self.status, body).into_response()
     }
 }

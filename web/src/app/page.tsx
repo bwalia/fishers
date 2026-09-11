@@ -6,68 +6,17 @@ import {
   api,
   getAccessToken,
   getStoredUser,
+  saveUser,
   type Club,
   type EventRow,
   type Page,
   type PublicUser,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { GettingStarted } from "@/components/GettingStarted";
 import { PendingInvites } from "@/components/PendingInvites";
+import { RoleChooser } from "@/components/RoleChooser";
 import { overs, type MatchResponse } from "@/lib/cricket";
-
-/// The first screen after signing up.
-///
-/// Everything in Fishers hangs off a club — fixtures, chat, availability,
-/// scoring — so somebody with none has nine screens that all say "your clubs"
-/// and nothing to press. This is the one thing to do, and the two ways to do
-/// it: start a club, or join one somebody already runs.
-function FirstRun({ onJoined }: { onJoined: () => void }) {
-  return (
-    <>
-      <PendingInvites onJoined={onJoined} />
-
-      <div className="panel first-run">
-        <Icon name="users" size={32} />
-        <h2>You are not in a club yet</h2>
-        <p className="muted">
-          Fixtures, availability, the chat and scoring all belong to a club. Start yours,
-          or join one that already exists.
-        </p>
-        <div className="field-row">
-          <Link className="btn primary lg" href="/clubs">
-            <Icon name="plus" size={18} /> Start a club
-          </Link>
-        </div>
-        <p className="subtle">
-          Been sent an invite link or a QR code? Open it and you are in — no need to start
-          anything.
-        </p>
-      </div>
-
-      <div className="grid cards">
-        <div className="panel">
-          <h3>While you are here</h3>
-          <p className="muted">
-            Set the days you can usually play. Your captain sees it the moment you join a
-            club, so the first side they pick already knows about you.
-          </p>
-          <Link className="btn" href="/availability">
-            <Icon name="clock" size={16} /> Set your availability
-          </Link>
-        </div>
-        <div className="panel">
-          <h3>Your profile</h3>
-          <p className="muted">
-            A photo and what you play. It is what a captain sees on the team sheet.
-          </p>
-          <Link className="btn" href="/profile">
-            <Icon name="book" size={16} /> Fill in your profile
-          </Link>
-        </div>
-      </div>
-    </>
-  );
-}
 
 export default function HomePage() {
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -79,14 +28,22 @@ export default function HomePage() {
   /// same — and showing a new-here screen to somebody with four clubs, for
   /// half a second, is worse than showing nothing.
   const [loaded, setLoaded] = useState(false);
+  const [invitesCount, setInvitesCount] = useState(0);
 
   const load = useCallback(async () => {
     {
       try {
-        const [c, e] = await Promise.all([
+        const [c, e, me] = await Promise.all([
           api<Club[]>("GET", "/clubs"),
           api<Page<EventRow>>("GET", "/events?per_page=50").then((p) => p.items),
+          // The stored copy predates anything changed on another device —
+          // a role chosen on the phone, an email confirmed from the inbox.
+          api<PublicUser>("GET", "/me").catch(() => null),
         ]);
+        if (me) {
+          saveUser(me);
+          setUser(me);
+        }
         setClubs(c);
         setEvents(e);
         // Any cricket fixture may have a match on it; a 404 just means none.
@@ -120,12 +77,14 @@ export default function HomePage() {
 
   return (
     <main id="main">
-      <section className="hero">
-        <h1>Club dashboard</h1>
+      <section className="hero dash-hero">
+        <h1>{user ? `${greeting()}, ${user.name.split(" ")[0]}` : "Club dashboard"}</h1>
         <p>
-          Fixtures, live cricket scoring, season stats and the club shop — the same API the
-          iOS app uses.
-          {user ? ` Signed in as ${user.name}.` : ""}
+          {!user
+            ? "Fixtures, availability, live scoring and season stats for your club."
+            : clubs.length > 0
+              ? "Your club at a glance — what's next, what's live, and what needs you."
+              : "Welcome to Fishers. A few quick steps and you're up and running."}
         </p>
       </section>
 
@@ -143,7 +102,30 @@ export default function HomePage() {
 
       {error && <p className="error">{error}</p>}
 
-      {user && loaded && clubs.length === 0 && <FirstRun onJoined={load} />}
+      {user && <PendingInvites onJoined={load} onCount={setInvitesCount} />}
+
+      {user && loaded && !user.role_intent && clubs.length === 0 && (
+        <section className="panel welcome" aria-labelledby="welcome-title">
+          <h2 id="welcome-title">How will you use Fishers?</h2>
+          <p className="muted">
+            We'll show you exactly what to do next. You can switch later.
+          </p>
+          <RoleChooser onPicked={(u) => u && setUser(u)} />
+        </section>
+      )}
+
+      {user && loaded && user.role_intent && (
+        <GettingStarted
+          user={user}
+          clubs={clubs}
+          eventsCount={events.length}
+          invitesCount={invitesCount}
+          onUserChange={(u) => {
+            setUser(u);
+            load();
+          }}
+        />
+      )}
 
       {user && clubs.length > 0 && (
         <>
@@ -249,4 +231,10 @@ function Quick({
       <p className="muted" style={{ margin: "var(--s1) 0 0" }}>{body}</p>
     </Link>
   );
+}
+
+/// Morning, afternoon, evening — by the viewer's own clock.
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }

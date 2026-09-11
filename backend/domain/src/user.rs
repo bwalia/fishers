@@ -28,6 +28,11 @@ pub struct User {
     /// Set the first time a standard is supplied — the app runs first-run
     /// profile setup until then.
     pub profile_completed_at: Option<DateTime<Utc>>,
+    pub email_verified_at: Option<DateTime<Utc>>,
+    pub phone_verified_at: Option<DateTime<Utc>>,
+    /// "secretary" or "player": what they said they came to do.
+    pub role_intent: Option<String>,
+    pub profile_share_token: Option<String>,
     pub password_hash: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -49,6 +54,10 @@ pub struct PublicUser {
     pub sport_profiles: Vec<SportProfile>,
     pub location: Option<PlayerLocation>,
     pub profile_complete: bool,
+    pub email_verified: bool,
+    pub phone_verified: bool,
+    /// "secretary" or "player"; absent until they have been asked.
+    pub role_intent: Option<String>,
     /// Attached by the API from attendance history; never accepted on input.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reliability: Option<ReliabilityScore>,
@@ -72,6 +81,9 @@ impl From<User> for PublicUser {
             sport_profiles,
             location: u.location.map(|l| l.0),
             profile_complete,
+            email_verified: u.email_verified_at.is_some(),
+            phone_verified: u.phone_verified_at.is_some(),
+            role_intent: u.role_intent,
             reliability: None,
         }
     }
@@ -136,6 +148,16 @@ pub struct UpdateProfileRequest {
     /// Sent whole: the client always submits every sport it holds.
     pub sport_profiles: Option<Vec<SportProfile>>,
     pub location: Option<PlayerLocation>,
+    /// "secretary" or "player". Anything else is refused.
+    #[validate(custom(function = "validate_role_intent"))]
+    pub role_intent: Option<String>,
+}
+
+fn validate_role_intent(v: &str) -> Result<(), validator::ValidationError> {
+    match v {
+        "secretary" | "player" => Ok(()),
+        _ => Err(validator::ValidationError::new("role_intent must be secretary or player")),
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

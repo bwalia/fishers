@@ -32,6 +32,10 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [scheduling, setScheduling] = useState(false);
+  // ?new=1 from the getting-started guide: open the form on arrival.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") setScheduling(true);
+  }, []);
 
   const load = useCallback(async () => {
     try {

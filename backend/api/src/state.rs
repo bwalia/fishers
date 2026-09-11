@@ -2,6 +2,7 @@ use crate::services::ollama::Ollama;
 use crate::services::storage::Storage;
 use fishers_agent::AgentService;
 use fishers_domain::ResourceTable;
+use fishers_notifications::whatsapp::WhatsAppService;
 use fishers_notifications::{EmailService, PushService};
 use fishers_payments::StripeClient;
 use sqlx::PgPool;
@@ -17,6 +18,8 @@ pub struct AppState {
     /// Reads chat threads and proposes admin; disabled without ANTHROPIC_API_KEY.
     pub agent: AgentService,
     pub email: EmailService,
+    /// Phone verification codes, via Meta's WhatsApp Cloud API. Off without WHATSAPP_TOKEN.
+    pub whatsapp: WhatsAppService,
     /// Duckworth–Lewis resources. Swap in a league's own table by pointing
     /// `DLS_RESOURCE_TABLE` at a CSV of `overs,w0,w1,…,w9` rows.
     pub dls: ResourceTable,
@@ -47,6 +50,7 @@ impl AppState {
             push,
             agent: AgentService::from_env(),
             email: EmailService::from_env(),
+            whatsapp: WhatsAppService::from_env(),
             dls: load_dls_table(),
             g50: std::env::var("DLS_G50")
                 .ok()
