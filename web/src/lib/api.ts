@@ -59,6 +59,8 @@ export type RoleIntent = "secretary" | "player";
 
 /// `GET /me/verification`.
 export type VerificationStatus = {
+  /// Whether the server asks for confirmation at all (VERIFICATION_REQUIRED).
+  enabled: boolean;
   email: { address?: string | null; verified: boolean; available: boolean };
   phone: { address?: string | null; verified: boolean; available: boolean };
   /// Starting a club or accepting an invite is refused until one is verified.

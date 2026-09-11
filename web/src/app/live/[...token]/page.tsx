@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { apiV1 } from "@/lib/api";
+import { watchScoreboard } from "@/lib/live";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
 import { ReshareLiveLink } from "@/components/ReshareLiveLink";
@@ -96,9 +97,18 @@ export default function LiveScoreboardPage({
 
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), 5000);
-    return () => window.clearInterval(id);
-  }, [load]);
+    // Live, ball by ball: the link's own stream says when the match changed.
+    // No sign-in — the link is the permission, and it hears about this match
+    // only. The slow poll is a safety net for when the stream is down.
+    const stop = watchScoreboard(token, (e) => {
+      if (e.type === "match" || e.type === "resync") void load();
+    });
+    const id = window.setInterval(() => void load(), 60_000);
+    return () => {
+      stop();
+      window.clearInterval(id);
+    };
+  }, [load, token]);
 
   const current = useMemo(() => board?.state.innings.at(-1) ?? null, [board]);
 
@@ -117,7 +127,7 @@ export default function LiveScoreboardPage({
         <p className="tag">Live scoreboard</p>
         <h1>Fishers</h1>
         <p className="muted">
-          Full match scoreboard — refreshes every few seconds. No sign-in required.
+          Full match scoreboard — updates live, ball by ball. No sign-in required.
         </p>
       </header>
 
