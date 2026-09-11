@@ -4231,3 +4231,23 @@ a.bell-item:hover { background: var(--surface-2); }
 .nav-more.active .overflow-button { color: var(--on-primary); background: var(--primary); }
 .nav-more .overflow-panel { min-width: 220px; }
 .nav-more .overflow-item[aria-current="page"] { color: var(--primary-ink); font-weight: 600; }
+
+/* New messages below while you are reading further up: a way back down that
+   does not drag you there uninvited. */
+.thread-new {
+  position: sticky;
+  bottom: var(--s3);
+  display: block;
+  margin: var(--s3) auto 0;
+  padding: var(--s2) var(--s4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--on-primary);
+  background: var(--primary);
+  box-shadow: var(--shadow-2);
+  cursor: pointer;
+}
+.thread-new:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }

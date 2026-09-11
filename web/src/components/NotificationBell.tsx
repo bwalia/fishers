@@ -9,6 +9,7 @@ import {
   type AppNotification,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { subscribeLive } from "@/lib/live";
 
 /// How many the panel shows. A dropdown is a glance, not an archive — the
 /// rest are a click away on /notifications, where they are paged.
@@ -37,10 +38,17 @@ export function NotificationBell() {
 
   useEffect(() => {
     load();
-    // Nothing pushes yet, so a slow poll is what keeps it current for somebody
-    // sitting on the page waiting to be asked.
-    const timer = setInterval(load, 60_000);
-    return () => clearInterval(timer);
+    // A new notification — or one read on another device — updates the badge
+    // the moment it happens. The slow poll is only a safety net for when the
+    // live stream is down.
+    const stop = subscribeLive((e) => {
+      if (e.type === "notification" || e.type === "resync") load();
+    });
+    const timer = setInterval(load, 120_000);
+    return () => {
+      clearInterval(timer);
+      stop();
+    };
   }, [load]);
 
   useEffect(() => {

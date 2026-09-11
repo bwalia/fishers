@@ -3,9 +3,11 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { api, getAccessToken, getStoredUser, readErr } from "@/lib/api";
+import { subscribeLive } from "@/lib/live";
 import {
   byDay,
   chatTime,
+  mergeMessages,
   PROPOSAL_KIND,
   type AgentAnalysis,
   type AgentProposal,
@@ -15,7 +17,9 @@ import {
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 
-const POLL_MS = 5_000;
+/// A safety net, not the mechanism: new messages arrive over the live stream
+/// the moment they are posted. This only catches up if the stream is down.
+const POLL_MS = 30_000;
 
 /// One thread.
 ///
@@ -34,6 +38,19 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const foot = useRef<HTMLDivElement>(null);
+  /// At the bottom and following along. Scrolled up to read history, a new
+  /// message must not yank you away from what you were reading. State for the
+  /// render, mirrored in a ref for the effect that reacts to new messages.
+  const [following, setFollowingState] = useState(true);
+  const followingRef = useRef(true);
+  const setFollowing = (v: boolean) => {
+    followingRef.current = v;
+    setFollowingState(v);
+  };
+  /// The newest message you have seen. "N new" counts the messages after it,
+  /// rather than counting updates: one refresh can bring five messages.
+  const [seenAt, setSeenAt] = useState(0);
+  const lastTop = useRef(0);
   const me = getStoredUser();
 
   const load = useCallback(async () => {
@@ -44,7 +61,10 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
           () => [] as AgentProposal[]
         ),
       ]);
-      setMessages(rows);
+      // Merged, not replaced: a message you sent while this was in flight is
+      // already on screen and would otherwise vanish until the next fetch.
+      // Filtered to this thread, since the page is reused between threads.
+      setMessages((prev) => mergeMessages(prev.filter((m) => m.conversation_id === id), rows));
       setProposals(pending.filter((p) => p.status === "pending"));
       setError(null);
     } catch (err) {
@@ -69,14 +89,49 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
     // an error in front of somebody who is reading the thread anyway.
     api("POST", `/conversations/${id}/read`, {}).catch(() => {});
     const timer = window.setInterval(load, POLL_MS);
-    return () => window.clearInterval(timer);
+    // Live: a message in this thread refetches it (the event carries ids,
+    // never content) and marks it read, since it is on screen.
+    const stop = subscribeLive((e) => {
+      if (e.type === "resync" || (e.type === "message" && e.conversation_id === id)) {
+        load();
+        if (e.type === "message") api("POST", `/conversations/${id}/read`, {}).catch(() => {});
+      }
+    });
+    return () => {
+      window.clearInterval(timer);
+      stop();
+    };
   }, [id, load]);
 
-  // Follow the conversation down as it grows, the way a chat should.
-  const count = messages.length;
+  // A new thread starts at the bottom.
   useEffect(() => {
-    foot.current?.scrollIntoView({ block: "end" });
-  }, [count]);
+    setFollowing(true);
+    setSeenAt(0);
+    setMessages([]);
+  }, [id]);
+
+  // Follow the conversation down as it grows — when you are already at the
+  // bottom, or when the new message is yours.
+  const newest = messages[messages.length - 1];
+  const markSeen = () => newest && setSeenAt(Date.parse(newest.created_at));
+  useEffect(() => {
+    if (!newest) return;
+    if (followingRef.current || newest.sender_id === me?.id) {
+      foot.current?.scrollIntoView({ block: "end" });
+      if (newest.sender_id === me?.id) setFollowing(true);
+      markSeen();
+    }
+  }, [newest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const unseen = following
+    ? 0
+    : messages.filter((m) => Date.parse(m.created_at) > seenAt && m.sender_id !== me?.id).length;
+
+  const jumpDown = () => {
+    foot.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    setFollowing(true);
+    markSeen();
+  };
 
   const days = useMemo(() => byDay(messages), [messages]);
 
@@ -87,9 +142,9 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
     setError(null);
     try {
       const sent = await api<ChatMessage>("POST", `/conversations/${id}/messages`, { body });
-      // Append rather than reload: the poll is up to five seconds away and a
-      // chat that swallows your message for that long feels broken.
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
+      // Shown straight away rather than waiting for it to come back on the
+      // live stream — it will, and the merge collapses the two by id.
+      setMessages((prev) => mergeMessages(prev, [sent]));
       setDraft("");
     } catch (err) {
       setError(readErr(err, "That message did not send"));
@@ -161,7 +216,27 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
         </section>
       )}
 
-      <div className="thread-scroll">
+      <div
+        className="thread-scroll"
+        onScroll={(e) => {
+          // Stop following only when they scroll UP. A scroll event arrives a
+          // frame late, and in a busy thread more messages may have rendered
+          // by then: measured against the taller list, a follow-along scroll
+          // looked like "no longer at the bottom" and the view stopped keeping
+          // up with nobody having touched it. Growth never moves scrollTop up;
+          // a person reading back does.
+          const el = e.currentTarget;
+          const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          const wentUp = el.scrollTop < lastTop.current - 2;
+          lastTop.current = el.scrollTop;
+          if (atBottom) {
+            if (!followingRef.current) setFollowing(true);
+            markSeen();
+          } else if (wentUp && followingRef.current) {
+            setFollowing(false);
+          }
+        }}
+      >
         {loading && <div className="skeleton" style={{ height: 200 }} />}
 
         {!loading && messages.length === 0 && (
@@ -180,6 +255,11 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
           </div>
         ))}
         <div ref={foot} />
+        {unseen > 0 && (
+          <button type="button" className="thread-new" onClick={jumpDown}>
+            {unseen} new message{unseen === 1 ? "" : "s"} <span aria-hidden="true">↓</span>
+          </button>
+        )}
       </div>
 
       <form

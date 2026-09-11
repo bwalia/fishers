@@ -291,7 +291,7 @@ export function refreshSession(): Promise<string | null> {
 /// The access token to send, refreshed first if it is about to lapse. Doing it
 /// before the request rather than after a rejection means a ball being scored
 /// never fails on an expired token.
-async function usableToken(): Promise<string | null> {
+export async function usableToken(): Promise<string | null> {
   const token = getAccessToken();
   if (!token) return null;
   const expires = expiryOf(token);
