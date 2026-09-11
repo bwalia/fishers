@@ -29,6 +29,8 @@ pub struct AppState {
     pub ollama: Option<Ollama>,
     /// Object storage for uploads. `None` when the server has no bucket.
     pub storage: Option<Storage>,
+    /// Changes to push to connected browsers; see `live`.
+    pub live: crate::live::Live,
 }
 
 impl AppState {
@@ -41,6 +43,8 @@ impl AppState {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(2_592_000);
+        // Before the struct: `pool` moves into it below.
+        let live = crate::live::Live::spawn(pool.clone());
         Self {
             pool,
             jwt_secret,
@@ -58,6 +62,7 @@ impl AppState {
                 .unwrap_or(fishers_domain::dls::DEFAULT_G50),
             ollama: Ollama::from_env(),
             storage: Storage::from_env(),
+            live,
         }
     }
 

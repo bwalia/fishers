@@ -5,6 +5,7 @@ mod clubs;
 mod cricket;
 mod events;
 mod invites;
+mod live;
 mod notifications;
 mod orders;
 mod payments;
@@ -21,6 +22,12 @@ use axum::{Json, Router};
 use serde_json::json;
 
 use crate::state::AppState;
+
+/// The live stream, kept apart so main.rs can mount it outside the request
+/// timeout.
+pub fn live_router() -> Router<AppState> {
+    live::router()
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()

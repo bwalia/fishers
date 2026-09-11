@@ -125,6 +125,15 @@ pub async fn is_member(
     Ok(found.is_some())
 }
 
+/// Every thread the user belongs to, as ids: what a live connection may hear
+/// about. Kept current afterwards by membership events, not by re-reading.
+pub async fn conversation_ids_for(pool: &PgPool, user_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar("SELECT conversation_id FROM conversation_members WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+}
+
 /// Threads the user belongs to, newest activity first, with the unread count
 /// and how many agent proposals are waiting on a decision.
 pub async fn list_for_user(

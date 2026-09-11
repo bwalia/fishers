@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { subscribeLive } from "@/lib/live";
 import { api, getAccessToken, readErr, type Club } from "@/lib/api";
 import { chatTime, CONVERSATION_KIND, type ConversationSummary } from "@/lib/chat";
 import { Icon } from "@/components/Icon";
@@ -35,10 +36,17 @@ export default function ChatListPage() {
       return;
     }
     load();
-    // A thread you are not looking at still gets messages. Slower than the
-    // open thread polls, because a list only needs to be roughly right.
-    const timer = window.setInterval(load, 20_000);
-    return () => window.clearInterval(timer);
+    // Any message in any of your threads moves it up and bumps its unread
+    // count, so the list refetches on every one; joining or leaving a thread
+    // changes the list itself. The slow poll is only a safety net.
+    const stop = subscribeLive((e) => {
+      if (e.type === "message" || e.type === "conversations" || e.type === "resync") load();
+    });
+    const timer = window.setInterval(load, 60_000);
+    return () => {
+      window.clearInterval(timer);
+      stop();
+    };
   }, [load]);
 
   return (
