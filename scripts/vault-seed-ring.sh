@@ -21,8 +21,10 @@
 #
 # Generated here: JWT_SECRET, S3_ACCESS_KEY, S3_SECRET_KEY, VAPID_PUBLIC_KEY,
 # VAPID_PRIVATE_KEY. Add the rest in the vault by hand when a ring needs them —
-# STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ANTHROPIC_API_KEY — and they reach
-# the API on the next deploy with no chart change.
+# STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID
+# (a Google OAuth "Web application" client whose authorised JavaScript origins
+# include the ring's URL) — and they reach the API on the next deploy with no
+# chart change.
 #
 # The database password is deliberately not here: the Zalando operator
 # generates it and the API reads it from the operator's own Secret.

@@ -1320,6 +1320,11 @@ textarea { line-height: 1.5; resize: vertical; }
 @media (min-width: 900px) {
   .auth-shell { grid-template-columns: 1fr minmax(360px, 440px); }
 }
+/* One column: the form first. Somebody who came to sign in should not have
+   to scroll past the pitch to find it. */
+@media (max-width: 899px) {
+  .auth-shell > .auth-card { order: -1; }
+}
 
 .auth-pitch h1 {
   font-size: clamp(2.2rem, 1.4rem + 3vw, 3.4rem);
@@ -4900,3 +4905,24 @@ button.fx-stat:focus-visible { outline: 2px solid var(--ring); outline-offset: 2
   .fx-stat-num { font-size: 1.5rem; }
   .fx-stat-label { font-size: 0.78rem; line-height: 1.25; }
 }
+
+/* ---- Continue with Google ---- */
+.google-signin { display: grid; gap: var(--s2); margin-bottom: var(--s3); }
+/* Google draws the button itself, in an iframe; this only reserves its
+   height so the form does not jump when it arrives. */
+.google-button { display: flex; justify-content: center; min-height: 44px; }
+.google-note { margin: 0; text-align: center; }
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s2);
+  color: var(--fg-subtle);
+  font-size: 0.85rem;
+}
+.auth-or::before,
+.auth-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.auth-card > .auth-role { margin: 0 0 var(--s4); }
+
+/* ---- Match setup: two of your own teams ---- */
+.internal-match { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }

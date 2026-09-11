@@ -8,10 +8,19 @@ import { isSecureContextAvailable } from "@/lib/clipboard";
 /// Three ways to name the other side, because a ground is not a laboratory:
 /// scan their code, paste the link they sent, or search for them by name. A
 /// club that is not in Fishers at all is typed in and stays a plain name.
+///
+/// Your own club is never the opposition. Two of its teams can be, when it has
+/// two — a trial match, the 1st XI against the 2nd.
 export function OppositionPicker({
   onPick,
+  homeClubId,
+  ownTeamsAllowed = false,
 }: {
   onPick: (identity: OpponentIdentity | null, name: string) => void;
+  /// The club you are playing for.
+  homeClubId?: string;
+  /// It has two or more teams, so one of them may be the opposition.
+  ownTeamsAllowed?: boolean;
 }) {
   const [tab, setTab] = useState<"scan" | "code" | "search">("search");
   const [code, setCode] = useState("");
@@ -22,11 +31,22 @@ export function OppositionPicker({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
+  const isOurs = (r: OpponentIdentity) => !!homeClubId && r.club_id === homeClubId;
+  /// Whether this can be the opposition at all.
+  const allowed = (r: OpponentIdentity) => !isOurs(r) || (r.kind === "team" && ownTeamsAllowed);
+  const ownClubNote = ownTeamsAllowed
+    ? "That's your own club. To play within it, pick one of its teams."
+    : "That's your own club — a club can't play itself. It takes two teams to play each other.";
+
   const resolve = async (token: string) => {
     setBusy(true);
     setNote(null);
     try {
       const identity = await api<OpponentIdentity>("POST", "/opponents/lookup", { token });
+      if (!allowed(identity)) {
+        setNote(ownClubNote);
+        return;
+      }
       setPlain("");
       onPick(identity, identity.name);
       setNote(`Matched ${identity.name}.`);
@@ -83,7 +103,7 @@ export function OppositionPicker({
             />
           </label>
           <ul className="plain-list" style={{ marginTop: "var(--s2)" }}>
-            {results.map((r) => (
+            {results.filter(allowed).map((r) => (
               <li key={r.id}>
                 <button
                   className="btn sm"
@@ -99,10 +119,11 @@ export function OppositionPicker({
                 </button>
               </li>
             ))}
-            {query.trim().length >= 2 && results.length === 0 && (
+            {query.trim().length >= 2 && results.filter(allowed).length === 0 && (
               <li className="muted">Nobody by that name in Fishers.</li>
             )}
           </ul>
+          {results.some((r) => !allowed(r)) && <p className="subtle">{ownClubNote}</p>}
 
           {/* Most opposition clubs are not on Fishers, and a fixture against
               one still has to be schedulable. This used to say "type it as a

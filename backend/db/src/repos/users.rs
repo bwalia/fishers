@@ -153,6 +153,76 @@ pub async fn update_profile(
     .await
 }
 
+/// The account a Google sign-in has been used on before.
+pub async fn find_by_google_sub(pool: &PgPool, sub: &str) -> Result<Option<User>, sqlx::Error> {
+    sqlx::query_as::<_, User>(&format!(
+        "SELECT {USER_COLUMNS} FROM users WHERE google_sub = $1"
+    ))
+    .bind(sub)
+    .fetch_optional(pool)
+    .await
+}
+
+/// A Google account signing in to an existing account with the same address.
+///
+/// Google has confirmed the address, so it counts as verified from now on.
+/// If it was not verified before, somebody else may have registered it with a
+/// password of their own, waiting for the real owner to arrive — so that
+/// password goes, and so does every session signed in with it. The owner
+/// keeps signing in with Google.
+pub async fn link_google(pool: &PgPool, user_id: Uuid, sub: &str) -> Result<User, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let unverified: bool = sqlx::query_scalar(
+        "SELECT email_verified_at IS NULL FROM users WHERE id = $1 FOR UPDATE",
+    )
+    .bind(user_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if unverified {
+        sqlx::query(
+            "UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    let user = sqlx::query_as::<_, User>(&format!(
+        "UPDATE users SET google_sub = $2,
+                password_hash = CASE WHEN email_verified_at IS NULL THEN NULL ELSE password_hash END,
+                email_verified_at = COALESCE(email_verified_at, now()),
+                updated_at = now()
+         WHERE id = $1
+         RETURNING {USER_COLUMNS}"
+    ))
+    .bind(user_id)
+    .bind(sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(user)
+}
+
+/// A new account from a Google sign-in: no password, address already confirmed.
+pub async fn create_google_user(
+    pool: &PgPool,
+    name: &str,
+    email: &str,
+    sub: &str,
+    avatar_url: Option<&str>,
+) -> Result<User, sqlx::Error> {
+    sqlx::query_as::<_, User>(&format!(
+        "INSERT INTO users (name, email, google_sub, avatar_url, email_verified_at)
+         VALUES ($1, $2, $3, $4, now())
+         RETURNING {USER_COLUMNS}"
+    ))
+    .bind(name)
+    .bind(email)
+    .bind(sub)
+    .bind(avatar_url)
+    .fetch_one(pool)
+    .await
+}
+
 /// Marks the address a code was sent to as verified — but only if it is still
 /// the user's address. Returns false when it has changed since, so a code sent
 /// to an old number cannot verify a new one.

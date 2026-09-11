@@ -36,6 +36,8 @@ pub struct AppState {
     /// on — and separate from whether email is configured, so switching on
     /// SMTP for reminders never locks anybody out by surprise.
     pub verification_required: bool,
+    /// Checks "Sign in with Google" tokens; off without GOOGLE_CLIENT_ID.
+    pub google: std::sync::Arc<crate::services::google::GoogleSignIn>,
 }
 
 impl AppState {
@@ -72,6 +74,7 @@ impl AppState {
                 std::env::var("VERIFICATION_REQUIRED").as_deref(),
                 Ok("true" | "1" | "yes")
             ),
+            google: std::sync::Arc::new(crate::services::google::GoogleSignIn::from_env()),
         }
     }
 

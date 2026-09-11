@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api, saveSession, saveUser, type AuthTokens, type PublicUser, type RoleIntent } from "@/lib/api";
 import { AuthPitch } from "@/components/AuthPitch";
 import { RoleChooser } from "@/components/RoleChooser";
+import { GoogleButton } from "@/components/GoogleButton";
 
 type Method = "email" | "phone";
 
@@ -28,6 +29,13 @@ export default function RegisterPage() {
   );
 
   const tooShort = password.length > 0 && password.length < 8;
+
+  // An invite link sends people here to sign up; land them back on it so they
+  // actually join the club they were invited to.
+  function goNext() {
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -57,10 +65,7 @@ export default function RegisterPage() {
           /* the dashboard asks instead */
         }
       }
-      // An invite link sends people here to sign up; land them back on it so
-      // they actually join the club they were invited to.
-      const next = new URLSearchParams(window.location.search).get("next");
-      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+      goNext();
     } catch (err) {
       // The API says what is wrong — already registered, too short — and those
       // are worth passing on rather than flattening.
@@ -81,7 +86,15 @@ export default function RegisterPage() {
 
       <div className="auth-card">
         <h2>Create an account</h2>
-        <p>An email address or a mobile number — whichever you actually use.</p>
+        <p>With Google, an email address or a mobile number — whichever you actually use.</p>
+
+        {/* Asked first, so it applies however they sign up — Google included. */}
+        <fieldset className="auth-role">
+          <legend>I&apos;m here to…</legend>
+          <RoleChooser compact value={role} onPicked={(_, r) => setRole(r)} />
+        </fieldset>
+
+        <GoogleButton mode="signup" role={role} onSignedIn={goNext} />
 
         <div className="tabs" role="tablist" aria-label="Register with">
           {(["email", "phone"] as const).map((m) => (
@@ -99,10 +112,6 @@ export default function RegisterPage() {
         </div>
 
         <form className="auth-form" onSubmit={onSubmit}>
-          <fieldset className="auth-role">
-            <legend>I&apos;m here to…</legend>
-            <RoleChooser compact value={role} onPicked={(_, r) => setRole(r)} />
-          </fieldset>
 
           <label>
             Your name

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, saveSession, type AuthTokens } from "@/lib/api";
 import { AuthPitch } from "@/components/AuthPitch";
+import { GoogleButton } from "@/components/GoogleButton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +14,13 @@ export default function LoginPage() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Come back to whatever expired — a scorer sent here mid-over lands back on
+  // the same match. Only same-origin paths, never an absolute URL.
+  function goNext() {
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -26,10 +34,7 @@ export default function LoginPage() {
         false
       );
       saveSession(tokens);
-      // Come back to whatever expired — a scorer sent here mid-over lands back
-      // on the same match. Only same-origin paths, never an absolute URL.
-      const next = new URLSearchParams(window.location.search).get("next");
-      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+      goNext();
     } catch {
       // Never say which half was wrong: that tells anyone guessing whether an
       // account exists.
@@ -46,6 +51,8 @@ export default function LoginPage() {
       <div className="auth-card">
         <h2>Sign in</h2>
         <p>The same account as the iOS app.</p>
+
+        <GoogleButton mode="signin" onSignedIn={goNext} />
 
         <form className="auth-form" onSubmit={onSubmit}>
           <label>

@@ -1,7 +1,7 @@
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
 use axum::extract::State;
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::users as users_repo;
 use fishers_domain::{AuthTokens, LoginRequest, RefreshRequest, SignupRequest};
@@ -17,6 +17,77 @@ pub fn router() -> Router<AppState> {
         .route("/auth/signup", post(signup))
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
+        .route("/auth/google", get(google_config).post(google))
+}
+
+/// Whether "Continue with Google" is offered, and the public client id the
+/// page draws Google's button with. The id is not a secret; it is in every
+/// page that shows the button.
+async fn google_config(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let client_id = state.google.client_id();
+    Json(serde_json::json!({ "enabled": client_id.is_some(), "client_id": client_id }))
+}
+
+#[derive(serde::Deserialize)]
+struct GoogleSignInBody {
+    /// The ID token Google's button hands the page.
+    credential: String,
+}
+
+#[derive(serde::Serialize)]
+struct GoogleSignedIn {
+    #[serde(flatten)]
+    tokens: AuthTokens,
+    /// A brand-new account, so the page can ask what they are here to do.
+    created: bool,
+}
+
+/// Sign in, or register, with Google — one button does both.
+///
+/// Returning Google users are matched on Google's permanent id. A first
+/// Google sign-in with an address that already has an account joins that
+/// account rather than making a second one. Otherwise it is a new account,
+/// with the name and photo Google has.
+async fn google(
+    State(state): State<AppState>,
+    Json(body): Json<GoogleSignInBody>,
+) -> ApiResult<Json<GoogleSignedIn>> {
+    if state.google.client_id().is_none() {
+        return Err(ApiError::unavailable("Google sign-in is not set up here"));
+    }
+    let who = state.google.verify(&body.credential).await.map_err(|reason| {
+        tracing::info!(%reason, "Google sign-in refused");
+        ApiError::unauthorized("Google did not confirm that sign-in — try again")
+    })?;
+
+    if let Some(user) = users_repo::find_by_google_sub(&state.pool, &who.sub).await? {
+        let Json(tokens) = issue_tokens(&state, user).await?;
+        return Ok(Json(GoogleSignedIn { tokens, created: false }));
+    }
+
+    // Matching on an address is only safe when Google vouches for it.
+    let email = who
+        .email
+        .as_deref()
+        .map(str::trim)
+        .filter(|e| !e.is_empty() && who.email_verified)
+        .ok_or_else(|| ApiError::bad_request("that Google account has no confirmed email address"))?;
+
+    let (user, created) = match users_repo::find_by_email(&state.pool, email).await? {
+        Some(existing) => (users_repo::link_google(&state.pool, existing.id, &who.sub).await?, false),
+        None => {
+            let name = who
+                .name
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+                .unwrap_or_else(|| email.split('@').next().unwrap_or("Player"));
+            let user = users_repo::create_google_user(&state.pool, name, email, &who.sub, who.picture.as_deref()).await?;
+            (user, true)
+        }
+    };
+    let Json(tokens) = issue_tokens(&state, user).await?;
+    Ok(Json(GoogleSignedIn { tokens, created }))
 }
 
 async fn signup(
