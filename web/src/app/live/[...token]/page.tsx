@@ -6,6 +6,7 @@ import { watchScoreboard } from "@/lib/live";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
 import { ReshareLiveLink } from "@/components/ReshareLiveLink";
+import { Moments } from "@/components/Moments";
 import {
   commentaryFor,
   overs,
@@ -123,6 +124,7 @@ export default function LiveScoreboardPage({
 
   return (
     <main id="main" className="shell live-board">
+      {board && <Moments state={board.state} nameOf={(id) => nameOf(board, id)} />}
       <header className="live-hero">
         <p className="tag">Live scoreboard</p>
         <h1>Fishers</h1>

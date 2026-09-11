@@ -4,6 +4,8 @@
 /// knows about the fixtures, so the assistant can read "I can't make Sunday"
 /// and offer to set that person's availability.
 
+import { api } from "@/lib/api";
+
 export type ConversationSummary = {
   id: string;
   club_id: string | null;
@@ -135,4 +137,15 @@ function dayLabel(iso: string): string {
   return at.toLocaleDateString("en-GB", {
     weekday: "long", day: "numeric", month: "long",
   });
+}
+
+/// The one-to-one chat with somebody: opened if you already have one,
+/// started if not. Resolves to its id.
+export async function messagePerson(userId: string, name: string): Promise<string> {
+  const chat = await api<{ id: string }>("POST", "/conversations", {
+    kind: "direct",
+    member_ids: [userId],
+    title: name,
+  });
+  return chat.id;
 }

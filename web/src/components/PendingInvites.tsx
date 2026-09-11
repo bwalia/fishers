@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, errCode, readErr, type Invite } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { subscribeLive } from "@/lib/live";
 
 /// Invitations waiting for you.
 ///
@@ -35,6 +36,10 @@ export function PendingInvites({
 
   useEffect(() => {
     load();
+    // An invite sent while this is open appears here, not only as a toast.
+    return subscribeLive((e) => {
+      if (e.type === "notification" || e.type === "resync") load();
+    });
   }, [load]);
 
   if (invites.length === 0) return null;

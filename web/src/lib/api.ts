@@ -672,8 +672,23 @@ export function notificationLine(n: AppNotification): {
         }.`,
         href: p.event_id ? `/events?fixture=${p.event_id}` : undefined,
       };
-    case "invite":
-      return { title: "You have a new invite." };
+    case "invite": {
+      // The club (and team) by name, and who asked — an approval request that
+      // says what is being approved.
+      const i = n.payload as { club_name?: string; team_name?: string; event_title?: string; inviter?: string };
+      const from = i.inviter ? ` ${i.inviter} invited you.` : "";
+      if (i.team_name)
+        return { title: `${i.club_name ?? "A club"} wants you in their ${i.team_name}.${from}`, href: "/" };
+      if (i.event_title) return { title: `You're invited: ${i.event_title}.${from}`, href: "/" };
+      return { title: `${i.club_name ?? "A club"} wants you in the club.${from}`, href: "/" };
+    }
+    case "invite_accepted": {
+      const a = n.payload as { player?: string; team_name?: string; club_name?: string; event_title?: string; club_id?: string };
+      return {
+        title: `${a.player ?? "A player"} accepted — they're in ${a.team_name ?? a.event_title ?? a.club_name ?? "the club"}.`,
+        href: a.club_id ? `/clubs/${a.club_id}#members` : undefined,
+      };
+    }
     default:
       return { title: n.type.replaceAll("_", " ") };
   }

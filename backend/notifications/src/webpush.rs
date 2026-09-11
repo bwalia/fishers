@@ -130,6 +130,7 @@ impl WebPushService {
         title: &str,
         body: &str,
         url: Option<&str>,
+        tag: Option<&str>,
     ) -> PushOutcome {
         let Some(key) = self.key.as_ref() else {
             return PushOutcome::Failed("web push is not configured".into());
@@ -158,12 +159,17 @@ impl WebPushService {
         // The payload the service worker receives. Kept small: push services
         // cap the encrypted body around 4KB, and this only has to be enough
         // to draw a notification and know where it goes.
-        let payload = serde_json::json!({
+        let mut payload = serde_json::json!({
             "title": title,
             "body": body,
             "url": url.unwrap_or("/notifications"),
-        })
-        .to_string();
+        });
+        // What makes two notifications "the same thing", so the newer one
+        // replaces the older; without it the service worker goes by the URL.
+        if let Some(tag) = tag {
+            payload["tag"] = tag.into();
+        }
+        let payload = payload.to_string();
 
         let request = match WebPushBuilder::new(endpoint, ua_public, ua_auth)
             .with_vapid(key, &self.subject)
@@ -268,7 +274,7 @@ mod tests {
             keys: SubscriptionKeys { p256dh: "x".into(), auth: "y".into() },
         };
         assert!(matches!(
-            service.send(&sub, "t", "b", None).await,
+            service.send(&sub, "t", "b", None, None).await,
             PushOutcome::Failed(_)
         ));
     }
@@ -303,6 +309,6 @@ mod tests {
             endpoint: "https://example.com/x".into(),
             keys: SubscriptionKeys { p256dh: "not-base64!!".into(), auth: "also-not".into() },
         };
-        assert!(matches!(service.send(&sub, "t", "b", None).await, PushOutcome::Gone));
+        assert!(matches!(service.send(&sub, "t", "b", None, None).await, PushOutcome::Gone));
     }
 }

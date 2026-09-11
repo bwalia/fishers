@@ -32,8 +32,24 @@ export function pushSupported(): boolean {
   );
 }
 
-/// What the browser and server between them can actually do right now.
-export async function pushState(): Promise<PushState> {
+/// Whether this page load has already told the server about the subscription.
+let reported = false;
+
+/// What the browser and server between them can actually do right now —
+/// mending, on the way, the two ways a subscription goes dead without either
+/// end noticing.
+///
+/// Callers at the same moment share one answer: two mending at once would
+/// each replace the subscription, and the server would keep the dead one.
+export function pushState(): Promise<PushState> {
+  checking ??= checkPush().finally(() => {
+    checking = null;
+  });
+  return checking;
+}
+let checking: Promise<PushState> | null = null;
+
+async function checkPush(): Promise<PushState> {
   if (!pushSupported()) return "unsupported";
 
   const key = await api<KeyResponse>("GET", "/notifications/web-push-key", undefined, false)
@@ -43,7 +59,35 @@ export async function pushState(): Promise<PushState> {
 
   const registration = await navigator.serviceWorker.getRegistration("/sw.js");
   const existing = await registration?.pushManager.getSubscription();
-  return existing ? "on" : "off";
+  if (!existing) return "off";
+
+  // A subscription is bound to the key it was made with. Once the server's
+  // keys change, every push to it is refused and the server drops the row,
+  // while this browser still believes push is on. Make a fresh one; the
+  // permission is already granted, so nobody is asked anything.
+  if (!sameBytes(existing.options.applicationServerKey, urlBase64ToUint8Array(key.public_key))) {
+    await existing.unsubscribe();
+    return Notification.permission === "granted" ? enablePush() : "off";
+  }
+  // The server also drops a row by itself when a push to it fails. Saying
+  // it again is idempotent, and once a page load is plenty.
+  if (!reported) {
+    reported = true;
+    await api("POST", "/notifications/register-device", {
+      device_token: JSON.stringify(existing.toJSON()),
+      platform: "web",
+    }).catch(() => {
+      reported = false;
+    });
+  }
+  return "on";
+}
+
+function sameBytes(a: ArrayBuffer | null, b: ArrayBuffer): boolean {
+  if (!a || a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  return x.every((v, i) => v === y[i]);
 }
 
 /// Ask for permission and subscribe. Returns the state it ended in, so a

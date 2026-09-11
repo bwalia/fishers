@@ -10,11 +10,35 @@ fn invite_token() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// A second "Invite" for the same person to the same club or team hands back
+/// the one already waiting, rather than stacking up duplicates for them to
+/// wade through. The bool says whether this call made it — the caller only
+/// notifies them once.
 pub async fn create_invite(
     pool: &PgPool,
     invited_by: Uuid,
     req: &CreateInviteRequest,
-) -> Result<Invite, sqlx::Error> {
+) -> Result<(Invite, bool), sqlx::Error> {
+    if let Some(user) = req.invited_user_id {
+        let existing = sqlx::query_as::<_, Invite>(
+            r#"
+            SELECT id, target_type, target_id, invited_user_id, invited_email,
+                   invited_by, token, status, created_at, accepted_at
+            FROM invites
+            WHERE target_type = $1 AND target_id = $2 AND invited_user_id = $3
+              AND status = 'pending'
+            ORDER BY created_at DESC LIMIT 1
+            "#,
+        )
+        .bind(req.target_type)
+        .bind(req.target_id)
+        .bind(user)
+        .fetch_optional(pool)
+        .await?;
+        if let Some(invite) = existing {
+            return Ok((invite, false));
+        }
+    }
     let token = invite_token();
     sqlx::query_as::<_, Invite>(
         r#"
@@ -32,6 +56,7 @@ pub async fn create_invite(
     .bind(token)
     .fetch_one(pool)
     .await
+    .map(|invite| (invite, true))
 }
 
 pub async fn list_my_invites(pool: &PgPool, user_id: Uuid) -> Result<Vec<Invite>, sqlx::Error> {
@@ -140,57 +165,89 @@ pub async fn list_attendees(
         .collect())
 }
 
+/// One transaction: the invite is spent only if the membership it promised is
+/// actually written. As separate statements, a failed insert left an invite
+/// marked accepted with nobody added, and no way to use it again.
+///
+/// An invite addressed to a person can only be accepted by that person. A link
+/// invite (to an email, or to nobody in particular) can be accepted by whoever
+/// holds the link — that is what the link is for.
 pub async fn accept_invite(
     pool: &PgPool,
     token: &str,
     user_id: Uuid,
 ) -> Result<Option<Invite>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
     let invite = sqlx::query_as::<_, Invite>(
         r#"
         UPDATE invites SET status = 'accepted', accepted_at = NOW(), invited_user_id = $2
         WHERE token = $1 AND status = 'pending'
+          AND (invited_user_id IS NULL OR invited_user_id = $2)
         RETURNING id, target_type, target_id, invited_user_id, invited_email,
                   invited_by, token, status, created_at, accepted_at
         "#,
     )
     .bind(token)
     .bind(user_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await?;
 
-    if let Some(ref inv) = invite {
-        match inv.target_type {
-            InviteTarget::Club => {
-                sqlx::query(
-                    r#"
-                    INSERT INTO club_members (club_id, user_id, role, status)
-                    VALUES ($1, $2, 'member', 'active')
-                    ON CONFLICT (club_id, user_id) DO UPDATE SET status = 'active'
-                    "#,
-                )
+    let Some(inv) = invite else {
+        return Ok(None);
+    };
+
+    match inv.target_type {
+        InviteTarget::Club => {
+            join_club(&mut tx, inv.target_id, user_id).await?;
+        }
+        InviteTarget::Team => {
+            // A team is inside a club. Joining only the team left a player
+            // on a side in a club they were not a member of — so they could
+            // not see its fixtures, its chat, or the club itself.
+            let club_id: Uuid = sqlx::query_scalar("SELECT club_id FROM teams WHERE id = $1")
                 .bind(inv.target_id)
-                .bind(user_id)
-                .execute(pool)
+                .fetch_one(&mut *tx)
                 .await?;
-            }
-            InviteTarget::Team => {
-                sqlx::query(
-                    r#"
-                    INSERT INTO team_members (team_id, user_id, role)
-                    VALUES ($1, $2, 'member')
-                    ON CONFLICT DO NOTHING
-                    "#,
-                )
-                .bind(inv.target_id)
-                .bind(user_id)
-                .execute(pool)
-                .await?;
-            }
-            InviteTarget::Event => {
-                invite_to_event(pool, inv.target_id, user_id, inv.invited_by).await?;
-            }
+            join_club(&mut tx, club_id, user_id).await?;
+            sqlx::query(
+                r#"
+                INSERT INTO team_members (team_id, user_id, role)
+                VALUES ($1, $2, 'member')
+                ON CONFLICT DO NOTHING
+                "#,
+            )
+            .bind(inv.target_id)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+        InviteTarget::Event => {
+            tx.commit().await?;
+            invite_to_event(pool, inv.target_id, user_id, inv.invited_by).await?;
+            return Ok(Some(inv));
         }
     }
+    tx.commit().await?;
+    Ok(Some(inv))
+}
 
-    Ok(invite)
+/// Active member, keeping any role they already hold — accepting an invite
+/// must never demote a captain back to member.
+async fn join_club(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    club_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO club_members (club_id, user_id, role, status)
+        VALUES ($1, $2, 'member', 'active')
+        ON CONFLICT (club_id, user_id) DO UPDATE SET status = 'active'
+        "#,
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }

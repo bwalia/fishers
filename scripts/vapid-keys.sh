@@ -23,16 +23,18 @@ openssl ecparam -name prime256v1 -genkey -noout -out "$tmp/key.pem" 2>/dev/null
 b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 
 # The private scalar: 32 raw bytes, which is what ES256KeyPair::from_bytes
-# wants. Read from the printed hex rather than sliced out of the DER — the
-# DER carries the curve OID after the key, so a tail of it is not the key.
+# wants. Taken from the SEC1 DER, where a P-256 key is always stored at its
+# full 32 bytes (zero-padded, never trimmed) straight after a fixed 7-byte
+# header: 30 77 02 01 01 04 20.
 #
-# Left-padded to 64 hex characters, not tailed: openssl omits leading zero
-# bytes, so roughly one key in 256 prints short and a `tail -c 64` silently
-# produces a 31-byte scalar that every push then fails to sign with.
-priv_hex=$(openssl ec -in "$tmp/key.pem" -text -noout 2>/dev/null \
-  | sed -n '/^priv:/,/^pub:/p' | grep -o '[0-9a-f][0-9a-f]:' | tr -d ':\n')
-priv_hex=$(printf '%064s' "$priv_hex" | tr ' ' '0')
-private=$(printf '%s' "$priv_hex" | xxd -r -p | b64url)
+# Not from `openssl ec -text`: that prints the key as "ab:cd:…:ef" with no
+# colon after the last byte, so grepping for "xx:" pairs silently drops it —
+# and the result is a private key that does not match the public one, which
+# the push service answers with 403 "invalid JWT" for every single push.
+der="$tmp/key.der"
+openssl ec -in "$tmp/key.pem" -outform DER -out "$der" 2>/dev/null
+[ "$(head -c 7 "$der" | xxd -p)" = "30770201010420" ] || { echo "unexpected key encoding" >&2; exit 1; }
+private=$(tail -c +8 "$der" | head -c 32 | b64url)
 
 # The public point, uncompressed SEC1: 0x04 || X || Y, 65 bytes. This one is
 # genuinely at the end of the DER, after the algorithm identifier.

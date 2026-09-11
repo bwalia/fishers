@@ -16,6 +16,7 @@ import { Icon } from "@/components/Icon";
 import { GettingStarted } from "@/components/GettingStarted";
 import { PendingInvites } from "@/components/PendingInvites";
 import { RoleChooser } from "@/components/RoleChooser";
+import { PushPrompt } from "@/components/PushPrompt";
 import { overs, type MatchResponse } from "@/lib/cricket";
 
 export default function HomePage() {
@@ -103,6 +104,7 @@ export default function HomePage() {
       {error && <p className="error">{error}</p>}
 
       {user && <PendingInvites onJoined={load} onCount={setInvitesCount} />}
+      {user && loaded && <PushPrompt />}
 
       {user && loaded && !user.role_intent && clubs.length === 0 && (
         <section className="panel welcome" aria-labelledby="welcome-title">

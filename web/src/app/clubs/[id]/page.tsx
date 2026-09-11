@@ -24,6 +24,8 @@ import {
   type Venue,
   type Team,
 } from "@/lib/api";
+import { AddByLink } from "@/components/AddByLink";
+import { MessageButton } from "@/components/MessageButton";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { QrCard } from "@/components/QrCard";
@@ -91,6 +93,11 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
         clubId={id}
         members={members}
         isSecretary={isSecretary}
+        // A captain can bring a player into their team from a shared link,
+        // as a secretary can into the club.
+        canAddByLink={
+          !!myRole && (myRole.permissions.includes("invite_to_club") || myRole.permissions.includes("invite_to_team"))
+        }
         meId={me?.id}
         onChanged={load}
       />
@@ -114,12 +121,14 @@ function Members({
   clubId,
   members,
   isSecretary,
+  canAddByLink,
   meId,
   onChanged,
 }: {
   clubId: string;
   members: ClubMemberRow[];
   isSecretary: boolean;
+  canAddByLink: boolean;
   meId?: string;
   onChanged: () => void;
 }) {
@@ -185,6 +194,7 @@ function Members({
       </p>
 
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
+      {canAddByLink && <AddByLink clubId={clubId} />}
 
       {members.length > 8 && (
         <label>
@@ -217,11 +227,14 @@ function Members({
               return (
                 <tr key={m.user_id}>
                   <td>
-                    <Link className="person" href={`/players/${m.user_id}`}>
-                      <Avatar name={m.name} url={m.avatar_url} size={30} />
-                      {m.name}
-                      {m.user_id === meId && <span className="tag grey">you</span>}
-                    </Link>
+                    <div className="member-cell">
+                      <Link className="person" href={`/players/${m.user_id}`}>
+                        <Avatar name={m.name} url={m.avatar_url} size={30} />
+                        {m.name}
+                        {m.user_id === meId && <span className="tag grey">you</span>}
+                      </Link>
+                      {m.user_id !== meId && <MessageButton userId={m.user_id} name={m.name} compact />}
+                    </div>
                   </td>
                   <td className="subtle">{m.email || m.phone || "—"}</td>
                   <td>

@@ -61,10 +61,8 @@ impl PushService {
         .await?;
 
         // A deep link, when the notification is about something in particular.
-        let url = payload
-            .get("url")
-            .and_then(Value::as_str)
-            .map(str::to_string);
+        let url = payload.get("url").and_then(Value::as_str);
+        let tag = payload.get("tag").and_then(Value::as_str);
 
         let mut dead = Vec::new();
         for (id, token, platform) in devices {
@@ -77,7 +75,7 @@ impl PushService {
                 dead.push(id);
                 continue;
             };
-            match self.web.send(&subscription, title, body, url.as_deref()).await {
+            match self.web.send(&subscription, title, body, url, tag).await {
                 webpush::PushOutcome::Delivered => {}
                 webpush::PushOutcome::Gone => dead.push(id),
                 webpush::PushOutcome::Failed(error) => {

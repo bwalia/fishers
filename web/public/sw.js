@@ -16,17 +16,27 @@ self.addEventListener("push", (event) => {
     payload = { title: "Fishers", body: event.data.text() };
   }
 
+  const url = payload.url || "/notifications";
   event.waitUntil(
-    self.registration.showNotification(payload.title || "Fishers", {
-      body: payload.body || "",
-      icon: "/icon-192.png",
-      badge: "/badge.png",
-      // Notifications about the same thing replace each other rather than
-      // stacking up: four reminders about one fixture is four times the
-      // annoyance and no more information.
-      tag: payload.tag || payload.url || "fishers",
-      renotify: false,
-      data: { url: payload.url || "/notifications" },
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // Somebody looking at Fishers right now already sees it: the page shows
+      // its own alert from the live stream, and a system notification on top
+      // would say everything twice. (Chrome only insists on one when no tab
+      // of the site is focused.)
+      if (clients.some((c) => c.focused && c.visibilityState === "visible")) return;
+      return self.registration.showNotification(payload.title || "Fishers", {
+        body: payload.body || "",
+        icon: "/icon-192.png",
+        badge: "/badge.png",
+        // Notifications about the same thing replace each other rather than
+        // stacking up: four reminders about one fixture is four times the
+        // annoyance and no more information.
+        tag: payload.tag || url,
+        // …except a chat, where a new message replacing the last one should
+        // still make a sound: it is news, not a repeat.
+        renotify: url.startsWith("/chat/"),
+        data: { url },
+      });
     })
   );
 });

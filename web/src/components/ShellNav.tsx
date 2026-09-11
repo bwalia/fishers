@@ -7,6 +7,7 @@ import { clearSession, getStoredUser, type PublicUser } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OverflowMenu } from "@/components/OverflowMenu";
+import { ChatBadge } from "@/components/ChatBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const links: { href: string; label: string; icon: IconName }[] = [
@@ -68,6 +69,7 @@ export function ShellNav() {
             >
               <Icon name={l.icon} size={16} />
               {l.label}
+              {user && l.href === "/chat" && <ChatBadge />}
             </Link>
           );
         })}

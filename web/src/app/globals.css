@@ -3357,7 +3357,7 @@ a.bell-item:hover { background: var(--surface-2); }
 /* Status never rides on colour alone: available and unavailable also differ in
    weight and, at the bottom of the panel, in a written key. */
 .cal-day.is-available { background: var(--pitch-100); border-color: var(--primary); color: var(--sage-900); }
-.cal-day.is-maybe { background: var(--gold-100); border-color: var(--gold-600); color: var(--gold-700); }
+.cal-day.is-maybe { background: var(--gold-100); border-color: var(--gold-600); color: var(--accent); }
 .cal-day.is-unavailable { background: var(--red-100); border-color: var(--red-500); color: var(--red-600); }
 
 /* A dot for a fixture that day, so nobody rules themselves out blind. */
@@ -4176,6 +4176,7 @@ a.bell-item:hover { background: var(--surface-2); }
 .player-card { display: flex; align-items: center; gap: var(--s4); }
 .player-card h1 { margin: 0; font-size: 2rem; }
 .player-card-meta { margin: var(--s1) 0 0; color: var(--fg-muted); text-transform: capitalize; }
+.player-card-meta .plain { text-transform: none; }
 .invite-sent { display: flex; align-items: flex-start; gap: var(--s3); border-color: var(--primary); }
 .invite-sent h2 { margin: 0; }
 .invite-sent-icon {
@@ -4251,3 +4252,651 @@ a.bell-item:hover { background: var(--surface-2); }
   cursor: pointer;
 }
 .thread-new:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+/* ---- Adding a player from their profile link ---- */
+.add-by-link {
+  display: grid;
+  gap: var(--s2);
+  margin: var(--s3) 0;
+  padding: var(--s3) var(--s4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+.add-by-link label { font-weight: 600; }
+.add-by-link-row { display: flex; gap: var(--s2); }
+.add-by-link-row input { flex: 1; min-width: 0; }
+.add-to { margin-top: var(--s2); }
+/* Team names exactly as the club wrote them — "under-13s", not "Under-13s". */
+.add-to .chip { text-transform: none; }
+.add-to-note { margin: var(--s2) 0 0; }
+
+/* ---- Unread count on the Chats item ---- */
+.nav-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--live);
+}
+/* In the tab bar the label sits under the icon; the count rides the icon. */
+.tabbar a { position: relative; }
+.tabbar .nav-badge {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 6px);
+  margin: 0;
+}
+
+/* ---- Alerts: something happened while you were elsewhere ---- */
+.live-alerts {
+  position: fixed;
+  top: 76px;
+  right: var(--s4);
+  z-index: calc(var(--z-modal) - 1);
+  display: grid;
+  gap: var(--s2);
+  width: min(360px, calc(100vw - 2 * var(--s3)));
+}
+.live-alert {
+  display: flex;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+  animation: alert-in 0.24s var(--ease);
+}
+.live-alert-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--s3);
+  padding: var(--s3);
+  text-align: left;
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.live-alert-open:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--radius); }
+.live-alert-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--primary-ink);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.live-alert-text { display: grid; gap: 2px; min-width: 0; }
+.live-alert-text strong { font-size: 0.9rem; }
+.live-alert-text span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--fg-muted);
+}
+.live-alert-close {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin: var(--s1);
+  border: 0;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--fg-subtle);
+  background: none;
+  cursor: pointer;
+}
+.live-alert-close:hover { color: var(--fg); background: var(--surface-2); }
+@keyframes alert-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1023px) {
+  .live-alerts { top: 68px; left: 50%; right: auto; transform: translateX(-50%); }
+}
+
+/* ---- "Get alerts when Fishers is closed" ---- */
+.push-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+}
+.push-prompt-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--primary-ink);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+}
+.push-prompt-text { flex: 1 1 220px; display: grid; gap: 2px; }
+.push-prompt-actions { display: flex; gap: var(--s2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .live-alert { animation: none; }
+}
+
+/* ======================================================================
+   Moments: a four, a six, a wicket — a beat of celebration.
+   Under the top bar, never over the run dial; taps pass straight through.
+   ====================================================================== */
+.moment {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  z-index: calc(var(--z-modal) + 20);
+  width: min(460px, calc(100vw - 2 * var(--s3)));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.moment-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: var(--s4) var(--s5);
+  overflow: hidden;
+  border-radius: 20px;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 35%);
+}
+.moment-word {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 9vw, 4rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-shadow: 0 3px 0 rgb(0 0 0 / 18%);
+}
+.moment-who { position: relative; z-index: 1; font-weight: 700; font-size: 1.05rem; }
+.moment-detail { position: relative; z-index: 1; font-size: 0.875rem; opacity: 0.9; }
+
+/* FOUR — a swing in from the left, and the ball racing along the ground to
+   the rope, a streak of light behind it. */
+.moment-card.four {
+  background: linear-gradient(120deg, #2f80ed, #1a56b8);
+  animation: m-swing 1.9s var(--ease) both;
+}
+.moment-card.four .moment-word { animation: m-slide 1.9s var(--ease) both; }
+.moment-rope {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 85%) 70%, #fff);
+  transform-origin: left;
+  animation: m-rope 0.9s 0.15s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.moment-rope::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: -5px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 12px #fff;
+}
+@keyframes m-swing {
+  0% { opacity: 0; transform: translateX(-40px) skewX(-12deg); }
+  14% { opacity: 1; transform: translateX(6px) skewX(3deg); }
+  22%, 84% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateX(24px); }
+}
+@keyframes m-slide {
+  0%, 8% { opacity: 0; transform: translateX(-24px); }
+  24% { opacity: 1; transform: none; }
+}
+@keyframes m-rope { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* SIX — the word pops, the ball sails up and out, sparks burst. */
+.moment-card.six {
+  background: radial-gradient(circle at 50% 120%, #ffb347, #f2711c 55%, #c2410c);
+  animation: m-pop 2.1s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.moment-card.six .moment-word { animation: m-bounce 2.1s cubic-bezier(0.2, 0.9, 0.3, 1.4) both; }
+/* The arc is two motions: sideways at a steady pace, and up then over. */
+.moment-arc {
+  position: absolute;
+  left: 18%;
+  bottom: 10px;
+  animation: m-arc-x 1.3s 0.1s linear both;
+}
+.moment-ball {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 14px #fff, 0 0 4px #fff;
+  animation: m-arc-y 1.3s 0.1s cubic-bezier(0.1, 0.6, 0.4, 1) both;
+}
+.moment-spark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff4d6;
+  transform: rotate(var(--a)) translateY(0);
+  animation: m-spark 1s 0.2s ease-out both;
+}
+@keyframes m-pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  16% { opacity: 1; transform: scale(1.04); }
+  26%, 86% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+@keyframes m-bounce {
+  0%, 6% { transform: scale(0.3); }
+  22% { transform: scale(1.2); }
+  34% { transform: scale(1); }
+}
+@keyframes m-arc-x { from { transform: translateX(0); } to { transform: translateX(260px); } }
+@keyframes m-arc-y {
+  0% { transform: translateY(0); opacity: 1; }
+  60% { transform: translateY(-120px); opacity: 1; }
+  100% { transform: translateY(-160px) scale(0.5); opacity: 0; }
+}
+@keyframes m-spark {
+  from { opacity: 1; transform: rotate(var(--a)) translateY(0); }
+  to { opacity: 0; transform: rotate(var(--a)) translateY(-90px); }
+}
+
+/* WICKET — the stumps shake, the bails fly, OUT! lands with a thud. */
+.moment-card.wicket {
+  background: linear-gradient(160deg, #d8453a, #8e2418);
+  animation: m-drop 2.5s var(--ease) both;
+}
+.moment-card.wicket .moment-word { animation: m-stamp 2.5s cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+.moment-stumps { margin-bottom: var(--s1); overflow: visible; }
+.moment-stumps rect { fill: #fff; }
+.stumps-set { transform-origin: 32px 70px; animation: m-shake 0.5s 0.2s ease-in-out both; }
+.bail { transform-box: fill-box; transform-origin: center; }
+.bail-l { animation: m-bail-l 0.9s 0.2s cubic-bezier(0.2, 0.6, 0.4, 1) both; }
+.bail-r { animation: m-bail-r 0.9s 0.2s cubic-bezier(0.2, 0.6, 0.4, 1) both; }
+@keyframes m-drop {
+  0% { opacity: 0; transform: translateY(-16px); }
+  10%, 88% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes m-stamp {
+  0%, 22% { opacity: 0; transform: scale(1.8); }
+  34% { opacity: 1; transform: scale(0.94); }
+  42% { transform: scale(1); }
+}
+@keyframes m-shake {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-6deg); }
+  60% { transform: rotate(4deg); }
+}
+@keyframes m-bail-l {
+  to { transform: translate(-34px, -46px) rotate(-220deg); opacity: 0; }
+}
+@keyframes m-bail-r {
+  to { transform: translate(38px, -40px) rotate(260deg); opacity: 0; }
+}
+
+@media (max-width: 1023px) {
+  .moment { top: 72px; }
+}
+
+/* Reduced motion: the news without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .moment-card,
+  .moment-card .moment-word { animation: m-fade 2s linear both !important; }
+  .moment-rope, .moment-arc, .moment-ball, .moment-spark,
+  .stumps-set, .bail { animation: none !important; }
+  .moment-arc, .moment-spark { display: none; }
+}
+@keyframes m-fade {
+  0%, 100% { opacity: 0; }
+  12%, 85% { opacity: 1; }
+}
+
+/* ---- New chat ---- */
+.new-chat-modes { margin-top: var(--s2); }
+.new-chat-modes button { display: inline-flex; align-items: center; gap: var(--s1); }
+.new-chat-clubs { margin: var(--s3) 0 0; }
+.new-chat-people > li.muted { padding: var(--s3); }
+.new-chat-where { display: block; font-weight: 400; font-size: 0.8125rem; }
+/* The action stays in reach at the bottom of the sheet, however long the list. */
+.new-chat-go {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: var(--s3);
+  padding-top: var(--s3);
+  background: var(--surface);
+}
+.new-chat-go .btn { width: 100%; }
+.new-chat-club { margin-top: var(--s3); }
+.new-chat-club .chip,
+.new-chat-clubs .chip { text-transform: none; }
+.new-chat-empty { display: grid; gap: var(--s3); justify-items: start; margin-top: var(--s3); }
+
+/* A member's name and a way to message them, on one line. */
+.member-cell { display: flex; align-items: center; gap: var(--s2); }
+.member-cell .person { flex: 1; min-width: 0; }
+.btn.icon-only { min-width: 40px; min-height: 40px; padding: 0; justify-content: center; }
+.pro-actions { margin-top: var(--s3); display: flex; gap: var(--s2); flex-wrap: wrap; }
+
+@media (max-width: 1023px) {
+  /* Above the tab bar, not under it: the thread ends clear of the bar and
+     the page itself never scrolls. */
+  .thread { height: calc(100dvh - 160px - env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ======================================================================
+   Guides: a few numbered steps at the top of a screen, until "Got it".
+   ====================================================================== */
+.guide-card { border-color: var(--primary); }
+.guide-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.guide-card-head h2 { margin: 0; }
+.guide-steps {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.guide-steps li { display: flex; gap: var(--s3); align-items: flex-start; }
+.guide-steps p { margin: 2px 0 0; color: var(--fg-muted); font-size: 0.9rem; }
+.guide-num {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* ---- "Can you play?": one control, on the fixtures list and the calendar ---- */
+.fx-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.fx-seg-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.fx-seg-btn:hover { color: var(--fg); }
+.fx-seg-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.fx-seg-btn[disabled] { cursor: progress; }
+.fx-seg-btn.on.is-going,
+.fx-seg-btn.on.is-available { background: var(--primary); color: var(--on-primary); }
+.fx-seg-btn.on.is-maybe { background: var(--gold-100); color: var(--accent); box-shadow: inset 0 0 0 1px var(--gold-600); }
+.fx-seg-btn.on.is-not_going,
+.fx-seg-btn.on.is-unavailable { background: var(--red-100); color: var(--red-600); box-shadow: inset 0 0 0 1px var(--red-500); }
+.fx-answer-error { margin: var(--s1) 0 0; font-size: 0.85rem; }
+
+.fx-said { font-size: 0.85rem; font-weight: 700; }
+.fx-said.is-going { color: var(--primary-ink); }
+.fx-said.is-maybe { color: var(--accent); }
+.fx-said.is-not_going { color: var(--red-500); }
+.fx-said.is-none { color: var(--fg-muted); }
+.fx-warn { margin: var(--s2) 0 0; color: var(--accent); font-size: 0.85rem; font-weight: 600; }
+.fx-warn::before { content: "! "; }
+
+/* ---- Fixtures ---- */
+.fixtures-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--s3); }
+.fixtures-hero-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+
+.fx-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.fx-stat {
+  display: grid;
+  gap: 2px;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.fx-stat { cursor: pointer; transition: border-color var(--dur) var(--ease); }
+button.fx-stat:hover { border-color: var(--border-strong); }
+button.fx-stat:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.fx-stat.needs { border-color: var(--gold-600); }
+.fx-stat.needs .fx-stat-num { color: var(--accent); }
+.fx-stat.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.fx-stat-num { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; line-height: 1; }
+.fx-stat-label { color: var(--fg-muted); font-size: 0.875rem; }
+
+.fx-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+.fx-views, .fx-clubs { margin: 0; }
+.fx-clubs .chip { text-transform: none; }
+
+.fx-day { margin-bottom: var(--s5); }
+.fx-day-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0 0 var(--s2);
+  font-size: 1.05rem;
+  color: var(--fg-muted);
+}
+.fx-day-count { font-family: var(--font-body, inherit); font-size: 0.8rem; font-weight: 600; color: var(--accent); }
+
+.fx-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--s4);
+  margin-bottom: var(--s2);
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+/* The stripe is your answer, and the words beside the control say it too. */
+.fx-card.is-going { border-left-color: var(--primary); }
+.fx-card.is-maybe { border-left-color: var(--gold-600); }
+.fx-card.is-not_going { border-left-color: var(--red-500); }
+.fx-card.is-none { border-left-color: var(--accent); border-left-style: dashed; }
+.fx-card.past { opacity: 0.85; }
+.fx-time { display: grid; gap: 2px; }
+.fx-time strong { font-family: var(--font-display); font-size: 1.4rem; line-height: 1; }
+.fx-time span { color: var(--fg-subtle); font-size: 0.8rem; }
+.fx-tags { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.fx-title {
+  display: block;
+  margin-top: var(--s1);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.fx-meta { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); margin: var(--s1) 0 0; color: var(--fg-muted); font-size: 0.9rem; }
+.fx-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.fx-links { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s3); }
+.fx-side { display: grid; justify-items: end; gap: var(--s2); }
+
+@media (max-width: 760px) {
+  .fx-card { grid-template-columns: 52px minmax(0, 1fr); gap: var(--s3); padding: var(--s3); }
+  .fx-time strong { font-size: 1.15rem; }
+  .fx-side { grid-column: 1 / -1; justify-items: stretch; }
+  .fx-side .fx-seg { display: flex; }
+  .fx-side .fx-seg-btn { flex: 1; padding: 0 8px; }
+}
+
+/* ---- Availability: calendar and the day beside it ---- */
+.avail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  align-items: start;
+  gap: var(--s4);
+  margin-bottom: var(--s4);
+}
+.avail-layout > .panel { margin: 0; }
+.avail-day { position: sticky; top: 80px; }
+.avail-day h2 { margin: 0; }
+.avail-day-block { margin-top: var(--s4); }
+.avail-label {
+  margin: 0 0 var(--s2);
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.avail-day .fx-seg { display: flex; width: 100%; }
+.avail-day .fx-seg-btn { flex: 1; padding: 0 8px; }
+.avail-fixtures { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }
+.avail-fixture {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: 10px;
+}
+.avail-fixture.is-going { border-left-color: var(--primary); }
+.avail-fixture.is-maybe { border-left-color: var(--gold-600); }
+.avail-fixture.is-not_going { border-left-color: var(--red-500); }
+.avail-fixture.is-none { border-left-color: var(--accent); border-left-style: dashed; }
+.avail-fixture p { margin: 0; }
+.avail-fixture-head { display: flex; align-items: baseline; gap: var(--s2); }
+.avail-fixture-time { font-weight: 700; }
+.avail-fixture-title { font-weight: 700; color: var(--fg); overflow-wrap: anywhere; }
+
+.cal-head-end { display: flex; gap: var(--s1); }
+.avail-needs {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  margin: 0 0 var(--s3);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--gold-600);
+  border-radius: 10px;
+  background: var(--gold-100);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.avail-needs .guide-num { background: var(--accent); color: var(--surface); }
+
+/* A day is its number and its fixtures. On a wide screen each fixture is a
+   labelled bar; on a phone, a dot in the colour of your answer. */
+.avail .cal-day {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 4px;
+  min-width: 0;
+  aspect-ratio: auto;
+  min-height: 88px;
+  padding: 6px;
+}
+.avail .cal-day.gone { opacity: 0.6; }
+.avail .cal-day.chosen { box-shadow: inset 0 0 0 2px var(--primary), 0 0 0 2px var(--primary); }
+.cal-num { align-self: flex-start; font-size: 0.9rem; }
+.cal-fxs { display: grid; gap: 3px; min-width: 0; }
+.cal-fx {
+  display: block;
+  min-width: 0;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+}
+.cal-fx-text { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cal-fx.is-going { background: var(--primary); color: var(--on-primary); }
+.cal-fx.is-maybe { background: var(--gold-100); color: var(--accent); box-shadow: inset 0 0 0 1px var(--gold-600); }
+.cal-fx.is-not_going { background: var(--red-100); color: var(--red-600); box-shadow: inset 0 0 0 1px var(--red-500); }
+.cal-fx.is-not_going .cal-fx-text { text-decoration: line-through; }
+.cal-fx.is-none { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* On a day marked available the ground is pale green: a darker bar keeps a
+   "yes" readable against it. */
+.cal-day.is-available .cal-fx.is-going { background: var(--sage-900); color: var(--sage-pale); }
+.cal-fx-more { font-size: 0.7rem; color: var(--fg-muted); }
+.cal-fx.key { display: inline-block; width: 12px; height: 12px; padding: 0; border-radius: 50%; }
+
+@media (max-width: 1023px) {
+  .avail-layout { grid-template-columns: minmax(0, 1fr); }
+  .avail-day { position: static; }
+}
+@media (max-width: 720px) {
+  .avail .cal-day { aspect-ratio: 1; min-height: 44px; padding: 4px 2px; align-items: center; justify-content: space-between; }
+  .cal-num { align-self: center; }
+  .cal-fxs { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
+  .cal-fx { width: 8px; height: 8px; padding: 0; border-radius: 50%; }
+  .cal-fx-text { display: none; }
+  .cal-fx-more { display: none; }
+}
+
+/* A whole month at once: a weekday and three equal choices, on one line. */
+.avail .cal-bulk-row { display: grid; grid-template-columns: 3rem repeat(3, minmax(0, 1fr)); flex-wrap: nowrap; }
+.avail .cal-bulk-row .chip { justify-content: center; text-transform: none; min-width: 0; padding-inline: var(--s2); }
+
+@media (max-width: 760px) {
+  .fx-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); }
+  .fx-stat { padding: var(--s2) var(--s3); }
+  .fx-stat-num { font-size: 1.5rem; }
+  .fx-stat-label { font-size: 0.78rem; line-height: 1.25; }
+}

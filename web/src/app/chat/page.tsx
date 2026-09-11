@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { PushPrompt } from "@/components/PushPrompt";
 import { subscribeLive } from "@/lib/live";
-import { api, getAccessToken, readErr, type Club } from "@/lib/api";
+import { api, getAccessToken, readErr } from "@/lib/api";
 import { chatTime, CONVERSATION_KIND, type ConversationSummary } from "@/lib/chat";
 import { Icon } from "@/components/Icon";
+import { NewChat } from "@/components/NewChat";
 
 /// Every thread you are in, busiest first.
 ///
@@ -53,22 +55,23 @@ export default function ChatListPage() {
     <main id="main">
       <section className="hero">
         <h1>Chats</h1>
-        <p>Your clubs, your teams, and the thread for each fixture.</p>
+        <p>Message anyone in your clubs, or start a thread for a club or a team.</p>
         {!error && (
           <button className="btn primary" type="button" onClick={() => setStarting(true)}>
-            <Icon name="plus" size={16} /> Start a thread
+            <Icon name="plus" size={16} /> New chat
           </button>
         )}
       </section>
 
       {error && <p className="error">{error}</p>}
+      {!error && !loading && <PushPrompt context="new messages from your clubs" />}
 
       {loading && <div className="skeleton" style={{ height: 200 }} />}
 
       {!loading && !error && threads.length === 0 && (
         <div className="panel empty">
           <Icon name="chat" size={28} />
-          <p>No threads yet. Start one for your club and everybody in it can join in.</p>
+          <p>No chats yet. Message a teammate, or start a thread for your club or a team.</p>
         </div>
       )}
 
@@ -78,7 +81,7 @@ export default function ChatListPage() {
             <li key={t.id}>
               <Link href={`/chat/${t.id}`} className="thread-row">
                 <span className="thread-mark" aria-hidden>
-                  <Icon name={t.event_id ? "calendar" : "users"} size={18} />
+                  <Icon name={t.event_id ? "calendar" : t.kind === "direct" ? "chat" : "users"} size={18} />
                 </span>
                 <span className="thread-body">
                   <span className="thread-head">
@@ -108,74 +111,7 @@ export default function ChatListPage() {
         </ul>
       )}
 
-      {starting && <StartThread onClose={() => setStarting(false)} onStarted={load} />}
+      {starting && <NewChat onClose={() => setStarting(false)} />}
     </main>
-  );
-}
-
-/// A new thread belongs to a club — that is who can see it.
-function StartThread({ onClose, onStarted }: { onClose: () => void; onStarted: () => void }) {
-  const [clubs, setClubs] = useState<Club[]>([]);
-  const [clubId, setClubId] = useState("");
-  const [title, setTitle] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<Club[]>("GET", "/clubs")
-      .then((rows) => {
-        setClubs(rows);
-        if (rows[0]) setClubId(rows[0].id);
-      })
-      .catch(() => setError("Could not load your clubs"));
-  }, []);
-
-  const create = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api("POST", "/conversations", { title: title.trim(), club_id: clubId, kind: "club" });
-      onStarted();
-      onClose();
-    } catch (err) {
-      setError(readErr(err, "Could not start that thread"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="panel">
-      <h2>Start a thread</h2>
-      <div className="setup-fields">
-        <label>
-          Club
-          <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
-            {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </label>
-        <label>
-          What is it about
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Sunday XI, kit orders, winter nets"
-            maxLength={120}
-          />
-        </label>
-      </div>
-      {error && <p className="error">{error}</p>}
-      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
-        <button
-          className="btn primary"
-          type="button"
-          disabled={busy || !title.trim() || !clubId}
-          onClick={create}
-        >
-          {busy ? "Starting…" : "Start it"}
-        </button>
-        <button className="btn" type="button" onClick={onClose}>Cancel</button>
-      </div>
-    </div>
   );
 }
