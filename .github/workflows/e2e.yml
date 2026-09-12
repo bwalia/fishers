@@ -60,6 +60,10 @@ jobs:
     timeout-minutes: 60
     env:
       TARGET: ${{ (github.event_name == 'pull_request' || inputs.target == 'ci') && 'ci' || 'int' }}
+      # A run against int needs the kept accounts' password. Without it there
+      # is nothing to run — which is worth saying once, not failing every
+      # deploy over.
+      HAS_E2E_PASSWORD: ${{ secrets.E2E_PASSWORD != '' }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -83,6 +87,17 @@ jobs:
           E2E_PASSWORD_SECRET: ${{ secrets.E2E_PASSWORD }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          if [ "$TARGET" = int ] && [ "$HAS_E2E_PASSWORD" != true ]; then
+            echo "SKIP=1" >> "$GITHUB_ENV"
+            echo "::warning::Skipped: E2E_PASSWORD is not set, so there is no way to sign the kept int accounts in. Add it under Settings → Secrets → Actions."
+            {
+              echo "## Fishers E2E — skipped"
+              echo
+              echo "A run against int signs in as the accounts it keeps between runs, and the \`E2E_PASSWORD\` secret is not set."
+              echo "Add it (Settings → Secrets and variables → Actions) and this runs after every int deploy, every morning, and on demand."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [ "$TARGET" = ci ]; then
             # A fresh database every run: the accounts are made here and thrown
             # away with the job, so any password will do.
@@ -95,10 +110,6 @@ jobs:
               echo "E2E_TARGET_LABEL=${PR_NUMBER:+PR #$PR_NUMBER — }this branch, built in CI"
             } >> "$GITHUB_ENV"
           else
-            if [ -z "$E2E_PASSWORD_SECRET" ]; then
-              echo "::error::The E2E_PASSWORD secret is not set. It is the password of the reused test accounts on int — add it under Settings → Secrets → Actions."
-              exit 1
-            fi
             {
               echo "E2E_BASE_URL=https://int.fishers.cloud"
               echo "E2E_PASSWORD=$E2E_PASSWORD_SECRET"
@@ -108,11 +119,11 @@ jobs:
 
       # ---- ci: build and start this branch --------------------------------------
       - name: Install Rust
-        if: env.TARGET == 'ci'
+        if: env.SKIP != '1' && env.TARGET == 'ci'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
-        if: env.TARGET == 'ci'
+        if: env.SKIP != '1' && env.TARGET == 'ci'
         uses: actions/cache@v4
         with:
           path: |
@@ -125,12 +136,12 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build the API
-        if: env.TARGET == 'ci'
+        if: env.SKIP != '1' && env.TARGET == 'ci'
         working-directory: backend
         run: cargo build -p fishers-api
 
       - name: Start the API
-        if: env.TARGET == 'ci'
+        if: env.SKIP != '1' && env.TARGET == 'ci'
         working-directory: backend
         env:
           DATABASE_URL: postgres://fishers:fishers@localhost:5432/fishers
@@ -148,6 +159,7 @@ jobs:
           echo "::error::The API never became ready"; tail -50 "$RUNNER_TEMP/api.log"; exit 1
 
       - uses: actions/setup-node@v4
+        if: env.SKIP != '1'
         with:
           node-version: 22
           cache: npm
@@ -156,7 +168,7 @@ jobs:
             e2e/package-lock.json
 
       - name: Build and start the web app
-        if: env.TARGET == 'ci'
+        if: env.SKIP != '1' && env.TARGET == 'ci'
         working-directory: web
         run: |
           npm ci
@@ -173,7 +185,7 @@ jobs:
 
       # ---- int: wait for the ring ---------------------------------------------
       - name: Wait for int
-        if: env.TARGET == 'int'
+        if: env.SKIP != '1' && env.TARGET == 'int'
         run: |
           # Both halves have to answer: the dashboard, and the API behind /api
           # (there is no /health on that path — the ingress only sends /api to
@@ -194,6 +206,7 @@ jobs:
 
       # ---- the journey ------------------------------------------------------------
       - name: Install Playwright
+        if: env.SKIP != '1'
         working-directory: e2e
         run: |
           npm ci
@@ -201,12 +214,13 @@ jobs:
 
       - name: Run the full match
         id: tests
+        if: env.SKIP != '1'
         working-directory: e2e
         continue-on-error: true
         run: npx playwright test
 
       - name: Report — job summary and Slack
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.SKIP != '1' }}
         working-directory: e2e
         env:
           SLACK_WEBHOOK: ${{ (github.event_name != 'workflow_dispatch' || inputs.notify_slack) && secrets.SLACK_WEBHOOK || '' }}
@@ -219,12 +233,12 @@ jobs:
       # the error-context snapshot and inside traces. This repository is public
       # and so are its artifacts.
       - name: Scrub secrets from the artifacts
-        if: always()
+        if: always() && env.SKIP != '1'
         working-directory: e2e
         run: node scripts/scrub-secrets.mjs
 
       - name: Keep the evidence
-        if: always()
+        if: always() && env.SKIP != '1'
         uses: actions/upload-artifact@v4
         with:
           name: e2e-${{ env.TARGET }}-${{ github.run_id }}
@@ -237,7 +251,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Fail the job if the match did not pass
-        if: steps.tests.outcome != 'success'
+        if: env.SKIP != '1' && steps.tests.outcome != 'success'
         run: |
           echo "::error::The full-match E2E failed — see the job summary, the Slack message and the artifacts."
           exit 1
