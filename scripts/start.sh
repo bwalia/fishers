@@ -647,7 +647,7 @@ cat <<EOF
 
 ${B}Ready.${N}
 
-  Dashboard   ${WEB_BASE}/login        ${DIM}(also http://127.0.0.1:${WEB_PORT}/login)${N}
+  Dashboard   ${WEB_BASE}/login        ${DIM}(on this Mac: http://localhost:${WEB_PORT}/login — the address Google sign-in allows)${N}
   API         ${API_BASE}
   Swagger     ${API_BASE}/swagger-ui
   Postgres    postgres://fishers:fishers@localhost:${POSTGRES_PORT}/fishers
