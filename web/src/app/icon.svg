@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <radialGradient id="leather" cx="34%" cy="28%" r="80%">
+      <stop offset="0%" stop-color="#c8483d"/>
+      <stop offset="45%" stop-color="#9d2b2b"/>
+      <stop offset="88%" stop-color="#6b1b1b"/>
+      <stop offset="100%" stop-color="#4a1111"/>
+    </radialGradient>
+    <linearGradient id="sheen" x1="15%" y1="5%" x2="75%" y2="75%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity=".42"/>
+      <stop offset="65%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="ball-edge">
+      <circle cx="24" cy="24" r="21"/>
+    </clipPath>
+  </defs>
+  <circle cx="24" cy="24" r="21" fill="url(#leather)"/>
+  <ellipse cx="16.5" cy="14.5" rx="11" ry="7.5" fill="url(#sheen)" transform="rotate(-28 16.5 14.5)"/>
+  <g clip-path="url(#ball-edge)">
+    <path d="M24 3v42" fill="none" stroke="#741d1d" stroke-width="5" stroke-linecap="round" opacity=".5"/>
+    <path d="M24 3v42" fill="none" stroke="#f4ecdd" stroke-width="1.4" stroke-linecap="round"/>
+    <g stroke="#f4ecdd" stroke-width="1.25" stroke-linecap="round">
+      <path d="M20.4 10.4l3.2 1.6M20.0 16.4l3.6 1.2M19.8 22.6l3.8 .6M19.8 28.8l3.8-.6M20.0 34.8l3.6-1.2M20.4 40.6l3.2-1.6"/>
+      <path d="M27.6 10.4l-3.2 1.6M28.0 16.4l-3.6 1.2M28.2 22.6l-3.8 .6M28.2 28.8l-3.8-.6M28.0 34.8l-3.6-1.2M27.6 40.6l-3.2-1.6"/>
+    </g>
+  </g>
+</svg>

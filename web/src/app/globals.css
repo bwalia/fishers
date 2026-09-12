@@ -294,7 +294,8 @@ a:hover { text-decoration: underline; }
   text-transform: uppercase;
 }
 .brand:hover { text-decoration: none; }
-.brand svg { color: var(--primary); }
+/* The nav icons take the palette's colour; the mark is its own thing. */
+.brand > svg:not([role="img"]) { color: var(--primary); }
 
 .nav {
   display: flex;
