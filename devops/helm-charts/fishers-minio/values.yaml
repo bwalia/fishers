@@ -10,7 +10,16 @@
 env: int
 
 image:
-  repository: minio/minio
+  # quay.io, not Docker Hub. MinIO publishes the same releases to both, and
+  # Docker Hub refuses anonymous pulls from this cluster's nodes —
+  # "insufficient_scope: authorization failed", a 401 on the manifest. int never
+  # noticed because its pod has had the image cached since the day it was first
+  # pulled; the first prod deploy landed on a node that had to fetch it and sat
+  # in ImagePullBackOff until helm gave up. Nothing here has Docker Hub
+  # credentials, and the registry secret this namespace does have is for the
+  # private registry only. quay.io needs no credentials and is already pulled
+  # successfully elsewhere on this cluster.
+  repository: quay.io/minio/minio
   tag: "RELEASE.2025-04-22T22-12-26Z"
   pullPolicy: IfNotPresent
 
