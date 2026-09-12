@@ -172,6 +172,7 @@ backend/          Cargo workspace
   agent/          Claude client for the chat assistant
 ios/              SwiftUI app (XcodeGen)
 web/              Next.js dashboard
+e2e/              Playwright: the whole match, two clubs and 22 players (see e2e/README.md)
 devops/
   helm-charts/    fishers-api, fishers-web, fishers-postgres (one release per ring)
   wslproxy/       edge vhost + routing rule specs
@@ -182,6 +183,10 @@ scripts/
   seed-demo.sh    demo account with club, fixtures, shop and a live match
   smoke.sh        End-to-end API check
 ```
+
+Beyond `smoke.sh`, `e2e/` plays a whole match through the browser — two clubs, 22 players, a proposal, the toss, both
+elevens, five overs each with the book handed over at the innings break, and the result — against a local stack or a
+deployed ring. It runs on every pull request and after each int deploy, and reports to Slack. See `e2e/README.md`.
 
 ## Build phases
 
