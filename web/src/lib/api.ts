@@ -607,6 +607,7 @@ export const NOTIFICATION_KIND: Record<string, string> = {
   selection_reconfirm: "Confirmations",
   match_terms_proposed: "Match setup",
   match_terms_agreed: "Match setup",
+  match_book_handed_over: "Scoring",
   match_scheduled: "Fixtures",
   availability_request: "Availability",
   fee_reminder: "Match fees",
@@ -659,6 +660,12 @@ export function notificationLine(n: AppNotification): {
       return {
         when,
         title: "Both captains have agreed the terms. You can do the toss.",
+        href: p.match_id ? `/score/${p.match_id}` : undefined,
+      };
+    case "match_book_handed_over":
+      return {
+        when,
+        title: `${p.home_name ?? "A side"} v ${p.away_name ?? "another"} — you have the book. You're scoring from the next ball.`,
         href: p.match_id ? `/score/${p.match_id}` : undefined,
       };
     case "fixture_scheduled":

@@ -12,7 +12,7 @@ One Playwright journey through the whole app, the way a season actually starts:
 | 12 | The toss (the app records it **before** the team sheets) | winner and decision saved |
 | 10b, 11 | Club 2's captain is told to pick their side and names 11; then Club 1 | only their own players offered; order, captain and keeper saved |
 | 13 | First innings, five overs, every kind of ball — dots, runs, fours, sixes, wides, a no-ball, byes, leg byes, bowled, caught, a new bowler each over | **after every ball** the total, wickets, overs, striker and bowler against an independent model of the Laws (`lib/model.ts`); then every batter, bowler and the extras on the scorecard |
-| 14–15 | The book is handed to Club 2's captain | Club 1 can no longer score; Club 2 sees the first innings intact and the target |
+| 14–15 | The book is handed to Club 2's captain, from the offer on the innings-break panel | the offer names the side batting next and the sheet opens on them; Club 1 can no longer score; Club 2 is told they have the book, is not offered it again, and sees the first innings intact and the target |
 | 16–17 | Second innings; the result | "E2E Club One won by 23 runs", both scorecards, both XIs and the toss, from both captains' accounts |
 | 18 | The checklist | every check above passed |
 
