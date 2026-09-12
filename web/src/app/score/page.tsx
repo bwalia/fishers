@@ -51,6 +51,15 @@ export default function ScoreIndexPage() {
   const [opening, setOpening] = useState<EventRow | null>(null);
   /// A match with no fixture behind it yet — two sides who just turned up.
   const [instant, setInstant] = useState(false);
+  /// A club's or team's code, when they arrived from its link (/play/…).
+  const [against, setAgainst] = useState<string | null>(null);
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("against");
+    if (token) {
+      setAgainst(token);
+      setInstant(true);
+    }
+  }, []);
   const [loading, setLoading] = useState(true);
 
   // Filtering, sorting and paging all happen in the database. A club with a
@@ -297,10 +306,14 @@ export default function ScoreIndexPage() {
       {(opening || instant) && (
         <MatchSetupSheet
           event={opening}
+          against={opening ? null : against}
           busy={busy === (opening?.id ?? "instant")}
           onClose={() => {
             setOpening(null);
             setInstant(false);
+            // Dismissed: the next match started from here is not against them.
+            setAgainst(null);
+            if (window.location.search) router.replace("/score");
           }}
           onStart={(setup) => startMatch(opening, setup)}
         />
@@ -331,12 +344,15 @@ const MATCH_KINDS = [
 
 function MatchSetupSheet({
   event,
+  against,
   busy,
   onClose,
   onStart,
 }: {
   /// Null for a match with no fixture behind it — one is written on start.
   event: EventRow | null;
+  /// The opposition's code, already known: they followed its link.
+  against?: string | null;
   busy: boolean;
   onClose: () => void;
   onStart: (setup: Setup) => void;
@@ -488,6 +504,7 @@ function MatchSetupSheet({
         <OppositionPicker
           homeClubId={clubId}
           ownTeamsAllowed={teams.length >= 2}
+          initialToken={against ?? undefined}
           onPick={(identity, name) => {
             setOpponent(identity);
             setAwayName(name);

@@ -4926,3 +4926,7 @@ button.fx-stat:focus-visible { outline: 2px solid var(--ring); outline-offset: 2
 
 /* ---- Match setup: two of your own teams ---- */
 .internal-match { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+
+/* ---- A club's or team's code, opened as a link ---- */
+.play-card { display: grid; gap: var(--s3); justify-items: start; }
+.play-card h1 { margin: 0; }

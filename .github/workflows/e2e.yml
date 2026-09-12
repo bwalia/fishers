@@ -1,0 +1,257 @@
+name: E2E — full match
+
+# Playwright, the whole journey (e2e/tests/full-match.spec.ts): two clubs, 22
+# players, a 5-over match proposed, accepted, tossed, both XIs, an innings each
+# with the book handed over, and the result. The result goes to Slack.
+#
+# Two targets:
+#   ci   this branch, built and run inside the job against a fresh database —
+#        what a pull request is checked against, before anything is deployed
+#   int  the live int ring, after each deploy and every morning — reusing the
+#        same test accounts run after run (E2E_PASSWORD)
+#
+# Secrets: E2E_PASSWORD (int only — the test accounts' password),
+#          SLACK_WEBHOOK (the summary), and optionally SLACK_BOT_TOKEN with the
+#          SLACK_CHANNEL variable (failure screenshots into the channel).
+
+run-name: >-
+  E2E — full match [${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number)
+  || (github.event_name == 'workflow_dispatch' && inputs.target) || 'int' }}]
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "web/**"
+      - "e2e/**"
+      - ".github/workflows/e2e.yml"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "int = the live int ring; ci = this branch, built in the job"
+        type: choice
+        options: [int, ci]
+        default: int
+      notify_slack:
+        description: "Post the result to Slack"
+        type: boolean
+        default: true
+  # After int is deployed, test what was deployed.
+  workflow_run:
+    workflows: ["CD — deploy int on merge to main"]
+    types: [completed]
+  schedule:
+    - cron: "30 5 * * *"
+
+# Runs against int share the same accounts and clubs, so they queue rather
+# than overlap. Pull requests each get their own stack and can be replaced.
+concurrency:
+  group: >-
+    ${{ github.event_name == 'pull_request' && format('e2e-pr-{0}', github.event.pull_request.number)
+    || (github.event_name == 'workflow_dispatch' && inputs.target == 'ci' && format('e2e-ci-{0}', github.ref))
+    || 'e2e-int' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e:
+    name: Full match (${{ (github.event_name == 'pull_request' || inputs.target == 'ci') && 'ci' || 'int' }})
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TARGET: ${{ (github.event_name == 'pull_request' || inputs.target == 'ci') && 'ci' || 'int' }}
+      # A run against int needs the kept accounts' password. Without it there
+      # is nothing to run — which is worth saying once, not failing every
+      # deploy over.
+      HAS_E2E_PASSWORD: ${{ secrets.E2E_PASSWORD != '' }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fishers
+          POSTGRES_PASSWORD: fishers
+          POSTGRES_DB: fishers
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fishers -d fishers"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the target
+        env:
+          E2E_PASSWORD_SECRET: ${{ secrets.E2E_PASSWORD }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$TARGET" = int ] && [ "$HAS_E2E_PASSWORD" != true ]; then
+            echo "SKIP=1" >> "$GITHUB_ENV"
+            echo "::warning::Skipped: E2E_PASSWORD is not set, so there is no way to sign the kept int accounts in. Add it under Settings → Secrets → Actions."
+            {
+              echo "## Fishers E2E — skipped"
+              echo
+              echo "A run against int signs in as the accounts it keeps between runs, and the \`E2E_PASSWORD\` secret is not set."
+              echo "Add it (Settings → Secrets and variables → Actions) and this runs after every int deploy, every morning, and on demand."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$TARGET" = ci ]; then
+            # A fresh database every run: the accounts are made here and thrown
+            # away with the job, so any password will do.
+            PASSWORD="ci-$(openssl rand -hex 12)"
+            echo "::add-mask::$PASSWORD"
+            {
+              echo "E2E_BASE_URL=http://localhost:7311"
+              echo "E2E_PASSWORD=$PASSWORD"
+              echo "JWT_SECRET=$(openssl rand -hex 32)"
+              echo "E2E_TARGET_LABEL=${PR_NUMBER:+PR #$PR_NUMBER — }this branch, built in CI"
+            } >> "$GITHUB_ENV"
+          else
+            {
+              echo "E2E_BASE_URL=https://int.fishers.cloud"
+              echo "E2E_PASSWORD=$E2E_PASSWORD_SECRET"
+              echo "E2E_TARGET_LABEL=int (https://int.fishers.cloud)"
+            } >> "$GITHUB_ENV"
+          fi
+
+      # ---- ci: build and start this branch --------------------------------------
+      - name: Install Rust
+        if: env.SKIP != '1' && env.TARGET == 'ci'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        if: env.SKIP != '1' && env.TARGET == 'ci'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-e2e-cargo-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: Build the API
+        if: env.SKIP != '1' && env.TARGET == 'ci'
+        working-directory: backend
+        run: cargo build -p fishers-api
+
+      - name: Start the API
+        if: env.SKIP != '1' && env.TARGET == 'ci'
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://fishers:fishers@localhost:5432/fishers
+          API_HOST: 0.0.0.0
+          API_PORT: "7312"
+          CORS_ALLOWED_ORIGINS: http://localhost:7311
+          PUBLIC_WEB_BASE: http://localhost:7311
+          RUST_LOG: fishers_api=info,fishers_notifications=info,tower_http=warn
+        run: |
+          nohup ./target/debug/fishers-api > "$RUNNER_TEMP/api.log" 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:7312/health/ready >/dev/null && { echo "API ready"; exit 0; }
+            sleep 2
+          done
+          echo "::error::The API never became ready"; tail -50 "$RUNNER_TEMP/api.log"; exit 1
+
+      - uses: actions/setup-node@v4
+        if: env.SKIP != '1'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            e2e/package-lock.json
+
+      - name: Build and start the web app
+        if: env.SKIP != '1' && env.TARGET == 'ci'
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+          # The build is standalone: its server wants the static files beside it.
+          cp -r .next/static .next/standalone/.next/
+          cp -r public .next/standalone/ 2>/dev/null || true
+          PORT=7311 HOSTNAME=0.0.0.0 nohup node .next/standalone/server.js > "$RUNNER_TEMP/web.log" 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:7311/login && { echo "Web ready"; exit 0; }
+            sleep 2
+          done
+          echo "::error::The web app never came up"; tail -50 "$RUNNER_TEMP/web.log"; exit 1
+
+      # ---- int: wait for the ring ---------------------------------------------
+      - name: Wait for int
+        if: env.SKIP != '1' && env.TARGET == 'int'
+        run: |
+          # Both halves have to answer: the dashboard, and the API behind /api
+          # (there is no /health on that path — the ingress only sends /api to
+          # the API). `|| true` on each probe: a refused connection while the
+          # ring restarts is what this loop is *for*, not a reason to stop.
+          for i in $(seq 1 40); do
+            web=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$E2E_BASE_URL/login" || true)
+            api=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$E2E_BASE_URL/api/v1/auth/google" || true)
+            if [ "$web" = 200 ] && [ "$api" = 200 ]; then
+              echo "int is up (web $web, api $api)"
+              exit 0
+            fi
+            echo "attempt $i/40: web ${web:-none}, api ${api:-none} — waiting"
+            sleep 15
+          done
+          echo "::error::$E2E_BASE_URL did not come up (web ${web:-none}, api ${api:-none})"
+          exit 1
+
+      # ---- the journey ------------------------------------------------------------
+      - name: Install Playwright
+        if: env.SKIP != '1'
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run the full match
+        id: tests
+        if: env.SKIP != '1'
+        working-directory: e2e
+        continue-on-error: true
+        run: npx playwright test
+
+      - name: Report — job summary and Slack
+        if: ${{ !cancelled() && env.SKIP != '1' }}
+        working-directory: e2e
+        env:
+          SLACK_WEBHOOK: ${{ (github.event_name != 'workflow_dispatch' || inputs.notify_slack) && secrets.SLACK_WEBHOOK || '' }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/slack-report.mjs
+
+      # The suite signs in by typing the password, so Playwright records it in
+      # the error-context snapshot and inside traces. This repository is public
+      # and so are its artifacts.
+      - name: Scrub secrets from the artifacts
+        if: always() && env.SKIP != '1'
+        working-directory: e2e
+        run: node scripts/scrub-secrets.mjs
+
+      - name: Keep the evidence
+        if: always() && env.SKIP != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ env.TARGET }}-${{ github.run_id }}
+          retention-days: 14
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            ${{ runner.temp }}/api.log
+            ${{ runner.temp }}/web.log
+          if-no-files-found: ignore
+
+      - name: Fail the job if the match did not pass
+        if: env.SKIP != '1' && steps.tests.outcome != 'success'
+        run: |
+          echo "::error::The full-match E2E failed — see the job summary, the Slack message and the artifacts."
+          exit 1

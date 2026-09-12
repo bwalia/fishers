@@ -46,8 +46,12 @@ impl Ollama {
             url: url.trim_end_matches('/').to_string(),
             model: std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.into()),
             http: reqwest::Client::builder()
-                // Well beyond a good response, well short of holding a request open.
-                .timeout(Duration::from_secs(30))
+                // A line is only worth having while its ball is the latest:
+                // by the next one it is stale, and the browser has already
+                // dropped the request. Long enough for a model that has to
+                // load first, short enough not to hold a connection open
+                // through the rest of the over.
+                .timeout(Duration::from_secs(15))
                 .build()
                 .ok()?,
         })
@@ -126,7 +130,7 @@ fn contradicts(line: &str, ball: BallFacts) -> bool {
         .split(|c: char| !c.is_ascii_alphabetic())
         .filter(|w| !w.is_empty())
         .collect();
-    let says = |needle: &str| words.iter().any(|w| *w == needle);
+    let says = |needle: &str| words.contains(&needle);
 
     if !ball.is_wicket
         && (says("wicket")

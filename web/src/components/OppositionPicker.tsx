@@ -15,12 +15,16 @@ export function OppositionPicker({
   onPick,
   homeClubId,
   ownTeamsAllowed = false,
+  initialToken,
 }: {
   onPick: (identity: OpponentIdentity | null, name: string) => void;
   /// The club you are playing for.
   homeClubId?: string;
   /// It has two or more teams, so one of them may be the opposition.
   ownTeamsAllowed?: boolean;
+  /// A code they already have — they followed its link. Looked up here rather
+  /// than by the page, so it meets the same rules as one typed or scanned.
+  initialToken?: string;
 }) {
   const [tab, setTab] = useState<"scan" | "code" | "search">("search");
   const [code, setCode] = useState("");
@@ -56,6 +60,17 @@ export function OppositionPicker({
       setBusy(false);
     }
   };
+
+  const looked = useRef<string | null>(null);
+  useEffect(() => {
+    // Only once the club is known: until then "is that our own club?" has no
+    // answer, and the picker would accept one it is meant to refuse.
+    if (!initialToken || !homeClubId || looked.current === initialToken) return;
+    looked.current = initialToken;
+    void resolve(initialToken);
+    // resolve is stable enough for this: it only reads props.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialToken, homeClubId]);
 
   useEffect(() => {
     const term = query.trim();
