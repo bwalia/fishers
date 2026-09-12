@@ -110,43 +110,72 @@ export async function signOut(page: Page) {
   await clearOverlays(page);
   await page.getByRole("button", { name: /Sign out/ }).first().click();
   await page.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: 15_000 });
-  expect(await page.evaluate(() => localStorage.getItem("fishers_access_token")), "session cleared").toBeNull();
+  // Landing on /login is not the end of it: the page can still be settling,
+  // and reading storage mid-navigation throws rather than answering. Ask
+  // until it answers.
+  await expect
+    .poll(
+      () =>
+        page
+          .evaluate(() => localStorage.getItem("fishers_access_token"))
+          .catch(() => "still navigating"),
+      { message: "the session was cleared", timeout: 15_000 }
+    )
+    .toBeNull();
+}
+
+/// Reading the page while it is still navigating throws instead of
+/// answering. Ask again once it has settled.
+export async function stableEval<T>(page: Page, run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await run();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      if (attempt >= 3 || !/Execution context was destroyed|navigating|Target closed/i.test(message)) throw err;
+      await page.waitForLoadState("domcontentloaded").catch(() => {});
+    }
+  }
 }
 
 export async function storedUser(page: Page): Promise<{ id: string; name: string; role_intent?: string | null } | null> {
-  return page.evaluate(() => {
-    const raw = localStorage.getItem("fishers_user");
-    return raw ? JSON.parse(raw) : null;
-  });
+  return stableEval(page, () =>
+    page.evaluate(() => {
+      const raw = localStorage.getItem("fishers_user");
+      return raw ? JSON.parse(raw) : null;
+    })
+  );
 }
 
 /// Read from the API as this person — for checking that what the screen
 /// showed was really saved. Refreshes an expired session the way the app does.
 export async function apiGet<T = any>(page: Page, path: string): Promise<T> {
-  const out = await page.evaluate(async (path) => {
-    // The same rule the app uses: the dev server's API is on the next port;
-    // anywhere else it is this origin under /api.
-    const base = location.port === "7311" ? `${location.protocol}//${location.hostname}:7312` : "";
-    const get = () =>
-      fetch(`${base}/api/v1${path}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("fishers_access_token")}` },
-      });
-    let r = await get();
-    if (r.status === 401) {
-      const refreshed = await fetch(`${base}/api/v1/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: localStorage.getItem("fishers_refresh_token") }),
-      });
-      if (refreshed.ok) {
-        const t = await refreshed.json();
-        localStorage.setItem("fishers_access_token", t.access_token);
-        localStorage.setItem("fishers_refresh_token", t.refresh_token);
-        r = await get();
+  const out = await stableEval(page, () =>
+    page.evaluate(async (path) => {
+      // The same rule the app uses: the dev server's API is on the next port;
+      // anywhere else it is this origin under /api.
+      const base = location.port === "7311" ? `${location.protocol}//${location.hostname}:7312` : "";
+      const get = () =>
+        fetch(`${base}/api/v1${path}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("fishers_access_token")}` },
+        });
+      let r = await get();
+      if (r.status === 401) {
+        const refreshed = await fetch(`${base}/api/v1/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: localStorage.getItem("fishers_refresh_token") }),
+        });
+        if (refreshed.ok) {
+          const t = await refreshed.json();
+          localStorage.setItem("fishers_access_token", t.access_token);
+          localStorage.setItem("fishers_refresh_token", t.refresh_token);
+          r = await get();
+        }
       }
-    }
-    return { status: r.status, body: await r.json().catch(() => null) };
-  }, path);
+      return { status: r.status, body: await r.json().catch(() => null) };
+    }, path)
+  );
   if (out.status >= 300) throw new Error(`GET ${path}: ${out.status} ${JSON.stringify(out.body)}`);
   return out.body as T;
 }

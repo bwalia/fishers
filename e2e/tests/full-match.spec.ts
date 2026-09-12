@@ -28,6 +28,7 @@ import {
   profileLink,
   signIn,
   signOut,
+  stableEval,
   storedUser,
   type Actor,
   type ClubInfo,
@@ -164,7 +165,7 @@ test("Step 2 — Club 2 account and club", async () => {
 /// Put the shared players' browser in `who`'s hands.
 async function switchTo(who: Person) {
   await players.page.goto("/login");
-  await players.page.evaluate(() => localStorage.clear());
+  await stableEval(players.page, () => players.page.evaluate(() => localStorage.clear()));
   players.who = who;
   return ensureAccount(players);
 }
