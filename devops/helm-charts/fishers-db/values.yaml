@@ -34,3 +34,46 @@ resources:
   limits:
     cpu: "1"
     memory: 1Gi
+
+# A nightly dump into MinIO.
+#
+# Patroni and (on prod) a standby cover a node dying. Neither covers a bad
+# migration, a DROP, or the cluster being deleted — for that there has to be a
+# file somewhere else, and this is it.
+backup:
+  enabled: true
+  # 02:15, after midnight jobs and before anybody is at a ground — and said in
+  # UTC, or the controller reads it in the node's British local time and half
+  # the year it fires an hour earlier than the object names claim.
+  schedule: "15 2 * * *"
+  timeZone: "Etc/UTC"
+  # How long a night's dump is kept. Read by `mc rm --older-than`.
+  keepFor: "14d"
+  # Its own bucket, never the media one: media is readable by anyone holding a
+  # key so avatars load in a browser, and a dump is everyone's data in one file.
+  bucket: db-backups
+  minioService: fishers-minio
+  minioPort: 9000
+  # The same vault-synced Secret the API and MinIO itself use.
+  secretsName: fishers-secrets
+  mcImage: "minio/mc:RELEASE.2025-04-16T18-13-26Z"
+  # pg_dump's -Fc compression level, 0-9.
+  compression: 6
+  # Room for the dump on the node's disk. Over this, the pod is evicted.
+  workspaceSize: 2Gi
+  # Missed the slot (the controller was down)? Still run, within the hour.
+  startingDeadlineSeconds: 3600
+  # Three hours is far past a dump of this size: past it, something is wedged.
+  activeDeadlineSeconds: 10800
+  # One retry. A dump that fails twice needs a person, not a third attempt.
+  backoffLimit: 1
+  successfulJobsHistoryLimit: 3
+  # Kept deliberately: a CronJob only shows its last run failed while the Job
+  # object still exists.
+  failedJobsHistoryLimit: 3
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi

@@ -1,0 +1,231 @@
+{{- if .Values.backup.enabled }}
+{{- /*
+  A dump of the database into MinIO, once a night.
+
+  The operator gives us Patroni and, on prod, a streaming standby — which
+  survives a node dying and does not survive `DROP TABLE`, a bad migration, or
+  the volume going with the cluster. A replica is not a backup. This is the
+  backup: a file, somewhere else, that can be restored into an empty database.
+
+  Two official images rather than one image that can do both: postgres for
+  `pg_dump`, minio/mc to upload. They hand the file over on an emptyDir. The
+  alternative found elsewhere on this cluster — curl the mc binary off the
+  internet into the app's own image, every night — is a supply-chain hop and a
+  network dependency inside the one job that has to work when everything else
+  has gone wrong.
+
+  The pg_dump image tag follows postgresVersion, because pg_dump refuses to
+  talk to a server newer than itself: bump the cluster and the dump follows,
+  rather than failing at 02:00 some weeks later.
+*/ -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.clusterName }}-backup
+  labels:
+    app.kubernetes.io/name: fishers-db-backup
+    app.kubernetes.io/part-of: fishers
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  # Said out loud, because otherwise the controller-manager reads that cron in
+  # whatever local time the node keeps — which is British, so half the year
+  # "02:15" silently means 01:15, and the object names (stamped in UTC by the
+  # dump) disagree with the schedule that wrote them.
+  timeZone: {{ .Values.backup.timeZone | quote }}
+  # Never two dumps at once: they would race on the same object name and put
+  # load on a single-instance database at the same time.
+  concurrencyPolicy: Forbid
+  # A controller that was down at 02:00 should still take the backup when it
+  # comes back, rather than skipping the night silently.
+  startingDeadlineSeconds: {{ .Values.backup.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  # Keep the failures: a CronJob whose last run failed says so only as long as
+  # the Job object is still there.
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.backoffLimit }}
+      # Do not let a wedged dump run into the next night's.
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: fishers-db-backup
+            app.kubernetes.io/part-of: fishers
+        spec:
+          restartPolicy: Never
+          # This pod reads the whole database and holds the keys to the bucket
+          # it writes to; it has no business acquiring anything else.
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - name: work
+              emptyDir:
+                # Node disk, so it is capped. Going over evicts the pod, which
+                # is a loud failure — the right kind for a backup.
+                sizeLimit: {{ .Values.backup.workspaceSize }}
+            # mc writes its config somewhere; it is not going to be next to the
+            # dump.
+            - name: tmp
+              emptyDir:
+                sizeLimit: 16Mi
+          initContainers:
+            # Dump first, in its own container, so the upload cannot run at all
+            # unless this one exited 0.
+            - name: dump
+              image: "postgres:{{ .Values.postgresVersion }}-alpine"
+              imagePullPolicy: IfNotPresent
+              env:
+                # The operator's own Secret, the same one the API reads. No
+                # password in this chart, in the vault or in CI.
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.owner }}.{{ .Values.clusterName }}.credentials.postgresql.acid.zalan.do
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.owner }}.{{ .Values.clusterName }}.credentials.postgresql.acid.zalan.do
+                      key: password
+                - name: PGHOST
+                  value: {{ .Values.clusterName }}
+                - name: PGPORT
+                  value: "5432"
+                - name: PGDATABASE
+                  value: {{ .Values.database }}
+                # Spilo refuses every non-TLS connection. `require` encrypts
+                # without verifying, which is what its self-signed cert allows.
+                - name: PGSSLMODE
+                  value: require
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  # pg_isready makes ONE attempt — `-t` bounds that attempt, it
+                  # does not retry. Patroni hands the master endpoint over on a
+                  # lease, so at 02:15 the database can be a few seconds away
+                  # rather than gone, and a single attempt turns a failover into
+                  # a missed night.
+                  n=0
+                  until pg_isready -q -t 10; do
+                    n=$((n + 1))
+                    [ "$n" -lt 30 ] || { echo "no database after 5 minutes"; exit 1; }
+                    echo "waiting for $PGHOST ($n)"; sleep 10
+                  done
+                  # -Fc: pg_restore can read it selectively and it compresses
+                  # itself, so there is no pipe for a failure to hide inside.
+                  # A dump written through `| gzip` leaves a perfectly valid
+                  # gzip of half a database when pg_dump dies.
+                  OUT="/work/{{ .Values.database }}-$(date -u +%Y%m%dT%H%M%SZ).dump"
+                  echo "dumping {{ .Values.database }} from $PGHOST"
+                  pg_dump --format=custom --compress={{ .Values.backup.compression }} --file="$OUT"
+
+                  # Prove the archive before anything calls it a backup, by
+                  # restoring it to nowhere. This reads and decompresses every
+                  # data block, which is the only thing that catches a half
+                  # written file: `pg_restore --list` reads just the table of
+                  # contents, which sits at the front, and cheerfully lists all
+                  # 42 tables of a dump that was cut in half.
+                  # ponytail: a second full pass over the archive. Fine at this
+                  # size; if the dump ever takes long enough to matter, verify
+                  # on a schedule instead of every night.
+                  pg_restore --file=/dev/null "$OUT"
+                  pg_restore --list "$OUT" > /work/toc.txt
+                  TABLES=$(grep -c 'TABLE DATA' /work/toc.txt || true)
+                  echo "archive reads back whole: $TABLES tables with data, $(wc -c < "$OUT") bytes"
+                  # An empty archive restores cleanly and contains nothing.
+                  [ "$TABLES" -ge 1 ] || { echo "refusing to upload a dump with no table data"; exit 1; }
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+          containers:
+            - name: upload
+              image: {{ .Values.backup.mcImage | quote }}
+              imagePullPolicy: IfNotPresent
+              env:
+                # MinIO's root credentials are the API's S3 keys, read from the
+                # same vault-synced Secret so the two cannot drift.
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.secretsName }}
+                      key: S3_ACCESS_KEY
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.secretsName }}
+                      key: S3_SECRET_KEY
+                # mc keeps its config under $HOME; there is no home for uid
+                # 1000 in this image.
+                - name: MC_CONFIG_DIR
+                  value: /tmp/.mc
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  ENDPOINT="http://{{ .Values.backup.minioService }}:{{ .Values.backup.minioPort }}"
+                  BUCKET="{{ .Values.backup.bucket }}"
+                  # MinIO restarting on another node is a normal thing to find
+                  # at 02:15, and the same wait is already in the bucket job.
+                  until mc alias set target "$ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY"; do
+                    echo "waiting for minio"; sleep 5
+                  done
+                  mc mb --ignore-existing "target/$BUCKET"
+                  # Private, and made private again every night. The media
+                  # bucket is deliberately world-readable so avatars load in a
+                  # browser, and it is one edited value away from being this
+                  # bucket's name — at which point the minio chart's bucket job
+                  # would hand anonymous GetObject to the dumps. A new bucket is
+                  # private anyway, so this only ever undoes that mistake.
+                  mc anonymous set none "target/$BUCKET"
+
+                  DUMP=$(ls /work/*.dump)
+                  NAME=$(basename "$DUMP")
+                  echo "uploading $NAME ($(wc -c < "$DUMP") bytes) to $BUCKET"
+                  mc cp "$DUMP" "target/$BUCKET/{{ .Values.env }}/$NAME"
+                  # Read it back: a copy that reports success and left nothing
+                  # behind is the failure this whole job exists to prevent.
+                  mc stat "target/$BUCKET/{{ .Values.env }}/$NAME" > /dev/null
+                  echo "stored {{ .Values.env }}/$NAME"
+
+                  # Only now, with tonight's copy confirmed present, throw the
+                  # old ones away — never the other way round.
+                  echo "removing backups older than {{ .Values.backup.keepFor }}"
+                  mc rm --recursive --force --older-than "{{ .Values.backup.keepFor }}" \
+                    "target/$BUCKET/{{ .Values.env }}/" || true
+                  KEPT=$(mc ls "target/$BUCKET/{{ .Values.env }}/" | wc -l)
+                  echo "kept: $KEPT backup(s)"
+                  # The sweep is the one step here that deletes, and `|| true`
+                  # above means a half-done sweep cannot fail the job. So count
+                  # afterwards: if tonight's upload is somehow not among what is
+                  # left, this ran as a delete-only job and must say so.
+                  [ "$KEPT" -ge 1 ] || { echo "the bucket is empty after a successful upload"; exit 1; }
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+{{- end }}

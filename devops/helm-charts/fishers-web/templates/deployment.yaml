@@ -13,6 +13,15 @@ spec:
     metadata:
       labels:
         {{- include "fishers-web.labels" . | nindent 8 }}
+      annotations:
+        # A new value every deploy, so every deploy rolls the pods — the same
+        # reason the API carries this. The promote path (and any manual
+        # dispatch) deploys :latest, and helm renders an identical Deployment
+        # for an unchanged tag, so Kubernetes has nothing to roll and the old
+        # pods keep serving. Without this the API rolls and the dashboard does
+        # not, which leaves a stale bundle talking to a moved API on the same
+        # origin — worse than shipping nothing.
+        fishers.cloud/rollout: {{ .Values.rolloutId | default "manual" | quote }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
