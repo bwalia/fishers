@@ -56,7 +56,10 @@ backup:
   minioPort: 9000
   # The same vault-synced Secret the API and MinIO itself use.
   secretsName: fishers-secrets
-  mcImage: "minio/mc:RELEASE.2025-04-16T18-13-26Z"
+  # quay.io, not Docker Hub — which refuses anonymous pulls from this cluster's
+  # nodes. A backup that cannot pull its uploader at 02:15 is a backup that
+  # silently does not happen.
+  mcImage: "quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z"
   # pg_dump's -Fc compression level, 0-9.
   compression: 6
   # Room for the dump on the node's disk. Over this, the pod is evicted.

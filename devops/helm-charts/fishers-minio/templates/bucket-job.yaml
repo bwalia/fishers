@@ -30,7 +30,11 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: mc
-          image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+          # quay.io for the same reason the server image uses it: Docker Hub
+          # refuses anonymous pulls from this cluster's nodes, and this job is a
+          # post-install hook that helm waits on — so a node without the image
+          # cached takes the whole deploy down with it.
+          image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
           env:
             # The root credentials ARE the API's S3 keys, read from the same
             # vault-synced Secret — so the two cannot drift, and there is no
