@@ -6,16 +6,69 @@ use fishers_notifications::{EmailService, PushService};
 use sqlx::PgPool;
 use tracing::{info, warn};
 
+/// The lock every pod's scheduler competes for. An arbitrary constant; it only
+/// has to be the same number in every copy of this binary and not collide with
+/// another advisory lock on the same database. Nothing else here takes one.
+const TICK_LOCK: i64 = 0x_6669_7368_6572_7301;
+
 pub fn spawn_scheduler(pool: PgPool, push: PushService, email: EmailService) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
-            if let Err(e) = run_tick(&pool, &push, &email).await {
+            if let Err(e) = run_locked_tick(&pool, &push, &email).await {
                 warn!(error = %e, "job tick failed");
             }
         }
     });
+}
+
+/// One pod runs the tick; the rest skip it.
+///
+/// This scheduler lives in the API process, so there is one of it per replica —
+/// and prod runs two. Every job below reads the rows it has not done yet, sends
+/// something, and only then marks them. Two ticks overlapping therefore read
+/// the same unmarked rows and both send: two "Are you playing?" pushes, two
+/// match-fee emails, to real people. int never showed it because int runs a
+/// single replica.
+///
+/// A Postgres advisory lock is the whole fix. Session-level rather than
+/// transaction-level, because a tick is five deliberately independent jobs —
+/// `run_tick` lets one fail without stopping the rest, and wrapping them in a
+/// single transaction to get `pg_try_advisory_xact_lock` would undo that and
+/// hold row locks for the length of the tick. So the lock is taken on a
+/// connection of its own and released on the way out, whatever happened.
+///
+/// If a pod dies mid-tick the session goes with it and Postgres drops the lock,
+/// so a crash costs one skipped tick rather than a stuck scheduler.
+async fn run_locked_tick(
+    pool: &PgPool,
+    push: &PushService,
+    email: &EmailService,
+) -> anyhow::Result<()> {
+    let mut conn = pool.acquire().await?;
+    let held: bool = sqlx::query_scalar("SELECT pg_try_advisory_lock($1)")
+        .bind(TICK_LOCK)
+        .fetch_one(&mut *conn)
+        .await?;
+    if !held {
+        // Another replica is mid-tick. Not an error — it is the lock working.
+        return Ok(());
+    }
+
+    let result = run_tick(pool, push, email).await;
+
+    // Unlock on the same connection that locked, before it returns to the pool:
+    // a connection handed back still holding this would lock out every later
+    // tick on every pod until it happened to be recycled.
+    if let Err(e) = sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(TICK_LOCK)
+        .execute(&mut *conn)
+        .await
+    {
+        warn!(error = %e, "could not release the scheduler lock");
+    }
+    result
 }
 
 /// Each job is isolated: one failing must not stop the rest of the tick, or a
