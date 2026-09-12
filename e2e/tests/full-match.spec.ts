@@ -556,11 +556,18 @@ test("Step 14 — Hand the book to Club 2's captain", async () => {
   as(CLUB_ONE.secretary.name);
   const page = club1.page;
   await clearOverlays(page);
-  await page.locator(".match-head-actions .overflow-button").click();
-  await page.getByRole("button", { name: /Hand the book over/ }).click();
+  // Offered on the innings-break panel itself — the moment the book actually
+  // changes hands — and not only behind the ⋯ menu.
+  const pass = page.getByRole("button", { name: /^Hand the book to/ });
+  await expect(pass, "the break offers the book to the side batting next").toContainText(CLUB_TWO.name);
+  await pass.click();
   const dialog = page.getByRole("dialog", { name: "Hand over the book" });
   await expect(dialog).toBeVisible();
-  await dialog.locator(".people-tabs [role=tab]", { hasText: CLUB_TWO.name }).click();
+  // Open on the side about to bat: their names are listed without a tap.
+  await expect(
+    dialog.locator(".people-tabs [role=tab][aria-selected=true]"),
+    "the sheet opens on the side batting next"
+  ).toContainText(CLUB_TWO.name);
   await dialog.locator(".people-list button", { hasText: CLUB_TWO.secretary.name }).click();
   await dialog.getByRole("button", { name: "Hand it over" }).click();
   await expect(dialog).toHaveCount(0);
@@ -578,19 +585,40 @@ test("Step 14 — Hand the book to Club 2's captain", async () => {
 test("Step 15 — Club 2's captain has the book", async () => {
   as(`${CLUB_TWO.secretary.name}, now holding the book`);
   const page = club2.page;
+  // Told, rather than left to discover it: the book usually crosses at the
+  // break to somebody whose phone is in a bag, and until they open it nobody
+  // is scoring.
+  const notes = await apiGet<{ items: { type: string; payload: { match_id?: string } }[] }>(
+    page,
+    "/notifications?per_page=50"
+  );
+  const told = notes.items.filter(
+    (n) => n.type === "match_book_handed_over" && n.payload?.match_id === matchId
+  );
+  expect(told, "Club 2's captain is told they have the book").toHaveLength(1);
+
   await page.goto(`/score/${matchId}`);
   await expect(page.getByRole("heading", { name: "Innings 2" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Start the innings" })).toBeEnabled();
   await expect(page.locator(".setup-head")).toContainText(`chasing ${inn1.runs + 1}`);
+  // They are the side batting, so they are not invited to hand it to themselves.
+  await expect(
+    page.getByRole("button", { name: /Hand the book to/ }),
+    "the offer is not made to the side about to bat"
+  ).toHaveCount(0);
   // The first innings, exactly as Club 1 left it.
   await verifyScorecard(page, 0, inn1, "1st innings, seen by Club 2");
   check("Scoring", "Second captain receives the book", true);
+  check("Scoring", "Handover is offered at the innings break", true);
+  check("Notifications", "New scorer is told they have the book", true);
 });
 
 test("Step 16 — Second innings: Club 2 bat, five overs", async () => {
   as(`${CLUB_TWO.secretary.name}, holding the book`);
   const page = club2.page;
   inn2 = new Innings(AWAY.map((p) => p.name), HOME[0].name, OVERS);
+  // Taking the book now sends its own alert, and it lands over this panel.
+  await clearOverlays(page);
   await page.getByRole("button", { name: "Start the innings" }).click();
   await expect(page.locator(".matchbar")).toContainText(`${inn1.runs + 1} needed`);
   await playInnings(page, inn2, SECOND, HOME.slice(0, 5).map((p) => p.name));
@@ -666,6 +694,8 @@ test("Step 18 — Final end-to-end checks", async () => {
     "Overs calculate correctly",
     "Player statistics update correctly",
     "Scorebook handover works",
+    "Handover is offered at the innings break",
+    "New scorer is told they have the book",
     "Second captain receives the book",
     "Second innings scoring works",
     "Final score is correct",

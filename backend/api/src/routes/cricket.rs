@@ -575,6 +575,23 @@ async fn handover(
     let updated = cricket_repo::handover(&state.pool, id, auth.user_id, body.to_user_id)
         .await?
         .ok_or_else(|| ApiError::conflict("the book has already moved on"))?;
+
+    // Tell them, because nothing else will. The book usually crosses to the
+    // other side at the innings break, to somebody padded up with their phone
+    // in a bag — and until they open it, nobody is scoring the match. One
+    // person, so this is awaited; it is the club-wide fan-outs that are spawned.
+    let settled = cricket_repo::parse_state(&updated);
+    let payload = match_payload(&state, &updated, &settled).await;
+    state
+        .notify(
+            body.to_user_id,
+            "match_book_handed_over",
+            &format!("{} v {}", settled.home_name, settled.away_name),
+            "You have the scorebook — you're scoring from the next ball.",
+            payload,
+        )
+        .await;
+
     let sides = sides_for(&state, &updated, auth.user_id).await;
     let mine = club_side_for(&state, &updated, auth.user_id).await;
     let when = fixture_time(&state, &updated).await;

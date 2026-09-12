@@ -75,10 +75,10 @@ export default function ScorerPage({
   const router = useRouter();
   const [match, setMatch] = useState<MatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /// Handing the book over, opened from the ⋯ menu rather than owning a
-  /// button of its own. Declared here with the other hooks: below the
-  /// `if (!match) return` guards the hook count changes between the
-  /// loading render and the loaded one, and React blanks the page.
+  /// Handing the book over, opened from the ⋯ menu and from the innings
+  /// break, which is where it actually changes hands. Declared here with the
+  /// other hooks: below the `if (!match) return` guards the hook count changes
+  /// between the loading render and the loaded one, and React blanks the page.
   const [handingOver, setHandingOver] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -324,7 +324,15 @@ export default function ScorerPage({
         </div>
       )}
 
-      <Stages match={match} send={send} scoring={scoring} canAct={canAct} nameOf={nameOf} onPicked={setMatch} />
+      <Stages
+        match={match}
+        send={send}
+        scoring={scoring}
+        canAct={canAct}
+        nameOf={nameOf}
+        onPicked={setMatch}
+        onHandOver={() => setHandingOver(true)}
+      />
 
       {heldByMe && handingOver && (
         <HandOver
@@ -555,6 +563,16 @@ function HandOver({
     [match, squad, officials, me?.id]
   );
 
+  // Between innings the book nearly always goes to the side about to bat, so
+  // open on them rather than making the home tab the answer to every question.
+  const last = match.state.innings[match.state.innings.length - 1];
+  const openOn =
+    last?.complete
+      ? other(last.batting as Side) === "home"
+        ? match.state.home_name
+        : match.state.away_name
+      : undefined;
+
   const hand = async () => {
     if (!choice) return;
     setBusy(true);
@@ -585,7 +603,7 @@ function HandOver({
       {loading ? (
         <div className="skeleton" style={{ height: 180 }} />
       ) : (
-        <PeoplePicker tabs={tabs} chosen={choice} onChoose={setChoice} keepTabs />
+        <PeoplePicker tabs={tabs} chosen={choice} onChoose={setChoice} keepTabs openOn={openOn} />
       )}
 
       {error && <p className="error">{error}</p>}
@@ -805,6 +823,7 @@ function Stages({
   canAct,
   nameOf,
   onPicked,
+  onHandOver,
 }: {
   match: MatchResponse;
   send: (kind: Record<string, unknown>) => Promise<void>;
@@ -814,11 +833,23 @@ function Stages({
   canAct: boolean;
   nameOf: (id?: string | null) => string;
   onPicked: (next: MatchResponse) => void;
+  onHandOver: () => void;
 }) {
   const st = match.state;
   const agreed = !!st.agreed_home && !!st.agreed_away;
   const current = st.innings[st.innings.length - 1];
   const needsInnings = !current || current.complete;
+
+  // At the break the book usually crosses to the side about to bat: they are
+  // the ones who know their own order, and whoever just scored ten overs of
+  // someone else's innings has done their stint. Offered only when it would
+  // actually help — not to somebody already on that side, and not when that
+  // side isn't a club on Fishers, where nobody has an account to hand it to.
+  const battingNext = current ? other(current.batting as Side) : null;
+  const crossesTheFence =
+    !!battingNext &&
+    match.my_club_side !== battingNext &&
+    (battingNext === "home" || !!match.opponent_club_id);
 
   if (st.status === "complete") {
     return (
@@ -877,15 +908,33 @@ function Stages({
         onPicked={onPicked}
       />
     );
-  if (needsInnings)
-    return scoring ? (
-      <OpenersPanel st={st} send={send} canAct={canAct} nameOf={nameOf} />
+  if (needsInnings) {
+    if (scoring)
+      return (
+        <OpenersPanel
+          st={st}
+          send={send}
+          canAct={canAct}
+          nameOf={nameOf}
+          onHandOver={crossesTheFence ? onHandOver : undefined}
+        />
+      );
+    // "Waiting for the first ball" is true before the match and nonsense at an
+    // innings break, where the person reading it has just watched ten overs.
+    return current ? (
+      <ScorersTurn
+        title="Innings break"
+        note={`${battingNext === "home" ? st.home_name : st.away_name} bat next${
+          st.target ? `, chasing ${st.target}` : ""
+        }. Whoever has the book names the openers — this page updates when they do.`}
+      />
     ) : (
       <ScorersTurn
         title="Waiting for the first ball"
         note="The scorer names the openers and the bowler. This page updates when they do."
       />
     );
+  }
   return <LivePanel match={match} send={send} scoring={scoring} canAct={canAct} nameOf={nameOf} />;
 }
 
@@ -1788,11 +1837,15 @@ function OpenersPanel({
   send,
   canAct,
   nameOf,
+  onHandOver,
 }: {
   st: MatchState;
   send: (kind: Record<string, unknown>) => Promise<void>;
   canAct: boolean;
   nameOf: (id?: string | null) => string;
+  /// Offered at an innings break, when the side about to bat is somebody else's
+  /// — `Stages` decides whether that is worth saying here.
+  onHandOver?: () => void;
 }) {
   const index = st.innings.length;
   // Whoever won the toss and chose to bat opens; the sides swap after that.
@@ -1835,6 +1888,20 @@ function OpenersPanel({
           {st.target ? ` · chasing ${st.target}` : ""}.
         </p>
       </div>
+
+      {/* The first decision of the break, above the crease rather than under
+          the button that ends it: naming the openers of a side you do not know
+          is the wrong job, and this is the moment to pass it on. */}
+      {onHandOver && (
+        <div className="hand-over-break">
+          <p className="muted">
+            The side batting normally keeps their own book — they know who is going in.
+          </p>
+          <button className="btn ghost sm" type="button" onClick={onHandOver}>
+            <Icon name="book" size={14} /> Hand the book to {battingName}
+          </button>
+        </div>
+      )}
 
       <div className="crease">
         <div className="crease-end">

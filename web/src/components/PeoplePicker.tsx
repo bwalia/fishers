@@ -23,6 +23,7 @@ export function PeoplePicker({
   searchFrom = 8,
   empty = "Nobody to choose from yet.",
   keepTabs = false,
+  openOn,
 }: {
   tabs: PeopleTab[];
   chosen: string | null;
@@ -35,10 +36,18 @@ export function PeoplePicker({
   /// think in: with one team's tab hidden, a single list reads as everybody
   /// mixed together, and nothing says where the other side went.
   keepTabs?: boolean;
+  /// The label of the tab the answer is almost certainly on — the side about
+  /// to bat, when the book is crossing at an innings break. Ignored when that
+  /// tab has nobody in it, so an opposition who aren't on Fishers still land
+  /// on a list with names in it rather than an explanation.
+  openOn?: string;
 }) {
   const shown = keepTabs ? tabs : tabs.filter((t) => t.people.length > 0);
-  // Open on the first tab that has somebody in it.
-  const [active, setActive] = useState(() => Math.max(0, shown.findIndex((t) => t.people.length > 0)));
+  // Open on the tab the caller expects, else the first one with somebody in it.
+  const [active, setActive] = useState(() => {
+    const wanted = shown.findIndex((t) => t.label === openOn && t.people.length > 0);
+    return wanted >= 0 ? wanted : Math.max(0, shown.findIndex((t) => t.people.length > 0));
+  });
   const [filter, setFilter] = useState("");
 
   // A tab can empty out under you — somebody appointed, a squad reloaded.

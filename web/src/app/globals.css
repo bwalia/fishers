@@ -2075,6 +2075,12 @@ a.bell-item:hover { background: var(--surface-2); }
 .add-guest { margin-top: var(--s4); }
 .guest-row { margin-top: var(--s4); }
 
+/* The offer to pass the book on at an innings break. Sits between the panel's
+   heading and the crease, so it needs its own bottom margin — .setup-head's
+   paragraph has none, on the assumption the crease follows it directly. */
+.hand-over-break { margin-bottom: var(--s5); }
+.hand-over-break p { margin: 0 0 var(--s2); }
+
 /* Nothing to do but wait — said once, quietly, not as an error. */
 .waiting-note {
   display: flex;
