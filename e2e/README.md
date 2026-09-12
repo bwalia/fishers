@@ -29,11 +29,11 @@ completely fresh set.
 cd e2e
 npm ci && npx playwright install chromium
 
-# against int (E2E_PASSWORD is read from ../.env)
+# against your local stack (scripts/start.sh) — the default
 npx playwright test
 
-# against your local stack (scripts/start.sh)
-E2E_BASE_URL=http://localhost:7311 npx playwright test
+# against a deployed ring: always named, because a run writes into it
+E2E_BASE_URL=https://int.fishers.cloud npx playwright test
 
 # the report, and the Slack message (posted when SLACK_WEBHOOK is set)
 npx playwright show-report
