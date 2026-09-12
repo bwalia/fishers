@@ -66,23 +66,34 @@ jobs:
             int)  HOSTS="int.fishers.cloud" ;;
             test) HOSTS="test.fishers.cloud" ;;
             acc)  HOSTS="acc.fishers.cloud" ;;
-            prod) HOSTS="www.fishers.cloud" ;;
-            all)  HOSTS="int.fishers.cloud test.fishers.cloud acc.fishers.cloud www.fishers.cloud" ;;
+            prod) HOSTS="www.fishers.cloud fishers.cloud" ;;
+            all)  HOSTS="int.fishers.cloud test.fishers.cloud acc.fishers.cloud www.fishers.cloud fishers.cloud" ;;
             *) echo "::error::unknown ring '${{ inputs.ENV }}'"; exit 1 ;;
           esac
+          # The bare domain is an A record at the zone apex, pointed at the edge
+          # already. A CNAME cannot coexist with it, so Cloudflare would refuse
+          # the upsert below and take the whole deploy down with it — the apex
+          # needs the vhost (for its own certificate) and nothing else.
+          DNS_HOSTS=$(echo "$HOSTS" | tr ' ' '\n' | grep -vx 'fishers.cloud' | tr '\n' ' ')
           echo "hosts=$HOSTS" >> "$GITHUB_OUTPUT"
-          echo "Registering: $HOSTS"
+          echo "dns_hosts=$DNS_HOSTS" >> "$GITHUB_OUTPUT"
+          echo "Registering vhosts: $HOSTS"
+          echo "Registering DNS:    ${DNS_HOSTS:-none}"
 
       - name: Ensure Cloudflare CNAMEs
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          HOSTS: ${{ steps.hosts.outputs.hosts }}
+          HOSTS: ${{ steps.hosts.outputs.dns_hosts }}
         run: |
           set -euo pipefail
           # Soft-skip without a token: ExternalDNS normally owns these records,
           # and this step is the belt-and-braces, not the primary write path.
           if [ -z "${CF_API_TOKEN:-}" ]; then
             echo "::notice::CLOUDFLARE_API_TOKEN not set — leaving DNS to ExternalDNS."
+            exit 0
+          fi
+          if [ -z "${HOSTS// /}" ]; then
+            echo "::notice::nothing here needs a CNAME."
             exit 0
           fi
           api="https://api.cloudflare.com/client/v4"

@@ -3,6 +3,14 @@ env: prod
 hostname: www.fishers.cloud
 replicaCount: 2
 
+ingress:
+  # The bare domain, sent to www by the app. One canonical hostname: two that
+  # both serve the site would split sign-in (Google authorises origins, and a
+  # session cookie set on one is not sent to the other) and have search engines
+  # pick a favourite for us.
+  redirectHosts:
+    - fishers.cloud
+
 image:
   repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-web
   tag: latest

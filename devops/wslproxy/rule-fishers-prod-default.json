@@ -27,6 +27,7 @@
     "host:int.fishers.cloud",
     "host:test.fishers.cloud",
     "host:acc.fishers.cloud",
-    "host:www.fishers.cloud"
+    "host:www.fishers.cloud",
+    "host:fishers.cloud"
   ]
 }
