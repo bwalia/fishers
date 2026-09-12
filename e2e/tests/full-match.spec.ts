@@ -423,6 +423,16 @@ test("Step 10b — Club 2 names its Playing XI", async () => {
   await expect(note, "Club 2 is told it is their turn").toBeVisible();
   await note.click();
   await page.waitForURL(new RegExp(`/score/${matchId}$`));
+
+  // Asked once. The toss asks both sides, and naming an eleven asks the other
+  // side only before the toss — between them they used to say it twice.
+  const notes = await apiGet<{ items: { type: string; payload: { match_id?: string } }[] }>(
+    page,
+    "/notifications?per_page=50"
+  );
+  const asked = notes.items.filter((n) => n.type === "match_pick_your_xi" && n.payload?.match_id === matchId);
+  expect(asked, "Club 2's captain was asked for their side exactly once").toHaveLength(1);
+
   await pickXi(club2, CLUB_TWO, AWAY, HOME, "away");
 });
 

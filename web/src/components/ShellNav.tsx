@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { clearSession, getStoredUser, type PublicUser } from "@/lib/api";
+import { BrandMark } from "@/components/BrandMark";
 import { Icon, type IconName } from "@/components/Icon";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OverflowMenu } from "@/components/OverflowMenu";
@@ -53,7 +54,7 @@ export function ShellNav() {
           this inner track keeps its contents on the same grid as the page. */}
       <div className="topbar-inner">
       <Link href="/" className="brand">
-        <Icon name="ball" size={22} />
+        <BrandMark size={24} />
         Fishers
       </Link>
       <nav className="nav" aria-label="Main">

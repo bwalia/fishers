@@ -5,6 +5,11 @@
   publicly readable; writing still needs the signed credentials. A hook rather
   than an init container, because it is a property of the environment rather
   than of the pod, and it must not re-run on every restart.
+
+  Readable is not the same as listable. `mc anonymous set download` also hands
+  out s3:ListBucket, so anyone could ask the bucket for every key it holds and
+  read back the avatar of every member of every club. The policy below allows
+  exactly one thing — fetching an object whose key you already have.
 */ -}}
 apiVersion: batch/v1
 kind: Job
@@ -50,5 +55,6 @@ spec:
                 echo "waiting for minio"; sleep 3
               done
               mc mb --ignore-existing target/{{ .Values.bucket }}
-              mc anonymous set download target/{{ .Values.bucket }}
-              echo "bucket {{ .Values.bucket }} ready"
+              printf '%s' '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::{{ .Values.bucket }}/*"]}]}' > /tmp/public-read.json
+              mc anonymous set-json /tmp/public-read.json target/{{ .Values.bucket }}
+              echo "bucket {{ .Values.bucket }} ready: objects readable, keys not listable"
