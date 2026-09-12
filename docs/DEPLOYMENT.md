@@ -69,6 +69,118 @@ Namespace `fishers-<ring>`, deployed in this order — which is not incidental:
   `/health` would wave through a ring where every real request hangs — which is
   exactly the state this repo was found in locally.
 
+## Backups
+
+Patroni keeps the cluster up when a node goes, and prod runs a streaming
+standby it promotes automatically. Neither is a backup: a replica copies
+`DROP TABLE` as faithfully as it copies everything else. So `fishers-db` also
+ships a CronJob that dumps the database into MinIO every night at **02:15 UTC**
+(`devops/helm-charts/fishers-db/templates/backup-cronjob.yaml`), kept for
+**14 days**.
+
+Two containers rather than one image that can do both: `postgres:<version>`
+dumps, `minio/mc` uploads, handing the file over on an emptyDir. The dump tag
+follows `postgresVersion`, because `pg_dump` refuses to talk to a server newer
+than itself.
+
+What it refuses to do:
+
+- **Upload a dump it cannot read back.** After dumping it runs
+  `pg_restore --file=/dev/null`, which reads and decompresses every data block.
+  `pg_restore --list` is not enough — the table of contents sits at the front of
+  the archive, so a dump cut in half still lists all its tables.
+- **Upload an empty one.** A dump with no table data restores cleanly and
+  contains nothing; the job fails instead.
+- **Delete anything before tonight's copy is confirmed stored.** The old ones go
+  only after `mc stat` finds the new one.
+- **Put backups anywhere near `media`.** That bucket is readable by anyone
+  holding a key, because avatars load in a browser. Dumps go to `db-backups`,
+  which is created private and has no anonymous policy applied to it, ever.
+
+**How much you lose, and what is not in there.** The recovery point is the last
+run, so up to 24 hours. The `media` bucket is *not* backed up: restore an old
+database and its rows still point at whatever avatars MinIO holds now, so a key
+written since the dump resolves to a picture that is still there, and one
+deleted since does not. The operator's own credentials Secret is not in here
+either — it is regenerated, and the API reads it from the cluster.
+
+### Looking at them
+
+```sh
+export KUBECONFIG=~/.kube/k3s1.yaml
+kubectl get cronjob fishers-db-backup -n fishers-int
+
+# --all-containers, because the dump and every check it does run in an INIT
+# container: on a failed night the only regular container never starts, and
+# without this the command prints nothing at all. --ignore-errors so that
+# not-yet-started container's error does not swallow the output either.
+kubectl logs -n fishers-int -l app.kubernetes.io/name=fishers-db-backup \
+  --all-containers --ignore-errors --prefix --tail=50
+
+# what is actually stored
+kubectl exec -n fishers-int fishers-minio-0 -- sh -lc '
+  mc alias set t http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
+  mc ls t/db-backups/int/'
+```
+
+### Restoring one
+
+Restore into a **new** database first and look at it. Never straight over the
+live one — if the dump turns out to be the problem, that is the only copy gone.
+
+```sh
+export KUBECONFIG=~/.kube/k3s1.yaml
+NS=fishers-int
+FILE=fishers-20260912T021500Z.dump   # from `mc ls` above
+
+# Patroni moves the leader on failover and on every operator rolling update, so
+# ask which pod holds it. On prod there are two, and the other one is read-only.
+PG=$(kubectl get pod -n $NS -l spilo-role=master -o jsonpath='{.items[0].metadata.name}')
+
+# 1. straight from MinIO into the database pod — not via your laptop. A dump is
+#    every member's data in one file; it does not want a second home.
+kubectl exec -n $NS fishers-minio-0 -- sh -lc "
+  mc alias set t http://localhost:9000 \"\$MINIO_ROOT_USER\" \"\$MINIO_ROOT_PASSWORD\" >/dev/null
+  mc cat t/db-backups/int/$FILE" \
+| kubectl exec -i -n $NS $PG -- sh -c "cat > /tmp/$FILE"
+
+# 2. restore it beside the live database, not over it
+kubectl exec -n $NS $PG -- psql -U postgres -c 'CREATE DATABASE restore_check OWNER fishers'
+kubectl exec -n $NS $PG -- pg_restore -U postgres -d restore_check /tmp/$FILE
+
+# 3. check it is the database you meant to get back
+kubectl exec -n $NS $PG -- psql -U postgres -d restore_check -c 'select count(*) from users'
+```
+
+Only once that looks right, replace the live one. Stop the API first: its pool
+holds connections, and `DROP DATABASE` refuses while anything is attached.
+
+```sh
+WAS=$(kubectl get deploy fishers-api -n $NS -o jsonpath='{.spec.replicas}')
+kubectl scale deploy/fishers-api -n $NS --replicas=0
+kubectl wait --for=delete pod -l app.kubernetes.io/name=fishers-api -n $NS --timeout=120s
+
+kubectl exec -n $NS $PG -- psql -U postgres -c 'DROP DATABASE fishers'
+kubectl exec -n $NS $PG -- psql -U postgres -c 'CREATE DATABASE fishers OWNER fishers'
+kubectl exec -n $NS $PG -- pg_restore -U postgres -d fishers /tmp/$FILE
+
+# Back up, on the replica count it had. It replays its own migrations on boot,
+# so a dump from an older release catches up by itself.
+kubectl scale deploy/fishers-api -n $NS --replicas=$WAS
+kubectl rollout status deploy/fishers-api -n $NS
+
+# and tidy up
+kubectl exec -n $NS $PG -- psql -U postgres -c 'DROP DATABASE restore_check'
+kubectl exec -n $NS $PG -- rm -f /tmp/$FILE
+```
+
+`pg_restore` runs without `--no-owner`: the dump carries `OWNER TO fishers`, and
+`postgres` is a superuser, so the tables come back owned by the user the API
+connects as. Strip the owner and the API can read nothing.
+
+Swap `int` for the ring you mean in both the namespace and the object prefix —
+each ring writes under its own name in its own MinIO.
+
 ## First-time setup for a ring
 
 ### 1. Repository secrets

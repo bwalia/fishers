@@ -1,0 +1,132 @@
+name: Backups — did last night's run land?
+
+# The one thing a backup needs that a CronJob cannot do for itself: say so when
+# it stops working.
+#
+# A CronJob that fails leaves a failed Job object and nothing else. Nobody is
+# watching the namespace at 02:15, there is no alerting stack in front of this
+# app, and the usual way a silent backup failure is discovered is the restore —
+# which is the worst possible moment to find out.
+#
+# So this asks the cluster every morning, an hour after the dump, and fails the
+# workflow when the answer is wrong. GitHub emails the people watching the
+# repository when a scheduled workflow fails, which is the cheapest alerting
+# that already exists here.
+
+on:
+  schedule:
+    # 03:20 UTC — an hour after the 02:15 dump, so a slow night is not a page.
+    - cron: "20 3 * * *"
+  workflow_dispatch:
+    inputs:
+      ring:
+        description: "Which ring to check"
+        type: choice
+        options: [int, test, acc, prod]
+        default: int
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the nightly dump
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # The schedule checks every ring that has a namespace; a manual run checks
+      # the one that was asked for.
+      RINGS: ${{ github.event_name == 'workflow_dispatch' && inputs.ring || 'int test acc prod' }}
+    steps:
+      - name: Write kubeconfig
+        run: |
+          if [ -z "${{ secrets.MY_K3S1_CONFIG }}" ]; then
+            echo "::error::MY_K3S1_CONFIG is not set on this repository."
+            exit 1
+          fi
+          echo "${{ secrets.MY_K3S1_CONFIG }}" | base64 -d > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Ask each ring when it last backed up
+        run: |
+          set -u
+          bad=0
+          checked=0
+          {
+            echo "## Nightly database backups"
+            echo
+            echo "| Ring | Last successful dump | Age | |"
+            echo "|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for ring in $RINGS; do
+            ns="fishers-$ring"
+            # A ring that was never deployed is not a failure — there is
+            # nothing there to back up yet.
+            kubectl get ns "$ns" >/dev/null 2>&1 || { echo "$ns: no such namespace, skipping"; continue; }
+            checked=$((checked + 1))
+
+            if ! kubectl get cronjob fishers-db-backup -n "$ns" >/dev/null 2>&1; then
+              echo "::error::$ns has a database but no fishers-db-backup CronJob — nothing is backing it up."
+              echo "| \`$ring\` | — | — | ❌ no CronJob |" >> "$GITHUB_STEP_SUMMARY"
+              bad=$((bad + 1))
+              continue
+            fi
+
+            # lastSuccessfulTime is the only field that means "a dump actually
+            # finished". lastScheduleTime just means one was started, which is
+            # exactly what a failing backup also does every night.
+            last=$(kubectl get cronjob fishers-db-backup -n "$ns" -o jsonpath='{.status.lastSuccessfulTime}' 2>/dev/null || true)
+            suspended=$(kubectl get cronjob fishers-db-backup -n "$ns" -o jsonpath='{.spec.suspend}' 2>/dev/null || true)
+
+            if [ "$suspended" = "true" ]; then
+              echo "::error::$ns: the backup CronJob is suspended."
+              echo "| \`$ring\` | — | — | ❌ suspended |" >> "$GITHUB_STEP_SUMMARY"
+              bad=$((bad + 1))
+              continue
+            fi
+
+            if [ -z "$last" ]; then
+              # Freshly installed rings have not had a night yet. Say it, and
+              # let it pass for the first day.
+              created=$(kubectl get cronjob fishers-db-backup -n "$ns" -o jsonpath='{.metadata.creationTimestamp}')
+              age_h=$(( ( $(date -u +%s) - $(date -u -d "$created" +%s) ) / 3600 ))
+              if [ "$age_h" -lt 26 ]; then
+                echo "| \`$ring\` | none yet | installed ${age_h}h ago | ⏳ first night |" >> "$GITHUB_STEP_SUMMARY"
+                continue
+              fi
+              echo "::error::$ns: the backup CronJob has never completed successfully (installed ${age_h}h ago)."
+              echo "| \`$ring\` | never | ${age_h}h since install | ❌ never ran |" >> "$GITHUB_STEP_SUMMARY"
+              bad=$((bad + 1))
+              continue
+            fi
+
+            age_h=$(( ( $(date -u +%s) - $(date -u -d "$last" +%s) ) / 3600 ))
+            # A daily dump is stale at 26 hours: a night missed, plus an hour of
+            # slack for a slow run or a late start.
+            if [ "$age_h" -ge 26 ]; then
+              echo "::error::$ns: the last successful backup was ${age_h}h ago ($last)."
+              echo "| \`$ring\` | $last | ${age_h}h | ❌ stale |" >> "$GITHUB_STEP_SUMMARY"
+              bad=$((bad + 1))
+            else
+              echo "$ns: last successful dump $last (${age_h}h ago)"
+              echo "| \`$ring\` | $last | ${age_h}h | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+          if [ "$checked" -eq 0 ]; then
+            echo "::warning::No fishers namespace found on this cluster — nothing to check."
+            exit 0
+          fi
+          {
+            echo
+            echo "Logs for a failed night (the dump runs in an *init* container, so the flags matter):"
+            echo '```sh'
+            echo "kubectl logs -n fishers-int -l app.kubernetes.io/name=fishers-db-backup \\"
+            echo "  --all-containers --ignore-errors --prefix --tail=50"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$bad" -eq 0 ] || { echo "::error::$bad ring(s) are not backing up. See docs/DEPLOYMENT.md → Backups."; exit 1; }
+          echo "All $checked ring(s) backed up in the last 26 hours."

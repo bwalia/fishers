@@ -348,6 +348,7 @@ jobs:
             --set image.repository='${{ steps.ring.outputs.ns }}/fishers-web' \
             --set image.tag="$IMAGE_TAG" \
             --set hostname='${{ steps.ring.outputs.hostname }}' \
+            --set rolloutId='${{ github.run_id }}-${{ github.run_attempt }}' \
             --wait --timeout 10m
 
       - name: Smoke test from inside the cluster

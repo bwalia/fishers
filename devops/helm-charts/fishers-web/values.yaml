@@ -97,6 +97,9 @@ securityContext:
   capabilities:
     drop: ["ALL"]
 
+# Set by the deploy to its run id, so every deploy rolls the pods.
+rolloutId: ""
+
 nodeSelector: {}
 tolerations: []
 affinity: {}
