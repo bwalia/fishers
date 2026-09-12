@@ -58,4 +58,22 @@ spec:
                 name: {{ include "fishers-web.name" . }}
                 port:
                   number: {{ .Values.service.port }}
+    {{- /* Hostnames that only exist to be sent to the canonical one — the bare
+           domain beside www. They reach the app because the redirect is the
+           app's (next.config.js), which keeps one list of hostnames rather than
+           a rule at the edge that nobody reads. Nothing but `/` is routed: an
+           API call or an image on the wrong hostname is a bug, not a thing to
+           serve. */}}
+    {{- range .Values.ingress.redirectHosts }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "fishers-web.name" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+    {{- end }}
 {{- end }}

@@ -3,6 +3,11 @@ const path = require("path");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // The canonical-hostname redirect is NOT here. `redirects()` is evaluated
+  // once, at build time, and compiled into routes-manifest.json — so reading a
+  // per-ring environment variable in it bakes whichever ring built the image
+  // into every ring that runs it. One image serves int, test, acc and prod, so
+  // it lives in middleware.ts instead, which is asked on every request.
   // Emits .next/standalone with a self-contained server.js and only the
   // node_modules it actually imports, so the runtime image does not carry a
   // toolchain it will never use.

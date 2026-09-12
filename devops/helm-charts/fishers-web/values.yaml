@@ -47,6 +47,9 @@ ingress:
     - /health
   annotations: {}
   tls: false
+  # Other hostnames that should land on this ring and be sent to `hostname`.
+  # Per-ring, because only prod has a bare domain beside its www.
+  redirectHosts: []
 
 # Where the browser fetches an uploaded photo: same host, served by MinIO.
 # `path` must equal the bucket name in the fishers-minio chart and the end of

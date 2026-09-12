@@ -377,6 +377,37 @@ jobs:
           probe minio-ready "http://fishers-minio:9000/minio/health/ready"
           exit $fail
 
+      - name: Reachable from outside
+        env:
+          HOST: ${{ steps.ring.outputs.hostname }}
+        run: |
+          set -uo pipefail
+          # The other half of the edge check, in the only job that can make it
+          # true. register-edge-vhost.yml registers the vhost but cannot assert
+          # the app answers — the app is installed here, and that job runs
+          # before this one — so it warns and this decides.
+          #
+          # Generous, because the first deploy of a ring is the slow one: the
+          # vhost reaches pop0 on a config sync, and then a brand-new Let's
+          # Encrypt certificate has to be issued before curl will speak to it at
+          # all. A redeploy passes on the first attempt.
+          for i in $(seq 1 40); do
+            : > /tmp/ext
+            code=$(curl -sS -o /tmp/ext -m 10 -w '%{http_code}' "https://${HOST}/health" || echo 000)
+            body=$(tr -d '[:space:]' < /tmp/ext)
+            # "ok" is what the API's own handler returns. The edge answers its
+            # own pages with 200 too, so the status alone proves nothing.
+            if [ "$code" = "200" ] && [ "$body" = "ok" ]; then
+              echo "  ok   https://${HOST}/health after ${i} attempt(s)"
+              exit 0
+            fi
+            echo "  [$i] https://${HOST}/health -> $code $(head -c 60 /tmp/ext | tr -d '\n')"
+            sleep 15
+          done
+          echo "::error::${HOST} never served the app through the edge. The release is in the cluster — the in-cluster smoke test passed — so this is DNS, the wslproxy vhost, or its certificate."
+          echo "::error::Check: dig ${HOST}; curl -vI https://${HOST}/health; and the vhost in devops/wslproxy/host-${HOST}.json."
+          exit 1
+
       - name: Report
         if: always()
         env:
