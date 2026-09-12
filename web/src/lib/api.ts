@@ -316,7 +316,9 @@ export async function api<T>(
   path: string,
   body?: unknown,
   authorized = true,
-  retried = false
+  retried = false,
+  /// Cancels the request — for work that a newer request makes pointless.
+  signal?: AbortSignal
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -330,13 +332,14 @@ export async function api<T>(
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
+    signal,
   });
 
   // A token can still lapse between the check and the call — a long upload, a
   // sleeping laptop, a clock that drifted. Refresh once and send it again.
   if (res.status === 401 && authorized && !retried) {
     const token = await refreshSession();
-    if (token) return api<T>(method, path, body, authorized, true);
+    if (token) return api<T>(method, path, body, authorized, true, signal);
     sessionLost();
     throw new Error("Your session has expired. Please sign in again.");
   }

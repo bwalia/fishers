@@ -329,9 +329,13 @@ async fn post_events(
     if body.events.len() > 500 {
         return Err(ApiError::bad_request("send at most 500 events per batch"));
     }
-    // Whether the match was already over decides if this batch is the one that
-    // finished it, and so whether the club hears about it.
-    let prev_complete = cricket_repo::parse_state(&row).status == MatchStatus::Complete;
+    // What the match looked like before this batch: whether it was already
+    // over (so the club hears about the finish once), and whether the toss had
+    // been made. Both are about what *changed*, which is never the same
+    // question as what the request asked for — a batch the server has already
+    // seen is applied again as nothing at all.
+    let before = cricket_repo::parse_state(&row);
+    let prev_complete = before.status == MatchStatus::Complete;
 
     let state_out = cricket_repo::apply_event_batch(
         &state.pool,
@@ -343,14 +347,31 @@ async fn post_events(
     .await
     .map_err(|e| ApiError::conflict(e.to_string()))?;
 
-    // The other captain has to be told the terms are on the table, or the match
-    // waits on somebody who does not know they are being waited on.
-    if body
-        .events
-        .iter()
-        .any(|e| matches!(e.kind, ScoringEventKind::ConditionsProposed { .. }))
-    {
-        notify_opposition_of_terms(&state, &row, &state_out, auth.user_id).await;
+    // Telling people is a side-effect of the ball, never part of recording it:
+    // a push to every officer of both clubs is a queue of network round trips,
+    // and the scorer's tap must not wait on it.
+    let terms_proposed = before.conditions_proposed_by.is_none() && state_out.conditions_proposed_by.is_some();
+    let toss_made = before.toss_winner.is_none() && state_out.toss_winner.is_some();
+    if terms_proposed || toss_made {
+        let (bus, row, state_out, by) = (state.clone(), row.clone(), state_out.clone(), auth.user_id);
+        tokio::spawn(async move {
+            // The other captain has to be told the terms are on the table, or
+            // the match waits on somebody who does not know they are waited on.
+            if terms_proposed {
+                notify_opposition_of_terms(&bus, &row, &state_out, by).await;
+            }
+            // The toss is what opens the team sheets, so it is when each
+            // captain is asked for theirs. Before, the visiting captain was
+            // only told once the home side had named its eleven — while the
+            // home screen already said "they have been told it is their turn".
+            if toss_made {
+                for side in sides_to_name(&row) {
+                    if state_out.xi(side).is_empty() {
+                        notify_side_to_pick(&bus, &row, &state_out, side, by).await;
+                    }
+                }
+            }
+        });
     }
 
     if !prev_complete && state_out.status == fishers_domain::MatchStatus::Complete {
@@ -1004,6 +1025,17 @@ async fn notify_both_sides(
     }
 }
 
+/// The sides that are separate sets of people. A club playing two of its own
+/// teams is one club, and asking it twice sends everybody the same push twice.
+fn sides_to_name(row: &cricket_repo::CricketMatchRow) -> Vec<fishers_domain::MatchSide> {
+    use fishers_domain::MatchSide;
+    if row.opponent_club_id == Some(row.club_id) || row.opponent_club_id.is_none() {
+        vec![MatchSide::Home]
+    } else {
+        vec![MatchSide::Home, MatchSide::Away]
+    }
+}
+
 /// Tell the other side's captains it is their turn.
 ///
 /// Without this the flow stalls on somebody who does not know they are being
@@ -1591,10 +1623,22 @@ async fn submit_xi(
         .ok_or_else(|| ApiError::not_found("match not found"))?;
 
     // One side named: the other has a job to do, and nothing else would tell
-    // them. The match cannot start until both are in.
+    // them. The match cannot start until both are in. After the toss they have
+    // already been asked — telling them again is the same sentence twice.
     let waiting = body.side.opposite();
-    if state_out.xi(waiting).is_empty() {
-        notify_side_to_pick(&state, &refreshed, &state_out, waiting, auth.user_id).await;
+    if state_out.toss_winner.is_none()
+        && state_out.xi(waiting).is_empty()
+        && sides_to_name(&refreshed).contains(&waiting)
+    {
+        let (bus, refreshed, state_out, by) = (
+            state.clone(),
+            refreshed.clone(),
+            state_out.clone(),
+            auth.user_id,
+        );
+        tokio::spawn(async move {
+            notify_side_to_pick(&bus, &refreshed, &state_out, waiting, by).await;
+        });
     }
 
     let can_score = may_score(&state, &refreshed, auth.user_id).await;

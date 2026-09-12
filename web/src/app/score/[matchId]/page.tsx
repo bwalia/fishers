@@ -195,7 +195,12 @@ export default function ScorerPage({
   const heldByMe = match.active_scorer_user_id === me?.id;
   const heldBySomeoneElse =
     !!match.active_scorer_user_id && !heldByMe;
-  const canAct = match.can_score && heldByMe && !busy;
+  // Whether this is the scorer's screen, and whether it can take a tap right
+  // now. Kept apart: while a ball is being sent the controls stay where they
+  // are, disabled — they used to vanish for the spectator's view instead, and
+  // a send that waited on the network left the scorer with nothing to press.
+  const scoring = match.can_score && heldByMe;
+  const canAct = scoring && !busy;
 
   const nameOf = (id?: string | null) =>
     !id ? "—" : st.player_names[id] || st.player_names[id.toLowerCase()] || id.slice(0, 8);
@@ -319,7 +324,7 @@ export default function ScorerPage({
         </div>
       )}
 
-      <Stages match={match} send={send} canAct={canAct} nameOf={nameOf} onPicked={setMatch} />
+      <Stages match={match} send={send} scoring={scoring} canAct={canAct} nameOf={nameOf} onPicked={setMatch} />
 
       {heldByMe && handingOver && (
         <HandOver
@@ -796,12 +801,16 @@ function SetupRail({ st, hasScorer }: { st: MatchState; hasScorer: boolean }) {
 function Stages({
   match,
   send,
+  scoring,
   canAct,
   nameOf,
   onPicked,
 }: {
   match: MatchResponse;
   send: (kind: Record<string, unknown>) => Promise<void>;
+  /// This is the scorer's screen: decides which panels show.
+  scoring: boolean;
+  /// …and it can take a tap right now: decides what is enabled.
   canAct: boolean;
   nameOf: (id?: string | null) => string;
   onPicked: (next: MatchResponse) => void;
@@ -851,7 +860,7 @@ function Stages({
       />
     );
   if (!st.toss_winner)
-    return canAct ? (
+    return scoring ? (
       <TossPanel st={st} send={send} canAct={canAct} />
     ) : (
       <ScorersTurn
@@ -869,7 +878,7 @@ function Stages({
       />
     );
   if (needsInnings)
-    return canAct ? (
+    return scoring ? (
       <OpenersPanel st={st} send={send} canAct={canAct} nameOf={nameOf} />
     ) : (
       <ScorersTurn
@@ -877,7 +886,7 @@ function Stages({
         note="The scorer names the openers and the bowler. This page updates when they do."
       />
     );
-  return <LivePanel match={match} send={send} canAct={canAct} nameOf={nameOf} />;
+  return <LivePanel match={match} send={send} scoring={scoring} canAct={canAct} nameOf={nameOf} />;
 }
 
 /// Somebody else's move. Said once, quietly — not as an error, and not as a
@@ -1932,11 +1941,13 @@ const ASK_KEY = "fishers_ask_shot";
 function LivePanel({
   match,
   send,
+  scoring,
   canAct,
   nameOf,
 }: {
   match: MatchResponse;
   send: (kind: Record<string, unknown>) => Promise<void>;
+  scoring: boolean;
   canAct: boolean;
   nameOf: (id?: string | null) => string;
 }) {
@@ -1963,20 +1974,27 @@ function LivePanel({
     const last = (inn.deliveries || [])[ballCount - 1];
     if (!last) return;
     const key = `${last.over}.${last.ball_in_over}.${last.label}`;
-    let dropped = false;
     // Fire and forget: a model takes seconds and the ball is already recorded,
     // so nothing waits on this and a failure leaves the written line in place.
-    api<{ line: string | null }>("POST", `/cricket/matches/${match.id}/commentary`, {
-      over: last.over,
-      ball_in_over: last.ball_in_over,
-    })
+    //
+    // Cancelled, not just ignored, when the next ball arrives. A browser keeps
+    // six connections to a host over plain http (a ground's LAN), the live
+    // stream holds one, and lines still being written for old balls filled the
+    // rest — so the next ball queued behind them and the scorer's taps stalled.
+    const ctl = new AbortController();
+    api<{ line: string | null }>(
+      "POST",
+      `/cricket/matches/${match.id}/commentary`,
+      { over: last.over, ball_in_over: last.ball_in_over },
+      true,
+      false,
+      ctl.signal
+    )
       .then((r) => {
-        if (!dropped && r.line) setAiLines((prev) => ({ ...prev, [key]: r.line! }));
+        if (r.line) setAiLines((prev) => ({ ...prev, [key]: r.line! }));
       })
       .catch(() => {});
-    return () => {
-      dropped = true;
-    };
+    return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ballCount, match.id]);
 
@@ -2267,8 +2285,8 @@ function LivePanel({
            Only for whoever is actually scoring. Somebody following the match
            came to watch it, and a dial they cannot press is furniture — but
            the column should not just be left empty either. */}
-      {!canAct && <Following st={st} inn={inn} nameOf={nameOf} />}
-      {canAct && <div className="controls">
+      {!scoring && <Following st={st} inn={inn} nameOf={nameOf} />}
+      {scoring && <div className="controls">
         {needsBowler && (
           <div className="panel" style={{ borderColor: "var(--accent)" }}>
             <div className="panel-head">
