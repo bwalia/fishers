@@ -123,6 +123,24 @@ actor NetworkService {
         KeychainStore.delete("refresh_token")
     }
 
+    /// A signed GET for something read with its own session — the live stream,
+    /// which outlives any access token and so is signed afresh on each connect.
+    func signedRequest(path: String) async -> URLRequest? {
+        if accessToken == nil, refreshToken != nil { try? await refreshAccessToken() }
+        guard let token = accessToken,
+              let url = URL(string: AppConfig.apiBaseURL.absoluteString + AppConfig.apiVersionPrefix + path)
+        else { return nil }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return req
+    }
+
+    /// The stream was answered 401: renew, so the next connect is signed with
+    /// a token the server accepts.
+    func renewSession() async {
+        try? await refreshAccessToken()
+    }
+
     func request<T: Decodable>(
         _ method: String,
         path: String,

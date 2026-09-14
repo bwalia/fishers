@@ -202,6 +202,25 @@ struct HomeFeedView: View {
             }
             .task { await refreshAll(clubs: false) }
             .task { await loadUnread() }
+            .task {
+                for await event in LiveStream.shared.events() {
+                    switch event {
+                    case .notification:
+                        await loadUnread()
+                        await loadInvites()
+                    // Every ball of a match the club can see: the scores in
+                    // the list move with it, and one just started shows up.
+                    case .match:
+                        await loadLive()
+                    case .resync:
+                        await loadUnread()
+                        await loadInvites()
+                        await loadLive()
+                    case .message, .conversations:
+                        break
+                    }
+                }
+            }
             .onChange(of: clubContext.activeClubId) { _, _ in
                 Task { await load() }
             }
@@ -231,13 +250,25 @@ struct HomeFeedView: View {
         if clubs { await clubContext.bootstrap() }
         async let profile: Void = session.refreshProfile()
         async let feed: Void = load()
-        async let mine = FishersAPI.myInvites()
-        _ = await (profile, feed)
-        invites = ((try? await mine) ?? []).filter(\.isPending)
+        async let mine: Void = loadInvites()
+        _ = await (profile, feed, mine)
         if let user = session.user {
             await guide.load(user: user, ownClub: ownClub)
         }
         loaded = true
+    }
+
+    private func loadInvites() async {
+        invites = ((try? await FishersAPI.myInvites()) ?? []).filter(\.isPending)
+    }
+
+    private func loadLive() async {
+        guard !clubContext.clubs.isEmpty,
+              let page = try? await FishersAPI.cricketFixtures(
+                  clubId: clubContext.activeClubId, state: "live", perPage: 10
+              )
+        else { return }
+        live = page.items
     }
 
     private func loadUnread() async {

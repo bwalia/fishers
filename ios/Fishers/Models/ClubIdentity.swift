@@ -115,10 +115,13 @@ struct SquadPlayer: Codable, Identifiable, Equatable {
     let name: String
     let standing: String
     let batsLeft: Bool
+    /// Captains this side, so the sheet can start with them marked.
+    var isCaptain: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, standing
         case batsLeft = "bats_left"
+        case isCaptain = "is_captain"
     }
 
     var standingLabel: String {

@@ -16,7 +16,6 @@ final class ScreenTour: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["FISHERS_API_URL"] = Self.apiBase
-        app.launch()
     }
 
     /// The Simulator shares the Mac's network stack, so loopback is the host.
@@ -38,7 +37,7 @@ final class ScreenTour: XCTestCase {
         // is broken however well it builds.
         let tabs = ["Home", "Fixtures", "Chats", "Clubs", "Profile"]
         for name in tabs {
-            let tab = app.tabBars.buttons[name]
+            let tab = app.tabBars.buttons[name].firstMatch
             XCTAssertTrue(tab.waitForExistence(timeout: 10), "no \(name) tab")
             tab.tap()
             // Give the screen its first fetch before photographing it.
@@ -51,7 +50,7 @@ final class ScreenTour: XCTestCase {
         try skipWithoutAnAPI()
         signIn()
 
-        app.tabBars.buttons["Profile"].tap()
+        app.tabBars.buttons["Profile"].firstMatch.tap()
 
         XCTAssertTrue(app.segmentedControls.firstMatch.waitForExistence(timeout: 15),
                       "the profile never loaded")
@@ -73,7 +72,7 @@ final class ScreenTour: XCTestCase {
     func testTheProfileShowsWhoYouAreAndWhatYouHaveDone() throws {
         try skipWithoutAnAPI()
         signIn()
-        app.tabBars.buttons["Profile"].tap()
+        app.tabBars.buttons["Profile"].firstMatch.tap()
 
         // The name, set as a scorecard sets it — family name upper.
         XCTAssertTrue(app.staticTexts["CAPTAIN"].waitForExistence(timeout: 15),
@@ -105,7 +104,7 @@ final class ScreenTour: XCTestCase {
         try skipWithoutAnAPI()
         signIn()
 
-        app.tabBars.buttons["Clubs"].tap()
+        app.tabBars.buttons["Clubs"].firstMatch.tap()
 
         // Into a club, by the button XCTest can actually press. A SwiftUI
         // List row surfaces as a cell that is often reported unhittable, and
@@ -147,8 +146,9 @@ final class ScreenTour: XCTestCase {
         try skipWithoutAnAPI()
         signIn()
 
-        app.tabBars.buttons["Home"].tap()
-        let bell = app.buttons["Notifications"].firstMatch
+        app.tabBars.buttons["Home"].firstMatch.tap()
+        // "Notifications", or "3 unread notifications" when some are waiting.
+        let bell = app.buttons.matching(NSPredicate(format: "label ENDSWITH[c] 'notifications'")).firstMatch
         guard bell.waitForExistence(timeout: 10) else {
             throw XCTSkip("no way through to notifications from Home in this build")
         }
@@ -162,22 +162,34 @@ final class ScreenTour: XCTestCase {
 
     // MARK: Helpers
 
+    /// Opens the app as the demo account, whoever was signed in before.
+    ///
+    /// The tours that make their own accounts leave those signed in on the
+    /// Simulator, and a profile test run as one of them fails for the wrong
+    /// reason. The tokens go in at launch: signing in through the form raises
+    /// the Save Password sheet over the next tap.
     private func signIn() {
-        // Already in? The session survives between tests on one Simulator, so
-        // check for the tab bar first — waiting fifteen seconds for a login
-        // field that is not there cost every later test a quarter minute.
-        if app.tabBars.firstMatch.waitForExistence(timeout: 3) { return }
+        var request = URLRequest(url: URL(string: Self.apiBase + "/api/v1/auth/login")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["email": Self.email, "password": Self.password])
+        var tokens: [String: Any]?
+        let done = expectation(description: "login")
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            tokens = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 15)
 
-        let field = app.textFields.firstMatch
-        guard field.waitForExistence(timeout: 15) else { return }
-        field.tap()
-        field.typeText(Self.email)
-
-        let password = app.secureTextFields.firstMatch
-        password.tap()
-        password.typeText(Self.password)
-
-        app.buttons["Sign in"].tap()
+        guard let access = tokens?["access_token"] as? String,
+              let refresh = tokens?["refresh_token"] as? String else {
+            XCTFail("\(Self.email) could not sign in on \(Self.apiBase) — run scripts/seed-demo.sh")
+            return
+        }
+        app.launchArguments += ["-FishersSignOutOnLaunch"]
+        app.launchEnvironment["FISHERS_UITEST_ACCESS_TOKEN"] = access
+        app.launchEnvironment["FISHERS_UITEST_REFRESH_TOKEN"] = refresh
+        app.launch()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20),
                       "signing in never reached the tab bar")
     }

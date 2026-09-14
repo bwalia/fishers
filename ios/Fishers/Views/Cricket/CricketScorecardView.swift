@@ -1,5 +1,29 @@
 import SwiftUI
 
+/// The card for somebody following the match rather than scoring it: it moves
+/// as the scorer records each ball, with the fours, sixes and wickets marked.
+struct FollowedScorecardView: View {
+    @State var match: CricketMatchDTO
+
+    var body: some View {
+        CricketScorecardView(state: match.state, dls: match.dls)
+            .overlay(alignment: .top) { MomentsBanner(state: match.state) }
+            .task {
+                for await event in LiveStream.shared.events() {
+                    switch event {
+                    case .match(let id, _) where id == match.id: await reload()
+                    case .resync: await reload()
+                    default: break
+                    }
+                }
+            }
+    }
+
+    private func reload() async {
+        if let fresh = try? await FishersAPI.cricketMatch(id: match.id) { match = fresh }
+    }
+}
+
 /// The full card: batting, extras, total, fall of wickets, bowling, partnerships
 /// — the thing people actually read after the game.
 struct CricketScorecardView: View {

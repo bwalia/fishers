@@ -53,6 +53,14 @@ struct ChatListView: View {
                 }
             }
             .refreshable { await store.loadConversations() }
+            .task {
+                for await event in LiveStream.shared.events() {
+                    switch event {
+                    case .message, .conversations, .resync: await store.loadConversations()
+                    case .notification, .match: break
+                    }
+                }
+            }
         }
     }
 

@@ -81,6 +81,11 @@ struct NotificationsView: View {
             }
         }
         .task { await reload() }
+        .task {
+            for await event in LiveStream.shared.events() where event == .notification || event == .resync {
+                await reload()
+            }
+        }
         .refreshable { await reload() }
         // Typing sends one request when they stop, not one per keystroke.
         .onChange(of: search) { _, _ in Task { await debouncedReload() } }
@@ -123,7 +128,11 @@ struct NotificationsView: View {
         case "invite": return "Invitations"
         case "selection_published", "squad_promoted": return "Squads"
         case "selection_reconfirm": return "Confirmations"
-        case "match_terms_proposed", "match_terms_agreed": return "Match setup"
+        case "match_terms_proposed", "match_terms_agreed", "match_pick_your_xi": return "Match setup"
+        case "match_book_handed_over": return "Scoring"
+        case "fixture_scheduled": return "Fixtures"
+        case "player_responded": return "Availability"
+        case "invite_accepted": return "Invitations"
         case "match_scheduled": return "Fixtures"
         case "availability_request": return "Availability"
         case "fee_reminder": return "Match fees"
@@ -132,8 +141,24 @@ struct NotificationsView: View {
         }
     }
 
+    /// A notification about a fixture opens it; reading it marks it read.
     @ViewBuilder
     private func row(_ item: AppNotification) -> some View {
+        if let eventId = item.eventId {
+            NavigationLink {
+                EventDetailView(eventId: eventId)
+                    .task { await markRead(item) }
+            } label: {
+                rowContent(item)
+            }
+        } else {
+            rowContent(item)
+                .contentShape(Rectangle())
+                .onTapGesture { Task { await markRead(item) } }
+        }
+    }
+
+    private func rowContent(_ item: AppNotification) -> some View {
         HStack(alignment: .top, spacing: 10) {
             // Unread earns a marker rather than a different background.
             Circle()
@@ -147,22 +172,25 @@ struct NotificationsView: View {
                 Text(item.line)
                     .font(.subheadline)
                     .fixedSize(horizontal: false, vertical: true)
+                if let when = item.when {
+                    Text(when.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text(item.sentAt, style: .relative)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
         .frame(minHeight: FishersTheme.minTap)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard item.isUnread else { return }
-            Task {
-                try? await FishersAPI.markNotificationRead(id: item.id)
-                await reload()
-            }
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(item.isUnread ? "Unread. \(item.line)" : item.line)
+    }
+
+    private func markRead(_ item: AppNotification) async {
+        guard item.isUnread else { return }
+        try? await FishersAPI.markNotificationRead(id: item.id)
+        await reload()
     }
 
     // MARK: Loading

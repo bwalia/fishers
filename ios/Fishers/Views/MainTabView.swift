@@ -16,5 +16,6 @@ struct MainTabView: View {
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
         .tint(FishersTheme.accent)
+        .overlay(alignment: .top) { LiveAlerts() }
     }
 }

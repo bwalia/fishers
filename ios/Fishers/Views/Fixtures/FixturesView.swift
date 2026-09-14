@@ -9,7 +9,7 @@ struct FixtureRoute: Hashable {
 /// your calendar, each asking the one thing it needs from you — can you play?
 struct FixturesView: View {
     enum Mode: String, CaseIterable, Identifiable {
-        case list = "List", calendar = "Calendar"
+        case list = "List", calendar = "Calendar", scores = "Scores"
         var id: String { rawValue }
     }
 
@@ -28,6 +28,7 @@ struct FixturesView: View {
                 switch mode {
                 case .list: FixturesListPane()
                 case .calendar: CalendarPane()
+                case .scores: ScoreHubPane()
                 }
             }
             .background(FishersTheme.mist.ignoresSafeArea())
