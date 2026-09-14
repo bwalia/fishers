@@ -56,8 +56,8 @@ jobs:
           {
             echo "## Nightly database backups"
             echo
-            echo "| Ring | Last successful dump | Age | |"
-            echo "|---|---|---|---|"
+            echo "| Ring | Last successful dump | Age | Off-site copy | |"
+            echo "|---|---|---|---|---|"
           } >> "$GITHUB_STEP_SUMMARY"
 
           for ring in $RINGS; do
@@ -69,7 +69,7 @@ jobs:
 
             if ! kubectl get cronjob fishers-db-backup -n "$ns" >/dev/null 2>&1; then
               echo "::error::$ns has a database but no fishers-db-backup CronJob — nothing is backing it up."
-              echo "| \`$ring\` | — | — | ❌ no CronJob |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| \`$ring\` | — | — | — | ❌ no CronJob |" >> "$GITHUB_STEP_SUMMARY"
               bad=$((bad + 1))
               continue
             fi
@@ -82,7 +82,7 @@ jobs:
 
             if [ "$suspended" = "true" ]; then
               echo "::error::$ns: the backup CronJob is suspended."
-              echo "| \`$ring\` | — | — | ❌ suspended |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| \`$ring\` | — | — | — | ❌ suspended |" >> "$GITHUB_STEP_SUMMARY"
               bad=$((bad + 1))
               continue
             fi
@@ -93,11 +93,11 @@ jobs:
               created=$(kubectl get cronjob fishers-db-backup -n "$ns" -o jsonpath='{.metadata.creationTimestamp}')
               age_h=$(( ( $(date -u +%s) - $(date -u -d "$created" +%s) ) / 3600 ))
               if [ "$age_h" -lt 26 ]; then
-                echo "| \`$ring\` | none yet | installed ${age_h}h ago | ⏳ first night |" >> "$GITHUB_STEP_SUMMARY"
+                echo "| \`$ring\` | none yet | installed ${age_h}h ago | — | ⏳ first night |" >> "$GITHUB_STEP_SUMMARY"
                 continue
               fi
               echo "::error::$ns: the backup CronJob has never completed successfully (installed ${age_h}h ago)."
-              echo "| \`$ring\` | never | ${age_h}h since install | ❌ never ran |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| \`$ring\` | never | ${age_h}h since install | — | ❌ never ran |" >> "$GITHUB_STEP_SUMMARY"
               bad=$((bad + 1))
               continue
             fi
@@ -107,11 +107,26 @@ jobs:
             # slack for a slow run or a late start.
             if [ "$age_h" -ge 26 ]; then
               echo "::error::$ns: the last successful backup was ${age_h}h ago ($last)."
-              echo "| \`$ring\` | $last | ${age_h}h | ❌ stale |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| \`$ring\` | $last | ${age_h}h | — | ❌ stale |" >> "$GITHUB_STEP_SUMMARY"
               bad=$((bad + 1))
             else
               echo "$ns: last successful dump $last (${age_h}h ago)"
-              echo "| \`$ring\` | $last | ${age_h}h | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+              # What the upload said about the copy outside the cluster. A
+              # configured store that failed fails the job, so it shows up
+              # above as stale; this only has to tell "sent" from "never set
+              # up", which would otherwise look the same from here.
+              pod=$(kubectl get pods -n "$ns" -l app.kubernetes.io/name=fishers-db-backup \
+                      --field-selector=status.phase=Succeeded --sort-by=.status.startTime -o name 2>/dev/null | tail -1)
+              offsite=$( [ -n "$pod" ] && kubectl logs -n "$ns" "$pod" -c upload 2>/dev/null | grep '^off-site: stored' | tail -1 || true)
+              if [ -n "$offsite" ]; then
+                off="✅ ${offsite#off-site: stored }"
+              elif [ -n "$pod" ] && kubectl logs -n "$ns" "$pod" -c upload 2>/dev/null | grep -q '^off-site: not configured'; then
+                off="⚠️ not configured"
+                echo "::warning::$ns: no off-site copy — its backups exist only inside the cluster. See docs/DEPLOYMENT.md → The off-site copy."
+              else
+                off="? no log"
+              fi
+              echo "| \`$ring\` | $last | ${age_h}h | $off | ✅ |" >> "$GITHUB_STEP_SUMMARY"
             fi
           done
 
