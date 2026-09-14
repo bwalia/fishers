@@ -156,6 +156,8 @@ pub struct ClubMembership {
     #[sqlx(flatten)]
     pub club: Club,
     pub role: UserRole,
+    /// Captains the side — by role, or as a secretary who captains too.
+    pub is_captain: bool,
     /// Active members and teams, for the card on the clubs list.
     pub member_count: i64,
     pub team_count: i64,
@@ -163,11 +165,17 @@ pub struct ClubMembership {
     pub public_slug: Option<String>,
 }
 
+/// Whether the membership `m` is a captain: by role, or a secretary who
+/// captains the side too. Every query that asks "who is captain" uses this.
+const IS_CAPTAIN: &str =
+    "(m.role = 'team_captain' OR (m.is_captain AND m.role IN ('club_admin', 'super_admin')))";
+
 /// One membership row as the clubs screen shows it, shared by the full list
 /// and the paged one so the two cannot drift.
 const MEMBERSHIP_SELECT: &str = r#"
         SELECT c.id, c.name, c.sport_types, c.visibility, c.owner_id, c.description,
                c.is_informal_group, c.created_at, c.updated_at, m.role,
+               (m.role = 'team_captain' OR (m.is_captain AND m.role IN ('club_admin', 'super_admin'))) AS is_captain,
                (SELECT COUNT(*) FROM club_members cm
                  WHERE cm.club_id = c.id AND cm.status = 'active') AS member_count,
                (SELECT COUNT(*) FROM teams t WHERE t.club_id = c.id) AS team_count,
@@ -199,14 +207,15 @@ pub enum RoleFilter {
 }
 
 impl RoleFilter {
-    fn roles(self) -> Vec<String> {
-        let names: &[&str] = match self {
-            Self::Secretary => &["club_admin", "super_admin"],
-            Self::Captain => &["team_captain"],
-            Self::ViceCaptain => &["team_vice_captain"],
-            Self::Member => &["member", "guest"],
-        };
-        names.iter().map(|r| r.to_string()).collect()
+    /// A condition on the membership `m`. Fixed strings, so nothing to bind.
+    fn condition(self) -> String {
+        match self {
+            Self::Secretary => "m.role IN ('club_admin', 'super_admin')".into(),
+            // A secretary who captains the side is a captain too.
+            Self::Captain => IS_CAPTAIN.into(),
+            Self::ViceCaptain => "m.role = 'team_vice_captain'".into(),
+            Self::Member => "m.role IN ('member', 'guest')".into(),
+        }
     }
 }
 
@@ -257,8 +266,8 @@ pub async fn list_my_clubs(
             " AND (c.name ILIKE '%' || ${p} || '%' OR COALESCE(c.description, '') ILIKE '%' || ${p} || '%')"
         ));
     }
-    if filter.role.is_some() {
-        where_sql.push_str(&format!(" AND m.role::TEXT = ANY(${})", param()));
+    if let Some(role) = filter.role {
+        where_sql.push_str(&format!(" AND {}", role.condition()));
     }
     if filter.sport.is_some() {
         where_sql.push_str(&format!(" AND ${} = ANY(c.sport_types)", param()));
@@ -279,9 +288,6 @@ pub async fn list_my_clubs(
             let mut q = $q.bind(user_id);
             if let Some(v) = filter.search.as_deref() {
                 q = q.bind(v.to_string());
-            }
-            if let Some(r) = filter.role {
-                q = q.bind(r.roles());
             }
             if let Some(v) = filter.sport.as_deref() {
                 q = q.bind(v.to_string());
@@ -631,6 +637,8 @@ pub struct ClubMemberDetail {
     pub email: Option<String>,
     pub phone: Option<String>,
     pub role: UserRole,
+    /// Captains the side — by role, or as a secretary who captains too.
+    pub is_captain: bool,
     pub status: MembershipStatus,
     pub joined_at: chrono::DateTime<chrono::Utc>,
     pub position_role: Option<String>,
@@ -644,13 +652,14 @@ pub async fn list_member_details(
 ) -> Result<Vec<ClubMemberDetail>, sqlx::Error> {
     sqlx::query_as::<_, ClubMemberDetail>(
         r#"
-        SELECT cm.user_id, u.name, u.email, u.phone, cm.role, cm.status, cm.joined_at,
-               u.position_role, u.skill_level, u.avatar_url
-        FROM club_members cm
-        JOIN users u ON u.id = cm.user_id
-        WHERE cm.club_id = $1 AND cm.status = 'active'
+        SELECT m.user_id, u.name, u.email, u.phone, m.role,
+               (m.role = 'team_captain' OR (m.is_captain AND m.role IN ('club_admin', 'super_admin'))) AS is_captain,
+               m.status, m.joined_at, u.position_role, u.skill_level, u.avatar_url
+        FROM club_members m
+        JOIN users u ON u.id = m.user_id
+        WHERE m.club_id = $1 AND m.status = 'active'
         ORDER BY
-          CASE cm.role
+          CASE m.role
             WHEN 'super_admin' THEN 0 WHEN 'club_admin' THEN 1
             WHEN 'team_captain' THEN 2 WHEN 'team_vice_captain' THEN 3
             ELSE 4 END,
@@ -696,15 +705,21 @@ pub async fn count_secretaries(pool: &PgPool, club_id: Uuid) -> Result<i64, sqlx
 }
 
 /// Change someone's role. Returns `None` when they are not in the club.
+///
+/// `captain` is kept only for a secretary — the one role that can also
+/// captain the side — and any other role clears it. `None` leaves it as it
+/// was, so a client that only knows about roles cannot drop it by accident.
 pub async fn update_member_role(
     pool: &PgPool,
     club_id: Uuid,
     user_id: Uuid,
     role: UserRole,
+    captain: Option<bool>,
 ) -> Result<Option<ClubMember>, sqlx::Error> {
+    let secretary = matches!(role, UserRole::ClubAdmin | UserRole::SuperAdmin);
     sqlx::query_as::<_, ClubMember>(
         r#"
-        UPDATE club_members SET role = $3
+        UPDATE club_members SET role = $3, is_captain = $4 AND COALESCE($5, is_captain)
         WHERE club_id = $1 AND user_id = $2
         RETURNING club_id, user_id, role, status, joined_at
         "#,
@@ -712,7 +727,32 @@ pub async fn update_member_role(
     .bind(club_id)
     .bind(user_id)
     .bind(role)
+    .bind(secretary)
+    .bind(captain)
     .fetch_optional(pool)
+    .await
+}
+
+/// Who captains a side: the club's captains and, for a fixture played by one
+/// of its teams, that team's captains. The team sheet starts with one of them
+/// marked. Several is normal in a big club; the sheet takes the first picked.
+pub async fn captain_ids(
+    pool: &PgPool,
+    club_id: Uuid,
+    team_id: Option<Uuid>,
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar::<_, Uuid>(&format!(
+        r#"
+        SELECT m.user_id FROM club_members m
+        WHERE m.club_id = $1 AND m.status = 'active' AND {IS_CAPTAIN}
+        UNION
+        SELECT tm.user_id FROM team_members tm
+        WHERE $2::uuid IS NOT NULL AND tm.team_id = $2 AND tm.role = 'team_captain'
+        "#
+    ))
+    .bind(club_id)
+    .bind(team_id)
+    .fetch_all(pool)
     .await
 }
 

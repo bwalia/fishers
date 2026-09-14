@@ -352,6 +352,8 @@ export function extrasLine(inn: Innings): string {
 export type SquadPlayer = {
   id: string;
   name: string;
+  /// Captains this side, so the sheet can start with them marked.
+  is_captain?: boolean;
   /// "selected" | "reserve" | "available" | "unavailable" | "member"
   standing: string;
   bats_left: boolean;

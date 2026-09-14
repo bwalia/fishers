@@ -1561,6 +1561,9 @@ function SideSheet({
   const [newName, setNewName] = useState("");
   const [newLeft, setNewLeft] = useState(false);
   const [captain, setCaptain] = useState("");
+  // The club's captain is marked for them as they are picked. Once somebody
+  // taps C themselves, the sheet stops choosing.
+  const [captainChosen, setCaptainChosen] = useState(false);
   const [keeper, setKeeper] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1580,13 +1583,23 @@ function SideSheet({
     [chosen, extras, side.players]
   );
 
-  const toggle = (id: string) =>
+  const captainsSide = (id: string) => !!side.players.find((p) => p.id === id)?.is_captain;
+
+  const toggle = (id: string) => {
+    const adding = !chosen.includes(id);
     setChosen((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    if (adding && !captain && !captainChosen && captainsSide(id)) setCaptain(id);
+  };
 
   const drop = (id: string) => {
     setChosen((prev) => prev.filter((x) => x !== id));
     setExtras((prev) => prev.filter((x) => x.id !== id));
-    if (captain === id) setCaptain("");
+    if (captain === id) {
+      // Their captain dropped out: another of the club's captains takes over,
+      // unless the captaincy was already the scorer's call.
+      const next = captainChosen ? undefined : picked.find((p) => p.id !== id && captainsSide(p.id));
+      setCaptain(next?.id ?? "");
+    }
     if (keeper === id) setKeeper("");
   };
 
@@ -1702,7 +1715,10 @@ function SideSheet({
                 className={`role-toggle${captain === p.id ? " on" : ""}`}
                 aria-pressed={captain === p.id}
                 title="Captain"
-                onClick={() => setCaptain(captain === p.id ? "" : p.id)}
+                onClick={() => {
+                  setCaptainChosen(true);
+                  setCaptain(captain === p.id ? "" : p.id);
+                }}
               >
                 C
               </button>
@@ -1730,6 +1746,16 @@ function SideSheet({
         <p className="muted">Tap the players who turned up. They go in batting order.</p>
       )}
 
+      {captain && !captainChosen && (
+        <p className="captain-note">
+          <span className="role-badge c">C</span>
+          <span>
+            {picked.find((p) => p.id === captain)?.name} captains {side.team_name}, so they are
+            marked captain. Tap C beside someone else to change it.
+          </span>
+        </p>
+      )}
+
       {available.length > 0 && (
         <>
           <h3 className="sheet-sub">Squad</h3>
@@ -1743,6 +1769,9 @@ function SideSheet({
               >
                 <Icon name="plus" size={14} />
                 <span>{p.name}</span>
+                {p.is_captain && (
+                  <span className="role-badge c" title="Captain">C<span className="sr-only">aptain</span></span>
+                )}
                 {p.standing !== "member" && (
                   <span className={`tag ${p.standing === "selected" ? "gold" : "grey"}`}>
                     {STANDING_LABEL[p.standing] ?? p.standing}

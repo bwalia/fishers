@@ -2037,6 +2037,16 @@ a.bell-item:hover { background: var(--surface-2); }
   letter-spacing: 0.04em;
 }
 .role-badge.c { background: var(--accent); color: #fff; }
+/* Says why somebody is already marked C, and that it can change. */
+.captain-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
+  font-size: 0.86rem;
+  color: var(--fg-muted);
+}
+.captain-note .role-badge { flex: none; margin-top: 2px; }
 
 /* The squad to pick from: one tap adds, so each name is a real target. */
 .squad-grid {

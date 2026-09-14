@@ -8,7 +8,9 @@ import {
   getAccessToken,
   getStoredUser,
   roleLabel,
+  roleChoice,
   CLUB_ROLES,
+  ROLE_CHOICES,
   money,
   NO_ICON_PLAYER,
   SPORTS,
@@ -120,7 +122,12 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
         <p>{club.description || "No description yet."}</p>
         <div className="hero-tags">
           {club.sport_types.map((s) => <span className="tag" key={s}>{s}</span>)}
-          {myRole && <span className="tag gold">{myRole.display_name}</span>}
+          {myRole && (
+            <span className="tag gold">
+              {myRole.display_name}
+              {members.find((m) => m.user_id === me?.id)?.is_captain && myRole.is_secretary ? " & captain" : ""}
+            </span>
+          )}
         </div>
       </section>
 
@@ -200,11 +207,13 @@ function Members({
     (m) => m.role === "club_admin" || m.role === "super_admin"
   ).length;
 
-  const setRole = async (userId: string, role: string) => {
+  /// `choice` is a role, or "club_admin+captain" for a secretary who captains.
+  const setRole = async (userId: string, choice: string) => {
     setBusy(userId);
     setError(null);
+    const [role, captain] = choice.split("+");
     try {
-      await api("PATCH", `/clubs/${clubId}/members/${userId}`, { role });
+      await api("PATCH", `/clubs/${clubId}/members/${userId}`, { role, captain: captain === "captain" });
       onChanged();
     } catch (err) {
       setError(readErr(err, "Could not change that role"));
@@ -236,7 +245,8 @@ function Members({
       <p className="muted">
         A role is what somebody is allowed to <em>run</em>, not whether they play.
         Everybody here is picked from for a side, the secretary included — and the
-        levels stack, so a secretary already has a captain&rsquo;s powers.
+        levels stack, so a secretary already has a captain&rsquo;s powers. Captain your
+        own side as well? Choose <strong>Secretary &amp; captain</strong>.
       </p>
 
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
@@ -284,21 +294,25 @@ function Members({
                   </td>
                   <td className="subtle">{m.email || m.phone || "—"}</td>
                   <td>
-                    {isSecretary && !lastSecretary ? (
+                    {isSecretary ? (
                       <select
-                        value={m.role}
+                        value={roleChoice(m)}
                         disabled={busy === m.user_id}
                         onChange={(e) => setRole(m.user_id, e.target.value)}
                         aria-label={`Role for ${m.name}`}
                       >
-                        {CLUB_ROLES.map((r) => (
+                        {/* The last secretary can still captain, or stop
+                            captaining — just not stop being secretary. */}
+                        {ROLE_CHOICES.filter(
+                          (r) => !lastSecretary || r.value.startsWith("club_admin")
+                        ).map((r) => (
                           <option key={r.value} value={r.value} title={r.can}>
                             {r.label}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      <span className="tag grey">{roleLabel(m.role)}</span>
+                      <span className="tag grey">{roleLabel(m.role, m.is_captain)}</span>
                     )}
                   </td>
                   {isSecretary && (

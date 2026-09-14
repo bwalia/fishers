@@ -26,6 +26,8 @@ import { copyText } from "@/lib/clipboard";
 /// `GET /me/clubs` returns each club with the role you hold in it.
 type Membership = Club & {
   role: string;
+  /// Captains the side — by role, or a secretary who captains too.
+  is_captain?: boolean;
   member_count: number;
   team_count: number;
   /// Set only when the club has published its public page.
@@ -341,7 +343,7 @@ function ClubRow({ club }: { club: Membership }) {
         {club.description && <p className="cl-row-desc">{club.description}</p>}
       </div>
       <span className="cl-row-role">
-        <span className="tag gold">{roleLabel(club.role)}</span>
+        <span className="tag gold">{roleLabel(club.role, club.is_captain)}</span>
       </span>
       <span className="cl-row-stat">
         <strong>{club.member_count}</strong> <span>{club.member_count === 1 ? "member" : "members"}</span>
