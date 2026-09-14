@@ -8,6 +8,9 @@ struct ClubMemberDetail: Codable, Identifiable, Equatable {
     var email: String?
     var phone: String?
     var role: ClubRole
+    /// Captains the side — by role, or a secretary who captains as well.
+    /// Absent from an API older than that distinction.
+    var isCaptain: Bool?
     var status: String
     var joinedAt: Date
     var positionRole: String?
@@ -18,6 +21,7 @@ struct ClubMemberDetail: Codable, Identifiable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case name, email, phone, role, status
+        case isCaptain = "is_captain"
         case userId = "user_id"
         case joinedAt = "joined_at"
         case positionRole = "position_role"

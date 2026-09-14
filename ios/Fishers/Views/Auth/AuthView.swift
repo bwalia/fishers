@@ -9,6 +9,8 @@ struct AuthView: View {
     /// up, it is whichever `method` says.
     @State private var identifier = ""
     @State private var password = ""
+    /// Asked on the form, saved once the account exists.
+    @State private var role: RoleIntent?
     @FocusState private var focused: Field?
 
     enum Mode { case login, signup }
@@ -42,6 +44,12 @@ struct AuthView: View {
 
                         VStack(spacing: 12) {
                             if mode == .signup {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("I'm here to…")
+                                        .font(FishersTheme.subhead.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    RoleChooserView(selection: $role, compact: true)
+                                }
                                 field("Name", text: $name, field: .name)
                                     .textContentType(.name)
 
@@ -157,7 +165,8 @@ struct AuthView: View {
                 name: name,
                 email: method == .email ? trimmedIdentifier : nil,
                 phone: method == .phone ? trimmedIdentifier : nil,
-                password: password
+                password: password,
+                role: role
             )
         }
     }

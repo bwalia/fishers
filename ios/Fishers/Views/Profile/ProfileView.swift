@@ -154,7 +154,38 @@ struct ProfileView: View {
             }
         }
 
+        Section {
+            NavigationLink {
+                ShareProfileScreen(userId: user.id)
+            } label: {
+                Label("Send my profile to a club", systemImage: "link")
+            }
+        } header: {
+            Text("Joining a club")
+        } footer: {
+            Text("A club's secretary can invite you straight from your profile link.")
+        }
+
         Section("Account") {
+            if !user.isVerified {
+                NavigationLink {
+                    VerifyAccountScreen()
+                } label: {
+                    Label("Confirm your email or phone", systemImage: "checkmark.shield")
+                        .foregroundStyle(FishersTheme.maybe)
+                }
+            }
+            Picker(selection: Binding(
+                get: { user.intent },
+                set: { role in
+                    guard let role else { return }
+                    Task { try? await session.setRoleIntent(role) }
+                }
+            )) {
+                ForEach(RoleIntent.allCases) { Text($0.title).tag(Optional($0)) }
+            } label: {
+                Label("Getting-started guide", systemImage: "sparkles")
+            }
             LabeledContent("API host", value: AppConfig.apiBaseURL.absoluteString)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -290,6 +321,61 @@ struct ProfileView: View {
             if let emergency = user.emergencyContact {
                 LabeledContent("Emergency", value: emergency)
             }
+        }
+    }
+}
+
+
+/// Your profile link, with what it is for.
+struct ShareProfileScreen: View {
+    let userId: UUID
+
+    var body: some View {
+        List {
+            Section {
+                ShareProfileView(userId: userId)
+                    .padding(.vertical, 4)
+            } footer: {
+                Text("Drop it in your club's WhatsApp group or message your secretary. They see your name, photo and what you play — not your email or number — and send you an invite, which appears on Home.")
+            }
+        }
+        .fishersList()
+        .navigationTitle("Your profile link")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Confirming an email or phone from Profile, outside the guide.
+struct VerifyAccountScreen: View {
+    @EnvironmentObject private var session: SessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var status: VerificationStatus?
+    @State private var failed = false
+
+    var body: some View {
+        List {
+            Section {
+                if let status, status.canVerify {
+                    VerifyContactView(status: status) { user in
+                        session.adopt(user)
+                        dismiss()
+                    }
+                    .padding(.vertical, 4)
+                } else if failed || (status != nil && status?.canVerify == false) {
+                    Text("Codes can't be sent from this server right now.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ProgressView()
+                }
+            } footer: {
+                Text("Starting a club and accepting an invite need a confirmed email address or phone number.")
+            }
+        }
+        .fishersList()
+        .navigationTitle("Confirm it's you")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            do { status = try await FishersAPI.verificationStatus() } catch { failed = true }
         }
     }
 }

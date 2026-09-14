@@ -62,9 +62,13 @@ struct ClubsTeamsView: View {
 
 /// Whoever creates the club is its first secretary, so this is also how a new
 /// account gets somewhere to add people to.
-private struct NewClubSheet: View {
+struct NewClubSheet: View {
     let onCreated: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var session: SessionStore
+    /// Set when the API refuses because the account is not confirmed yet: the
+    /// code goes in right here, then the same club is created without retyping.
+    @State private var verification: VerificationStatus?
 
     @State private var name = ""
     @State private var sports: Set<String> = ["cricket"]
@@ -110,7 +114,18 @@ private struct NewClubSheet: View {
                 } footer: {
                     Text("You become its secretary, so you can add members straight away.")
                 }
-                if let message {
+                if let verification {
+                    Section {
+                        VerifyContactView(status: verification, compact: true) { user in
+                            session.adopt(user)
+                            self.verification = nil
+                            message = nil
+                            Task { await create() }
+                        }
+                    } header: {
+                        Label("One thing first — confirm it's you", systemImage: "checkmark.shield")
+                    }
+                } else if let message {
                     Text(message).foregroundStyle(.red)
                 }
             }
@@ -143,6 +158,9 @@ private struct NewClubSheet: View {
             )
             onCreated()
             dismiss()
+        } catch let api as APIError where api.isUnverified {
+            verification = try? await FishersAPI.verificationStatus()
+            message = api.friendlyMessage
         } catch {
             message = readable(error)
         }
