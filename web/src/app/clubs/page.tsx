@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,6 +12,7 @@ import {
   roleLabel,
   SPORTS,
   type Club,
+  type Page,
   type PublicUser,
   type VerificationStatus,
 } from "@/lib/api";
@@ -22,54 +23,151 @@ import { ShareProfile } from "@/components/ShareProfile";
 import { VerifyContact } from "@/components/VerifyContact";
 import { copyText } from "@/lib/clipboard";
 
-/// `GET /clubs` returns each club with the role you hold in it.
+/// `GET /me/clubs` returns each club with the role you hold in it.
 type Membership = Club & {
   role: string;
-  member_count?: number;
-  team_count?: number;
+  member_count: number;
+  team_count: number;
   /// Set only when the club has published its public page.
   public_slug?: string | null;
 };
 
+type Filters = {
+  q: string;
+  role: string;
+  sport: string;
+  /// "yes", "no" or "" for either.
+  published: string;
+  sort: string;
+  page: number;
+};
+
+const NO_FILTERS: Filters = { q: "", role: "", sport: "", published: "", sort: "name", page: 1 };
+const PER_PAGE = 20;
+
+const ROLE_FILTERS = [
+  ["secretary", "Secretary"],
+  ["captain", "Captain"],
+  ["vice_captain", "Vice captain"],
+  ["member", "Member"],
+] as const;
+
+/// The filters as the address bar carries them, so back, refresh and a
+/// shared link all land on the same view.
+function toParams(f: Filters) {
+  const p = new URLSearchParams();
+  if (f.q) p.set("q", f.q);
+  if (f.role) p.set("role", f.role);
+  if (f.sport) p.set("sport", f.sport);
+  if (f.published) p.set("published", f.published);
+  if (f.sort !== "name") p.set("sort", f.sort);
+  if (f.page > 1) p.set("page", String(f.page));
+  return p;
+}
+
+function fromParams(p: URLSearchParams): Filters {
+  const page = Number(p.get("page"));
+  return {
+    q: p.get("q") ?? "",
+    role: p.get("role") ?? "",
+    sport: p.get("sport") ?? "",
+    published: p.get("published") ?? "",
+    sort: p.get("sort") ?? "name",
+    page: Number.isInteger(page) && page > 1 ? page : 1,
+  };
+}
+
+function apiPath(f: Filters) {
+  const p = new URLSearchParams({ sort: f.sort, page: String(f.page), per_page: String(PER_PAGE) });
+  if (f.q) p.set("q", f.q);
+  if (f.role) p.set("role", f.role);
+  if (f.sport) p.set("sport", f.sport);
+  if (f.published) p.set("public_page", f.published === "yes" ? "true" : "false");
+  return `/me/clubs?${p}`;
+}
+
 export default function ClubsPage() {
   const router = useRouter();
-  const [clubs, setClubs] = useState<Membership[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<PublicUser | null>(null);
   // The getting-started guide links here as ?new=1: land with the form open,
   // not on a page that asks them to press "Start a club" a second time.
   const [creating, setCreating] = useState(false);
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // What is typed, before it settles into `filters.q`.
+  const [search, setSearch] = useState("");
+  const [ready, setReady] = useState(false);
+  const [result, setResult] = useState<Page<Membership> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const listTop = useRef<HTMLElement>(null);
+  // Only the latest request may land: a slow answer to an old filter must
+  // not overwrite the new one.
+  const latest = useRef(0);
+
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("new") === "1") setCreating(true);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") setCreating(true);
     setMe(getStoredUser());
+    const f = fromParams(params);
+    setFilters(f);
+    setSearch(f.q);
+    setReady(true);
   }, []);
 
-  const load = async () => {
-    try {
-      setClubs(await api<Membership[]>("GET", "/clubs"));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // One request per pause in typing, not per keystroke.
   useEffect(() => {
+    const t = setTimeout(() => {
+      const q = search.trim();
+      setFilters((f) => (f.q === q ? f : { ...f, q, page: 1 }));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const load = useCallback(async () => {
     if (!getAccessToken()) {
       setError("Sign in to view clubs.");
       setLoading(false);
       return;
     }
-    load();
-  }, []);
+    const mine = ++latest.current;
+    setLoading(true);
+    try {
+      const page = await api<Page<Membership>>("GET", apiPath(filters));
+      if (mine !== latest.current) return;
+      setResult(page);
+      setError(null);
+    } catch (err) {
+      if (mine === latest.current) setError(readErr(err, "Could not load your clubs"));
+    } finally {
+      if (mine === latest.current) setLoading(false);
+    }
+  }, [filters]);
 
-  // Somebody in several clubs finds one by name rather than by scrolling.
-  const [query, setQuery] = useState("");
-  const term = query.trim().toLowerCase();
-  const shown = term
-    ? clubs.filter((c) => `${c.name} ${c.description ?? ""} ${c.sport_types.join(" ")}`.toLowerCase().includes(term))
-    : clubs;
+  useEffect(() => {
+    if (ready) load();
+  }, [ready, load]);
+
+  useEffect(() => {
+    if (!ready || creating) return;
+    const qs = toParams(filters).toString();
+    window.history.replaceState(null, "", qs ? `/clubs?${qs}` : "/clubs");
+  }, [filters, ready, creating]);
+
+  const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch, page: patch.page ?? 1 }));
+  const goToPage = (page: number) => {
+    set({ page });
+    listTop.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
+  const clear = () => {
+    setSearch("");
+    setFilters((f) => ({ ...NO_FILTERS, sort: f.sort }));
+  };
+
+  const filtered = !!(filters.q || filters.role || filters.sport || filters.published);
+  const total = result?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PER_PAGE));
+  // Nothing at all, as opposed to nothing matching: a different screen.
+  const noClubs = !!result && total === 0 && !filtered;
 
   return (
     <main id="main">
@@ -101,46 +199,103 @@ export default function ClubsPage() {
         />
       )}
 
-      <PendingInvites onJoined={load} />
+      {!creating && <PendingInvites onJoined={load} />}
 
-      {loading && (
-        <div className="cl-grid" aria-hidden="true">
-          {[0, 1, 2].map((i) => <div key={i} className="skeleton cl-skeleton" />)}
+      {!creating && !noClubs && (
+        <div className="cl-layout">
+          <section className="panel cl-list" ref={listTop} aria-labelledby="cl-list-title">
+            <div className="cl-list-head">
+              <h2 id="cl-list-title">Your clubs</h2>
+              <p className="subtle" aria-live="polite">
+                {result && total > 0
+                  ? `Showing ${(result.page - 1) * PER_PAGE + 1}–${(result.page - 1) * PER_PAGE + result.items.length} of ${total}`
+                  : result && filtered
+                    ? "No matches"
+                    : ""}
+              </p>
+            </div>
+
+            <div className="cl-filters" role="search" aria-label="Filter your clubs">
+              <label className="cl-filter-search">
+                <span className="sr-only">Search clubs</span>
+                <Icon name="search" size={16} />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name or description"
+                  maxLength={100}
+                />
+              </label>
+              <select aria-label="Your role" value={filters.role} onChange={(e) => set({ role: e.target.value })}>
+                <option value="">All roles</option>
+                {ROLE_FILTERS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+              <select aria-label="Sport" value={filters.sport} onChange={(e) => set({ sport: e.target.value })}>
+                <option value="">All sports</option>
+                {SPORTS.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+              </select>
+              <select aria-label="Public page" value={filters.published} onChange={(e) => set({ published: e.target.value })}>
+                <option value="">Any public page</option>
+                <option value="yes">Page published</option>
+                <option value="no">No public page</option>
+              </select>
+              <select aria-label="Sort by" value={filters.sort} onChange={(e) => set({ sort: e.target.value })}>
+                <option value="name">Name A–Z</option>
+                <option value="recent">Recently joined</option>
+                <option value="members">Most members</option>
+              </select>
+              {filtered && (
+                <button className="btn ghost sm" type="button" onClick={clear}>
+                  Clear filters
+                </button>
+              )}
+            </div>
+
+            <div className="cl-cols" aria-hidden="true">
+              <span>Club</span>
+              <span>Your role</span>
+              <span>Members</span>
+              <span>Teams</span>
+              <span>Public page</span>
+            </div>
+
+            {!result ? (
+              <ul className="cl-rows" aria-hidden="true">
+                {[0, 1, 2, 3].map((i) => <li key={i} className="cl-row"><div className="skeleton cl-row-skeleton" /></li>)}
+              </ul>
+            ) : result.items.length > 0 ? (
+              <ul className={`cl-rows${loading ? " is-loading" : ""}`} aria-busy={loading}>
+                {result.items.map((c) => <ClubRow key={c.id} club={c} />)}
+              </ul>
+            ) : (
+              <div className="empty">
+                <Icon name="search" size={28} />
+                <p>No clubs match these filters.</p>
+                <button className="btn" type="button" onClick={clear}>Clear filters</button>
+              </div>
+            )}
+
+            {pages > 1 && result && (
+              <nav className="cl-pager" aria-label="Pages of clubs">
+                <button className="btn sm" type="button" disabled={result.page <= 1 || loading} onClick={() => goToPage(result.page - 1)}>
+                  <Icon name="arrowLeft" size={14} /> Previous
+                </button>
+                <span>
+                  Page {result.page} of {pages}
+                </span>
+                <button className="btn sm" type="button" disabled={!result.has_more || loading} onClick={() => goToPage(result.page + 1)}>
+                  Next <Icon name="arrowLeft" size={14} className="flip" />
+                </button>
+              </nav>
+            )}
+          </section>
+
+          <ClubsSidebar me={me} onShowPublished={() => { setSearch(""); setFilters({ ...NO_FILTERS, published: "yes" }); }} />
         </div>
       )}
 
-      <div className={creating || clubs.length === 0 ? undefined : "cl-layout"}>
-      <div className="cl-main">
-      {clubs.length > 0 && (
-        <div className="cl-bar">
-          <h2 className="section-head">
-            {creating ? "Your clubs" : `${clubs.length} ${clubs.length === 1 ? "club" : "clubs"}`}
-          </h2>
-          {clubs.length > 4 && (
-            <label className="cl-search">
-              <span className="sr-only">Find a club</span>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Find a club"
-              />
-            </label>
-          )}
-        </div>
-      )}
-      {clubs.length > 0 && (
-        <div className="cl-grid">
-          {shown.map((c) => <ClubCard key={c.id} club={c} />)}
-          {shown.length === 0 && <p className="muted">No club matches “{query.trim()}”.</p>}
-        </div>
-      )}
-      </div>
-
-      {!creating && clubs.length > 0 && <ClubsSidebar me={me} clubs={clubs} />}
-      </div>
-
-      {!loading && !error && clubs.length === 0 && !creating && (
+      {!creating && noClubs && (
         <section className="panel cl-empty" aria-labelledby="cl-empty-title">
           <span className="cl-empty-icon"><Icon name="users" size={28} /></span>
           <h2 id="cl-empty-title">You&apos;re not in a club yet</h2>
@@ -165,10 +320,72 @@ export default function ClubsPage() {
   );
 }
 
-/// Beside the list: your own profile link, each club's public page, and how
-/// a club fits together — the things people otherwise go hunting for.
-function ClubsSidebar({ me, clubs }: { me: PublicUser | null; clubs: Membership[] }) {
+/// One club as a row. The name is the link, stretched over the whole row, so
+/// anywhere on it opens the club while the public-page button stays its own.
+function ClubRow({ club }: { club: Membership }) {
+  const secretary = club.role === "club_admin" || club.role === "super_admin";
+  const open = club.visibility === "public";
+  return (
+    <li className="cl-row">
+      <span className={`cc-crest sm tone-${tone(club.id)}`} aria-hidden="true">{initials(club.name)}</span>
+      <div className="cl-row-main">
+        <Link className="cl-row-link" href={`/clubs/${club.id}`}>
+          {club.name}
+        </Link>
+        <p className="cl-row-meta">
+          <span>
+            <Icon name={open ? "users" : "lock"} size={12} /> {open ? "Anyone can find it" : "Invite only"}
+          </span>
+          <span className="cl-row-sports">{club.sport_types.join(" · ")}</span>
+        </p>
+        {club.description && <p className="cl-row-desc">{club.description}</p>}
+      </div>
+      <span className="cl-row-role">
+        <span className="tag gold">{roleLabel(club.role)}</span>
+      </span>
+      <span className="cl-row-stat">
+        <strong>{club.member_count}</strong> <span>{club.member_count === 1 ? "member" : "members"}</span>
+      </span>
+      <span className="cl-row-stat">
+        <strong>{club.team_count}</strong> <span>{club.team_count === 1 ? "team" : "teams"}</span>
+      </span>
+      <span className="cl-row-actions">
+        {club.public_slug ? (
+          <a
+            className="btn ghost sm"
+            href={`/c/${club.public_slug}`}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`${club.name} public page (opens in a new tab)`}
+          >
+            <Icon name="share" size={14} /> View page
+          </a>
+        ) : secretary ? (
+          <Link className="btn ghost sm" href={`/clubs/${club.id}#public-page`} aria-label={`Set up ${club.name}'s public page`}>
+            <Icon name="plus" size={14} /> Set up
+          </Link>
+        ) : (
+          <span className="subtle">Not published</span>
+        )}
+      </span>
+    </li>
+  );
+}
+
+/// Beside the list: your own profile link, your clubs' published pages, and
+/// how a club fits together — the things people otherwise go hunting for.
+function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPublished: () => void }) {
+  const [published, setPublished] = useState<Page<Membership> | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+
+  // Only the published ones, and only a few: this card must stay small for
+  // somebody in a hundred clubs.
+  useEffect(() => {
+    api<Page<Membership>>("GET", "/me/clubs?public_page=true&per_page=5")
+      .then(setPublished)
+      .catch(() => setPublished(null));
+  }, []);
+
   const copy = async (slug: string) => {
     if (await copyText(`${window.location.origin}/c/${slug}`)) {
       setCopied(slug);
@@ -198,49 +415,48 @@ function ClubsSidebar({ me, clubs }: { me: PublicUser | null; clubs: Membership[
       <section className="panel cl-side-card" aria-labelledby="cl-pages">
         <h2 id="cl-pages" className="section-head">Club public pages</h2>
         <p className="muted">A page anyone can open, no login: your record, top players and next fixtures.</p>
-        <ul className="cl-pages">
-          {clubs.map((c) => {
-            const secretary = c.role === "club_admin" || c.role === "super_admin";
-            return (
+        {published && published.total === 0 && (
+          <p className="subtle">
+            None of your clubs has published one yet. A secretary switches it on from the club&apos;s page.
+          </p>
+        )}
+        {published && published.total > 0 && (
+          <ul className="cl-pages">
+            {published.items.map((c) => (
               <li key={c.id}>
                 <span className={`cc-crest sm tone-${tone(c.id)}`} aria-hidden="true">{initials(c.name)}</span>
                 <span className="cl-pages-name">
                   <strong>{c.name}</strong>
-                  <span className="subtle" title={c.public_slug ? `/c/${c.public_slug}` : undefined}>
-                    {c.public_slug ? `/c/${c.public_slug}` : "Not published"}
-                  </span>
+                  <span className="subtle" title={`/c/${c.public_slug}`}>/c/{c.public_slug}</span>
                 </span>
-                {c.public_slug ? (
-                  <span className="cl-pages-actions">
-                    <button
-                      className="btn ghost sm icon-only"
-                      type="button"
-                      onClick={() => copy(c.public_slug!)}
-                      aria-label={`Copy the link to ${c.name}'s public page`}
-                    >
-                      <Icon name={copied === c.public_slug ? "check" : "copy"} size={16} />
-                    </button>
-                    <a
-                      className="btn ghost sm"
-                      href={`/c/${c.public_slug}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`View ${c.name}'s public page (opens in a new tab)`}
-                    >
-                      View
-                    </a>
-                  </span>
-                ) : (
-                  secretary && (
-                    <Link className="btn sm" href={`/clubs/${c.id}#public-page`} aria-label={`Set up ${c.name}'s public page`}>
-                      Set up
-                    </Link>
-                  )
-                )}
+                <span className="cl-pages-actions">
+                  <button
+                    className="btn ghost sm icon-only"
+                    type="button"
+                    onClick={() => copy(c.public_slug!)}
+                    aria-label={`Copy the link to ${c.name}'s public page`}
+                  >
+                    <Icon name={copied === c.public_slug ? "check" : "copy"} size={16} />
+                  </button>
+                  <a
+                    className="btn ghost sm"
+                    href={`/c/${c.public_slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`View ${c.name}'s public page (opens in a new tab)`}
+                  >
+                    View
+                  </a>
+                </span>
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        )}
+        {published && published.total > published.items.length && (
+          <button className="linkish cl-pages-more" type="button" onClick={onShowPublished}>
+            Show all {published.total} in the list
+          </button>
+        )}
       </section>
 
       <section className="panel cl-side-card" aria-labelledby="cl-how">
@@ -268,46 +484,9 @@ const HOW_CLUBS_WORK = [
   ["Matches are scored live", "Ball by ball. Stats and the club's public page keep themselves up to date."],
 ] as const;
 
-/// The whole card is the link, so the list reads as places to go.
-function ClubCard({ club }: { club: Membership }) {
-  const open = club.visibility === "public";
-  return (
-    <Link className="club-card cl-card" href={`/clubs/${club.id}`}>
-      <div className="cl-card-top">
-        <span className={`cc-crest tone-${tone(club.id)}`} aria-hidden="true">{initials(club.name)}</span>
-        <div className="cl-card-title">
-          <h2>{club.name}</h2>
-          <p className="cl-card-meta">
-            <Icon name={open ? "users" : "lock"} size={12} />
-            {open ? "Anyone can find it" : "Invite only"}
-          </p>
-        </div>
-        <span className="tag gold">{roleLabel(club.role)}</span>
-      </div>
-      <p className={`cl-card-desc${club.description ? "" : " none"}`}>
-        {club.description || "No description yet."}
-      </p>
-      <div className="cl-card-tags">
-        {club.sport_types.map((s) => <span className="tag" key={s}>{s}</span>)}
-      </div>
-      <div className="cl-card-foot">
-        {club.member_count !== undefined && (
-          <span><Icon name="users" size={14} /> {plural(club.member_count, "member")}</span>
-        )}
-        {club.team_count !== undefined && (
-          <span><Icon name="shield" size={14} /> {plural(club.team_count, "team")}</span>
-        )}
-        <span className="cl-card-open">Open <Icon name="arrowLeft" size={14} className="flip" /></span>
-      </div>
-    </Link>
-  );
-}
-
 /// One of three crest colours, fixed per club, so a long list is not a wall of
 /// identical squares.
 const tone = (id: string) => parseInt(id.replace(/-/g, "").slice(-2), 16) % 3;
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 const initials = (name: string) =>
   name

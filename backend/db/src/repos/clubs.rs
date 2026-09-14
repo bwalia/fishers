@@ -163,12 +163,9 @@ pub struct ClubMembership {
     pub public_slug: Option<String>,
 }
 
-pub async fn list_clubs_for_user(
-    pool: &PgPool,
-    user_id: Uuid,
-) -> Result<Vec<ClubMembership>, sqlx::Error> {
-    sqlx::query_as::<_, ClubMembership>(
-        r#"
+/// One membership row as the clubs screen shows it, shared by the full list
+/// and the paged one so the two cannot drift.
+const MEMBERSHIP_SELECT: &str = r#"
         SELECT c.id, c.name, c.sport_types, c.visibility, c.owner_id, c.description,
                c.is_informal_group, c.created_at, c.updated_at, m.role,
                (SELECT COUNT(*) FROM club_members cm
@@ -178,12 +175,149 @@ pub async fn list_clubs_for_user(
         FROM clubs c
         INNER JOIN club_members m ON m.club_id = c.id
         WHERE m.user_id = $1 AND m.status = 'active'
-        ORDER BY c.name
-        "#,
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await
+"#;
+
+pub async fn list_clubs_for_user(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<ClubMembership>, sqlx::Error> {
+    sqlx::query_as::<_, ClubMembership>(&format!("{MEMBERSHIP_SELECT} ORDER BY c.name"))
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+}
+
+/// Which of your roles to show. Grouped the way people say it: a super admin
+/// runs the club like a secretary does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoleFilter {
+    Secretary,
+    Captain,
+    ViceCaptain,
+    Member,
+}
+
+impl RoleFilter {
+    fn roles(self) -> Vec<String> {
+        let names: &[&str] = match self {
+            Self::Secretary => &["club_admin", "super_admin"],
+            Self::Captain => &["team_captain"],
+            Self::ViceCaptain => &["team_vice_captain"],
+            Self::Member => &["member", "guest"],
+        };
+        names.iter().map(|r| r.to_string()).collect()
+    }
+}
+
+/// An enum, so no column name ever comes from the caller.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClubSort {
+    #[default]
+    Name,
+    /// Most recently joined first.
+    Recent,
+    /// Biggest first.
+    Members,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ClubFilter {
+    /// Matched against the name and description.
+    pub search: Option<String>,
+    pub role: Option<RoleFilter>,
+    /// A sport_types value, e.g. "cricket".
+    pub sport: Option<String>,
+    /// Only clubs whose public page is (true) or is not (false) switched on.
+    pub public_page: Option<bool>,
+    pub sort: ClubSort,
+    /// 1-based.
+    pub page: i64,
+    pub per_page: i64,
+}
+
+/// Your clubs, filtered, sorted and paged in the database — somebody in a
+/// hundred clubs gets twenty rows and a count, not a hundred to sift.
+pub async fn list_my_clubs(
+    pool: &PgPool,
+    user_id: Uuid,
+    filter: &ClubFilter,
+) -> Result<super::events::Page<ClubMembership>, sqlx::Error> {
+    let mut where_sql = String::new();
+    // $1 is the user; each filter present takes the next number.
+    let mut last = 1;
+    let mut param = || {
+        last += 1;
+        last
+    };
+    if filter.search.is_some() {
+        let p = param();
+        where_sql.push_str(&format!(
+            " AND (c.name ILIKE '%' || ${p} || '%' OR COALESCE(c.description, '') ILIKE '%' || ${p} || '%')"
+        ));
+    }
+    if filter.role.is_some() {
+        where_sql.push_str(&format!(" AND m.role::TEXT = ANY(${})", param()));
+    }
+    if filter.sport.is_some() {
+        where_sql.push_str(&format!(" AND ${} = ANY(c.sport_types)", param()));
+    }
+    if let Some(on) = filter.public_page {
+        // A page switched on without an address is not reachable, so it
+        // does not count as published.
+        where_sql.push_str(if on {
+            " AND c.public_page AND c.slug IS NOT NULL"
+        } else {
+            " AND NOT (c.public_page AND c.slug IS NOT NULL)"
+        });
+    }
+
+    /// Both queries bind the same filters in the same order.
+    macro_rules! bind_filters {
+        ($q:expr) => {{
+            let mut q = $q.bind(user_id);
+            if let Some(v) = filter.search.as_deref() {
+                q = q.bind(v.to_string());
+            }
+            if let Some(r) = filter.role {
+                q = q.bind(r.roles());
+            }
+            if let Some(v) = filter.sport.as_deref() {
+                q = q.bind(v.to_string());
+            }
+            q
+        }};
+    }
+
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM clubs c INNER JOIN club_members m ON m.club_id = c.id \
+         WHERE m.user_id = $1 AND m.status = 'active' {where_sql}"
+    );
+    let total: i64 = bind_filters!(sqlx::query_scalar::<_, i64>(&count_sql))
+        .fetch_one(pool)
+        .await?;
+
+    let per_page = filter.per_page.clamp(1, 100);
+    let page = filter.page.max(1);
+    let order = match filter.sort {
+        ClubSort::Name => "LOWER(c.name) ASC",
+        ClubSort::Recent => "m.joined_at DESC",
+        ClubSort::Members => "member_count DESC, LOWER(c.name) ASC",
+    };
+    // `c.id` breaks ties, or two rows can swap between pages and one is never seen.
+    let sql = format!("{MEMBERSHIP_SELECT} {where_sql} ORDER BY {order}, c.id LIMIT {per_page} OFFSET {}", (page - 1) * per_page);
+    let items = bind_filters!(sqlx::query_as::<_, ClubMembership>(&sql))
+        .fetch_all(pool)
+        .await?;
+
+    Ok(super::events::Page {
+        has_more: page * per_page < total,
+        items,
+        total,
+        page,
+        per_page,
+    })
 }
 
 pub async fn get_club(pool: &PgPool, club_id: Uuid) -> Result<Option<Club>, sqlx::Error> {

@@ -142,6 +142,26 @@ paths:
         "200":
           description: Club
 
+  /me/clubs:
+    get:
+      tags: [Clubs]
+      summary: My clubs, filtered and paged
+      description: >
+        The clubs screen's list. Each item is a club with your role in it,
+        member_count, team_count and public_slug (set only when its public page
+        is published). GET /clubs still returns every club as one array.
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: Matched against name and description }
+        - { name: role, in: query, schema: { type: string, enum: [secretary, captain, vice_captain, member] } }
+        - { name: sport, in: query, schema: { type: string, enum: [cricket, football, badminton, paddle, pickleball, tennis, other] } }
+        - { name: public_page, in: query, schema: { type: boolean }, description: Only clubs with (true) or without (false) a published public page }
+        - { name: sort, in: query, schema: { type: string, enum: [name, recent, members], default: name } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        "200":
+          description: "Page of memberships: items, total, page, per_page, has_more"
+
   /clubs/{id}:
     get:
       tags: [Clubs]

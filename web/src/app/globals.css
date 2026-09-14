@@ -1406,19 +1406,6 @@ textarea { line-height: 1.5; resize: vertical; }
 
 /* --- Clubs: roster, chips, invite links ---------------------------------- */
 
-/* A whole card is the link, so it must not inherit the anchor's underline. */
-.club-card {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-  transition: border-color 160ms ease, transform 160ms ease;
-}
-.club-card:hover { border-color: var(--primary); transform: translateY(-2px); }
-@media (prefers-reduced-motion: reduce) {
-  .club-card { transition: none; }
-  .club-card:hover { transform: none; }
-}
-
 .hero-tags {
   display: flex;
   gap: var(--s2);
@@ -5411,17 +5398,6 @@ button.fx-stat:focus-visible { outline: 2px solid var(--ring); outline-offset: 2
 /* ======================================================================
    Clubs list: one card per club, then roles and how to join another.
    ====================================================================== */
-.cl-grid {
-  display: grid;
-  gap: var(--s4);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-  margin-bottom: var(--s5);
-}
-.cl-skeleton { height: 220px; border-radius: 20px; }
-.cl-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); }
-.cl-bar .section-head { margin: 0; }
-.cl-search { flex: 0 1 320px; }
-
 /* The list, with profile, public pages and the how-to beside it on a wide
    screen and after it on a narrow one. */
 .cl-layout { display: grid; gap: var(--s5); align-items: start; }
@@ -5430,10 +5406,138 @@ main .panel[id] { scroll-margin-top: 80px; }
 .cl-main { min-width: 0; }
 @media (min-width: 1100px) {
   .cl-layout { grid-template-columns: minmax(0, 1fr) 360px; }
-  .cl-layout .cl-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
   .cl-side { position: sticky; top: 88px; max-height: calc(100dvh - 104px); overflow-y: auto; scrollbar-width: thin; }
 }
 .cl-side { display: grid; gap: var(--s4); }
+
+/* ---- The list itself ---- */
+.cl-list { margin: 0; padding: 0; border-radius: 20px; overflow: hidden; }
+.cl-list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s4) var(--s5) 0;
+}
+.cl-list-head h2 { font-size: 1.35rem; }
+.cl-list-head p { margin: 0; }
+
+.cl-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s5) var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+.cl-filters select,
+.cl-filters input { margin-top: 0; min-height: 40px; }
+.cl-filters select { width: auto; flex: 0 1 auto; padding-right: var(--s5); }
+.cl-filter-search { position: relative; flex: 1 1 240px; }
+.cl-filter-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--fg-subtle); pointer-events: none; }
+.cl-filter-search input { padding-left: 36px; }
+
+/* Columns: crest | club | role | members | teams | public page. */
+.cl-cols,
+.cl-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 128px 88px 72px 132px;
+  align-items: center;
+  column-gap: var(--s4);
+  padding: 0 var(--s5);
+}
+.cl-cols {
+  padding-top: var(--s2);
+  padding-bottom: var(--s2);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.cl-cols span:first-child { grid-column: 1 / span 2; }
+.cl-rows { list-style: none; margin: 0; padding: 0; transition: opacity var(--dur) var(--ease); }
+.cl-rows.is-loading { opacity: 0.55; }
+.cl-row {
+  position: relative;
+  padding-top: var(--s3);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur) var(--ease);
+}
+.cl-row:last-child { border-bottom: 0; }
+.cl-row:hover { background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+.cl-row:has(.cl-row-link:focus-visible) { outline: 2px solid var(--ring); outline-offset: -2px; }
+.cl-row-skeleton { grid-column: 1 / -1; height: 44px; border-radius: var(--radius-sm); }
+.cl-row-main { min-width: 0; }
+.cl-row-link {
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.cl-row-link:hover { text-decoration: none; color: var(--primary-ink); }
+.cl-row-link:focus-visible { outline: none; }
+/* The name's hit area covers the row; the public-page button sits above it. */
+.cl-row-link::after { content: ""; position: absolute; inset: 0; }
+.cl-row-meta { display: flex; flex-wrap: wrap; gap: 2px var(--s3); margin: 2px 0 0; font-size: 0.8rem; color: var(--fg-subtle); }
+.cl-row-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.cl-row-sports { text-transform: capitalize; }
+.cl-row-desc { margin: 2px 0 0; font-size: 0.86rem; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-row-stat { font-size: 0.86rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.cl-row-stat strong { color: var(--fg); font-size: 1rem; }
+.cl-row-actions { position: relative; z-index: 1; display: flex; justify-content: flex-start; }
+.cl-row-actions .btn { white-space: nowrap; }
+
+.cl-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+}
+.cl-list > .empty { border-top: 0; }
+.cl-pages-more { margin-top: var(--s3); font-size: 0.9rem; }
+
+/* Narrower: the numbers and the button drop under the name. */
+@media (max-width: 899px) {
+  .cl-cols { display: none; }
+  .cl-list-head,
+  .cl-filters,
+  .cl-pager { padding-left: var(--s4); padding-right: var(--s4); }
+  .cl-filters select { flex: 1 1 calc(50% - var(--s2)); }
+  .cl-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s2) var(--s3);
+    padding-left: var(--s4);
+    padding-right: var(--s4);
+  }
+  .cl-row > .cc-crest { align-self: flex-start; }
+  .cl-row-main { flex: 1 1 calc(100% - 34px - var(--s3)); }
+  /* Second line, under the name rather than under the crest. */
+  .cl-row-role { margin-left: calc(34px + var(--s3)); }
+  .cl-row-actions { margin-left: auto; }
+}
+/* A finger needs more than a mouse does. */
+@media (pointer: coarse) {
+  .cl-filters select,
+  .cl-filters input,
+  .cl-pager .btn,
+  .cl-row-actions .btn { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cl-rows,
+  .cl-row { transition: none; }
+}
 .cl-side-card { margin: 0; padding: var(--s5); border-radius: 20px; }
 .cl-side-card > .muted { margin: 0 0 var(--s3); font-size: 0.9rem; }
 .cl-me { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s3); }
@@ -5448,7 +5552,6 @@ main .panel[id] { scroll-margin-top: 80px; }
 .cl-pages-actions { display: flex; gap: var(--s1); }
 .cc-crest.sm { width: 34px; height: 34px; border-radius: 10px; font-size: 0.95rem; box-shadow: none; }
 .cl-side .cc-steps li strong { display: block; }
-@media (max-width: 560px) { .cl-search { flex-basis: 100%; } }
 .cc-crest.tone-1 { background: var(--gold-600); color: #fff; }
 .cc-crest.tone-2 { background: var(--ink-700); color: #f3f6f0; }
 @media (prefers-color-scheme: dark) {
@@ -5457,55 +5560,6 @@ main .panel[id] { scroll-margin-top: 80px; }
 }
 :root[data-theme="dark"] .cc-crest.tone-1 { background: var(--gold-400); color: #221a08; }
 :root[data-theme="dark"] .cc-crest.tone-2 { background: var(--sage-pale); color: var(--sage-900); }
-.cl-search input { margin-top: 0; }
-
-.cl-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-  padding: var(--s5);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background:
-    radial-gradient(90% 60% at 100% 0%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 70%),
-    var(--surface);
-  box-shadow: var(--shadow-1);
-  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
-}
-.cl-card:hover { text-decoration: none; transform: translateY(-3px); box-shadow: var(--shadow-2); border-color: var(--primary); }
-.cl-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
-.cl-card-top { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
-.cl-card-title { flex: 1; min-width: 0; }
-.cl-card-title h2 { margin: 0; font-size: 1.45rem; line-height: 1.1; overflow-wrap: anywhere; }
-.cl-card-meta { display: flex; align-items: center; gap: 4px; margin: 4px 0 0; font-size: 0.8rem; color: var(--fg-subtle); }
-.cl-card-top > .tag { align-self: flex-start; }
-.cl-card-desc {
-  margin: 0;
-  color: var(--fg-muted);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.cl-card-desc.none { color: var(--fg-subtle); font-style: italic; }
-.cl-card-tags { display: flex; flex-wrap: wrap; gap: var(--s1); }
-.cl-card-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2) var(--s4);
-  margin-top: auto;
-  padding-top: var(--s3);
-  border-top: 1px solid var(--border);
-  font-size: 0.86rem;
-  color: var(--fg-muted);
-}
-.cl-card-foot > span { display: inline-flex; align-items: center; gap: 6px; }
-.cl-card-open { margin-left: auto; font-weight: 600; color: var(--primary-ink); }
-.cl-card-open svg { transition: transform var(--dur) var(--ease); }
-.cl-card:hover .cl-card-open svg { transform: rotate(180deg) translateX(-3px); }
 
 .cl-empty { padding: clamp(var(--s5), 5vw, 56px); border-radius: 24px; text-align: center; }
 .cl-empty h2 { font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.2rem); }
@@ -5640,7 +5694,4 @@ main .panel[id] { scroll-margin-top: 80px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cw[open] { animation: none; }
-  .cl-card,
-  .cl-card-open svg { transition: none; }
-  .cl-card:hover { transform: none; }
 }
