@@ -47,6 +47,48 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/me")
     }
 
+    // MARK: Onboarding
+
+    /// Only the one field: `PATCH /me` leaves everything it is not sent alone.
+    static func setRoleIntent(_ role: RoleIntent) async throws -> PublicUser {
+        struct Body: Encodable { let role_intent: String }
+        return try await NetworkService.shared.request(
+            "PATCH", path: "/me", body: Body(role_intent: role.rawValue)
+        )
+    }
+
+    static func verificationStatus() async throws -> VerificationStatus {
+        try await NetworkService.shared.request("GET", path: "/me/verification")
+    }
+
+    static func sendVerificationCode(_ channel: VerificationChannel) async throws -> VerificationSent {
+        try await NetworkService.shared.request(
+            "POST", path: "/me/verification/\(channel.rawValue)"
+        )
+    }
+
+    /// Answers with the user, now marked verified.
+    static func confirmVerification(_ channel: VerificationChannel, code: String) async throws -> PublicUser {
+        struct Body: Encodable { let code: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/me/verification/\(channel.rawValue)/confirm", body: Body(code: code)
+        )
+    }
+
+    /// Invitations addressed to this account, any status.
+    static func myInvites() async throws -> [PendingInvite] {
+        try await NetworkService.shared.request("GET", path: "/invites/mine")
+    }
+
+    /// The link a player sends their secretary. The same token comes back
+    /// each time until it is rotated, so asking twice is harmless.
+    static func profileShareLink() async throws -> URL {
+        let link: ShareLinkToken = try await NetworkService.shared.request(
+            "POST", path: "/me/share-link"
+        )
+        return AppConfig.webBaseURL.appending(path: "p/\(link.token)")
+    }
+
     /// Profile setup and later edits both send the whole profile the app holds.
     static func updateProfile(_ update: ProfileUpdate) async throws -> PublicUser {
         try await NetworkService.shared.request("PATCH", path: "/me", body: update)

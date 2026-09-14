@@ -21,6 +21,13 @@ struct PublicUser: Codable, Identifiable, Equatable {
     var profileComplete: Bool?
     /// Computed by the API from attendance and payment history.
     var reliability: ReliabilityScore?
+    /// Whether the address or number has been confirmed with a code. Starting a
+    /// club and accepting an invite wait on one of them.
+    var emailVerified: Bool?
+    var phoneVerified: Bool?
+    /// "secretary" or "player" — what they said they came to do. Absent until
+    /// they have been asked.
+    var roleIntent: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, email, phone, location, reliability
@@ -32,7 +39,14 @@ struct PublicUser: Codable, Identifiable, Equatable {
         case primarySport = "primary_sport"
         case sportProfiles = "sport_profiles"
         case profileComplete = "profile_complete"
+        case emailVerified = "email_verified"
+        case phoneVerified = "phone_verified"
+        case roleIntent = "role_intent"
     }
+
+    var isVerified: Bool { emailVerified == true || phoneVerified == true }
+
+    var intent: RoleIntent? { roleIntent.flatMap(RoleIntent.init(rawValue:)) }
 
     var initials: String {
         let parts = name.split(separator: " ")

@@ -35,6 +35,18 @@ enum APIError: LocalizedError {
         }
         return errorDescription ?? "Something went wrong."
     }
+
+    /// The machine-readable reason, when the API gives one — `"unverified"`
+    /// is the one the app acts on, by asking for the code right there.
+    var code: String? {
+        guard case .http(_, let body) = self,
+              let data = body.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return object["code"] as? String
+    }
+
+    var isUnverified: Bool { code == "unverified" }
 }
 
 /// Shared JSON decoder for API payloads. Accepts ISO-8601 with or without

@@ -9,6 +9,25 @@ final class SessionStore: ObservableObject {
     @Published var errorMessage: String?
 
     func bootstrap() async {
+        #if DEBUG
+        // UI tests start from a known session: the Simulator keeps the last
+        // run's in the keychain. Either signed out, or signed in as an account
+        // the test made — which also spares every test the system "Save
+        // Password?" prompt that the sign-in form brings up over the app.
+        let launch = ProcessInfo.processInfo
+        if launch.arguments.contains("-FishersSignOutOnLaunch") {
+            // Awaited, not `signOut()`: that clears the tokens in a detached
+            // task, which would land after the ones set below and wipe them.
+            await NetworkService.shared.clearTokens()
+            KeychainStore.delete("user_id")
+            if let access = launch.environment["FISHERS_UITEST_ACCESS_TOKEN"],
+               let refresh = launch.environment["FISHERS_UITEST_REFRESH_TOKEN"] {
+                await NetworkService.shared.setTokens(access: access, refresh: refresh)
+            } else {
+                return
+            }
+        }
+        #endif
         await NetworkService.shared.loadTokensFromKeychain()
         guard KeychainStore.get("access_token") != nil else { return }
         isLoading = true
@@ -24,12 +43,31 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    func signUp(name: String, email: String?, phone: String?, password: String) async {
+    /// `role` is asked on the form, before there is an account to save it on,
+    /// so it goes up straight after. Failing to save it is not worth failing
+    /// the signup for: Home asks again when it is missing.
+    func signUp(
+        name: String, email: String?, phone: String?, password: String,
+        role: RoleIntent? = nil
+    ) async {
         await authenticate {
             try await FishersAPI.signup(
                 name: name, email: email, phone: phone, password: password
             )
         }
+        if isAuthenticated, let role {
+            user = (try? await FishersAPI.setRoleIntent(role)) ?? user
+        }
+    }
+
+    /// Picked on Home, or switched from the getting-started guide.
+    func setRoleIntent(_ role: RoleIntent) async throws {
+        user = try await FishersAPI.setRoleIntent(role)
+    }
+
+    /// A screen that got a fresher copy of the user (a verification, say).
+    func adopt(_ fresh: PublicUser) {
+        user = fresh
     }
 
     /// `identifier` is an email address or a mobile number; the API works out
