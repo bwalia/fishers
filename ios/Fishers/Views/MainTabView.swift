@@ -6,8 +6,8 @@ struct MainTabView: View {
         TabView {
             HomeFeedView()
                 .tabItem { Label("Home", systemImage: "house") }
-            AvailabilityCalendarView()
-                .tabItem { Label("Calendar", systemImage: "calendar") }
+            FixturesView()
+                .tabItem { Label("Fixtures", systemImage: "calendar") }
             ChatListView()
                 .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
             ClubsTeamsView()

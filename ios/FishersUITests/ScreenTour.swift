@@ -36,7 +36,7 @@ final class ScreenTour: XCTestCase {
 
         // The tab bar is the app's spine: if a tab cannot be reached, the app
         // is broken however well it builds.
-        let tabs = ["Home", "Calendar", "Chats", "Clubs", "Profile"]
+        let tabs = ["Home", "Fixtures", "Chats", "Clubs", "Profile"]
         for name in tabs {
             let tab = app.tabBars.buttons[name]
             XCTAssertTrue(tab.waitForExistence(timeout: 10), "no \(name) tab")

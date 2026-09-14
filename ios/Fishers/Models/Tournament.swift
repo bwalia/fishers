@@ -164,6 +164,9 @@ struct TicketSummary: Codable, Equatable {
     let title: String
     let ticketCapacity: Int?
     let ticketPriceCents: Int?
+    /// How many guests one member may bring; zero means members only. Optional
+    /// only so an API that predates it still decodes.
+    let guestsAllowed: Int?
     let bookings: Int
     let headcount: Int
     let collectedCents: Int
@@ -174,6 +177,7 @@ struct TicketSummary: Codable, Equatable {
         case eventId = "event_id"
         case ticketCapacity = "ticket_capacity"
         case ticketPriceCents = "ticket_price_cents"
+        case guestsAllowed = "guests_allowed"
         case collectedCents = "collected_cents"
         case outstandingCents = "outstanding_cents"
     }

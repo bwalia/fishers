@@ -20,6 +20,18 @@ struct EventDetailView: View {
                     selectionCard(event)
                     rsvpRow
                     paymentRow(event)
+                    // A dinner or quiz night sells places rather than asking
+                    // who is available.
+                    if event.ticketPriceCents != nil || event.eventSubtype == "social" {
+                        NavigationLink {
+                            EventTicketsView(eventId: eventId, canManage: roleInfo?.isSecretary ?? false)
+                        } label: {
+                            Label("Tickets", systemImage: "ticket")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                     attendeesSection
                     if event.eventSubtype == "friendly" || event.eventSubtype == "league_match" {
                         NavigationLink {
