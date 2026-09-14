@@ -209,6 +209,65 @@ connects as. Strip the owner and the API can read nothing.
 Swap `int` for the ring you mean in both the namespace and the object prefix —
 each ring writes under its own name in its own MinIO.
 
+### The off-site copy
+
+Everything above lives inside the cluster: the dumps sit in the ring's MinIO, on
+Longhorn, on the same LAN as the database. That covers a dropped table and a bad
+migration. It does not cover the cluster itself going — a disk, the house the
+nodes are in, a `kubectl delete namespace`. For that, the same job also sends an
+**encrypted** copy to an S3-compatible store outside the cluster (Cloudflare R2,
+Backblaze B2, AWS S3, Hetzner — anything `mc` can talk to), kept for **30 days**.
+
+It is switched on per ring by five keys at `kv/fishers/<ring>/config`:
+
+| Key | What |
+|---|---|
+| `OFFSITE_S3_ENDPOINT` | e.g. `https://<account>.r2.cloudflarestorage.com`, `https://s3.eu-central-003.backblazeb2.com` |
+| `OFFSITE_S3_BUCKET` | a bucket that already exists — the job never creates one |
+| `OFFSITE_S3_ACCESS_KEY` / `OFFSITE_S3_SECRET_KEY` | keys scoped to that bucket only, read + write + delete |
+| `BACKUP_ENCRYPTION_KEY` | 64 random characters: `openssl rand -base64 48` |
+
+The ExternalSecret refreshes every minute, so the next night's run picks them up
+with no deploy. Without them nothing changes: the job logs
+`off-site: not configured` and the morning check shows ⚠️.
+
+What it refuses to do:
+
+- **Send the database off-site unencrypted.** A store with no
+  `BACKUP_ENCRYPTION_KEY` fails the job. The dump is encrypted inside the
+  cluster (`openssl enc -aes-256-cbc -pbkdf2 -iter 600000`) before `mc` ever
+  sees it, and decrypted straight back to prove the key opens it.
+- **Encrypt with a weak key.** Under 32 characters, the job fails.
+- **Call a failed upload a backup.** Both objects (`.dump.enc` and its
+  `.sha256`) are read back with `mc stat`; anything short of that fails the job,
+  and a failed job is what the morning check turns red for.
+
+**Keep the key somewhere that is not this cluster.** It is in the vault, and the
+vault runs here. If the cluster is gone, so is the vault — and an encrypted
+backup nobody can decrypt is not a backup. Put `BACKUP_ENCRYPTION_KEY` in a
+password manager as well, the day you set it. Rotating it is safe for new
+nights and useless for old ones: keep the old key until its copies age out.
+
+Restoring from it, when the cluster is not there to ask:
+
+```sh
+# 1. fetch the newest copy and its checksum (any S3 client; mc shown)
+mc alias set off "$OFFSITE_S3_ENDPOINT" "$OFFSITE_S3_ACCESS_KEY" "$OFFSITE_S3_SECRET_KEY"
+mc ls off/$OFFSITE_S3_BUCKET/prod/
+F=fishers-20260915T021501Z.dump        # the one you want
+mc cp off/$OFFSITE_S3_BUCKET/prod/$F.enc off/$OFFSITE_S3_BUCKET/prod/$F.sha256 .
+
+# 2. decrypt, and prove it is the dump that was written that night
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in $F.enc -out $F \
+  -pass env:BACKUP_ENCRYPTION_KEY
+echo "$(cat $F.sha256)  $F" | sha256sum -c -
+```
+
+A wrong key does not always error — it can write garbage — which is what the
+checksum is for. Once it says `OK`, `$F` is the same file the in-cluster copy
+would have been: restore it with the steps above (copy it into the Spilo pod,
+`restore_check` first, then the live database).
+
 ## First-time setup for a ring
 
 ### 1. Repository secrets

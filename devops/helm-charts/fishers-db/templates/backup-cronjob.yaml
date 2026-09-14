@@ -17,6 +17,15 @@
   The pg_dump image tag follows postgresVersion, because pg_dump refuses to
   talk to a server newer than itself: bump the cluster and the dump follows,
   rather than failing at 02:00 some weeks later.
+
+  Off-site. Everything above stays inside the cluster, on the same storage as
+  the database, and a backup that dies with the cluster is not much of one. So
+  when the ring's vault config names an S3-compatible store (OFFSITE_S3_*) and
+  a BACKUP_ENCRYPTION_KEY, the dump is also encrypted here and a copy sent
+  there. Both are optional keys: without them the job does exactly what it did
+  before and says so in its log. With a store but no key it refuses outright —
+  the whole database, password hashes and all, does not leave the cluster in
+  the clear.
 */ -}}
 apiVersion: batch/v1
 kind: CronJob
@@ -79,8 +88,11 @@ spec:
           initContainers:
             # Dump first, in its own container, so the upload cannot run at all
             # unless this one exited 0.
+            # Debian rather than -alpine: the alpine image has no openssl, and
+            # the encryption for the off-site copy has to happen before the
+            # file is handed to anything that talks to the internet.
             - name: dump
-              image: "postgres:{{ .Values.postgresVersion }}-alpine"
+              image: "postgres:{{ .Values.postgresVersion }}"
               imagePullPolicy: IfNotPresent
               env:
                 # The operator's own Secret, the same one the API reads. No
@@ -105,6 +117,14 @@ spec:
                 # without verifying, which is what its self-signed cert allows.
                 - name: PGSSLMODE
                   value: require
+                # Optional. Present, it produces the encrypted copy that is the
+                # only thing ever sent off-site.
+                - name: BACKUP_ENCRYPTION_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.secretsName }}
+                      key: BACKUP_ENCRYPTION_KEY
+                      optional: true
               command: ["/bin/sh", "-c"]
               args:
                 - |
@@ -143,6 +163,24 @@ spec:
                   echo "archive reads back whole: $TABLES tables with data, $(wc -c < "$OUT") bytes"
                   # An empty archive restores cleanly and contains nothing.
                   [ "$TABLES" -ge 1 ] || { echo "refusing to upload a dump with no table data"; exit 1; }
+
+                  if [ -n "${BACKUP_ENCRYPTION_KEY:-}" ]; then
+                    # A passphrase short enough to guess makes the encryption
+                    # decoration. The seeding script generates 64 characters.
+                    [ "${#BACKUP_ENCRYPTION_KEY}" -ge 32 ] || {
+                      echo "BACKUP_ENCRYPTION_KEY is under 32 characters; refusing to encrypt with it"; exit 1; }
+                    # The checksum is of the plain dump, so a restore can prove
+                    # it decrypted to exactly what was written tonight.
+                    sha256sum "$OUT" | cut -d' ' -f1 > "$OUT.sha256"
+                    openssl enc -aes-256-cbc -pbkdf2 -iter {{ .Values.backup.offsite.kdfIterations }} -salt \
+                      -pass env:BACKUP_ENCRYPTION_KEY -in "$OUT" -out "$OUT.enc"
+                    # Decrypt it straight back with the same key before it is
+                    # called a backup: a copy nobody can open is not one.
+                    BACK=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter {{ .Values.backup.offsite.kdfIterations }} \
+                      -pass env:BACKUP_ENCRYPTION_KEY -in "$OUT.enc" | sha256sum | cut -d' ' -f1)
+                    [ "$BACK" = "$(cat "$OUT.sha256")" ] || { echo "the encrypted copy does not decrypt to the dump"; exit 1; }
+                    echo "encrypted copy decrypts back to the dump: $(wc -c < "$OUT.enc") bytes"
+                  fi
               volumeMounts:
                 - name: work
                   mountPath: /work
@@ -174,6 +212,16 @@ spec:
                 # 1000 in this image.
                 - name: MC_CONFIG_DIR
                   value: /tmp/.mc
+                # The off-site store. All optional: absent, there is no
+                # off-site copy and the log says so.
+                {{- range list "OFFSITE_S3_ENDPOINT" "OFFSITE_S3_BUCKET" "OFFSITE_S3_ACCESS_KEY" "OFFSITE_S3_SECRET_KEY" }}
+                - name: {{ . }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $.Values.backup.secretsName }}
+                      key: {{ . }}
+                      optional: true
+                {{- end }}
               command: ["/bin/sh", "-c"]
               args:
                 - |
@@ -215,6 +263,43 @@ spec:
                   # afterwards: if tonight's upload is somehow not among what is
                   # left, this ran as a delete-only job and must say so.
                   [ "$KEPT" -ge 1 ] || { echo "the bucket is empty after a successful upload"; exit 1; }
+
+                  # ---- off-site ----
+                  if [ -z "${OFFSITE_S3_ENDPOINT:-}" ]; then
+                    echo "off-site: not configured — tonight's copy exists only inside the cluster"
+                    exit 0
+                  fi
+                  for v in OFFSITE_S3_BUCKET OFFSITE_S3_ACCESS_KEY OFFSITE_S3_SECRET_KEY; do
+                    eval "[ -n \"\${$v:-}\" ]" || { echo "off-site: OFFSITE_S3_ENDPOINT is set but $v is not"; exit 1; }
+                  done
+                  [ -f "$DUMP.enc" ] || {
+                    echo "off-site: a store is configured but BACKUP_ENCRYPTION_KEY is not — refusing to send the database off-site unencrypted"
+                    exit 1; }
+
+                  n=0
+                  until mc alias set offsite "$OFFSITE_S3_ENDPOINT" "$OFFSITE_S3_ACCESS_KEY" "$OFFSITE_S3_SECRET_KEY" --api S3v4 >/dev/null; do
+                    n=$((n + 1)); [ "$n" -lt 5 ] || { echo "off-site: cannot reach $OFFSITE_S3_ENDPOINT"; exit 1; }
+                    sleep 10
+                  done
+                  # The bucket is made by whoever made the credentials. Keys
+                  # scoped to one bucket usually cannot create one, and
+                  # creating a bucket by accident on a third-party account is a
+                  # surprise on somebody's invoice.
+                  mc stat "offsite/$OFFSITE_S3_BUCKET" >/dev/null || {
+                    echo "off-site: bucket $OFFSITE_S3_BUCKET does not exist or these keys cannot see it"; exit 1; }
+
+                  REMOTE="offsite/$OFFSITE_S3_BUCKET/{{ .Values.env }}"
+                  mc cp "$DUMP.enc" "$REMOTE/$NAME.enc"
+                  mc cp "$DUMP.sha256" "$REMOTE/$NAME.sha256"
+                  mc stat "$REMOTE/$NAME.enc" >/dev/null
+                  mc stat "$REMOTE/$NAME.sha256" >/dev/null
+                  echo "off-site: stored {{ .Values.env }}/$NAME.enc ($(wc -c < "$DUMP.enc") bytes)"
+
+                  # Same rule as above: old copies go only after tonight's is
+                  # confirmed there.
+                  mc rm --recursive --force --older-than "{{ .Values.backup.offsite.keepFor }}" "$REMOTE/" || true
+                  # No grep in this image; mc can match names itself.
+                  echo "off-site: kept $(mc find "$REMOTE/" --name '*.enc' | wc -l) encrypted backup(s)"
               volumeMounts:
                 - name: work
                   mountPath: /work
