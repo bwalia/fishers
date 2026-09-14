@@ -16,6 +16,8 @@ struct HomeFeedView: View {
     @State private var loaded = false
     @State private var pickedRole: RoleIntent?
     @State private var showNewClub = false
+    /// Just made from the guide: open it, as the Clubs tab does.
+    @State private var createdClub: ClubRoute?
     @State private var showProfileEdit = false
 
     /// A fixture that has already been played is not something to turn up to.
@@ -151,7 +153,15 @@ struct HomeFeedView: View {
             .listStyle(.insetGrouped)
             .fishersList()
             .sheet(isPresented: $showNewClub) {
-                NewClubSheet { Task { await refreshAll() } }
+                NewClubSheet { club in
+                    Task {
+                        await refreshAll()
+                        createdClub = ClubRoute(club: club, welcome: true)
+                    }
+                }
+            }
+            .navigationDestination(item: $createdClub) { route in
+                ClubDetailView(club: route.club, welcome: route.welcome)
             }
             .sheet(isPresented: $showProfileEdit, onDismiss: { Task { await refreshAll() } }) {
                 ProfileEditView(user: session.user)

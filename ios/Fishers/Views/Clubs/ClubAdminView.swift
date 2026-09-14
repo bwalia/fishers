@@ -19,9 +19,13 @@ struct ClubAdminView: View {
         var id: String { rawValue }
     }
 
-    init(club: Club, role: ClubRoleInfo?) {
+    /// Open on the add-member sheet — from a new club's welcome.
+    var startAdding = false
+
+    init(club: Club, role: ClubRoleInfo?, startAdding: Bool = false) {
         self.club = club
         self.role = role
+        self.startAdding = startAdding
         _store = StateObject(wrappedValue: ClubAdminStore(clubId: club.id))
     }
 
@@ -37,7 +41,7 @@ struct ClubAdminView: View {
             .padding(.bottom, 8)
 
             switch tab {
-            case .roster: RosterList(store: store, canManage: isSecretary)
+            case .roster: RosterList(store: store, club: club, canManage: isSecretary, startAdding: startAdding)
             case .settings: PolicyForm(store: store, canManage: isSecretary)
             case .fees: FeesList(store: store, canChase: role?.isCaptain ?? false)
             }
@@ -58,9 +62,12 @@ struct ClubAdminView: View {
 
 private struct RosterList: View {
     @ObservedObject var store: ClubAdminStore
+    let club: Club
     let canManage: Bool
+    var startAdding = false
 
     @State private var isAdding = false
+    @State private var pastedLink = ""
     @State private var newIdentifier = ""
     @State private var newRole: ClubRole = .member
     @State private var editing: ClubMemberDetail?
@@ -117,9 +124,12 @@ private struct RosterList: View {
             }
         }
         .sheet(isPresented: $isAdding) { addSheet }
+        .task {
+            if startAdding, canManage { isAdding = true }
+        }
         .sheet(item: $editing) { member in
-            RoleSheet(member: member) { role in
-                Task { await store.setRole(member: member, role: role) }
+            RoleSheet(member: member) { choice in
+                Task { await store.setRole(member: member, choice: choice) }
             } onRemove: {
                 Task { await store.remove(member: member) }
             }
@@ -154,12 +164,12 @@ private struct RosterList: View {
                 Button {
                     editing = member
                 } label: {
-                    RoleBadge(role: member.role)
+                    RoleBadge(choice: member.roleChoice)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Change \(member.name)'s role")
+                .accessibilityLabel("Change \(member.name)'s role, now \(member.roleChoice.label)")
             } else {
-                RoleBadge(role: member.role)
+                RoleBadge(choice: member.roleChoice)
             }
         }
         .frame(minHeight: FishersTheme.minTap)
@@ -207,6 +217,26 @@ private struct RosterList: View {
                 } footer: {
                     Text("An invite link works for somebody with no Fishers account. It joins them to the club once they sign up, and can only be used once.")
                 }
+                Section {
+                    TextField("Paste the link they sent you", text: $pastedLink)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if let token = SharedPlayerCard.token(in: pastedLink) {
+                        NavigationLink {
+                            SharedPlayerCardView(token: token, preferredClubId: club.id)
+                        } label: {
+                            Label("Open their profile", systemImage: "person.crop.rectangle")
+                        }
+                    } else if !pastedLink.isEmpty {
+                        Text("That isn't a Fishers profile link — it looks like …/p/ followed by letters and numbers.")
+                            .font(FishersTheme.footnote)
+                            .foregroundStyle(FishersTheme.unavailable)
+                    }
+                } header: {
+                    Text("Got a player's profile link?")
+                } footer: {
+                    Text("Open their card, pick the club or a team, and send the invite. They still accept it.")
+                }
             }
             .navigationTitle("Add a member")
             .navigationBarTitleDisplayMode(.inline)
@@ -236,10 +266,11 @@ private struct RosterList: View {
 }
 
 private struct RoleBadge: View {
-    let role: ClubRole
+    let choice: RoleChoice
+    private var role: ClubRole { choice.role }
 
     var body: some View {
-        Text(role.shortLabel)
+        Text(choice.shortLabel)
             .font(.caption2.weight(.bold))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -261,29 +292,29 @@ private struct RoleBadge: View {
 /// does, so it gets a screen that says what each role can do.
 private struct RoleSheet: View {
     let member: ClubMemberDetail
-    var onSet: (ClubRole) -> Void
+    var onSet: (RoleChoice) -> Void
     var onRemove: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var role: ClubRole
+    @State private var role: RoleChoice
     @State private var confirmRemove = false
 
     init(
         member: ClubMemberDetail,
-        onSet: @escaping (ClubRole) -> Void,
+        onSet: @escaping (RoleChoice) -> Void,
         onRemove: @escaping () -> Void
     ) {
         self.member = member
         self.onSet = onSet
         self.onRemove = onRemove
-        _role = State(initialValue: member.role)
+        _role = State(initialValue: member.roleChoice)
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    ForEach(ClubRole.appointable, id: \.self) { option in
+                    ForEach(RoleChoice.appointable) { option in
                         Button {
                             role = option
                         } label: {
@@ -292,7 +323,7 @@ private struct RoleSheet: View {
                                       ? "largecircle.fill.circle" : "circle")
                                     .foregroundStyle(FishersTheme.accent)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(option.displayName).font(.subheadline.weight(.semibold))
+                                    Text(option.label).font(.subheadline.weight(.semibold))
                                     Text(option.responsibilities)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -326,7 +357,7 @@ private struct RoleSheet: View {
                         dismiss()
                     }
                     .bold()
-                    .disabled(role == member.role)
+                    .disabled(role == member.roleChoice)
                 }
             }
             .confirmationDialog(

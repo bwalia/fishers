@@ -74,15 +74,16 @@ final class ClubAdminStore: ObservableObject {
         }
     }
 
-    func setRole(member: ClubMemberDetail, role: ClubRole) async {
+    func setRole(member: ClubMemberDetail, choice: RoleChoice) async {
         // Move it in the list straight away; put it back if the server refuses.
         let previous = members
         if let index = members.firstIndex(where: { $0.id == member.id }) {
-            members[index].role = role
+            members[index].role = choice.role
+            members[index].isCaptain = choice.role == .teamCaptain || choice.isCaptain
         }
         do {
             try await FishersAPI.setMemberRole(
-                clubId: clubId, userId: member.userId, role: role
+                clubId: clubId, userId: member.userId, role: choice.role, captain: choice.isCaptain
             )
             await load()
         } catch {

@@ -710,14 +710,77 @@ enum FishersAPI {
         )
     }
 
-    /// Appoint a captain or vice captain, or stand someone down.
-    static func setMemberRole(clubId: UUID, userId: UUID, role: ClubRole) async throws {
-        struct Body: Encodable { let role: String }
+    /// Appoint a captain or vice captain, or stand someone down. `captain`
+    /// only means something for a secretary — one who captains the side too.
+    static func setMemberRole(clubId: UUID, userId: UUID, role: ClubRole, captain: Bool = false) async throws {
+        struct Body: Encodable { let role: String; let captain: Bool }
         try await NetworkService.shared.requestVoid(
             "PATCH",
             path: "/clubs/\(clubId.uuidString)/members/\(userId.uuidString)",
-            body: Body(role: role.rawValue)
+            body: Body(role: role.rawValue, captain: captain)
         )
+    }
+
+    // MARK: Clubs list, grounds, public page, teams
+
+    /// Your clubs a page at a time, filtered and sorted by the server.
+    static func myClubs(_ filters: ClubListFilters, page: Int, perPage: Int = 20) async throws -> APIPage<ClubMembershipRow> {
+        var components = URLComponents()
+        components.path = "/me/clubs"
+        components.queryItems = filters.queryItems(page: page, perPage: perPage)
+        return try await NetworkService.shared.request("GET", path: components.string ?? "/me/clubs")
+    }
+
+    static func venues(clubId: UUID) async throws -> [Venue] {
+        try await NetworkService.shared.request("GET", path: "/clubs/\(clubId.uuidString)/venues")
+    }
+
+    static func createVenue(clubId: UUID, name: String, address: String?) async throws -> Venue {
+        struct Body: Encodable { let name: String; let address: String? }
+        return try await NetworkService.shared.request(
+            "POST", path: "/clubs/\(clubId.uuidString)/venues", body: Body(name: name, address: address)
+        )
+    }
+
+    static func clubPage(clubId: UUID) async throws -> ClubPageSettings {
+        try await NetworkService.shared.request("GET", path: "/clubs/\(clubId.uuidString)/page")
+    }
+
+    /// Only what changed is applied; `nil` fields are left alone by the API.
+    static func updateClubPage(clubId: UUID, _ page: ClubPageSettings, publish: Bool? = nil) async throws -> ClubPageSettings {
+        struct Body: Encodable {
+            let slug: String?
+            let tagline, about, ground, contact_email: String?
+            let founded_year: Int?
+            let icon_player_id: UUID?
+            let public_page: Bool?
+        }
+        return try await NetworkService.shared.request(
+            "PATCH", path: "/clubs/\(clubId.uuidString)/page",
+            body: Body(
+                slug: page.slug, tagline: page.tagline, about: page.about, ground: page.ground,
+                contact_email: page.contactEmail, founded_year: page.foundedYear,
+                icon_player_id: page.iconPlayerId ?? ClubPageSettings.noIconPlayer,
+                public_page: publish
+            )
+        )
+    }
+
+    static func teamMembers(teamId: UUID) async throws -> [TeamMemberRow] {
+        try await NetworkService.shared.request("GET", path: "/teams/\(teamId.uuidString)/members")
+    }
+
+    static func sharedPlayerCard(token: String) async throws -> SharedPlayerCard {
+        try await NetworkService.shared.request("GET", path: "/players/card/\(token)")
+    }
+
+    /// An invite addressed to an account — it arrives as a notification and
+    /// the player still has to accept it.
+    static func invite(userId: UUID, toClub clubId: UUID? = nil, toTeam teamId: UUID? = nil) async throws {
+        struct Body: Encodable { let target_type: String; let target_id: UUID; let invited_user_id: UUID }
+        let body = teamId.map { Body(target_type: "team", target_id: $0, invited_user_id: userId) }
+            ?? Body(target_type: "club", target_id: clubId!, invited_user_id: userId)
+        try await NetworkService.shared.requestVoid("POST", path: "/invites", body: body)
     }
 
     static func removeClubMember(clubId: UUID, userId: UUID) async throws {
