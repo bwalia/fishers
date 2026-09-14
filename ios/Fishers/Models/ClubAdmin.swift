@@ -31,6 +31,9 @@ struct ClubMemberDetail: Codable, Identifiable, Equatable {
 
     var isActive: Bool { status == "active" }
 
+    /// The role as the picker shows it — a secretary may captain too.
+    var roleChoice: RoleChoice { RoleChoice(role: role, isCaptain: isCaptain ?? false) }
+
     /// Whichever way this member can actually be reached.
     var contact: String { email ?? phone ?? "No contact details" }
 
