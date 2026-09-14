@@ -7,7 +7,7 @@ name: iOS Release (TestFlight & App Store)
 #   SECONDARY   : push a v*.*.* tag (e.g. from auto-tag.yml) → TestFlight
 #   APP STORE   : workflow_dispatch with target = app_store (after TestFlight QA)
 #
-# Runs on the self-hosted Mac Studio runner (labels: self-hosted, macOS, ARM64).
+# Runs on the self-hosted Mac Studio runner.
 # Signing secrets are loaded from HashiCorp Vault at build time — nothing stored
 # in GitHub. See docs/IOS_RELEASE.md.
 #
@@ -38,7 +38,8 @@ on:
 
 concurrency:
   group: fishers-ios-release
-  cancel-in-progress: false
+  # Keep only the tip-of-main release when several ios/** merges land close together.
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -57,7 +58,7 @@ jobs:
         !contains(github.event.head_commit.message, '[skip release]')
         && !contains(github.event.head_commit.message, '[skip ios]')
       )
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: self-hosted
     timeout-minutes: 90
     env:
       VAULT_TOKEN_FILE: /Users/balinderwalia/.secrets/acc-vault/login-token.json
