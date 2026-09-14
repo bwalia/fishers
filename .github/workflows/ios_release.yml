@@ -1,17 +1,16 @@
 name: iOS Release (TestFlight & App Store)
 
-# Build, sign, and upload the native Fishers iOS app — same shape as KubePilot.
+# Build, sign, and upload the native Fishers iOS app with fastlane — same shape as KubePilot.
 #
-#   AUTO        : push to main that touches ios/**  → TestFlight (internal)
-#   PRIMARY     : workflow_dispatch — TestFlight internal by default
-#   SECONDARY   : push a v*.*.* tag (e.g. from auto-tag.yml) → TestFlight
-#   APP STORE   : workflow_dispatch with target = app_store (after TestFlight QA)
+#   AUTO (merge to main) : push to main touching ios/** or this workflow
+#                          → fastlane ios beta → TestFlight (internal)
+#   PRIMARY              : workflow_dispatch — TestFlight internal by default
+#   SECONDARY            : push a v*.*.* tag (e.g. from auto-tag.yml) → TestFlight
+#   APP STORE            : workflow_dispatch with target = app_store (after QA)
 #
-# Runs on the self-hosted Mac Studio runner.
-# Signing secrets are loaded from HashiCorp Vault at build time — nothing stored
-# in GitHub. See docs/IOS_RELEASE.md.
-#
-# Skip an auto release with [skip release] or [skip ios] in the commit message.
+# Pipeline: ci_build_number → prepare_signing → build_ipa → beta
+# Runner: self-hosted Mac Studio. Secrets: GitHub Actions or Vault secret/fishers/ios.
+# See docs/IOS_RELEASE.md. Skip auto release with [skip release] or [skip ios].
 
 on:
   push:
@@ -88,9 +87,18 @@ jobs:
             echo "EXPORT_OPTIONS_PLIST=$RUNNER_TEMP/ExportOptions.plist"
           } >> "$GITHUB_ENV"
 
-      - name: Load signing secrets from Vault
+      - name: Load signing secrets (GitHub secrets or Vault)
+        env:
+          # Prefer repo/org Actions secrets when present; otherwise the loader
+          # reads secret/fishers/ios from Vault (see ios/ci/seed-ios-vault.sh).
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_B64: ${{ secrets.ASC_PRIVATE_KEY_B64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_APP_ID: ${{ secrets.APP_STORE_APP_ID }}
+          CERT_PRIVATE_KEY_B64: ${{ secrets.CERT_PRIVATE_KEY_B64 }}
         run: |
-          chmod +x ./ci/load-ios-vault-secrets.sh
+          chmod +x ./ci/load-ios-vault-secrets.sh ./ci/seed-ios-vault.sh
           ./ci/load-ios-vault-secrets.sh
 
       - name: Install Ruby dependencies

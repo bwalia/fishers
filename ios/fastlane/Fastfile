@@ -1,8 +1,9 @@
 # Fastfile — Fishers native iOS release (GitHub Actions + Vault + fastlane).
 #
-# CI signs with an App Store Connect API key. Secrets are loaded from Vault by
-# ci/load-ios-vault-secrets.sh. See .github/workflows/ios_release.yml and
-# docs/IOS_RELEASE.md.
+# CI signs with an App Store Connect API key. Secrets come from GitHub Actions
+# or Vault via ci/load-ios-vault-secrets.sh, then:
+#   ci_build_number → prepare_signing → build_ipa → beta (TestFlight)
+# See .github/workflows/ios_release.yml and docs/IOS_RELEASE.md.
 
 default_platform(:ios)
 
