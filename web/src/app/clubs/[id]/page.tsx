@@ -25,6 +25,7 @@ import {
   type Team,
 } from "@/lib/api";
 import { AddByLink } from "@/components/AddByLink";
+import { ClubSetup } from "@/components/ClubSetup";
 import { MessageButton } from "@/components/MessageButton";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
@@ -36,6 +37,10 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
   const [club, setClub] = useState<Club | null>(null);
   const [members, setMembers] = useState<ClubMemberRow[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]);
+  // Set by the redirect from "Create club": the welcome shows once, and the
+  // flag comes off the address so a refresh does not show it again.
+  const [welcome, setWelcome] = useState(false);
   const [myRole, setMyRole] = useState<MyRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,15 +52,17 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
 
   const load = useCallback(async () => {
     try {
-      const [c, m, t, role] = await Promise.all([
+      const [c, m, t, v, role] = await Promise.all([
         api<Club>("GET", `/clubs/${id}`),
         api<ClubMemberRow[]>("GET", `/clubs/${id}/members`),
         api<Team[]>("GET", `/clubs/${id}/teams`).catch(() => []),
+        api<Venue[]>("GET", `/clubs/${id}/venues`).catch(() => []),
         api<MyRole>("GET", `/clubs/${id}/my-role`),
       ]);
       setClub(c);
       setMembers(m);
       setTeams(t);
+      setVenues(v);
       setMyRole(role);
     } catch (err) {
       setError(readErr(err, "Could not load the club"));
@@ -65,6 +72,15 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
   }, [id]);
 
   useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("welcome") === "1") {
+      setWelcome(true);
+      url.searchParams.delete("welcome");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!getAccessToken()) {
       setError("Sign in to view this club.");
       setLoading(false);
@@ -72,6 +88,25 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
     }
     load();
   }, [load]);
+
+  // A link to a section (#members, #public-page) arrives before the section
+  // exists: this page and the panels below it each load their own data. So
+  // go to it once it is there, and again if a panel above pushes it down,
+  // until it holds still.
+  useEffect(() => {
+    const target = window.location.hash.slice(1);
+    if (loading || !target) return;
+    let last: number | null = null;
+    let ticks = 0;
+    const timer = window.setInterval(() => {
+      const el = document.getElementById(target);
+      const top = el ? Math.round(el.getBoundingClientRect().top) : null;
+      if (el && top !== last) el.scrollIntoView({ block: "start" });
+      if ((el && top === last) || ++ticks > 20) window.clearInterval(timer);
+      last = el ? Math.round(el.getBoundingClientRect().top) : null;
+    }, 150);
+    return () => window.clearInterval(timer);
+  }, [loading]);
 
   if (error) return <main id="main"><p className="error">{error}</p></main>;
   if (loading || !club)
@@ -89,6 +124,17 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
         </div>
       </section>
 
+      {isSecretary && (
+        <ClubSetup
+          clubId={id}
+          clubName={club.name}
+          members={members}
+          teams={teams}
+          venues={venues}
+          welcome={welcome}
+        />
+      )}
+
       <Members
         clubId={id}
         members={members}
@@ -104,7 +150,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
 
       <Teams clubId={id} teams={teams} isSecretary={isSecretary} onChanged={load} />
 
-      <Venues clubId={id} canEdit={isSecretary} />
+      <Venues clubId={id} venues={venues} canEdit={isSecretary} onChanged={load} />
 
       {isSecretary && <Settings clubId={id} />}
 
@@ -209,7 +255,7 @@ function Members({
 
       {error && <p className="error">{error}</p>}
 
-      <div className="table-wrap">
+      <div className="table-wrap" id="members-table">
         <table className="table">
           <thead>
             <tr>
@@ -329,7 +375,7 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
   };
 
   return (
-    <div className="add-member">
+    <div className="add-member" id="add-players">
       <div className="field-row">
         <label>
           Email or mobile number
@@ -419,7 +465,7 @@ function Teams({
       )}
       {teams.map((t) => <TeamRow key={t.id} team={t} />)}
       {isSecretary && (
-        <div className="field-row" style={{ marginTop: "var(--s3)" }}>
+        <div className="field-row" id="add-team" style={{ marginTop: "var(--s3)" }}>
           <label>
             New team
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="1st XI" />
@@ -509,21 +555,22 @@ function TeamRow({ team }: { team: Team }) {
 /// A fixture carries a venue, and until somebody has entered one there is
 /// nothing to carry — which is why "where are we playing?" ends up in the
 /// group chat every Saturday morning.
-function Venues({ clubId, canEdit }: { clubId: string; canEdit: boolean }) {
-  const [venues, setVenues] = useState<Venue[] | null>(null);
+function Venues({
+  clubId,
+  venues,
+  canEdit,
+  onChanged,
+}: {
+  clubId: string;
+  venues: Venue[];
+  canEdit: boolean;
+  onChanged: () => Promise<void>;
+}) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setVenues(await api<Venue[]>("GET", `/clubs/${clubId}/venues`).catch(() => []));
-  }, [clubId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  if (venues === null) return null;
 
   const add = async () => {
     setBusy(true);
@@ -536,7 +583,7 @@ function Venues({ clubId, canEdit }: { clubId: string; canEdit: boolean }) {
       setName("");
       setAddress("");
       setAdding(false);
-      await load();
+      await onChanged();
     } catch (err) {
       setError(readErr(err, "Could not add that ground"));
     } finally {
@@ -545,7 +592,7 @@ function Venues({ clubId, canEdit }: { clubId: string; canEdit: boolean }) {
   };
 
   return (
-    <div className="panel">
+    <div className="panel" id="grounds">
       <div className="panel-head">
         <h2>Grounds</h2>
         <span className="tag grey">{venues.length}</span>
@@ -864,7 +911,7 @@ function PublicPage({
   const address = page.slug ?? suggested;
 
   return (
-    <div className="panel">
+    <div className="panel" id="public-page">
       <div className="panel-head">
         <h2>Your public page</h2>
         {page.public_page && page.slug && (

@@ -34,10 +34,16 @@ export function ShellNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     setUser(getStoredUser());
+    setChecked(true);
   }, [pathname]);
+
+  // Signed out on the landing page, the app's ten links would each end at a
+  // sign-in screen; the page itself says what is behind them.
+  const landing = pathname === "/" && checked && !user;
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -57,6 +63,7 @@ export function ShellNav() {
         <BrandMark size={24} />
         Fishers
       </Link>
+      {!landing && <>
       <nav className="nav" aria-label="Main">
         {links.map((l, i) => {
           const active = isActive(l.href);
@@ -96,6 +103,7 @@ export function ShellNav() {
           </Link>
         ))}
       </OverflowMenu>
+      </>}
 
       {/* Outside the nav on purpose. `.nav` scrolls sideways on a narrow
           screen, and an ancestor that scrolls clips an absolutely-positioned

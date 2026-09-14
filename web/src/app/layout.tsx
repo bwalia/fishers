@@ -19,8 +19,9 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata = {
-  title: "Fishers — Club dashboard",
-  description: "Fixtures, live cricket scoring, club stats and shop",
+  title: "Fishers — The club app for grassroots cricket",
+  description:
+    "Fixtures, availability, team selection, live ball-by-ball scoring and season stats for your cricket club — in one app.",
 };
 
 export const viewport = {

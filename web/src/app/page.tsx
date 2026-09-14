@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { GettingStarted } from "@/components/GettingStarted";
+import { Landing } from "@/components/Landing";
 import { PendingInvites } from "@/components/PendingInvites";
 import { RoleChooser } from "@/components/RoleChooser";
 import { PushPrompt } from "@/components/PushPrompt";
@@ -30,6 +31,9 @@ export default function HomePage() {
   /// half a second, is worse than showing nothing.
   const [loaded, setLoaded] = useState(false);
   const [invitesCount, setInvitesCount] = useState(0);
+  /// Whether storage has been read. Before that a member and a visitor look
+  /// alike, and a member should not see the sales page flash past.
+  const [checked, setChecked] = useState(false);
 
   const load = useCallback(async () => {
     {
@@ -68,6 +72,7 @@ export default function HomePage() {
 
   useEffect(() => {
     setUser(getStoredUser());
+    setChecked(true);
     if (!getAccessToken()) return;
     load();
   }, [load]);
@@ -76,37 +81,26 @@ export default function HomePage() {
     .filter((e) => new Date(e.start_at).getTime() > Date.now())
     .sort((a, b) => a.start_at.localeCompare(b.start_at));
 
+  if (!checked) return <main id="main" />;
+  if (!user) return <Landing />;
+
   return (
     <main id="main">
       <section className="hero dash-hero">
-        <h1>{user ? `${greeting()}, ${user.name.split(" ")[0]}` : "Club dashboard"}</h1>
+        <h1>{`${greeting()}, ${user.name.split(" ")[0]}`}</h1>
         <p>
-          {!user
-            ? "Fixtures, availability, live scoring and season stats for your club."
-            : clubs.length > 0
-              ? "Your club at a glance — what's next, what's live, and what needs you."
-              : "Welcome to Fishers. A few quick steps and you're up and running."}
+          {clubs.length > 0
+            ? "Your club at a glance — what's next, what's live, and what needs you."
+            : "Welcome to Fishers. A few quick steps and you're up and running."}
         </p>
       </section>
 
-      {!user && (
-        <div className="panel">
-          <h2>Sign in to get started</h2>
-          <p className="muted">
-            Demo account: <code>demo@fishers.test</code> / <code>password123</code>
-          </p>
-          <Link className="btn primary" href="/login">
-            <Icon name="signIn" size={16} /> Sign in
-          </Link>
-        </div>
-      )}
-
       {error && <p className="error">{error}</p>}
 
-      {user && <PendingInvites onJoined={load} onCount={setInvitesCount} />}
-      {user && loaded && <PushPrompt />}
+      <PendingInvites onJoined={load} onCount={setInvitesCount} />
+      {loaded && <PushPrompt />}
 
-      {user && loaded && !user.role_intent && clubs.length === 0 && (
+      {loaded && !user.role_intent && clubs.length === 0 && (
         <section className="panel welcome" aria-labelledby="welcome-title">
           <h2 id="welcome-title">How will you use Fishers?</h2>
           <p className="muted">
@@ -116,7 +110,7 @@ export default function HomePage() {
         </section>
       )}
 
-      {user && loaded && user.role_intent && (
+      {loaded && user.role_intent && (
         <GettingStarted
           user={user}
           clubs={clubs}
@@ -129,7 +123,7 @@ export default function HomePage() {
         />
       )}
 
-      {user && clubs.length > 0 && (
+      {clubs.length > 0 && (
         <>
           <div className="grid" style={{ marginBottom: "var(--s4)" }}>
             <div className="stat primary">

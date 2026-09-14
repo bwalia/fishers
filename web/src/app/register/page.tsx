@@ -20,13 +20,15 @@ export default function RegisterPage() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Somebody arriving from an invite link is joining a club, not starting one.
-  const [role, setRole] = useState<RoleIntent | null>(() =>
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("next")?.startsWith("/invite/")
-      ? "player"
-      : null
-  );
+  // Somebody arriving from an invite link is joining a club, not starting one;
+  // the landing page's two buttons say which they are with ?as=.
+  const [role, setRole] = useState<RoleIntent | null>(() => {
+    if (typeof window === "undefined") return null;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("next")?.startsWith("/invite/")) return "player";
+    const as = q.get("as");
+    return as === "secretary" || as === "player" ? as : null;
+  });
 
   const tooShort = password.length > 0 && password.length < 8;
 

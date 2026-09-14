@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/Icon";
 import { ChatBadge } from "@/components/ChatBadge";
+import { getStoredUser } from "@/lib/api";
 
 /// The four places somebody goes on a phone, and everything else behind More.
 ///
@@ -35,6 +36,9 @@ const MORE: { href: string; label: string; icon: IconName }[] = [
 export function MobileNav() {
   const pathname = usePathname();
   const [more, setMore] = useState(false);
+  // Signed-out visitors on the landing page get the page, not the app's tabs.
+  const [signedOut, setSignedOut] = useState(false);
+  useEffect(() => setSignedOut(!getStoredUser()), [pathname]);
 
   // A tap that navigates should close the sheet behind it.
   useEffect(() => setMore(false), [pathname]);
@@ -42,6 +46,7 @@ export function MobileNav() {
   // Public pages are not the app; somebody arriving from a shared link is not
   // a member and a tab bar would only offer them things to be refused from.
   if (pathname.startsWith("/live/") || pathname.startsWith("/c/")) return null;
+  if (pathname === "/" && signedOut) return null;
 
   const active = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);

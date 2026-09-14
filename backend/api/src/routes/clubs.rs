@@ -1,4 +1,4 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use fishers_db::repos::clubs as clubs_repo;
@@ -22,6 +22,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/clubs", get(list_clubs).post(create_club))
+        .route("/me/clubs", get(list_my_clubs))
         .route("/clubs/{id}", get(get_club))
         .route("/clubs/{id}/my-role", get(my_role))
         .route("/clubs/{id}/members", get(list_members).post(add_member))
@@ -224,6 +225,57 @@ async fn list_clubs(
 ) -> ApiResult<Json<Vec<ClubMembership>>> {
     Ok(Json(
         clubs_repo::list_clubs_for_user(&state.pool, auth.user_id).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct MyClubsQuery {
+    /// Free text against the name and description.
+    q: Option<String>,
+    /// `secretary`, `captain`, `vice_captain` or `member`.
+    role: Option<clubs_repo::RoleFilter>,
+    sport: Option<fishers_domain::SportType>,
+    /// `true` for clubs with a published public page, `false` for without.
+    public_page: Option<bool>,
+    /// `name` (default), `recent` or `members`.
+    sort: Option<clubs_repo::ClubSort>,
+    /// 1-based.
+    page: Option<i64>,
+    per_page: Option<i64>,
+}
+
+/// Your clubs a page at a time, for the clubs screen. `GET /clubs` still
+/// returns every club in one array for the pickers that need them all.
+async fn list_my_clubs(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(q): Query<MyClubsQuery>,
+) -> ApiResult<Json<fishers_db::repos::events::Page<ClubMembership>>> {
+    if q.page.is_some_and(|p| p < 1) {
+        return Err(ApiError::bad_request("page starts at 1"));
+    }
+    if q.per_page.is_some_and(|n| !(1..=100).contains(&n)) {
+        return Err(ApiError::bad_request("per_page must be between 1 and 100"));
+    }
+    let filter = clubs_repo::ClubFilter {
+        search: q
+            .q
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.chars().take(100).collect()),
+        role: q.role,
+        sport: q
+            .sport
+            .and_then(|s| serde_json::to_value(s).ok())
+            .and_then(|v| v.as_str().map(str::to_string)),
+        public_page: q.public_page,
+        sort: q.sort.unwrap_or_default(),
+        page: q.page.unwrap_or(1),
+        per_page: q.per_page.unwrap_or(20),
+    };
+    Ok(Json(
+        clubs_repo::list_my_clubs(&state.pool, auth.user_id, &filter).await?,
     ))
 }
 
