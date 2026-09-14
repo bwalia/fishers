@@ -1,17 +1,16 @@
 name: iOS Release (TestFlight & App Store)
 
-# Build, sign, and upload the native Fishers iOS app — same shape as KubePilot.
+# Build, sign, and upload the native Fishers iOS app with fastlane — same shape as KubePilot.
 #
-#   AUTO        : push to main that touches ios/**  → TestFlight (internal)
-#   PRIMARY     : workflow_dispatch — TestFlight internal by default
-#   SECONDARY   : push a v*.*.* tag (e.g. from auto-tag.yml) → TestFlight
-#   APP STORE   : workflow_dispatch with target = app_store (after TestFlight QA)
+#   AUTO (merge to main) : push to main touching ios/** or this workflow
+#                          → fastlane ios beta → TestFlight (internal)
+#   PRIMARY              : workflow_dispatch — TestFlight internal by default
+#   SECONDARY            : push a v*.*.* tag (e.g. from auto-tag.yml) → TestFlight
+#   APP STORE            : workflow_dispatch with target = app_store (after QA)
 #
-# Runs on the self-hosted Mac Studio runner.
-# Signing secrets are loaded from HashiCorp Vault at build time — nothing stored
-# in GitHub. See docs/IOS_RELEASE.md.
-#
-# Skip an auto release with [skip release] or [skip ios] in the commit message.
+# Pipeline: ci_build_number → prepare_signing → build_ipa → beta
+# Runner: self-hosted Mac Studio. Secrets: GitHub Actions or Vault secret/fishers/ios.
+# See docs/IOS_RELEASE.md. Skip auto release with [skip release] or [skip ios].
 
 on:
   push:
