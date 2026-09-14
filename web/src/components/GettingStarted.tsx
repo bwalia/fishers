@@ -159,8 +159,8 @@ export function GettingStarted({
         {
           key: "captain",
           title: "Name a captain",
-          body: "Give one member the captain role — they pick the sides and can run the scorebook.",
-          done: (members ?? []).some((m) => m.role === "team_captain"),
+          body: "Give one member the captain role — or, if you captain the side yourself, make your own role Secretary & captain.",
+          done: (members ?? []).some((m) => m.role === "team_captain" || m.is_captain),
           cta: { label: "Choose a captain", href: `${clubPage}#members`, icon: "trophy" },
           tour: { title: "Pick your captain", body: "Change a member's role to Captain. You can have one per team." },
         },

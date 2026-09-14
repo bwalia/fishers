@@ -84,12 +84,15 @@ export function ClubSetup({
     {
       key: "captain",
       title: "Name a captain",
-      body: "Captains pick the side and run the scorebook on match day.",
-      done: members.some((m) => m.role === "team_captain"),
+      body: "Captains pick the side and run the scorebook. Captain it yourself? Be Secretary & captain.",
+      done: members.some((m) => m.role === "team_captain" || m.is_captain),
       cta: "Choose a captain",
       icon: "trophy",
       target: "members-table",
-      tour: { title: "Pick your captain", body: "Change a member's role to Captain here. Vice captains can help pick the side too." },
+      tour: {
+        title: "Pick your captain",
+        body: "Set a member's role to Captain here — or, if you captain the side yourself, set your own role to Secretary & captain.",
+      },
     },
     {
       key: "ground",

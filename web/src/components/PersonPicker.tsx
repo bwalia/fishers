@@ -162,6 +162,6 @@ export function peopleFromMembers(members: ClubMemberRow[]): Person[] {
   return members.map((m) => ({
     id: m.user_id,
     name: m.name,
-    note: m.role === "member" ? undefined : roleLabel(m.role),
+    note: m.role === "member" ? undefined : roleLabel(m.role, m.is_captain),
   }));
 }

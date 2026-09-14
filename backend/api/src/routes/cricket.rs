@@ -875,6 +875,8 @@ async fn commentary(
 struct SquadPlayer {
     id: Uuid,
     name: String,
+    /// Captains this side, so the team sheet can start with them marked.
+    is_captain: bool,
     /// "selected", "reserve", "available", "unavailable" or "member" — enough
     /// for a captain to see who was picked for this fixture and who was not.
     standing: String,
@@ -924,6 +926,20 @@ async fn squad(
     let away_pick = scorer
         || may_manage_selection(&state, row.opponent_club_id, auth.user_id).await;
 
+    // Who captains each side, so their sheet opens with the captain marked.
+    let team_id = events_repo::get_event(&state.pool, row.event_id)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|e| e.team_id);
+    let home_captains = clubs_repo::captain_ids(&state.pool, row.club_id, team_id)
+        .await
+        .unwrap_or_default();
+    let away_captains = match row.opponent_club_id {
+        Some(club) => clubs_repo::captain_ids(&state.pool, club, None).await.unwrap_or_default(),
+        None => Vec::new(),
+    };
+
     // The fixture's board: who was picked, who is a reserve, who said no.
     let mut home_players: Vec<SquadPlayer> = selection_repo::candidates(&state.pool, row.event_id)
         .await
@@ -931,6 +947,7 @@ async fn squad(
         .into_iter()
         .map(|c| SquadPlayer {
             id: c.user_id,
+            is_captain: home_captains.contains(&c.user_id),
             standing: standing_of(&c),
             bats_left: projection.left_handers.contains(&c.user_id),
             name: c.name,
@@ -955,6 +972,7 @@ async fn squad(
                 .into_iter()
                 .map(|m| SquadPlayer {
                     id: m.user_id,
+                    is_captain: away_captains.contains(&m.user_id),
                     name: names.get(&m.user_id).cloned().unwrap_or_else(|| "Player".into()),
                     standing: "member".into(),
                     bats_left: projection.left_handers.contains(&m.user_id),
