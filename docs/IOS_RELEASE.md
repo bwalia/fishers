@@ -11,9 +11,9 @@ pattern as [KubePilot](https://github.com/bwalia/kubepilot).
 | **TestFlight (manual)** | `workflow_dispatch` → **testflight** | Ad-hoc builds |
 | **App Store review** | `workflow_dispatch` → **app_store** | After TestFlight sign-off |
 
-Release CI runs on the self-hosted Mac Studio runner with labels
-`[self-hosted, macOS, ARM64]`. Signing material is **not** stored in GitHub —
-it is loaded from Vault and wiped after each run.
+Release CI runs on the self-hosted Mac Studio runner (`runs-on: self-hosted`).
+Signing material is loaded at build time from **GitHub Actions secrets** (if set)
+or from Vault `secret/fishers/ios`, then wiped after each run.
 
 ## Flow
 
@@ -22,7 +22,7 @@ Merge to main (ios/** changed)     or     push v1.2.3 tag     or     workflow_di
                  │                                  │                         │
                  └──────────────────┬───────────────┴─────────────────────────┘
                                     ▼
-                      Load Vault secrets (ASC API key)
+                 Load ASC secrets (GitHub secrets or Vault)
                                     │
                                     ▼
               Resolve version (tag → input → ios/project.yml MARKETING_VERSION)
@@ -56,28 +56,42 @@ message.
 2. Generate an **App Store Connect API** key (App Manager role)
 3. Note your **Apple Team ID**
 
-### 2. Vault secret
+### 2. Signing secrets (Vault or GitHub Actions)
 
-Store at **`secret/fishers/ios`** (KV v2):
+**Required fields** (same names in either place):
 
 | Key | Description |
 |-----|-------------|
 | `ASC_KEY_ID` | API key id |
 | `ASC_ISSUER_ID` | Issuer id |
 | `ASC_PRIVATE_KEY_B64` | base64 of `AuthKey_*.p8` |
-| `CERT_PRIVATE_KEY_B64` | (optional) base64 of distribution private key `.pem` |
 | `APPLE_TEAM_ID` | 10-character team id |
+| `CERT_PRIVATE_KEY_B64` | (optional) base64 of distribution private key `.pem` |
 | `APP_STORE_APP_ID` | (optional) numeric ASC app id |
 
-See `ios/ci/ios.vault.env.example`.
+**Option A — Vault** (preferred on the Mac Studio):
+
+```bash
+export VAULT_TOKEN_FILE=$HOME/.secrets/acc-vault/login-token.json   # same path as ios_release.yml
+export ASC_KEY_ID=...
+export ASC_ISSUER_ID=...
+export ASC_P8_PATH=$HOME/AuthKey_XXXXXX.p8
+export APPLE_TEAM_ID=...
+./ios/ci/seed-ios-vault.sh
+```
+
+Writes **`secret/fishers/ios`** (KV v2). See `ios/ci/ios.vault.env.example`.
+
+**Option B — GitHub Actions secrets** with the same key names (used when Vault
+path is missing).
 
 ### 3. Self-hosted runner
 
 The Mac Studio runner needs:
 
 - Xcode 16+, XcodeGen, Ruby + Bundler
-- Vault token file (default `VAULT_TOKEN_FILE` in workflow)
-- Labels: `self-hosted`, `macOS`, `ARM64`
+- Label: `self-hosted`
+- Vault token file (default `VAULT_TOKEN_FILE` in workflow) unless GitHub secrets are set
 
 ### 4. GitHub workflows
 

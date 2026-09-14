@@ -88,9 +88,18 @@ jobs:
             echo "EXPORT_OPTIONS_PLIST=$RUNNER_TEMP/ExportOptions.plist"
           } >> "$GITHUB_ENV"
 
-      - name: Load signing secrets from Vault
+      - name: Load signing secrets (GitHub secrets or Vault)
+        env:
+          # Prefer repo/org Actions secrets when present; otherwise the loader
+          # reads secret/fishers/ios from Vault (see ios/ci/seed-ios-vault.sh).
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_B64: ${{ secrets.ASC_PRIVATE_KEY_B64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_APP_ID: ${{ secrets.APP_STORE_APP_ID }}
+          CERT_PRIVATE_KEY_B64: ${{ secrets.CERT_PRIVATE_KEY_B64 }}
         run: |
-          chmod +x ./ci/load-ios-vault-secrets.sh
+          chmod +x ./ci/load-ios-vault-secrets.sh ./ci/seed-ios-vault.sh
           ./ci/load-ios-vault-secrets.sh
 
       - name: Install Ruby dependencies
