@@ -9,9 +9,16 @@ name: "Deploy Single Environment (build from ref + deploy one ring)"
 #   DEPLOY_MODE   <- reserved             ("full" = build + deploy)
 #
 # Build once, promote many. int and test build images from the given ref; acc
-# and prod do not build at all — they deploy the same :latest those builds
-# already pushed. Rebuilding for production would ship an artefact nobody
-# tested, from source that only probably matches.
+# and prod do not build at all — they deploy an image those builds already
+# pushed. Rebuilding for production would ship an artefact nobody tested, from
+# source that only probably matches.
+#
+# Every ring deploys one exact commit, never :latest. The ref is resolved to a
+# sha once, up front, and that sha is the image tag. :latest was a moving
+# target: prod's two web pods once pulled it seconds apart and came up on two
+# different builds, and there was no way to say what "roll back" meant. A sha
+# changes the pod template on every deploy, so the rollout always happens, and
+# rolling back is running this again with the previous sha.
 
 permissions:
   contents: read
@@ -48,6 +55,81 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The ref becomes one commit here, so a merge landing mid-deploy cannot change
+  # what ships. For acc and prod it must also be a commit that has images.
+  resolve:
+    name: Resolve the commit
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.pick.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.DEPLOY_BRANCH }}
+          # Enough history to step back past a run of docs-only merges.
+          fetch-depth: 50
+
+      - name: Pick the commit to deploy
+        id: pick
+        env:
+          RING: ${{ github.event.inputs.ENV }}
+          PROVIDER: ${{ github.event.inputs.REGISTRY_PROVIDER || 'NEBULACR' }}
+          NEBULA_HOST: ${{ secrets.NEBULACR_REGISTRY || 'int-spectoncr.diytaxreturn.co.uk' }}
+          NEBULA_USER: ${{ secrets.NEBULACR_USERNAME }}
+          NEBULA_PASS: ${{ secrets.NEBULACR_PASSWORD }}
+          GHCR_PASS: ${{ secrets.GHCR_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse HEAD)
+          summary() { echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+
+          # int and test build this commit themselves.
+          if [ "$RING" = int ] || [ "$RING" = test ]; then
+            echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+            summary "Deploying \`$SHA\` to **$RING** (built by this run)."
+            exit 0
+          fi
+
+          # acc and prod deploy a build that already exists — look for it.
+          if [ "$PROVIDER" = GHCR ]; then
+            HOST=ghcr.io; NS="ghcr.io/${{ github.repository_owner }}"
+            echo "$GHCR_PASS" | docker login "$HOST" -u "${{ github.actor }}" --password-stdin >/dev/null
+          else
+            HOST="$NEBULA_HOST"; NS="$HOST/fishers"
+            echo "$NEBULA_PASS" | docker login "$HOST" -u "$NEBULA_USER" --password-stdin >/dev/null
+          fi
+          built() {
+            docker manifest inspect "$NS/fishers-api:$1" >/dev/null 2>&1 &&
+              docker manifest inspect "$NS/fishers-web:$1" >/dev/null 2>&1
+          }
+
+          # A merge that only touches docs, markdown or the iOS app builds
+          # nothing (cd-int ignores those paths), so the newest commit on main
+          # can have no images of its own. Step back over exactly those commits
+          # — and nothing else: a commit that changes what runs and has no
+          # images is a failed or unfinished build, and deploying the one before
+          # it would quietly ship something other than what was asked for.
+          PICK="$SHA"
+          until built "$PICK"; do
+            RUNS=$(git diff --name-only "$PICK^1" "$PICK" | grep -v -E '^(ios|docs)/|\.md$' || true)
+            if [ -n "$RUNS" ]; then
+              echo "::error::No images for $PICK, and it changes what runs:"
+              echo "$RUNS" | head -20 | sed 's/^/  /'
+              echo "::error::Let its int build finish (CD — deploy int on merge to main), or deploy it to int or test first."
+              exit 1
+            fi
+            PREV=$(git rev-parse --verify -q "$PICK^1") || {
+              echo "::error::No built commit within the last 50 behind $SHA."; exit 1; }
+            echo "$PICK changes only docs/iOS — stepping back to $PREV"
+            PICK="$PREV"
+          done
+
+          echo "sha=$PICK" >> "$GITHUB_OUTPUT"
+          summary "Deploying \`$PICK\` to **$RING**: $(git log -1 --format=%s "$PICK")"
+          [ "$PICK" = "$SHA" ] || summary "(\`$SHA\` was asked for; the commits after \`$PICK\` change only docs or the iOS app.)"
+          summary ""
+          summary "Roll back by running this workflow for $RING with an earlier sha."
+
   # DNS and the wslproxy vhost + rule for this ring. Idempotent, so it costs a
   # few seconds on a ring that already exists — and it is what makes the first
   # deploy of a new ring reachable rather than green-but-unreachable.
@@ -59,10 +141,11 @@ jobs:
 
   # int and test build. acc and prod deploy what those builds produced.
   build-images:
+    needs: [resolve]
     if: ${{ github.event.inputs.ENV == 'int' || github.event.inputs.ENV == 'test' }}
     uses: ./.github/workflows/build-images.yml
     with:
-      ref: ${{ github.event.inputs.DEPLOY_BRANCH }}
+      ref: ${{ needs.resolve.outputs.sha }}
       image_tag: latest
       registry_provider: ${{ github.event.inputs.REGISTRY_PROVIDER || 'NEBULACR' }}
     secrets: inherit
@@ -70,16 +153,18 @@ jobs:
   deploy:
     # `always()` with an explicit result check: acc and prod skip the build on
     # purpose, and a skipped `needs` would otherwise mark this skipped too.
-    needs: [build-images, edge]
+    needs: [resolve, build-images, edge]
     if: >
       always() &&
+      needs.resolve.result == 'success' &&
       needs.edge.result == 'success' &&
       (needs.build-images.result == 'success' ||
        needs.build-images.result == 'skipped')
     uses: ./.github/workflows/deploy-fishers-k3s.yml
     with:
       target_env: ${{ github.event.inputs.ENV }}
-      image_tag: latest
+      # The commit, never :latest — see the note at the top.
+      image_tag: ${{ needs.resolve.outputs.sha }}
       registry_provider: ${{ github.event.inputs.REGISTRY_PROVIDER || 'NEBULACR' }}
       deploy_postgres: true
     secrets: inherit
