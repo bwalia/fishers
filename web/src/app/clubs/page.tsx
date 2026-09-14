@@ -12,28 +12,37 @@ import {
   roleLabel,
   SPORTS,
   type Club,
+  type PublicUser,
   type VerificationStatus,
 } from "@/lib/api";
+import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { PendingInvites } from "@/components/PendingInvites";
 import { ShareProfile } from "@/components/ShareProfile";
 import { VerifyContact } from "@/components/VerifyContact";
+import { copyText } from "@/lib/clipboard";
 
 /// `GET /clubs` returns each club with the role you hold in it.
-type Membership = Club & { role: string; member_count?: number; team_count?: number };
+type Membership = Club & {
+  role: string;
+  member_count?: number;
+  team_count?: number;
+  /// Set only when the club has published its public page.
+  public_slug?: string | null;
+};
 
 export default function ClubsPage() {
   const router = useRouter();
   const [clubs, setClubs] = useState<Membership[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [meId, setMeId] = useState<string | null>(null);
+  const [me, setMe] = useState<PublicUser | null>(null);
   // The getting-started guide links here as ?new=1: land with the form open,
   // not on a page that asks them to press "Start a club" a second time.
   const [creating, setCreating] = useState(false);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("new") === "1") setCreating(true);
-    setMeId(getStoredUser()?.id ?? null);
+    setMe(getStoredUser());
   }, []);
 
   const load = async () => {
@@ -100,6 +109,8 @@ export default function ClubsPage() {
         </div>
       )}
 
+      <div className={creating || clubs.length === 0 ? undefined : "cl-layout"}>
+      <div className="cl-main">
       {clubs.length > 0 && (
         <div className="cl-bar">
           <h2 className="section-head">
@@ -124,6 +135,10 @@ export default function ClubsPage() {
           {shown.length === 0 && <p className="muted">No club matches “{query.trim()}”.</p>}
         </div>
       )}
+      </div>
+
+      {!creating && clubs.length > 0 && <ClubsSidebar me={me} clubs={clubs} />}
+      </div>
 
       {!loading && !error && clubs.length === 0 && !creating && (
         <section className="panel cl-empty" aria-labelledby="cl-empty-title">
@@ -141,7 +156,7 @@ export default function ClubsPage() {
             <div className="cl-path">
               <h3><Icon name="ball" size={18} /> I play for a club</h3>
               <p>Send your profile link to the secretary. Their invite appears here to accept.</p>
-              {meId && <ShareProfile userId={meId} />}
+              {me && <ShareProfile userId={me.id} />}
             </div>
           </div>
         </section>
@@ -149,6 +164,109 @@ export default function ClubsPage() {
     </main>
   );
 }
+
+/// Beside the list: your own profile link, each club's public page, and how
+/// a club fits together — the things people otherwise go hunting for.
+function ClubsSidebar({ me, clubs }: { me: PublicUser | null; clubs: Membership[] }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = async (slug: string) => {
+    if (await copyText(`${window.location.origin}/c/${slug}`)) {
+      setCopied(slug);
+      setTimeout(() => setCopied(null), 2000);
+    }
+  };
+
+  return (
+    <aside className="cl-side" aria-label="Profile, public pages and how clubs work">
+      {me && (
+        <section className="panel cl-side-card" aria-labelledby="cl-me">
+          <h2 id="cl-me" className="section-head">Your player profile</h2>
+          <div className="cl-me">
+            <Avatar name={me.name} url={me.avatar_url} size={44} />
+            <div>
+              <strong>{me.name}</strong>
+              <Link href="/profile">Edit profile</Link>
+            </div>
+          </div>
+          <p className="muted">
+            Send this link to a club&apos;s secretary and they can invite you straight from it.
+          </p>
+          <ShareProfile userId={me.id} />
+        </section>
+      )}
+
+      <section className="panel cl-side-card" aria-labelledby="cl-pages">
+        <h2 id="cl-pages" className="section-head">Club public pages</h2>
+        <p className="muted">A page anyone can open, no login: your record, top players and next fixtures.</p>
+        <ul className="cl-pages">
+          {clubs.map((c) => {
+            const secretary = c.role === "club_admin" || c.role === "super_admin";
+            return (
+              <li key={c.id}>
+                <span className={`cc-crest sm tone-${tone(c.id)}`} aria-hidden="true">{initials(c.name)}</span>
+                <span className="cl-pages-name">
+                  <strong>{c.name}</strong>
+                  <span className="subtle" title={c.public_slug ? `/c/${c.public_slug}` : undefined}>
+                    {c.public_slug ? `/c/${c.public_slug}` : "Not published"}
+                  </span>
+                </span>
+                {c.public_slug ? (
+                  <span className="cl-pages-actions">
+                    <button
+                      className="btn ghost sm icon-only"
+                      type="button"
+                      onClick={() => copy(c.public_slug!)}
+                      aria-label={`Copy the link to ${c.name}'s public page`}
+                    >
+                      <Icon name={copied === c.public_slug ? "check" : "copy"} size={16} />
+                    </button>
+                    <a
+                      className="btn ghost sm"
+                      href={`/c/${c.public_slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`View ${c.name}'s public page (opens in a new tab)`}
+                    >
+                      View
+                    </a>
+                  </span>
+                ) : (
+                  secretary && (
+                    <Link className="btn sm" href={`/clubs/${c.id}#public-page`} aria-label={`Set up ${c.name}'s public page`}>
+                      Set up
+                    </Link>
+                  )
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section className="panel cl-side-card" aria-labelledby="cl-how">
+        <h2 id="cl-how" className="section-head">How clubs work</h2>
+        <ol className="guide-steps cc-steps">
+          {HOW_CLUBS_WORK.map(([title, text], i) => (
+            <li key={title}>
+              <span className="guide-num">{i + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <p>{text}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </aside>
+  );
+}
+
+const HOW_CLUBS_WORK = [
+  ["A secretary runs the club", "Members and their roles, teams, grounds, fixtures and fees."],
+  ["Players join by invite", "Added by email or mobile, or from their profile link — then accepted on this page."],
+  ["Captains pick the side", "Everyone says whether they can play; the captain picks from who is available."],
+  ["Matches are scored live", "Ball by ball. Stats and the club's public page keep themselves up to date."],
+] as const;
 
 /// The whole card is the link, so the list reads as places to go.
 function ClubCard({ club }: { club: Membership }) {

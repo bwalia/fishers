@@ -159,6 +159,8 @@ pub struct ClubMembership {
     /// Active members and teams, for the card on the clubs list.
     pub member_count: i64,
     pub team_count: i64,
+    /// The public page's address, only once the club has switched it on.
+    pub public_slug: Option<String>,
 }
 
 pub async fn list_clubs_for_user(
@@ -171,7 +173,8 @@ pub async fn list_clubs_for_user(
                c.is_informal_group, c.created_at, c.updated_at, m.role,
                (SELECT COUNT(*) FROM club_members cm
                  WHERE cm.club_id = c.id AND cm.status = 'active') AS member_count,
-               (SELECT COUNT(*) FROM teams t WHERE t.club_id = c.id) AS team_count
+               (SELECT COUNT(*) FROM teams t WHERE t.club_id = c.id) AS team_count,
+               CASE WHEN c.public_page THEN c.slug END AS public_slug
         FROM clubs c
         INNER JOIN club_members m ON m.club_id = c.id
         WHERE m.user_id = $1 AND m.status = 'active'

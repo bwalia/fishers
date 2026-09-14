@@ -89,6 +89,25 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
     load();
   }, [load]);
 
+  // A link to a section (#members, #public-page) arrives before the section
+  // exists: this page and the panels below it each load their own data. So
+  // go to it once it is there, and again if a panel above pushes it down,
+  // until it holds still.
+  useEffect(() => {
+    const target = window.location.hash.slice(1);
+    if (loading || !target) return;
+    let last: number | null = null;
+    let ticks = 0;
+    const timer = window.setInterval(() => {
+      const el = document.getElementById(target);
+      const top = el ? Math.round(el.getBoundingClientRect().top) : null;
+      if (el && top !== last) el.scrollIntoView({ block: "start" });
+      if ((el && top === last) || ++ticks > 20) window.clearInterval(timer);
+      last = el ? Math.round(el.getBoundingClientRect().top) : null;
+    }, 150);
+    return () => window.clearInterval(timer);
+  }, [loading]);
+
   if (error) return <main id="main"><p className="error">{error}</p></main>;
   if (loading || !club)
     return <main id="main"><div className="panel"><div className="skeleton" style={{ height: 80 }} /></div></main>;
@@ -892,7 +911,7 @@ function PublicPage({
   const address = page.slug ?? suggested;
 
   return (
-    <div className="panel">
+    <div className="panel" id="public-page">
       <div className="panel-head">
         <h2>Your public page</h2>
         {page.public_page && page.slug && (
