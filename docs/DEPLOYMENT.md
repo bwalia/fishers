@@ -131,6 +131,7 @@ live one — if the dump turns out to be the problem, that is the only copy gone
 ```sh
 export KUBECONFIG=~/.kube/k3s1.yaml
 NS=fishers-int
+RING=int                             # the prefix the dumps sit under in the bucket
 FILE=fishers-20260912T021500Z.dump   # from `mc ls` above
 
 # Patroni moves the leader on failover and on every operator rolling update, so
@@ -141,16 +142,43 @@ PG=$(kubectl get pod -n $NS -l spilo-role=master -o jsonpath='{.items[0].metadat
 #    every member's data in one file; it does not want a second home.
 kubectl exec -n $NS fishers-minio-0 -- sh -lc "
   mc alias set t http://localhost:9000 \"\$MINIO_ROOT_USER\" \"\$MINIO_ROOT_PASSWORD\" >/dev/null
-  mc cat t/db-backups/int/$FILE" \
+  mc cat t/db-backups/$RING/$FILE" \
 | kubectl exec -i -n $NS $PG -- sh -c "cat > /tmp/$FILE"
+
+# 1b. CHECK THE SIZE. This pipe between two kubectl execs can end early and
+#     leave a short — or empty — file, and it says nothing when it does. Doing
+#     this for real, one attempt transferred nothing at all and pg_restore
+#     reported "input file is too short (read 0, expected 5)", which reads like
+#     a corrupt backup rather than a failed copy. Compare with `mc ls` above.
+kubectl exec -n $NS $PG -- sh -c "wc -c < /tmp/$FILE"
 
 # 2. restore it beside the live database, not over it
 kubectl exec -n $NS $PG -- psql -U postgres -c 'CREATE DATABASE restore_check OWNER fishers'
 kubectl exec -n $NS $PG -- pg_restore -U postgres -d restore_check /tmp/$FILE
 
-# 3. check it is the database you meant to get back
-kubectl exec -n $NS $PG -- psql -U postgres -d restore_check -c 'select count(*) from users'
+# 3. check it is the database you meant to get back: same tables, same rows.
+#    `select count(*) from users` proves very little on a young ring.
+ROWS="select coalesce(sum((xpath('/row/c/text()', query_to_xml(
+  format('select count(*) c from %I.%I', schemaname, tablename), false, true, ''
+)))[1]::text::bigint),0) from pg_tables where schemaname='public'"
+for db in fishers restore_check; do
+  echo "$db: tables=$(kubectl exec -n $NS $PG -- psql -U postgres -d $db -tAc \
+    "select count(*) from pg_tables where schemaname='public'") rows=$(
+    kubectl exec -n $NS $PG -- psql -U postgres -d $db -tAc "$ROWS")"
+done
 ```
+
+**`pg_restore` exits 1 here, and that is normal.** It reports about twenty
+`already exists` errors — `metric_helpers`, `user_management`,
+`get_table_bloat_approx`, `create_application_user` and friends — because those
+are Spilo's own objects, present in every database the operator creates, and the
+dump carries them too. There is usually also an `unrecognized configuration
+parameter "transaction_timeout"`, which is a newer `pg_dump` writing a `SET` this
+server does not know. None of them is a table or a row.
+
+So do not read the exit code. Read the two numbers from step 3: if `tables` and
+`rows` match the live database, everything came back. A real failure looks
+different — `input file is too short`, or a row count that does not match.
 
 Only once that looks right, replace the live one. Stop the API first: its pool
 holds connections, and `DROP DATABASE` refuses while anything is attached.
