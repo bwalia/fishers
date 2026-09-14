@@ -513,6 +513,8 @@ export type ClubMemberRow = {
   email?: string | null;
   phone?: string | null;
   role: string;
+  /// Captains the side — by role, or a secretary who captains too.
+  is_captain?: boolean;
   status: string;
   position_role?: string | null;
   skill_level?: string | null;
@@ -748,9 +750,27 @@ export function roleBlurb(role: string): string | undefined {
   return CLUB_ROLES.find((r) => r.value === role)?.can;
 }
 
-export function roleLabel(role: string): string {
+export const isSecretaryRole = (role: string) => role === "club_admin" || role === "super_admin";
+
+/// `captain` is the membership's `is_captain`: a secretary who also captains
+/// reads as both, since in a small club that is one person.
+export function roleLabel(role: string, captain = false): string {
+  if (captain && isSecretaryRole(role)) return "Secretary & captain";
   return CLUB_ROLES.find((r) => r.value === role)?.label ?? role.replaceAll("_", " ");
 }
+
+/// The role picker's choices: the roles, plus a secretary who captains.
+export const ROLE_CHOICES = [
+  ...CLUB_ROLES.map((r) => ({ value: r.value as string, label: r.label as string, can: r.can as string })),
+  {
+    value: "club_admin+captain",
+    label: "Secretary & captain",
+    can: "A secretary who also captains the side — usual in a small club.",
+  },
+];
+
+export const roleChoice = (m: { role: string; is_captain?: boolean }) =>
+  isSecretaryRole(m.role) && m.is_captain ? "club_admin+captain" : m.role;
 
 /// Exactly what the API's SportType accepts — anything else is rejected.
 export const SPORTS = [

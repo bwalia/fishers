@@ -396,7 +396,10 @@ async function pickXi(a: Actor, club: ClubSpec, squad: Person[], others: Person[
 
   for (const p of squad) await sheet.locator(".squad-chip", { hasText: p.name }).click();
   await expect(sheet.locator(".count-pill")).toContainText("11");
-  await sheet.locator(".picked-xi li", { hasText: squad[0].name }).getByRole("button", { name: "C", exact: true }).click();
+  // The club's captain may already be marked for them; only press C if not.
+  const captainToggle = sheet.locator(".picked-xi li", { hasText: squad[0].name }).getByRole("button", { name: "C", exact: true });
+  if ((await captainToggle.getAttribute("aria-pressed")) !== "true") await captainToggle.click();
+  await expect(captainToggle).toHaveAttribute("aria-pressed", "true");
   await sheet.locator(".picked-xi li", { hasText: squad[1].name }).getByRole("button", { name: "WK", exact: true }).click();
   await sheet.getByRole("button", { name: `Confirm ${club.name}` }).click();
 

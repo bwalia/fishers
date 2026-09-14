@@ -392,6 +392,10 @@ async fn add_member(
 struct RoleBody {
     /// Accepts the product words too: `secretary`, `captain`, `vice_captain`.
     role: String,
+    /// A secretary who also captains the side. Ignored for any other role;
+    /// left out, it stays as it was.
+    #[serde(default)]
+    captain: Option<bool>,
 }
 
 /// Appoint a captain, a vice captain, or stand someone down.
@@ -422,7 +426,7 @@ async fn update_member_role(
         ));
     }
 
-    clubs_repo::update_member_role(&state.pool, club_id, user_id, role)
+    clubs_repo::update_member_role(&state.pool, club_id, user_id, role, body.captain)
         .await?
         .map(Json)
         .ok_or_else(|| ApiError::not_found("that person is not in this club"))
