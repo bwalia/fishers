@@ -156,6 +156,9 @@ pub struct ClubMembership {
     #[sqlx(flatten)]
     pub club: Club,
     pub role: UserRole,
+    /// Active members and teams, for the card on the clubs list.
+    pub member_count: i64,
+    pub team_count: i64,
 }
 
 pub async fn list_clubs_for_user(
@@ -165,7 +168,10 @@ pub async fn list_clubs_for_user(
     sqlx::query_as::<_, ClubMembership>(
         r#"
         SELECT c.id, c.name, c.sport_types, c.visibility, c.owner_id, c.description,
-               c.is_informal_group, c.created_at, c.updated_at, m.role
+               c.is_informal_group, c.created_at, c.updated_at, m.role,
+               (SELECT COUNT(*) FROM club_members cm
+                 WHERE cm.club_id = c.id AND cm.status = 'active') AS member_count,
+               (SELECT COUNT(*) FROM teams t WHERE t.club_id = c.id) AS team_count
         FROM clubs c
         INNER JOIN club_members m ON m.club_id = c.id
         WHERE m.user_id = $1 AND m.status = 'active'

@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   api,
   errCode,
   getAccessToken,
+  getStoredUser,
   readErr,
   roleLabel,
   SPORTS,
@@ -14,20 +16,24 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { PendingInvites } from "@/components/PendingInvites";
+import { ShareProfile } from "@/components/ShareProfile";
 import { VerifyContact } from "@/components/VerifyContact";
 
 /// `GET /clubs` returns each club with the role you hold in it.
-type Membership = Club & { role: string };
+type Membership = Club & { role: string; member_count?: number; team_count?: number };
 
 export default function ClubsPage() {
+  const router = useRouter();
   const [clubs, setClubs] = useState<Membership[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [meId, setMeId] = useState<string | null>(null);
   // The getting-started guide links here as ?new=1: land with the form open,
   // not on a page that asks them to press "Start a club" a second time.
   const [creating, setCreating] = useState(false);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("new") === "1") setCreating(true);
+    setMeId(getStoredUser()?.id ?? null);
   }, []);
 
   const load = async () => {
@@ -49,6 +55,13 @@ export default function ClubsPage() {
     load();
   }, []);
 
+  // Somebody in several clubs finds one by name rather than by scrolling.
+  const [query, setQuery] = useState("");
+  const term = query.trim().toLowerCase();
+  const shown = term
+    ? clubs.filter((c) => `${c.name} ${c.description ?? ""} ${c.sport_types.join(" ")}`.toLowerCase().includes(term))
+    : clubs;
+
   return (
     <main id="main">
       {/* With the form open this header is the form's own, so it does not
@@ -59,7 +72,7 @@ export default function ClubsPage() {
           <p>
             {creating
               ? "It takes a minute. You run the club, so you can invite players the moment it exists."
-              : "Your memberships and what each role lets you do."}
+              : "Your clubs, and what your role lets you do in each."}
           </p>
         </div>
         {!error && !creating && (
@@ -70,56 +83,126 @@ export default function ClubsPage() {
       </section>
 
       {error && <p className="error">{error}</p>}
-      {loading && <div className="panel"><div className="skeleton" style={{ height: 64 }} /></div>}
 
       {creating && (
         <CreateClub
           onClose={() => setCreating(false)}
-          onCreated={() => {
-            setCreating(false);
-            load();
-          }}
+          // Straight to the new club: adding players happens there, not here.
+          onCreated={(club) => router.push(`/clubs/${club.id}?welcome=1`)}
         />
       )}
 
-      {creating && clubs.length > 0 && <h2 className="section-head">Your clubs</h2>}
-      <div className="grid">
-        {clubs.map((c) => (
-          <Link className="panel club-card" key={c.id} href={`/clubs/${c.id}`}>
-            <div className="panel-head">
-              <h2>{c.name}</h2>
-            </div>
-            <div style={{ display: "flex", gap: "var(--s2)", flexWrap: "wrap" }}>
-              {c.sport_types.map((s) => <span className="tag" key={s}>{s}</span>)}
-            </div>
-            {c.description && <p className="muted">{c.description}</p>}
-            <div style={{ display: "flex", gap: "var(--s2)", flexWrap: "wrap", marginTop: "var(--s2)" }}>
-              <span className="tag gold">{roleLabel(c.role)}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
-
       <PendingInvites onJoined={load} />
 
-      {!loading && !error && clubs.length === 0 && !creating && (
-        <div className="panel">
-          <div className="empty">
-            <Icon name="users" size={28} />
-            <p>You are not a member of any club yet.</p>
-            <button className="btn primary" type="button" onClick={() => setCreating(true)}>
-              Start one
-            </button>
-          </div>
+      {loading && (
+        <div className="cl-grid" aria-hidden="true">
+          {[0, 1, 2].map((i) => <div key={i} className="skeleton cl-skeleton" />)}
         </div>
+      )}
+
+      {clubs.length > 0 && (
+        <div className="cl-bar">
+          <h2 className="section-head">
+            {creating ? "Your clubs" : `${clubs.length} ${clubs.length === 1 ? "club" : "clubs"}`}
+          </h2>
+          {clubs.length > 4 && (
+            <label className="cl-search">
+              <span className="sr-only">Find a club</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Find a club"
+              />
+            </label>
+          )}
+        </div>
+      )}
+      {clubs.length > 0 && (
+        <div className="cl-grid">
+          {shown.map((c) => <ClubCard key={c.id} club={c} />)}
+          {shown.length === 0 && <p className="muted">No club matches “{query.trim()}”.</p>}
+        </div>
+      )}
+
+      {!loading && !error && clubs.length === 0 && !creating && (
+        <section className="panel cl-empty" aria-labelledby="cl-empty-title">
+          <span className="cl-empty-icon"><Icon name="users" size={28} /></span>
+          <h2 id="cl-empty-title">You&apos;re not in a club yet</h2>
+          <p className="muted">Start your own, or get invited into the one you play for.</p>
+          <div className="cl-paths">
+            <div className="cl-path">
+              <h3><Icon name="shield" size={18} /> I run a club</h3>
+              <p>Set it up in a minute. You become its secretary and can add players straight away.</p>
+              <button className="btn primary" type="button" onClick={() => setCreating(true)}>
+                <Icon name="plus" size={16} /> Start a club
+              </button>
+            </div>
+            <div className="cl-path">
+              <h3><Icon name="ball" size={18} /> I play for a club</h3>
+              <p>Send your profile link to the secretary. Their invite appears here to accept.</p>
+              {meId && <ShareProfile userId={meId} />}
+            </div>
+          </div>
+        </section>
       )}
     </main>
   );
 }
 
+/// The whole card is the link, so the list reads as places to go.
+function ClubCard({ club }: { club: Membership }) {
+  const open = club.visibility === "public";
+  return (
+    <Link className="club-card cl-card" href={`/clubs/${club.id}`}>
+      <div className="cl-card-top">
+        <span className={`cc-crest tone-${tone(club.id)}`} aria-hidden="true">{initials(club.name)}</span>
+        <div className="cl-card-title">
+          <h2>{club.name}</h2>
+          <p className="cl-card-meta">
+            <Icon name={open ? "users" : "lock"} size={12} />
+            {open ? "Anyone can find it" : "Invite only"}
+          </p>
+        </div>
+        <span className="tag gold">{roleLabel(club.role)}</span>
+      </div>
+      <p className={`cl-card-desc${club.description ? "" : " none"}`}>
+        {club.description || "No description yet."}
+      </p>
+      <div className="cl-card-tags">
+        {club.sport_types.map((s) => <span className="tag" key={s}>{s}</span>)}
+      </div>
+      <div className="cl-card-foot">
+        {club.member_count !== undefined && (
+          <span><Icon name="users" size={14} /> {plural(club.member_count, "member")}</span>
+        )}
+        {club.team_count !== undefined && (
+          <span><Icon name="shield" size={14} /> {plural(club.team_count, "team")}</span>
+        )}
+        <span className="cl-card-open">Open <Icon name="arrowLeft" size={14} className="flip" /></span>
+      </div>
+    </Link>
+  );
+}
+
+/// One of three crest colours, fixed per club, so a long list is not a wall of
+/// identical squares.
+const tone = (id: string) => parseInt(id.replace(/-/g, "").slice(-2), 16) % 3;
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
 /// Whoever creates the club is its first secretary, so this is also how a new
 /// account gets somewhere to add people to.
-function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (club: Club) => void }) {
   const [name, setName] = useState("");
   const [sports, setSports] = useState<string[]>(["cricket"]);
   const [description, setDescription] = useState("");
@@ -139,13 +222,13 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: ()
     setBusy(true);
     setError(null);
     try {
-      await api<Club>("POST", "/clubs", {
+      const club = await api<Club>("POST", "/clubs", {
         name: name.trim(),
         sport_types: sports,
         visibility,
         description: description.trim() || null,
       });
-      onCreated();
+      onCreated(club);
     } catch (err) {
       if (errCode(err) === "unverified") {
         setVerify(await api<VerificationStatus>("GET", "/me/verification").catch(() => null));
@@ -160,12 +243,6 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: ()
   // Said out loud rather than left as a greyed-out button nobody can explain.
   const missing =
     trimmed.length < 2 ? "Give the club a name to continue." : sports.length === 0 ? "Pick at least one sport." : null;
-  const initials = trimmed
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
   return (
     <div className="cc">
@@ -300,7 +377,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: ()
           <p className="section-head">Preview</p>
           <div className="cc-card">
             <div className="cc-card-top">
-              <span className="cc-crest">{initials || <Icon name="users" size={22} />}</span>
+              <span className="cc-crest">{initials(trimmed) || <Icon name="users" size={22} />}</span>
               <div>
                 <p className={`cc-card-name${trimmed ? "" : " placeholder"}`}>{trimmed || "Your club"}</p>
                 <p className="cc-card-meta">

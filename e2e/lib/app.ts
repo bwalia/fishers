@@ -194,7 +194,9 @@ export async function ensureClub(a: Actor, club: ClubSpec): Promise<ClubInfo & {
     await clearOverlays(page);
     await page.locator('input[placeholder="Fishers CC"]').fill(club.name);
     await page.getByRole("button", { name: "Create club" }).click();
-    await expect(page.locator(".club-card", { hasText: club.name })).toBeVisible();
+    // Creating lands on the new club's own page, welcome and all.
+    await page.waitForURL(/\/clubs\/[0-9a-f-]{36}/);
+    await expect(page.getByRole("dialog", { name: `${club.name} is ready` })).toBeVisible();
   }
   await page.goto("/clubs");
   await page.locator(".club-card", { hasText: club.name }).first().click();
