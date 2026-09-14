@@ -82,7 +82,8 @@ final class CricketSyncService: ObservableObject {
                     matchId: row.matchId,
                     oversLimit: row.oversLimit,
                     homeName: row.homeName,
-                    awayName: row.awayName
+                    awayName: row.awayName,
+                    opponentClubId: row.opponentClubId
                 )
                 store.markRegistered(remoteId: dto.id)
                 _ = try? await FishersAPI.claimScorer(
@@ -150,7 +151,8 @@ final class CricketSyncService: ObservableObject {
                     matchId: match.matchId,
                     oversLimit: match.oversLimit,
                     homeName: match.homeName,
-                    awayName: match.awayName
+                    awayName: match.awayName,
+                    opponentClubId: match.opponentClubId
                 ) else { continue }
                 matchId = dto.id
                 match.matchId = dto.id

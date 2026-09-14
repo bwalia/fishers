@@ -53,6 +53,13 @@ final class ChatStore: ObservableObject {
         }
     }
 
+    /// Somebody else wrote in the open thread: show it, and it has been read.
+    func threadChanged() async {
+        guard let id = openConversationId else { return }
+        await refreshThread()
+        try? await FishersAPI.markRead(conversationId: id)
+    }
+
     func send(_ body: String) async {
         guard let id = openConversationId else { return }
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)

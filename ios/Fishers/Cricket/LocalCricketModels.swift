@@ -18,6 +18,9 @@ final class LocalCricketMatch {
     var syncStatusRaw: String
     /// True until the API has been told this match exists.
     var needsRemoteCreate: Bool = false
+    /// The visiting club, when they are on Fishers. Sent when the match is
+    /// registered, so their captain gets a way in and a squad to pick from.
+    var opponentClubId: UUID?
     var updatedAt: Date
 
     @Relationship(deleteRule: .cascade, inverse: \LocalScoringEvent.match)

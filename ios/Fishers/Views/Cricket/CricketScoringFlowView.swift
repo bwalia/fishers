@@ -48,6 +48,9 @@ struct CricketScoringFlowView: View {
     /// until the match reaches the server, or when the caller is in neither
     /// club — a neutral scorer, who proposes for the home side as before.
     @State private var myClubSide: MatchSide?
+    /// Who each side picks from, with their captains marked. Asked for once
+    /// the match is on the server, which is by the time the sheets are named.
+    @State private var squads: MatchSquads?
 
     enum Step: Hashable {
         case setup, agreement, toss, sheets, openers, live
@@ -93,6 +96,20 @@ struct CricketScoringFlowView: View {
             }
         }
         .task(id: opponent?.clubId) { await loadOpponentPlayers() }
+        .task(id: step) {
+            guard step == .sheets, squads == nil else { return }
+            // A match started a moment ago may still be on its way up.
+            for _ in 0..<5 {
+                if let matchId = store.matchId, let found = try? await FishersAPI.squads(matchId: matchId) {
+                    squads = found
+                    if !found.away.players.isEmpty {
+                        opponentPlayers = found.away.players.map { MatchPlayer(id: $0.id, name: $0.name, batsLeft: $0.batsLeft) }
+                    }
+                    return
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 
     // MARK: Step 1 — the match
@@ -432,7 +449,8 @@ struct CricketScoringFlowView: View {
                     captain: $homeCaptain,
                     keeper: $homeKeeper,
                     clubPlayers: clubPlayers,
-                    alreadyPicked: Set(awaySheet.map(\.id))
+                    alreadyPicked: Set(awaySheet.map(\.id)),
+                    captains: captains
                 )
                 .tabItem { Label(homeName, systemImage: "house") }
 
@@ -444,7 +462,8 @@ struct CricketScoringFlowView: View {
                     // Their club's members when they are on Fishers; otherwise
                     // nothing to offer, and the scorer types the names.
                     clubPlayers: opponentPlayers,
-                    alreadyPicked: Set(homeSheet.map(\.id))
+                    alreadyPicked: Set(homeSheet.map(\.id)),
+                    captains: captains
                 )
                 .tabItem { Label(awayName, systemImage: "figure.walk") }
 
@@ -539,8 +558,19 @@ struct CricketScoringFlowView: View {
         }
     }
 
+    /// The fixture's squad once the server has it — picked, reserves, the
+    /// available, then the rest of the club — or whoever said they are coming.
     private var clubPlayers: [MatchPlayer] {
-        attendees.map { MatchPlayer(id: $0.userId, name: $0.name) }
+        if let home = squads?.home.players, !home.isEmpty {
+            return home.map { MatchPlayer(id: $0.id, name: $0.name, batsLeft: $0.batsLeft) }
+        }
+        return attendees.map { MatchPlayer(id: $0.userId, name: $0.name) }
+    }
+
+    /// Each club's captains, marked for them as they are picked.
+    private var captains: Set<UUID> {
+        let squad = (squads?.home.players ?? []) + (squads?.away.players ?? [])
+        return Set(squad.filter { $0.isCaptain == true }.map(\.id))
     }
 
     private var firstInningsBatting: MatchSide {
@@ -555,6 +585,9 @@ struct CricketScoringFlowView: View {
     private func resumeOrPrepare() async {
         if let opposition = event.metadata?["opposition"], case let .string(name) = opposition {
             awayName = name
+        }
+        if case let .string(name)? = event.metadata?["home_name"] {
+            homeName = name
         }
         guard store.resumeLocal() != nil, store.state.lastSeq > 0 else { return }
 
@@ -594,7 +627,10 @@ struct CricketScoringFlowView: View {
         defer { booting = false }
         store.replaceContext(modelContext)
         do {
-            _ = try store.openLocal(homeName: homeName, awayName: awayName, oversLimit: overs)
+            _ = try store.openLocal(
+                homeName: homeName, awayName: awayName, oversLimit: overs,
+                opponentClubId: opponent?.clubId ?? event.opponentClubId
+            )
         } catch {
             message = error.localizedDescription
             return
@@ -711,8 +747,12 @@ private struct TeamSheetEditor: View {
     let clubPlayers: [MatchPlayer]
     /// Nobody plays for both sides.
     let alreadyPicked: Set<UUID>
+    /// The club's captains. Picking one marks them C; once the scorer chooses
+    /// the captain themselves, the sheet stops choosing.
+    var captains: Set<UUID> = []
 
     @State private var guestName = ""
+    @State private var captainChosen = false
 
     var body: some View {
         List {
@@ -742,7 +782,11 @@ private struct TeamSheetEditor: View {
                     .onDelete { offsets in
                         let removed = offsets.map { players[$0].id }
                         players.remove(atOffsets: offsets)
-                        if let c = captain, removed.contains(c) { captain = nil }
+                        if let c = captain, removed.contains(c) {
+                            // Their captain dropped out: another of the club's
+                            // captains takes over, unless it was the scorer's call.
+                            captain = captainChosen ? nil : players.first { captains.contains($0.id) }?.id
+                        }
                         if let k = keeper, removed.contains(k) { keeper = nil }
                     }
                     .onMove { players.move(fromOffsets: $0, toOffset: $1) }
@@ -755,7 +799,10 @@ private struct TeamSheetEditor: View {
 
             if !players.isEmpty {
                 Section("Roles") {
-                    Picker("Captain", selection: $captain) {
+                    Picker("Captain", selection: Binding(
+                        get: { captain },
+                        set: { captain = $0; captainChosen = true }
+                    )) {
                         Text("—").tag(UUID?.none)
                         ForEach(players) { Text($0.name).tag(UUID?.some($0.id)) }
                     }
@@ -781,9 +828,17 @@ private struct TeamSheetEditor: View {
                     ForEach(available) { player in
                         Button {
                             players.append(player)
+                            if captain == nil, !captainChosen, captains.contains(player.id) {
+                                captain = player.id
+                            }
                         } label: {
                             HStack {
                                 Text(player.name)
+                                if captains.contains(player.id) {
+                                    Text("C").font(.caption2.bold())
+                                        .foregroundStyle(FishersTheme.accent)
+                                        .accessibilityLabel("Captain")
+                                }
                                 Spacer()
                                 Image(systemName: "plus.circle")
                                     .foregroundStyle(FishersTheme.accent)

@@ -994,19 +994,22 @@ enum FishersAPI {
         matchId: UUID? = nil,
         oversLimit: Int,
         homeName: String,
-        awayName: String
+        awayName: String,
+        opponentClubId: UUID? = nil
     ) async throws -> CricketMatchDTO {
         struct Body: Encodable {
             let match_id: UUID?
             let overs_limit: Int
             let home_name: String
             let away_name: String
+            let opponent_club_id: UUID?
         }
         return try await NetworkService.shared.request(
             "POST", path: "/events/\(eventId.uuidString)/cricket-match",
             body: Body(
                 match_id: matchId, overs_limit: oversLimit,
-                home_name: homeName, away_name: awayName
+                home_name: homeName, away_name: awayName,
+                opponent_club_id: opponentClubId
             )
         )
     }
@@ -1031,13 +1034,26 @@ enum FishersAPI {
     static func cricketFixtures(
         clubId: UUID? = nil,
         state: String? = nil,
+        search: String? = nil,
+        newestFirst: Bool = false,
         page: Int = 1,
         perPage: Int = 20
     ) async throws -> APIPage<CricketFixtureRow> {
-        var path = "/cricket/fixtures?page=\(page)&per_page=\(perPage)&"
-        if let clubId { path += "club_id=\(clubId.uuidString)&" }
-        if let state { path += "state=\(state)&" }
-        return try await NetworkService.shared.request("GET", path: path)
+        var components = URLComponents()
+        components.queryItems = [
+            .init(name: "page", value: String(page)),
+            .init(name: "per_page", value: String(perPage)),
+            .init(name: "order", value: newestFirst ? "desc" : "asc"),
+        ]
+        if let clubId { components.queryItems?.append(.init(name: "club_id", value: clubId.uuidString)) }
+        if let state { components.queryItems?.append(.init(name: "state", value: state)) }
+        // One letter matches most of the table; the API refuses it anyway.
+        if let search = search?.trimmingCharacters(in: .whitespaces), search.count >= 2 {
+            components.queryItems?.append(.init(name: "q", value: search))
+        }
+        return try await NetworkService.shared.request(
+            "GET", path: "/cricket/fixtures?\(components.percentEncodedQuery ?? "")"
+        )
     }
 
     /// `force` takes the match off a scorer whose phone has died mid-innings.

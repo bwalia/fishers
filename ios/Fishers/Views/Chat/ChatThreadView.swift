@@ -64,6 +64,18 @@ struct ChatThreadView: View {
             }
         }
         .task { await store.open(conversation) }
+        .task {
+            for await event in LiveStream.shared.events() {
+                switch event {
+                case .message(let id, _) where id == conversation.id: await store.threadChanged()
+                case .resync: await store.threadChanged()
+                default: break
+                }
+            }
+        }
+        // The thread on screen is not something to be alerted about.
+        .onAppear { LiveAlerts.openThread = conversation.id }
+        .onDisappear { if LiveAlerts.openThread == conversation.id { LiveAlerts.openThread = nil } }
     }
 
     private var proposalsHeader: some View {

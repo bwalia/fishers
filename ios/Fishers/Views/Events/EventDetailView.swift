@@ -54,9 +54,25 @@ struct EventDetailView: View {
             .padding()
         }
         .background(FishersTheme.mist.ignoresSafeArea())
+        .overlay(alignment: .top) {
+            if let match = existingCricket { MomentsBanner(state: match.state) }
+        }
         .navigationTitle("Event")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        // Every ball, the toss, the result — as the scorer records them.
+        .task {
+            for await event in LiveStream.shared.events() {
+                switch event {
+                case .match(let id, _) where id == existingCricket?.id:
+                    await reloadMatch()
+                case .resync:
+                    await reloadMatch()
+                default:
+                    break
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -66,7 +82,7 @@ struct EventDetailView: View {
                 if let match = existingCricket {
                     CricketScoreSummary(state: match.state)
                     NavigationLink {
-                        CricketScorecardView(state: match.state)
+                        FollowedScorecardView(match: match)
                     } label: {
                         Label("Full scorecard", systemImage: "list.bullet.rectangle")
                             .font(FishersTheme.subhead)
@@ -289,6 +305,13 @@ struct EventDetailView: View {
                 .padding(.vertical, 4)
             }
         }
+    }
+
+    private func reloadMatch() async {
+        guard let event, event.sport.lowercased() == "cricket",
+              let fresh = try? await FishersAPI.cricketMatchForEvent(eventId: eventId)
+        else { return }
+        existingCricket = fresh
     }
 
     private func load() async {

@@ -52,6 +52,9 @@ struct LiveScorerView: View {
     @State private var isSharing = false
     @State private var shareNotice: String?
     @State private var shareSheetItems: [Any]?
+    /// Which side this phone plays for and who the visitors are — the server's
+    /// to say, and only asked at an innings break.
+    @State private var matchInfo: CricketMatchDTO?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// A ball waiting on the wagon wheel before it is written to the log.
@@ -79,6 +82,16 @@ struct LiveScorerView: View {
               inn.lastOverBowler == bowler else { return false }
         return store.state.xi(inn.bowling).count > 1
     }
+    /// The side batting next, when handing them the book would help — not
+    /// when this phone is already on that side, and not when that side is not
+    /// a club on Fishers, where nobody has an account to hand it to.
+    private var handOverTo: MatchSide? {
+        guard let match = matchInfo, let batting = innings?.batting else { return nil }
+        let next = batting.opposite
+        guard match.myClubSide != next, next == .home || match.opponentClubId != nil else { return nil }
+        return next
+    }
+
     private var wheelMode: WagonWheelMode {
         WagonWheelMode(rawValue: wheelModeRaw) ?? .everyScoringShot
     }
@@ -106,6 +119,7 @@ struct LiveScorerView: View {
             }
         }
         .padding()
+        .overlay(alignment: .top) { MomentsBanner(state: store.state) }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 8) {
                 if let shareNotice {
@@ -242,6 +256,10 @@ struct LiveScorerView: View {
                 }
             }
         }
+        .task(id: store.state.status) {
+            guard store.state.status == .inningsBreak, matchInfo == nil, let id = store.matchId else { return }
+            matchInfo = try? await FishersAPI.match(matchId: id)
+        }
         .onChange(of: store.state.status) { _, status in
             if status == .inningsBreak || status.isFinished {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -323,6 +341,22 @@ struct LiveScorerView: View {
             }
 
             if store.state.status == .inningsBreak {
+                // The first decision of the break: naming the openers of a
+                // side you do not know is the wrong job, and this is the
+                // moment to pass it on.
+                if let next = handOverTo {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("The side batting normally keeps their own book — they know who is going in.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            showHandover = true
+                        } label: {
+                            Label("Hand the book to \(store.state.name(for: next))", systemImage: "book")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
                 Button("Start second innings") { showSecondInnings = true }
                     .buttonStyle(.borderedProminent)
                     .tint(FishersTheme.accent)

@@ -64,7 +64,8 @@ final class CricketMatchStore: ObservableObject {
     func openLocal(
         homeName: String,
         awayName: String,
-        oversLimit: Int
+        oversLimit: Int,
+        opponentClubId: UUID? = nil
     ) throws -> UUID {
         guard let modelContext else {
             throw CricketEngineError.validation("store not ready")
@@ -88,6 +89,7 @@ final class CricketMatchStore: ObservableObject {
             state: seed,
             needsRemoteCreate: true
         )
+        row.opponentClubId = opponentClubId
         modelContext.insert(row)
         try modelContext.save()
         adopt(row)

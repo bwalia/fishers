@@ -70,6 +70,9 @@ struct ClubInvite: Codable, Identifiable, Equatable {
 struct AppNotification: Codable, Identifiable, Equatable {
     let id: UUID
     let type: String
+    /// The text values of the payload. The API sends nulls (`team_name` on a
+    /// club invite) and non-strings too, which a plain `[String: String]`
+    /// refuses — and one such row used to fail the whole page.
     let payload: [String: String]
     let sentAt: Date
     let readAt: Date?
@@ -80,35 +83,69 @@ struct AppNotification: Codable, Identifiable, Equatable {
         case readAt = "read_at"
     }
 
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        type = try c.decode(String.self, forKey: .type)
+        sentAt = try c.decode(Date.self, forKey: .sentAt)
+        readAt = try c.decodeIfPresent(Date.self, forKey: .readAt)
+        let raw = (try? c.decodeIfPresent([String: JSONValue].self, forKey: .payload)) ?? [:]
+        payload = raw.compactMapValues { value in
+            switch value {
+            case .string(let text): return text
+            case .number(let n): return n == n.rounded() ? String(Int(n)) : String(n)
+            case .bool(let b): return String(b)
+            default: return nil
+            }
+        }
+    }
+
     var isUnread: Bool { readAt == nil }
 
     /// One line of plain English. A player is not going to read
-    /// `match_terms_proposed`.
+    /// `match_terms_proposed`. The same words the web uses.
     var line: String {
+        let sides = "\(payload["home_name"] ?? "A side") v \(payload["away_name"] ?? "another")"
         switch type {
         case "match_terms_proposed":
-            let sides = [payload["home_name"], payload["away_name"]]
-                .compactMap { $0 }.joined(separator: " v ")
-            return sides.isEmpty
-                ? "The other captain has proposed the terms. Open the match to agree."
-                : "\(sides) — the other captain has proposed the terms. Tap to agree."
+            return "\(sides) — the other captain has proposed the terms. Tap to agree."
+        case "match_pick_your_xi":
+            return "\(sides) — the toss is done. Pick your side."
         case "match_terms_agreed":
             return "Both captains have agreed the terms. You can do the toss."
-        case "match_pick_your_xi":
-            let sides = [payload["home_name"], payload["away_name"]]
-                .compactMap { $0 }.joined(separator: " v ")
-            return sides.isEmpty
-                ? "The toss is done. Pick your side."
-                : "\(sides) — the toss is done. Pick your side."
+        case "match_book_handed_over":
+            return "\(sides) — you have the book. You're scoring from the next ball."
+        case "fixture_scheduled":
+            return "\(payload["title"] ?? "A fixture") — can you play?"
+        case "player_responded":
+            return "\(payload["player"] ?? "A player") answered for \(payload["title"] ?? "a fixture")."
         case "invite":
-            return "You have a new invite."
+            let from = payload["inviter"].map { " \($0) invited you." } ?? ""
+            if let team = payload["team_name"] {
+                return "\(payload["club_name"] ?? "A club") wants you in their \(team).\(from)"
+            }
+            if let event = payload["event_title"] {
+                return "You're invited: \(event).\(from)"
+            }
+            return "\(payload["club_name"] ?? "A club") wants you in the club.\(from)"
+        case "invite_accepted":
+            let into = payload["team_name"] ?? payload["event_title"] ?? payload["club_name"] ?? "the club"
+            return "\(payload["player"] ?? "A player") accepted — they're in \(into)."
         default:
             return type.replacingOccurrences(of: "_", with: " ")
         }
     }
 
+    /// Which fixture, when there are several against the same side.
+    var when: Date? {
+        payload["start_at"].flatMap { try? FishersJSONDecoder.make().decode(Date.self, from: Data("\"\($0)\"".utf8)) }
+    }
+
     /// The match this is about, when it is about one.
     var matchId: UUID? { payload["match_id"].flatMap(UUID.init(uuidString:)) }
+
+    /// The fixture a tap should open, when there is one.
+    var eventId: UUID? { payload["event_id"].flatMap(UUID.init(uuidString:)) }
 }
 
 /// A page of anything the API pages.
