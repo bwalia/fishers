@@ -159,6 +159,9 @@ struct Event: Codable, Identifiable, Hashable {
     var feeCurrency: String
     var status: String
     var metadata: [String: JSONValue]?
+    /// Set on a ticketed event — a dinner, a quiz, presentation night.
+    var ticketPriceCents: Int?
+    var opponentClubId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, sport, title, capacity, status, metadata
@@ -170,6 +173,8 @@ struct Event: Codable, Identifiable, Hashable {
         case endAt = "end_at"
         case feeAmountCents = "fee_amount_cents"
         case feeCurrency = "fee_currency"
+        case ticketPriceCents = "ticket_price_cents"
+        case opponentClubId = "opponent_club_id"
     }
 }
 

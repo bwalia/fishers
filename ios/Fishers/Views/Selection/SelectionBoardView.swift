@@ -158,7 +158,7 @@ struct SelectionBoardView: View {
                 }
             }
             if !store.reserves.isEmpty {
-                Section("Reserves") {
+                Section {
                     ForEach(store.reserves, id: \.self) { userId in
                         if let candidate = board.candidates.first(where: { $0.userId == userId }) {
                             CandidateRow(
@@ -169,6 +169,18 @@ struct SelectionBoardView: View {
                             )
                         }
                     }
+                    // Somebody dropped out: fill the gap from the reserves, in
+                    // the order they were picked, and tell them.
+                    Button {
+                        Task {
+                            try? await FishersAPI.promoteReserves(eventId: eventId)
+                            await store.load()
+                        }
+                    } label: {
+                        Label("Move reserves up into empty places", systemImage: "arrow.up.circle")
+                    }
+                } header: {
+                    Text("Reserves")
                 }
             }
         }

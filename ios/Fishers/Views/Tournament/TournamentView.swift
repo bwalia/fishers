@@ -198,10 +198,24 @@ struct TournamentView: View {
                     Text(entrant.name)
                         .strikethrough(entrant.withdrawn)
                     Spacer()
-                    if let group = entrant.groupLabel {
+                    if entrant.withdrawn {
+                        Text("Withdrawn").font(.caption).foregroundStyle(.secondary)
+                    } else if let group = entrant.groupLabel {
                         Text("Group \(group)")
                             .font(.caption)
                             .foregroundStyle(FishersTheme.accent)
+                    }
+                }
+                // Pulled out after the draw: their fixtures stay, marked, so
+                // the table and the history still add up.
+                .swipeActions(edge: .trailing) {
+                    if !entrant.withdrawn {
+                        Button("Withdraw", role: .destructive) {
+                            Task {
+                                try? await FishersAPI.withdrawEntrant(entrant.id)
+                                await store.load()
+                            }
+                        }
                     }
                 }
             }

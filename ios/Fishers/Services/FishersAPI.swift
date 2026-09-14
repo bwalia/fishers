@@ -885,6 +885,45 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/events/\(id.uuidString)")
     }
 
+    // MARK: Fixtures
+
+    static func myFixtures(from: Date, to: Date) async throws -> [MyFixture] {
+        var components = URLComponents()
+        components.path = "/events/mine"
+        let iso = ISO8601DateFormatter()
+        components.queryItems = [
+            URLQueryItem(name: "from", value: iso.string(from: from)),
+            URLQueryItem(name: "to", value: iso.string(from: to)),
+        ]
+        // `+` in a timestamp would be read as a space; the formatter writes Z.
+        return try await NetworkService.shared.request("GET", path: components.string ?? "/events/mine")
+    }
+
+    /// A whole set of days at once — "every Saturday this month".
+    static func setAvailability(dates: [String], status: AvailabilityStatus) async throws -> [Availability] {
+        struct Body: Encodable { let dates: [String]; let status: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/availability/bulk", body: Body(dates: dates, status: status.rawValue)
+        )
+    }
+
+    /// Recorded at the door: `cash` or `transfer`.
+    static func markTicketPaid(_ ticketId: UUID, method: String) async throws {
+        struct Body: Encodable { let method: String }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/tickets/\(ticketId.uuidString)/mark-paid", body: Body(method: method)
+        )
+    }
+
+    static func withdrawEntrant(_ entrantId: UUID) async throws {
+        try await NetworkService.shared.requestVoid("POST", path: "/entrants/\(entrantId.uuidString)/withdraw")
+    }
+
+    /// Fill empty places from the reserve list, in the captain's order.
+    static func promoteReserves(eventId: UUID) async throws {
+        try await NetworkService.shared.requestVoid("POST", path: "/events/\(eventId.uuidString)/selection/promote")
+    }
+
     static func rsvp(eventId: UUID, status: RsvpStatus) async throws {
         struct Body: Encodable { let status: String }
         try await NetworkService.shared.requestVoid(
@@ -1090,6 +1129,9 @@ enum FishersAPI {
 
 struct CreateEventBody: Encodable {
     let club_id: UUID
+    /// The other side, when they are a club on Fishers — their players are
+    /// asked whether they can play too.
+    var opponent_club_id: UUID? = nil
     let team_id: UUID?
     let sport: String
     let event_subtype: String
