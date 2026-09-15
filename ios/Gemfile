@@ -4,4 +4,15 @@ source "https://rubygems.org"
 # submission. See fastlane/Fastfile and .github/workflows/ios_release.yml.
 #
 # Requires Bundler 2.x (Ruby 3.2+ removed String#untaint; Bundler 1.17 breaks).
+#
+# Homebrew Ruby 4.x no longer ships ostruct/logger/etc as default gems; fastlane
+# still requires them — pin explicitly so `bundle exec fastlane` loads.
 gem "fastlane"
+gem "ostruct"
+gem "logger"
+gem "csv"
+gem "base64"
+gem "mutex_m"
+gem "abbrev"
+gem "nkf"
+gem "rexml"
