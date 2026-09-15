@@ -96,22 +96,20 @@ def ensure_testflight_testers!(api_key:)
 
   testflight_tester_emails.each do |email|
     UI.message("Ensuring TestFlight tester #{email} is in group '#{group_name}'")
-    begin
-      if group.respond_to?(:add_beta_testers)
-        group.add_beta_testers(
-          attributes: [{ email: email, firstName: email.split("@").first, lastName: "Tester" }]
-        )
-      else
-        Spaceship::ConnectAPI.post_beta_tester_to_group(
-          group_id: group.id,
+  end
+  begin
+    # Preferred Spaceship 2.240 API — creates testers and assigns them to the group.
+    group.post_bulk_beta_tester_assignments(
+      beta_testers: testflight_tester_emails.map do |email|
+        {
           email: email,
-          first_name: email.split("@").first,
-          last_name: "Tester"
-        )
+          firstName: email.split("@").first,
+          lastName: "Tester"
+        }
       end
-    rescue => e
-      UI.important("Invite #{email}: #{e.message} — continuing")
-    end
+    )
+  rescue => e
+    UI.important("Bulk tester invite failed: #{e.message} — continuing; upload may still notify the group")
   end
 
   group_name
@@ -301,7 +299,28 @@ platform :ios do
       beta_app_feedback_email: testflight_tester_emails.first,
       demo_account_required: false,
       uses_non_exempt_encryption: false,
-      reject_build_waiting_for_review: false
+      reject_build_waiting_for_review: false,
+      # Required for first-time / external Beta App Review submission.
+      beta_app_review_info: {
+        contact_email: ENV.fetch("TESTFLIGHT_CONTACT_EMAIL", testflight_tester_emails.first),
+        contact_first_name: ENV.fetch("TESTFLIGHT_CONTACT_FIRST_NAME", "Balinder"),
+        contact_last_name: ENV.fetch("TESTFLIGHT_CONTACT_LAST_NAME", "Walia"),
+        contact_phone: ENV.fetch("TESTFLIGHT_CONTACT_PHONE", "+447700900123"),
+        demo_account_required: false,
+        notes: ENV.fetch(
+          "TESTFLIGHT_REVIEW_NOTES",
+          "QA build for Fishers TestFlight testers. No special demo account required."
+        )
+      },
+      localized_app_info: {
+        "en-GB": {
+          feedback_email: testflight_tester_emails.first,
+          description: ENV.fetch(
+            "TESTFLIGHT_BETA_DESCRIPTION",
+            "Fishers is a club sports app for fixtures, live cricket scoring, chat, and team selection."
+          )
+        }
+      }
     )
   end
 
