@@ -41,17 +41,19 @@ class APITourCase: XCTestCase {
     var stamp: Int { Int(Date().timeIntervalSince1970 * 1000) % 100_000_000 }
 
     /// Signed up, with a player profile finished and a role chosen.
-    func makeAccount(_ tag: String, name: String, role: String, verified: Bool = false) throws -> Account {
+    /// `profile: false` leaves it as it is straight after signing up — the
+    /// quick start still to come.
+    func makeAccount(_ tag: String, name: String, role: String, verified: Bool = false, profile: Bool = true) throws -> Account {
         let email = "ios-\(tag)-\(stamp)@fishers.test"
         let tokens = try api("POST", "/auth/signup", token: nil,
                              body: ["name": name, "email": email, "password": Self.password])
         let token = try XCTUnwrap(tokens["access_token"] as? String)
         let refresh = try XCTUnwrap(tokens["refresh_token"] as? String)
-        try api("PATCH", "/me", token: token, body: [
+        try api("PATCH", "/me", token: token, body: profile ? [
             "primary_sport": "cricket",
             "sport_profiles": [["sport": "cricket", "position": "batter", "skill_level": "club", "stats": [:]]],
             "role_intent": role,
-        ])
+        ] : ["role_intent": role])
         let account = Account(access: token, refresh: refresh, email: email)
         if verified {
             try skipUnlessVerificationIsOn(token)

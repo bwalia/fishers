@@ -84,8 +84,10 @@ struct ProfileEditView: View {
                     if isSaving {
                         ProgressView()
                     } else {
+                        // Whatever is filled in saves — a profile is finished
+                        // a bit at a time, not all at once.
                         Button("Save") { save() }
-                            .disabled(!form.isComplete)
+                            .disabled(!form.isNameValid)
                     }
                 }
             }

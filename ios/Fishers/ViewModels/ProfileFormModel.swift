@@ -121,16 +121,6 @@ final class ProfileFormModel {
     // MARK: Validation
 
     var isNameValid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
-    var hasSports: Bool { !selectedSports.isEmpty }
-
-    /// A sport is done once the player has said what standard they play at.
-    func isDetailComplete(_ sport: Sport) -> Bool {
-        detail(for: sport).tier != nil
-    }
-
-    var isComplete: Bool {
-        isNameValid && hasSports && selectedSports.allSatisfy(isDetailComplete)
-    }
 
     // MARK: Output
 

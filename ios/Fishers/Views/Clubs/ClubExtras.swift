@@ -7,7 +7,6 @@ import MapKit
 /// with the one button that starts it.
 struct ClubWelcomeSheet: View {
     let clubName: String
-    let steps: [ClubSetupStep]
     let onAddPlayers: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -22,7 +21,7 @@ struct ClubWelcomeSheet: View {
                 .accessibilityHidden(true)
             Text("CLUB CREATED").font(FishersTheme.overline).tracking(0.8).foregroundStyle(FishersTheme.pitch)
             Text("\(clubName) is ready").font(FishersTheme.display).multilineTextAlignment(.center)
-            Text("You're its secretary. Bring your players in next — then a team, a captain and a ground, and you're set for your first fixture.")
+            Text("You're its secretary. Add your players and you can start a match straight away — teams, a captain and a ground can come later.")
                 .font(FishersTheme.subhead)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -30,9 +29,9 @@ struct ClubWelcomeSheet: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 row(number: nil, title: "Create your club", detail: nil, current: false)
-                ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
-                    row(number: index + 2, title: step.title, detail: index == 0 ? step.detail : nil, current: index == 0)
-                }
+                row(number: 2, title: "Add your players",
+                    detail: "By email or mobile number, or from a profile link a player sends you.", current: true)
+                row(number: 3, title: "Start your first match", detail: nil, current: false)
             }
             .padding(.vertical, FishersTheme.space1)
 

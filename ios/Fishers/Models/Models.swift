@@ -66,15 +66,6 @@ struct PublicUser: Codable, Identifiable, Equatable {
     }
 
     var playedSports: [Sport] { profiles.compactMap(\.sportKind) }
-
-    /// The gate the app uses to decide whether to run profile setup: a name, at
-    /// least one sport, and a stated level for it. Trusts the server's flag when
-    /// it sends one.
-    var isProfileComplete: Bool {
-        if let profileComplete { return profileComplete }
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-        return primaryProfile?.isComplete ?? false
-    }
 }
 
 struct AuthTokens: Codable {

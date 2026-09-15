@@ -132,7 +132,7 @@ final class OnboardingTests: XCTestCase {
     func testVerifyStepOnlyWhenTheServerCanSendACode() throws {
         let u = try user(intent: "player")
         let steps = GettingStartedGuide.steps(facts(role: .player, user: u, canVerify: false))
-        XCTAssertEqual(steps.map(\.id), ["profile", "share", "join"])
+        XCTAssertEqual(steps.map(\.id), ["share", "join"], "the profile is the strength card's job, not a step")
     }
 
     func testPlayerShareStepTicksWhenAnInviteArrives() throws {
@@ -146,5 +146,55 @@ final class OnboardingTests: XCTestCase {
 
         steps = GettingStartedGuide.steps(facts(role: .player, user: u, clubs: 1))
         XCTAssertNil(steps.first { !$0.done })
+    }
+
+    // MARK: Quick start and profile strength
+
+    private func profiled(_ json: String) throws -> PublicUser {
+        try decoder.decode(PublicUser.self, from: Data("""
+        {"id":"11111111-1111-1111-1111-111111111111","name":"Pat Player","sports_played":[]\(json)}
+        """.utf8))
+    }
+
+    func testStrengthCountsWhatIsFilledIn() throws {
+        let fresh = try profiled("")
+        XCTAssertEqual(ProfileStrength(fresh).percent, 10, "a name is all a new account has")
+        XCTAssertEqual(ProfileStrength(fresh).nextUp, "Add what you play, a photo and the standard you play at")
+
+        let quick = try profiled(#","phone":"07700900123","primary_sport":"cricket","sport_profiles":[{"sport":"cricket"}]"#)
+        XCTAssertEqual(ProfileStrength(quick).percent, 35, "name, sport and number: what the quick start asks")
+
+        let full = try profiled("""
+        ,"phone":"07700900123","avatar_url":"https://x/p.jpg","emergency_contact":"Mum 07700",
+        "email_verified":true,"primary_sport":"cricket",
+        "sport_profiles":[{"sport":"cricket","skill_level":"Club","position":"Batter"}],
+        "location":{"area":"Hemel","transport":"driver"}
+        """)
+        XCTAssertEqual(ProfileStrength(full).percent, 100)
+        XCTAssertTrue(ProfileStrength(full).isComplete)
+        XCTAssertEqual(ProfileStrength(full).nextUp, "")
+    }
+
+    func testQuickStartIsShownOnceAndSkippable() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "quick-start-\(UUID().uuidString)"))
+        let fresh = try profiled("")
+        XCTAssertTrue(SessionStore.needsQuickStart(fresh, defaults: defaults))
+
+        defaults.set(true, forKey: SessionStore.quickStartKey(fresh.id))
+        XCTAssertFalse(SessionStore.needsQuickStart(fresh, defaults: defaults), "skipped is past it")
+
+        let other = try XCTUnwrap(UserDefaults(suiteName: "quick-start-\(UUID().uuidString)"))
+        let played = try profiled(#","sport_profiles":[{"sport":"cricket"}]"#)
+        XCTAssertFalse(SessionStore.needsQuickStart(played, defaults: other), "a sport on file is past it on any phone")
+    }
+
+    func testRemindersLandInTheEvening() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/London")!
+        let signedUp = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 14, hour: 22, minute: 30)))
+        let trigger = ProfileReminder.trigger(inDays: 1, from: signedUp, calendar: calendar)
+        XCTAssertEqual(trigger.dateComponents.day, 15)
+        XCTAssertEqual(trigger.dateComponents.hour, 18)
+        XCTAssertFalse(trigger.repeats)
     }
 }
