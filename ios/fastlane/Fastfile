@@ -111,7 +111,7 @@ def ensure_testflight_testers!(api_key:)
     rescue => e
       # Already in the group / already a tester is fine — continue.
       msg = e.message.to_s
-      if msg =~ /already|exists|conflict|ENTITY_ERROR\.RELATIONSHIP\.INVALID/i
+      if msg =~ /already|exists|conflict|cannot be assigned|ENTITY_ERROR\.RELATIONSHIP\.INVALID/i
         UI.message("#{email} already invited or in group — ok")
       else
         UI.important("Invite #{email}: #{msg} — continuing; upload may still notify the group")
@@ -402,49 +402,78 @@ platform :ios do
       "TESTFLIGHT_CHANGELOG",
       "Fishers TestFlight build — please install and smoke-test."
     )
+    beta_desc = ENV.fetch(
+      "TESTFLIGHT_BETA_DESCRIPTION",
+      "Fishers is a club sports app for fixtures, live cricket scoring, chat, and team selection."
+    )
+    review_info = {
+      contact_email: ENV.fetch("TESTFLIGHT_CONTACT_EMAIL", testflight_tester_emails.first),
+      contact_first_name: ENV.fetch("TESTFLIGHT_CONTACT_FIRST_NAME", "Balinder"),
+      contact_last_name: ENV.fetch("TESTFLIGHT_CONTACT_LAST_NAME", "Walia"),
+      # E.164 required; Ofcom drama numbers (e.g. +447700900xxx) are rejected by ASC.
+      contact_phone: ENV.fetch("TESTFLIGHT_CONTACT_PHONE", "+447911123456"),
+      demo_account_required: false,
+      notes: ENV.fetch(
+        "TESTFLIGHT_REVIEW_NOTES",
+        "QA build for Fishers TestFlight testers. No special demo account required."
+      )
+    }
 
+    # 1) Upload + internal distribute — App Store Connect users can install with
+    # no Beta App Review. Do this first so a blocked external submit cannot fail
+    # the whole release after the IPA is already on ASC.
     upload_to_testflight(
       api_key: key,
       ipa: ipa,
       skip_waiting_for_build_processing: false,
-      distribute_external: true,
-      groups: [group],
-      notify_external_testers: true,
+      distribute_external: false,
+      notify_external_testers: false,
       changelog: notes,
-      beta_app_description: ENV.fetch(
-        "TESTFLIGHT_BETA_DESCRIPTION",
-        "Fishers is a club sports app for fixtures, live cricket scoring, chat, and team selection."
-      ),
+      beta_app_description: beta_desc,
       beta_app_feedback_email: testflight_tester_emails.first,
       demo_account_required: false,
       uses_non_exempt_encryption: false,
-      reject_build_waiting_for_review: false,
-      # Required for first-time / external Beta App Review submission.
-      beta_app_review_info: {
-        contact_email: ENV.fetch("TESTFLIGHT_CONTACT_EMAIL", testflight_tester_emails.first),
-        contact_first_name: ENV.fetch("TESTFLIGHT_CONTACT_FIRST_NAME", "Balinder"),
-        contact_last_name: ENV.fetch("TESTFLIGHT_CONTACT_LAST_NAME", "Walia"),
-        # E.164 required; Ofcom drama numbers (e.g. +447700900xxx) are rejected by ASC.
-        contact_phone: ENV.fetch("TESTFLIGHT_CONTACT_PHONE", "+447911123456"),
-        demo_account_required: false,
-        notes: ENV.fetch(
-          "TESTFLIGHT_REVIEW_NOTES",
-          "QA build for Fishers TestFlight testers. No special demo account required."
-        )
-      },
-      localized_app_info: {
-        "en-GB": {
-          feedback_email: testflight_tester_emails.first,
-          description: ENV.fetch(
-            "TESTFLIGHT_BETA_DESCRIPTION",
-            "Fishers is a club sports app for fixtures, live cricket scoring, chat, and team selection."
-          )
-        }
-      }
+      reject_build_waiting_for_review: false
     )
 
-    # External distribute can succeed while the build is still Waiting for Review —
-    # attach to internal groups so App Store Connect users can install immediately.
+    # 2) Try external Fishers group. Apple allows only one build per version train
+    # in Beta App Review — if build N is already Waiting for Review, submitting
+    # N+1 fails. Keep the upload and continue (internal still works).
+    begin
+      upload_to_testflight(
+        api_key: key,
+        distribute_only: true,
+        skip_waiting_for_build_processing: false,
+        distribute_external: true,
+        groups: [group],
+        notify_external_testers: true,
+        changelog: notes,
+        beta_app_description: beta_desc,
+        beta_app_feedback_email: testflight_tester_emails.first,
+        demo_account_required: false,
+        uses_non_exempt_encryption: false,
+        reject_build_waiting_for_review: false,
+        beta_app_review_info: review_info,
+        localized_app_info: {
+          "en-GB": {
+            feedback_email: testflight_tester_emails.first,
+            description: beta_desc
+          }
+        }
+      )
+    rescue => e
+      msg = e.message.to_s
+      if msg =~ /Another build is in review|already in beta review/i
+        UI.important(
+          "External distribute skipped: #{msg} " \
+          "Leave the in-review build alone — email testers install after Apple approves it. " \
+          "App Store Connect users can install via Internal Testing now."
+        )
+      else
+        raise
+      end
+    end
+
     spaceship_token_from!(key)
     attach_latest_build_to_internal!
   end
