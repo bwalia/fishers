@@ -78,10 +78,29 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    /// Signed in but hasn't told us how they play yet — the app opens here.
-    var needsProfileSetup: Bool {
+    /// Just through the quick start: Home takes them on to the next thing —
+    /// a club to start, or a profile link to send. Once.
+    @Published var justStarted = false
+
+    /// Signed in, and not yet past the quick start — the app opens there.
+    var needsQuickStart: Bool {
         guard let user else { return false }
-        return !user.isProfileComplete
+        return Self.needsQuickStart(user, defaults: .standard)
+    }
+
+    /// Anyone who has told us a sport is past it, on any device; somebody who
+    /// skipped is past it on this one.
+    nonisolated static func needsQuickStart(_ user: PublicUser, defaults: UserDefaults) -> Bool {
+        user.profiles.isEmpty && !defaults.bool(forKey: quickStartKey(user.id))
+    }
+
+    nonisolated static func quickStartKey(_ id: UUID) -> String { "fishers:quick-start:\(id.uuidString)" }
+
+    func finishQuickStart() {
+        guard let user else { return }
+        UserDefaults.standard.set(true, forKey: Self.quickStartKey(user.id))
+        justStarted = true
+        objectWillChange.send()
     }
 
     /// Saves the setup or edit form and adopts the user the API returns.

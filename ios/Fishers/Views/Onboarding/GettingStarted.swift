@@ -4,7 +4,7 @@ import SwiftUI
 struct GuideStep: Identifiable, Equatable {
     enum Action: Equatable {
         case verify, startClub, addTeam, invitePlayers, chooseCaptain, scheduleFixture
-        case completeProfile, shareProfile, acceptInvite
+        case shareProfile, acceptInvite
     }
 
     let id: String
@@ -80,11 +80,6 @@ enum GettingStartedGuide {
         case .player:
             steps += [
                 GuideStep(
-                    id: "profile", title: "Complete your profile",
-                    detail: "A photo, what you play and your position. It's what a captain sees on the team sheet.",
-                    done: f.user.isProfileComplete, action: .completeProfile
-                ),
-                GuideStep(
                     id: "share", title: "Send your profile to your club secretary",
                     detail: "They open your link and invite you in. No need for them to type your details.",
                     done: f.sharedOnce || f.inviteCount > 0 || f.clubCount > 0, action: .shareProfile
@@ -146,7 +141,6 @@ struct GettingStartedSection: View {
     /// does not reliably present one from list content, and the button then
     /// does nothing. Home presents them.
     let onStartClub: () -> Void
-    let onEditProfile: () -> Void
 
     @EnvironmentObject private var session: SessionStore
     @State private var switching = false
@@ -257,8 +251,6 @@ struct GettingStartedSection: View {
             }
         case .startClub:
             primary("Start your club", systemImage: "plus", action: onStartClub)
-        case .completeProfile:
-            primary("Complete your profile", systemImage: "person.text.rectangle", action: onEditProfile)
         case .shareProfile:
             ShareProfileView(userId: user.id, onShared: onShared)
         case .acceptInvite:

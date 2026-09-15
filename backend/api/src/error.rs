@@ -99,9 +99,11 @@ impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
         match err {
             sqlx::Error::RowNotFound => Self::not_found("resource not found"),
-            sqlx::Error::Database(db) if db.constraint().is_some() => {
-                Self::conflict(db.message().to_string())
-            }
+            sqlx::Error::Database(db) if db.constraint().is_some() => Self::conflict(
+                db.constraint()
+                    .and_then(taken)
+                    .map_or_else(|| db.message().to_string(), str::to_string),
+            ),
             other => {
                 tracing::error!(error = %other, "database error");
                 Self::internal("database error")
@@ -117,3 +119,32 @@ impl From<validator::ValidationErrors> for ApiError {
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
+
+/// The sentence for a value somebody else already has. Postgres says
+/// `duplicate key value violates unique constraint "users_phone_key"`, which
+/// reached a person typing their number into the app word for word.
+fn taken(constraint: &str) -> Option<&'static str> {
+    match constraint {
+        "users_phone_key" => Some("that mobile number is already on another account"),
+        "users_email_key" => Some("that email is already on another account"),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::taken;
+
+    #[test]
+    fn a_taken_number_reads_as_a_sentence() {
+        assert_eq!(
+            taken("users_phone_key"),
+            Some("that mobile number is already on another account")
+        );
+        assert_eq!(
+            taken("users_email_key"),
+            Some("that email is already on another account")
+        );
+        assert_eq!(taken("some_other_key"), None);
+    }
+}

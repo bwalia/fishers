@@ -37,7 +37,7 @@ struct AuthView: View {
 
                         Text(mode == .login
                              ? "Sign in to see fixtures, chats and selection."
-                             : "Create an account, then tell us how you play.")
+                             : "Create an account — you can be in a match within a minute.")
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

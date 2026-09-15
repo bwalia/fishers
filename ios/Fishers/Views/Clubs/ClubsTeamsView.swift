@@ -543,8 +543,13 @@ struct ClubDetailView: View {
     @State private var addingGround = false
     @State private var openAdmin = false
     @State private var setupHidden = true
+    @State private var startingMatch = false
+    @State private var startedMatch: Event?
 
     private var isSecretary: Bool { role?.isSecretary ?? false }
+    private var isCricket: Bool {
+        club.sportTypes.contains { $0.caseInsensitiveCompare("cricket") == .orderedSame }
+    }
     private var setupKey: String { "fishers:club-setup:\(club.id.uuidString):hidden" }
     private var setup: [ClubSetupStep] {
         ClubSetupStep.steps(members: members, teams: teams.count, venues: venues.count)
@@ -574,11 +579,30 @@ struct ClubDetailView: View {
                 .padding(.vertical, 4)
             }
 
+            // What the club is for: a match, as soon as there is anyone to play.
+            if isCricket, isSecretary || role?.canScoreMatch == true {
+                Section {
+                    Button {
+                        startingMatch = true
+                    } label: {
+                        Label("Start a match", systemImage: "figure.cricket")
+                            .font(FishersTheme.headline)
+                            .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(FishersTheme.pitch)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                } footer: {
+                    Text("Name the opposition and start scoring — no fixture to set up first.")
+                }
+            }
+
             if isSecretary, !setupHidden, setup.contains(where: { !$0.done }) {
                 setupSection
             }
 
-            if club.sportTypes.contains(where: { $0.caseInsensitiveCompare("cricket") == .orderedSame }) {
+            if isCricket {
                 Section("Season stats") {
                     NavigationLink {
                         ClubStatsView(clubId: club.id, clubName: club.name)
@@ -682,6 +706,12 @@ struct ClubDetailView: View {
         .navigationDestination(isPresented: $openAdmin) {
             ClubAdminView(club: club, role: role, startAdding: true)
         }
+        .sheet(isPresented: $startingMatch) {
+            QuickMatchSheet(clubs: [club]) { startedMatch = $0 }
+        }
+        .navigationDestination(item: $startedMatch) { event in
+            CricketScoringFlowView(event: event, attendees: [], canScore: true)
+        }
         .task {
             setupHidden = UserDefaults.standard.bool(forKey: setupKey)
             await load()
@@ -692,7 +722,7 @@ struct ClubDetailView: View {
         }
         .refreshable { await load() }
         .sheet(isPresented: $showWelcome) {
-            ClubWelcomeSheet(clubName: club.name, steps: setup) {
+            ClubWelcomeSheet(clubName: club.name) {
                 showWelcome = false
                 openAdmin = true
             }

@@ -19,6 +19,8 @@ struct HomeFeedView: View {
     /// Just made from the guide: open it, as the Clubs tab does.
     @State private var createdClub: ClubRoute?
     @State private var showProfileEdit = false
+    /// A player straight out of the quick start: their link, to send.
+    @State private var showWelcomeShare = false
 
     /// A fixture that has already been played is not something to turn up to.
     private var upcoming: [Event] {
@@ -80,9 +82,12 @@ struct HomeFeedView: View {
                         user: user,
                         onChanged: { await refreshAll() },
                         onShared: { guide.markShared() },
-                        onStartClub: { showNewClub = true },
-                        onEditProfile: { showProfileEdit = true }
+                        onStartClub: { showNewClub = true }
                     )
+                }
+
+                if loaded, let user = session.user {
+                    ProfileStrengthSection(user: user) { showProfileEdit = true }
                 }
 
                 if clubContext.clubs.count > 1 {
@@ -166,6 +171,11 @@ struct HomeFeedView: View {
             .sheet(isPresented: $showProfileEdit, onDismiss: { Task { await refreshAll() } }) {
                 ProfileEditView(user: session.user)
             }
+            .sheet(isPresented: $showWelcomeShare, onDismiss: { guide.markShared() }) {
+                if let user = session.user {
+                    WelcomeShareSheet(userId: user.id) { showWelcomeShare = false }
+                }
+            }
             .navigationTitle(greeting)
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -200,7 +210,7 @@ struct HomeFeedView: View {
             .navigationDestination(for: CricketFixtureRow.self) {
                 EventDetailView(eventId: $0.eventId)
             }
-            .task { await refreshAll(clubs: false) }
+            .task { await refreshAll(clubs: session.justStarted) }
             .task { await loadUnread() }
             .task {
                 for await event in LiveStream.shared.events() {
@@ -254,8 +264,26 @@ struct HomeFeedView: View {
         _ = await (profile, feed, mine)
         if let user = session.user {
             await guide.load(user: user, ownClub: ownClub)
+            // Moved on from now, so somebody who keeps opening the app is
+            // never nagged — only somebody who drifted away.
+            await ProfileReminder.reschedule(for: user)
         }
         loaded = true
+        handOff()
+    }
+
+    /// Out of the quick start and into the thing that gets them playing: a
+    /// secretary starts their club (and from there adds players), a player
+    /// sends their profile link. Once, and not to somebody already in a club.
+    private func handOff() {
+        guard session.justStarted else { return }
+        session.justStarted = false
+        guard clubContext.clubs.isEmpty else { return }
+        switch session.user?.intent {
+        case .secretary: showNewClub = true
+        case .player: showWelcomeShare = true
+        case nil: break
+        }
     }
 
     private func loadInvites() async {

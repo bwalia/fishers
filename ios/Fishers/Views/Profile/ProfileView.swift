@@ -42,6 +42,8 @@ struct ProfileView: View {
                         .listRowBackground(Color.clear)
                     }
 
+                    ProfileStrengthSection(user: user, onComplete: { isEditing = true }, offersReminder: false)
+
                     Section {
                         Picker("Section", selection: $tab) {
                             ForEach(Tab.allCases) { Text($0.title).tag($0) }
