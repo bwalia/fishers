@@ -50,15 +50,52 @@ message.
 
 ## One-time setup
 
-### 1. App Store Connect
+### 1. App Store Connect — where the ASC values come from
 
-1. Create app **Fishers** with bundle id `com.fishers.app`
-2. Generate an **App Store Connect API** key (App Manager role)
-3. Note your **Apple Team ID**
+You need an **App Store Connect API key**. Apple shows the key id and issuer id
+once; the private key (`.p8`) is downloadable **only once**.
+
+1. Create the app **Fishers** with bundle id `com.fishers.app` (if it does not exist yet).
+2. Open [App Store Connect → Users and Access → Integrations → App Store Connect API](https://appstoreconnect.apple.com/access/integrations/api)
+   (Account Holder or Admin).
+3. Under **Team Keys**, click **Generate API Key** (or **+**):
+   - Name: e.g. `Fishers CI`
+   - Access: **App Manager** (enough for TestFlight + signing via fastlane)
+4. After create, copy:
+   - **Key ID** → this is `ASC_KEY_ID` (looks like `AB12CD34EF`)
+   - **Issuer ID** at the top of the API keys page → this is `ASC_ISSUER_ID` (UUID)
+5. Click **Download API Key** → saves `AuthKey_<KeyID>.p8`. Store it safely; Apple will not show it again.
+6. Base64 the `.p8` for CI (one line, no wraps):
+
+   ```bash
+   # macOS
+   base64 -i AuthKey_AB12CD34EF.p8 | tr -d '\n'
+   # Linux
+   base64 -w0 AuthKey_AB12CD34EF.p8
+   ```
+
+   That string is `ASC_PRIVATE_KEY_B64`.
+
+7. **Apple Team ID** (`APPLE_TEAM_ID`) — 10 characters from
+   [developer.apple.com/account](https://developer.apple.com/account) → Membership details,
+   or Xcode → Settings → Accounts → your team.
+8. **App Store Connect app id** (`APP_STORE_APP_ID`, optional) — numeric id in the
+   browser URL when you open the Fishers app in App Store Connect
+   (`…/apps/1234567890/…`).
+
+| Secret | Where you get it |
+|--------|------------------|
+| `ASC_KEY_ID` | API key **Key ID** on the Integrations → App Store Connect API page |
+| `ASC_ISSUER_ID` | **Issuer ID** at the top of that same page |
+| `ASC_PRIVATE_KEY_B64` | `base64` of the downloaded `AuthKey_*.p8` |
+| `APPLE_TEAM_ID` | Apple Developer membership / Xcode team |
+| `APP_STORE_APP_ID` | Optional; ASC app URL numeric id |
+
+Never commit the `.p8` or base64 string to git.
 
 ### 2. Signing secrets (Vault or GitHub Actions)
 
-**Required fields** (same names in either place):
+Store the values from §1 under these names (same in either place):
 
 | Key | Description |
 |-----|-------------|
@@ -69,12 +106,12 @@ message.
 | `CERT_PRIVATE_KEY_B64` | (optional) base64 of distribution private key `.pem` |
 | `APP_STORE_APP_ID` | (optional) numeric ASC app id |
 
-**Option A — Vault** (preferred on the Mac Studio):
+**Option A — Vault** (on the Mac Studio):
 
 ```bash
 export VAULT_TOKEN_FILE=$HOME/.secrets/acc-vault/login-token.json   # same path as ios_release.yml
-export ASC_KEY_ID=...
-export ASC_ISSUER_ID=...
+export ASC_KEY_ID=...          # Key ID from App Store Connect
+export ASC_ISSUER_ID=...       # Issuer ID from App Store Connect
 export ASC_P8_PATH=$HOME/AuthKey_XXXXXX.p8
 export APPLE_TEAM_ID=...
 ./ios/ci/seed-ios-vault.sh
@@ -82,8 +119,13 @@ export APPLE_TEAM_ID=...
 
 Writes **`secret/fishers/ios`** (KV v2). See `ios/ci/ios.vault.env.example`.
 
-**Option B — GitHub Actions secrets** with the same key names (used when Vault
-path is missing).
+**Option B — GitHub Actions secrets** (recommended if you are not using Vault for iOS):
+
+1. Repo → **Settings** → **Secrets and variables** → **Actions**
+2. **New repository secret** for each required key above
+3. Re-run **iOS Release** (or merge any `ios/**` change to `main`)
+
+The workflow prefers GitHub secrets; if they are empty it falls back to Vault.
 
 ### 3. Self-hosted runner
 
