@@ -153,7 +153,8 @@ runner when present, otherwise from `ASC_PRIVATE_KEY_B64` / Vault.
 **TestFlight on every `main` merge (permanent — no Apple review):**
 
 1. CI invites Fishers testers as **App Store Connect** users (one-time email from Apple).
-2. Uploads the IPA to internal group **Fishers Internal** with `submit_beta_review: false`.
+2. Uploads the IPA to **App Store Connect Users** (built-in internal group) with
+   `submit_beta_review: false`.
 3. Testers who already accepted the ASC invite see the new build in TestFlight immediately.
 
 Default testers (override with `TESTFLIGHT_TESTERS`):
