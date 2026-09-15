@@ -9,8 +9,10 @@ default_platform(:ios)
 
 APP_ID = "com.fishers.app".freeze
 
-# Every main merge invites these emails into the external TestFlight group
-# "Fishers" and distributes the build there (notify_external_testers).
+# Every main merge force-reinvites these emails into the external TestFlight
+# group "Fishers" (delete + re-add → real TestFlight INSTALL invite email),
+# leaves Beta App Review alone so Apple can approve, notifies external testers,
+# and attaches the build to App Store Connect Users for immediate ASC install.
 # Override with TESTFLIGHT_GROUP / TESTFLIGHT_TESTERS (comma-separated).
 DEFAULT_TESTFLIGHT_GROUP = "Fishers".freeze
 DEFAULT_TESTFLIGHT_TESTERS = [
@@ -51,48 +53,100 @@ def testflight_tester_emails
   list.map(&:downcase).uniq
 end
 
-# POST /v1/betaTesterInvitations — Apple's explicit send/resend of the TestFlight
-# invite email. Assignment alone only emails on first add; "already in group"
-# skips the mail, which is why testers often never see an invite.
-def resend_beta_tester_invitation!(app:, email:)
-  tester = Spaceship::ConnectAPI::BetaTester.find(email: email)
-  unless tester&.id
-    UI.important("No beta tester record for #{email} yet — cannot resend invite")
-    return false
+# Apple's "build has completed processing" mail goes to the *developer* ASC
+# account — it is NOT the TestFlight install invite. The install invite is a
+# separate TestFlight email ("You're invited to test …") sent only when a
+# tester is newly added (Invited). Resend only works for Invited (not Accepted).
+# Stale "already in group" rows therefore never produce the install email.
+#
+# Force a real invite by deleting the tester from this app, then re-adding them
+# to the Fishers group so Apple mails a fresh TestFlight invitation.
+def beta_testers_for_email(email)
+  Array(Spaceship::ConnectAPI::BetaTester.all(filter: { email: email }))
+rescue => e
+  UI.message("BetaTester.all(#{email}): #{e.message}")
+  tester = Spaceship::ConnectAPI::BetaTester.find(email: email) rescue nil
+  tester ? [tester] : []
+end
+
+def purge_beta_tester_from_app!(app:, email:)
+  testers = beta_testers_for_email(email)
+  if testers.empty?
+    UI.message("No existing beta tester rows for #{email}")
+    return
   end
 
-  state =
-    if tester.respond_to?(:beta_tester_state)
-      tester.beta_tester_state.to_s
-    else
-      ""
+  testers.each do |tester|
+    next unless tester&.id
+    UI.message("Removing #{email} (id=#{tester.id}) from Fishers TestFlight so Apple will mail a fresh invite")
+    begin
+      Spaceship::ConnectAPI.delete_beta_testers_from_app(
+        beta_tester_ids: [tester.id],
+        app_id: app.id
+      )
+    rescue => e
+      UI.message("delete_beta_testers_from_app: #{e.message} — trying per-app delete")
+      begin
+        Spaceship::ConnectAPI.delete_beta_tester_from_apps(
+          beta_tester_id: tester.id,
+          app_ids: [app.id]
+        )
+      rescue => e2
+        UI.important("Could not purge #{email}: #{e2.message}")
+      end
     end
-  UI.message("#{email} betaTesterState=#{state.empty? ? 'unknown' : state}")
+  end
+end
 
-  body = {
-    data: {
-      type: "betaTesterInvitations",
-      relationships: {
-        app: { data: { type: "apps", id: app.id } },
-        betaTester: { data: { type: "betaTesters", id: tester.id } }
-      }
+def assign_tester_to_fishers_group!(group:, email:)
+  Spaceship::ConnectAPI.post_beta_tester_assignment(
+    beta_group_ids: [group.id],
+    attributes: {
+      email: email,
+      firstName: email.split("@").first.to_s[0, 30],
+      lastName: "Tester"
     }
-  }
-
-  client = Spaceship::ConnectAPI.client
-  UI.user_error!("Spaceship ConnectAPI client missing — token not set") unless client
-  tf = client.test_flight_request_client
-  tf.post("v1/betaTesterInvitations", body)
-  UI.success("Resent TestFlight invite email to #{email}")
+  )
+  UI.success(
+    "TestFlight INSTALL invite emailed to #{email} " \
+    "(subject like \"You're invited to test Fishers Sport\" — not the processing mail)"
+  )
   true
 rescue => e
-  UI.important("Resend invite to #{email} failed: #{e.message}")
+  UI.important("Assign #{email} to '#{group.name}': #{e.message}")
   false
 end
 
-# Ensure external group "Fishers" exists and each tester email is invited into it.
-# Always follow with betaTesterInvitations so Apple re-emails even when the tester
-# is already assigned to the group.
+# Enable a public join link on Fishers so testers can open TestFlight without
+# hunting for the invite email (still requires Beta App Review for the first build).
+def ensure_fishers_public_link!(group:)
+  attrs = { publicLinkEnabled: true, publicLinkLimitEnabled: false, publicLinkLimit: 10_000 }
+  begin
+    Spaceship::ConnectAPI.patch_group(group_id: group.id, attributes: attrs)
+  rescue => e
+    UI.message("patch_group public link: #{e.message}")
+  end
+
+  refreshed =
+    begin
+      Array(Spaceship::ConnectAPI.get_beta_groups(filter: { id: group.id })).first || group
+    rescue
+      group
+    end
+
+  link =
+    if refreshed.respond_to?(:public_link) then refreshed.public_link
+    elsif refreshed.respond_to?(:[]) then refreshed["publicLink"]
+    end
+  if link.to_s.strip.empty?
+    UI.message("Fishers public link enabled (URL appears in App Store Connect → TestFlight → Fishers)")
+  else
+    UI.success("Fishers TestFlight public link: #{link}")
+  end
+  link
+end
+
+# Ensure external group "Fishers" exists and each tester gets a FRESH install invite.
 def ensure_fishers_group_testers!(api_key:)
   spaceship_token_from!(api_key)
 
@@ -113,7 +167,7 @@ def ensure_fishers_group_testers!(api_key:)
       app_id: app.id,
       group_name: group_name,
       is_internal_group: false,
-      public_link_enabled: false,
+      public_link_enabled: true,
       public_link_limit: 10_000,
       public_link_limit_enabled: false
     )
@@ -121,32 +175,13 @@ def ensure_fishers_group_testers!(api_key:)
     UI.user_error!("Could not create or load TestFlight group '#{group_name}'") unless group&.id
   end
 
-  testflight_tester_emails.each do |email|
-    UI.message("Inviting #{email} to TestFlight group '#{group_name}'")
-    assigned_fresh = false
-    begin
-      Spaceship::ConnectAPI.post_beta_tester_assignment(
-        beta_group_ids: [group.id],
-        attributes: {
-          email: email,
-          firstName: email.split("@").first.to_s[0, 30],
-          lastName: "Tester"
-        }
-      )
-      assigned_fresh = true
-      UI.success("TestFlight assignment created for #{email} (group '#{group_name}')")
-    rescue => e
-      msg = e.message.to_s
-      if msg =~ /already|exists|conflict|cannot be assigned|ENTITY_ERROR/i
-        UI.message("#{email} already in '#{group_name}' — will resend invite email")
-      else
-        UI.important("Invite #{email}: #{msg} — continuing; will still try resend")
-      end
-    end
+  ensure_fishers_public_link!(group: group)
 
-    # Fresh assignment emails once via Apple. Resend covers "already in group"
-    # (no mail) and lost/spam-filtered invites.
-    resend_beta_tester_invitation!(app: app, email: email) unless assigned_fresh
+  testflight_tester_emails.each do |email|
+    UI.message("Forcing fresh TestFlight install invite for #{email}")
+    purge_beta_tester_from_app!(app: app, email: email)
+    sleep(2)
+    assign_tester_to_fishers_group!(group: group, email: email)
   end
 
   group_name
@@ -419,13 +454,14 @@ platform :ios do
     )
   end
 
-  desc "Invite / resend Fishers TestFlight emails (no IPA upload)"
+  desc "Invite / resend Fishers TestFlight INSTALL emails (no IPA upload)"
   lane :invite_testers do
     group = ensure_fishers_group_testers!(api_key: asc_api_key)
     UI.success(
-      "Invited/re-sent TestFlight emails for #{testflight_tester_emails.join(', ')} " \
-      "in '#{group}'. Check inbox (and spam) for Apple's TestFlight mail. " \
-      "External builds also need Beta App Review before install / 'new build' notify."
+      "Fresh TestFlight INSTALL invites sent to #{testflight_tester_emails.join(', ')} " \
+      "for '#{group}'. Look for Apple mail titled like \"You're invited to test Fishers Sport\" " \
+      "(NOT \"build has completed processing\"). Check spam. " \
+      "External install still needs Beta App Review for the first approved build."
     )
   end
 
@@ -442,6 +478,8 @@ platform :ios do
       "Fishers is a club sports app for fixtures, live cricket scoring, chat, and team selection."
     )
     begin
+      # Do NOT reject an in-flight Beta App Review — canceling it is why testers
+      # never get an installable build / install notify email.
       upload_to_testflight(
         api_key: key,
         distribute_only: true,
@@ -457,7 +495,7 @@ platform :ios do
         beta_app_feedback_email: testflight_tester_emails.first,
         demo_account_required: false,
         uses_non_exempt_encryption: false,
-        reject_build_waiting_for_review: true,
+        reject_build_waiting_for_review: false,
         beta_app_review_info: beta_app_review_info_hash,
         localized_app_info: {
           "en-GB": {
@@ -469,6 +507,7 @@ platform :ios do
     rescue => e
       UI.important("Distribute-only failed: #{e.message} — invites were still sent above")
     end
+    attach_latest_build_to_internal!
     UI.success("Fishers group '#{group}' updated for #{testflight_tester_emails.join(', ')}")
   end
 
@@ -488,39 +527,56 @@ platform :ios do
       "Fishers is a club sports app for fixtures, live cricket scoring, chat, and team selection."
     )
 
-    # Every main merge: invite emails into Fishers + distribute + notify.
-    # reject_build_waiting_for_review clears a stuck prior Waiting for Review
-    # so the new build can be submitted to the same external group.
-    upload_to_testflight(
-      api_key: key,
-      ipa: ipa,
-      app_identifier: APP_ID,
-      app_platform: "ios",
-      skip_waiting_for_build_processing: false,
-      distribute_external: true,
-      submit_beta_review: true,
-      notify_external_testers: true,
-      groups: [group],
-      changelog: notes,
-      beta_app_description: beta_desc,
-      beta_app_feedback_email: testflight_tester_emails.first,
-      demo_account_required: false,
-      uses_non_exempt_encryption: false,
-      reject_build_waiting_for_review: true,
-      beta_app_review_info: beta_app_review_info_hash,
-      localized_app_info: {
-        "en-GB": {
-          feedback_email: testflight_tester_emails.first,
-          description: beta_desc
+    # Fresh install invites above. Then upload + external distribute.
+    # reject_build_waiting_for_review MUST stay false: canceling Waiting for
+    # Review on every merge means Apple never finishes review, so external
+    # testers never get an installable build or the install notify email.
+    begin
+      upload_to_testflight(
+        api_key: key,
+        ipa: ipa,
+        app_identifier: APP_ID,
+        app_platform: "ios",
+        skip_waiting_for_build_processing: false,
+        distribute_external: true,
+        submit_beta_review: true,
+        notify_external_testers: true,
+        groups: [group],
+        changelog: notes,
+        beta_app_description: beta_desc,
+        beta_app_feedback_email: testflight_tester_emails.first,
+        demo_account_required: false,
+        uses_non_exempt_encryption: false,
+        reject_build_waiting_for_review: false,
+        beta_app_review_info: beta_app_review_info_hash,
+        localized_app_info: {
+          "en-GB": {
+            feedback_email: testflight_tester_emails.first,
+            description: beta_desc
+          }
         }
-      }
-    )
+      )
+    rescue => e
+      msg = e.message.to_s
+      if msg =~ /another.*review|already.*review|waiting for review|Beta App Review/i
+        UI.important(
+          "Beta App Review already in flight — leaving it alone so Apple can approve. " \
+          "That approval is what unlocks TestFlight install for Fishers testers. " \
+          "Detail: #{msg}"
+        )
+      else
+        raise
+      end
+    end
+
+    # ASC team members can install immediately via internal TestFlight (no review).
+    attach_latest_build_to_internal!
 
     UI.success(
-      "Shipped to TestFlight group '#{group}'. " \
-      "Invited/re-sent: #{testflight_tester_emails.join(', ')}. " \
-      "Open the TestFlight invite email or the TestFlight app. " \
-      "notify_external_testers 'new build' mail arrives after Beta App Review approves this build."
+      "Shipped toward TestFlight group '#{group}'. " \
+      "INSTALL invite emails re-sent to: #{testflight_tester_emails.join(', ')}. " \
+      "Look for \"You're invited to test Fishers Sport\" (ignore processing-complete mail). " \
+      "ASC users: open the TestFlight app now. External: install after Beta App Review."
     )
   end
 
