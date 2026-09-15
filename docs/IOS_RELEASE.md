@@ -150,25 +150,17 @@ runner when present, otherwise from `ASC_PRIVATE_KEY_B64` / Vault.
 5. The workflow’s **Verify App Store Connect API key** step probes
    `GET /v1/apps` before build numbering — read that log for the precise mismatch.
 
-**TestFlight on every `main` merge (permanent — no Apple review):**
+**TestFlight on every `main` merge:**
 
-1. CI invites Fishers testers as **App Store Connect** users (one-time email from Apple).
-2. Uploads the IPA to **App Store Connect Users** (built-in internal group) with
-   `submit_beta_review: false`.
-3. Testers who already accepted the ASC invite see the new build in TestFlight immediately.
+1. Invite `balindersinghwalia@icloud.com` and `harchran001@gmail.com` into the
+   external TestFlight group **Fishers** (Apple emails a TestFlight invite).
+2. Upload the IPA and distribute to **Fishers** with `notify_external_testers`.
+3. Override emails with `TESTFLIGHT_TESTERS` / group with `TESTFLIGHT_GROUP`.
 
-Default testers (override with `TESTFLIGHT_TESTERS`):
-
-- `balindersinghwalia@icloud.com`
-- `harchran001@gmail.com`
-
-**First time only:** open the App Store Connect invitation email → Accept → open the
-**TestFlight** app with that Apple ID → Install Fishers. Every later merge updates
-the build with no Beta App Review and no blockers.
-
-Do not use external TestFlight email groups for day-to-day QA — those always go to
-Apple review. `workflow_dispatch` target **`testflight_ready`** re-attaches the
-latest build without rebuilding.
+Open the TestFlight invite email (or the TestFlight app) to install. The first
+build of a version may briefly show Waiting for Review; later builds to the same
+Fishers group usually follow without a long wait. CI uses
+`reject_build_waiting_for_review` so a stuck prior review does not block the next merge.
 
 ### 3. Self-hosted runner
 

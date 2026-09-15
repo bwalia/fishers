@@ -9,10 +9,10 @@ default_platform(:ios)
 
 APP_ID = "com.fishers.app".freeze
 
-# Permanent policy: Internal Testing only (no Apple Beta App Review).
-# Use Apple's built-in internal group — Spaceship cannot create custom internal
-# groups (ASC rejects publicLink* attrs on isInternalGroup: true).
-DEFAULT_TESTFLIGHT_GROUP = "App Store Connect Users".freeze
+# Every main merge invites these emails into the external TestFlight group
+# "Fishers" and distributes the build there (notify_external_testers).
+# Override with TESTFLIGHT_GROUP / TESTFLIGHT_TESTERS (comma-separated).
+DEFAULT_TESTFLIGHT_GROUP = "Fishers".freeze
 DEFAULT_TESTFLIGHT_TESTERS = [
   "balindersinghwalia@icloud.com",
   "harchran001@gmail.com"
@@ -51,63 +51,54 @@ def testflight_tester_emails
   list.map(&:downcase).uniq
 end
 
-# Invite Fishers testers as App Store Connect users. Internal Testing uses the
-# built-in "App Store Connect Users" group — no Beta App Review. Apple emails an
-# ASC seat invite once; every later main merge just ships a build.
-def ensure_fishers_internal_testers!(api_key:)
+# Ensure external group "Fishers" exists and each tester email is invited into it.
+# Apple emails a TestFlight invite when a tester is first added to the group.
+def ensure_fishers_group_testers!(api_key:)
   spaceship_token_from!(api_key)
 
   app = Spaceship::ConnectAPI::App.find(APP_ID)
   UI.user_error!("App Store Connect app '#{APP_ID}' not found — create it first") unless app
 
   group_name = testflight_group_name
-  UI.message("Internal TestFlight group: '#{group_name}' (no Apple Beta App Review)")
 
-  # One-time ASC seat invites — required for Internal Testing.
+  find_group = lambda do
+    Array(app.get_beta_groups(filter: { name: group_name })).find { |g| g.name == group_name } ||
+      Array(app.get_beta_groups).find { |g| g.name == group_name }
+  end
+
+  group = find_group.call
+  unless group
+    UI.message("Creating external TestFlight group '#{group_name}'")
+    created = Spaceship::ConnectAPI.create_beta_group(
+      app_id: app.id,
+      group_name: group_name,
+      is_internal_group: false,
+      public_link_enabled: false,
+      public_link_limit: 10_000,
+      public_link_limit_enabled: false
+    )
+    group = created.respond_to?(:id) && created.id ? created : find_group.call
+    UI.user_error!("Could not create or load TestFlight group '#{group_name}'") unless group&.id
+  end
+
   testflight_tester_emails.each do |email|
-    UI.message("Ensuring App Store Connect access for #{email}")
+    UI.message("Inviting #{email} to TestFlight group '#{group_name}'")
     begin
-      existing_user = begin
-        Spaceship::ConnectAPI::User.all(filter: { email: email }).first
-      rescue
-        nil
-      end
-      if existing_user
-        UI.message("#{email} already an App Store Connect user — ok")
-        next
-      end
-
-      pending = begin
-        inv = Spaceship::ConnectAPI::UserInvitation.find(email: email)
-        inv.respond_to?(:each) ? Array(inv).first : inv
-      rescue
-        nil
-      end
-      if pending
-        UI.message("#{email} already has a pending ASC invite — ok")
-        next
-      end
-
-      first = email.split("@").first.to_s
-      Spaceship::ConnectAPI::UserInvitation.create(
-        email: email,
-        first_name: first[0, 30],
-        last_name: "Tester",
-        roles: ["MARKETING"],
-        provisioning_allowed: false,
-        all_apps_visible: false,
-        visible_app_ids: [app.id]
+      Spaceship::ConnectAPI.post_beta_tester_assignment(
+        beta_group_ids: [group.id],
+        attributes: {
+          email: email,
+          firstName: email.split("@").first.to_s[0, 30],
+          lastName: "Tester"
+        }
       )
-      UI.success("Sent App Store Connect invite to #{email} (accept once, then TestFlight installs on every merge)")
+      UI.success("TestFlight invite sent to #{email} (group '#{group_name}')")
     rescue => e
       msg = e.message.to_s
-      if msg =~ /already|exists|conflict|duplicate/i
-        UI.message("#{email}: #{msg} — ok")
+      if msg =~ /already|exists|conflict|cannot be assigned|ENTITY_ERROR/i
+        UI.message("#{email} already in '#{group_name}' — ok")
       else
-        UI.important(
-          "ASC invite #{email}: #{msg} — continuing upload. " \
-          "If they cannot install, invite them under Users and Access."
-        )
+        UI.important("Invite #{email}: #{msg} — continuing; distribute may still notify the group")
       end
     end
   end
@@ -115,9 +106,26 @@ def ensure_fishers_internal_testers!(api_key:)
   group_name
 end
 
-# Back-compat alias used by invite_testers lane.
 def ensure_testflight_testers!(api_key:)
-  ensure_fishers_internal_testers!(api_key: api_key)
+  ensure_fishers_group_testers!(api_key: api_key)
+end
+
+def ensure_fishers_internal_testers!(api_key:)
+  ensure_fishers_group_testers!(api_key: api_key)
+end
+
+def beta_app_review_info_hash
+  {
+    contact_email: ENV.fetch("TESTFLIGHT_CONTACT_EMAIL", testflight_tester_emails.first),
+    contact_first_name: ENV.fetch("TESTFLIGHT_CONTACT_FIRST_NAME", "Balinder"),
+    contact_last_name: ENV.fetch("TESTFLIGHT_CONTACT_LAST_NAME", "Walia"),
+    contact_phone: ENV.fetch("TESTFLIGHT_CONTACT_PHONE", "+447911123456"),
+    demo_account_required: false,
+    notes: ENV.fetch(
+      "TESTFLIGHT_REVIEW_NOTES",
+      "QA build for Fishers TestFlight testers. No special demo account required."
+    )
+  }
 end
 
 # Internal TestFlight (App Store Connect Users) does not need Beta App Review —
