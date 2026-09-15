@@ -133,6 +133,7 @@ struct NotificationsView: View {
         case "fixture_scheduled": return "Fixtures"
         case "player_responded": return "Availability"
         case "invite_accepted": return "Invitations"
+        case "profile_nudge": return "Your profile"
         case "match_scheduled": return "Fixtures"
         case "availability_request": return "Availability"
         case "fee_reminder": return "Match fees"

@@ -21,10 +21,11 @@ struct ProfileStrength: Equatable {
             Item(id: "name", title: "Your name", weight: 10, done: !user.name.trimmingCharacters(in: .whitespaces).isEmpty),
             Item(id: "sport", title: "What you play", weight: 15, done: main != nil),
             Item(id: "phone", title: "Your mobile number", weight: 10, done: user.phone?.nonEmpty != nil),
-            Item(id: "verified", title: "Confirm your email or number", weight: 10, done: user.isVerified),
             Item(id: "photo", title: "A photo", weight: 15, done: user.avatarUrl?.nonEmpty != nil),
             Item(id: "standard", title: "The standard you play at", weight: 15, done: main?.tier != nil),
             Item(id: "position", title: "Your position", weight: 10, done: main?.position?.nonEmpty != nil),
+            // Same order and weights as the API's count, so both say the same next thing.
+            Item(id: "verified", title: "A confirmed email or number", weight: 10, done: user.isVerified),
             Item(id: "area", title: "Where you're based", weight: 5,
                  done: user.location?.area?.nonEmpty != nil || user.location?.postcode?.nonEmpty != nil),
             Item(id: "travel", title: "How you get to games", weight: 5, done: user.location?.transport != nil),

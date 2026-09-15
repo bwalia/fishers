@@ -93,7 +93,14 @@ export async function register(page: Page, who: Person) {
   await form.locator('input[autocomplete="email"]').fill(who.email);
   await form.locator('input[autocomplete="new-password"]').fill(PASSWORD);
   await form.getByRole("button", { name: "Create account" }).click();
-  await page.waitForURL((u) => u.pathname === "/", { timeout: 30_000 });
+  // The quick start: skipped, as somebody in a hurry would. A player is then
+  // handed their profile link; a secretary goes to start their club.
+  await page.waitForURL((u) => u.pathname === "/welcome", { timeout: 30_000 });
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  if (who.role !== "secretary") {
+    await page.getByRole("button", { name: "Go to my dashboard" }).click();
+  }
+  await page.waitForURL((u) => u.pathname !== "/welcome", { timeout: 30_000 });
 }
 
 /// Signed in as `who`, registering first if this is the first run.
@@ -102,6 +109,11 @@ export async function ensureAccount(a: Actor): Promise<"created" | "reused"> {
   if (!reused) await register(a.page, a.who);
   const user = await storedUser(a.page);
   expect(user?.name, "signed in as the right person").toBe(a.who.name);
+  // Every run is a fresh browser: past the quick start in this one too, so the
+  // dashboard never sends a later step off to it.
+  await stableEval(a.page, () =>
+    a.page.evaluate((id) => localStorage.setItem(`fishers:quick-start:${id}`, "1"), user!.id)
+  );
   return reused ? "reused" : "created";
 }
 

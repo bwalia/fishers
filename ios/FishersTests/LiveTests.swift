@@ -102,6 +102,10 @@ final class LiveTests: XCTestCase {
             try notification("invite_accepted", #"{"player":"Ali","club_name":"Boom Blast","team_name":null}"#).line,
             "Ali accepted — they're in Boom Blast."
         )
+        XCTAssertEqual(
+            try notification("profile_nudge", #"{"percent":35,"url":"/profile"}"#).line,
+            "Finish your profile — you're 35% there. Captains pick players they can see."
+        )
         XCTAssertEqual(try notification("brand_new_kind", "{}").line, "brand new kind")
     }
 

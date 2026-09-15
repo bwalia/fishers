@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, saveSession, saveUser, type AuthTokens, type PublicUser, type RoleIntent } from "@/lib/api";
@@ -21,22 +21,25 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Somebody arriving from an invite link is joining a club, not starting one;
-  // the landing page's two buttons say which they are with ?as=.
-  const [role, setRole] = useState<RoleIntent | null>(() => {
-    if (typeof window === "undefined") return null;
+  // the landing page's two buttons say which they are with ?as=. Read after
+  // the first render: the server has no query string to read, and a first
+  // render that differs from the server's is thrown away and redrawn — taking
+  // anything already typed into the form with it.
+  const [role, setRole] = useState<RoleIntent | null>(null);
+  useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    if (q.get("next")?.startsWith("/invite/")) return "player";
     const as = q.get("as");
-    return as === "secretary" || as === "player" ? as : null;
-  });
+    if (q.get("next")?.startsWith("/invite/")) setRole("player");
+    else if (as === "secretary" || as === "player") setRole(as);
+  }, []);
 
   const tooShort = password.length > 0 && password.length < 8;
 
   // An invite link sends people here to sign up; land them back on it so they
-  // actually join the club they were invited to.
+  // actually join the club they were invited to. Otherwise, the quick start.
   function goNext() {
     const next = new URLSearchParams(window.location.search).get("next");
-    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/welcome");
   }
 
   async function onSubmit(e: FormEvent) {

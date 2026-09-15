@@ -19,6 +19,7 @@ import { economy, num, type MeStats, type PlayerSeasonStats } from "@/lib/stats"
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { ShareProfile } from "@/components/ShareProfile";
+import { ProfileStrength } from "@/components/ProfileStrength";
 
 type Tab = "overview" | "batting" | "bowling";
 
@@ -208,6 +209,7 @@ function Overview({
   return (
     <div className="pro-cols">
       <div className="pro-main">
+        <ProfileStrength user={me} onProfilePage />
         <Details me={me} onSaved={onSaved} />
 
         <div className="panel" id="share">
