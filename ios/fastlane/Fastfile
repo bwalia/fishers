@@ -425,6 +425,8 @@ platform :ios do
     upload_to_testflight(
       api_key: key,
       ipa: ipa,
+      app_identifier: APP_ID,
+      app_platform: "ios",
       skip_waiting_for_build_processing: false,
       distribute_external: false,
       notify_external_testers: false,
@@ -443,6 +445,8 @@ platform :ios do
       upload_to_testflight(
         api_key: key,
         distribute_only: true,
+        app_identifier: APP_ID,
+        app_platform: "ios",
         skip_waiting_for_build_processing: false,
         distribute_external: true,
         groups: [group],
@@ -462,16 +466,13 @@ platform :ios do
         }
       )
     rescue => e
-      msg = e.message.to_s
-      if msg =~ /Another build is in review|already in beta review/i
-        UI.important(
-          "External distribute skipped: #{msg} " \
-          "Leave the in-review build alone — email testers install after Apple approves it. " \
-          "App Store Connect users can install via Internal Testing now."
-        )
-      else
-        raise
-      end
+      # External is best-effort while a prior build is in Beta App Review or when
+      # pilot asks interactive questions in CI. Internal already succeeded above.
+      UI.important(
+        "External distribute skipped: #{e.message} — " \
+        "email testers install after Apple approves the in-review build. " \
+        "App Store Connect users can install via Internal Testing now."
+      )
     end
 
     spaceship_token_from!(key)
