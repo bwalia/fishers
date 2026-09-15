@@ -7,7 +7,7 @@ source "https://rubygems.org"
 #
 # Homebrew Ruby 4.x no longer ships ostruct/logger/etc as default gems; fastlane
 # still requires them — pin explicitly so `bundle exec fastlane` loads.
-gem "fastlane"
+gem "fastlane", "~> 2.240"
 gem "ostruct"
 gem "logger"
 gem "csv"

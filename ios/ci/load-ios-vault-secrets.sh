@@ -6,7 +6,9 @@
 #   1. Already-exported ASC_* / APPLE_TEAM_ID env vars (e.g. GitHub Actions secrets)
 #   2. WSLVault KV v2 at kv/fishers/ios (https://vault.workstation.co.uk)
 #
-# Always materialises ASC_PRIVATE_KEY_B64 into a file and exports ASC_KEY_FILEPATH.
+# Always materialises ASC_PRIVATE_KEY_B64 (or raw PEM) into a file and exports
+# ASC_KEY_FILEPATH. Strips quotes/whitespace and validates shapes so a bad paste
+# fails here instead of as a vague Apple JWT error later.
 #
 #   CI:    ./ci/load-ios-vault-secrets.sh           # appends to $GITHUB_ENV
 #   local: eval "$(./ci/load-ios-vault-secrets.sh)" # exports to shell
@@ -22,10 +24,15 @@ chmod 700 "$WORKDIR"
 export VAULT_ADDR VAULT_TOKEN="${VAULT_TOKEN:-}" VAULT_TOKEN_FILE WORKDIR VAULT_SECRET_PATH
 
 python3 - <<'PY'
-import base64, json, os, sys, urllib.request, urllib.error
+import base64, json, os, re, sys, urllib.request, urllib.error
 
 REQUIRED = ("ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_B64", "APPLE_TEAM_ID")
 FORBIDDEN_HOSTS = ("vault.diytaxreturn.co.uk",)
+KEY_ID_RE = re.compile(r"^[A-Z0-9]{10}$")
+ISSUER_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I
+)
+TEAM_RE = re.compile(r"^[A-Z0-9]{10}$")
 
 def kv_v2_api_path(path: str) -> str:
     """kv/fishers/ios → kv/data/fishers/ios; leave …/data/… unchanged."""
@@ -34,6 +41,15 @@ def kv_v2_api_path(path: str) -> str:
         return path
     mount, _, rest = path.partition("/")
     return f"{mount}/data/{rest}" if rest else f"{mount}/data"
+
+def clean(value: str) -> str:
+    """Strip whitespace and a single layer of wrapping quotes from secret UI pastes."""
+    if value is None:
+        return ""
+    s = str(value).strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
+        s = s[1:-1].strip()
+    return s
 
 def emit(env_lines):
     github_env = os.environ.get("GITHUB_ENV")
@@ -45,20 +61,88 @@ def emit(env_lines):
         for key, value in env_lines:
             sys.stdout.write("export %s=%s\n" % (key, value))
 
-def write_secret_file(name, b64_value):
+def decode_p8(raw_value: str) -> bytes:
+    """Accept base64(AuthKey.p8) or the PEM itself (common secret-UI mistake)."""
+    text = clean(raw_value)
+    if "BEGIN PRIVATE KEY" in text:
+        return text.encode("utf-8") if isinstance(text, str) else text
+    # Whitespace/newlines from `base64` without `tr -d` break validate=True.
+    compact = re.sub(r"\s+", "", text)
+    try:
+        decoded = base64.b64decode(compact, validate=False)
+    except Exception as exc:
+        sys.exit("ERROR: ASC_PRIVATE_KEY_B64 is not valid base64: %s" % exc)
+    if b"BEGIN PRIVATE KEY" in decoded:
+        return decoded
+    # One layer of double-encoding (base64 of base64(pem)).
+    try:
+        again = base64.b64decode(re.sub(rb"\s+", b"", decoded), validate=False)
+        if b"BEGIN PRIVATE KEY" in again:
+            return again
+    except Exception:
+        pass
+    sys.exit(
+        "ERROR: ASC_PRIVATE_KEY_B64 decoded but is not an AuthKey .p8 PEM "
+        "(no BEGIN PRIVATE KEY). Re-run:\n"
+        "  base64 -i AuthKey_<KEY_ID>.p8 | tr -d '\\n'\n"
+        "and paste that single line as the secret (or paste the PEM itself)."
+    )
+
+def write_secret_file(name, content: bytes):
     path = os.path.join(os.environ["WORKDIR"], name)
-    raw = base64.b64decode(b64_value, validate=True)
     with open(path, "wb") as fh:
-        fh.write(raw)
+        fh.write(content)
     os.chmod(path, 0o600)
     return path
 
+def validate_shapes(data):
+    key_id = data["ASC_KEY_ID"]
+    issuer = data["ASC_ISSUER_ID"]
+    team = data["APPLE_TEAM_ID"]
+    if not KEY_ID_RE.match(key_id):
+        # Common swap: Issuer UUID or Team ID pasted into Key ID.
+        hint = ""
+        if ISSUER_RE.match(key_id):
+            hint = " That value looks like ASC_ISSUER_ID."
+        elif TEAM_RE.match(key_id) and key_id == team:
+            hint = " That value looks like APPLE_TEAM_ID."
+        sys.exit(
+            "ERROR: ASC_KEY_ID=%r must be the 10-character Key ID from "
+            "App Store Connect → Integrations → App Store Connect API.%s"
+            % (key_id, hint)
+        )
+    if not ISSUER_RE.match(issuer):
+        hint = ""
+        if KEY_ID_RE.match(issuer):
+            hint = " That value looks like a Key ID / Team ID, not Issuer ID."
+        sys.exit(
+            "ERROR: ASC_ISSUER_ID=%r must be the UUID Issuer ID at the top of "
+            "the App Store Connect API keys page.%s" % (issuer, hint)
+        )
+    if not TEAM_RE.match(team):
+        sys.exit(
+            "ERROR: APPLE_TEAM_ID=%r must be the 10-character Apple Team ID "
+            "(Membership details / Xcode Accounts)." % team
+        )
+    if key_id == team:
+        sys.stderr.write(
+            "WARN: ASC_KEY_ID and APPLE_TEAM_ID are identical — usually wrong. "
+            "Key ID comes from the API key row; Team ID from Membership.\n"
+        )
+
 def publish(data, source):
+    data = {k: clean(data.get(k, "")) for k in set(REQUIRED) | set(data)}
+    # Allow ASC_PRIVATE_KEY alias (raw PEM) when B64 was not set.
+    if not data.get("ASC_PRIVATE_KEY_B64") and data.get("ASC_PRIVATE_KEY"):
+        data["ASC_PRIVATE_KEY_B64"] = data["ASC_PRIVATE_KEY"]
+
     missing = [k for k in REQUIRED if not data.get(k)]
     if missing:
         sys.exit("ERROR: %s is missing required key(s): %s" % (source, ", ".join(missing)))
 
-    asc_key_path = write_secret_file("asc_api_key.p8", data["ASC_PRIVATE_KEY_B64"])
+    validate_shapes(data)
+    pem = decode_p8(data["ASC_PRIVATE_KEY_B64"])
+    asc_key_path = write_secret_file("asc_api_key.p8", pem)
     env_lines = [
         ("ASC_KEY_ID", data["ASC_KEY_ID"]),
         ("ASC_ISSUER_ID", data["ASC_ISSUER_ID"]),
@@ -66,22 +150,32 @@ def publish(data, source):
         ("APPLE_TEAM_ID", data["APPLE_TEAM_ID"]),
     ]
     if data.get("CERT_PRIVATE_KEY_B64"):
+        cert_raw = clean(data["CERT_PRIVATE_KEY_B64"])
+        if "BEGIN" in cert_raw:
+            cert_bytes = cert_raw.encode()
+        else:
+            cert_bytes = base64.b64decode(re.sub(r"\s+", "", cert_raw), validate=False)
         env_lines.append((
             "DIST_CERT_KEY_FILEPATH",
-            write_secret_file("dist_cert_key.pem", data["CERT_PRIVATE_KEY_B64"]),
+            write_secret_file("dist_cert_key.pem", cert_bytes),
         ))
     if data.get("APP_STORE_APP_ID"):
-        env_lines.append(("APP_STORE_APP_ID", data["APP_STORE_APP_ID"]))
+        env_lines.append(("APP_STORE_APP_ID", clean(data["APP_STORE_APP_ID"])))
 
     emit(env_lines)
-    sys.stderr.write("OK: loaded iOS signing material from %s into %s\n"
-                     % (source, os.environ["WORKDIR"]))
+    sys.stderr.write(
+        "OK: loaded iOS signing material from %s into %s "
+        "(ASC_KEY_ID …%s, .p8 %d bytes)\n"
+        % (source, os.environ["WORKDIR"], data["ASC_KEY_ID"][-4:], len(pem))
+    )
 
 # 1) Prefer env already provided by the workflow (GitHub Actions secrets).
-from_env = {k: os.environ.get(k, "").strip() for k in REQUIRED}
-if all(from_env.values()):
+from_env = {k: clean(os.environ.get(k, "")) for k in REQUIRED}
+if os.environ.get("ASC_PRIVATE_KEY"):
+    from_env["ASC_PRIVATE_KEY"] = os.environ.get("ASC_PRIVATE_KEY", "")
+if all(from_env.get(k) for k in REQUIRED):
     data = dict(from_env)
-    for optional in ("CERT_PRIVATE_KEY_B64", "APP_STORE_APP_ID"):
+    for optional in ("CERT_PRIVATE_KEY_B64", "APP_STORE_APP_ID", "ASC_PRIVATE_KEY"):
         if os.environ.get(optional):
             data[optional] = os.environ[optional]
     publish(data, "environment")
@@ -104,7 +198,6 @@ def resolve_auth():
                     return payload[key]
             return ""
 
-        # Prefer explicit VAULT_ADDR (workflow sets workstation WSLVault).
         addr = addr or pick(("VAULT_ADDR", "VAULT_URI", "vault_addr", "addr", "url"))
         token = token or pick(("VAULT_TOKEN", "vault_token", "token", "client_token"))
         if not token and isinstance(payload.get("auth"), dict):

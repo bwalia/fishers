@@ -102,7 +102,7 @@ jobs:
           APP_STORE_APP_ID: ${{ secrets.APP_STORE_APP_ID }}
           CERT_PRIVATE_KEY_B64: ${{ secrets.CERT_PRIVATE_KEY_B64 }}
         run: |
-          chmod +x ./ci/load-ios-vault-secrets.sh ./ci/seed-ios-vault.sh
+          chmod +x ./ci/load-ios-vault-secrets.sh ./ci/seed-ios-vault.sh ./ci/verify-asc-api-key.rb
           ./ci/load-ios-vault-secrets.sh
 
       - name: Install Ruby dependencies
@@ -124,6 +124,9 @@ jobs:
           {
             echo "PATH=$PATH"
           } >> "$GITHUB_ENV"
+
+      - name: Verify App Store Connect API key
+        run: bundle exec ruby ./ci/verify-asc-api-key.rb
 
       - name: Install XcodeGen
         run: |

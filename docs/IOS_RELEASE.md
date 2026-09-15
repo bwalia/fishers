@@ -132,6 +132,19 @@ Do **not** point iOS CI at `vault.diytaxreturn.co.uk` / `acc-vault` — those ar
 
 The workflow prefers GitHub secrets; if they are empty it falls back to Vault.
 
+**If iOS Release fails with “Authentication credentials are missing or invalid”:**
+
+1. Confirm all three of `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_PRIVATE_KEY_B64` were
+   updated **together** from the same API key (Key ID must match `AuthKey_<KeyID>.p8`).
+2. Issuer ID is the UUID at the **top** of the API keys page — not the Key ID and not
+   the Team ID.
+3. Re-encode the `.p8` as a single line:
+   `base64 -i AuthKey_XXXXXX.p8 | tr -d '\n'`
+   You may also paste the PEM itself into `ASC_PRIVATE_KEY_B64`; the loader accepts either.
+4. Key access must be at least **App Manager**. Revoked keys fail the same way.
+5. The workflow’s **Verify App Store Connect API key** step probes
+   `GET /v1/apps` before build numbering — read that log for the precise mismatch.
+
 ### 3. Self-hosted runner
 
 The Mac Studio runner needs:

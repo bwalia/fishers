@@ -16,10 +16,14 @@ def team_id
 end
 
 def asc_api_key
+  # duration 500 avoids a known Spaceship JWT skew issue where duration:1200
+  # (default max) is rejected by App Store Connect as an invalid bearer token.
+  # See fastlane/fastlane#29468 / #21109.
   app_store_connect_api_key(
-    key_id: ENV.fetch("ASC_KEY_ID"),
-    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
-    key_filepath: ENV.fetch("ASC_KEY_FILEPATH"),
+    key_id: ENV.fetch("ASC_KEY_ID").to_s.strip,
+    issuer_id: ENV.fetch("ASC_ISSUER_ID").to_s.strip,
+    key_filepath: ENV.fetch("ASC_KEY_FILEPATH").to_s.strip,
+    duration: 500,
     in_house: false
   )
 end
