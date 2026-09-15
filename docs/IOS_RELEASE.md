@@ -150,6 +150,22 @@ runner when present, otherwise from `ASC_PRIVATE_KEY_B64` / Vault.
 5. The workflow’s **Verify App Store Connect API key** step probes
    `GET /v1/apps` before build numbering — read that log for the precise mismatch.
 
+**TestFlight invites** go to the external group **Fishers** (override with
+`TESTFLIGHT_GROUP`). Default emails:
+
+- `balindersinghwalia@icloud.com`
+- `harchran001@gmail.com`
+
+Override with repo variable/secret `TESTFLIGHT_TESTERS` (comma-separated). The
+`beta` lane creates/updates the group, invites those emails, uploads the IPA,
+and sets `notify_external_testers: true`. First-time external distribution may
+need a short Beta App Review in App Store Connect.
+
+If someone already has a build but no invite email: App Store Connect → My Apps
+→ Fishers → TestFlight → the **Fishers** group → add/resend invite, or run
+`bundle exec fastlane ios invite_testers` on the Mac Studio with ASC secrets
+loaded.
+
 ### 3. Self-hosted runner
 
 The Mac Studio runner needs:

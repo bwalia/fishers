@@ -103,15 +103,21 @@ jobs:
           CERT_PRIVATE_KEY_B64: ${{ secrets.CERT_PRIVATE_KEY_B64 }}
         run: |
           chmod +x ./ci/load-ios-vault-secrets.sh ./ci/seed-ios-vault.sh ./ci/verify-asc-api-key.rb
-          # Prefer the AuthKey on the Mac Studio runner when present — avoids a
-          # stale/mis-encoded ASC_PRIVATE_KEY_B64 GitHub secret masking a good
-          # local .p8 (e.g. $HOME/AuthKey_6KVVV27G4Q.p8).
+          # Prefer the AuthKey on the Mac Studio runner when it is a real PEM —
+          # a non-PEM placeholder must not override ASC_PRIVATE_KEY_B64.
           if [ -z "${ASC_P8_PATH:-}" ]; then
-            if [ -n "${ASC_KEY_ID:-}" ] && [ -f "$HOME/AuthKey_${ASC_KEY_ID}.p8" ]; then
-              export ASC_P8_PATH="$HOME/AuthKey_${ASC_KEY_ID}.p8"
-            elif [ -f "$HOME/AuthKey_6KVVV27G4Q.p8" ]; then
-              export ASC_P8_PATH="$HOME/AuthKey_6KVVV27G4Q.p8"
-            fi
+            for candidate in \
+              ${ASC_KEY_ID:+"$HOME/AuthKey_${ASC_KEY_ID}.p8"} \
+              "$HOME/AuthKey_6KVVV27G4Q.p8"
+            do
+              [ -n "$candidate" ] && [ -f "$candidate" ] || continue
+              if grep -q "BEGIN PRIVATE KEY" "$candidate" 2>/dev/null; then
+                export ASC_P8_PATH="$candidate"
+                break
+              else
+                echo "Ignoring non-PEM AuthKey at $candidate"
+              fi
+            done
           fi
           if [ -n "${ASC_P8_PATH:-}" ]; then
             echo "Using local ASC key file: $ASC_P8_PATH"
