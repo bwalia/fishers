@@ -2,4 +2,6 @@ source "https://rubygems.org"
 
 # fastlane drives signing (cert + sigh), TestFlight upload, and App Store
 # submission. See fastlane/Fastfile and .github/workflows/ios_release.yml.
+#
+# Requires Bundler 2.x (Ruby 3.2+ removed String#untaint; Bundler 1.17 breaks).
 gem "fastlane"

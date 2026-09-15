@@ -106,7 +106,13 @@ jobs:
           ./ci/load-ios-vault-secrets.sh
 
       - name: Install Ruby dependencies
-        run: bundle install
+        run: |
+          set -euo pipefail
+          # Mac Homebrew ships Ruby 3.4+/4.x; Gemfile.lock used to pin Bundler
+          # 1.17.2 which crashes (String#untaint removed). Force a modern Bundler.
+          gem install bundler -v '~> 2.5' --no-document
+          bundle config set --local path 'vendor/bundle'
+          bundle install --jobs 4
 
       - name: Install XcodeGen
         run: |
