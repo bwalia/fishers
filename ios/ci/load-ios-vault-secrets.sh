@@ -4,7 +4,7 @@
 #
 # Order of preference:
 #   1. Already-exported ASC_* / APPLE_TEAM_ID env vars (e.g. GitHub Actions secrets)
-#   2. Vault KV v2 secret at secret/fishers/ios (override with FISHERS_IOS_VAULT_PATH)
+#   2. WSLVault KV v2 at kv/fishers/ios (https://vault.workstation.co.uk)
 #
 # Always materialises ASC_PRIVATE_KEY_B64 into a file and exports ASC_KEY_FILEPATH.
 #
@@ -13,17 +13,27 @@
 #
 set -euo pipefail
 
-VAULT_TOKEN_FILE="${VAULT_TOKEN_FILE:-$HOME/.secrets/vault/token.json}"
-VAULT_SECRET_PATH="${FISHERS_IOS_VAULT_PATH:-secret/fishers/ios}"
+VAULT_ADDR="${VAULT_ADDR:-https://vault.workstation.co.uk}"
+VAULT_TOKEN_FILE="${VAULT_TOKEN_FILE:-$HOME/.secrets/wslvault/token.json}"
+VAULT_SECRET_PATH="${FISHERS_IOS_VAULT_PATH:-kv/fishers/ios}"
 WORKDIR="${IOS_SECRETS_DIR:-${RUNNER_TEMP:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.ios-secrets}}"
 mkdir -p "$WORKDIR"
 chmod 700 "$WORKDIR"
-export VAULT_ADDR="${VAULT_ADDR:-}" VAULT_TOKEN="${VAULT_TOKEN:-}" VAULT_TOKEN_FILE WORKDIR VAULT_SECRET_PATH
+export VAULT_ADDR VAULT_TOKEN="${VAULT_TOKEN:-}" VAULT_TOKEN_FILE WORKDIR VAULT_SECRET_PATH
 
 python3 - <<'PY'
 import base64, json, os, sys, urllib.request, urllib.error
 
 REQUIRED = ("ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_B64", "APPLE_TEAM_ID")
+FORBIDDEN_HOSTS = ("vault.diytaxreturn.co.uk",)
+
+def kv_v2_api_path(path: str) -> str:
+    """kv/fishers/ios → kv/data/fishers/ios; leave …/data/… unchanged."""
+    path = path.strip().strip("/")
+    if "/data/" in path:
+        return path
+    mount, _, rest = path.partition("/")
+    return f"{mount}/data/{rest}" if rest else f"{mount}/data"
 
 def emit(env_lines):
     github_env = os.environ.get("GITHUB_ENV")
@@ -77,9 +87,9 @@ if all(from_env.values()):
     publish(data, "environment")
     raise SystemExit(0)
 
-# 2) Fall back to Vault.
+# 2) Fall back to WSLVault (vault.workstation.co.uk).
 def resolve_auth():
-    addr = os.environ.get("VAULT_ADDR") or ""
+    addr = (os.environ.get("VAULT_ADDR") or "").rstrip("/")
     token = os.environ.get("VAULT_TOKEN") or ""
     path = os.environ.get("VAULT_TOKEN_FILE") or ""
     if (not addr or not token) and path and os.path.isfile(path):
@@ -94,6 +104,7 @@ def resolve_auth():
                     return payload[key]
             return ""
 
+        # Prefer explicit VAULT_ADDR (workflow sets workstation WSLVault).
         addr = addr or pick(("VAULT_ADDR", "VAULT_URI", "vault_addr", "addr", "url"))
         token = token or pick(("VAULT_TOKEN", "vault_token", "token", "client_token"))
         if not token and isinstance(payload.get("auth"), dict):
@@ -103,17 +114,25 @@ def resolve_auth():
             "ERROR: signing secrets unavailable.\n"
             "  • Set GitHub Actions secrets ASC_KEY_ID, ASC_ISSUER_ID,\n"
             "    ASC_PRIVATE_KEY_B64, APPLE_TEAM_ID — or\n"
-            "  • Seed Vault at secret/fishers/ios (see ios/ci/seed-ios-vault.sh)\n"
-            "  • and ensure VAULT_ADDR/VAULT_TOKEN or %s is readable"
-            % (path or "$VAULT_TOKEN_FILE")
+            "  • Seed WSLVault at kv/fishers/ios (see ios/ci/seed-ios-vault.sh)\n"
+            "  • VAULT_ADDR=%s and a readable token (%s)"
+            % (os.environ.get("VAULT_ADDR") or "https://vault.workstation.co.uk",
+               path or "$VAULT_TOKEN_FILE")
         )
-    return addr.rstrip("/"), token
+    addr = addr.rstrip("/")
+    for host in FORBIDDEN_HOSTS:
+        if host in addr:
+            sys.exit(
+                "ERROR: refusing Vault host %s — Fishers uses WSLVault at "
+                "https://vault.workstation.co.uk only. Set VAULT_ADDR accordingly."
+                % host
+            )
+    return addr, token
 
 addr, token = resolve_auth()
-secret_path = os.environ.get("VAULT_SECRET_PATH", "secret/fishers/ios")
-if not secret_path.startswith("secret/data/"):
-    secret_path = "secret/data/" + secret_path.removeprefix("secret/")
-url = addr + "/v1/" + secret_path
+logical = os.environ.get("VAULT_SECRET_PATH", "kv/fishers/ios")
+api_path = kv_v2_api_path(logical)
+url = addr + "/v1/" + api_path
 
 req = urllib.request.Request(url, method="GET")
 req.add_header("X-Vault-Token", token)
@@ -124,9 +143,9 @@ except urllib.error.HTTPError as exc:
     detail = exc.read().decode("utf-8", "replace")[:500]
     if exc.code == 404:
         sys.exit(
-            "ERROR: Vault secret missing at %s (HTTP 404).\n"
-            "Create it on the Mac Studio with:\n"
-            "  cd ios && ./ci/seed-ios-vault.sh\n"
+            "ERROR: WSLVault secret missing at %s (HTTP 404).\n"
+            "Create it with:\n"
+            "  cd ios && VAULT_ADDR=https://vault.workstation.co.uk ./ci/seed-ios-vault.sh\n"
             "Or add GitHub Actions secrets ASC_KEY_ID, ASC_ISSUER_ID,\n"
             "ASC_PRIVATE_KEY_B64, APPLE_TEAM_ID and re-run iOS Release."
             % url
@@ -144,5 +163,5 @@ data = (payload.get("data") or {}).get("data")
 if not isinstance(data, dict):
     sys.exit("ERROR: unexpected Vault response at %s (no .data.data map)" % url)
 
-publish(data, secret_path)
+publish(data, logical)
 PY

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# seed-ios-vault.sh — create/update secret/fishers/ios for TestFlight releases.
+# seed-ios-vault.sh — create/update kv/fishers/ios in WSLVault for TestFlight.
 #
-# Run on a machine that can reach Vault (typically the Mac Studio runner):
+# Uses https://vault.workstation.co.uk only (same vault as ring deploys).
 #
-#   export VAULT_TOKEN_FILE=$HOME/.secrets/acc-vault/login-token.json
+#   export VAULT_ADDR=https://vault.workstation.co.uk
+#   export VAULT_TOKEN=...   # or VAULT_TOKEN_FILE=$HOME/.secrets/wslvault/token.json
 #   export ASC_KEY_ID=...
 #   export ASC_ISSUER_ID=...
 #   export ASC_P8_PATH=$HOME/AuthKey_XXXXXX.p8
@@ -13,8 +14,9 @@
 #
 set -euo pipefail
 
-VAULT_TOKEN_FILE="${VAULT_TOKEN_FILE:-$HOME/.secrets/acc-vault/login-token.json}"
-VAULT_SECRET_PATH="${FISHERS_IOS_VAULT_PATH:-secret/fishers/ios}"
+VAULT_ADDR="${VAULT_ADDR:-https://vault.workstation.co.uk}"
+VAULT_TOKEN_FILE="${VAULT_TOKEN_FILE:-$HOME/.secrets/wslvault/token.json}"
+VAULT_SECRET_PATH="${FISHERS_IOS_VAULT_PATH:-kv/fishers/ios}"
 
 need() {
   local name=$1
@@ -40,13 +42,22 @@ fi
 
 export ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY_B64 APPLE_TEAM_ID
 export APP_STORE_APP_ID="${APP_STORE_APP_ID:-}" CERT_PRIVATE_KEY_B64="${CERT_PRIVATE_KEY_B64:-}"
-export VAULT_TOKEN_FILE VAULT_SECRET_PATH VAULT_ADDR="${VAULT_ADDR:-}" VAULT_TOKEN="${VAULT_TOKEN:-}"
+export VAULT_TOKEN_FILE VAULT_SECRET_PATH VAULT_ADDR VAULT_TOKEN="${VAULT_TOKEN:-}"
 
 python3 - <<'PY'
 import json, os, sys, urllib.request, urllib.error
 
+FORBIDDEN_HOSTS = ("vault.diytaxreturn.co.uk",)
+
+def kv_v2_api_path(path: str) -> str:
+    path = path.strip().strip("/")
+    if "/data/" in path:
+        return path
+    mount, _, rest = path.partition("/")
+    return f"{mount}/data/{rest}" if rest else f"{mount}/data"
+
 def resolve_auth():
-    addr = os.environ.get("VAULT_ADDR") or ""
+    addr = (os.environ.get("VAULT_ADDR") or "").rstrip("/")
     token = os.environ.get("VAULT_TOKEN") or ""
     path = os.environ.get("VAULT_TOKEN_FILE") or ""
     if (not addr or not token) and path and os.path.isfile(path):
@@ -62,15 +73,22 @@ def resolve_auth():
         if not token and isinstance(data.get("auth"), dict):
             token = data["auth"].get("client_token") or ""
     if not addr or not token:
-        sys.exit("ERROR: Vault auth unavailable — set VAULT_ADDR/VAULT_TOKEN or VAULT_TOKEN_FILE")
-    return addr.rstrip("/"), token
+        sys.exit(
+            "ERROR: Vault auth unavailable — set VAULT_TOKEN "
+            "(or VAULT_TOKEN_FILE for WSLVault) and VAULT_ADDR=https://vault.workstation.co.uk"
+        )
+    addr = addr.rstrip("/")
+    for host in FORBIDDEN_HOSTS:
+        if host in addr:
+            sys.exit(
+                "ERROR: refusing Vault host %s — use https://vault.workstation.co.uk only."
+                % host
+            )
+    return addr, token
 
 addr, token = resolve_auth()
-secret_path = os.environ.get("VAULT_SECRET_PATH", "secret/fishers/ios")
-api_path = secret_path if secret_path.startswith("secret/data/") else (
-    "secret/data/" + secret_path.removeprefix("secret/")
-)
-url = addr + "/v1/" + api_path
+logical = os.environ.get("VAULT_SECRET_PATH", "kv/fishers/ios")
+url = addr + "/v1/" + kv_v2_api_path(logical)
 
 payload = {
     "data": {
@@ -96,6 +114,6 @@ except urllib.error.HTTPError as exc:
     detail = exc.read().decode("utf-8", "replace")[:500]
     sys.exit("ERROR: Vault POST %s -> HTTP %s: %s" % (url, exc.code, detail))
 
-print("OK: wrote %s (ASC_KEY_ID=%s)" % (secret_path, os.environ["ASC_KEY_ID"]))
+print("OK: wrote %s on %s (ASC_KEY_ID=%s)" % (logical, addr, os.environ["ASC_KEY_ID"]))
 print("Re-run the iOS Release workflow to upload to TestFlight.")
 PY
