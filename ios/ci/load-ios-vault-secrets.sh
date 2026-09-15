@@ -111,18 +111,26 @@ def resolve_p8(key_id: str, data: dict):
         if not path or path in seen:
             continue
         seen.add(path)
-        if os.path.isfile(path):
-            raw = open(path, "rb").read()
-            if b"BEGIN PRIVATE KEY" not in raw:
-                sys.exit("ERROR: %s is not a PEM AuthKey (.p8)" % path)
-            base = os.path.basename(path)
-            m = re.match(r"AuthKey_([A-Z0-9]{10})\.p8$", base)
-            if m and key_id and m.group(1) != key_id:
-                sys.exit(
-                    "ERROR: %s Key ID %s does not match ASC_KEY_ID=%s"
-                    % (path, m.group(1), key_id)
-                )
-            return raw, "file:%s" % path
+        if not os.path.isfile(path):
+            continue
+        raw = open(path, "rb").read()
+        # Reject empty / non-PEM files (e.g. a placeholder) and keep looking —
+        # GitHub ASC_PRIVATE_KEY_B64 is the fallback so a bad $HOME copy does
+        # not block releases that already have a valid secret.
+        if b"BEGIN PRIVATE KEY" not in raw:
+            sys.stderr.write(
+                "WARN: %s exists but is not a PEM AuthKey (.p8) — ignoring\n" % path
+            )
+            continue
+        base = os.path.basename(path)
+        m = re.match(r"AuthKey_([A-Z0-9]{10})\.p8$", base)
+        if m and key_id and m.group(1) != key_id:
+            sys.stderr.write(
+                "WARN: %s Key ID %s does not match ASC_KEY_ID=%s — ignoring\n"
+                % (path, m.group(1), key_id)
+            )
+            continue
+        return raw, "file:%s" % path
 
     if data.get("ASC_PRIVATE_KEY_B64") or data.get("ASC_PRIVATE_KEY"):
         pem = decode_p8(data.get("ASC_PRIVATE_KEY_B64") or data.get("ASC_PRIVATE_KEY"))
@@ -130,8 +138,10 @@ def resolve_p8(key_id: str, data: dict):
 
     sys.exit(
         "ERROR: no App Store Connect .p8 found.\n"
-        "  • On the Mac Studio: place AuthKey_%s.p8 in $HOME (or set ASC_P8_PATH), or\n"
-        "  • Set GitHub secret ASC_PRIVATE_KEY_B64 (base64 of the .p8)."
+        "  • On the Mac Studio: place a real AuthKey_%s.p8 PEM in $HOME, or\n"
+        "  • Set GitHub secret ASC_PRIVATE_KEY_B64 (base64 of the .p8).\n"
+        "  (If $HOME/AuthKey_*.p8 exists but is not PEM, replace it with the "
+        "file Apple downloaded — it must start with -----BEGIN PRIVATE KEY-----.)"
         % (key_id or "<KEY_ID>")
     )
 
