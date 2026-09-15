@@ -159,7 +159,8 @@ runner when present, otherwise from `ASC_PRIVATE_KEY_B64` / Vault.
 Override with repo variable/secret `TESTFLIGHT_TESTERS` (comma-separated). The
 `beta` lane creates/updates the group, invites those emails, uploads the IPA,
 and sets `notify_external_testers: true`. First-time external distribution may
-need a short Beta App Review in App Store Connect.
+need a short Beta App Review in App Store Connect (contact name/email/phone —
+override phone with `TESTFLIGHT_CONTACT_PHONE` in E.164, e.g. `+447911123456`).
 
 If someone already has a build but no invite email: App Store Connect → My Apps
 → Fishers → TestFlight → the **Fishers** group → add/resend invite, or run
