@@ -139,23 +139,27 @@ export function ClubSetup({
         <p className="gs-eyebrow">Club created</p>
         <h2 id="cw-title">{clubName} is ready</h2>
         <p className="muted">
-          You&apos;re its secretary. Bring your players in next — then a team, a captain and a
-          ground, and you&apos;re set for your first fixture.
+          You&apos;re its secretary. Add your players and you can start a match straight away —
+          teams, a captain and a ground can come later.
         </p>
         <ol className="cw-steps">
           <li className="done">
             <span className="cw-num"><Icon name="check" size={14} /></span>
             <strong>Create your club</strong>
           </li>
-          {steps.map((s, i) => (
-            <li key={s.key} className={i === 0 ? "current" : undefined}>
-              <span className="cw-num">{i + 2}</span>
-              <div>
-                <strong>{s.title}</strong>
-                {i === 0 && <p>{s.body}</p>}
-              </div>
-            </li>
-          ))}
+          <li className="current">
+            <span className="cw-num">2</span>
+            <div>
+              <strong>{steps[0].title}</strong>
+              <p>{steps[0].body}</p>
+            </div>
+          </li>
+          <li>
+            <span className="cw-num">3</span>
+            <div>
+              <strong>Start your first match</strong>
+            </div>
+          </li>
         </ol>
         <div className="cw-actions">
           <button className="btn ghost" type="button" onClick={() => dialog.current?.close()}>

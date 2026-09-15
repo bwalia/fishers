@@ -178,17 +178,6 @@ export function GettingStarted({
     return [
       ...verify,
       {
-        key: "profile",
-        title: "Complete your profile",
-        body: "A photo, what you play and your position. It's what a captain sees on the team sheet.",
-        done: !!user.profile_complete,
-        cta: { label: "Complete your profile", href: "/profile", icon: "book" },
-        tour: {
-          title: "Set up your player profile",
-          body: "Add a photo and what you play. Your secretary sees this when you send them your link.",
-        },
-      },
-      {
         key: "share",
         title: "Send your profile to your club secretary",
         body: "They open your link and invite you in. No need for them to type your details.",

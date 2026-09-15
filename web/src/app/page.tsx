@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
   getAccessToken,
   getStoredUser,
+  needsQuickStart,
   saveUser,
   type Club,
   type EventRow,
@@ -18,9 +20,11 @@ import { Landing } from "@/components/Landing";
 import { PendingInvites } from "@/components/PendingInvites";
 import { RoleChooser } from "@/components/RoleChooser";
 import { PushPrompt } from "@/components/PushPrompt";
+import { ProfileStrength } from "@/components/ProfileStrength";
 import { overs, type MatchResponse } from "@/lib/cricket";
 
 export default function HomePage() {
+  const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -48,6 +52,10 @@ export default function HomePage() {
         if (me) {
           saveUser(me);
           setUser(me);
+          // Once, and skippable: a sport and a number before the dashboard.
+          // Only from the dashboard itself: this answer can land after they
+          // have already clicked away, and must not pull them back.
+          if (needsQuickStart(me) && window.location.pathname === "/") router.replace("/welcome");
         }
         setClubs(c);
         setEvents(e);
@@ -68,7 +76,7 @@ export default function HomePage() {
         setLoaded(true);
       }
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     setUser(getStoredUser());
@@ -122,6 +130,8 @@ export default function HomePage() {
           }}
         />
       )}
+
+      {loaded && <ProfileStrength user={user} />}
 
       {clubs.length > 0 && (
         <>

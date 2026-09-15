@@ -53,10 +53,17 @@ export default function ScoreIndexPage() {
   const [instant, setInstant] = useState(false);
   /// A club's or team's code, when they arrived from its link (/play/…).
   const [against, setAgainst] = useState<string | null>(null);
+  /// The club they came from, when a club page's "Start a match" sent them.
+  const [fromClub, setFromClub] = useState<string | null>(null);
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get("against");
+    const q = new URLSearchParams(window.location.search);
+    const token = q.get("against");
     if (token) {
       setAgainst(token);
+      setInstant(true);
+    }
+    if (q.get("new") === "1") {
+      setFromClub(q.get("club"));
       setInstant(true);
     }
   }, []);
@@ -307,6 +314,7 @@ export default function ScoreIndexPage() {
         <MatchSetupSheet
           event={opening}
           against={opening ? null : against}
+          clubId={opening ? undefined : fromClub ?? undefined}
           busy={busy === (opening?.id ?? "instant")}
           onClose={() => {
             setOpening(null);
@@ -345,6 +353,7 @@ const MATCH_KINDS = [
 function MatchSetupSheet({
   event,
   against,
+  clubId: preset,
   busy,
   onClose,
   onStart,
@@ -353,12 +362,14 @@ function MatchSetupSheet({
   event: EventRow | null;
   /// The opposition's code, already known: they followed its link.
   against?: string | null;
+  /// Which of their clubs is playing, when that is already known.
+  clubId?: string;
   busy: boolean;
   onClose: () => void;
   onStart: (setup: Setup) => void;
 }) {
   const [clubs, setClubs] = useState<Club[]>([]);
-  const [clubId, setClubId] = useState(event?.club_id ?? "");
+  const [clubId, setClubId] = useState(event?.club_id ?? preset ?? "");
   const [teams, setTeams] = useState<Team[]>([]);
   const [clubName, setClubName] = useState("");
   const [homeName, setHomeName] = useState("");

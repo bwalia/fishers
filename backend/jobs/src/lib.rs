@@ -89,6 +89,74 @@ async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> an
     if let Err(e) = chase_match_fees(pool, push, email).await {
         warn!(error = %e, "fee chasing failed");
     }
+    if let Err(e) = nudge_unfinished_profiles(pool, push).await {
+        warn!(error = %e, "profile nudges failed");
+    }
+    Ok(())
+}
+
+/// A nudge to finish the profile: a day after signing up, and once more a few
+/// days later if it is still not done. Into the bell, and as a push where the
+/// device has one.
+///
+/// Only accounts made in the last fortnight. Shipping this must not message
+/// everybody who ever skipped a field, and an account that has sat untouched
+/// for weeks is not waiting on a reminder.
+async fn nudge_unfinished_profiles(pool: &PgPool, push: &PushService) -> anyhow::Result<()> {
+    let due: Vec<(uuid::Uuid,)> = sqlx::query_as(
+        r#"
+        SELECT id FROM users
+        WHERE created_at BETWEEN NOW() - INTERVAL '14 days' AND NOW() - INTERVAL '1 day'
+          AND profile_nudges < 2
+          AND (profile_nudged_at IS NULL OR profile_nudged_at < NOW() - INTERVAL '3 days')
+        ORDER BY created_at
+        LIMIT 200
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut sent = 0u32;
+    for (user_id,) in due {
+        let Some(user) = fishers_db::repos::users::find_by_id(pool, user_id).await? else {
+            continue;
+        };
+        let strength = fishers_domain::ProfileStrength::of(&user);
+        if strength.is_complete() {
+            // Done: nothing to say, now or on any later tick.
+            sqlx::query("UPDATE users SET profile_nudges = 2 WHERE id = $1")
+                .bind(user_id)
+                .execute(pool)
+                .await?;
+            continue;
+        }
+        let body = format!(
+            "You're {}% there. {} so captains and clubs can see who they're picking.",
+            strength.percent, strength.next_up
+        );
+        let payload = serde_json::json!({
+            "percent": strength.percent,
+            "url": "/profile",
+            "tag": "profile-nudge",
+        });
+        fishers_db::repos::notifications::record(pool, user_id, "profile_nudge", &payload).await?;
+        if let Err(e) = push
+            .send(pool, user_id, "profile_nudge", "Finish your Fishers profile", &body, payload)
+            .await
+        {
+            warn!(error = %e, "profile nudge push failed");
+        }
+        sqlx::query(
+            "UPDATE users SET profile_nudges = profile_nudges + 1, profile_nudged_at = NOW() WHERE id = $1",
+        )
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+        sent += 1;
+    }
+    if sent > 0 {
+        info!(count = sent, "profile nudges sent");
+    }
     Ok(())
 }
 

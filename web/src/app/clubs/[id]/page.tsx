@@ -131,6 +131,20 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
         </div>
       </section>
 
+      {/* What the club is for: a match, as soon as there is anyone to play. */}
+      {club.sport_types.includes("cricket") &&
+        (isSecretary || myRole?.permissions.includes("score_match")) && (
+          <div className="panel instant-start">
+            <div>
+              <h2>Start a match</h2>
+              <p className="muted">Name the opposition and start scoring — no fixture to set up first.</p>
+            </div>
+            <Link className="btn primary" href={`/score?new=1&club=${id}`}>
+              <Icon name="bat" size={16} /> Start a match
+            </Link>
+          </div>
+        )}
+
       {isSecretary && (
         <ClubSetup
           clubId={id}

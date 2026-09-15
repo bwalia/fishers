@@ -545,8 +545,13 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
 
   return (
     <div className="cc">
+      {/* The fields are a form of their own and the code box sits outside it:
+          the code box is a form too, and a form inside a form made pressing
+          Confirm reload the page and lose the club that was filled in. */}
+      <div className="panel cc-form">
       <form
-        className="panel cc-form"
+        id="cc-fields"
+        className="cc-fields"
         onSubmit={(e) => {
           e.preventDefault();
           if (!missing && !busy && !verify) submit();
@@ -637,6 +642,8 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
           <p className="cc-help" id="cc-about-help">Where and when you play. It shows on the club card.</p>
         </div>
 
+      </form>
+
         {verify ? (
           <div className="verify-gate">
             <p className="verify-gate-title">
@@ -663,12 +670,12 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
           </p>
           <div className="cc-buttons">
             <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
-            <button className="btn primary" type="submit" disabled={busy || !!verify || !!missing}>
+            <button className="btn primary" type="submit" form="cc-fields" disabled={busy || !!verify || !!missing}>
               {busy ? "Creating…" : "Create club"}
             </button>
           </div>
         </div>
-      </form>
+      </div>
 
       <aside className="cc-aside">
         {/* A mirror of the form, so it is hidden from screen readers. */}

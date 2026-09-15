@@ -4676,6 +4676,8 @@ a.bell-item:hover { background: var(--surface-2); }
   gap: var(--s5);
   padding: clamp(var(--s4), 3vw, var(--s6));
 }
+/* The fields' form lays out as part of the panel's grid. */
+.cc-fields { display: contents; }
 .cc-field { border: 0; margin: 0; padding: 0; min-width: 0; }
 .cc-label {
   display: flex;
@@ -5704,4 +5706,45 @@ main .panel[id] { scroll-margin-top: 80px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cw[open] { animation: none; }
+}
+
+/* ---------- Quick start (/welcome) ---------- */
+.qs { display: grid; place-items: start center; padding-block: var(--s6); }
+.qs-card { width: min(640px, 100%); padding: var(--s5); }
+.qs-card h1 { margin: var(--s1) 0 var(--s1); font-size: clamp(1.8rem, 5vw, 2.4rem); }
+.qs-card > .muted { margin: 0 0 var(--s4); }
+.qs-question { border: 0; padding: 0; margin: 0 0 var(--s5); display: grid; gap: var(--s2); }
+.qs-question legend { font-weight: 700; font-size: 1rem; padding: 0; margin-bottom: var(--s2); }
+.qs-legend { font-weight: 700; font-size: 1rem; }
+.qs-question .chip-list { margin-top: 0; }
+.qs-question input { max-width: 320px; }
+.qs-cap { text-transform: capitalize; font-weight: 600; }
+.qs-actions { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s4); flex-wrap: wrap; }
+.qs-badge {
+  display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%;
+  background: var(--primary); color: #fff; margin-bottom: var(--s2);
+}
+@media (max-width: 480px) {
+  .qs-card { padding: var(--s4); }
+  .qs-actions .btn { flex: 1; }
+}
+
+/* ---------- Profile strength ---------- */
+.strength { display: flex; gap: var(--s4); align-items: center; }
+.strength-ring {
+  --pct: 0%;
+  flex: none; width: 64px; height: 64px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: conic-gradient(var(--primary) var(--pct), var(--border) 0);
+}
+.strength-ring span {
+  width: 50px; height: 50px; border-radius: 50%; background: var(--surface);
+  display: grid; place-items: center; font-weight: 700; font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.strength-body h2 { margin: 0; font-size: 1.1rem; }
+.strength-body .muted { margin: var(--s1) 0 var(--s2); }
+.strength-actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+@media (max-width: 480px) {
+  .strength { align-items: flex-start; }
 }

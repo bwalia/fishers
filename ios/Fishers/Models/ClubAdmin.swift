@@ -128,6 +128,9 @@ struct AppNotification: Codable, Identifiable, Equatable {
                 return "You're invited: \(event).\(from)"
             }
             return "\(payload["club_name"] ?? "A club") wants you in the club.\(from)"
+        case "profile_nudge":
+            let percent = payload["percent"].map { " — you're \($0)% there" } ?? ""
+            return "Finish your profile\(percent). Captains pick players they can see."
         case "invite_accepted":
             let into = payload["team_name"] ?? payload["event_title"] ?? payload["club_name"] ?? "the club"
             return "\(payload["player"] ?? "A player") accepted — they're in \(into)."

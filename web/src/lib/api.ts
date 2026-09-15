@@ -53,7 +53,38 @@ export type PublicUser = {
   phone_verified?: boolean;
   /// What they said they came to do; absent until they have been asked.
   role_intent?: RoleIntent | null;
+  /// How much of the profile is filled in — the same count the iPhone app shows.
+  profile_strength?: ProfileStrength;
 };
+
+export type ProfileStrength = {
+  percent: number;
+  /// What is not filled in yet, most valuable first: "photo", "standard"…
+  missing: string[];
+  /// "Add a photo, the standard you play at and your position".
+  next_up: string;
+};
+
+/// Past the quick start: anyone with a sport on file, on any device; anyone
+/// who skipped it, in this browser.
+export const quickStartKey = (userId: string) => `fishers:quick-start:${userId}`;
+
+export function needsQuickStart(user: PublicUser): boolean {
+  if ((user.sport_profiles ?? []).length > 0) return false;
+  try {
+    return localStorage.getItem(quickStartKey(user.id)) !== "1";
+  } catch {
+    return false; // no storage: never trap somebody on a screen they cannot leave
+  }
+}
+
+export function markQuickStartDone(userId: string) {
+  try {
+    localStorage.setItem(quickStartKey(userId), "1");
+  } catch {
+    /* private window: they may see it once more */
+  }
+}
 
 export type RoleIntent = "secretary" | "player";
 
@@ -693,6 +724,13 @@ export function notificationLine(n: AppNotification): {
         return { title: `${i.club_name ?? "A club"} wants you in their ${i.team_name}.${from}`, href: "/" };
       if (i.event_title) return { title: `You're invited: ${i.event_title}.${from}`, href: "/" };
       return { title: `${i.club_name ?? "A club"} wants you in the club.${from}`, href: "/" };
+    }
+    case "profile_nudge": {
+      const percent = (n.payload as { percent?: number }).percent;
+      return {
+        title: `Finish your profile${percent != null ? ` — you're ${percent}% there` : ""}. Captains pick players they can see.`,
+        href: "/profile",
+      };
     }
     case "invite_accepted": {
       const a = n.payload as { player?: string; team_name?: string; club_name?: string; event_title?: string; club_id?: string };

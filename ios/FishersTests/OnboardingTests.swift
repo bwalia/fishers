@@ -163,6 +163,7 @@ final class OnboardingTests: XCTestCase {
 
         let quick = try profiled(#","phone":"07700900123","primary_sport":"cricket","sport_profiles":[{"sport":"cricket"}]"#)
         XCTAssertEqual(ProfileStrength(quick).percent, 35, "name, sport and number: what the quick start asks")
+        XCTAssertEqual(ProfileStrength(quick).nextUp, "Add a photo, the standard you play at and your position")
 
         let full = try profiled("""
         ,"phone":"07700900123","avatar_url":"https://x/p.jpg","emergency_contact":"Mum 07700",
