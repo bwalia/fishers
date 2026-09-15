@@ -162,6 +162,14 @@ and sets `notify_external_testers: true`. First-time external distribution may
 need a short Beta App Review in App Store Connect (contact name/email/phone —
 override phone with `TESTFLIGHT_CONTACT_PHONE` in E.164, e.g. `+447911123456`).
 
+**Why you can see an invite but cannot install:** external email invites are accepted
+in TestFlight immediately, but the build stays unavailable until Apple finishes
+Beta App Review (often a few hours). App Store Connect users (Account Holder /
+Admin / Developer on the team) can install sooner via **Internal Testing** —
+the pipeline attaches each build to internal groups and also exposes a
+`workflow_dispatch` target **`testflight_ready`** (`fastlane ios ready_testers`)
+that re-attaches the latest processed build without rebuilding.
+
 If someone already has a build but no invite email: App Store Connect → My Apps
 → Fishers → TestFlight → the **Fishers** group → add/resend invite, or run
 `bundle exec fastlane ios invite_testers` on the Mac Studio with ASC secrets

@@ -34,6 +34,7 @@ on:
         default: testflight
         options:
           - testflight
+          - testflight_ready
           - app_store
 
 concurrency:
@@ -148,12 +149,18 @@ jobs:
         run: bundle exec ruby ./ci/verify-asc-api-key.rb
 
       - name: Install XcodeGen
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || inputs.target != 'testflight_ready'
         run: |
           if ! command -v xcodegen >/dev/null 2>&1; then
             brew install xcodegen
           fi
 
       - name: Resolve marketing version
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || inputs.target != 'testflight_ready'
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
@@ -169,13 +176,22 @@ jobs:
           echo "VERSION_NAME=$v" >> "$GITHUB_ENV"
 
       - name: Compute next build number
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || inputs.target != 'testflight_ready'
         id: build
         run: bundle exec fastlane ios ci_build_number
 
       - name: Prepare code signing
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || inputs.target != 'testflight_ready'
         run: bundle exec fastlane ios prepare_signing
 
       - name: Build signed IPA
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || inputs.target != 'testflight_ready'
         env:
           BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: bundle exec fastlane ios build_ipa
@@ -185,6 +201,10 @@ jobs:
           github.event_name == 'push'
           || (github.event_name == 'workflow_dispatch' && inputs.target == 'testflight')
         run: bundle exec fastlane ios beta
+
+      - name: Make latest build installable (internal + re-invite)
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testflight_ready'
+        run: bundle exec fastlane ios ready_testers
 
       - name: Submit for App Store review
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'app_store'
