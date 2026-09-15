@@ -94,22 +94,29 @@ def ensure_testflight_testers!(api_key:)
     UI.user_error!("Could not create or load TestFlight group '#{group_name}'") unless group&.id
   end
 
+  # Apple removed bulkBetaTesterAssignments; create each tester via POST /v1/betaTesters
+  # with a betaGroups relationship (Spaceship: post_beta_tester_assignment).
   testflight_tester_emails.each do |email|
     UI.message("Ensuring TestFlight tester #{email} is in group '#{group_name}'")
-  end
-  begin
-    # Preferred Spaceship 2.240 API — creates testers and assigns them to the group.
-    group.post_bulk_beta_tester_assignments(
-      beta_testers: testflight_tester_emails.map do |email|
-        {
+    begin
+      Spaceship::ConnectAPI.post_beta_tester_assignment(
+        beta_group_ids: [group.id],
+        attributes: {
           email: email,
           firstName: email.split("@").first,
           lastName: "Tester"
         }
+      )
+      UI.success("Invited #{email} to '#{group_name}'")
+    rescue => e
+      # Already in the group / already a tester is fine — continue.
+      msg = e.message.to_s
+      if msg =~ /already|exists|conflict|ENTITY_ERROR\.RELATIONSHIP\.INVALID/i
+        UI.message("#{email} already invited or in group — ok")
+      else
+        UI.important("Invite #{email}: #{msg} — continuing; upload may still notify the group")
       end
-    )
-  rescue => e
-    UI.important("Bulk tester invite failed: #{e.message} — continuing; upload may still notify the group")
+    end
   end
 
   group_name
@@ -305,7 +312,8 @@ platform :ios do
         contact_email: ENV.fetch("TESTFLIGHT_CONTACT_EMAIL", testflight_tester_emails.first),
         contact_first_name: ENV.fetch("TESTFLIGHT_CONTACT_FIRST_NAME", "Balinder"),
         contact_last_name: ENV.fetch("TESTFLIGHT_CONTACT_LAST_NAME", "Walia"),
-        contact_phone: ENV.fetch("TESTFLIGHT_CONTACT_PHONE", "+447700900123"),
+        # E.164 required; Ofcom drama numbers (e.g. +447700900xxx) are rejected by ASC.
+        contact_phone: ENV.fetch("TESTFLIGHT_CONTACT_PHONE", "+447911123456"),
         demo_account_required: false,
         notes: ENV.fetch(
           "TESTFLIGHT_REVIEW_NOTES",
