@@ -104,6 +104,21 @@ POSTGRES_PORT="${POSTGRES_PORT:-7313}"
 API_PORT="${API_PORT:-7312}"
 WEB_PORT="${WEB_PORT:-7311}"
 
+# Older local .env files used 5455, which collides with other stacks on the
+# Mac Studio and made start.sh die looking like a Fishers port problem.
+if [ "$POSTGRES_PORT" = "5455" ]; then
+  warn "POSTGRES_PORT=5455 collides with other local stacks — switching to 7313"
+  POSTGRES_PORT=7313
+  if grep -q '^POSTGRES_PORT=5455' "$ROOT/.env" 2>/dev/null; then
+    # Keep DATABASE_URL in lockstep so the next run does not flip back.
+    tmp_env="$(mktemp)"
+    sed -e 's/^POSTGRES_PORT=5455$/POSTGRES_PORT=7313/' \
+        -e 's#@localhost:5455/#@localhost:7313/#' \
+        "$ROOT/.env" >"$tmp_env"
+    mv "$tmp_env" "$ROOT/.env"
+    info "Updated .env: POSTGRES_PORT=7313"
+  fi
+fi
 # The address a phone, a Simulator and a browser on another machine can all use.
 # Taken from whichever interface holds the default route, so a Wi-Fi/Ethernet
 # switch or a new DHCP lease is picked up on the next run rather than needing a
@@ -335,25 +350,54 @@ if [ "$WANT_API" = 1 ]; then
     docker compose down >/dev/null 2>&1 || true
   fi
 
+  # Bring Postgres (and Mailpit) up on their own. MinIO used to ride along in
+  # the same `compose up`, so a Docker Hub pull denial for minio/minio aborted
+  # the whole stack and start.sh blamed the Postgres port.
+  compose_env() {
+    POSTGRES_PORT="$POSTGRES_PORT" \
+    MINIO_PORT="${MINIO_PORT:-9002}" \
+    MINIO_CONSOLE_PORT="${MINIO_CONSOLE_PORT:-9003}" \
+    MAILPIT_SMTP_PORT="${MAILPIT_SMTP_PORT:-1025}" \
+    MAILPIT_UI_PORT="${MAILPIT_UI_PORT:-8025}" \
+      "$@"
+  }
+  compose_up_core() {
+    compose_env docker compose up -d postgres mailpit >"$LOG_DIR/compose.log" 2>&1
+  }
   # Rancher Desktop publishes container ports through an ssh mux that can hold
   # the port for a moment after the container goes, so a start straight after a
   # stop is retried rather than reported as a clash. A port genuinely held by
   # something else is named, because "port is already allocated" on its own does
   # not say what to go and stop.
-  compose_up() { POSTGRES_PORT="$POSTGRES_PORT" docker compose up -d >"$LOG_DIR/compose.log" 2>&1; }
-  if ! compose_up; then
+  if ! compose_up_core; then
     sleep 2
-    if ! compose_up; then
+    if ! compose_up_core; then
       holder="$(port_pid "$POSTGRES_PORT")" || true
       [ -n "$holder" ] && warn "port ${POSTGRES_PORT} is held by PID ${holder}: $(pid_cmd "$holder")"
-      tail -5 "$LOG_DIR/compose.log" >&2 2>/dev/null || true
+      echo "---- docker compose log ----" >&2
+      tail -40 "$LOG_DIR/compose.log" >&2 2>/dev/null || true
+      echo "----------------------------" >&2
+      if grep -qiE 'pull access denied|manifest unknown|not found' "$LOG_DIR/compose.log" 2>/dev/null; then
+        die "docker compose failed pulling an image (see log above).
+    This is not a Postgres port clash. Fix registry access, or re-run after
+    'docker logout' if a private Hub login is blocking public pulls."
+      fi
       die "could not start Postgres on :${POSTGRES_PORT}.
-    Stop whatever holds the port, or set POSTGRES_PORT in .env to a spare one."
+    Stop whatever holds the port, or set POSTGRES_PORT=7313 in .env."
     fi
   fi
   wait_for "waiting for Postgres" 60 "" pg_ready \
     || die "Postgres never became ready — 'docker logs ${PG_CONTAINER}' has the detail."
   ok "postgres://fishers:fishers@localhost:${POSTGRES_PORT}/fishers"
+
+  step "MinIO"
+  if compose_env docker compose up -d minio minio-init >>"$LOG_DIR/compose.log" 2>&1; then
+    ok "MinIO on :${MINIO_PORT:-9002} (console :${MINIO_CONSOLE_PORT:-9003})"
+  else
+    warn "MinIO did not start — avatar uploads will fail until it does"
+    warn "see ${LOG_DIR}/compose.log (often a registry pull problem)"
+    tail -20 "$LOG_DIR/compose.log" >&2 2>/dev/null || true
+  fi
 fi
 
 # ── API ──────────────────────────────────────────────────────────────────────
