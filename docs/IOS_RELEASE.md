@@ -150,32 +150,35 @@ runner when present, otherwise from `ASC_PRIVATE_KEY_B64` / Vault.
 5. The workflow’s **Verify App Store Connect API key** step probes
    `GET /v1/apps` before build numbering — read that log for the precise mismatch.
 
-**TestFlight invites** go to the external group **Fishers** (override with
-`TESTFLIGHT_GROUP`). Default emails:
+**TestFlight installs (no Apple review):** releases use **Internal Testing** by
+default. Anyone who should test must be an **App Store Connect user** on the
+Fishers team:
+
+1. [App Store Connect → Users and Access](https://appstoreconnect.apple.com/access/users) → invite
+   their Apple ID (role: Developer or Marketing is enough).
+2. TestFlight → Internal Testing → **App Store Connect Users** (or Fishers Internal)
+   → ensure they are in the group.
+3. They open the **TestFlight** app signed in with that Apple ID → Install Fishers.
+
+Default invite emails (also kept on the external **Fishers** group for later):
 
 - `balindersinghwalia@icloud.com`
 - `harchran001@gmail.com`
 
-Override with repo variable/secret `TESTFLIGHT_TESTERS` (comma-separated). The
-`beta` lane creates/updates the group, invites those emails, uploads the IPA,
-and sets `notify_external_testers: true`. First-time external distribution may
-need a short Beta App Review in App Store Connect (contact name/email/phone —
-override phone with `TESTFLIGHT_CONTACT_PHONE` in E.164, e.g. `+447911123456`).
+Override with `TESTFLIGHT_TESTERS`. External email-only testing (no ASC seat)
+requires Apple **Beta App Review** — that is why earlier releases sat in review
+and showed an invite with nothing to install. Do **not** turn that on for normal
+QA. Only set repo variable/secret `TESTFLIGHT_DISTRIBUTE_EXTERNAL=1` when you
+intentionally want external review. Contact phone for that path:
+`TESTFLIGHT_CONTACT_PHONE` (E.164).
 
-**Why you can see an invite but cannot install:** external email invites are accepted
-in TestFlight immediately, but the build stays unavailable until Apple finishes
-Beta App Review (often a few hours). Only one build per version can be in that
-review at a time — later uploads stay on App Store Connect and are attached to
-**Internal Testing** so App Store Connect users (Account Holder / Admin /
-Developer) can install right away. Email-only testers wait for the in-review
-build to be approved. Use `workflow_dispatch` target **`testflight_ready`**
-(`fastlane ios ready_testers`) to re-attach the latest processed build without
-rebuilding.
+`workflow_dispatch` target **`testflight_ready`** re-attaches the latest build
+to internal groups without rebuilding.
 
 If someone already has a build but no invite email: App Store Connect → My Apps
-→ Fishers → TestFlight → the **Fishers** group → add/resend invite, or run
-`bundle exec fastlane ios invite_testers` on the Mac Studio with ASC secrets
-loaded.
+→ Fishers → TestFlight → Internal Testing → add them, or run
+`bundle exec fastlane ios invite_testers` / `ready_testers` on the Mac Studio
+with ASC secrets loaded.
 
 ### 3. Self-hosted runner
 
