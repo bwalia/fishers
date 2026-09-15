@@ -9,10 +9,10 @@ default_platform(:ios)
 
 APP_ID = "com.fishers.app".freeze
 
-# External TestFlight group + emails that should receive builds/invites.
-# Override with TESTFLIGHT_GROUP / TESTFLIGHT_TESTERS (comma-separated).
 # Permanent policy: Internal Testing only (no Apple Beta App Review).
-DEFAULT_TESTFLIGHT_GROUP = "Fishers Internal".freeze
+# Use Apple's built-in internal group — Spaceship cannot create custom internal
+# groups (ASC rejects publicLink* attrs on isInternalGroup: true).
+DEFAULT_TESTFLIGHT_GROUP = "App Store Connect Users".freeze
 DEFAULT_TESTFLIGHT_TESTERS = [
   "balindersinghwalia@icloud.com",
   "harchran001@gmail.com"
@@ -51,9 +51,9 @@ def testflight_tester_emails
   list.map(&:downcase).uniq
 end
 
-# Invite Fishers testers as App Store Connect users and ensure the internal
-# TestFlight group exists. Internal Testing never needs Beta App Review —
-# Apple emails an ASC seat invite once; every later main merge just ships a build.
+# Invite Fishers testers as App Store Connect users. Internal Testing uses the
+# built-in "App Store Connect Users" group — no Beta App Review. Apple emails an
+# ASC seat invite once; every later main merge just ships a build.
 def ensure_fishers_internal_testers!(api_key:)
   spaceship_token_from!(api_key)
 
@@ -61,33 +61,9 @@ def ensure_fishers_internal_testers!(api_key:)
   UI.user_error!("App Store Connect app '#{APP_ID}' not found — create it first") unless app
 
   group_name = testflight_group_name
+  UI.message("Internal TestFlight group: '#{group_name}' (no Apple Beta App Review)")
 
-  find_group = lambda do
-    Array(app.get_beta_groups).find do |g|
-      g.name == group_name && (
-        begin
-          g.respond_to?(:is_internal_group) ? g.is_internal_group : true
-        rescue
-          true
-        end
-      )
-    end || Array(app.get_beta_groups(filter: { name: group_name })).find { |g| g.name == group_name }
-  end
-
-  group = find_group.call
-  unless group
-    UI.message("Creating internal TestFlight group '#{group_name}' (auto-distribute, no review)")
-    created = Spaceship::ConnectAPI.create_beta_group(
-      app_id: app.id,
-      group_name: group_name,
-      is_internal_group: true,
-      has_access_to_all_builds: true
-    )
-    group = created.respond_to?(:id) && created.id ? created : find_group.call
-    UI.user_error!("Could not create or load internal group '#{group_name}'") unless group&.id
-  end
-
-  # One-time ASC seat invites — required for Internal Testing (no Beta App Review).
+  # One-time ASC seat invites — required for Internal Testing.
   testflight_tester_emails.each do |email|
     UI.message("Ensuring App Store Connect access for #{email}")
     begin
@@ -122,15 +98,15 @@ def ensure_fishers_internal_testers!(api_key:)
         all_apps_visible: false,
         visible_app_ids: [app.id]
       )
-      UI.success("Sent App Store Connect invite to #{email} (accept once, then TestFlight installs forever)")
+      UI.success("Sent App Store Connect invite to #{email} (accept once, then TestFlight installs on every merge)")
     rescue => e
       msg = e.message.to_s
       if msg =~ /already|exists|conflict|duplicate/i
         UI.message("#{email}: #{msg} — ok")
       else
         UI.important(
-          "ASC invite #{email}: #{msg} — if they already have access, ignore. " \
-          "Otherwise invite them under Users and Access."
+          "ASC invite #{email}: #{msg} — continuing upload. " \
+          "If they cannot install, invite them under Users and Access."
         )
       end
     end
@@ -215,19 +191,8 @@ def attach_latest_build_to_internal!
     internal = all_groups.select { |g| g.name.to_s =~ /App Store Connect Users/i }
   end
   if internal.empty?
-    UI.message("Creating internal group 'Fishers Internal' (no Beta App Review)")
-    created = Spaceship::ConnectAPI.create_beta_group(
-      app_id: app.id,
-      group_name: "Fishers Internal",
-      is_internal_group: true,
-      has_access_to_all_builds: true
-    )
-    internal = [created.respond_to?(:id) && created.id ? created : nil].compact
-    internal = Array(app.get_beta_groups).select { |g| g.name == "Fishers Internal" } if internal.empty?
-  end
-  if internal.empty?
-    UI.important("No internal TestFlight group available — skip attach")
-    return nil
+    UI.important("No internal TestFlight group found — pilot distribute should still cover ASC users")
+    return build
   end
 
   begin
