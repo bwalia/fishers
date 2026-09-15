@@ -73,11 +73,15 @@ def ensure_testflight_testers!(api_key:)
   UI.user_error!("App Store Connect app '#{APP_ID}' not found — create it first") unless app
 
   group_name = testflight_group_name
-  groups = app.get_beta_groups(filter: { name: group_name })
-  group = Array(groups).find { |g| g.name == group_name }
+
+  find_group = lambda do
+    Array(app.get_beta_groups(filter: { name: group_name })).find { |g| g.name == group_name }
+  end
+
+  group = find_group.call
   unless group
     UI.message("Creating TestFlight group '#{group_name}'")
-    group = Spaceship::ConnectAPI.create_beta_group(
+    created = Spaceship::ConnectAPI.create_beta_group(
       app_id: app.id,
       group_name: group_name,
       is_internal_group: false,
@@ -85,19 +89,27 @@ def ensure_testflight_testers!(api_key:)
       public_link_limit: 10_000,
       public_link_limit_enabled: false
     )
+    # Some Spaceship versions return a Response, not a BetaGroup model.
+    group = created.respond_to?(:id) && created.id ? created : find_group.call
+    UI.user_error!("Could not create or load TestFlight group '#{group_name}'") unless group&.id
   end
 
   testflight_tester_emails.each do |email|
     UI.message("Ensuring TestFlight tester #{email} is in group '#{group_name}'")
     begin
-      Spaceship::ConnectAPI.post_beta_tester_to_group(
-        group_id: group.id,
-        email: email,
-        first_name: email.split("@").first,
-        last_name: "Tester"
-      )
+      if group.respond_to?(:add_beta_testers)
+        group.add_beta_testers(
+          attributes: [{ email: email, firstName: email.split("@").first, lastName: "Tester" }]
+        )
+      else
+        Spaceship::ConnectAPI.post_beta_tester_to_group(
+          group_id: group.id,
+          email: email,
+          first_name: email.split("@").first,
+          last_name: "Tester"
+        )
+      end
     rescue => e
-      # Already invited / already in group is fine.
       UI.important("Invite #{email}: #{e.message} — continuing")
     end
   end
@@ -282,6 +294,13 @@ platform :ios do
       groups: [group],
       notify_external_testers: true,
       changelog: notes,
+      beta_app_description: ENV.fetch(
+        "TESTFLIGHT_BETA_DESCRIPTION",
+        "Fishers is a club sports app for fixtures, live cricket scoring, chat, and team selection."
+      ),
+      beta_app_feedback_email: testflight_tester_emails.first,
+      demo_account_required: false,
+      uses_non_exempt_encryption: false,
       reject_build_waiting_for_review: false
     )
   end
