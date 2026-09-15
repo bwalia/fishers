@@ -103,6 +103,19 @@ jobs:
           CERT_PRIVATE_KEY_B64: ${{ secrets.CERT_PRIVATE_KEY_B64 }}
         run: |
           chmod +x ./ci/load-ios-vault-secrets.sh ./ci/seed-ios-vault.sh ./ci/verify-asc-api-key.rb
+          # Prefer the AuthKey on the Mac Studio runner when present — avoids a
+          # stale/mis-encoded ASC_PRIVATE_KEY_B64 GitHub secret masking a good
+          # local .p8 (e.g. $HOME/AuthKey_6KVVV27G4Q.p8).
+          if [ -z "${ASC_P8_PATH:-}" ]; then
+            if [ -n "${ASC_KEY_ID:-}" ] && [ -f "$HOME/AuthKey_${ASC_KEY_ID}.p8" ]; then
+              export ASC_P8_PATH="$HOME/AuthKey_${ASC_KEY_ID}.p8"
+            elif [ -f "$HOME/AuthKey_6KVVV27G4Q.p8" ]; then
+              export ASC_P8_PATH="$HOME/AuthKey_6KVVV27G4Q.p8"
+            fi
+          fi
+          if [ -n "${ASC_P8_PATH:-}" ]; then
+            echo "Using local ASC key file: $ASC_P8_PATH"
+          fi
           ./ci/load-ios-vault-secrets.sh
 
       - name: Install Ruby dependencies

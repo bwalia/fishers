@@ -127,10 +127,15 @@ Do **not** point iOS CI at `vault.diytaxreturn.co.uk` / `acc-vault` — those ar
 **Option B — GitHub Actions secrets** (recommended if you are not using Vault for iOS):
 
 1. Repo → **Settings** → **Secrets and variables** → **Actions**
-2. **New repository secret** for each required key above
-3. Re-run **iOS Release** (or merge any `ios/**` change to `main`)
+2. **New repository secret** for `ASC_KEY_ID`, `ASC_ISSUER_ID`, `APPLE_TEAM_ID`
+   (and optionally `ASC_PRIVATE_KEY_B64`)
+3. On the **Mac Studio** runner, also place the downloaded key at
+   `$HOME/AuthKey_<KEY_ID>.p8` (e.g. `$HOME/AuthKey_6KVVV27G4Q.p8`). The release
+   workflow prefers that local file over a base64 secret when both exist.
+4. Re-run **iOS Release** (or merge any `ios/**` change to `main`)
 
-The workflow prefers GitHub secrets; if they are empty it falls back to Vault.
+The workflow prefers GitHub secrets for IDs; the `.p8` comes from `$HOME` on the
+runner when present, otherwise from `ASC_PRIVATE_KEY_B64` / Vault.
 
 **If iOS Release fails with “Authentication credentials are missing or invalid”:**
 

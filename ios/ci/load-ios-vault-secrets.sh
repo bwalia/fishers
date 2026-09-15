@@ -6,9 +6,15 @@
 #   1. Already-exported ASC_* / APPLE_TEAM_ID env vars (e.g. GitHub Actions secrets)
 #   2. WSLVault KV v2 at kv/fishers/ios (https://vault.workstation.co.uk)
 #
-# Always materialises ASC_PRIVATE_KEY_B64 (or raw PEM) into a file and exports
-# ASC_KEY_FILEPATH. Strips quotes/whitespace and validates shapes so a bad paste
-# fails here instead of as a vague Apple JWT error later.
+# Private key (.p8) resolution (first hit wins):
+#   a. ASC_P8_PATH (explicit file on the runner, e.g. $HOME/AuthKey_6KVVV27G4Q.p8)
+#   b. $HOME/AuthKey_${ASC_KEY_ID}.p8
+#   c. the only $HOME/AuthKey_*.p8 if exactly one exists
+#   d. ASC_PRIVATE_KEY_B64 / ASC_PRIVATE_KEY (GitHub secret or Vault)
+#
+# On the Mac Studio self-hosted runner, dropping Apple's downloaded
+# AuthKey_<KEY_ID>.p8 in $HOME is enough — no need to re-base64 into GitHub
+# when the file is already on disk.
 #
 #   CI:    ./ci/load-ios-vault-secrets.sh           # appends to $GITHUB_ENV
 #   local: eval "$(./ci/load-ios-vault-secrets.sh)" # exports to shell
@@ -22,11 +28,12 @@ WORKDIR="${IOS_SECRETS_DIR:-${RUNNER_TEMP:-$(cd "$(dirname "${BASH_SOURCE[0]}")/
 mkdir -p "$WORKDIR"
 chmod 700 "$WORKDIR"
 export VAULT_ADDR VAULT_TOKEN="${VAULT_TOKEN:-}" VAULT_TOKEN_FILE WORKDIR VAULT_SECRET_PATH
+export ASC_P8_PATH="${ASC_P8_PATH:-}" HOME
 
 python3 - <<'PY'
-import base64, json, os, re, sys, urllib.request, urllib.error
+import base64, glob, json, os, re, sys, urllib.request, urllib.error
 
-REQUIRED = ("ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_B64", "APPLE_TEAM_ID")
+REQUIRED_IDS = ("ASC_KEY_ID", "ASC_ISSUER_ID", "APPLE_TEAM_ID")
 FORBIDDEN_HOSTS = ("vault.diytaxreturn.co.uk",)
 KEY_ID_RE = re.compile(r"^[A-Z0-9]{10}$")
 ISSUER_RE = re.compile(
@@ -65,8 +72,7 @@ def decode_p8(raw_value: str) -> bytes:
     """Accept base64(AuthKey.p8) or the PEM itself (common secret-UI mistake)."""
     text = clean(raw_value)
     if "BEGIN PRIVATE KEY" in text:
-        return text.encode("utf-8") if isinstance(text, str) else text
-    # Whitespace/newlines from `base64` without `tr -d` break validate=True.
+        return text.encode("utf-8")
     compact = re.sub(r"\s+", "", text)
     try:
         decoded = base64.b64decode(compact, validate=False)
@@ -74,7 +80,6 @@ def decode_p8(raw_value: str) -> bytes:
         sys.exit("ERROR: ASC_PRIVATE_KEY_B64 is not valid base64: %s" % exc)
     if b"BEGIN PRIVATE KEY" in decoded:
         return decoded
-    # One layer of double-encoding (base64 of base64(pem)).
     try:
         again = base64.b64decode(re.sub(rb"\s+", b"", decoded), validate=False)
         if b"BEGIN PRIVATE KEY" in again:
@@ -83,9 +88,51 @@ def decode_p8(raw_value: str) -> bytes:
         pass
     sys.exit(
         "ERROR: ASC_PRIVATE_KEY_B64 decoded but is not an AuthKey .p8 PEM "
-        "(no BEGIN PRIVATE KEY). Re-run:\n"
-        "  base64 -i AuthKey_<KEY_ID>.p8 | tr -d '\\n'\n"
-        "and paste that single line as the secret (or paste the PEM itself)."
+        "(no BEGIN PRIVATE KEY). Prefer placing AuthKey_<KEY_ID>.p8 in $HOME "
+        "on the Mac Studio runner, or re-encode:\n"
+        "  base64 -i AuthKey_<KEY_ID>.p8 | tr -d '\\n'"
+    )
+
+def resolve_p8(key_id: str, data: dict):
+    """Return (pem_bytes, source_label). Prefer runner-local AuthKey_*.p8."""
+    candidates = []
+    explicit = clean(os.environ.get("ASC_P8_PATH", "") or data.get("ASC_P8_PATH", ""))
+    if explicit:
+        candidates.append(explicit)
+    home = os.path.expanduser("~")
+    if key_id:
+        candidates.append(os.path.join(home, "AuthKey_%s.p8" % key_id))
+    matches = sorted(glob.glob(os.path.join(home, "AuthKey_*.p8")))
+    if len(matches) == 1:
+        candidates.append(matches[0])
+
+    seen = set()
+    for path in candidates:
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        if os.path.isfile(path):
+            raw = open(path, "rb").read()
+            if b"BEGIN PRIVATE KEY" not in raw:
+                sys.exit("ERROR: %s is not a PEM AuthKey (.p8)" % path)
+            base = os.path.basename(path)
+            m = re.match(r"AuthKey_([A-Z0-9]{10})\.p8$", base)
+            if m and key_id and m.group(1) != key_id:
+                sys.exit(
+                    "ERROR: %s Key ID %s does not match ASC_KEY_ID=%s"
+                    % (path, m.group(1), key_id)
+                )
+            return raw, "file:%s" % path
+
+    if data.get("ASC_PRIVATE_KEY_B64") or data.get("ASC_PRIVATE_KEY"):
+        pem = decode_p8(data.get("ASC_PRIVATE_KEY_B64") or data.get("ASC_PRIVATE_KEY"))
+        return pem, "ASC_PRIVATE_KEY_B64"
+
+    sys.exit(
+        "ERROR: no App Store Connect .p8 found.\n"
+        "  • On the Mac Studio: place AuthKey_%s.p8 in $HOME (or set ASC_P8_PATH), or\n"
+        "  • Set GitHub secret ASC_PRIVATE_KEY_B64 (base64 of the .p8)."
+        % (key_id or "<KEY_ID>")
     )
 
 def write_secret_file(name, content: bytes):
@@ -100,7 +147,6 @@ def validate_shapes(data):
     issuer = data["ASC_ISSUER_ID"]
     team = data["APPLE_TEAM_ID"]
     if not KEY_ID_RE.match(key_id):
-        # Common swap: Issuer UUID or Team ID pasted into Key ID.
         hint = ""
         if ISSUER_RE.match(key_id):
             hint = " That value looks like ASC_ISSUER_ID."
@@ -131,17 +177,16 @@ def validate_shapes(data):
         )
 
 def publish(data, source):
-    data = {k: clean(data.get(k, "")) for k in set(REQUIRED) | set(data)}
-    # Allow ASC_PRIVATE_KEY alias (raw PEM) when B64 was not set.
-    if not data.get("ASC_PRIVATE_KEY_B64") and data.get("ASC_PRIVATE_KEY"):
-        data["ASC_PRIVATE_KEY_B64"] = data["ASC_PRIVATE_KEY"]
+    data = {k: clean(v) if isinstance(v, str) else v for k, v in data.items()}
+    for k in REQUIRED_IDS:
+        data[k] = clean(data.get(k, ""))
 
-    missing = [k for k in REQUIRED if not data.get(k)]
+    missing = [k for k in REQUIRED_IDS if not data.get(k)]
     if missing:
         sys.exit("ERROR: %s is missing required key(s): %s" % (source, ", ".join(missing)))
 
     validate_shapes(data)
-    pem = decode_p8(data["ASC_PRIVATE_KEY_B64"])
+    pem, p8_source = resolve_p8(data["ASC_KEY_ID"], data)
     asc_key_path = write_secret_file("asc_api_key.p8", pem)
     env_lines = [
         ("ASC_KEY_ID", data["ASC_KEY_ID"]),
@@ -160,22 +205,23 @@ def publish(data, source):
             write_secret_file("dist_cert_key.pem", cert_bytes),
         ))
     if data.get("APP_STORE_APP_ID"):
-        env_lines.append(("APP_STORE_APP_ID", clean(data["APP_STORE_APP_ID"])))
+        env_lines.append(("APP_STORE_APP_ID", clean(str(data["APP_STORE_APP_ID"]))))
 
     emit(env_lines)
     sys.stderr.write(
         "OK: loaded iOS signing material from %s into %s "
-        "(ASC_KEY_ID …%s, .p8 %d bytes)\n"
-        % (source, os.environ["WORKDIR"], data["ASC_KEY_ID"][-4:], len(pem))
+        "(ASC_KEY_ID …%s, .p8 %d bytes via %s)\n"
+        % (source, os.environ["WORKDIR"], data["ASC_KEY_ID"][-4:], len(pem), p8_source)
     )
 
-# 1) Prefer env already provided by the workflow (GitHub Actions secrets).
-from_env = {k: clean(os.environ.get(k, "")) for k in REQUIRED}
-if os.environ.get("ASC_PRIVATE_KEY"):
-    from_env["ASC_PRIVATE_KEY"] = os.environ.get("ASC_PRIVATE_KEY", "")
-if all(from_env.get(k) for k in REQUIRED):
-    data = dict(from_env)
-    for optional in ("CERT_PRIVATE_KEY_B64", "APP_STORE_APP_ID", "ASC_PRIVATE_KEY"):
+def env_has_ids():
+    return all(clean(os.environ.get(k, "")) for k in REQUIRED_IDS)
+
+# 1) Prefer env already provided by the workflow (GitHub Actions secrets + local .p8).
+if env_has_ids():
+    data = {k: clean(os.environ.get(k, "")) for k in REQUIRED_IDS}
+    for optional in ("ASC_PRIVATE_KEY_B64", "ASC_PRIVATE_KEY", "ASC_P8_PATH",
+                     "CERT_PRIVATE_KEY_B64", "APP_STORE_APP_ID"):
         if os.environ.get(optional):
             data[optional] = os.environ[optional]
     publish(data, "environment")
@@ -205,8 +251,8 @@ def resolve_auth():
     if not addr or not token:
         sys.exit(
             "ERROR: signing secrets unavailable.\n"
-            "  • Set GitHub Actions secrets ASC_KEY_ID, ASC_ISSUER_ID,\n"
-            "    ASC_PRIVATE_KEY_B64, APPLE_TEAM_ID — or\n"
+            "  • Set GitHub Actions secrets ASC_KEY_ID, ASC_ISSUER_ID, APPLE_TEAM_ID\n"
+            "    and place AuthKey_<KEY_ID>.p8 in $HOME on the Mac Studio — or\n"
             "  • Seed WSLVault at kv/fishers/ios (see ios/ci/seed-ios-vault.sh)\n"
             "  • VAULT_ADDR=%s and a readable token (%s)"
             % (os.environ.get("VAULT_ADDR") or "https://vault.workstation.co.uk",
@@ -238,9 +284,9 @@ except urllib.error.HTTPError as exc:
         sys.exit(
             "ERROR: WSLVault secret missing at %s (HTTP 404).\n"
             "Create it with:\n"
-            "  cd ios && VAULT_ADDR=https://vault.workstation.co.uk ./ci/seed-ios-vault.sh\n"
-            "Or add GitHub Actions secrets ASC_KEY_ID, ASC_ISSUER_ID,\n"
-            "ASC_PRIVATE_KEY_B64, APPLE_TEAM_ID and re-run iOS Release."
+            "  cd ios && ASC_P8_PATH=$HOME/AuthKey_XXXXXX.p8 ./ci/seed-ios-vault.sh\n"
+            "Or set GitHub secrets ASC_KEY_ID / ASC_ISSUER_ID / APPLE_TEAM_ID and\n"
+            "keep AuthKey_<KEY_ID>.p8 in $HOME on the Mac Studio runner."
             % url
         )
     sys.exit("ERROR: Vault GET %s -> HTTP %s: %s" % (url, exc.code, detail))
