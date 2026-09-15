@@ -12,6 +12,7 @@ name: iOS Release (TestFlight & App Store)
 # Runner: self-hosted Mac Studio. Secrets: GitHub Actions or WSLVault
 # kv/fishers/ios at https://vault.workstation.co.uk. See docs/IOS_RELEASE.md.
 # Skip auto release with [skip release] or [skip ios].
+# Retrigger note: merge after ASC_* secret updates to re-run TestFlight upload.
 
 on:
   push:
