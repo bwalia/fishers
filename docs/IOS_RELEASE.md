@@ -13,7 +13,8 @@ pattern as [KubePilot](https://github.com/bwalia/kubepilot).
 
 Release CI runs on the self-hosted Mac Studio runner (`runs-on: self-hosted`).
 Signing material is loaded at build time from **GitHub Actions secrets** (if set)
-or from Vault `secret/fishers/ios`, then wiped after each run.
+or from **WSLVault** at `https://vault.workstation.co.uk` path **`kv/fishers/ios`**,
+then wiped after each run. Fishers does **not** use `vault.diytaxreturn.co.uk`.
 
 ## Flow
 
@@ -106,10 +107,11 @@ Store the values from §1 under these names (same in either place):
 | `CERT_PRIVATE_KEY_B64` | (optional) base64 of distribution private key `.pem` |
 | `APP_STORE_APP_ID` | (optional) numeric ASC app id |
 
-**Option A — Vault** (on the Mac Studio):
+**Option A — WSLVault** (`https://vault.workstation.co.uk`, same vault as ring deploys):
 
 ```bash
-export VAULT_TOKEN_FILE=$HOME/.secrets/acc-vault/login-token.json   # same path as ios_release.yml
+export VAULT_ADDR=https://vault.workstation.co.uk
+export VAULT_TOKEN=...    # or: export VAULT_TOKEN_FILE=$HOME/.secrets/wslvault/token.json
 export ASC_KEY_ID=...          # Key ID from App Store Connect
 export ASC_ISSUER_ID=...       # Issuer ID from App Store Connect
 export ASC_P8_PATH=$HOME/AuthKey_XXXXXX.p8
@@ -117,7 +119,10 @@ export APPLE_TEAM_ID=...
 ./ios/ci/seed-ios-vault.sh
 ```
 
-Writes **`secret/fishers/ios`** (KV v2). See `ios/ci/ios.vault.env.example`.
+Writes **`kv/fishers/ios`** (KV v2 mount `kv`, same family as `kv/fishers/<ring>/config`).
+See `ios/ci/ios.vault.env.example`.
+
+Do **not** point iOS CI at `vault.diytaxreturn.co.uk` / `acc-vault` — those are not used.
 
 **Option B — GitHub Actions secrets** (recommended if you are not using Vault for iOS):
 
@@ -133,7 +138,8 @@ The Mac Studio runner needs:
 
 - Xcode 16+, XcodeGen, Ruby + Bundler
 - Label: `self-hosted`
-- Vault token file (default `VAULT_TOKEN_FILE` in workflow) unless GitHub secrets are set
+- WSLVault token (`VAULT_TOKEN` or `~/.secrets/wslvault/token.json`) unless GitHub secrets are set
+- Reachable `https://vault.workstation.co.uk`
 
 ### 4. GitHub workflows
 
@@ -162,7 +168,8 @@ The Mac Studio runner needs:
 
 ```bash
 cd ios
-export VAULT_TOKEN_FILE=$HOME/.secrets/acc-vault/login-token.json
+export VAULT_ADDR=https://vault.workstation.co.uk
+export VAULT_TOKEN_FILE=$HOME/.secrets/wslvault/token.json
 eval "$(./ci/load-ios-vault-secrets.sh)"
 export BUILD_KEYCHAIN_PATH=$HOME/Library/Keychains/fishers-signing.keychain-db
 export BUILD_KEYCHAIN_PASSWORD=$(cat $HOME/.secrets/fishers/keychain-password)
