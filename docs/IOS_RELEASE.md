@@ -153,13 +153,18 @@ runner when present, otherwise from `ASC_PRIVATE_KEY_B64` / Vault.
 **TestFlight on every `main` merge:**
 
 1. Invite `balindersinghwalia@icloud.com` and `harchran001@gmail.com` into the
-   external TestFlight group **Fishers** (Apple emails a TestFlight invite).
+   external TestFlight group **Fishers**. If they are already in the group, CI
+   calls Apple’s `betaTesterInvitations` API to **resend** the TestFlight invite
+   email (assignment alone does not re-mail).
 2. Upload the IPA and distribute to **Fishers** with `notify_external_testers`.
 3. Override emails with `TESTFLIGHT_TESTERS` / group with `TESTFLIGHT_GROUP`.
+4. To resend invites without a new IPA: **Actions → iOS Release → Run workflow →
+   `invite_testers`**. Use **`testflight_ready`** to re-distribute the latest
+   processed build and re-invite.
 
-Open the TestFlight invite email (or the TestFlight app) to install. The first
-build of a version may briefly show Waiting for Review; later builds to the same
-Fishers group usually follow without a long wait. CI uses
+Open the TestFlight invite email (or the TestFlight app) to install. External
+group builds stay unavailable until **Beta App Review** approves them — that is
+when Apple’s “new build available” notify mail is sent. CI uses
 `reject_build_waiting_for_review` so a stuck prior review does not block the next merge.
 
 ### 3. Self-hosted runner

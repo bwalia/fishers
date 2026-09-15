@@ -35,6 +35,7 @@ on:
         options:
           - testflight
           - testflight_ready
+          - invite_testers
           - app_store
 
 concurrency:
@@ -151,7 +152,7 @@ jobs:
       - name: Install XcodeGen
         if: >-
           github.event_name != 'workflow_dispatch'
-          || inputs.target != 'testflight_ready'
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
         run: |
           if ! command -v xcodegen >/dev/null 2>&1; then
             brew install xcodegen
@@ -160,7 +161,7 @@ jobs:
       - name: Resolve marketing version
         if: >-
           github.event_name != 'workflow_dispatch'
-          || inputs.target != 'testflight_ready'
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
@@ -178,33 +179,37 @@ jobs:
       - name: Compute next build number
         if: >-
           github.event_name != 'workflow_dispatch'
-          || inputs.target != 'testflight_ready'
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
         id: build
         run: bundle exec fastlane ios ci_build_number
 
       - name: Prepare code signing
         if: >-
           github.event_name != 'workflow_dispatch'
-          || inputs.target != 'testflight_ready'
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
         run: bundle exec fastlane ios prepare_signing
 
       - name: Build signed IPA
         if: >-
           github.event_name != 'workflow_dispatch'
-          || inputs.target != 'testflight_ready'
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
         env:
           BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: bundle exec fastlane ios build_ipa
 
-      - name: Upload to TestFlight (internal)
+      - name: Upload to TestFlight (Fishers)
         if: >-
           github.event_name == 'push'
           || (github.event_name == 'workflow_dispatch' && inputs.target == 'testflight')
         run: bundle exec fastlane ios beta
 
-      - name: Make latest build installable (internal + re-invite)
+      - name: Make latest build installable (Fishers + re-invite)
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'testflight_ready'
         run: bundle exec fastlane ios ready_testers
+
+      - name: Resend Fishers TestFlight invite emails
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'invite_testers'
+        run: bundle exec fastlane ios invite_testers
 
       - name: Submit for App Store review
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'app_store'
