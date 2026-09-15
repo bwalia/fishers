@@ -128,7 +128,7 @@ re-run — it reuses what already exists instead of duplicating it.
 `fishers.cloud` (int / test / acc / www), promoted by
 [Ring Promoter](https://rp.workstation.co.uk/).
 
-**CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md) — same Fastlane + Vault pattern as KubePilot.
+**CI / TestFlight:** see [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md) (includes how to obtain `ASC_KEY_ID` / Issuer ID / `.p8` from App Store Connect). Same Fastlane + Vault/GitHub-secrets pattern as KubePilot.
 
 - PR build + tests: `.github/workflows/ios.yml`
 - **Auto TestFlight on merge to `main`** (when `ios/**` changes): `.github/workflows/ios_release.yml`
