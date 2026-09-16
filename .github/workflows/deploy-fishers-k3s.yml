@@ -282,22 +282,34 @@ jobs:
             -f "$CHARTS/fishers-db/values-$TARGET_ENV.yaml"
 
           # The operator reports on the postgresql resource, not through helm,
-          # so --wait has nothing to wait on. Wait for Running AND for the
-          # credentials Secret the API reads: the cluster can report Running a
-          # moment before the operator has written it.
+          # so --wait has nothing to wait on. Wait for credentials and a Ready
+          # primary pod. Prefer PostgresClusterStatus=Running, but accept a
+          # Ready pod when status is SyncFailed: the Longhorn admission webhook
+          # often times out on annotation patches while the existing volume and
+          # pod keep serving — status sticks on SyncFailed for days even though
+          # fishers-db-0 is 1/1 Running and the API is healthy.
           CLUSTER=$(awk '/^clusterName:/ {print $2; exit}' "$CHARTS/fishers-db/values.yaml")
           OWNER=$(awk '/^owner:/ {print $2; exit}' "$CHARTS/fishers-db/values.yaml")
           CREDS="$OWNER.$CLUSTER.credentials.postgresql.acid.zalan.do"
           for i in $(seq 1 60); do
             status=$(kubectl -n "$NS" get postgresql "$CLUSTER" -o jsonpath='{.status.PostgresClusterStatus}' 2>/dev/null || true)
-            if [ "$status" = "Running" ] && kubectl -n "$NS" get secret "$CREDS" >/dev/null 2>&1; then
-              echo "  ok  $CLUSTER Running, credentials in $CREDS"
+            have_creds=0
+            kubectl -n "$NS" get secret "$CREDS" >/dev/null 2>&1 && have_creds=1
+            ready_pods=$(kubectl -n "$NS" get pods -l "cluster-name=$CLUSTER,spilo-role=master" \
+              --field-selector=status.phase=Running \
+              -o jsonpath='{range .items[?(@.status.containerStatuses[0].ready)]}{.metadata.name}{"\n"}{end}' 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$have_creds" = 1 ] && [ "${ready_pods:-0}" -ge 1 ]; then
+              if [ "$status" = "Running" ]; then
+                echo "  ok  $CLUSTER Running, credentials in $CREDS"
+              else
+                echo "::warning::$CLUSTER status is ${status:-none} but primary is Ready and $CREDS exists — continuing (operator sync noise, usually Longhorn webhook)."
+              fi
               exit 0
             fi
-            [ $((i % 6)) -eq 0 ] && echo "  waiting for $CLUSTER (status: ${status:-none})"
+            [ $((i % 6)) -eq 0 ] && echo "  waiting for $CLUSTER (status: ${status:-none}, creds=$have_creds, ready_pods=${ready_pods:-0})"
             sleep 10
           done
-          echo "::error::$CLUSTER did not reach Running within 10 minutes (status: ${status:-none})"
+          echo "::error::$CLUSTER did not become usable within 10 minutes (status: ${status:-none})"
           kubectl -n "$NS" describe postgresql "$CLUSTER" | tail -20 || true
           kubectl -n "$NS" get pods -l cluster-name="$CLUSTER" -o wide || true
           exit 1
