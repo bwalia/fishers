@@ -398,8 +398,15 @@ def attach_build_to_groups!(build:, group_ids:, label:)
   end
 end
 
+# Apple requires filter[build] here — filtering by app is rejected — so ask
+# about the app's recent builds, which is where any live review will be.
 def beta_app_review_in_progress?(app:)
-  pages = Spaceship::ConnectAPI.get_beta_app_review_submissions(filter: { "build.app": app.id }).all_pages
+  # One page, not app.get_builds — that follows every page of every build.
+  recent = Spaceship::ConnectAPI.get_builds(filter: { app: app.id }, sort: "-uploadedDate", limit: 20)
+  build_ids = Array(recent.to_models).map(&:id).compact
+  return false if build_ids.empty?
+
+  pages = Spaceship::ConnectAPI.get_beta_app_review_submissions(filter: { build: build_ids.join(",") }).all_pages
   Array(pages).flat_map(&:to_models).any? do |sub|
     sub.respond_to?(:beta_review_state) && sub.beta_review_state.to_s =~ /WAITING_FOR_REVIEW|IN_REVIEW/
   end
