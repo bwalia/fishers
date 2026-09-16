@@ -401,8 +401,9 @@ end
 # Apple requires filter[build] here — filtering by app is rejected — so ask
 # about the app's recent builds, which is where any live review will be.
 def beta_app_review_in_progress?(app:)
-  # One page, not app.get_builds — that follows every page of every build.
-  recent = Spaceship::ConnectAPI.get_builds(filter: { app: app.id }, sort: "-uploadedDate", limit: 20)
+  # One page, not app.get_builds — that follows every page of every build. No
+  # includes: fastlane's default asks for betaBuildMetrics, which Apple rejects.
+  recent = Spaceship::ConnectAPI.get_builds(filter: { app: app.id }, includes: nil, sort: "-uploadedDate", limit: 20)
   build_ids = Array(recent.to_models).map(&:id).compact
   return false if build_ids.empty?
 
