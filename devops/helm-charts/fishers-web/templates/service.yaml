@@ -6,6 +6,15 @@ metadata:
     {{- include "fishers-web.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
+  # Next.js puts hashed assets on the pod that rendered the HTML. With two
+  # replicas on different builds (or mid-rollout), a request for pod A's chunk
+  # that lands on pod B returns 404 — and the browser dies with ChunkLoadError.
+  # Stick the client to one pod for the session so HTML and /_next/static agree.
+  # A full redeploy onto one sha is still required when replicas have diverged.
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
   ports:
     - name: http
       port: {{ .Values.service.port }}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, readErr } from "@/lib/api";
+import { api, readErr } from "@/lib/api";
 import {
   AVAILABILITY_LABEL,
   dayKey,
@@ -15,6 +15,7 @@ import {
 import { byDay, dayTitle, myFixtures, saidLabel, timeOf, type MyFixture } from "@/lib/fixtures";
 import { FixtureAnswer } from "@/components/FixtureAnswer";
 import { Icon } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 
 const STATUSES: AvailabilityStatus[] = ["available", "maybe", "unavailable"];
 const GUIDE_KEY = "fishers:availability-guide-dismissed";
@@ -28,6 +29,7 @@ const GUIDE_KEY = "fishers:availability-guide-dismissed";
 ///
 /// Tap a day to open it: set the day, and answer its fixtures, right there.
 export default function AvailabilityPage() {
+  const authed = useRequireAuth();
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -74,13 +76,11 @@ export default function AvailabilityPage() {
   }, [month]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to set when you can play.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
-  }, [load]);
+  }, [load, authed]);
+
+  if (!authed) return <main id="main" />;
 
   const setDay = async (key: string, status: AvailabilityStatus) => {
     setBusy(key);

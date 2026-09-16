@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { PushPrompt } from "@/components/PushPrompt";
 import { subscribeLive } from "@/lib/live";
-import { api, getAccessToken, readErr } from "@/lib/api";
+import { api, readErr } from "@/lib/api";
 import { chatTime, CONVERSATION_KIND, type ConversationSummary } from "@/lib/chat";
 import { Icon } from "@/components/Icon";
 import { NewChat } from "@/components/NewChat";
+import { useRequireAuth } from "@/lib/require-auth";
 
 /// Every thread you are in, busiest first.
 ///
@@ -15,6 +16,7 @@ import { NewChat } from "@/components/NewChat";
 /// so this does no sorting of its own — two places deciding what "recent"
 /// means is how a list and its badge drift apart.
 export default function ChatListPage() {
+  const authed = useRequireAuth();
   const [threads, setThreads] = useState<ConversationSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,11 +34,7 @@ export default function ChatListPage() {
   }, []);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to see your club chats.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
     // Any message in any of your threads moves it up and bumps its unread
     // count, so the list refetches on every one; joining or leaving a thread
@@ -49,7 +47,9 @@ export default function ChatListPage() {
       window.clearInterval(timer);
       stop();
     };
-  }, [load]);
+  }, [load, authed]);
+
+  if (!authed) return <main id="main" />;
 
   return (
     <main id="main">

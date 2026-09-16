@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   api,
-  getAccessToken,
   readErr,
   type Club,
   type MyRole,
@@ -16,6 +15,7 @@ import { byDay, clashes, dayTitle, myFixtures, saidLabel, timeOf, type MyFixture
 import { FixtureAnswer } from "@/components/FixtureAnswer";
 import { OppositionPicker } from "@/components/OppositionPicker";
 import { Icon, type IconName } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 
 const SUBTYPE_ICON: Record<string, IconName> = {
   league_match: "trophy",
@@ -35,6 +35,7 @@ const GUIDE_KEY = "fishers:fixtures-guide-dismissed";
 /// Your answer is on the card and you can change it there. It is the same
 /// answer the availability calendar shows and the captain picks from.
 export default function EventsPage() {
+  const authed = useRequireAuth();
   const [fixtures, setFixtures] = useState<MyFixture[] | null>(null);
   const [past, setPast] = useState<MyFixture[] | null>(null);
   const [days, setDays] = useState<Record<string, AvailabilityStatus>>({});
@@ -73,10 +74,7 @@ export default function EventsPage() {
   }, []);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to see your fixtures.");
-      return;
-    }
+    if (!authed) return;
     load();
     // Who can put a match in the diary: only they see the button.
     (async () => {
@@ -86,7 +84,9 @@ export default function EventsPage() {
       );
       setSchedulable(clubs.filter((_, i) => roles[i]?.permissions.includes("manage_events")));
     })();
-  }, [load]);
+  }, [load, authed]);
+
+  if (!authed) return <main id="main" />;
 
   const showPast = async () => {
     setView("past");
