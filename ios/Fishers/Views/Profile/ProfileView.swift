@@ -188,9 +188,16 @@ struct ProfileView: View {
             } label: {
                 Label("Getting-started guide", systemImage: "sparkles")
             }
-            LabeledContent("API host", value: AppConfig.apiBaseURL.absoluteString)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            NavigationLink {
+                APIServerSettingsView()
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("API server", systemImage: "network")
+                    Text(AppConfig.displayHost)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Button("Sign out", role: .destructive) {
                 confirmSignOut = true
             }

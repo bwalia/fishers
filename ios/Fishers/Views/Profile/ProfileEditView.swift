@@ -68,8 +68,11 @@ struct ProfileEditView: View {
                 }
 
                 Section {
-                    LabeledContent("API base URL", value: AppConfig.apiBaseURL.absoluteString)
-                        .foregroundStyle(.secondary)
+                    NavigationLink {
+                        APIServerSettingsView()
+                    } label: {
+                        LabeledContent("API server", value: AppConfig.displayHost)
+                    }
                 } footer: {
                     Text("Reliability is worked out by the server from your attendance and payments — it can't be edited here.")
                 }
