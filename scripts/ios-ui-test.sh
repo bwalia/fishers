@@ -43,12 +43,45 @@ xcrun simctl erase "$udid"
 
 echo "==> running the tour"
 rm -rf "$RESULTS"
+
+# xcodebuild's exit status, not grep's. This pipeline used to end in `|| true`,
+# which handed the script grep's status and made every run look like a pass —
+# a failing build and a suite that never ran read the same as a green one.
+# grep matching nothing is not an error; xcodebuild failing is.
+log="$(mktemp -t fishers-ui)"
+trap 'rm -f "$log"' EXIT
+
+set +e
 xcodebuild test \
   -scheme FishersUI \
   -destination "id=$udid" \
   -derivedDataPath "$DERIVED" \
   -resultBundlePath "$RESULTS" \
-  2>&1 | grep -E "Test Case|Executed .* test|Testing failed|error:" || true
+  2>&1 | tee "$log" | grep -E "Test Case|Executed .* test|Testing failed|error:"
+status=${PIPESTATUS[0]}
+set -e
+
+# A run where every test skipped proves nothing, and xcodebuild still exits 0:
+# the tours skip themselves when the API is unreachable or verification is off,
+# so a misconfigured stack is indistinguishable from a healthy one by exit code
+# alone. Say it plainly and fail, rather than bank a pass nothing earned.
+summary="$(grep -E "Executed [0-9]+ tests?," "$log" | tail -1 || true)"
+if [ -n "$summary" ]; then
+  total="$(sed -E 's/.*Executed ([0-9]+) tests?,.*/\1/' <<<"$summary")"
+  skipped="$(sed -nE 's/.*with ([0-9]+) tests? skipped.*/\1/p' <<<"$summary")"
+  skipped="${skipped:-0}"
+  if [ "$total" -gt 0 ] && [ "$skipped" -eq "$total" ]; then
+    echo
+    echo "x all $total tests skipped — nothing was tested." >&2
+    echo "  The tours skip when they cannot reach the API or verification is off:" >&2
+    echo "    ./scripts/start.sh --status                 is the stack up, and on which port" >&2
+    echo "    TEST_RUNNER_FISHERS_API_URL=http://127.0.0.1:<api-port>   reaches the test runner" >&2
+    echo "      (a plain FISHERS_API_URL does not: it is read on the Simulator, not here)" >&2
+    status=1
+  fi
+fi
 
 echo
 echo "screenshots: xcrun xcresulttool export attachments --path $RESULTS --output-path ./shots"
+
+exit "$status"

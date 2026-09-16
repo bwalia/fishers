@@ -85,16 +85,10 @@ final class ScreenTour: XCTestCase {
 
         let sections = app.segmentedControls.firstMatch
         sections.buttons["Batting"].tap()
-        for figure in ["Runs", "Innings", "Average", "Strike rate"] {
-            XCTAssertTrue(app.staticTexts[figure].waitForExistence(timeout: 8),
-                          "batting is missing \(figure)")
-        }
+        try figures(["Runs", "Innings", "Average", "Strike rate"], for: "batting")
 
         sections.buttons["Bowling"].tap()
-        for figure in ["Wickets", "Overs", "Average", "Economy"] {
-            XCTAssertTrue(app.staticTexts[figure].waitForExistence(timeout: 8),
-                          "bowling is missing \(figure)")
-        }
+        try figures(["Wickets", "Overs", "Average", "Economy"], for: "bowling")
         capture("Profile-figures")
     }
 
@@ -190,8 +184,47 @@ final class ScreenTour: XCTestCase {
         app.launchEnvironment["FISHERS_UITEST_ACCESS_TOKEN"] = access
         app.launchEnvironment["FISHERS_UITEST_REFRESH_TOKEN"] = refresh
         app.launch()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 20),
+
+        // An account whose profile is not filled in lands on the quick start
+        // rather than the tab bar, so the tour has to step past it. Skipping is
+        // remembered per user in UserDefaults, which outlives the relaunch, so
+        // only the first tour to sign in sees it — waiting on the skip button
+        // alone would cost every later one its whole timeout. First one to
+        // arrive wins.
+        let skip = app.buttons["Skip for now"]
+        let tabBar = app.tabBars.firstMatch
+        waitForEither(skip, tabBar, timeout: 20)
+        if skip.exists { skip.tap() }
+
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 20),
                       "signing in never reached the tab bar")
+    }
+
+    /// Waits until whichever of these the screen draws first is there, so a
+    /// screen with two legitimate outcomes does not cost the wrong one a full
+    /// timeout before it is even looked at.
+    private func waitForEither(_ one: XCUIElement, _ other: XCUIElement, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, !one.exists, !other.exists {
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+    }
+
+    /// Asserts a discipline's figures are on screen, or says why they could not
+    /// be checked. Figures are worked out from matches scored on Fishers, so an
+    /// account that has not batted or bowled in one draws the empty state
+    /// instead — that is the app working, and asserting against a screen that
+    /// cannot hold figures would report it as broken.
+    private func figures(_ names: [String], for discipline: String) throws {
+        let empty = app.staticTexts["No \(discipline) figures yet"]
+        waitForEither(app.staticTexts[names[0]], empty, timeout: 8)
+        if empty.exists {
+            throw XCTSkip("this account has no \(discipline) figures on this server")
+        }
+        for figure in names {
+            XCTAssertTrue(app.staticTexts[figure].waitForExistence(timeout: 8),
+                          "\(discipline) is missing \(figure)")
+        }
     }
 
     /// A screenshot kept whatever happens next, so a failing run still shows
