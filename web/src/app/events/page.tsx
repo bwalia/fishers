@@ -86,6 +86,14 @@ export default function EventsPage() {
     })();
   }, [load, authed]);
 
+  // Hooks must run every render — before any authed early return — or React
+  // throws #310 the moment a token appears and this component keeps mounting.
+  const clubs = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const f of [...(fixtures ?? []), ...(past ?? [])]) seen.set(f.club_id, f.club_name);
+    return [...seen];
+  }, [fixtures, past]);
+
   if (!authed) return <main id="main" />;
 
   const showPast = async () => {
@@ -101,12 +109,6 @@ export default function EventsPage() {
 
   const setAnswer = (id: string, answer: MyFixture["my_answer"]) =>
     setFixtures((all) => all?.map((f) => (f.event_id === id ? { ...f, my_answer: answer } : f)) ?? all);
-
-  const clubs = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const f of [...(fixtures ?? []), ...(past ?? [])]) seen.set(f.club_id, f.club_name);
-    return [...seen];
-  }, [fixtures, past]);
 
   const upcoming = fixtures ?? [];
   const unanswered = upcoming.filter((f) => !f.my_answer);
