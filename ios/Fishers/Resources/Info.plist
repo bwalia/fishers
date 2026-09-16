@@ -24,6 +24,8 @@
 	<string>$(FISHERS_API_BASE_URL)</string>
 	<key>FishersWebBaseURL</key>
 	<string>$(FISHERS_WEB_BASE_URL)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -71,8 +73,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- Skip the export-compliance wait on every TestFlight upload. -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 </dict>
 </plist>

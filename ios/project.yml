@@ -58,6 +58,13 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
+        # Skip the export-compliance wait on every TestFlight upload. It has to
+        # live here, not only in Info.plist: this target sets
+        # GENERATE_INFOPLIST_FILE: false and xcodegen rewrites the file from
+        # these properties, so a key added to the plist by hand is dropped the
+        # next time anyone runs `xcodegen generate` — which scripts/start.sh
+        # does on every launch.
+        ITSAppUsesNonExemptEncryption: false
         # Required for App Store upload when TARGETED_DEVICE_FAMILY includes iPad
         # (ITMS 90474 — iPad multitasking needs all four orientations declared).
         UISupportedInterfaceOrientations:
