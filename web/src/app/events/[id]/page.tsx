@@ -4,7 +4,6 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   api,
-  getAccessToken,
   money,
   readErr,
   type ClubMemberRow,
@@ -13,6 +12,7 @@ import {
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { PeoplePicker, type PeopleTab } from "@/components/PeoplePicker";
+import { useRequireAuth } from "@/lib/require-auth";
 
 /// Everyone the fixture knows about, and what they said.
 type Attendee = {
@@ -34,6 +34,7 @@ const RSVP_LABEL: Record<string, string> = {
 /// One fixture: who is coming, who owes, and — if you run it — calling it off.
 export default function EventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const authed = useRequireAuth();
   const [event, setEvent] = useState<EventRow | null>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -58,13 +59,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   }, [id]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to see this fixture.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
-  }, [load]);
+  }, [authed, load]);
 
   const act = async (what: string, run: () => Promise<unknown>, said: string) => {
     setBusy(what);
@@ -81,6 +78,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     }
   };
 
+  if (!authed) return <main id="main" />;
   if (error && !event) return <main id="main"><p className="error">{error}</p></main>;
   if (loading || !event)
     return <main id="main"><div className="skeleton" style={{ height: 260 }} /></main>;

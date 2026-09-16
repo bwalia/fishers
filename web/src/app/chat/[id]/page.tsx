@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, getStoredUser, readErr } from "@/lib/api";
+import { api, getStoredUser, readErr } from "@/lib/api";
 import { subscribeLive } from "@/lib/live";
 import { refreshInbox } from "@/lib/inbox";
 import {
@@ -17,6 +17,7 @@ import {
 } from "@/lib/chat";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 
 /// A safety net, not the mechanism: new messages arrive over the live stream
 /// the moment they are posted. This only catches up if the stream is down.
@@ -30,6 +31,7 @@ const POLL_MS = 30_000;
 /// accepts it or throws it away.
 export default function ChatThreadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const authed = useRequireAuth();
   const [thread, setThread] = useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [proposals, setProposals] = useState<AgentProposal[]>([]);
@@ -76,11 +78,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
   }, [id]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to read this thread.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     // The title is only in the list, so fetch that once for the heading.
     api<ConversationSummary[]>("GET", "/conversations")
       .then((all) => setThread(all.find((t) => t.id === id) ?? null))
@@ -102,7 +100,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
       window.clearInterval(timer);
       stop();
     };
-  }, [id, load]);
+  }, [authed, id, load]);
 
   // A new thread starts at the bottom.
   useEffect(() => {
@@ -180,6 +178,8 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
       setProposals((prev) => [...prev, proposal]);
     }
   };
+
+  if (!authed) return <main id="main" />;
 
   return (
     <main id="main" className="thread">

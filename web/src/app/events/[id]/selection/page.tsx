@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, getStoredUser, readErr } from "@/lib/api";
+import { api, getStoredUser, readErr } from "@/lib/api";
 import {
   AVAILABILITY_LABEL,
   inSquad,
@@ -15,6 +15,7 @@ import {
 } from "@/lib/selection";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 
 /// Picking a side.
 ///
@@ -24,6 +25,7 @@ import { Icon } from "@/components/Icon";
 /// the pool is ordered by who most deserves the next look.
 export default function SelectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const authed = useRequireAuth();
   const [board, setBoard] = useState<SelectionBoard | null>(null);
   const [proposal, setProposal] = useState<SquadProposal | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -51,13 +53,9 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
   }, [id]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to see the squad.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
-  }, [load]);
+  }, [authed, load]);
 
   const pool = useMemo(
     () => [...(board?.candidates ?? [])].sort(pickingOrder),
@@ -141,6 +139,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
     }
   };
 
+  if (!authed) return <main id="main" />;
   if (error && !board) return <main id="main"><p className="error">{error}</p></main>;
   if (loading || !board)
     return <main id="main"><div className="skeleton" style={{ height: 300 }} /></main>;
