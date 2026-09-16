@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   api,
-  getAccessToken,
   kindLabel,
   notificationLine,
   readErr,
@@ -13,6 +12,7 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { PushToggle } from "@/components/PushToggle";
+import { useRequireAuth } from "@/lib/require-auth";
 
 const PER_PAGE = 20;
 
@@ -23,6 +23,7 @@ const PER_PAGE = 20;
 /// browser so it can slice twenty out is the kind of thing that works until
 /// the day it does not.
 export default function NotificationsPage() {
+  const authed = useRequireAuth();
   const [feed, setFeed] = useState<NotificationPage | null>(null);
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState("");
@@ -62,12 +63,11 @@ export default function NotificationsPage() {
   }, [page, kind, unreadOnly, term]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to see your notifications.");
-      return;
-    }
+    if (!authed) return;
     load();
-  }, [load]);
+  }, [load, authed]);
+
+  if (!authed) return <main id="main" />;
 
   const markAll = async () => {
     await api("POST", "/notifications/read", {}).catch(() => {});

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   api,
-  getAccessToken,
   type Club,
   type EventRow,
   type OpponentIdentity,
@@ -14,6 +13,7 @@ import {
 import { Icon } from "@/components/Icon";
 import { OppositionPicker } from "@/components/OppositionPicker";
 import { overs, titleCase, type MatchResponse } from "@/lib/cricket";
+import { useRequireAuth } from "@/lib/require-auth";
 
 /// A fixture and the match on it, as `GET /cricket/fixtures` returns them —
 /// one paged request rather than a fetch per row.
@@ -44,6 +44,7 @@ const STATE_TABS: { value: StateFilter; label: string }[] = [
 const PER_PAGE = 20;
 
 export default function ScoreIndexPage() {
+  const authed = useRequireAuth();
   const router = useRouter();
   const [page, setPage] = useState<Page<Fixture> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,21 +98,19 @@ export default function ScoreIndexPage() {
   }, [pageNo, stateFilter, search, newestFirst]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to score a match.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     // Typing should not fire a request per keystroke.
     const timer = setTimeout(load, search ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [load, search]);
+  }, [load, search, authed]);
 
   // Any change of filter starts again at the first page, or you land on an
   // empty page 3 of a one-page result.
   useEffect(() => {
     setPageNo(1);
   }, [stateFilter, search, newestFirst]);
+
+  if (!authed) return <main id="main" />;
 
   /// Start a match, creating the fixture first when there is not one.
   ///

@@ -50,14 +50,16 @@ permissions:
   packages: write
 
 jobs:
-  # Runs alongside the build rather than before it — the images take minutes,
-  # DNS and the vhost take seconds, and only `deploy` needs either of them.
+  # DNS and the wslproxy vhost. Idempotent when credentials work. Soft-fail so
+  # a broken WSLPROXY_* secret cannot block shipping images to a ring whose
+  # vhost already exists (www/int currently answer 200 while edge login 401s).
   edge:
     name: DNS and edge vhost
     uses: ./.github/workflows/register-edge-vhost.yml
     with:
       ENV: int
     secrets: inherit
+    continue-on-error: true
 
   build:
     name: Build images
@@ -70,6 +72,8 @@ jobs:
   deploy:
     name: Deploy int
     needs: [build, edge]
+    # Ship whenever images built — edge is best-effort once the ring exists.
+    if: always() && needs.build.result == 'success'
     uses: ./.github/workflows/deploy-fishers-k3s.yml
     with:
       target_env: int

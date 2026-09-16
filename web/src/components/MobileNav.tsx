@@ -46,7 +46,10 @@ export function MobileNav() {
   // Public pages are not the app; somebody arriving from a shared link is not
   // a member and a tab bar would only offer them things to be refused from.
   if (pathname.startsWith("/live/") || pathname.startsWith("/c/")) return null;
-  if (pathname === "/" && signedOut) return null;
+  // Marketing and auth screens are not the app shell.
+  if (signedOut && (pathname === "/" || pathname === "/login" || pathname === "/register" || pathname === "/welcome" || pathname === "/docs")) {
+    return null;
+  }
 
   const active = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);

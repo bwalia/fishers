@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   api,
   readErr,
-  getAccessToken,
   saveUser,
   skillLabel,
   upload,
@@ -20,6 +19,7 @@ import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { ShareProfile } from "@/components/ShareProfile";
 import { ProfileStrength } from "@/components/ProfileStrength";
+import { useRequireAuth } from "@/lib/require-auth";
 
 type Tab = "overview" | "batting" | "bowling";
 
@@ -30,6 +30,7 @@ type Tab = "overview" | "batting" | "bowling";
 /// is one of three tabs. The numbers come from the scoring log, so the batting
 /// and bowling tabs are computed; the overview is what the player told us.
 export default function ProfilePage() {
+  const authed = useRequireAuth();
   const [me, setMe] = useState<PublicUser | null>(null);
   const [stats, setStats] = useState<MeStats | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
@@ -50,16 +51,13 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to see your profile.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
     // A player with no season on record is not an error — the tabs say so.
     api<MeStats>("GET", "/me/stats").then(setStats).catch(() => setStats(null));
-  }, [load]);
+  }, [load, authed]);
 
+  if (!authed) return <main id="main" />;
   if (error) return <main id="main"><p className="error">{error}</p></main>;
   if (loading || !me)
     return (

@@ -4,7 +4,6 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   api,
-  getAccessToken,
   getStoredUser,
   readErr,
   skillLabel,
@@ -14,6 +13,7 @@ import { num, type PlayerSeasonStats } from "@/lib/stats";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { MessageButton } from "@/components/MessageButton";
+import { useRequireAuth } from "@/lib/require-auth";
 
 type Achievement = {
   id: string;
@@ -31,6 +31,7 @@ type Achievement = {
 /// consent to hand over a phone number.
 export default function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const authed = useRequireAuth();
   const [player, setPlayer] = useState<TeammateProfile | null>(null);
   const [seasons, setSeasons] = useState<PlayerSeasonStats[]>([]);
   const [honours, setHonours] = useState<Achievement[]>([]);
@@ -38,11 +39,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to see this player.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     (async () => {
       try {
         const who = await api<TeammateProfile>("GET", `/users/${id}`);
@@ -62,8 +59,9 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         setLoading(false);
       }
     })();
-  }, [id]);
+  }, [authed, id]);
 
+  if (!authed) return <main id="main" />;
   if (error) return <main id="main"><p className="error">{error}</p></main>;
   if (loading || !player)
     return <main id="main"><div className="skeleton" style={{ height: 260 }} /></main>;

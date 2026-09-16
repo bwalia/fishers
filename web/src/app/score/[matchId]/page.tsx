@@ -17,6 +17,7 @@ import { ShareScoreboardButton } from "@/components/ShareScoreboardButton";
 import { OverflowMenu } from "@/components/OverflowMenu";
 import { Sheet } from "@/components/Sheet";
 import { Moments } from "@/components/Moments";
+import { useRequireAuth } from "@/lib/require-auth";
 import {
   BALLS,
   DEFAULT_CONDITIONS,
@@ -72,6 +73,7 @@ export default function ScorerPage({
   params: Promise<{ matchId: string }>;
 }) {
   const { matchId } = use(params);
+  const authed = useRequireAuth();
   const router = useRouter();
   const [match, setMatch] = useState<MatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,10 +98,7 @@ export default function ScorerPage({
   }, [matchId]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to score a match.");
-      return;
-    }
+    if (!authed) return;
     load();
     // Live: every ball, the toss, a handover or the result arrives the moment
     // it is recorded — for everyone watching, players included. The event only
@@ -113,7 +112,7 @@ export default function ScorerPage({
       stop();
       window.clearInterval(timer);
     };
-  }, [load, matchId]);
+  }, [authed, load, matchId]);
 
   /// Every action is one event appended to the log. The server replays the log,
   /// applies the Laws and hands back the new state — the browser never decides
@@ -187,6 +186,7 @@ export default function ScorerPage({
     }
   };
 
+  if (!authed) return <main id="main" />;
   if (error && !match) return <main id="main"><p className="error">{error}</p></main>;
   if (!match) return <main><p className="muted">Loading match…</p></main>;
 

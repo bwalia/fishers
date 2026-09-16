@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   api,
   errCode,
-  getAccessToken,
   getStoredUser,
   readErr,
   roleLabel,
@@ -18,6 +17,7 @@ import {
 } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 import { PendingInvites } from "@/components/PendingInvites";
 import { ShareProfile } from "@/components/ShareProfile";
 import { VerifyContact } from "@/components/VerifyContact";
@@ -89,6 +89,7 @@ function apiPath(f: Filters) {
 }
 
 export default function ClubsPage() {
+  const authed = useRequireAuth();
   const router = useRouter();
   const [me, setMe] = useState<PublicUser | null>(null);
   // The getting-started guide links here as ?new=1: land with the form open,
@@ -126,11 +127,7 @@ export default function ClubsPage() {
   }, [search]);
 
   const load = useCallback(async () => {
-    if (!getAccessToken()) {
-      setError("Sign in to view clubs.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     const mine = ++latest.current;
     setLoading(true);
     try {
@@ -143,17 +140,19 @@ export default function ClubsPage() {
     } finally {
       if (mine === latest.current) setLoading(false);
     }
-  }, [filters]);
+  }, [filters, authed]);
 
   useEffect(() => {
-    if (ready) load();
-  }, [ready, load]);
+    if (ready && authed) load();
+  }, [ready, load, authed]);
 
   useEffect(() => {
-    if (!ready || creating) return;
+    if (!ready || !authed || creating) return;
     const qs = toParams(filters).toString();
     window.history.replaceState(null, "", qs ? `/clubs?${qs}` : "/clubs");
-  }, [filters, ready, creating]);
+  }, [filters, ready, creating, authed]);
+
+  if (!authed) return <main id="main" />;
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch, page: patch.page ?? 1 }));
   const goToPage = (page: number) => {
