@@ -50,16 +50,18 @@ permissions:
   packages: write
 
 jobs:
-  # DNS and the wslproxy vhost. Idempotent when credentials work. Soft-fail so
+  # DNS and the wslproxy vhost. Idempotent when credentials work. soft_fail so
   # a broken WSLPROXY_* secret cannot block shipping images to a ring whose
   # vhost already exists (www/int currently answer 200 while edge login 401s).
+  # soft_fail is an input on the reusable workflow — continue-on-error is not
+  # legal on a caller job that uses: another workflow.
   edge:
     name: DNS and edge vhost
     uses: ./.github/workflows/register-edge-vhost.yml
     with:
       ENV: int
+      soft_fail: true
     secrets: inherit
-    continue-on-error: true
 
   build:
     name: Build images

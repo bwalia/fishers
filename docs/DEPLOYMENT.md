@@ -344,7 +344,7 @@ registry, and writing it here would have the two fighting over every record.
 
 | Symptom | Look at |
 |---|---|
-| Deploy fails at "Register …" with curl 401 on wslproxy login | `WSLPROXY_USER` / `WSLPROXY_PASSWORD` / `WSLPROXY_GATEWAY_URL` secrets are wrong or expired. Rotate them. CD and single-env deploys **soft-fail** edge registration so helm can still ship when the vhost already exists — fix the secrets so new rings stay reachable. |
+| Deploy fails at "Register …" with curl 401 on wslproxy login | `WSLPROXY_USER` / `WSLPROXY_PASSWORD` / `WSLPROXY_GATEWAY_URL` secrets are wrong or expired. Rotate them. CD and single-env deploys pass `soft_fail: true` into *Register edge vhost* so helm can still ship when the vhost already exists — fix the secrets so new rings stay reachable. |
 | www loads then "Application error" / ChunkLoadError; `/_next/static/…` sometimes 404 | Prod runs **two** web replicas. If they are on different image digests (for example one pod restarted onto a moved `:latest` while the other stayed put), half of HTML responses reference chunks the other pod does not have. Confirm by curling `/` repeatedly and comparing the Next build id comment in the HTML. Fix: run *Deploy Single Environment* for `prod` with a commit that already has images (sha tag, never `:latest`), so both replicas roll together. The web Service uses `sessionAffinity: ClientIP` to reduce HTML/asset skew during a rollout; it does not heal already-diverged pods. |
 | "Host not configured" from the edge | wslproxy vhost missing — run *Register edge vhost* |
 | 503 on `/` but `/api` works | web pods not Ready; `kubectl -n fishers-<ring> get pods` |

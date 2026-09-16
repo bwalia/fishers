@@ -130,14 +130,15 @@ jobs:
           summary ""
           summary "Roll back by running this workflow for $RING with an earlier sha."
 
-  # DNS and the wslproxy vhost + rule for this ring. Soft-fail: a bad
+  # DNS and the wslproxy vhost + rule for this ring. soft_fail: a bad
   # WSLPROXY_* secret must not block helm when the vhost already exists.
+  # (continue-on-error is illegal on a uses: caller job — see register-edge.)
   edge:
     uses: ./.github/workflows/register-edge-vhost.yml
     with:
       ENV: ${{ github.event.inputs.ENV }}
+      soft_fail: true
     secrets: inherit
-    continue-on-error: true
 
   # int and test build. acc and prod deploy what those builds produced.
   build-images:

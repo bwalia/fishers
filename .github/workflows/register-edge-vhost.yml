@@ -24,6 +24,14 @@ on:
         description: "Ring to register (or `all`)"
         type: string
         required: true
+      # Caller soft-fail: broken WSLPROXY_* must not block helm when the vhost
+      # already exists. continue-on-error is illegal on a `uses:` caller job, so
+      # the flag lives here on the real job instead.
+      soft_fail:
+        description: "Treat registration failure as a warning (job succeeds for callers)"
+        type: boolean
+        required: false
+        default: false
 
   workflow_dispatch:
     inputs:
@@ -55,6 +63,7 @@ jobs:
   register:
     name: Register ${{ inputs.ENV }}
     runs-on: ubuntu-latest
+    continue-on-error: ${{ inputs.soft_fail == true }}
     steps:
       - uses: actions/checkout@v4
 
