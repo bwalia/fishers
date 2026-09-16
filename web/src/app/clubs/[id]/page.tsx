@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   api,
   readErr,
-  getAccessToken,
   getStoredUser,
   roleLabel,
   roleChoice,
@@ -33,9 +32,11 @@ import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { QrCard } from "@/components/QrCard";
 import { copyText } from "@/lib/clipboard";
+import { useRequireAuth } from "@/lib/require-auth";
 
 export default function ClubPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const authed = useRequireAuth();
   const [club, setClub] = useState<Club | null>(null);
   const [members, setMembers] = useState<ClubMemberRow[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -83,13 +84,9 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
   }, []);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to view this club.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
-  }, [load]);
+  }, [authed, load]);
 
   // A link to a section (#members, #public-page) arrives before the section
   // exists: this page and the panels below it each load their own data. So
@@ -110,6 +107,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
     return () => window.clearInterval(timer);
   }, [loading]);
 
+  if (!authed) return <main id="main" />;
   if (error) return <main id="main"><p className="error">{error}</p></main>;
   if (loading || !club)
     return <main id="main"><div className="panel"><div className="skeleton" style={{ height: 80 }} /></div></main>;

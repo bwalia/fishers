@@ -2,10 +2,11 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, getStoredUser, money, readErr } from "@/lib/api";
+import { api, getStoredUser, money, readErr } from "@/lib/api";
 import { type EventTicket, type TicketBooking } from "@/lib/tournament";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 
 /// A ticketed club event — the dinner, the quiz, presentation night.
 ///
@@ -14,6 +15,7 @@ import { Icon } from "@/components/Icon";
 /// and who still owes.
 export default function TicketsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const authed = useRequireAuth();
   const [booking, setBooking] = useState<TicketBooking | null>(null);
   const [guests, setGuests] = useState(0);
   const [guestNames, setGuestNames] = useState("");
@@ -36,13 +38,9 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
   }, [id]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to book a place.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
-  }, [load]);
+  }, [authed, load]);
 
   const act = async (what: string, run: () => Promise<unknown>, said: string) => {
     setBusy(what);
@@ -59,6 +57,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
     }
   };
 
+  if (!authed) return <main id="main" />;
   if (error && !booking) return <main id="main"><p className="error">{error}</p></main>;
   if (loading || !booking)
     return <main id="main"><div className="skeleton" style={{ height: 260 }} /></main>;

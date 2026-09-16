@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, getAccessToken, type Club } from "@/lib/api";
+import { api, type Club } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import {
   economy,
@@ -11,10 +11,12 @@ import {
   type MeStats,
   type PlayerSeasonStats,
 } from "@/lib/stats";
+import { useRequireAuth } from "@/lib/require-auth";
 
 const SEASONS = [2026, 2025, 2024];
 
 export default function StatsPage() {
+  const authed = useRequireAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubId, setClubId] = useState("");
   const [season, setSeason] = useState(SEASONS[0]);
@@ -26,10 +28,7 @@ export default function StatsPage() {
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to view season stats.");
-      return;
-    }
+    if (!authed) return;
     (async () => {
       try {
         const c = await api<Club[]>("GET", "/clubs");
@@ -44,7 +43,7 @@ export default function StatsPage() {
         // A player with no recorded season is not an error.
       }
     })();
-  }, []);
+  }, [authed]);
 
   const loadBoard = useCallback(async () => {
     if (!clubId) return;
@@ -79,6 +78,8 @@ export default function StatsPage() {
   };
 
   const club = board?.club;
+
+  if (!authed) return <main id="main" />;
 
   return (
     <main id="main">

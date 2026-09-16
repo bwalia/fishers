@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, readErr, type Club } from "@/lib/api";
+import { api, readErr, type Club } from "@/lib/api";
 import { type FixtureBlock } from "@/lib/tournament";
 import { Icon } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 
 /// Blocks of fixtures: a tournament, a tour, a season.
 ///
@@ -12,6 +13,7 @@ import { Icon } from "@/components/Icon";
 /// a table. A one-off fixture needs none of that, which is why it is a separate
 /// idea rather than a flag on an event.
 export default function TournamentsPage() {
+  const authed = useRequireAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [blocks, setBlocks] = useState<Record<string, FixtureBlock[]>>({});
   const [error, setError] = useState<string | null>(null);
@@ -38,15 +40,13 @@ export default function TournamentsPage() {
   }, []);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to run a tournament.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
-  }, [load]);
+  }, [authed, load]);
 
   const total = Object.values(blocks).reduce((n, list) => n + list.length, 0);
+
+  if (!authed) return <main id="main" />;
 
   return (
     <main id="main">

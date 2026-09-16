@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   api,
-  getAccessToken,
   money,
   readErr,
   type Club,
@@ -14,6 +13,7 @@ import {
   type Product,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 
 /// Statuses that still owe the club money. `draft` never reaches this screen
 /// but is listed for completeness against the server's enum.
@@ -29,6 +29,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 export default function ShopPage() {
+  const authed = useRequireAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubId, setClubId] = useState<string>("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,10 +43,7 @@ export default function ShopPage() {
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to browse the shop.");
-      return;
-    }
+    if (!authed) return;
     (async () => {
       try {
         const c = await api<Club[]>("GET", "/clubs");
@@ -57,7 +55,7 @@ export default function ShopPage() {
         setError(readErr(err, "Failed to load clubs"));
       }
     })();
-  }, []);
+  }, [authed]);
 
   useEffect(() => {
     if (!clubId) return;
@@ -130,6 +128,8 @@ export default function ShopPage() {
       setError(readErr(err, "Could not start that payment"));
     }
   };
+
+  if (!authed) return <main id="main" />;
 
   return (
     <main id="main">

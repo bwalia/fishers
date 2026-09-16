@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api, getAccessToken, readErr } from "@/lib/api";
+import { api, readErr } from "@/lib/api";
 import {
   byGroup,
   difference,
@@ -15,6 +15,7 @@ import {
   type TournamentFormat,
 } from "@/lib/tournament";
 import { Icon } from "@/components/Icon";
+import { useRequireAuth } from "@/lib/require-auth";
 
 type Tab = "entrants" | "grid" | "fixtures" | "table";
 
@@ -26,6 +27,7 @@ type Tab = "entrants" | "grid" | "fixtures" | "table";
 /// the grid the night before, fixtures on the morning, the table all day.
 export default function TournamentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const authed = useRequireAuth();
   const [tab, setTab] = useState<Tab>("entrants");
   const [entrants, setEntrants] = useState<TournamentEntrant[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -55,14 +57,11 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   }, [id]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      setError("Sign in to run this tournament.");
-      setLoading(false);
-      return;
-    }
+    if (!authed) return;
     load();
-  }, [load]);
+  }, [authed, load]);
 
+  if (!authed) return <main id="main" />;
   if (error && entrants.length === 0)
     return <main id="main"><p className="error">{error}</p></main>;
   if (loading)
