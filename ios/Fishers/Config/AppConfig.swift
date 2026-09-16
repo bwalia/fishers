@@ -1,12 +1,16 @@
 import Foundation
 
 enum AppConfig {
-    /// The Simulator shares the Mac's network stack, so loopback is the one
-    /// address that is right without knowing today's DHCP lease. Physical
-    /// devices need the Mac's LAN address, which `scripts/start.sh` resolves at
-    /// launch and passes in — no address is compiled into the app.
-    private static let fallbackAPIBase = "http://127.0.0.1:7312"
-    private static let fallbackWebBase = "http://127.0.0.1:7311"
+    /// Simulator fallback: loopback on the Mac's stack (same as Debug Info.plist).
+    private static let simulatorAPIBase = "http://127.0.0.1:7312"
+    private static let simulatorWebBase = "http://127.0.0.1:7311"
+
+    /// Physical-device Debug fallback when nothing else is set: the Mac Studio's
+    /// Wi-Fi address where local Xcode testing runs the API. A phone on the same
+    /// Wi-Fi cannot use 127.0.0.1 — that is the phone itself — and without this
+    /// the app looks like the API is down.
+    private static let deviceLANAPIBase = "http://192.168.1.177:8080"
+    private static let deviceLANWebBase = "http://192.168.1.177:7311"
 
     /// Where the API lives.
     ///
@@ -19,15 +23,13 @@ enum AppConfig {
     ///      the `-FishersAPIBaseURL <url>` argument Foundation reads into the
     ///      argument domain.
     ///   3. `FishersAPIBaseURL` in Info.plist — Release / TestFlight / App Store.
-    ///   4. Loopback, which is correct on the Simulator and useless anywhere else.
-    ///
-    /// A LAN address baked in at build time was the old behaviour and it broke
-    /// every time the Mac's lease changed, in a way that looked like the API
-    /// being down. Nothing here is fixed at compile time except the last resort.
+    ///   4. Fallback: Simulator → loopback; physical device (Debug) → the LAN
+    ///      Mac at `192.168.1.177:8080` so a phone on Wi-Fi reaches the API
+    ///      without a scheme override.
     static let apiBaseURL: URL = resolve(
         env: "FISHERS_API_URL",
         key: "FishersAPIBaseURL",
-        fallback: fallbackAPIBase,
+        fallback: deviceAwareFallback(api: true),
         label: "API"
     )
 
@@ -37,9 +39,19 @@ enum AppConfig {
     static let webBaseURL: URL = resolve(
         env: "FISHERS_WEB_URL",
         key: "FishersWebBaseURL",
-        fallback: fallbackWebBase,
+        fallback: deviceAwareFallback(api: false),
         label: "Web"
     )
+
+    /// Loopback on Simulator; LAN Mac on a real device. Release still fails
+    /// closed via empty Info.plist values before this is reached in practice.
+    private static func deviceAwareFallback(api: Bool) -> String {
+        #if targetEnvironment(simulator)
+        return api ? simulatorAPIBase : simulatorWebBase
+        #else
+        return api ? deviceLANAPIBase : deviceLANWebBase
+        #endif
+    }
 
     /// Shown when a build cannot reach its API, so the person holding the phone
     /// can say which server it was trying.
@@ -71,16 +83,23 @@ enum AppConfig {
     }
 
     /// Empty and unsubstituted (`$(FISHERS_API_BASE_URL)`) values are not hosts.
-    /// Loopback *is* honoured when it is asked for explicitly — that is the
-    /// right address on the Simulator, and rejecting it was why an override
-    /// could not point the Simulator at a local API.
+    /// On the Simulator, loopback is honoured — that is the right address there.
+    /// On a physical phone, loopback is the phone itself, so Debug Info.plist's
+    /// `127.0.0.1` must not win over the LAN fallback; reject it here so
+    /// resolution falls through to `192.168.1.177:8080` (or an explicit
+    /// FISHERS_API_URL / UserDefaults override that names a real host).
     private static func usableURL(_ raw: String?) -> URL? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty,
               !trimmed.hasPrefix("$("),
               let url = URL(string: trimmed),
-              url.host != nil
+              let host = url.host
         else { return nil }
+        #if !targetEnvironment(simulator)
+        if host == "127.0.0.1" || host == "localhost" || host == "::1" {
+            return nil
+        }
+        #endif
         return url
     }
 }

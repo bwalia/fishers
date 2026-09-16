@@ -35,12 +35,11 @@ targets:
         FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
       configs:
         Debug:
-          # Loopback, because the Simulator shares the Mac's network stack and
-          # this is the only address that stays right when DHCP moves the Mac.
-          # A LAN address here broke the app on every new lease. scripts/start.sh
-          # passes today's LAN address in at launch instead; physical iPhones get
-          # it from FISHERS_API_URL in the scheme. API is :7312; web/share links
-          # are :7311 — Next does not serve /api/v1.
+          # Info.plist still expands to loopback for Simulator builds. A real
+          # iPhone ignores an empty/loopback resolution failure path in
+          # AppConfig and falls back to http://192.168.1.177:8080 (same Wi-Fi
+          # as the Mac). Override with FISHERS_API_URL / UserDefaults when the
+          # lease moves. Web share links stay on :7311.
           FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
           FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
         Release:
@@ -94,6 +93,17 @@ targets:
         NSCameraUsageDescription: >-
           Fishers uses the camera to scan another club's QR code when you start
           a match, so you don't have to type their name.
+        # Physical iPhones talking to the Mac's API over Wi-Fi need Local Network
+        # permission. Without this string the prompt never appears, the connect
+        # fails, and it looks as if the API is down. Must live here (xcodegen
+        # rewrites Info.plist from these properties on every generate).
+        NSLocalNetworkUsageDescription: >-
+          Fishers reaches your club's scoring API on the same Wi-Fi — for
+          example a Mac running the local server while you test on a phone.
+        # Declaring a Bonjour service type is required for the Local Network
+        # privacy prompt on some iOS versions even for plain HTTP to a LAN IP.
+        NSBonjourServices:
+          - "_http._tcp"
         UIBackgroundModes:
           - remote-notification
 
