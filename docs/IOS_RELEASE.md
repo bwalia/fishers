@@ -152,20 +152,16 @@ runner when present, otherwise from `ASC_PRIVATE_KEY_B64` / Vault.
 
 **TestFlight on every `main` merge:**
 
-1. Upload the IPA, attach it to internal **Fishers Team** (instant install for
-   ASC team members in the TestFlight app — **no invite email**) and external
-   **Fishers**.
-2. **Delete + re-add** `balindersinghwalia@icloud.com` and `harchran001@gmail.com`,
-   then call Apple’s `betaTesterInvitations` API so they get the **TestFlight
-   install invite** (`You're invited to test Fishers Sport`).  
-   The ASC “build has completed processing” mail is **not** that invite.
-3. If no email within ~15 minutes, open on iPhone:
-   **https://testflight.apple.com/join/YXCcSAPj** (TestFlight app required).
-4. Submit **one** Beta App Review (CI does not cancel an in-flight review).
-5. Resend invites without a new IPA: **Actions → iOS Release → `invite_testers`**.
-
-External Fishers installs stay blocked until Beta App Review approves a build.
-Do not keep uploading builds that reset Waiting for Review — let Apple finish.
+1. Upload the IPA, attach it to internal **Fishers Team** (ASC team members
+   install in the TestFlight app — **no invite email**) and external **Fishers**.
+2. Cancel any stuck **Waiting for Review**, then submit the latest build for
+   Beta App Review. Apple **refuses** TestFlight install invite emails with
+   “tester has no installable build” until Fishers has a distributed build.
+3. **Delete + re-add** `balindersinghwalia@icloud.com` and `harchran001@gmail.com`,
+   then call `betaTesterInvitations` for the real invite
+   (`You're invited to test Fishers Sport` — **not** processing-complete).
+4. If no email: open **https://testflight.apple.com/join/YXCcSAPj** on iPhone.
+5. Resend without a new IPA: **Actions → iOS Release → `invite_testers`**.
 
 ### 3. Self-hosted runner
 
