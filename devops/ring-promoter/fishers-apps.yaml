@@ -1,11 +1,15 @@
-# Fishers, as Ring Promoter sees it.
+# Fishers, as Ring Promoter sees it (https://rp.workstation.co.uk/).
 #
-# Paste these two entries into the `apps:` list of Ring Promoter's ConfigMap
-# (ring-system/ring-promoter-config on k3s1) and restart the deployment. There
-# is no code change and no rebuild — the app registry is configuration.
+# Paste these entries into the `apps:` list of Ring Promoter's ConfigMap on
+# k3s1 and restart. There is no code change and no rebuild — the app registry
+# is configuration.
 #
-#   kubectl -n ring-system edit configmap ring-promoter-config
-#   kubectl -n ring-system rollout restart deploy/ring-promoter
+#   kubectl -n workstation-ring-promoter edit configmap ring-promoter-config
+#   kubectl -n workstation-ring-promoter rollout restart deploy/ring-promoter
+#
+# GitHub deployer apps require RP_GITHUB_TOKEN on secret/ring-promoter in that
+# namespace (actions:write on bwalia/fishers). Without it, registering these
+# entries makes the pod refuse to start.
 #
 # Both apps dispatch the same workflow, deploy-single-environment.yml, which
 # takes ENV / DEPLOY_BRANCH / DEPLOY_MODE — the github deployer's own defaults,

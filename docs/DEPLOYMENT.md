@@ -317,16 +317,20 @@ Actions → "Deploy Single Environment" → ENV: int, DEPLOY_BRANCH: main
 ### 4. Register with Ring Promoter
 
 Paste `devops/ring-promoter/fishers-apps.yaml` into the `apps:` list of the
-Ring Promoter ConfigMap and restart it:
+Ring Promoter ConfigMap that serves https://rp.workstation.co.uk/ and restart:
 
 ```bash
-kubectl -n ring-system edit configmap ring-promoter-config
-kubectl -n ring-system rollout restart deploy/ring-promoter
+kubectl -n workstation-ring-promoter edit configmap ring-promoter-config
+kubectl -n workstation-ring-promoter rollout restart deploy/ring-promoter
 ```
 
-Ring Promoter needs `RP_GITHUB_TOKEN` to have `actions:write` on
-`bwalia/fishers`. After that, promotion int → test → acc → prod is a click (or
-an unattended chain) at https://rp.workstation.co.uk/.
+(`ring-system` is a different instance — DIY Tax Return — not this UI.)
+
+Ring Promoter needs `RP_GITHUB_TOKEN` on `secret/ring-promoter` in that
+namespace with `actions:write` on `bwalia/fishers`. Without the token, adding
+github-deployer apps crashes the pod at startup. After that, promotion
+int → test → acc → prod is a click (or an unattended chain) at
+https://rp.workstation.co.uk/.
 
 ## DNS
 
