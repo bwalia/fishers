@@ -28,9 +28,10 @@ on:
         type: string
         required: true
       image_tag:
+        description: "Commit sha to deploy. Never a moving tag — see 'Refuse a moving tag'."
         type: string
         required: false
-        default: latest
+        default: ""
       registry_provider:
         type: string
         required: false
@@ -55,9 +56,10 @@ on:
         default: int
         options: [int, test, acc, prod]
       image_tag:
+        description: "Commit sha to deploy. Never a moving tag — see 'Refuse a moving tag'."
         type: string
         required: false
-        default: latest
+        default: ""
       registry_provider:
         type: choice
         required: false
@@ -85,6 +87,22 @@ jobs:
       CHARTS: devops/helm-charts
     steps:
       - uses: actions/checkout@v4
+
+      # `:latest` moves. Two replicas on a moving tag drift apart the moment one
+      # of them restarts on its own — the surviving pod keeps the old digest,
+      # the restarted one pulls a newer image, and half the HTML then references
+      # /_next/static chunks the other pod has never heard of. That is the www
+      # ChunkLoadError of 2026-09-16. The named workflows already pass a commit;
+      # this closes the manual-dispatch and promote paths, which did not.
+      - name: Refuse a moving tag
+        run: |
+          set -euo pipefail
+          if [ "$IMAGE_TAG" = latest ] || [ -z "$IMAGE_TAG" ]; then
+            echo "::error::image_tag is '$IMAGE_TAG'. Deploy a commit sha, never a moving tag."
+            echo "::error::Use 'Deploy Single Environment' (it resolves a built commit for you),"
+            echo "::error::or pass the sha you want to this workflow explicitly."
+            exit 1
+          fi
 
       - name: Resolve ring
         id: ring

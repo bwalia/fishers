@@ -23,7 +23,7 @@ pub async fn find_by_identifier(
     let trimmed = identifier.trim();
     sqlx::query_as::<_, User>(&format!(
         "SELECT {USER_COLUMNS} FROM users
-         WHERE LOWER(email) = LOWER($1) OR phone = $1
+         WHERE (LOWER(email) = LOWER($1) OR phone = $1) AND deleted_at IS NULL
          LIMIT 1"
     ))
     .bind(trimmed)
@@ -33,7 +33,7 @@ pub async fn find_by_identifier(
 
 pub async fn find_by_phone(pool: &PgPool, phone: &str) -> Result<Option<User>, sqlx::Error> {
     sqlx::query_as::<_, User>(&format!(
-        "SELECT {USER_COLUMNS} FROM users WHERE phone = $1"
+        "SELECT {USER_COLUMNS} FROM users WHERE phone = $1 AND deleted_at IS NULL"
     ))
     .bind(phone.trim())
     .fetch_optional(pool)
@@ -42,7 +42,7 @@ pub async fn find_by_phone(pool: &PgPool, phone: &str) -> Result<Option<User>, s
 
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, sqlx::Error> {
     sqlx::query_as::<_, User>(&format!(
-        "SELECT {USER_COLUMNS} FROM users WHERE lower(email) = lower($1)"
+        "SELECT {USER_COLUMNS} FROM users WHERE lower(email) = lower($1) AND deleted_at IS NULL"
     ))
     .bind(email)
     .fetch_optional(pool)
@@ -156,7 +156,7 @@ pub async fn update_profile(
 /// The account a Google sign-in has been used on before.
 pub async fn find_by_google_sub(pool: &PgPool, sub: &str) -> Result<Option<User>, sqlx::Error> {
     sqlx::query_as::<_, User>(&format!(
-        "SELECT {USER_COLUMNS} FROM users WHERE google_sub = $1"
+        "SELECT {USER_COLUMNS} FROM users WHERE google_sub = $1 AND deleted_at IS NULL"
     ))
     .bind(sub)
     .fetch_optional(pool)
@@ -258,7 +258,7 @@ pub async fn share_token(pool: &PgPool, user_id: Uuid, fresh: &str) -> Result<St
 
 pub async fn find_by_share_token(pool: &PgPool, token: &str) -> Result<Option<User>, sqlx::Error> {
     sqlx::query_as::<_, User>(&format!(
-        "SELECT {USER_COLUMNS} FROM users WHERE profile_share_token = $1"
+        "SELECT {USER_COLUMNS} FROM users WHERE profile_share_token = $1 AND deleted_at IS NULL"
     ))
     .bind(token)
     .fetch_optional(pool)
@@ -419,4 +419,70 @@ pub async fn names_for(
         .bind(user_ids)
         .fetch_all(pool)
         .await
+}
+
+/// Delete the person; keep the fixtures they played in.
+///
+/// App Store Review 5.1.1(v) requires an in-app account deletion. A hard DELETE
+/// is not open to us — see `20260917000001_delete_my_account.sql` — so this
+/// clears every column that says who somebody is, closes every route back into
+/// the account, and stamps the row. Scorecards, club history and the averages
+/// built on them keep their shape; the player on them becomes nobody.
+///
+/// Returns false when the account was already gone, so asking twice is quiet.
+pub async fn delete_account(pool: &PgPool, user_id: Uuid) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    // Sessions first. An access token already issued outlives this by its own
+    // fifteen minutes and nothing can call it back; a refresh token would have
+    // carried on minting them for a month.
+    sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = now()
+         WHERE user_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // ponytail: the avatar object itself stays in the bucket — Storage can put
+    // but not delete, and the key is unguessable, so clearing the reference is
+    // most of it. Add Storage::delete when somebody can test it against MinIO.
+
+    // Nothing should still be able to buzz a phone that has left.
+    sqlx::query("DELETE FROM device_tokens WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    let done = sqlx::query(
+        "UPDATE users SET
+            name                 = 'Deleted member',
+            email                = NULL,
+            phone                = NULL,
+            apple_id             = NULL,
+            google_sub           = NULL,
+            avatar_url           = NULL,
+            password_hash        = NULL,
+            emergency_contact    = NULL,
+            position_role        = NULL,
+            skill_level          = NULL,
+            primary_sport        = NULL,
+            sports_played        = '{}',
+            sport_profiles       = '[]',
+            location             = NULL,
+            profile_share_token  = NULL,
+            profile_completed_at = NULL,
+            email_verified_at    = NULL,
+            phone_verified_at    = NULL,
+            role_intent          = NULL,
+            deleted_at           = now(),
+            updated_at           = now()
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(done.rows_affected() == 1)
 }

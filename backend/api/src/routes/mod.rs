@@ -69,9 +69,14 @@ async fn ready(
         .await
     {
         Ok(_) => (StatusCode::OK, Json(json!({ "status": "ready" }))),
-        Err(e) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({ "status": "degraded", "database": e.to_string() })),
-        ),
+        Err(e) => {
+            // The reason goes to the log, not to the caller: this endpoint is
+            // unauthenticated and a sqlx error names hosts, databases and users.
+            tracing::error!(error = %e, "readiness probe: database unreachable");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "status": "degraded" })),
+            )
+        }
     }
 }

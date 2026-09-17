@@ -11,7 +11,7 @@ struct APIServerSettingsView: View {
     @State private var resolved: String = AppConfig.apiBaseURL.absoluteString
 
     private let presets: [(String, String)] = [
-        ("This Mac (Wi‑Fi)", "http://192.168.1.177:8080"),
+        ("This Mac (Wi‑Fi)", "http://192.168.1.177:7312"),
         ("Simulator loopback", "http://127.0.0.1:7312"),
         ("int.fishers.cloud", "https://int.fishers.cloud"),
         ("www.fishers.cloud", "https://www.fishers.cloud"),

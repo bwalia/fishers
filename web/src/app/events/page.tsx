@@ -407,14 +407,17 @@ function ScheduleMatch({
     setError(null);
     try {
       const from = new Date(start);
-      // A cricket fixture runs most of an afternoon; nobody wants to type an
-      // end time as well.
+      // A fixture runs most of an afternoon; nobody wants to type an end time
+      // as well.
       const to = new Date(from.getTime() + 5 * 60 * 60 * 1000);
-      const us = clubs.find((c) => c.id === clubId)?.name ?? "Us";
+      const club = clubs.find((c) => c.id === clubId);
+      const us = club?.name ?? "Us";
       await api("POST", "/events", {
         club_id: clubId,
         opponent_club_id: opponent?.club_id ?? null,
-        sport: "cricket",
+        // What the club plays. Hard-coding cricket here filed every fixture as
+        // a cricket match, whatever sport the club was actually turning out for.
+        sport: club?.sport_types[0] ?? "cricket",
         event_subtype: "league_match",
         title: `${us} v ${opponent?.name ?? (oppositionName || "opposition")}`,
         venue_id: venueId || null,

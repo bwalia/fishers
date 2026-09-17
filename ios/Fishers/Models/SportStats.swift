@@ -54,7 +54,7 @@ enum SportStats {
                 .integer("catches", "Catches"),
                 .integer("matches", "Matches played"),
             ]
-        case .padel:
+        case .paddle:
             return [
                 .choice("side", "Preferred side", ["Right side", "Left side", "Either side"]),
                 .decimal("padel_level", "Padel level", placeholder: "3.5", footnote: "0–7 scale used by most clubs and Playtomic."),
@@ -119,12 +119,29 @@ enum SportStats {
                 .decimal("assists_per_game", "Assists per game", placeholder: "2.5"),
                 .integer("games", "Games played"),
             ]
+        case .pickleball:
+            return [
+                .choice("discipline", "Main discipline", ["Singles", "Doubles", "Mixed doubles"]),
+                .choice("side", "Preferred side", ["Right side", "Left side", "Either side"]),
+                .decimal("dupr_rating", "DUPR rating", placeholder: "3.5", footnote: "2.0–8.0, the rating most leagues ask for."),
+                .integer("matches", "Matches played"),
+                .integer("win_rate", "Win rate", 0...100),
+                .text("partner", "Regular partner"),
+            ]
+        case .other:
+            // Whatever the club plays that this app has no catalog for. Enough
+            // to say something on a profile rather than showing an empty card.
+            return [
+                .text("discipline", "What you play"),
+                .integer("matches", "Matches played"),
+                .integer("win_rate", "Win rate", 0...100),
+            ]
         }
     }
 
     /// Non-empty stats in catalog order, ready to render on the profile.
     static func summary(for profile: SportProfile) -> [(label: String, value: String)] {
-        guard let sport = Sport(rawValue: profile.sport) else { return [] }
+        guard let sport = Sport.named(profile.sport) else { return [] }
         return fields(for: sport).compactMap { field in
             guard let raw = profile.stats[field.key], !raw.isEmpty else { return nil }
             return (field.label, formatted(raw, for: field))

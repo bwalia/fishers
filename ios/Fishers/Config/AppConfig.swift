@@ -5,12 +5,14 @@ enum AppConfig {
     private static let simulatorAPIBase = "http://127.0.0.1:7312"
     private static let simulatorWebBase = "http://127.0.0.1:7311"
 
-    /// Physical-device fallback when nothing else is set: the Mac Studio's
-    /// Wi-Fi address where local Xcode testing runs the API. A phone on the same
-    /// Wi-Fi cannot use 127.0.0.1 — that is the phone itself — and without this
-    /// the app looks like the API is down.
-    private static let deviceLANAPIBase = "http://192.168.1.177:8080"
-    private static let deviceLANWebBase = "http://192.168.1.177:7311"
+    /// Physical-device fallback: production. A phone cannot use 127.0.0.1 —
+    /// that is the phone itself — and a LAN address here shipped to TestFlight,
+    /// where a tester's network has no such host (or worse, some unrelated box
+    /// answering on that address). Prod is the only fallback that is right for
+    /// a build in someone else's hands; point a device at a local API with the
+    /// Settings panel or `FISHERS_API_URL`.
+    private static let deviceAPIBase = "https://www.fishers.cloud"
+    private static let deviceWebBase = "https://www.fishers.cloud"
 
     /// UserDefaults / launch-argument key written by Settings and `scripts/start.sh`.
     static let apiDefaultsKey = "FishersAPIBaseURL"
@@ -25,8 +27,7 @@ enum AppConfig {
     ///   2. `FishersAPIBaseURL` in UserDefaults — Settings panel, `start.sh`,
     ///      or `-FishersAPIBaseURL <url>` launch argument.
     ///   3. `FishersAPIBaseURL` in Info.plist — Release / TestFlight / App Store.
-    ///   4. Fallback: Simulator → loopback; physical device → LAN Mac at
-    ///      `192.168.1.177:8080`.
+    ///   4. Fallback: Simulator → loopback; physical device → production.
     static var apiBaseURL: URL {
         resolve(
             env: "FISHERS_API_URL",
@@ -46,13 +47,14 @@ enum AppConfig {
         )
     }
 
-    /// Loopback on Simulator; LAN Mac on a real device. Release still fails
-    /// closed via empty Info.plist values before this is reached in practice.
+    /// Loopback on the Simulator, production on a real device. Release sets
+    /// both hosts in Info.plist; this is what a build reaches for when that
+    /// substitution has gone wrong, so it has to be somewhere safe to land.
     private static func deviceAwareFallback(api: Bool) -> String {
         #if targetEnvironment(simulator)
         return api ? simulatorAPIBase : simulatorWebBase
         #else
-        return api ? deviceLANAPIBase : deviceLANWebBase
+        return api ? deviceAPIBase : deviceWebBase
         #endif
     }
 
@@ -121,9 +123,9 @@ enum AppConfig {
     /// Empty and unsubstituted (`$(FISHERS_API_BASE_URL)`) values are not hosts.
     /// On the Simulator, loopback is honoured — that is the right address there.
     /// On a physical phone, loopback is the phone itself, so Debug Info.plist's
-    /// `127.0.0.1` must not win over the LAN fallback; reject it here so
-    /// resolution falls through to `192.168.1.177:8080` (or an explicit
-    /// Settings / `FISHERS_API_URL` override that names a real host).
+    /// `127.0.0.1` must not win over the fallback; reject it here so resolution
+    /// falls through to production (or an explicit Settings / `FISHERS_API_URL`
+    /// override that names a real host).
     private static func usableURL(_ raw: String?) -> URL? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty,
@@ -149,7 +151,7 @@ enum APIConfigError: LocalizedError {
             #if targetEnvironment(simulator)
             return "Enter a full URL such as http://127.0.0.1:7312 or https://int.fishers.cloud"
             #else
-            return "Enter a full URL such as http://192.168.1.177:8080 or https://int.fishers.cloud — not localhost on a phone"
+            return "Enter a full URL such as https://int.fishers.cloud or http://192.168.1.10:7312 — not localhost on a phone"
             #endif
         }
     }
