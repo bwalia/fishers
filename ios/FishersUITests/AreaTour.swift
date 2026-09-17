@@ -103,7 +103,7 @@ final class AreaTour: APITourCase {
         linger(2.5)
 
         // Home: the T20 the 2nd XI are playing right now, and what is coming up.
-        let live = reveal("Kings Langley", timeout: 20)
+        let live = reveal("2nd XI", timeout: 20)
         XCTAssertTrue(live.exists, "the 2nd XI's live T20 is not on Home")
         linger()
         app.swipeUp()
@@ -126,7 +126,7 @@ final class AreaTour: APITourCase {
         back()
 
         // The live match, as anyone at the club follows it.
-        reveal("Kings Langley").tap()
+        reveal("2nd XI").tap()
         let scorecard = app.buttons["Full scorecard"]
         XCTAssertTrue(scorecard.waitForExistence(timeout: 20), "the live fixture has no scorecard")
         linger(2)
@@ -268,6 +268,12 @@ final class AreaTour: APITourCase {
         let fixture = world.super5s
         let home = try XCTUnwrap(fixture.home)
         let away = try XCTUnwrap(fixture.away)
+        // An over each: five overs needs five bowlers a side, and a manifest
+        // that cannot name them would fail somewhere far less obvious.
+        for side in [home, away] {
+            try XCTSkipUnless(side.bowlers.count >= 5 && side.batting.count >= 11,
+                              "\(side.name) cannot field 11 with five bowlers — reseed")
+        }
         // Plot boundaries only: every single on the wheel makes for a long evening.
         app.launchArguments += ["-cricket_wheel_mode", "boundaries"]
         try signIn(world.hero.email, password: world.password)

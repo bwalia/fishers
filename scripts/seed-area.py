@@ -25,6 +25,30 @@ Re-runnable: accounts sign back in, clubs, fixtures and threads that already
 exist are reused, and a match that has been played is not played again.
 Everyone's password is password123; the accounts worth knowing are printed at
 the end.
+
+On a shared server
+------------------
+Use --invented, and --note to say on every club that the data is a demo:
+
+    API_BASE=https://int.fishers.cloud ./scripts/seed-area.py \
+      --invented --clubs 8 --rounds 2 --manifest .dev/seed-int.json
+
+Hashing a password is deliberately memory-hungry, so the default there is 3
+requests at a time: sixteen at once took an API with a 512Mi limit over it and
+Kubernetes killed the pod mid-run.
+
+Nothing here can be undone through the API — there is no delete-club endpoint
+— so removing it again means the database. Everyone this script makes has an
+address at @fishers.test, which is the handle to pull:
+
+    kubectl exec -n fishers-<ring> fishers-db-0 -- psql -U postgres -d fishers -c "
+      DELETE FROM clubs WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@fishers.test');
+      DELETE FROM users WHERE email LIKE '%@fishers.test';"
+
+Check what that would take first — a real account of yours at that domain
+would go with it:
+
+    SELECT email FROM users WHERE email LIKE '%@fishers.test';
 """
 from __future__ import annotations
 
@@ -44,6 +68,8 @@ import urllib.request
 import uuid
 from zoneinfo import ZoneInfo
 
+import argparse
+
 API = os.environ.get("API_BASE") or f"http://127.0.0.1:{os.environ.get('API_PORT', '7312')}"
 V1 = API.rstrip("/") + "/api/v1"
 PASSWORD = "password123"
@@ -51,6 +77,9 @@ PG_CONTAINER = os.environ.get("PG_CONTAINER", "fishers-postgres")
 LONDON = ZoneInfo("Europe/London")
 # The same world on every run: same people, same clubs, same scorecards.
 rng = random.Random(20260917)
+# Filled in by main(); the defaults are what a local stack gets.
+OPTS = argparse.Namespace(invented=False, clubs=0, note=None, public_pages=True,
+                          manifest=None, rounds=3, workers=16)
 print_lock = threading.Lock()
 
 
@@ -72,7 +101,7 @@ class ApiError(RuntimeError):
 
 def call(method, path, body=None, token=None):
     data = json.dumps(body).encode() if body is not None else None
-    for attempt in range(4):
+    for attempt in range(6):
         req = urllib.request.Request(
             V1 + path, data=data, method=method,
             headers={"Content-Type": "application/json",
@@ -83,13 +112,15 @@ def call(method, path, body=None, token=None):
                 return json.loads(raw) if raw else None
         except urllib.error.HTTPError as e:
             text = e.read().decode(errors="replace")
-            if e.code >= 500 and attempt < 3:
-                time.sleep(1 + attempt)
+            # A ring behind a proxy answers 502/503 while it restarts, and a
+            # restart is exactly what a burst of signups can cause.
+            if e.code >= 500 and attempt < 5:
+                time.sleep(2 ** attempt)
                 continue
             raise ApiError(method, path, e.code, text) from None
         except (urllib.error.URLError, TimeoutError, ConnectionError):
-            if attempt < 3:
-                time.sleep(1 + attempt)
+            if attempt < 5:
+                time.sleep(2 ** attempt)
                 continue
             raise
 
@@ -105,7 +136,7 @@ def psql(sql):
 
 
 def parallel(fn, items, workers=12):
-    with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+    with cf.ThreadPoolExecutor(max_workers=min(workers, OPTS.workers)) as pool:
         return list(pool.map(fn, items))
 
 
@@ -122,6 +153,7 @@ def london(day, hour, minute=0):
 
 HERTS = "Hertfordshire Saturday League"
 MIDDX = "Middlesex Saturday League"
+RING = "Chilterns & North London League"
 
 # (name, short, area, league, ground, address, lat, lng, members, women's section)
 CLUBS = [
@@ -205,6 +237,8 @@ CLUBS = [
 
 # Where people round each club come from, roughly. Weights, not quotas.
 MIX = {
+    RING: {"british": 45, "punjabi": 9, "gujarati": 13, "pakistani": 10, "tamil": 6,
+           "sinhala": 4, "bangladeshi": 3, "afghan": 3, "southern": 4, "caribbean": 3},
     HERTS: {"british": 60, "punjabi": 8, "gujarati": 9, "pakistani": 9, "tamil": 3,
             "sinhala": 3, "bangladeshi": 2, "afghan": 2, "southern": 4},
     MIDDX: {"british": 36, "punjabi": 9, "gujarati": 17, "pakistani": 11, "tamil": 8,
@@ -287,6 +321,35 @@ Matt Hancock|George Osborne|Rishi Shah|Steve Davis|Andy Flower|Graham Thorpe|Gar
 Owen Farrell|Joe Marler|Jack Nowell|Sam Warburton|Hamza Choudhury|Rob Key|Chris Woakes|Nick Pope|
 Jonny Bairstow|Ollie Pope|Paul Taylor|Neil Robertson|Steve James|Sam Allardyce|Harry Kane|Theo Walcott
 """.replace("\n", "").split("|")}
+
+# For a shared server. Invented clubs in the same towns: a real club's name on
+# a page of invented players and invented results is not ours to put there.
+RING_CLUBS = [
+    ("Gade Valley CC", "Gade Valley", "Hemel Hempstead", RING,
+     "Gadebridge Park", "Gadebridge Park, Hemel Hempstead HP1", 51.7620, -0.4760, 26, True),
+    ("Boxmoor Wanderers CC", "Boxmoor Wanderers", "Hemel Hempstead", RING,
+     "Moor Lane", "Moor Lane, Boxmoor, Hemel Hempstead HP1", 51.7440, -0.4880, 24, False),
+    ("Bulbourne CC", "Bulbourne", "Berkhamsted", RING,
+     "Bulbourne Meadow", "Lower Kings Road, Berkhamsted HP4", 51.7640, -0.5640, 22, False),
+    ("Colne Valley Ramblers CC", "Colne Valley", "Watford", RING,
+     "Riverside Fields", "Riverside, Watford WD17", 51.6600, -0.4000, 16, True),
+    ("Oxhey Park CC", "Oxhey Park", "Watford", RING,
+     "Oxhey Park", "Eastbury Road, Oxhey, Watford WD19", 51.6420, -0.3900, 16, False),
+    ("Chess Valley CC", "Chess Valley", "Rickmansworth", RING,
+     "Mill Meadow", "Mill End, Rickmansworth WD3", 51.6450, -0.4850, 16, False),
+    ("Harrow Weald Wanderers CC", "Harrow Weald", "Harrow", RING,
+     "Weald Common", "Harrow Weald HA3", 51.6040, -0.3350, 16, False),
+    ("Pinner Vale CC", "Pinner Vale", "Pinner", RING,
+     "Vale Field", "Pinner HA5", 51.5930, -0.3900, 16, True),
+    ("Welsh Harp CC", "Welsh Harp", "Wembley", RING,
+     "Reservoir Fields", "Birchen Grove, Wembley NW9", 51.5700, -0.2470, 16, False),
+    ("Crouch Hill CC", "Crouch Hill", "Crouch End", RING,
+     "Hillside Ground", "Crouch Hill, London N8", 51.5760, -0.1220, 16, True),
+    ("Enfield Chase Nomads CC", "Enfield Chase", "Enfield", RING,
+     "Chase Meadow", "Enfield EN2", 51.6560, -0.0900, 16, False),
+    ("Totteridge Common CC", "Totteridge Common", "Totteridge", RING,
+     "The Common", "Totteridge Common, London N20", 51.6330, -0.1990, 16, False),
+]
 
 # A club side, top to bottom: (position, bowling styles to pick from).
 SIDE = [
@@ -434,8 +497,23 @@ class Club:
         return xi[4]
 
 
+def chosen_clubs():
+    """The area's clubs, or invented ones for a shared server. An odd club
+    would sit out every round, so the count is always even."""
+    specs = RING_CLUBS if OPTS.invented else CLUBS
+    if OPTS.clubs:
+        per_league: dict[str, list] = {}
+        for spec in specs:
+            per_league.setdefault(spec[3], []).append(spec)
+        wanted, specs = OPTS.clubs, []
+        for league, group in per_league.items():
+            take = max(2, round(wanted * len(group) / sum(len(g) for g in per_league.values())))
+            specs += group[: take - take % 2]
+    return specs
+
+
 def build_world():
-    clubs = [Club(spec) for spec in CLUBS]
+    clubs = [Club(spec) for spec in chosen_clubs()]
     for club in clubs:
         shape = SIDE + SPARE
         if club.size > 16:
@@ -527,9 +605,15 @@ def profile_body(p: Person):
 
 def sign_everyone_up(people):
     parallel(lambda p: p.token(), people, workers=16)
-    # Confirmed, so they can run clubs and accept invites on a server that asks.
-    psql("UPDATE users SET email_verified_at = now() "
-         "WHERE email LIKE '%@fishers.test' AND email_verified_at IS NULL")
+    # Only where the server asks for a code, and only where the database is
+    # this machine's: a ring with verification off needs none of this.
+    if call("GET", "/me/verification", None, people[0].token()).get("enabled"):
+        try:
+            psql("UPDATE users SET email_verified_at = now() "
+                 "WHERE email LIKE '%@fishers.test' AND email_verified_at IS NULL")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            say("  ! this server asks for a confirmation code and its database is not local — "
+                "clubs may be refused. Mark the seeded addresses confirmed yourself.")
     bodies = [(p, profile_body(p)) for p in people]
     parallel(lambda pb: call("PATCH", "/me", pb[1], pb[0].token()), bodies, workers=16)
 
@@ -541,18 +625,20 @@ def set_up_club(club: Club):
     if club.name in mine:
         club.id = mine[club.name].get("id") or mine[club.name].get("club_id")
     else:
+        description = f"Saturday league, Sunday friendlies and midweek nets in {club.town}."
         club.id = call("POST", "/clubs", {
             "name": club.name, "sport_types": ["cricket"], "visibility": "public",
-            "description": f"Saturday league, Sunday friendlies and midweek nets in {club.town}."}, tok)["id"]
+            "description": f"{description} {OPTS.note}".strip() if OPTS.note else description}, tok)["id"]
 
     icon = club.captain
     call("PATCH", f"/clubs/{club.id}/page", {
-        "slug": club.slug, "public_page": True,
+        "slug": club.slug, "public_page": OPTS.public_pages,
         "tagline": f"{club.league.replace(' Saturday League', '')} cricket at {club.ground}",
         "about": (f"{club.short} play Saturday league cricket in the {club.league}, with a Sunday XI, "
                   f"midweek nets through the summer and indoor nets in the winter"
                   f"{', and a women' + chr(39) + 's softball section' if club.women else ''}. "
-                  f"New players of every standard are welcome — come to nets first."),
+                  f"New players of every standard are welcome — come to nets first."
+                  + (f" {OPTS.note}" if OPTS.note else "")),
         "ground": club.ground,
         "contact_email": f"secretary@{club.slug}.fishers.test",
     }, tok)
@@ -979,13 +1065,18 @@ def write_manifest(hemel: Club, watford: Club, five, t20):
     Simulator can read: who to sign in as, and who is playing tonight."""
     def side(club: Club, xi):
         rank = {"Fast Bowler": 0, "Spinner": 1, "All-rounder": 2}
+        keeper = next(p for p in xi if p.position == "Wicketkeeper")
+        bowlers = sorted((p for p in xi if p.position in rank),
+                         key=lambda p: (rank[p.position], p.order))
+        # Five overs, an over each: a side has to find five bowlers, and in a
+        # game like that the part-timers get one.
+        bowlers += [p for p in xi if p not in bowlers and p is not keeper][: max(0, 5 - len(bowlers))]
         return {
             "club": club.name, "name": club.short,
             "batting": [p.name for p in xi],
             "captain": club.captain_of(xi).name,
-            "keeper": next(p.name for p in xi if p.position == "Wicketkeeper"),
-            "bowlers": [p.name for p in sorted((p for p in xi if p.position in rank),
-                                               key=lambda p: (rank[p.position], p.order))],
+            "keeper": keeper.name,
+            "bowlers": [p.name for p in bowlers],
         }
     manifest = {
         "password": PASSWORD,
@@ -996,10 +1087,35 @@ def write_manifest(hemel: Club, watford: Club, five, t20):
         "live_t20": {"event_id": t20["id"], "title": t20["title"]},
         "club_chat": f"{hemel.short} — club chat",
     }
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".dev", "seed-area.json")
+    path = OPTS.manifest or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", ".dev", "seed-area.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump(manifest, f, indent=2)
+
+
+def parse_args():
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("--invented", action="store_true",
+                   help="invented club names — for a shared server, where a real club's name "
+                        "does not belong on invented players and invented results")
+    p.add_argument("--clubs", type=int, default=0, metavar="N",
+                   help="seed about N clubs rather than the whole list (rounded to an even number "
+                        "per league, so nobody sits out a round)")
+    p.add_argument("--rounds", type=int, default=3, metavar="N",
+                   help="Saturdays already played (default 3)")
+    p.add_argument("--note", metavar="TEXT",
+                   help="added to each club's description — say so when the data is a demo on a "
+                        "server real people use")
+    p.add_argument("--no-public-pages", dest="public_pages", action="store_false",
+                   help="leave the clubs' public shop-window pages switched off")
+    p.add_argument("--workers", type=int, metavar="N",
+                   help="how many requests at once. Hashing a password is deliberately "
+                        "memory-hungry, and a burst of signups can take a small server's API "
+                        "over its memory limit — the default is 16 on loopback, 3 elsewhere")
+    p.add_argument("--manifest", metavar="PATH",
+                   help="where to write what the iOS tours read (default .dev/seed-area.json)")
+    return p.parse_args()
 
 
 def main():
@@ -1010,8 +1126,12 @@ def main():
 
     t0 = time.time()
     clubs = build_world()
-    by_name = {c.name: c for c in clubs}
-    hemel, watford, kings = by_name["Hemel Hempstead Town CC"], by_name["Watford Town CC"], by_name["Kings Langley CC"]
+    # Tonight's two fixtures need three clubs with a 2nd XI to draw on, so they
+    # are the biggest, not whoever happens to be first in the list.
+    big = sorted([c for c in clubs if len(c.men) >= 22], key=lambda c: -len(c.men))
+    if len(big) < 3:
+        raise SystemExit("this club list needs three clubs of 22 or more to field tonight's games")
+    hemel, watford, kings = big[0], big[1], big[2]
     people = list(dict.fromkeys(p for c in clubs for p in [c.secretary] + c.men + c.women_squad))
     say(f"==> {len(clubs)} clubs, {len(people)} people — signing up")
     sign_everyone_up(people)
@@ -1022,14 +1142,17 @@ def main():
     today = dt.datetime.now(LONDON).date()
     last_saturday = today - dt.timedelta(days=(today.weekday() - 5) % 7 or 7)
     next_saturday = last_saturday + dt.timedelta(days=7)
-    played_on = [last_saturday - dt.timedelta(days=14), last_saturday - dt.timedelta(days=7), last_saturday]
+    played_on = [last_saturday - dt.timedelta(days=7 * n) for n in range(OPTS.rounds - 1, -1, -1)]
 
     played, upcoming = [], []
-    for league in (HERTS, MIDDX):
+    # Whichever leagues this club list actually has, and however many rounds of
+    # them have been played: the next Saturday is the round after those.
+    for league in dict.fromkeys(c.league for c in clubs):
         rounds = round_robin([c for c in clubs if c.league == league])
         for number, day in enumerate(played_on, start=1):
-            played += [(home, away, day, number) for home, away in rounds[number - 1]]
-        upcoming += [(home, away, next_saturday, 4) for home, away in rounds[3]]
+            played += [(home, away, day, number) for home, away in rounds[(number - 1) % len(rounds)]]
+        next_round = rounds[len(played_on) % len(rounds)]
+        upcoming += [(home, away, next_saturday, len(played_on) + 1) for home, away in next_round]
 
     say(f"==> {len(played)} league matches, 40 overs a side, ball by ball")
     fixtures = parallel(lambda f: league_fixture(*f), played, workers=8)
@@ -1092,8 +1215,9 @@ def main():
     parallel(club_chat, clubs, workers=6)
 
     say("==> today: a 2nd XI T20 in progress, and a 5-over game this evening")
-    now = dt.datetime.now(LONDON).replace(second=0, microsecond=0)
-    t20_start = now - dt.timedelta(hours=2)
+    # A fixed time today, not "two hours ago": a second run has to recognise
+    # the match it made the first time rather than start another one.
+    t20_start = london(today, 16, 0)
     t20, _ = find_or_create_event(hemel, f"{hemel.short} 2nd XI v {kings.short} 2nd XI", {
         "event_subtype": "friendly", "opponent_club_id": kings.id, "team_id": hemel.teams["2nd XI"],
         "venue_id": hemel.venue_id, "start_at": iso(t20_start), "end_at": iso(t20_start + dt.timedelta(hours=3)),
@@ -1129,10 +1253,13 @@ def main():
              squad, workers=11)
 
     write_manifest(hemel, watford, five, t20)
-    balls = psql("SELECT count(*) FROM cricket_scoring_events")
+    try:
+        balls = f"{psql('SELECT count(*) FROM cricket_scoring_events')} scoring events"
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        balls = "ball by ball"   # not this machine's database
     say()
     say(f"Done in {time.time() - t0:.0f}s: {len(clubs)} clubs, {len(people)} players, "
-        f"{len(fixtures)} league matches, {balls} scoring events.")
+        f"{len(fixtures)} league matches, {balls}.")
     say(f"Live T20 scoreboard: {share['url']}")
     say()
     say("Sign in with password123 as:")
@@ -1148,6 +1275,10 @@ def main():
 
 
 if __name__ == "__main__":
+    OPTS = parse_args()
+    if OPTS.workers is None:
+        local = any(host in API for host in ("127.0.0.1", "localhost", "[::1]"))
+        OPTS.workers = 16 if local else 3
     try:
         main()
     except ApiError as e:
