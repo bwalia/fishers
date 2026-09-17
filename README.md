@@ -124,6 +124,15 @@ creates `demo@fishers.test` / `password123` with a club, fixtures, shop stock an
 a part-scored match, and prints a public live-scoreboard link. It is safe to
 re-run — it reuses what already exists instead of duplicating it.
 
+For something that looks like a real season, `./scripts/seed-area.py` fills the
+database with the club cricket around Hemel Hempstead, Watford, Harrow and North
+London: 36 clubs in two Saturday leagues, about 700 invented players with full
+profiles, three rounds of 40-over league matches played ball by ball, this
+Saturday's round with availability marked, nets, chats, shops, a T20 in progress
+and a 5-over game this evening waiting to be scored. It prints the accounts to
+sign in as (all `password123`), and `./scripts/record-area-tour.sh` films the
+app on a Simulator walking through it and scoring that 5-over game.
+
 **Deploying:** see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — four rings on
 `fishers.cloud` (int / test / acc / www), promoted by
 [Ring Promoter](https://rp.workstation.co.uk/).
@@ -181,6 +190,8 @@ scripts/
   start.sh        the whole stack: Postgres, API, dashboard, app in a Simulator
   run-api.sh      shorthand for start.sh --api-only
   seed-demo.sh    demo account with club, fixtures, shop and a live match
+  seed-area.py    36 local clubs, ~700 players and a season already under way
+  record-area-tour.sh  films the iOS tours of that season (.mov per test)
   smoke.sh        End-to-end API check
 ```
 
