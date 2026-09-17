@@ -22,13 +22,21 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(AppConfig.storedAPIOverride, "https://int.fishers.cloud")
     }
 
-    func testClearReturnsToDefault() throws {
+    /// `scripts/start.sh` persists the Mac's LAN address into the Simulator's
+    /// defaults under this very key, so "nothing is stored" is only true on a
+    /// clean CI runner — this test failed on any machine that had run the
+    /// stack. What clearing actually promises is that *our* override is gone.
+    func testClearDropsTheOverride() throws {
         try XCTSkipIf(AppConfig.environmentPinsAPI, "FISHERS_API_URL pins this process")
+        let ours = "https://www.fishers.cloud"
 
-        _ = try AppConfig.setAPIBaseURLOverride("https://www.fishers.cloud")
+        _ = try AppConfig.setAPIBaseURLOverride(ours)
+        XCTAssertEqual(AppConfig.storedAPIOverride, ours)
+        XCTAssertEqual(AppConfig.apiBaseURL.absoluteString, ours)
+
         AppConfig.clearAPIBaseURLOverride()
-        XCTAssertNil(AppConfig.storedAPIOverride)
-        XCTAssertEqual(AppConfig.apiBaseURL, AppConfig.defaultAPIBaseURL)
+        XCTAssertNotEqual(AppConfig.storedAPIOverride, ours, "the override survived the clear")
+        XCTAssertNotEqual(AppConfig.apiBaseURL.absoluteString, ours, "requests still go to it")
     }
 
     func testRejectsGarbage() {

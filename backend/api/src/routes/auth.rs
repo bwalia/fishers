@@ -1,11 +1,15 @@
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::users as users_repo;
 use fishers_domain::{AuthTokens, LoginRequest, RefreshRequest, SignupRequest};
 use rand::rngs::OsRng;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use validator::Validate;
 
 use crate::auth::{hash_token, issue_access_token, issue_refresh_token, decode_token};
@@ -144,11 +148,83 @@ async fn signup(
     issue_tokens(&state, user).await
 }
 
+/// Wrong passwords tolerated for one identifier before it stops being asked,
+/// and how long it then sits out. Argon2 makes each guess expensive, but not
+/// expensive enough to leave an account open to an unlimited run of them.
+const MAX_FAILED_LOGINS: u32 = 8;
+const LOGIN_LOCKOUT: Duration = Duration::from_secs(300);
+
+/// Recent failures per identifier: how many, and when the run started.
+///
+/// ponytail: in memory and keyed only by identifier — it resets when the pod
+/// restarts, is not shared between replicas, and one password sprayed across
+/// many accounts walks straight past it. Move the counter into Postgres if
+/// either of those becomes the attack that actually happens.
+type FailedLogins = Mutex<HashMap<String, (u32, Instant)>>;
+
+fn failed_logins() -> &'static FailedLogins {
+    static MAP: OnceLock<FailedLogins> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// How much longer this identifier sits out, if it is locked out right now.
+fn lockout_remaining(identifier: &str) -> Option<Duration> {
+    let map = failed_logins().lock().ok()?;
+    let (count, since) = map.get(identifier)?;
+    if *count < MAX_FAILED_LOGINS {
+        return None;
+    }
+    LOGIN_LOCKOUT.checked_sub(since.elapsed())
+}
+
+fn record_failed_login(identifier: &str) {
+    let Ok(mut map) = failed_logins().lock() else { return };
+    // Cheapest possible expiry: drop finished windows whenever we write. It
+    // also means a lockout lifts on its own once its window is behind us.
+    map.retain(|_, (_, since)| since.elapsed() < LOGIN_LOCKOUT);
+    map.entry(identifier.to_owned())
+        .and_modify(|(count, _)| *count += 1)
+        .or_insert((1, Instant::now()));
+}
+
+fn clear_failed_logins(identifier: &str) {
+    if let Ok(mut map) = failed_logins().lock() {
+        map.remove(identifier);
+    }
+}
+
 async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
 ) -> ApiResult<Json<AuthTokens>> {
     body.validate()?;
+    // Count against one spelling of the identifier, or varying the case buys a
+    // fresh allowance every time.
+    let key = body.identifier.trim().to_lowercase();
+    if let Some(wait) = lockout_remaining(&key) {
+        return Err(ApiError::too_many(format!(
+            "too many failed sign-ins — try again in {}s",
+            wait.as_secs() + 1
+        )));
+    }
+
+    match authenticate(&state, &body).await {
+        Ok(user) => {
+            clear_failed_logins(&key);
+            issue_tokens(&state, user).await
+        }
+        Err(e) => {
+            // Only a wrong identifier or password counts. A 500 from the pool is
+            // not the caller's doing and must not lock them out of their account.
+            if e.status == StatusCode::UNAUTHORIZED {
+                record_failed_login(&key);
+            }
+            Err(e)
+        }
+    }
+}
+
+async fn authenticate(state: &AppState, body: &LoginRequest) -> ApiResult<fishers_domain::User> {
     // Either identifier signs you in, whichever you registered with.
     let user = users_repo::find_by_identifier(&state.pool, &body.identifier)
         .await?
@@ -163,7 +239,7 @@ async fn login(
         .verify_password(body.password.as_bytes(), &parsed)
         .map_err(|_| ApiError::unauthorized("invalid credentials"))?;
 
-    issue_tokens(&state, user).await
+    Ok(user)
 }
 
 async fn refresh(
@@ -204,4 +280,54 @@ async fn issue_tokens(
         expires_in: state.access_ttl_secs,
         user: user.into(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The counter is process-wide, so every test needs an identifier of its own.
+    #[test]
+    fn locks_out_after_the_limit_and_clears_on_success() {
+        let who = "lockout-test@example.com";
+        assert!(lockout_remaining(who).is_none(), "starts unlocked");
+
+        for _ in 0..MAX_FAILED_LOGINS - 1 {
+            record_failed_login(who);
+        }
+        assert!(
+            lockout_remaining(who).is_none(),
+            "one short of the limit still gets to try"
+        );
+
+        record_failed_login(who);
+        let wait = lockout_remaining(who).expect("locked out at the limit");
+        assert!(wait <= LOGIN_LOCKOUT && wait > Duration::ZERO);
+
+        clear_failed_logins(who);
+        assert!(lockout_remaining(who).is_none(), "a success forgives the run");
+    }
+
+    #[test]
+    fn expired_windows_are_dropped() {
+        let who = "expiry-test@example.com";
+        // Instant has no fixed epoch; on a machine that booted moments ago
+        // there may be nothing behind us to point at.
+        let Some(stale) = Instant::now().checked_sub(LOGIN_LOCKOUT + Duration::from_secs(1))
+        else {
+            return;
+        };
+        failed_logins()
+            .lock()
+            .unwrap()
+            .insert(who.to_owned(), (MAX_FAILED_LOGINS, stale));
+        assert!(lockout_remaining(who).is_none(), "a finished window is not a lockout");
+
+        // Any write prunes finished windows, so the map does not grow forever.
+        record_failed_login("unrelated-identifier@example.com");
+        assert!(
+            !failed_logins().lock().unwrap().contains_key(who),
+            "the finished window was pruned"
+        );
+    }
 }

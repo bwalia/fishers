@@ -2,22 +2,38 @@ import Foundation
 
 /// Sports the app knows about. Wire format stays a plain string (`sports_played`,
 /// `Club.sportTypes`, `Team.sport`) so clubs can carry sports outside this list.
+///
+/// The first seven spellings are the API's `SportType`, so a profile saved on
+/// the web resolves here. They did not line up before: the web wrote "paddle",
+/// "pickleball" and "other", this enum knew none of them, and those profiles
+/// came back with no icon, no positions and no stats at all.
 enum Sport: String, CaseIterable, Identifiable, Codable, Hashable {
-    case cricket, football, badminton, padel, tennis, hockey, netball, rugby, basketball
+    case cricket, football, badminton, paddle, pickleball, tennis, other
+    case hockey, netball, rugby, basketball
 
     var id: String { rawValue }
     var label: String { rawValue.capitalized }
+
+    /// Read a stored sport, allowing for how this app used to spell it.
+    static func named(_ raw: String?) -> Sport? {
+        guard let key = raw?.trimmingCharacters(in: .whitespaces).lowercased(), !key.isEmpty else {
+            return nil
+        }
+        // Profiles saved before the spellings were lined up still say "padel".
+        return Sport(rawValue: key == "padel" ? "paddle" : key)
+    }
 
     var systemImage: String {
         switch self {
         case .cricket: return "figure.cricket"
         case .football: return "soccerball"
         case .badminton: return "figure.badminton"
-        case .padel, .tennis: return "tennis.racket"
+        case .paddle, .pickleball, .tennis: return "tennis.racket"
         case .hockey: return "figure.hockey"
         case .netball: return "figure.netball"
         case .rugby: return "figure.rugby"
         case .basketball: return "basketball.fill"
+        case .other: return "figure.run"
         }
     }
 
@@ -30,8 +46,10 @@ enum Sport: String, CaseIterable, Identifiable, Codable, Hashable {
             return ["Goalkeeper", "Defender", "Midfielder", "Forward"]
         case .badminton, .tennis:
             return ["Singles", "Doubles", "Mixed doubles"]
-        case .padel:
+        case .paddle, .pickleball:
             return ["Right side", "Left side", "Either side"]
+        case .other:
+            return []
         case .netball:
             return ["Goal Shooter", "Goal Attack", "Wing Attack", "Centre", "Wing Defence", "Goal Defence", "Goal Keeper"]
         case .rugby:
@@ -45,12 +63,12 @@ enum Sport: String, CaseIterable, Identifiable, Codable, Hashable {
     var usesDivisions: Bool {
         switch self {
         case .cricket, .football, .hockey, .netball, .rugby: return true
-        case .badminton, .padel, .tennis, .basketball: return false
+        case .badminton, .paddle, .pickleball, .tennis, .basketball, .other: return false
         }
     }
 
     init?(label: String?) {
-        guard let label, let sport = Sport(rawValue: label.lowercased()) else { return nil }
+        guard let sport = Sport.named(label) else { return nil }
         self = sport
     }
 }
@@ -282,7 +300,7 @@ struct SportProfile: Codable, Hashable, Identifiable {
         stats = try c.decodeIfPresent([String: String].self, forKey: .stats) ?? [:]
     }
 
-    var sportKind: Sport? { Sport(rawValue: sport) }
+    var sportKind: Sport? { Sport.named(sport) }
     var tier: SkillTier? { SkillTier(stored: skillLevel) }
     var division: Division? { Division(stored: currentDivision) }
     var target: Division? { Division(stored: targetDivision) }

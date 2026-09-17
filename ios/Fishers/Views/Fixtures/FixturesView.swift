@@ -505,7 +505,9 @@ struct ScheduleMatchSheet: View {
                 club_id: club.id,
                 opponent_club_id: opponent?.clubId,
                 team_id: nil,
-                sport: "cricket",
+                // What the club plays. Hard-coding cricket here filed every
+                // fixture as a cricket match whatever the club turns out for.
+                sport: club.sportTypes.first ?? "cricket",
                 event_subtype: "league_match",
                 title: "\(club.name) v \(theirName)",
                 venue_id: venueId,

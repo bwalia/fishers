@@ -29,7 +29,7 @@ final class ProfileFormModel {
 
         let profiles = user?.profiles ?? []
         selectedSports = profiles.compactMap(\.sportKind)
-        primarySport = Sport(rawValue: user?.primarySport ?? "") ?? profiles.first?.sportKind
+        primarySport = Sport.named(user?.primarySport) ?? profiles.first?.sportKind
         sportDetails = Dictionary(uniqueKeysWithValues: profiles.map { ($0.sport, $0) })
 
         let location = user?.location
