@@ -112,6 +112,7 @@ struct ChatThreadView: View {
                 }
             }
             .disabled(store.isSending || draft.trimmingCharacters(in: .whitespaces).isEmpty)
+            .accessibilityLabel("Send")
         }
         .padding(10)
         .background(.bar)

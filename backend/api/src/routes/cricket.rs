@@ -1158,7 +1158,9 @@ async fn notify_opposition_of_terms(
 fn standing_of(c: &fishers_domain::Candidate) -> String {
     use fishers_domain::{AvailabilityStatus, RsvpStatus, SelectionState};
     match c.state {
-        SelectionState::Selected => "selected".into(),
+        // Confirming is the strongest thing a picked player can do; it must not
+        // drop them below the reserves on the scorer's sheet.
+        SelectionState::Selected | SelectionState::Confirmed => "selected".into(),
         SelectionState::Reserve => "reserve".into(),
         // Their answer to this fixture beats their standing calendar: "yes, I
         // can play on Sunday" is the thing a captain picks off. The calendar

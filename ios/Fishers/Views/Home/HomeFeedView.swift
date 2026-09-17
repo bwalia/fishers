@@ -211,6 +211,13 @@ struct HomeFeedView: View {
                 EventDetailView(eventId: $0.eventId)
             }
             .task { await refreshAll(clubs: session.justStarted) }
+            // At launch the club list arrives on the app's schedule, not
+            // Home's: a guide loaded before it asked about no club at all, and
+            // told a secretary with four teams to add their first one.
+            .task(id: ownClub?.id) {
+                guard let club = ownClub, let user = session.user else { return }
+                await guide.load(user: user, ownClub: club)
+            }
             .task { await loadUnread() }
             .task {
                 for await event in LiveStream.shared.events() {
