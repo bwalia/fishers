@@ -28,14 +28,19 @@ DERIVED="${FISHERS_DERIVED_DATA:-/tmp/fishers-dd}"
 OUT="${FISHERS_RECORDINGS:-$ROOT/docs/screenshots/recordings}"
 RESULTS="${FISHERS_UI_RESULTS:-/tmp/fishers-area-tour}"
 
+# Films a local stack by default; FISHERS_API_URL and FISHERS_SEED_MANIFEST
+# point it at a ring instead:
+#   FISHERS_API_URL=https://int.fishers.cloud \
+#   FISHERS_SEED_MANIFEST=.dev/seed-int.json ./scripts/record-area-tour.sh
 api_port="$(sed -nE 's/^API_PORT=([0-9]+).*/\1/p' "$ROOT/.env" 2>/dev/null | tail -1)"
 API_URL="${FISHERS_API_URL:-http://127.0.0.1:${api_port:-7312}}"
-curl -sf -m 5 "$API_URL/health/ready" >/dev/null || {
+MANIFEST="${FISHERS_SEED_MANIFEST:-$ROOT/.dev/seed-area.json}"
+curl -sf -m 10 "$API_URL/health/ready" >/dev/null || {
   echo "No API at $API_URL — ./scripts/start.sh --no-ios first." >&2
   exit 1
 }
-[ -f "$ROOT/.dev/seed-area.json" ] || {
-  echo "No seed manifest — API_BASE=$API_URL ./scripts/seed-area.py first." >&2
+[ -f "$MANIFEST" ] || {
+  echo "No seed manifest at $MANIFEST — API_BASE=$API_URL ./scripts/seed-area.py first." >&2
   exit 1
 }
 
@@ -95,7 +100,7 @@ for test in "${TESTS[@]}"; do
 
   set +e
   TEST_RUNNER_FISHERS_API_URL="$API_URL" \
-  TEST_RUNNER_FISHERS_SEED_MANIFEST="$ROOT/.dev/seed-area.json" \
+  TEST_RUNNER_FISHERS_SEED_MANIFEST="$MANIFEST" \
   xcodebuild test-without-building \
     -project "$ROOT/ios/Fishers.xcodeproj" -scheme FishersUI \
     -destination "id=$udid" -derivedDataPath "$DERIVED" \
