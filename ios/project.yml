@@ -10,7 +10,9 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: ""
+    # Balinder Walia — Apple Developer Team ID (Membership details / Xcode Accounts).
+    # Keeps Automatic signing working after `xcodegen generate` without manual team pick.
+    DEVELOPMENT_TEAM: "PAS2QUVJHC"
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 
