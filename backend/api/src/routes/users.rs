@@ -1,4 +1,7 @@
+use argon2::password_hash::{PasswordHash, PasswordVerifier};
+use argon2::Argon2;
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::users as users_repo;
@@ -15,6 +18,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/me", get(me).patch(update_me))
+        .route("/me/delete", post(delete_me))
         .route("/me/avatar", post(upload_avatar))
         .route("/me/share-link", post(share_link))
         .route("/players/card/{token}", get(shared_card))
@@ -23,6 +27,50 @@ pub fn router() -> Router<AppState> {
 #[derive(Serialize)]
 struct ShareLink {
     token: String,
+}
+
+#[derive(serde::Deserialize)]
+struct DeleteAccount {
+    /// Asked for when the account has one. Accounts that sign in with Google
+    /// have no password to give, and confirm in the app instead.
+    #[serde(default)]
+    password: Option<String>,
+}
+
+/// Delete this account, which cannot be undone.
+///
+/// App Store Review 5.1.1(v) requires this to exist in the app for anything
+/// that lets you create an account. POST rather than DELETE because the
+/// password travels in the body, and a DELETE body is the kind of thing
+/// proxies drop.
+///
+/// What goes: name, email, phone, password, avatar, location, everything on
+/// the player profile, every session and every device token. What stays: the
+/// scorecards, the club history and the averages built on them, under a name
+/// that no longer points at anybody. Those belong to other people too, and a
+/// match that loses a player stops adding up.
+async fn delete_me(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(body): Json<DeleteAccount>,
+) -> ApiResult<StatusCode> {
+    let user = users_repo::find_by_id(&state.pool, auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::unauthorized("not signed in"))?;
+
+    // A live session on a borrowed phone should not be enough to end somebody's
+    // account, so where there is a password it has to be typed again.
+    if let Some(hash) = user.password_hash.as_deref() {
+        let given = body.password.unwrap_or_default();
+        let parsed =
+            PasswordHash::new(hash).map_err(|_| ApiError::internal("bad password hash"))?;
+        Argon2::default()
+            .verify_password(given.as_bytes(), &parsed)
+            .map_err(|_| ApiError::unauthorized("that password does not match"))?;
+    }
+
+    users_repo::delete_account(&state.pool, auth.user_id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// The token behind a player's "send my profile to a club" link. Minted once

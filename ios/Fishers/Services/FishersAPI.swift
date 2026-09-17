@@ -5,6 +5,18 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/clubs/\(clubId.uuidString)/my-role")
     }
 
+    /// Delete this account, which cannot be undone.
+    ///
+    /// The password is asked for when the account has one, so a live session on
+    /// a phone somebody else is holding is not enough to end it. Accounts that
+    /// sign in with Google have none and send nil.
+    static func deleteAccount(password: String?) async throws {
+        struct Body: Encodable { let password: String? }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/me/delete", body: Body(password: password)
+        )
+    }
+
     static func inviteToEvent(eventId: UUID, userId: UUID) async throws {
         struct Body: Encodable { let user_id: UUID }
         try await NetworkService.shared.requestVoid(

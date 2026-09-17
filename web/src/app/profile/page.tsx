@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   api,
+  clearSession,
   readErr,
   saveUser,
   skillLabel,
@@ -300,7 +302,86 @@ function Overview({
             <Icon name="chart" size={16} /> Season stats
           </Link>
         </div>
+
+        <DeleteAccount />
       </aside>
+    </div>
+  );
+}
+
+/// Leaving, for good.
+///
+/// Apple requires this to be reachable in the app for anything that lets you
+/// create an account (App Store Review 5.1.1(v)), and it is the right thing to
+/// offer anyway. Two steps rather than one button: the action cannot be undone
+/// and a mis-tap should not end somebody's season.
+function DeleteAccount() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api<void>("POST", "/me/delete", { password: password || null });
+      clearSession();
+      router.replace("/");
+    } catch (err) {
+      setError(readErr(err, "could not delete the account — try again"));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel danger-panel">
+      <h2>Delete account</h2>
+      {!open ? (
+        <>
+          <p className="muted">
+            Removes your name, contact details, picture and player profile, and signs
+            you out everywhere. Scorecards you appear on stay, under no name —{" "}
+            <Link href="/privacy">what that means</Link>.
+          </p>
+          <button className="btn" type="button" onClick={() => setOpen(true)}>
+            Delete account
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="muted">
+            This cannot be undone. Type your password to confirm — leave it blank if
+            you sign in with Google.
+          </p>
+          <input
+            type="password"
+            autoComplete="current-password"
+            placeholder="Your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {error && <p className="error">{error}</p>}
+          <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+            <button className="btn danger" type="button" disabled={busy} onClick={remove}>
+              {busy ? "Deleting…" : "Delete my account"}
+            </button>
+            <button
+              className="btn"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                setPassword("");
+                setError(null);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

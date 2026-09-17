@@ -202,6 +202,22 @@ struct ProfileView: View {
                 confirmSignOut = true
             }
         }
+
+        Section {
+            // App Store Connect wants a policy anybody can read without an
+            // account, so it lives on the web host rather than in here.
+            Link(destination: AppConfig.webBaseURL.appendingPathComponent("privacy")) {
+                Label("Privacy", systemImage: "hand.raised")
+            }
+            NavigationLink {
+                DeleteAccountView()
+            } label: {
+                Label("Delete account", systemImage: "person.crop.circle.badge.xmark")
+                    .foregroundStyle(FishersTheme.unavailable)
+            }
+        } footer: {
+            Text("Deleting removes everything that identifies you and cannot be undone.")
+        }
     }
 
     private func careerSummary(_ t: Totals, seasons: Int) -> some View {
