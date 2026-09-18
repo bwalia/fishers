@@ -39,8 +39,8 @@ pub struct AppState {
     /// Checks "Sign in with Google" tokens; off without GOOGLE_CLIENT_ID /
     /// GOOGLE_IOS_CLIENT_ID.
     pub google: std::sync::Arc<crate::services::google::GoogleSignIn>,
-    /// Checks Sign in with Apple tokens; audience defaults to com.fishers.app.
-    /// Checks "Sign in with Apple" identity tokens.
+    /// Checks Sign in with Apple identity tokens; audience defaults to
+    /// `com.fishers.app` when APPLE_CLIENT_ID is unset.
     pub apple: std::sync::Arc<crate::services::apple::AppleSignIn>,
 }
 
