@@ -96,6 +96,8 @@ const PATHS = {
     </>
   ),
   send: <path d="M4 12 20 4l-3.5 16-4-6.5L4 12Z" />,
+  play: <path d="M8 5.5v13l11-6.5Z" />,
+  download: <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" />,
   sparkle: (
     <>
       <path d="M12 3.5 13.6 9l5.4 1.6-5.4 1.6L12 17.6 10.4 12.2 5 10.6 10.4 9 12 3.5Z" />
