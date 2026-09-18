@@ -30,6 +30,10 @@ export function Landing() {
             <p className="lp-fine">
               Google, email or mobile. Already in? <Link href="/login">Sign in</Link>
             </p>
+            <p className="lp-fine">
+              Rather see it first? <Link href="/tour">Watch the 20-minute tour</Link> — a
+              season on a phone, from sign-up to the last ball.
+            </p>
           </div>
           <Scoreboard />
         </div>
