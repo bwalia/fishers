@@ -6,8 +6,8 @@
 //! client id — a token minted for any other site is refused), and that it has
 //! not expired. The keys are cached for as long as Google says they may be.
 //!
-//! Off without GOOGLE_CLIENT_ID, and the sign-in page then simply does not
-//! offer it.
+//! Off without GOOGLE_CLIENT_ID / GOOGLE_IOS_CLIENT_ID, and the sign-in page
+//! / iOS app then simply does not offer it.
 
 use std::time::{Duration, Instant};
 
@@ -32,7 +32,12 @@ pub struct GoogleIdentity {
 }
 
 pub struct GoogleSignIn {
+    /// Web / "server" client id — what the browser button and iOS
+    /// `serverClientID` mint tokens for.
     client_id: Option<String>,
+    /// Native iOS OAuth client id. Optional; when set, tokens minted for it
+    /// are accepted too (and the iOS app can render Google's button).
+    ios_client_id: Option<String>,
     certs: String,
     http: reqwest::Client,
     keys: RwLock<Option<(JwkSet, Instant)>>,
@@ -42,6 +47,10 @@ impl GoogleSignIn {
     pub fn from_env() -> Self {
         Self {
             client_id: std::env::var("GOOGLE_CLIENT_ID")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty()),
+            ios_client_id: std::env::var("GOOGLE_IOS_CLIENT_ID")
                 .ok()
                 .map(|v| v.trim().to_string())
                 .filter(|v| !v.is_empty()),
@@ -59,8 +68,19 @@ impl GoogleSignIn {
         self.client_id.as_deref()
     }
 
+    /// iOS OAuth client id for GIDSignIn; absent means the app hides Google.
+    pub fn ios_client_id(&self) -> Option<&str> {
+        self.ios_client_id.as_deref()
+    }
+
     pub async fn verify(&self, token: &str) -> Result<GoogleIdentity, String> {
-        let client_id = self.client_id.as_deref().ok_or("Google sign-in is not set up")?;
+        let audiences: Vec<&str> = [self.client_id.as_deref(), self.ios_client_id.as_deref()]
+            .into_iter()
+            .flatten()
+            .collect();
+        if audiences.is_empty() {
+            return Err("Google sign-in is not set up".into());
+        }
         let kid = decode_header(token)
             .map_err(|_| "not a Google sign-in token")?
             .kid
@@ -75,7 +95,7 @@ impl GoogleSignIn {
         let key = DecodingKey::from_jwk(&jwk).map_err(|_| "unusable Google key")?;
 
         let mut rules = Validation::new(Algorithm::RS256);
-        rules.set_audience(&[client_id]);
+        rules.set_audience(&audiences);
         rules.set_issuer(&ISSUERS);
         decode::<GoogleIdentity>(token, &key, &rules)
             .map(|data| data.claims)
@@ -150,9 +170,21 @@ mod tests {
 
     #[tokio::test]
     async fn refuses_without_a_client_id_and_refuses_junk() {
-        let off = GoogleSignIn { client_id: None, certs: CERTS.into(), http: reqwest::Client::new(), keys: RwLock::new(None) };
+        let off = GoogleSignIn {
+            client_id: None,
+            ios_client_id: None,
+            certs: CERTS.into(),
+            http: reqwest::Client::new(),
+            keys: RwLock::new(None),
+        };
         assert!(off.verify("a.b.c").await.is_err());
-        let on = GoogleSignIn { client_id: Some("x.apps.googleusercontent.com".into()), certs: CERTS.into(), http: reqwest::Client::new(), keys: RwLock::new(None) };
+        let on = GoogleSignIn {
+            client_id: Some("x.apps.googleusercontent.com".into()),
+            ios_client_id: None,
+            certs: CERTS.into(),
+            http: reqwest::Client::new(),
+            keys: RwLock::new(None),
+        };
         assert!(on.verify("not-a-jwt").await.is_err());
     }
 }

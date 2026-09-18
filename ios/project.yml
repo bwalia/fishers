@@ -16,16 +16,26 @@ settings:
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 
+# Google Sign-In SDK — Continue with Google on the auth screen.
+packages:
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: "8.0.0"
+
 targets:
   Fishers:
     type: application
     platform: iOS
     sources:
       - path: Fishers
+    dependencies:
+      - package: GoogleSignIn
+        product: GoogleSignIn
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fishers.app
         INFOPLIST_FILE: Fishers/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Fishers/Fishers.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: false
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -37,6 +47,13 @@ targets:
         # machine on your network.
         FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
         FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
+        # iOS OAuth client from Google Cloud Console (type "iOS"). Not secret —
+        # also returned by GET /auth/google as ios_client_id. The reversed form
+        # is the URL scheme Google redirects to after sign-in; without it the
+        # button opens but never returns to the app. Leave blank until the
+        # iOS client exists; the auth screen hides Google when the API has no id.
+        GOOGLE_IOS_CLIENT_ID: ""
+        GOOGLE_REVERSED_CLIENT_ID: ""
       configs:
         Debug:
           # Loopback is right on the Simulator, which shares the Mac's network
@@ -111,6 +128,13 @@ targets:
           - "_http._tcp"
         UIBackgroundModes:
           - remote-notification
+        # Google Sign-In: client id (also set at runtime from /auth/google) and
+        # the reversed-client-id URL scheme the OAuth redirect lands on.
+        GIDClientID: "$(GOOGLE_IOS_CLIENT_ID)"
+        CFBundleURLTypes:
+          - CFBundleURLName: GoogleSignIn
+            CFBundleURLSchemes:
+              - "$(GOOGLE_REVERSED_CLIENT_ID)"
 
   # Drives the real app in a Simulator: signs in, walks the screens, and saves
   # a screenshot of each as a test attachment. It is how the app gets *looked

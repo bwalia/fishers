@@ -1,6 +1,10 @@
 import SwiftUI
 import SwiftData
 
+#if canImport(GoogleSignIn)
+import GoogleSignIn
+#endif
+
 @main
 struct FishersApp: App {
     @StateObject private var session = SessionStore()
@@ -44,6 +48,13 @@ struct FishersApp: App {
                     } else {
                         clubContext.clear()
                     }
+                }
+                // Google's OAuth redirect lands here; without this the sheet
+                // never closes after the user picks an account.
+                .onOpenURL { url in
+                    #if canImport(GoogleSignIn)
+                    GIDSignIn.sharedInstance.handle(url)
+                    #endif
                 }
         }
     }

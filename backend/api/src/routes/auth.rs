@@ -22,14 +22,19 @@ pub fn router() -> Router<AppState> {
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
         .route("/auth/google", get(google_config).post(google))
+        .route("/auth/apple", get(apple_config).post(apple))
 }
 
-/// Whether "Continue with Google" is offered, and the public client id the
-/// page draws Google's button with. The id is not a secret; it is in every
-/// page that shows the button.
+/// Whether "Continue with Google" is offered, and the public client ids the
+/// page / iOS app draw Google's button with. The ids are not secrets.
 async fn google_config(State(state): State<AppState>) -> Json<serde_json::Value> {
     let client_id = state.google.client_id();
-    Json(serde_json::json!({ "enabled": client_id.is_some(), "client_id": client_id }))
+    let ios_client_id = state.google.ios_client_id();
+    Json(serde_json::json!({
+        "enabled": client_id.is_some() || ios_client_id.is_some(),
+        "client_id": client_id,
+        "ios_client_id": ios_client_id,
+    }))
 }
 
 #[derive(serde::Deserialize)]
@@ -56,7 +61,7 @@ async fn google(
     State(state): State<AppState>,
     Json(body): Json<GoogleSignInBody>,
 ) -> ApiResult<Json<GoogleSignedIn>> {
-    if state.google.client_id().is_none() {
+    if state.google.client_id().is_none() && state.google.ios_client_id().is_none() {
         return Err(ApiError::unavailable("Google sign-in is not set up here"));
     }
     let who = state.google.verify(&body.credential).await.map_err(|reason| {
@@ -92,6 +97,103 @@ async fn google(
     };
     let Json(tokens) = issue_tokens(&state, user).await?;
     Ok(Json(GoogleSignedIn { tokens, created }))
+}
+
+#[derive(serde::Deserialize)]
+struct AppleSignInBody {
+    /// The identity token Sign in with Apple hands the app.
+    identity_token: String,
+    /// Given name + family name, only on the first authorisation.
+    full_name: Option<String>,
+    /// Email from the credential when the JWT does not carry one (rare).
+    email: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct AppleSignedIn {
+    #[serde(flatten)]
+    tokens: AuthTokens,
+    created: bool,
+}
+
+async fn apple_config(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "enabled": state.apple.enabled(),
+        "client_id": state.apple.client_id(),
+    }))
+}
+
+/// Sign in, or register, with Apple — one button does both.
+///
+/// Returning Apple users are matched on Apple's permanent `sub`. A first
+/// sign-in with a confirmed address that already has an account joins that
+/// account. Otherwise it is a new account. Apple only sends the real name
+/// and sometimes the email on the very first authorisation, so the app
+/// forwards what the credential gave it.
+async fn apple(
+    State(state): State<AppState>,
+    Json(body): Json<AppleSignInBody>,
+) -> ApiResult<Json<AppleSignedIn>> {
+    if !state.apple.enabled() {
+        return Err(ApiError::unavailable("Apple sign-in is not set up here"));
+    }
+    let who = state.apple.verify(&body.identity_token).await.map_err(|reason| {
+        tracing::info!(%reason, "Apple sign-in refused");
+        ApiError::unauthorized("Apple did not confirm that sign-in — try again")
+    })?;
+
+    if let Some(user) = users_repo::find_by_apple_id(&state.pool, &who.sub).await? {
+        let Json(tokens) = issue_tokens(&state, user).await?;
+        return Ok(Json(AppleSignedIn { tokens, created: false }));
+    }
+
+    let email = who
+        .email
+        .as_deref()
+        .filter(|_| who.email_verified)
+        .or(body.email.as_deref())
+        .map(str::trim)
+        .filter(|e| !e.is_empty())
+        .map(|e| e.to_string());
+    if who.is_private_email {
+        tracing::debug!(sub = %who.sub, "Apple sign-in using private relay email");
+    }
+
+    // Prefer linking when Apple (or the app) gave a confirmed address that
+    // already belongs to someone. Without an email we still create — Apple
+    // users can exist with only apple_id.
+    let (user, created) = if let Some(ref address) = email {
+        match users_repo::find_by_email(&state.pool, address).await? {
+            Some(existing) => (users_repo::link_apple(&state.pool, existing.id, &who.sub).await?, false),
+            None => {
+                let name = body
+                    .full_name
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| address.split('@').next().unwrap_or("Player"));
+                (
+                    users_repo::create_apple_user(&state.pool, name, Some(address.as_str()), &who.sub)
+                        .await?,
+                    true,
+                )
+            }
+        }
+    } else {
+        let name = body
+            .full_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .unwrap_or("Player");
+        (
+            users_repo::create_apple_user(&state.pool, name, None, &who.sub).await?,
+            true,
+        )
+    };
+
+    let Json(tokens) = issue_tokens(&state, user).await?;
+    Ok(Json(AppleSignedIn { tokens, created }))
 }
 
 async fn signup(

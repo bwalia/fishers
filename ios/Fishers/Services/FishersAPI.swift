@@ -55,6 +55,43 @@ enum FishersAPI {
         )
     }
 
+    /// Whether Google / Apple buttons should show, and the client ids to use.
+    static func googleAuthConfig() async throws -> SocialAuthConfig {
+        try await NetworkService.shared.request("GET", path: "/auth/google", authorized: false)
+    }
+
+    static func appleAuthConfig() async throws -> SocialAuthConfig {
+        try await NetworkService.shared.request("GET", path: "/auth/apple", authorized: false)
+    }
+
+    /// Google ID token → Fishers session (sign-in or register).
+    static func signInWithGoogle(credential: String) async throws -> SocialSignedIn {
+        struct Body: Encodable { let credential: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/auth/google",
+            body: Body(credential: credential),
+            authorized: false
+        )
+    }
+
+    /// Apple identity token → Fishers session (sign-in or register).
+    static func signInWithApple(
+        identityToken: String,
+        fullName: String?,
+        email: String?
+    ) async throws -> SocialSignedIn {
+        struct Body: Encodable {
+            let identity_token: String
+            let full_name: String?
+            let email: String?
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/auth/apple",
+            body: Body(identity_token: identityToken, full_name: fullName, email: email),
+            authorized: false
+        )
+    }
+
     static func me() async throws -> PublicUser {
         try await NetworkService.shared.request("GET", path: "/me")
     }
