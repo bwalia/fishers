@@ -223,6 +223,69 @@ pub async fn create_google_user(
     .await
 }
 
+/// The account a Sign in with Apple has been used on before.
+pub async fn find_by_apple_id(pool: &PgPool, apple_id: &str) -> Result<Option<User>, sqlx::Error> {
+    sqlx::query_as::<_, User>(&format!(
+        "SELECT {USER_COLUMNS} FROM users WHERE apple_id = $1 AND deleted_at IS NULL"
+    ))
+    .bind(apple_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Link Sign in with Apple to an existing account with the same address.
+pub async fn link_apple(pool: &PgPool, user_id: Uuid, apple_id: &str) -> Result<User, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let unverified: bool = sqlx::query_scalar(
+        "SELECT email_verified_at IS NULL FROM users WHERE id = $1 FOR UPDATE",
+    )
+    .bind(user_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if unverified {
+        sqlx::query(
+            "UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    let user = sqlx::query_as::<_, User>(&format!(
+        "UPDATE users SET apple_id = $2,
+                password_hash = CASE WHEN email_verified_at IS NULL THEN NULL ELSE password_hash END,
+                email_verified_at = COALESCE(email_verified_at, now()),
+                updated_at = now()
+         WHERE id = $1
+         RETURNING {USER_COLUMNS}"
+    ))
+    .bind(user_id)
+    .bind(apple_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(user)
+}
+
+/// A new account from Sign in with Apple. Email may be absent when the user
+/// hid it and Apple already handed it over on a previous device.
+pub async fn create_apple_user(
+    pool: &PgPool,
+    name: &str,
+    email: Option<&str>,
+    apple_id: &str,
+) -> Result<User, sqlx::Error> {
+    sqlx::query_as::<_, User>(&format!(
+        "INSERT INTO users (name, email, apple_id, email_verified_at)
+         VALUES ($1, $2, $3, CASE WHEN $2 IS NULL THEN NULL ELSE now() END)
+         RETURNING {USER_COLUMNS}"
+    ))
+    .bind(name)
+    .bind(email)
+    .bind(apple_id)
+    .fetch_one(pool)
+    .await
+}
+
 /// Marks the address a code was sent to as verified — but only if it is still
 /// the user's address. Returns false when it has changed since, so a code sent
 /// to an old number cannot verify a new one.

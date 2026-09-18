@@ -36,8 +36,12 @@ pub struct AppState {
     /// on — and separate from whether email is configured, so switching on
     /// SMTP for reminders never locks anybody out by surprise.
     pub verification_required: bool,
-    /// Checks "Sign in with Google" tokens; off without GOOGLE_CLIENT_ID.
+    /// Checks "Sign in with Google" tokens; off without GOOGLE_CLIENT_ID /
+    /// GOOGLE_IOS_CLIENT_ID.
     pub google: std::sync::Arc<crate::services::google::GoogleSignIn>,
+    /// Checks Sign in with Apple identity tokens; audience defaults to
+    /// `com.fishers.app` when APPLE_CLIENT_ID is unset.
+    pub apple: std::sync::Arc<crate::services::apple::AppleSignIn>,
 }
 
 impl AppState {
@@ -75,6 +79,7 @@ impl AppState {
                 Ok("true" | "1" | "yes")
             ),
             google: std::sync::Arc::new(crate::services::google::GoogleSignIn::from_env()),
+            apple: std::sync::Arc::new(crate::services::apple::AppleSignIn::from_env()),
         }
     }
 

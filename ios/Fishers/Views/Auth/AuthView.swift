@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 struct AuthView: View {
@@ -11,6 +12,8 @@ struct AuthView: View {
     @State private var password = ""
     /// Asked on the form, saved once the account exists.
     @State private var role: RoleIntent?
+    @State private var googleConfig: SocialAuthConfig?
+    @State private var appleEnabled = true
     @FocusState private var focused: Field?
 
     enum Mode { case login, signup }
@@ -42,14 +45,19 @@ struct AuthView: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
 
+                        if mode == .signup {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("I'm here to…")
+                                    .font(FishersTheme.subhead.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                RoleChooserView(selection: $role, compact: true)
+                            }
+                        }
+
+                        socialButtons
+
                         VStack(spacing: 12) {
                             if mode == .signup {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("I'm here to…")
-                                        .font(FishersTheme.subhead.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                    RoleChooserView(selection: $role, compact: true)
-                                }
                                 field("Name", text: $name, field: .name)
                                     .textContentType(.name)
 
@@ -127,8 +135,56 @@ struct AuthView: View {
             .background(FishersTheme.mist.ignoresSafeArea())
             .scrollDismissesKeyboard(.interactively)
             .navigationBarTitleDisplayMode(.inline)
+            .task { await loadSocialConfig() }
         }
         .tint(FishersTheme.accent)
+    }
+
+    @ViewBuilder
+    private var socialButtons: some View {
+        let showGoogle = googleConfig.map(SocialAuth.googleAvailable) ?? false
+        if appleEnabled || showGoogle {
+            VStack(spacing: 10) {
+                if appleEnabled {
+                    SignInWithAppleButton(mode == .signup ? .signUp : .signIn) { request in
+                        request.requestedScopes = [.fullName, .email]
+                    } onCompletion: { result in
+                        focused = nil
+                        Task { await handleApple(result) }
+                    }
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: FishersTheme.minTap)
+                    .disabled(session.isLoading)
+                }
+                if showGoogle {
+                    Button {
+                        focused = nil
+                        Task { await socialGoogle() }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "g.circle.fill")
+                                .font(.title3)
+                            Text(mode == .signup ? "Sign up with Google" : "Continue with Google")
+                                .font(FishersTheme.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: FishersTheme.minTap)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(session.isLoading)
+                }
+                HStack {
+                    Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)
+                    Text("or with email")
+                        .font(FishersTheme.footnote)
+                        .foregroundStyle(.secondary)
+                    Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)
+                }
+                .padding(.top, 4)
+            }
+        }
     }
 
     private var trimmedIdentifier: String {
@@ -168,6 +224,66 @@ struct AuthView: View {
                 password: password,
                 role: role
             )
+        }
+    }
+
+    private func handleApple(_ result: Result<ASAuthorization, Error>) async {
+        switch result {
+        case .failure(let error):
+            let ns = error as NSError
+            if ns.domain == ASAuthorizationError.errorDomain,
+               ns.code == ASAuthorizationError.canceled.rawValue
+            {
+                return
+            }
+            session.errorMessage = error.localizedDescription
+        case .success(let authorization):
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let tokenData = credential.identityToken,
+                  let token = String(data: tokenData, encoding: .utf8),
+                  !token.isEmpty
+            else {
+                session.errorMessage = "Apple sign-in did not return a token — try again"
+                return
+            }
+            var nameParts: [String] = []
+            if let given = credential.fullName?.givenName, !given.isEmpty { nameParts.append(given) }
+            if let family = credential.fullName?.familyName, !family.isEmpty { nameParts.append(family) }
+            let social = SocialCredential(
+                provider: .apple,
+                identityToken: token,
+                fullName: nameParts.isEmpty ? nil : nameParts.joined(separator: " "),
+                email: credential.email
+            )
+            await session.signInSocial(social, role: mode == .signup ? role : nil)
+        }
+    }
+
+    private func socialGoogle() async {
+        do {
+            guard let googleConfig else {
+                session.errorMessage = "Google sign-in is not set up on this server"
+                return
+            }
+            let credential = try await SocialAuth.signInWithGoogle(config: googleConfig)
+            await session.signInSocial(credential, role: mode == .signup ? role : nil)
+        } catch let error as SocialAuthError {
+            if case .cancelled = error { return }
+            session.errorMessage = error.localizedDescription
+        } catch {
+            let ns = error as NSError
+            // GIDSignIn cancel code
+            if ns.domain == "com.google.GIDSignIn", ns.code == -5 { return }
+            session.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func loadSocialConfig() async {
+        if let google = try? await FishersAPI.googleAuthConfig() {
+            googleConfig = google
+        }
+        if let apple = try? await FishersAPI.appleAuthConfig() {
+            appleEnabled = apple.enabled
         }
     }
 }

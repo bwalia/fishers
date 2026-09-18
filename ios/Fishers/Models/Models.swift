@@ -84,6 +84,34 @@ struct AuthTokens: Codable {
     }
 }
 
+/// Google / Apple sign-in response — same tokens, plus whether the account is new.
+struct SocialSignedIn: Codable {
+    let accessToken: String
+    let refreshToken: String
+    let tokenType: String
+    let expiresIn: Int
+    let user: PublicUser
+    let created: Bool
+
+    var tokens: AuthTokens {
+        AuthTokens(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            tokenType: tokenType,
+            expiresIn: expiresIn,
+            user: user
+        )
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case user, created
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case tokenType = "token_type"
+        case expiresIn = "expires_in"
+    }
+}
+
 struct Club: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String

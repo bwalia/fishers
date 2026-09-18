@@ -78,6 +78,40 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    /// Google or Apple — one step signs in or creates the account. `role` is
+    /// saved only when the account is brand new.
+    func signInSocial(_ credential: SocialCredential, role: RoleIntent? = nil) async {
+        await authenticate {
+            let signed: SocialSignedIn
+            switch credential.provider {
+            case .google:
+                signed = try await FishersAPI.signInWithGoogle(credential: credential.identityToken)
+            case .apple:
+                signed = try await FishersAPI.signInWithApple(
+                    identityToken: credential.identityToken,
+                    fullName: credential.fullName,
+                    email: credential.email
+                )
+            }
+            if signed.created, let role {
+                // Tokens must be live before PATCH /me.
+                await NetworkService.shared.setTokens(
+                    access: signed.accessToken, refresh: signed.refreshToken
+                )
+                if let fresh = try? await FishersAPI.setRoleIntent(role) {
+                    return AuthTokens(
+                        accessToken: signed.accessToken,
+                        refreshToken: signed.refreshToken,
+                        tokenType: signed.tokenType,
+                        expiresIn: signed.expiresIn,
+                        user: fresh
+                    )
+                }
+            }
+            return signed.tokens
+        }
+    }
+
     /// Just through the quick start: Home takes them on to the next thing —
     /// a club to start, or a profile link to send. Once.
     @Published var justStarted = false

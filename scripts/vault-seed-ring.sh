@@ -23,8 +23,10 @@
 # VAPID_PRIVATE_KEY. Add the rest in the vault by hand when a ring needs them —
 # STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID
 # (a Google OAuth "Web application" client whose authorised JavaScript origins
-# include the ring's URL) — and they reach the API on the next deploy with no
-# chart change.
+# include the ring's URL), GOOGLE_IOS_CLIENT_ID (the matching "iOS" OAuth
+# client for the com.fishers.app bundle — Continue with Google on iPhone),
+# APPLE_CLIENT_ID (defaults to com.fishers.app when unset) — and they reach
+# the API on the next deploy with no chart change.
 #
 # The database password is deliberately not here: the Zalando operator
 # generates it and the API reads it from the operator's own Secret.
