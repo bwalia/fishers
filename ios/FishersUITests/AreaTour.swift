@@ -16,44 +16,6 @@ final class AreaTour: APITourCase {
 
     // MARK: The world
 
-    struct Side: Decodable {
-        let club: String
-        let name: String
-        let batting: [String]
-        let captain: String
-        let keeper: String
-        let bowlers: [String]
-    }
-
-    struct Manifest: Decodable {
-        struct Account: Decodable { let email: String; let name: String; let club: String? }
-        struct Fixture: Decodable {
-            let event_id: String
-            let title: String
-            let home: Side?
-            let away: Side?
-        }
-        let password: String
-        let hero: Account
-        let watford_captain: Account
-        let super5s: Fixture
-        let live_t20: Fixture
-        let club_chat: String
-    }
-
-    /// Written by the seed next to the repository's other local state. The
-    /// Simulator shares the Mac's file system, so the test reads it directly.
-    private func manifest() throws -> Manifest {
-        let path = ProcessInfo.processInfo.environment["FISHERS_SEED_MANIFEST"]
-            ?? URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent(".dev/seed-area.json").path
-        guard let data = FileManager.default.contents(atPath: path) else {
-            throw XCTSkip("no seed manifest at \(path) — run scripts/seed-area.py first")
-        }
-        return try JSONDecoder().decode(Manifest.self, from: data)
-    }
-
     private func signIn(_ email: String, password: String) throws {
         let tokens = try api("POST", "/auth/login", token: nil,
                              body: ["identifier": email, "password": password])
@@ -63,42 +25,11 @@ final class AreaTour: APITourCase {
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30), "signing in never reached the tab bar")
     }
 
-    /// Long enough to read the screen on the recording.
-    private func linger(_ seconds: Double = 1.6) {
-        Thread.sleep(forTimeInterval: seconds)
-    }
-
-    private func tab(_ name: String) {
-        let button = app.tabBars.buttons[name].firstMatch
-        XCTAssertTrue(button.waitForExistence(timeout: 15), "no \(name) tab")
-        button.tap()
-    }
-
-    private func back() {
-        let button = app.navigationBars.buttons.element(boundBy: 0)
-        if button.waitForExistence(timeout: 5) { button.tap() }
-        linger(0.8)
-    }
-
-    private func button(startingWith text: String) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", text)).firstMatch
-    }
-
-    /// A menu-style picker in a form: open it, choose the option.
-    private func pick(_ picker: String, _ option: String, file: StaticString = #filePath, line: UInt = #line) {
-        let control = scrollTo(button(startingWith: picker))
-        XCTAssertTrue(control.exists, "no \(picker) picker", file: file, line: line)
-        control.tap()
-        let choice = app.buttons.matching(NSPredicate(format: "label == %@", option)).firstMatch
-        XCTAssertTrue(choice.waitForExistence(timeout: 5), "\(picker) does not offer \(option)", file: file, line: line)
-        choice.tap()
-    }
-
     // MARK: 1 · The key features
 
     func testKeyFeaturesAsHemelsCaptain() throws {
         try skipWithoutAnAPI()
-        let world = try manifest()
+        let world = try SeedManifest.load()
         try signIn(world.hero.email, password: world.password)
         linger(2.5)
 
@@ -264,7 +195,7 @@ final class AreaTour: APITourCase {
     /// copy of the match is checked against what was scored.
     func testFiveOverMatchBallByBall() throws {
         try skipWithoutAnAPI()
-        let world = try manifest()
+        let world = try SeedManifest.load()
         let fixture = world.super5s
         let home = try XCTUnwrap(fixture.home)
         let away = try XCTUnwrap(fixture.away)
@@ -411,124 +342,11 @@ final class AreaTour: APITourCase {
         }
     }
 
-    // MARK: Scoring helpers
-
-    enum Region {
-        case cover, point, straight, longOn, longOff, midwicket, squareLeg, fineLeg
-
-        /// Where to tap on the wheel: the top is straight down the ground, the
-        /// right-hand side is the leg side for a right-hander.
-        var offset: CGVector {
-            switch self {
-            case .straight: return CGVector(dx: 0.52, dy: 0.1)
-            case .longOn: return CGVector(dx: 0.68, dy: 0.12)
-            case .longOff: return CGVector(dx: 0.32, dy: 0.12)
-            case .cover: return CGVector(dx: 0.16, dy: 0.32)
-            case .point: return CGVector(dx: 0.1, dy: 0.55)
-            case .midwicket: return CGVector(dx: 0.86, dy: 0.34)
-            case .squareLeg: return CGVector(dx: 0.92, dy: 0.56)
-            case .fineLeg: return CGVector(dx: 0.76, dy: 0.86)
-            }
-        }
-    }
-
-    enum Ball {
-        case runs(Int)
-        case four(Region)
-        case six(Region)
-        case wide
-        case noBall
-        case out(String, String?)
-        case undo
-    }
-
-    /// One over. A new bowler first, unless it is the first over of the innings.
-    private func over(bowler: String?, _ balls: [Ball], file: StaticString = #filePath, line: UInt = #line) {
-        if let bowler { chooseBowler(bowler, file: file, line: line) }
-        for ball in balls {
-            switch ball {
-            case .runs(let n):
-                tapRuns(n, file: file, line: line)
-            case .four(let region):
-                tapRuns(4, file: file, line: line)
-                plot(region)
-            case .six(let region):
-                tapRuns(6, file: file, line: line)
-                plot(region)
-            case .wide:
-                extra("Wide", file: file, line: line)
-            case .noBall:
-                extra("No ball", file: file, line: line)
-            case .out(let how, let fielder):
-                wicket(how, fielder: fielder, file: file, line: line)
-            case .undo:
-                let undo = app.buttons["Undo last ball"]
-                linger(1)
-                undo.tap()
-            }
-            linger(0.5)
-        }
-    }
-
-    private func tapRuns(_ n: Int, file: StaticString, line: UInt) {
-        let run = app.buttons["\(n) run\(n == 1 ? "" : "s")"]
-        XCTAssertTrue(run.waitForExistence(timeout: 10), "no \(n) button", file: file, line: line)
-        // Waits out a banner or a sheet going away before the next ball.
-        let deadline = Date().addingTimeInterval(10)
-        while !run.isHittable || !run.isEnabled, Date() < deadline { Thread.sleep(forTimeInterval: 0.2) }
-        run.tap()
-    }
-
-    private func plot(_ region: Region) {
-        let wheel = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH 'Wagon wheel'")).firstMatch
-        XCTAssertTrue(wheel.waitForExistence(timeout: 10), "a boundary did not ask where it went")
-        linger(0.6)
-        wheel.coordinate(withNormalizedOffset: region.offset).tap()
-        linger(0.9)
-        app.navigationBars.buttons["Save"].tap()
-    }
-
-    private func extra(_ kind: String, file: StaticString, line: UInt) {
-        app.buttons["Extras"].tap()
-        XCTAssertTrue(app.navigationBars["Extras"].waitForExistence(timeout: 10), file: file, line: line)
-        if kind != "Wide" { app.buttons[kind].firstMatch.tap() }
-        linger(0.8)
-        app.navigationBars.buttons["Add"].tap()
-    }
-
-    private func wicket(_ how: String, fielder: String?, file: StaticString, line: UInt) {
-        app.buttons["Wicket"].tap()
-        XCTAssertTrue(app.navigationBars["Wicket"].waitForExistence(timeout: 10), file: file, line: line)
-        if how != "Bowled" { pick("Dismissal", how, file: file, line: line) }
-        if let fielder { pick("Fielder", fielder, file: file, line: line) }
-        linger(1.2)
-        app.navigationBars.buttons["Out"].tap()
-        linger(0.8)
-    }
-
-    /// The sheet opens itself when an over ends on a scoring shot; after a
-    /// wicket the gate above the buttons is the way in.
-    private func chooseBowler(_ name: String, file: StaticString, line: UInt) {
-        if !app.navigationBars["Bowler"].waitForExistence(timeout: 6) {
-            let gate = element(containing: "who bowls next")
-            XCTAssertTrue(gate.waitForExistence(timeout: 10), "the over ended with no way to change bowler",
-                          file: file, line: line)
-            gate.tap()
-        }
-        XCTAssertTrue(app.navigationBars["Bowler"].waitForExistence(timeout: 10), file: file, line: line)
-        let row = scrollTo(app.buttons[name].firstMatch)
-        XCTAssertTrue(row.exists, "\(name) is not offered to bowl", file: file, line: line)
-        linger(0.8)
-        row.tap()
-        linger(0.8)
-    }
-
     // MARK: Team sheet helpers
 
     /// Picks a side in batting order from the club's squad, names the keeper,
     /// and confirms it.
-    private func pickSide(_ side: Side, confirm: String) {
+    private func pickSide(_ side: SeedManifest.Side, confirm: String) {
         XCTAssertTrue(app.staticTexts["From the club"].waitForExistence(timeout: 30),
                       "\(side.name)'s squad is not offered")
         linger()
@@ -544,20 +362,6 @@ final class AreaTour: APITourCase {
         XCTAssertTrue(done.waitForExistence(timeout: 5), "no way to confirm \(side.name)")
         done.tap()
         linger(1.2)
-    }
-
-    /// A list only builds the rows on screen, and picking a player moves the
-    /// rest, so look down the list and then back up it.
-    @discardableResult
-    private func scrollTo(_ target: XCUIElement) -> XCUIElement {
-        if target.waitForExistence(timeout: 1.5), target.isHittable { return target }
-        for direction in [true, false] {
-            for _ in 0..<10 {
-                if direction { app.swipeUp(velocity: .slow) } else { app.swipeDown(velocity: .slow) }
-                if target.exists, target.isHittable { return target }
-            }
-        }
-        return target
     }
 
     /// The sheets are pages; the indicator is the one place a swipe cannot

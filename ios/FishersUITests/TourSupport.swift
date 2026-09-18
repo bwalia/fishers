@@ -96,10 +96,14 @@ class APITourCase: XCTestCase {
         try json(request(method, path, token: token, body: body))
     }
 
-    /// For the endpoints that answer with a list.
+    /// For the endpoints that answer with a list. Some of them page — `{"items": [...]}` — and
+    /// some still answer with a bare array; reading either the same way means a list that starts
+    /// paging does not quietly become an empty one here.
     func apiList(_ path: String, token: String) throws -> [[String: Any]] {
         let data = try send(request("GET", path, token: token, body: nil))
-        return (try JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
+        let json = try JSONSerialization.jsonObject(with: data)
+        if let rows = json as? [[String: Any]] { return rows }
+        return (json as? [String: Any])?["items"] as? [[String: Any]] ?? []
     }
 
     private func request(_ method: String, _ path: String, token: String?, body: [String: Any]?) throws -> URLRequest {
