@@ -1060,7 +1060,7 @@ def stock_shop(club: Club, count):
 # ---------------------------------------------------------------------------
 
 
-def write_manifest(hemel: Club, watford: Club, five, t20):
+def write_manifest(hemel: Club, watford: Club, kings: Club, five, t20_tonight, t20):
     """What the iOS tours need to know about this world, at a path the
     Simulator can read: who to sign in as, and who is playing tonight."""
     def side(club: Club, xi):
@@ -1084,6 +1084,8 @@ def write_manifest(hemel: Club, watford: Club, five, t20):
         "watford_captain": {"email": watford.captain.email, "name": watford.captain.name},
         "super5s": {"event_id": five["id"], "title": five["title"],
                     "home": side(hemel, hemel.first_xi(9)), "away": side(watford, watford.first_xi(9))},
+        "t20_tonight": {"event_id": t20_tonight["id"], "title": t20_tonight["title"],
+                        "home": side(hemel, hemel.first_xi(9)), "away": side(kings, kings.first_xi(9))},
         "live_t20": {"event_id": t20["id"], "title": t20["title"]},
         "club_chat": f"{hemel.short} — club chat",
     }
@@ -1152,7 +1154,11 @@ def main():
         for number, day in enumerate(played_on, start=1):
             played += [(home, away, day, number) for home, away in rounds[(number - 1) % len(rounds)]]
         next_round = rounds[len(played_on) % len(rounds)]
-        upcoming += [(home, away, next_saturday, len(played_on) + 1) for home, away in next_round]
+        # The club the tours are about is at home this week: an away fixture belongs to the other
+        # club, and is theirs to open.
+        upcoming += [(away, home, next_saturday, len(played_on) + 1) if away is hemel
+                     else (home, away, next_saturday, len(played_on) + 1)
+                     for home, away in next_round]
 
     say(f"==> {len(played)} league matches, 40 overs a side, ball by ball")
     fixtures = parallel(lambda f: league_fixture(*f), played, workers=8)
@@ -1233,26 +1239,39 @@ def main():
     share = call("POST", f"/cricket/matches/{live['match_id']}/share", {"post_to_chat": False},
                  hemel.second_captain.token())
 
-    evening = london(today, 18, 0)
-    five, _ = find_or_create_event(hemel, f"{hemel.short} v {watford.short} — Super 5s", {
-        "event_subtype": "friendly", "opponent_club_id": watford.id, "team_id": hemel.teams["1st XI"],
-        "venue_id": hemel.venue_id, "start_at": iso(evening),
-        "end_at": iso(evening + dt.timedelta(hours=1, minutes=30)), "capacity": 11, "fee_amount_cents": 500,
-        "metadata": {"opposition": watford.short, "home_name": hemel.short,
-                     "notes": "Five overs a side before the winter break."}})
-    squad = hemel.first_xi(9)
-    rsvp(five["id"], squad + hemel.men[11:13], weights=(100, 0, 0), seed="super-5s")
-    call("POST", f"/events/{five['id']}/selection", {
-        "selected": [p.id for p in squad], "reserves": [p.id for p in hemel.men[11:13] if p not in squad],
-        "announcement": f"Super 5s v {watford.short} tonight — meet at 5:30, coloured kit.",
-        "publish": True}, hemel.captain.token())
-    # Everyone picked says they are playing, straight away: a same-day fixture
-    # is already inside the drop window, and the job that clears unconfirmed
-    # places would otherwise empty the side before anyone opened the app.
-    parallel(lambda p: call("POST", f"/events/{five['id']}/selection/respond", {"confirming": True}, p.token()),
-             squad, workers=11)
+    def tonight(title, start, minutes, opponent, squad, announcement, extra):
+        """A fixture this evening with a side already picked, told and confirmed.
 
-    write_manifest(hemel, watford, five, t20)
+        The confirming matters: a same-day fixture is already inside the drop
+        window, and the job that clears unconfirmed places would otherwise empty
+        the side before anyone opened the app."""
+        event, _ = find_or_create_event(hemel, title, dict(extra, **{
+            "event_subtype": "friendly", "opponent_club_id": opponent.id,
+            "team_id": hemel.teams["1st XI"], "venue_id": hemel.venue_id, "start_at": iso(start),
+            "end_at": iso(start + dt.timedelta(minutes=minutes)), "capacity": 11}))
+        rsvp(event["id"], squad + hemel.men[11:13], weights=(100, 0, 0), seed=title)
+        call("POST", f"/events/{event['id']}/selection", {
+            "selected": [p.id for p in squad],
+            "reserves": [p.id for p in hemel.men[11:13] if p not in squad],
+            "announcement": announcement, "publish": True}, hemel.captain.token())
+        parallel(lambda p: call("POST", f"/events/{event['id']}/selection/respond",
+                                {"confirming": True}, p.token()), squad, workers=11)
+        return event
+
+    squad = hemel.first_xi(9)
+    five = tonight(f"{hemel.short} v {watford.short} — Super 5s", london(today, 18, 0), 90, watford,
+                   squad, f"Super 5s v {watford.short} tonight — meet at 5:30, coloured kit.",
+                   {"fee_amount_cents": 500,
+                    "metadata": {"opposition": watford.short, "home_name": hemel.short,
+                                 "notes": "Five overs a side before the winter break."}})
+    # …and the T20 under the lights, for anybody who wants a whole match to score.
+    t20_tonight = tonight(f"{hemel.short} v {kings.short} — Floodlit T20", london(today, 18, 30), 210,
+                          kings, squad, f"T20 v {kings.short} tonight, 6:30 start — full whites not needed.",
+                          {"fee_amount_cents": 800,
+                           "metadata": {"opposition": kings.short, "home_name": hemel.short,
+                                        "notes": "Twenty overs a side under the lights."}})
+
+    write_manifest(hemel, watford, kings, five, t20_tonight, t20)
     try:
         balls = f"{psql('SELECT count(*) FROM cricket_scoring_events')} scoring events"
     except (subprocess.CalledProcessError, FileNotFoundError):

@@ -133,6 +133,14 @@ and a 5-over game this evening waiting to be scored. It prints the accounts to
 sign in as (all `password123`), and `./scripts/record-area-tour.sh` films the
 app on a Simulator walking through it and scoring that 5-over game.
 
+`./scripts/record-tour-video.sh` makes the narrated tour: a 1920×1080 film with
+a chapter per part of the game — a player joining a club, availability, the
+captain picking the side, a full twenty-over match scored ball by ball, and the
+rest of the cricket section — plus a contents PDF listing every caption against
+the second it lands on. The captions live in `ios/FishersUITests/TourNarration.swift`,
+so the film can be re-cut (`./scripts/cut-tour-video.sh`) with different words
+without filming the twenty overs again.
+
 **Deploying:** see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — four rings on
 `fishers.cloud` (int / test / acc / www), promoted by
 [Ring Promoter](https://rp.workstation.co.uk/).
@@ -192,6 +200,8 @@ scripts/
   seed-demo.sh    demo account with club, fixtures, shop and a live match
   seed-area.py    36 local clubs, ~700 players and a season already under way
   record-area-tour.sh  films the iOS tours of that season (.mov per test)
+  record-tour-video.sh narrated video tour: chapters, captions and a contents PDF
+  tour-video.swift     captions the recording onto a branded canvas (no ffmpeg)
   smoke.sh        End-to-end API check
 ```
 
