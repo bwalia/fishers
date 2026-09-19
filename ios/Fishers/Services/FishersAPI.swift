@@ -1192,7 +1192,7 @@ enum FishersAPI {
     }
 }
 
-struct CreateEventBody: Encodable {
+struct CreateEventBody: Codable {
     let club_id: UUID
     /// The other side, when they are a club on Fishers — their players are
     /// asked whether they can play too.

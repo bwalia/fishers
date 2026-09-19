@@ -102,4 +102,15 @@ struct ClubRoleInfo: Codable {
             canScoreMatch = role.canScoreMatch || permissions.contains("score_match")
         }
     }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(role, forKey: .role)
+        try c.encode(displayName, forKey: .displayName)
+        try c.encode(isSecretary, forKey: .isSecretary)
+        try c.encode(isCaptain, forKey: .isCaptain)
+        try c.encode(canInviteToPlay, forKey: .canInviteToPlay)
+        try c.encode(canScoreMatch, forKey: .canScoreMatch)
+        try c.encode(permissions, forKey: .permissions)
+    }
 }

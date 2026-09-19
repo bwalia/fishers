@@ -18,6 +18,9 @@ final class LocalCricketMatch {
     var syncStatusRaw: String
     /// True until the API has been told this match exists.
     var needsRemoteCreate: Bool = false
+    /// When the fixture itself was minted offline (`Start a match now` with no
+    /// signal). JSON of `CreateEventBody` — posted before the cricket match.
+    var pendingEventJSON: Data?
     /// The visiting club, when they are on Fishers. Sent when the match is
     /// registered, so their captain gets a way in and a squad to pick from.
     var opponentClubId: UUID?
@@ -63,7 +66,9 @@ final class LocalCricketMatch {
             .compactMap { $0.asScoringEvent() }
     }
 
-    var hasPendingWork: Bool { needsRemoteCreate || events.contains(where: \.pendingSync) }
+    var hasPendingWork: Bool {
+        needsRemoteCreate || pendingEventJSON != nil || events.contains(where: \.pendingSync)
+    }
 
     /// The whole log in order — the engine folds this back into a scorecard.
     var orderedEvents: [ScoringEvent] {

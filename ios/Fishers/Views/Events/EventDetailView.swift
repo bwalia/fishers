@@ -1,8 +1,10 @@
 import SwiftUI
+import SwiftData
 
 struct EventDetailView: View {
     let eventId: UUID
 
+    @Environment(\.modelContext) private var modelContext
     @State private var event: Event?
     @State private var attendees: [AttendeeSummary] = []
     @State private var message: String?
@@ -10,12 +12,19 @@ struct EventDetailView: View {
     @State private var isResponding = false
     @State private var roleInfo: ClubRoleInfo?
     @State private var existingCricket: CricketMatchDTO?
+    @State private var hasLocalMatch = false
+    @State private var showingCached = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let event {
                     header(event)
+                    if showingCached {
+                        Label("Saved on this phone — will refresh when online", systemImage: "wifi.slash")
+                            .font(FishersTheme.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     cricketScoringEntry(event)
                     selectionCard(event)
                     rsvpRow
@@ -108,7 +117,7 @@ struct EventDetailView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(FishersTheme.pitch)
                     .accessibilityLabel(scoringButtonTitle)
-                } else if existingCricket == nil {
+                } else if existingCricket == nil && !hasLocalMatch {
                     Text("Captains, club secretaries and assigned scorers can score this match.")
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
@@ -125,13 +134,21 @@ struct EventDetailView: View {
             && ["friendly", "league_match", "tournament"].contains(event.eventSubtype)
     }
 
-    /// The server is the authority; the club role is the answer before a match
-    /// exists to ask about.
+    /// The server is the authority online; offline we honour a cached role or a
+    /// match already on this phone.
     private var canScoreThisMatch: Bool {
-        existingCricket?.canScore ?? (roleInfo?.canScoreMatch == true)
+        if let existing = existingCricket { return existing.canScore }
+        if roleInfo?.canScoreMatch == true { return true }
+        if hasLocalMatch { return true }
+        guard let clubId = event?.clubId else { return false }
+        if let cached = OfflineCache.loadRole(clubId: clubId) {
+            return cached.canScoreMatch
+        }
+        return OfflineCache.loadStartableClubs().contains { $0.id == clubId }
     }
 
     private var scoringButtonTitle: String {
+        if hasLocalMatch, existingCricket == nil { return "Continue scoring" }
         guard let match = existingCricket else { return "Start match" }
         return match.state.status.isFinished ? "Reopen scoring" : "Continue scoring"
     }
@@ -315,19 +332,43 @@ struct EventDetailView: View {
     }
 
     private func load() async {
+        hasLocalMatch = localMatchExists()
         do {
             async let e = FishersAPI.event(id: eventId)
             async let a = FishersAPI.attendees(eventId: eventId)
             (event, attendees) = try await (e, a)
+            if let event { OfflineCache.saveEvent(event) }
             board = try? await FishersAPI.selectionBoard(eventId: eventId)
+            showingCached = false
             if let event {
-                roleInfo = try? await FishersAPI.myClubRole(clubId: event.clubId)
+                if let role = try? await FishersAPI.myClubRole(clubId: event.clubId) {
+                    roleInfo = role
+                    OfflineCache.saveRole(role, clubId: event.clubId)
+                }
                 if event.sport.lowercased() == "cricket" {
                     existingCricket = try? await FishersAPI.cricketMatchForEvent(eventId: eventId)
                 }
             }
+            message = nil
         } catch {
-            message = error.localizedDescription
+            if let cached = OfflineCache.loadEvent(id: eventId) {
+                event = cached
+                attendees = []
+                roleInfo = OfflineCache.loadRole(clubId: cached.clubId)
+                showingCached = true
+                message = "Showing the fixture saved on this phone."
+            } else {
+                message = error.localizedDescription
+            }
         }
+        hasLocalMatch = localMatchExists()
+    }
+
+    private func localMatchExists() -> Bool {
+        let fixtureId = eventId
+        let descriptor = FetchDescriptor<LocalCricketMatch>(
+            predicate: #Predicate { $0.eventId == fixtureId }
+        )
+        return ((try? modelContext.fetch(descriptor)) ?? []).isEmpty == false
     }
 }
