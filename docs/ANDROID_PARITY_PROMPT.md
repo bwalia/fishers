@@ -49,7 +49,8 @@ done on a subset.
 
 1. **Screens.** Every screen in `ios/Fishers/Views/` has an Android counterpart
    reachable by the same navigation path, with the same information on it and
-   the same controls, in the same order of visual priority.
+   the same controls, in the same order of visual priority. The single agreed
+   exception is the Sign in with Apple button, which v1 does not ship.
 2. **Tabs.** Five, in this order, matching `MainTabView.swift`: Home, Fixtures,
    Chats, Clubs, Profile — plus the live-match alert overlay (`LiveAlerts`)
    that floats above all of them.
@@ -124,7 +125,7 @@ flutter/lib/
 | Prefs | `UserDefaults` | `shared_preferences` |
 | Live | SSE over `URLSession` (`LiveStream.swift`) | SSE over `http` — reconnect with backoff |
 | Google | `GoogleSignIn` SDK | `google_sign_in` |
-| Apple | `AuthenticationServices` | `sign_in_with_apple` web flow — **ask before building** |
+| Apple | `AuthenticationServices` | **Out of scope for v1** — see below |
 | Network state | `NWPathMonitor` | `connectivity_plus` |
 | JSON | `Codable` + `CodingKeys` | `json_serializable` — mirror every `CodingKeys` exactly |
 
@@ -136,11 +137,16 @@ one someone has to keep alive.
 Each line is a screen or behaviour that must exist. The Swift file is the spec.
 
 **Auth & onboarding** — `Views/Auth/`, `Views/Onboarding/`
-Email/password sign-up and sign-in; Google and Apple sign-in (config fetched
-from `/auth/google` and `/auth/apple`, and the button hides when the server says
-the provider is off); contact verification by email/SMS code; quick start (sport
-+ squad number, both skippable); role chooser; getting-started guide with live
-progress; pending club invites; share-profile screen.
+Email/password sign-up and sign-in; Google sign-in (config fetched from
+`/auth/google`, and the button hides when the server says the provider is off);
+contact verification by email/SMS code; quick start (sport + squad number, both
+skippable); role chooser; getting-started guide with live progress; pending club
+invites; share-profile screen.
+
+**Sign in with Apple is out of scope for v1** — see "Where to diverge". Build
+the auth screen so a third provider slots in without rework: the iOS screen
+already drives its buttons off the server's config, so keep that shape and let
+the Apple button simply never be configured.
 
 **Home** — `Views/Home/`
 Club-context feed, overview tiles, live fixture row that appears when a match in
@@ -253,8 +259,11 @@ Parity is behavioural, not pixel-level. Adapt these, and note each in the PR:
 - **Share.** `ShareSheet.swift` becomes the Android share intent.
 - **Permissions.** Android asks at point of use (camera for QR, notifications on
   API 33+). iOS's timing will not transfer.
-- **Sign in with Apple** on Android is a web redirect flow, not a native one.
-  **Ask before building it** — it may be acceptable to ship Google + email first.
+- **Sign in with Apple is not in v1.** Google and email/password are enough to
+  ship. On Android it would be a web redirect flow rather than a native one, and
+  that cost is not worth paying before the app is in people's hands. Do not call
+  `/auth/apple` and do not render the button. This is the one deliberate gap in
+  the auth screen's parity with iOS; note it in the parity table and move on.
 - **Push notifications.** iOS registers for no remote/APNs push; do not add FCM
   unless asked. In-app notifications come from the API and the SSE stream.
 - **Local notifications, however, do exist.** `Services/ProfileReminder.swift`
@@ -288,8 +297,9 @@ Parity is behavioural, not pixel-level. Adapt these, and note each in the PR:
 1. **Read first.** `ios/Fishers/` and `ios/FishersUITests/` before any code.
    Produce a written parity inventory — every screen, store, model and endpoint
    — and show it before building.
-2. **Ask before assuming** on: the application id, Sign in with Apple, the state
-   management package, and anything that would need a backend change.
+2. **Ask before assuming** on: the state management package, and anything that
+   would need a backend change. The project location, the application id and the
+   scope of social sign-in are already settled above — do not reopen them.
 3. **Build in this order**: config + API client + models → auth + onboarding →
    tabs shell + home → fixtures/events/availability → clubs → chat → profile →
    **cricket engine + offline scoring** → selection → shop/tournaments → polish.
