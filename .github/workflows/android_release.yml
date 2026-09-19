@@ -76,12 +76,24 @@ defaults:
 jobs:
   release:
     name: Build & upload (${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }})
+    # Two conditions. The first is the skip switches; the second keeps merges to
+    # main quiet until the keystore exists, because Play needs a manual first
+    # upload before any of this can work (see docs/ANDROID_RELEASE.md) and a
+    # release job that goes red on every merge until then is one people learn
+    # to ignore. A deliberate dispatch always runs and always fails loudly —
+    # if you asked for a release, you want to be told why you are not getting one.
     if: >-
-      github.event_name != 'push'
-      || github.ref_type == 'tag'
-      || (
-        !contains(github.event.head_commit.message, '[skip release]')
-        && !contains(github.event.head_commit.message, '[skip android]')
+      (
+        github.event_name != 'push'
+        || github.ref_type == 'tag'
+        || (
+          !contains(github.event.head_commit.message, '[skip release]')
+          && !contains(github.event.head_commit.message, '[skip android]')
+        )
+      )
+      && (
+        github.event_name == 'workflow_dispatch'
+        || secrets.ANDROID_KEYSTORE_B64 != ''
       )
     runs-on: ubuntu-latest
     steps:
