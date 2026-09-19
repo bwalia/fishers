@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import Fishers
 
 /// Offline venue mode stores a pending `CreateEventBody` on the local match and
@@ -81,9 +82,14 @@ final class OfflineVenueModeTests: XCTestCase {
         XCTAssertEqual(event?.clubId, row.clubId)
     }
 
-    func testLocalMatchHasPendingWorkIncludesPendingEvent() {
+    func testLocalMatchHasPendingWorkIncludesPendingEvent() throws {
         // Mirror the flag the sync sweep uses — a fixture minted offline must
         // count as pending even before any ball is bowled.
+        let schema = Schema([LocalCricketMatch.self, LocalScoringEvent.self])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: config)
+        let context = ModelContext(container)
+
         let state = MatchState(oversLimit: 20, homeName: "Lords", awayName: "Hemel")
         let match = LocalCricketMatch(
             matchId: UUID(),
@@ -96,6 +102,8 @@ final class OfflineVenueModeTests: XCTestCase {
             state: state,
             needsRemoteCreate: true
         )
+        context.insert(match)
+
         XCTAssertTrue(match.hasPendingWork)
         match.needsRemoteCreate = false
         XCTAssertFalse(match.hasPendingWork)
