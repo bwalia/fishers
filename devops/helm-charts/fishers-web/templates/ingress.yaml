@@ -29,14 +29,20 @@ spec:
           # API prefixes first. Traefik matches on rule specificity within a
           # host, but listing `/` first still invites a future edit to reorder
           # them into a bug, so the order here is the intended precedence.
+          #
+          # The backend is fishers-api, or Kong where the ring has it — see
+          # `kong` in values.yaml. Nothing else about the ingress changes: same
+          # host, same paths, same certificate.
+          {{- $apiBackend := include "fishers-web.apiBackendName" . }}
+          {{- $apiPort := include "fishers-web.apiBackendPort" . }}
           {{- range .Values.ingress.apiPaths }}
           - path: {{ . | quote }}
             pathType: Prefix
             backend:
               service:
-                name: {{ $.Values.apiServiceName }}
+                name: {{ $apiBackend }}
                 port:
-                  number: {{ $.Values.apiServicePort }}
+                  number: {{ $apiPort }}
           {{- end }}
           {{- if .Values.media.enabled }}
           # Uploaded photos, straight from the bucket. The path is the bucket

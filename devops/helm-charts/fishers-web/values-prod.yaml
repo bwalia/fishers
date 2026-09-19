@@ -11,6 +11,12 @@ ingress:
   redirectHosts:
     - fishers.cloud
 
+# Kong stays out of the path in production until test and acc have run on it.
+# Turning it on is this one word — deploy Kong for the ring first, and expect
+# every browser call to the API to start going through it.
+kong:
+  enabled: false
+
 image:
   repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-web
   tag: latest

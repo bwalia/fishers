@@ -31,7 +31,35 @@ service:
 # backend catches up, which reads as a broken deploy.
 # Where a server-side render reaches the API: the in-cluster Service, not the
 # public host. The browser never uses this — it calls /api on its own origin.
+#
+# This stays on fishers-api even where Kong is in front, and deliberately: a
+# render on the server is already inside the trust boundary, and sending it
+# through the gateway would buy nothing but a second hop and a second thing to
+# be down.
 apiInternalBase: http://fishers-api:8080
+
+# Kong in front of the API, ring by ring.
+#
+# Off: Traefik sends /api, /swagger-ui and /health straight to fishers-api:8080.
+# On:  Traefik sends them to Kong, and Kong proxies to fishers-api — so rate
+#      limits, keys and the rest of the gateway's plugins apply to every call
+#      from a browser, while server-side renders keep going direct.
+#
+# Traefik stays the IngressClass either way. This does not install the Kong
+# Ingress Controller, and Kong never owns an Ingress here: it is one more
+# backend Service that this chart's ingress happens to point at.
+#
+# Deploy Kong for the ring *before* turning this on — workflow-examples/
+# fishers-kongapi, `KUBECONFIG=~/.kube/k3s1.yaml JWT_SECRET=… ./scripts/deploy.sh
+# <env>` — because it also creates the proxy alias in this namespace. An Ingress
+# backend has to name a Service in its own namespace, and Kong's own Service
+# lives in `kong`.
+kong:
+  enabled: false
+  # Defaults to kong-fishers-<env>-kong-proxy, which is what that deploy calls
+  # the alias. Set it only if a ring names its gateway something else.
+  serviceName: ""
+  servicePort: 80
 
 ingress:
   enabled: true
