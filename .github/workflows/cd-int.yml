@@ -35,6 +35,7 @@ on:
       # These cannot change what runs in the cluster, and a ten-minute deploy
       # for a README edit trains people to ignore the pipeline.
       - "ios/**"
+      - "flutter/**"
       - "docs/**"
       - "**.md"
   workflow_dispatch:
