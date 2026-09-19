@@ -3,6 +3,12 @@ env: int
 hostname: int.fishers.cloud
 replicaCount: 1
 
+# Kong is in front of the API on int: this is where the gateway is proven before
+# any ring that matters runs on it. Deployed from workflow-examples/fishers-kongapi,
+# which also makes the kong-fishers-int-kong-proxy alias in this namespace.
+kong:
+  enabled: true
+
 image:
   repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-web
   tag: latest

@@ -69,6 +69,70 @@ Namespace `fishers-<ring>`, deployed in this order — which is not incidental:
   `/health` would wave through a ring where every real request hangs — which is
   exactly the state this repo was found in locally.
 
+### Kong in front of the API
+
+A ring can put the Kong gateway between Traefik and the API, so rate limits,
+keys and the rest of its plugins apply to every call a browser makes. It is one
+switch, in the web chart's values for that ring:
+
+```yaml
+# devops/helm-charts/fishers-web/values-<ring>.yaml
+kong:
+  enabled: true
+  # serviceName defaults to kong-fishers-<ring>-kong-proxy
+  servicePort: 80
+```
+
+| | `/api`, `/swagger-ui`, `/health` | `/` and `/media` | Server-side renders |
+|---|---|---|---|
+| off | Traefik → `fishers-api:8080` | unchanged | `fishers-api:8080` |
+| on | Traefik → Kong → `fishers-api` | unchanged | `fishers-api:8080` |
+
+Three things this deliberately does not do:
+
+- **Traefik stays the IngressClass.** The Kong Ingress Controller is not
+  installed and Kong owns no Ingress here; it is a backend Service that this
+  chart's ingress happens to name.
+- **Server-side renders keep going direct** (`apiInternalBase`). A render is
+  already inside the trust boundary, and a second hop through the gateway would
+  buy nothing but another thing to be down.
+- **Nothing else about the host moves** — same certificate, same paths, same
+  origin, so there is still no CORS to keep in step.
+
+**Deploy Kong for the ring before turning this on**, from
+`workflow-examples/fishers-kongapi`:
+
+```bash
+KUBECONFIG=~/.kube/k3s1.yaml JWT_SECRET=… ./scripts/deploy.sh <ring>
+```
+
+That also creates the proxy alias inside `fishers-<ring>`, which is what the
+ingress names: an Ingress backend must be a Service in the Ingress's own
+namespace, and Kong's own Service lives in `kong`.
+
+Then redeploy the web chart for the ring and check the whole surface from
+outside:
+
+```bash
+BASE_URL=https://int.fishers.cloud ./scripts/smoke-test.sh
+```
+
+Two things worth knowing when it misbehaves:
+
+- **The alias answers Traefik, not pods.** It is a Service with hand-written
+  Endpoints pointing at Kong's ClusterIP in the `kong` namespace. Traefik
+  connects to those endpoint addresses directly and is fine; a pod that resolves
+  the alias gets a DNAT to another ClusterIP and connects to nothing. Probe
+  `kong-fishers-<ring>-kong-proxy.kong.svc` from a pod instead.
+- **The API may only accept the gateway.** A ring with Kong in front also
+  carries a NetworkPolicy allowing `fishers-api:8080` from the `kong` and
+  `kube-system` namespaces only, so a direct probe from inside
+  `fishers-<ring>` is refused by design. The deploy's smoke test goes through
+  the ingress with the ring's Host header for exactly this reason.
+
+Current intent: **int on; test, acc and prod off** until each is enabled
+deliberately.
+
 ## Backups
 
 Patroni keeps the cluster up when a node goes, and prod runs a streaming

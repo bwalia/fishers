@@ -384,26 +384,37 @@ jobs:
       - name: Smoke test from inside the cluster
         env:
           NS: ${{ steps.ring.outputs.namespace }}
+          HOST: ${{ steps.ring.outputs.hostname }}
+          # The ingress controller's own Service. Going through it tests what a
+          # browser gets — including Kong, where the ring has it in front of the
+          # API — while staying inside the cluster, so DNS, the edge and the
+          # certificate still cannot be blamed for a failure here.
+          EDGE: ${{ vars.EDGE_SERVICE || 'traefik.kube-system.svc.cluster.local' }}
         run: |
           set -euo pipefail
-          # In-cluster, so this passes or fails on the deploy alone — before
-          # DNS, the edge or a certificate can be blamed for it. The public
+          # In-cluster, so this passes or fails on the deploy alone. The public
           # check is Ring Promoter's health_url, which comes after.
           fail=0
           # Exit code, not grepped output: kubectl run propagates the container's
           # status, and curl -f already fails on any non-2xx. Matching on stdout
           # would also match the pod-lifecycle chatter kubectl interleaves with it.
-          probe() { # name url
+          probe() { # name url [host-header]
+            local host_args=()
+            [ -n "${3:-}" ] && host_args=(-H "Host: $3")
             if kubectl run "smoke-$1-$RANDOM" --rm -i --restart=Never --namespace "$NS" \
                  --image=curlimages/curl:8.10.1 --quiet --command -- \
-                 curl -fsS -m 10 -o /dev/null "$2"; then
+                 curl -fsS -m 10 -o /dev/null "${host_args[@]}" "$2"; then
               echo "  ok   $1"
             else
               echo "  FAIL $1 ($2)"; fail=1
             fi
           }
-          probe api-ready   "http://fishers-api:8080/health/ready"
-          probe web-login   "http://fishers-web:80/login"
+          # The API through the front door rather than straight at the Service:
+          # a ring with Kong in front only accepts calls from the gateway, so a
+          # direct probe from this namespace is refused by design and says
+          # nothing about whether the ring works.
+          probe api-health  "http://$EDGE/health"  "$HOST"
+          probe web-login   "http://$EDGE/login"   "$HOST"
           probe minio-ready "http://fishers-minio:9000/minio/health/ready"
           exit $fail
 

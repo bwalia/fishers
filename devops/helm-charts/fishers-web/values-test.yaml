@@ -3,6 +3,11 @@ env: test
 hostname: test.fishers.cloud
 replicaCount: 1
 
+# Kong stays out of the path here until int has run on it long enough to trust.
+# Turning it on is this one word — deploy Kong for the ring first.
+kong:
+  enabled: false
+
 image:
   repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-web
   tag: latest
