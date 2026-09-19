@@ -127,10 +127,18 @@ flutter/lib/
 | Google | `GoogleSignIn` SDK | `google_sign_in` |
 | Apple | `AuthenticationServices` | **Out of scope for v1** — see below |
 | Network state | `NWPathMonitor` | `connectivity_plus` |
-| JSON | `Codable` + `CodingKeys` | `json_serializable` — mirror every `CodingKeys` exactly |
+| JSON | `Codable` + `CodingKeys` | Hand-written codecs — mirror every `CodingKeys` exactly |
 
 Prefer the smallest dependency set that does the job. Every package you add is
 one someone has to keep alive.
+
+**On JSON, deliberately not `json_serializable`.** Twelve of the Swift models
+hand-roll `init(from:)` — `ClubQRCode` decodes its identity from the same
+object, `AppNotification` flattens mixed-type payload values to strings,
+`NotificationFeed` defaults five fields so an older server still decodes. Each
+would need a custom converter under codegen, which is more machinery than the
+codec it replaces, and a generated file is not where a reviewer looks to check a
+wire name. The round-trip tests enforce what the generator would have.
 
 ## Feature inventory
 
