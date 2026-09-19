@@ -27,6 +27,13 @@ concurrency:
 permissions:
   contents: read
 
+# Pinned, not read from pubspec.yaml: `environment:` there constrains the Dart
+# SDK only, so flutter-version-file resolves to null and the action fails with
+# "Unable to determine Flutter version". This is the version the foundation was
+# built and tested on — bump it deliberately, not by drifting with the channel.
+env:
+  FLUTTER_VERSION: "3.44.2"
+
 defaults:
   run:
     working-directory: flutter
@@ -40,7 +47,8 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version-file: flutter/pubspec.yaml
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
           cache: true
 
       - name: Install dependencies
@@ -79,7 +87,8 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version-file: flutter/pubspec.yaml
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
           cache: true
 
       - name: Install dependencies
