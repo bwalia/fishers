@@ -60,12 +60,16 @@ final class CricketMatchStore: ObservableObject {
 
     /// Resume this fixture's match, or start one. Works with no network: the id
     /// is minted here and the API is told about it later.
+    ///
+    /// Pass `pendingEvent` when the fixture itself does not exist on the server
+    /// yet (quick match started offline) — sync creates the event first.
     @discardableResult
     func openLocal(
         homeName: String,
         awayName: String,
         oversLimit: Int,
-        opponentClubId: UUID? = nil
+        opponentClubId: UUID? = nil,
+        pendingEvent: CreateEventBody? = nil
     ) throws -> UUID {
         guard let modelContext else {
             throw CricketEngineError.validation("store not ready")
@@ -90,10 +94,23 @@ final class CricketMatchStore: ObservableObject {
             needsRemoteCreate: true
         )
         row.opponentClubId = opponentClubId
+        if let pendingEvent {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            row.pendingEventJSON = try? encoder.encode(pendingEvent)
+        }
         modelContext.insert(row)
         try modelContext.save()
         adopt(row)
         return id
+    }
+
+    /// The offline-minted fixture landed on the API under a new id.
+    func adoptRemoteEventId(_ remoteId: UUID) {
+        eventId = remoteId
+        localMatch?.eventId = remoteId
+        localMatch?.pendingEventJSON = nil
+        try? modelContext?.save()
     }
 
     /// Adopt a stored match, rebuilding state (and the undo stack) from its log.
@@ -195,6 +212,11 @@ final class CricketMatchStore: ObservableObject {
 
     func note(error: String?) {
         lastError = error
+    }
+
+    /// Flush SwiftData after sync mutates the local row (pending fixture cleared, etc.).
+    func persistLocal() {
+        try? modelContext?.save()
     }
 
     private func persist(_ event: ScoringEvent) {

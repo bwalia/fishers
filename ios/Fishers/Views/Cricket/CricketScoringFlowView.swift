@@ -9,6 +9,9 @@ struct CricketScoringFlowView: View {
     let event: Event
     let attendees: [AttendeeSummary]
     var canScore: Bool
+    /// Set when the fixture was minted on the phone (`Start a match now` with
+    /// no signal). Sync posts this before creating the cricket match.
+    var pendingCreateEvent: CreateEventBody? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -56,10 +59,16 @@ struct CricketScoringFlowView: View {
         case setup, agreement, toss, sheets, openers, live
     }
 
-    init(event: Event, attendees: [AttendeeSummary], canScore: Bool) {
+    init(
+        event: Event,
+        attendees: [AttendeeSummary],
+        canScore: Bool,
+        pendingCreateEvent: CreateEventBody? = nil
+    ) {
         self.event = event
         self.attendees = attendees
         self.canScore = canScore
+        self.pendingCreateEvent = pendingCreateEvent
         _store = StateObject(wrappedValue: CricketMatchStore(
             eventId: event.id,
             clubId: event.clubId
@@ -629,7 +638,8 @@ struct CricketScoringFlowView: View {
         do {
             _ = try store.openLocal(
                 homeName: homeName, awayName: awayName, oversLimit: overs,
-                opponentClubId: opponent?.clubId ?? event.opponentClubId
+                opponentClubId: opponent?.clubId ?? event.opponentClubId,
+                pendingEvent: pendingCreateEvent
             )
         } catch {
             message = error.localizedDescription

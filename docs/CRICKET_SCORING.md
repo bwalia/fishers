@@ -115,6 +115,21 @@ The device mints the match id before the API is involved:
 4. If the fixture already had a match on the server, the device adopts the
    server's id and carries on.
 
+**Quick match with no fixture at all.** **Start a match now** works the same way
+when there is no signal: the phone mints a local event, scores against SwiftData,
+and when connectivity returns `CricketSyncService` posts the pending
+`CreateEventBody` first, then registers the cricket match and flushes
+ball-by-ball events (including commentary generated from the log).
+
+## Catalogue cache (Score Hub / fixtures)
+
+Scoring already lived on the phone; the gap at a blackspot was *getting into* a
+match. `OfflineCache` keeps the last fixtures page, startable clubs, teams, club
+roles and event stubs under Application Support. Score Hub falls back to that
+cache when the API is unreachable, and lists matches scored on this phone under
+**On this phone** until they sync. Event detail does the same for a fixture you
+opened earlier.
+
 ## What the engine handles
 
 - Runs 0–6, boundaries counted separately for the card
@@ -250,9 +265,12 @@ and its test.
 
 - `Fishers/Cricket/` — types, engine, SwiftData models, `CricketMatchStore`,
   `CricketSyncService`
-- `Fishers/Views/Cricket/` — setup wizard, LIVE scorer, full scorecard
+- `Fishers/Services/OfflineCache.swift` — disk catalogue for fixtures, clubs,
+  teams, roles and events when the API is unreachable
+- `Fishers/Views/Cricket/` — setup wizard, LIVE scorer, full scorecard, Score Hub
 - Entry: **Start match** on a cricket `friendly` / `league_match` / `tournament`
-  fixture in `EventDetailView`, when the API says `can_score`
+  fixture in `EventDetailView`, when the API says `can_score` (or a cached role /
+  local match when offline); or **Start a match now** from Score Hub / the club
 
 Team sheets are picked from the club roster (whoever is on the fixture) plus
 guests added by name, so the opposition needs no accounts. Batting order is the
@@ -260,11 +278,15 @@ order of the sheet — drag to change it.
 
 ## Manual smoke (offline LIVE)
 
-1. Sign in as captain/secretary on a cricket fixture.
-2. **Start match** → names and overs → toss → team sheets → openers → LIVE.
-3. Enable airplane mode; score 0–6, a wide, a no ball with runs, a run out of
-   the non-striker, and an undo. The chip reads `Offline — saved on this phone`.
-4. Force-quit the app and reopen the fixture: it resumes exactly where it was.
-5. Complete the innings and the chase; check the scorecard reads correctly.
-6. Go back online; the chip returns to `Saved` and
-   `GET /cricket/matches/{id}/scorecard` matches the device.
+1. Sign in as captain/secretary on a cricket fixture **while online** (so the
+   fixture and your role are cached), or use **Start a match now**.
+2. Enable airplane mode.
+3. Open Score Hub — fixtures still appear from cache; **On this phone** lists
+   any local scoring. Open the fixture or start a new match.
+4. **Start match** → names and overs → toss → team sheets → openers → LIVE.
+5. Score 0–6, a wide, a no ball with runs, a run out of the non-striker, and an
+   undo. The chip reads `Offline — saved on this phone`.
+6. Force-quit the app and reopen the fixture: it resumes exactly where it was.
+7. Complete the innings and the chase; check the scorecard reads correctly.
+8. Go back online; the chip returns to `Saved`, pending fixtures are created on
+   the API, and `GET /cricket/matches/{id}/scorecard` matches the device.

@@ -71,24 +71,31 @@ final class CricketSyncService: ObservableObject {
     // MARK: Active match
 
     private func flushActive(_ store: CricketMatchStore) async {
-        guard store.needsRemoteCreate || !store.pendingEvents().isEmpty else { return }
         guard let row = store.localRow else { return }
+        let hasWork = store.needsRemoteCreate
+            || row.pendingEventJSON != nil
+            || !store.pendingEvents().isEmpty
+        guard hasWork else { return }
 
         store.setSyncing(true)
-        if store.needsRemoteCreate {
+        if row.pendingEventJSON != nil || store.needsRemoteCreate {
             do {
-                let dto = try await FishersAPI.createCricketMatch(
-                    eventId: row.eventId,
-                    matchId: row.matchId,
-                    oversLimit: row.oversLimit,
-                    homeName: row.homeName,
-                    awayName: row.awayName,
-                    opponentClubId: row.opponentClubId
-                )
-                store.markRegistered(remoteId: dto.id)
-                _ = try? await FishersAPI.claimScorer(
-                    matchId: dto.id, deviceId: store.deviceId, force: false
-                )
+                try await ensureRemoteFixture(row)
+                store.persistLocal()
+                if store.needsRemoteCreate {
+                    let dto = try await FishersAPI.createCricketMatch(
+                        eventId: row.eventId,
+                        matchId: row.matchId,
+                        oversLimit: row.oversLimit,
+                        homeName: row.homeName,
+                        awayName: row.awayName,
+                        opponentClubId: row.opponentClubId
+                    )
+                    store.markRegistered(remoteId: dto.id)
+                    _ = try? await FishersAPI.claimScorer(
+                        matchId: dto.id, deviceId: store.deviceId, force: false
+                    )
+                }
             } catch {
                 store.setSyncing(false, offline: true)
                 return
@@ -113,10 +120,27 @@ final class CricketSyncService: ObservableObject {
             )
             store.note(error: nil)
         } catch {
-            // Stay pending; the chip shows Offline and we retry on the next ball.
+            // Stay pending; the chip shows offline and we retry on the next ball.
             store.setSyncing(false, offline: true)
             store.note(error: Self.syncMessage(for: error))
         }
+    }
+
+    /// Create the fixture on the API when the match was started with no signal.
+    private func ensureRemoteFixture(_ match: LocalCricketMatch) async throws {
+        guard let data = match.pendingEventJSON else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let body = try decoder.decode(CreateEventBody.self, from: data)
+        let created = try await FishersAPI.createEvent(body)
+        match.pendingEventJSON = nil
+        if created.id != match.eventId {
+            match.eventId = created.id
+            if activeStore?.matchId == match.matchId {
+                activeStore?.adoptRemoteEventId(created.id)
+            }
+        }
+        OfflineCache.saveEvent(created)
     }
 
     /// A rejected batch is worth explaining — it usually means someone else took
@@ -145,6 +169,14 @@ final class CricketSyncService: ObservableObject {
         for match in matches where match.hasPendingWork {
             if match.matchId == activeStore?.matchId { continue }
             var matchId = match.matchId
+            if match.pendingEventJSON != nil {
+                do {
+                    try await ensureRemoteFixture(match)
+                    try? context.save()
+                } catch {
+                    continue
+                }
+            }
             if match.needsRemoteCreate {
                 guard let dto = try? await FishersAPI.createCricketMatch(
                     eventId: match.eventId,

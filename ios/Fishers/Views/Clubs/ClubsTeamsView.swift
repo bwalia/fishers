@@ -545,6 +545,7 @@ struct ClubDetailView: View {
     @State private var setupHidden = true
     @State private var startingMatch = false
     @State private var startedMatch: Event?
+    @State private var pendingCreate: CreateEventBody?
 
     private var isSecretary: Bool { role?.isSecretary ?? false }
     private var isCricket: Bool {
@@ -707,10 +708,18 @@ struct ClubDetailView: View {
             ClubAdminView(club: club, role: role, startAdding: true)
         }
         .sheet(isPresented: $startingMatch) {
-            QuickMatchSheet(clubs: [club]) { startedMatch = $0 }
+            QuickMatchSheet(clubs: [club]) { event, pending in
+                pendingCreate = pending
+                startedMatch = event
+            }
         }
         .navigationDestination(item: $startedMatch) { event in
-            CricketScoringFlowView(event: event, attendees: [], canScore: true)
+            CricketScoringFlowView(
+                event: event,
+                attendees: [],
+                canScore: true,
+                pendingCreateEvent: pendingCreate
+            )
         }
         .task {
             setupHidden = UserDefaults.standard.bool(forKey: setupKey)
