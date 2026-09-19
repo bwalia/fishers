@@ -131,6 +131,45 @@ jobs:
                   echo "ns=$REG/fishers"     >> "$GITHUB_OUTPUT" ;;
           esac
 
+      # A tag the registry does not have is the one deploy failure that used to
+      # arrive with no useful message: the pods sit in ImagePullBackOff, nothing
+      # surfaces that, and ten minutes later `helm upgrade --wait` reports
+      # 'context deadline exceeded' — which reads like a slow rollout, not a
+      # missing image. Ask the registry directly instead, and fail in seconds
+      # naming the tag.
+      #
+      # Advisory when it cannot ask: without credentials this proves nothing,
+      # and the nodes pull with their own secret regardless, so a check that
+      # could not run must not block a deploy that would have worked.
+      - name: Check the images exist
+        env:
+          REG_NS: ${{ steps.ring.outputs.ns }}
+          HOST: ${{ steps.ring.outputs.registry }}
+          PROVIDER: ${{ inputs.registry_provider || 'NEBULACR' }}
+          REG_USER: ${{ secrets.NEBULACR_USERNAME }}
+          REG_PASS: ${{ secrets.NEBULACR_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ "$PROVIDER" != NEBULACR ] || [ -z "$REG_USER" ] || [ -z "$REG_PASS" ]; then
+            echo "no registry credentials for $PROVIDER here — skipping the image check."
+            exit 0
+          fi
+          echo "$REG_PASS" | docker login "$HOST" -u "$REG_USER" --password-stdin >/dev/null
+          fail=0
+          for img in fishers-api fishers-web; do
+            if docker manifest inspect "$REG_NS/$img:$IMAGE_TAG" >/dev/null 2>&1; then
+              echo "  ok  $img:$IMAGE_TAG"
+            else
+              echo "::error::$REG_NS/$img:$IMAGE_TAG is not in the registry."
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Nothing ever pushed that tag, so every pod would land in ImagePullBackOff."
+            echo "::error::Build it first — 'Build images' with ref=$IMAGE_TAG — or deploy a tag that exists."
+            exit 1
+          fi
+
       - name: Set up kubectl and helm
         uses: azure/setup-helm@v4
         with:

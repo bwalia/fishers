@@ -64,6 +64,18 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      # The sha tag has to name the commit that was just checked out, and
+      # github.sha is not it. In a reusable workflow github.sha is the CALLER's
+      # commit — main, for a dispatch — while `ref` is whatever was asked for: a
+      # tag, a branch, an older sha. Deploying a ref other than main therefore
+      # built the right source, pushed it under main's sha, and left the deploy
+      # asking the registry for the ref's sha, which nothing had ever pushed.
+      # The ring sat in ImagePullBackOff until helm --wait gave up ten minutes
+      # later with 'context deadline exceeded' and no mention of an image.
+      - name: Resolve the built commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Resolve registry
         id: reg
         run: |
@@ -123,7 +135,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.reg.outputs.api }}:${{ inputs.image_tag || 'latest' }}
-            ${{ steps.reg.outputs.api }}:${{ github.sha }}
+            ${{ steps.reg.outputs.api }}:${{ steps.commit.outputs.sha }}
           cache-from: type=gha,scope=fishers-api
           cache-to: type=gha,scope=fishers-api,mode=max
 
@@ -135,7 +147,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.reg.outputs.web }}:${{ inputs.image_tag || 'latest' }}
-            ${{ steps.reg.outputs.web }}:${{ github.sha }}
+            ${{ steps.reg.outputs.web }}:${{ steps.commit.outputs.sha }}
           cache-from: type=gha,scope=fishers-web
           cache-to: type=gha,scope=fishers-web,mode=max
 
@@ -145,5 +157,5 @@ jobs:
             echo "### Images pushed"
             echo "- \`${{ steps.reg.outputs.api }}:${{ inputs.image_tag || 'latest' }}\`"
             echo "- \`${{ steps.reg.outputs.web }}:${{ inputs.image_tag || 'latest' }}\`"
-            echo "- also tagged \`${{ github.sha }}\`"
+            echo "- also tagged \`${{ steps.commit.outputs.sha }}\`, the commit \`${{ inputs.ref }}\` resolved to"
           } >> "$GITHUB_STEP_SUMMARY"
