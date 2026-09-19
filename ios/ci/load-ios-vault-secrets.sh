@@ -238,21 +238,36 @@ def resolve_auth(required=True):
     token = os.environ.get("VAULT_TOKEN") or ""
     path = os.environ.get("VAULT_TOKEN_FILE") or ""
     if (not addr or not token) and path and os.path.isfile(path):
-        with open(path) as fh:
-            payload = json.load(fh)
-        if not isinstance(payload, dict):
+        try:
+            with open(path) as fh:
+                raw = fh.read().strip()
+        except OSError as exc:
+            if required:
+                sys.exit("ERROR: could not read Vault token file %s: %s" % (path, exc))
+            return None, None
+        payload = None
+        if raw:
+            try:
+                payload = json.loads(raw)
+            except ValueError:
+                # Plain token file (one line, no JSON) — common on the Mac Studio.
+                if "\n" not in raw and len(raw) > 8:
+                    token = token or raw
+        if isinstance(payload, dict):
+            def pick(keys):
+                for key in keys:
+                    if payload.get(key):
+                        return payload[key]
+                return ""
+
+            addr = addr or pick(("VAULT_ADDR", "VAULT_URI", "vault_addr", "addr", "url"))
+            token = token or pick(("VAULT_TOKEN", "vault_token", "token", "client_token"))
+            if not token and isinstance(payload.get("auth"), dict):
+                token = payload["auth"].get("client_token") or ""
+        elif payload is not None and required:
             sys.exit("ERROR: %s is not a JSON object" % path)
-
-        def pick(keys):
-            for key in keys:
-                if payload.get(key):
-                    return payload[key]
-            return ""
-
-        addr = addr or pick(("VAULT_ADDR", "VAULT_URI", "vault_addr", "addr", "url"))
-        token = token or pick(("VAULT_TOKEN", "vault_token", "token", "client_token"))
-        if not token and isinstance(payload.get("auth"), dict):
-            token = payload["auth"].get("client_token") or ""
+        elif payload is not None and not required:
+            return None, None
     if not addr or not token:
         if not required:
             return None, None
