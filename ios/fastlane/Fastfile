@@ -49,9 +49,6 @@ def inject_google_oauth_client_ids!
   text = File.read(path)
   if ios_id.empty? && reversed.empty?
     # Keep whatever is already in project.yml — fail only if that is blank too.
-    has_ios = text.match?(/GOOGLE_IOS_CLIENT_ID:\s*"[^"]+"/)
-    has_rev = text.match?(/GOOGLE_REVERSED_CLIENT_ID:\s*"[^"]+"/)
-    # Empty quotes "" do not count.
     has_ios = text.match?(/GOOGLE_IOS_CLIENT_ID:\s*"(?!["\s])[^"]+"/)
     has_rev = text.match?(/GOOGLE_REVERSED_CLIENT_ID:\s*"(?!["\s])[^"]+"/)
     unless has_ios && has_rev
