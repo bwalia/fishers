@@ -47,11 +47,12 @@ targets:
         # machine on your network.
         FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
         FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
-        # iOS OAuth client from Google Cloud Console (type "iOS"). Kept blank in
-        # git; CI fills these from Vault / env via inject_google_oauth_client_ids!
-        # before xcodegen so Info.plist gets the URL scheme.
-        GOOGLE_IOS_CLIENT_ID: ""
-        GOOGLE_REVERSED_CLIENT_ID: ""
+        # iOS OAuth client from Google Cloud Console (type "iOS"). These are
+        # public client ids that must live in Info.plist — without the reversed
+        # URL scheme GIDSignIn aborts the process on Continue with Google.
+        # CI may still override from Vault via inject_google_oauth_client_ids!.
+        GOOGLE_IOS_CLIENT_ID: "349950507807-0k4ui8eqljqnqhl4o3u5ooocshj028m1.apps.googleusercontent.com"
+        GOOGLE_REVERSED_CLIENT_ID: "com.googleusercontent.apps.349950507807-0k4ui8eqljqnqhl4o3u5ooocshj028m1"
       configs:
         Debug:
           # Loopback is right on the Simulator, which shares the Mac's network

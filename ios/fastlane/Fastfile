@@ -40,14 +40,28 @@ def asc_api_key
 end
 
 # Write Vault / env Google OAuth ids into project.yml just before xcodegen so
-# Info.plist gets the URL scheme without committing client ids to git.
+# Info.plist gets the URL scheme. project.yml may already carry the public
+# client ids; env/Vault override when set.
 def inject_google_oauth_client_ids!
   ios_id = ENV["GOOGLE_IOS_CLIENT_ID"].to_s.strip
   reversed = ENV["GOOGLE_REVERSED_CLIENT_ID"].to_s.strip
   path = File.expand_path("../project.yml", __dir__)
   text = File.read(path)
   if ios_id.empty? && reversed.empty?
-    UI.message("GOOGLE_IOS_CLIENT_ID / GOOGLE_REVERSED_CLIENT_ID unset — Google URL scheme left blank")
+    # Keep whatever is already in project.yml — fail only if that is blank too.
+    has_ios = text.match?(/GOOGLE_IOS_CLIENT_ID:\s*"[^"]+"/)
+    has_rev = text.match?(/GOOGLE_REVERSED_CLIENT_ID:\s*"[^"]+"/)
+    # Empty quotes "" do not count.
+    has_ios = text.match?(/GOOGLE_IOS_CLIENT_ID:\s*"(?!["\s])[^"]+"/)
+    has_rev = text.match?(/GOOGLE_REVERSED_CLIENT_ID:\s*"(?!["\s])[^"]+"/)
+    unless has_ios && has_rev
+      UI.user_error!(
+        "GOOGLE_IOS_CLIENT_ID / GOOGLE_REVERSED_CLIENT_ID unset — " \
+        "Continue with Google crashes without the URL scheme in Info.plist. " \
+        "Set them in ios/project.yml or kv/fishers/ios."
+      )
+    end
+    UI.message("Using Google OAuth client ids already in project.yml")
     return
   end
   text = text.sub(/GOOGLE_IOS_CLIENT_ID:\s*"[^"]*"/, "GOOGLE_IOS_CLIENT_ID: \"#{ios_id}\"")

@@ -33,6 +33,7 @@ struct SocialAuthConfig: Decodable {
 enum SocialAuthError: LocalizedError {
     case cancelled
     case notConfigured(String)
+    case missingURLScheme(String)
     case missingToken
     case failed(String)
 
@@ -40,6 +41,8 @@ enum SocialAuthError: LocalizedError {
         switch self {
         case .cancelled: return nil
         case .notConfigured(let what): return "\(what) sign-in is not set up on this server"
+        case .missingURLScheme(let scheme):
+            return "This build is missing the Google URL scheme (\(scheme)) — reinstall from TestFlight"
         case .missingToken: return "Sign-in did not return a token — try again"
         case .failed(let message): return message
         }
@@ -68,6 +71,12 @@ enum SocialAuth {
         guard let clientID, !clientID.isEmpty else {
             throw SocialAuthError.notConfigured("Google")
         }
+        // GIDSignIn raises an NSException (uncaught → crash) when the reversed
+        // client-id URL scheme is absent from Info.plist. Check first.
+        let scheme = reversedClientID(from: clientID)
+        guard hasURLScheme(scheme) else {
+            throw SocialAuthError.missingURLScheme(scheme)
+        }
         let configuration = GIDConfiguration(
             clientID: clientID,
             serverClientID: config.clientId
@@ -91,6 +100,31 @@ enum SocialAuth {
         #else
         throw SocialAuthError.notConfigured("Google")
         #endif
+    }
+
+    /// `123-abc.apps.googleusercontent.com` → `com.googleusercontent.apps.123-abc`
+    static func reversedClientID(from clientID: String) -> String {
+        if clientID.hasPrefix("com.googleusercontent.apps.") {
+            return clientID
+        }
+        let suffix = ".apps.googleusercontent.com"
+        if clientID.hasSuffix(suffix) {
+            let prefix = String(clientID.dropLast(suffix.count))
+            return "com.googleusercontent.apps.\(prefix)"
+        }
+        return clientID
+    }
+
+    static func hasURLScheme(_ scheme: String) -> Bool {
+        guard !scheme.isEmpty else { return false }
+        let types = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] ?? []
+        for entry in types {
+            let schemes = entry["CFBundleURLSchemes"] as? [String] ?? []
+            if schemes.contains(where: { $0.caseInsensitiveCompare(scheme) == .orderedSame }) {
+                return true
+            }
+        }
+        return false
     }
 
     private static func topViewController(
