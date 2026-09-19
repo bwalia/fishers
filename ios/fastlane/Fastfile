@@ -86,10 +86,16 @@ def ensure_sign_in_with_apple_capability!(api_key)
   end
 
   UI.important("Enabling Sign in with Apple on App ID #{APP_ID}")
+  # Apple requires a consent configuration — PRIMARY_APP_CONSENT for the main app.
+  consent = Spaceship::ConnectAPI::BundleIdCapability::Settings::APPLE_ID_AUTH_APP_CONSENT rescue "APPLE_ID_AUTH_APP_CONSENT"
+  primary = Spaceship::ConnectAPI::BundleIdCapability::Options::PRIMARY_APP_CONSENT rescue "PRIMARY_APP_CONSENT"
   Spaceship::ConnectAPI::BundleIdCapability.create(
     bundle_id_id: bundle.id,
     capability_type: type,
-    settings: []
+    settings: [{
+      key: consent,
+      options: [{ key: primary }]
+    }]
   )
   UI.success("Sign in with Apple enabled on #{APP_ID}")
 rescue => e
