@@ -1,0 +1,78 @@
+{
+  "has_more": false,
+  "items": [
+    {
+      "away_name": "Watford",
+      "club_id": "45d21dab-bff9-4b28-910d-e675a634f867",
+      "event_id": "0ce59cec-e443-44a0-8b68-e67308772c02",
+      "event_status": "completed",
+      "has_scorer": true,
+      "home_name": "London Lords",
+      "match_id": "97203718-9a34-4d3b-adaf-e7fe4b80839b",
+      "match_status": "complete",
+      "result": "London Lords won by 8 runs",
+      "score": "9/1 (1.0 ov)",
+      "start_at": "2026-09-12T21:14:42.948003Z",
+      "title": "League vs Watford \u2014 result"
+    },
+    {
+      "away_name": "Hemel",
+      "club_id": "45d21dab-bff9-4b28-910d-e675a634f867",
+      "event_id": "cf588f9d-894d-4145-98b3-976bcf6952b8",
+      "event_status": "scheduled",
+      "has_scorer": true,
+      "home_name": "Lords",
+      "match_id": "e50d13f7-52ee-4565-b030-cec0b5d6aa6e",
+      "match_status": "live",
+      "result": null,
+      "score": "20/1 (1.2 ov)",
+      "start_at": "2026-09-19T21:14:42.948003Z",
+      "title": "Lords vs Hemel \u2014 live"
+    },
+    {
+      "away_name": null,
+      "club_id": "45d21dab-bff9-4b28-910d-e675a634f867",
+      "event_id": "2a50f1c4-8659-494f-a08e-926dfb27b0e7",
+      "event_status": "scheduled",
+      "has_scorer": false,
+      "home_name": null,
+      "match_id": null,
+      "match_status": null,
+      "result": null,
+      "score": null,
+      "start_at": "2026-09-21T21:14:42.948003Z",
+      "title": "Wednesday Nets"
+    },
+    {
+      "away_name": null,
+      "club_id": "45d21dab-bff9-4b28-910d-e675a634f867",
+      "event_id": "76358c3d-4aae-4679-879f-ce03cf58d567",
+      "event_status": "scheduled",
+      "has_scorer": false,
+      "home_name": null,
+      "match_id": null,
+      "match_status": null,
+      "result": null,
+      "score": null,
+      "start_at": "2026-09-23T21:14:42.948003Z",
+      "title": "Saturday League vs Hemel"
+    },
+    {
+      "away_name": null,
+      "club_id": "45d21dab-bff9-4b28-910d-e675a634f867",
+      "event_id": "1dd049a4-c061-4ca2-a3f1-d3c5af331403",
+      "event_status": "scheduled",
+      "has_scorer": false,
+      "home_name": null,
+      "match_id": null,
+      "match_status": null,
+      "result": null,
+      "score": null,
+      "start_at": "2026-09-24T21:14:42.948003Z",
+      "title": "Sunday Social Cricket"
+    }
+  ],
+  "page": 1,
+  "per_page": 20,
+  "total": 5
+}

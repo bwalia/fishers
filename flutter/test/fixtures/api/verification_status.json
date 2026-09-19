@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "email": {
+    "address": "demo@fishers.test",
+    "verified": true,
+    "available": true
+  },
+  "phone": {
+    "address": null,
+    "verified": false,
+    "available": false
+  },
+  "verification_required": false
+}

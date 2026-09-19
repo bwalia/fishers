@@ -1,0 +1,20 @@
+[
+  {
+    "id": "45d21dab-bff9-4b28-910d-e675a634f867",
+    "name": "London Lords CC",
+    "sport_types": [
+      "cricket"
+    ],
+    "visibility": "invite_only",
+    "owner_id": "58250173-cb6e-46a1-bb27-4da13fc0a0d2",
+    "description": "Weekly nets, Saturday league & Sunday socials",
+    "is_informal_group": false,
+    "created_at": "2026-09-19T21:14:42.973245Z",
+    "updated_at": "2026-09-19T21:14:42.973245Z",
+    "role": "club_admin",
+    "is_captain": false,
+    "member_count": 7,
+    "team_count": 0,
+    "public_slug": null
+  }
+]

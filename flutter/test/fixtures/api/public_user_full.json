@@ -1,0 +1,78 @@
+{
+  "id": "07fe48f4-4379-424f-b8ee-9647a8e09cd1",
+  "name": "Dan Foster",
+  "email": "player6@fishers.test",
+  "phone": "+447700900123",
+  "avatar_url": null,
+  "sports_played": [
+    "cricket",
+    "football"
+  ],
+  "position_role": "All-rounder",
+  "skill_level": "club",
+  "emergency_contact": "Jo Foster 07700900124",
+  "primary_sport": "cricket",
+  "sport_profiles": [
+    {
+      "sport": "cricket",
+      "position": "All-rounder",
+      "skill_level": "club",
+      "current_division": "division3",
+      "target_division": "division1",
+      "age_group": "senior",
+      "team_name": "1st XI",
+      "years_playing": 12,
+      "stats": {
+        "batting_average": "31.4",
+        "batting_style": "Left-hand",
+        "bowling_style": "Left-arm orthodox",
+        "matches": "112",
+        "wickets": "47"
+      }
+    },
+    {
+      "sport": "football",
+      "position": "Midfielder",
+      "skill_level": "intermediate",
+      "age_group": "senior",
+      "years_playing": 20,
+      "stats": {
+        "foot": "Right",
+        "goals": "14"
+      }
+    }
+  ],
+  "location": {
+    "area": "Hemel Hempstead",
+    "postcode": "HP1 1AA",
+    "travel_radius_miles": 25,
+    "transport": "driverWithSeats",
+    "spare_seats": 3,
+    "preferred_days": [
+      1,
+      7
+    ],
+    "notes": "Not Tuesdays"
+  },
+  "profile_complete": true,
+  "email_verified": false,
+  "phone_verified": false,
+  "role_intent": null,
+  "profile_strength": {
+    "percent": 75,
+    "missing": [
+      "photo",
+      "verified"
+    ],
+    "next_up": "Add a photo and a confirmed email or number"
+  },
+  "reliability": {
+    "score": 25,
+    "attendance_rate": 0.0,
+    "response_rate": 0.0,
+    "payment_rate": 1.0,
+    "late_cancellations": 0,
+    "sample_size": 1,
+    "band": "unproven"
+  }
+}

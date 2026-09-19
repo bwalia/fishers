@@ -1,0 +1,42 @@
+{
+  "id": "07fe48f4-4379-424f-b8ee-9647a8e09cd1",
+  "name": "Dan Foster",
+  "avatar_url": null,
+  "position_role": "All-rounder",
+  "skill_level": "club",
+  "primary_sport": "cricket",
+  "sport_profiles": [
+    {
+      "sport": "cricket",
+      "position": "All-rounder",
+      "skill_level": "club",
+      "current_division": "division3",
+      "target_division": "division1",
+      "age_group": "senior",
+      "team_name": "1st XI",
+      "years_playing": 12,
+      "stats": {
+        "batting_average": "31.4",
+        "batting_style": "Left-hand",
+        "bowling_style": "Left-arm orthodox",
+        "matches": "112",
+        "wickets": "47"
+      }
+    },
+    {
+      "sport": "football",
+      "position": "Midfielder",
+      "skill_level": "intermediate",
+      "age_group": "senior",
+      "years_playing": 20,
+      "stats": {
+        "foot": "Right",
+        "goals": "14"
+      }
+    }
+  ],
+  "reliability": null,
+  "shared_clubs": [
+    "London Lords CC"
+  ]
+}
