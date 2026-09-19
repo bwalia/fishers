@@ -91,6 +91,8 @@ once; the private key (`.p8`) is downloadable **only once**.
 | `ASC_PRIVATE_KEY_B64` | `base64` of the downloaded `AuthKey_*.p8` |
 | `APPLE_TEAM_ID` | Apple Developer membership / Xcode team |
 | `APP_STORE_APP_ID` | Optional; ASC app URL numeric id |
+| `GOOGLE_IOS_CLIENT_ID` | Optional; Google Cloud iOS OAuth client id |
+| `GOOGLE_REVERSED_CLIENT_ID` | Optional; reversed client id (URL scheme) |
 
 Never commit the `.p8` or base64 string to git.
 
@@ -106,6 +108,15 @@ Store the values from §1 under these names (same in either place):
 | `APPLE_TEAM_ID` | 10-character team id |
 | `CERT_PRIVATE_KEY_B64` | (optional) base64 of distribution private key `.pem` |
 | `APP_STORE_APP_ID` | (optional) numeric ASC app id |
+| `GOOGLE_IOS_CLIENT_ID` | (optional) Google Cloud iOS OAuth client id |
+| `GOOGLE_REVERSED_CLIENT_ID` | (optional) reversed client id used as the Google URL scheme |
+
+`GOOGLE_IOS_CLIENT_ID` and `GOOGLE_REVERSED_CLIENT_ID` are loaded from Vault or
+GitHub secrets at build time and written into `project.yml` just before
+xcodegen — they are **not** committed to git. The ring vault config already
+holds `GOOGLE_IOS_CLIENT_ID` / `APPLE_CLIENT_ID` for the API; keep the same
+iOS client id (plus its reversed form) under `kv/fishers/ios` for the app
+build.
 
 **Option A — WSLVault** (`https://vault.workstation.co.uk`, same vault as ring deploys):
 

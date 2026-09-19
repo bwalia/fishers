@@ -10,6 +10,7 @@
 #   export ASC_P8_PATH=$HOME/AuthKey_XXXXXX.p8
 #   export APPLE_TEAM_ID=...
 #   # optional: APP_STORE_APP_ID=...
+#   # optional: GOOGLE_IOS_CLIENT_ID=... GOOGLE_REVERSED_CLIENT_ID=...
 #   ./ios/ci/seed-ios-vault.sh
 #
 set -euo pipefail
@@ -42,6 +43,7 @@ fi
 
 export ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY_B64 APPLE_TEAM_ID
 export APP_STORE_APP_ID="${APP_STORE_APP_ID:-}" CERT_PRIVATE_KEY_B64="${CERT_PRIVATE_KEY_B64:-}"
+export GOOGLE_IOS_CLIENT_ID="${GOOGLE_IOS_CLIENT_ID:-}" GOOGLE_REVERSED_CLIENT_ID="${GOOGLE_REVERSED_CLIENT_ID:-}"
 export VAULT_TOKEN_FILE VAULT_SECRET_PATH VAULT_ADDR VAULT_TOKEN="${VAULT_TOKEN:-}"
 
 python3 - <<'PY'
@@ -90,19 +92,44 @@ addr, token = resolve_auth()
 logical = os.environ.get("VAULT_SECRET_PATH", "kv/fishers/ios")
 url = addr + "/v1/" + kv_v2_api_path(logical)
 
-payload = {
-    "data": {
-        "ASC_KEY_ID": os.environ["ASC_KEY_ID"],
-        "ASC_ISSUER_ID": os.environ["ASC_ISSUER_ID"],
-        "ASC_PRIVATE_KEY_B64": os.environ["ASC_PRIVATE_KEY_B64"],
-        "APPLE_TEAM_ID": os.environ["APPLE_TEAM_ID"],
-    }
-}
-if os.environ.get("APP_STORE_APP_ID"):
-    payload["data"]["APP_STORE_APP_ID"] = os.environ["APP_STORE_APP_ID"]
-if os.environ.get("CERT_PRIVATE_KEY_B64"):
-    payload["data"]["CERT_PRIVATE_KEY_B64"] = os.environ["CERT_PRIVATE_KEY_B64"]
+# Merge with any existing secret so re-seeding ASC fields does not wipe Google ids.
+existing = {}
+req_get = urllib.request.Request(url, method="GET")
+req_get.add_header("X-Vault-Token", token)
+try:
+    with urllib.request.urlopen(req_get, timeout=30) as resp:
+        raw = resp.read()
+    try:
+        payload_get = json.loads(raw)
+        vault_data = (payload_get.get("data") or {}).get("data")
+        if isinstance(vault_data, dict):
+            existing = dict(vault_data)
+    except ValueError:
+        pass
+except urllib.error.HTTPError as exc:
+    if exc.code != 404:
+        detail = exc.read().decode("utf-8", "replace")[:500]
+        sys.exit("ERROR: Vault GET %s -> HTTP %s: %s" % (url, exc.code, detail))
+except urllib.error.URLError as exc:
+    sys.exit("ERROR: Vault GET %s -> %s" % (url, exc))
 
+data = dict(existing)
+data.update({
+    "ASC_KEY_ID": os.environ["ASC_KEY_ID"],
+    "ASC_ISSUER_ID": os.environ["ASC_ISSUER_ID"],
+    "ASC_PRIVATE_KEY_B64": os.environ["ASC_PRIVATE_KEY_B64"],
+    "APPLE_TEAM_ID": os.environ["APPLE_TEAM_ID"],
+})
+if os.environ.get("APP_STORE_APP_ID"):
+    data["APP_STORE_APP_ID"] = os.environ["APP_STORE_APP_ID"]
+if os.environ.get("CERT_PRIVATE_KEY_B64"):
+    data["CERT_PRIVATE_KEY_B64"] = os.environ["CERT_PRIVATE_KEY_B64"]
+if os.environ.get("GOOGLE_IOS_CLIENT_ID"):
+    data["GOOGLE_IOS_CLIENT_ID"] = os.environ["GOOGLE_IOS_CLIENT_ID"]
+if os.environ.get("GOOGLE_REVERSED_CLIENT_ID"):
+    data["GOOGLE_REVERSED_CLIENT_ID"] = os.environ["GOOGLE_REVERSED_CLIENT_ID"]
+
+payload = {"data": data}
 body = json.dumps(payload).encode()
 req = urllib.request.Request(url, data=body, method="POST")
 req.add_header("X-Vault-Token", token)

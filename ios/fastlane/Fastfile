@@ -39,6 +39,28 @@ def asc_api_key
   )
 end
 
+# Write Vault / env Google OAuth ids into project.yml just before xcodegen so
+# Info.plist gets the URL scheme without committing client ids to git.
+def inject_google_oauth_client_ids!
+  ios_id = ENV["GOOGLE_IOS_CLIENT_ID"].to_s.strip
+  reversed = ENV["GOOGLE_REVERSED_CLIENT_ID"].to_s.strip
+  path = File.expand_path("../project.yml", __dir__)
+  text = File.read(path)
+  if ios_id.empty? && reversed.empty?
+    UI.message("GOOGLE_IOS_CLIENT_ID / GOOGLE_REVERSED_CLIENT_ID unset — Google URL scheme left blank")
+    return
+  end
+  text = text.sub(/GOOGLE_IOS_CLIENT_ID:\s*"[^"]*"/, "GOOGLE_IOS_CLIENT_ID: \"#{ios_id}\"")
+  text = text.sub(/GOOGLE_REVERSED_CLIENT_ID:\s*"[^"]*"/, "GOOGLE_REVERSED_CLIENT_ID: \"#{reversed}\"")
+  File.write(path, text)
+  UI.success("Injected Google OAuth client ids into project.yml for this build")
+end
+
+def generate_xcode_project!
+  inject_google_oauth_client_ids!
+  sh("xcodegen", "generate", "--spec", "../project.yml")
+end
+
 def testflight_group_name
   ENV.fetch("TESTFLIGHT_GROUP", DEFAULT_TESTFLIGHT_GROUP).to_s.strip
 end
@@ -546,7 +568,7 @@ end
 platform :ios do
   desc "Generate project, build for Simulator, and run unit tests"
   lane :test do
-    sh("xcodegen", "generate", "--spec", "../project.yml")
+    generate_xcode_project!
     run_tests(
       project: "Fishers.xcodeproj",
       scheme: "Fishers",
@@ -571,7 +593,7 @@ platform :ios do
 
   desc "Provision code signing from the ASC API key into a persistent keychain"
   lane :prepare_signing do
-    sh("xcodegen", "generate", "--spec", "../project.yml")
+    generate_xcode_project!
 
     api_key = asc_api_key
     kc_path = ENV.fetch("BUILD_KEYCHAIN_PATH")

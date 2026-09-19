@@ -47,11 +47,9 @@ targets:
         # machine on your network.
         FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
         FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
-        # iOS OAuth client from Google Cloud Console (type "iOS"). Not secret —
-        # also returned by GET /auth/google as ios_client_id. The reversed form
-        # is the URL scheme Google redirects to after sign-in; without it the
-        # button opens but never returns to the app. Leave blank until the
-        # iOS client exists; the auth screen hides Google when the API has no id.
+        # iOS OAuth client from Google Cloud Console (type "iOS"). Kept blank in
+        # git; CI fills these from Vault / env via inject_google_oauth_client_ids!
+        # before xcodegen so Info.plist gets the URL scheme.
         GOOGLE_IOS_CLIENT_ID: ""
         GOOGLE_REVERSED_CLIENT_ID: ""
       configs:

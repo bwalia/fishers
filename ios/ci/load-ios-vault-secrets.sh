@@ -34,6 +34,9 @@ python3 - <<'PY'
 import base64, glob, json, os, re, sys, urllib.request, urllib.error
 
 REQUIRED_IDS = ("ASC_KEY_ID", "ASC_ISSUER_ID", "APPLE_TEAM_ID")
+# Public OAuth client ids for Continue with Google — still kept out of git and
+# injected into project.yml at xcodegen time from Vault / env.
+OPTIONAL_GOOGLE = ("GOOGLE_IOS_CLIENT_ID", "GOOGLE_REVERSED_CLIENT_ID")
 FORBIDDEN_HOSTS = ("vault.diytaxreturn.co.uk",)
 KEY_ID_RE = re.compile(r"^[A-Z0-9]{10}$")
 ISSUER_RE = re.compile(
@@ -216,6 +219,9 @@ def publish(data, source):
         ))
     if data.get("APP_STORE_APP_ID"):
         env_lines.append(("APP_STORE_APP_ID", clean(str(data["APP_STORE_APP_ID"]))))
+    for key in OPTIONAL_GOOGLE:
+        if data.get(key):
+            env_lines.append((key, clean(str(data[key]))))
 
     emit(env_lines)
     sys.stderr.write(
@@ -227,18 +233,7 @@ def publish(data, source):
 def env_has_ids():
     return all(clean(os.environ.get(k, "")) for k in REQUIRED_IDS)
 
-# 1) Prefer env already provided by the workflow (GitHub Actions secrets + local .p8).
-if env_has_ids():
-    data = {k: clean(os.environ.get(k, "")) for k in REQUIRED_IDS}
-    for optional in ("ASC_PRIVATE_KEY_B64", "ASC_PRIVATE_KEY", "ASC_P8_PATH",
-                     "CERT_PRIVATE_KEY_B64", "APP_STORE_APP_ID"):
-        if os.environ.get(optional):
-            data[optional] = os.environ[optional]
-    publish(data, "environment")
-    raise SystemExit(0)
-
-# 2) Fall back to WSLVault (vault.workstation.co.uk).
-def resolve_auth():
+def resolve_auth(required=True):
     addr = (os.environ.get("VAULT_ADDR") or "").rstrip("/")
     token = os.environ.get("VAULT_TOKEN") or ""
     path = os.environ.get("VAULT_TOKEN_FILE") or ""
@@ -259,6 +254,8 @@ def resolve_auth():
         if not token and isinstance(payload.get("auth"), dict):
             token = payload["auth"].get("client_token") or ""
     if not addr or not token:
+        if not required:
+            return None, None
         sys.exit(
             "ERROR: signing secrets unavailable.\n"
             "  • Set GitHub Actions secrets ASC_KEY_ID, ASC_ISSUER_ID, APPLE_TEAM_ID\n"
@@ -278,7 +275,47 @@ def resolve_auth():
             )
     return addr, token
 
-addr, token = resolve_auth()
+def fetch_optional_google(data):
+    """Fill OPTIONAL_GOOGLE from WSLVault when missing from the current env map."""
+    missing = [k for k in OPTIONAL_GOOGLE if not clean(str(data.get(k, "")))]
+    if not missing:
+        return
+    addr, token = resolve_auth(required=False)
+    if not addr or not token:
+        return
+    logical = os.environ.get("VAULT_SECRET_PATH", "kv/fishers/ios")
+    url = addr + "/v1/" + kv_v2_api_path(logical)
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("X-Vault-Token", token)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+    except (urllib.error.HTTPError, urllib.error.URLError):
+        return
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        return
+    vault_data = (payload.get("data") or {}).get("data")
+    if not isinstance(vault_data, dict):
+        return
+    for key in missing:
+        if vault_data.get(key):
+            data[key] = vault_data[key]
+
+# 1) Prefer env already provided by the workflow (GitHub Actions secrets + local .p8).
+if env_has_ids():
+    data = {k: clean(os.environ.get(k, "")) for k in REQUIRED_IDS}
+    for optional in ("ASC_PRIVATE_KEY_B64", "ASC_PRIVATE_KEY", "ASC_P8_PATH",
+                     "CERT_PRIVATE_KEY_B64", "APP_STORE_APP_ID") + OPTIONAL_GOOGLE:
+        if os.environ.get(optional):
+            data[optional] = os.environ[optional]
+    fetch_optional_google(data)
+    publish(data, "environment")
+    raise SystemExit(0)
+
+# 2) Fall back to WSLVault (vault.workstation.co.uk).
+addr, token = resolve_auth(required=True)
 logical = os.environ.get("VAULT_SECRET_PATH", "kv/fishers/ios")
 api_path = kv_v2_api_path(logical)
 url = addr + "/v1/" + api_path
