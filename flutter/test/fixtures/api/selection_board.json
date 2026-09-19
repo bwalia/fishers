@@ -1,0 +1,189 @@
+{
+  "event_id": "0ce59cec-e443-44a0-8b68-e67308772c02",
+  "title": "League vs Watford \u2014 result",
+  "sport": "cricket",
+  "starts_at": "2026-09-12T21:14:42.948003Z",
+  "status": "completed",
+  "status_note": null,
+  "requirements": {
+    "size": 22,
+    "reserves": 3,
+    "position_quotas": [
+      {
+        "position": "Wicketkeeper",
+        "minimum": 1
+      },
+      {
+        "position": "Fast Bowler",
+        "minimum": 2
+      },
+      {
+        "position": "Spinner",
+        "minimum": 1
+      }
+    ]
+  },
+  "autonomy": "suggest",
+  "confirm_lead_hours": 48,
+  "drop_lead_hours": 24,
+  "candidates": [
+    {
+      "user_id": "1b34935d-f211-465d-9656-e3a92ab110f4",
+      "name": "Alex Khan",
+      "position": null,
+      "skill_level": null,
+      "availability": null,
+      "rsvp": null,
+      "reliability_score": 25,
+      "reliability_band": "unproven",
+      "games_missed_out": 0,
+      "state": "pool",
+      "is_confirmed": false
+    },
+    {
+      "user_id": "07fe48f4-4379-424f-b8ee-9647a8e09cd1",
+      "name": "Dan Foster",
+      "position": null,
+      "skill_level": null,
+      "availability": null,
+      "rsvp": null,
+      "reliability_score": 25,
+      "reliability_band": "unproven",
+      "games_missed_out": 0,
+      "state": "pool",
+      "is_confirmed": false
+    },
+    {
+      "user_id": "58250173-cb6e-46a1-bb27-4da13fc0a0d2",
+      "name": "Demo Captain",
+      "position": null,
+      "skill_level": null,
+      "availability": null,
+      "rsvp": null,
+      "reliability_score": 25,
+      "reliability_band": "unproven",
+      "games_missed_out": 0,
+      "state": "pool",
+      "is_confirmed": false
+    },
+    {
+      "user_id": "3721ee86-f4ce-4146-8e92-526e4f6b4b40",
+      "name": "Joe Miller",
+      "position": null,
+      "skill_level": null,
+      "availability": null,
+      "rsvp": null,
+      "reliability_score": 25,
+      "reliability_band": "unproven",
+      "games_missed_out": 0,
+      "state": "pool",
+      "is_confirmed": false
+    },
+    {
+      "user_id": "84865361-004d-4600-afa7-fa3d2e22d424",
+      "name": "Ravi Sharma",
+      "position": null,
+      "skill_level": null,
+      "availability": null,
+      "rsvp": null,
+      "reliability_score": 25,
+      "reliability_band": "unproven",
+      "games_missed_out": 0,
+      "state": "pool",
+      "is_confirmed": false
+    },
+    {
+      "user_id": "6977791b-9dff-4c88-a3fc-7a0ed4ee4bf4",
+      "name": "Sam Blake",
+      "position": null,
+      "skill_level": null,
+      "availability": null,
+      "rsvp": null,
+      "reliability_score": 25,
+      "reliability_band": "unproven",
+      "games_missed_out": 0,
+      "state": "pool",
+      "is_confirmed": false
+    },
+    {
+      "user_id": "3ff42e4b-e462-44be-9983-18a5679f2085",
+      "name": "Tom Reed",
+      "position": null,
+      "skill_level": null,
+      "availability": null,
+      "rsvp": null,
+      "reliability_score": 25,
+      "reliability_band": "unproven",
+      "games_missed_out": 0,
+      "state": "pool",
+      "is_confirmed": false
+    }
+  ],
+  "ranked": [
+    {
+      "user_id": "1b34935d-f211-465d-9656-e3a92ab110f4",
+      "name": "Alex Khan",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "07fe48f4-4379-424f-b8ee-9647a8e09cd1",
+      "name": "Dan Foster",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "58250173-cb6e-46a1-bb27-4da13fc0a0d2",
+      "name": "Demo Captain",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "3721ee86-f4ce-4146-8e92-526e4f6b4b40",
+      "name": "Joe Miller",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "84865361-004d-4600-afa7-fa3d2e22d424",
+      "name": "Ravi Sharma",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "6977791b-9dff-4c88-a3fc-7a0ed4ee4bf4",
+      "name": "Sam Blake",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "3ff42e4b-e462-44be-9983-18a5679f2085",
+      "name": "Tom Reed",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    }
+  ],
+  "selected_count": 0,
+  "confirmed_count": 0
+}

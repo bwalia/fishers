@@ -1,0 +1,12 @@
+{
+  "area": "Hemel Hempstead",
+  "postcode": "HP1 1AA",
+  "travel_radius_miles": 25,
+  "transport": "driverWithSeats",
+  "spare_seats": 3,
+  "preferred_days": [
+    1,
+    7
+  ],
+  "notes": "Not Tuesdays"
+}

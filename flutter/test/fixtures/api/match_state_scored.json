@@ -1,0 +1,636 @@
+{
+  "status": "complete",
+  "overs_limit": 5,
+  "home_name": "Lords",
+  "away_name": "Hemel",
+  "toss_winner": "home",
+  "toss_decision": "bat",
+  "home_xi": [
+    "469ef4ce-88d1-4792-ac46-dc95f5734312",
+    "3dbcca10-78b9-4d0b-9fd1-c3bef7143192",
+    "7d0f2ac5-2a82-4f46-a0e8-4e0e4baba508",
+    "1ba886f4-1778-4701-beae-a2060dcc5b4d",
+    "4d983a52-aa28-4548-bb75-01393fd4db89",
+    "1955f70c-34db-43fd-bb41-dcc8be0df40b",
+    "38b0f0d7-0480-46a1-81b3-a71be676f0d5",
+    "6866c26f-ab55-483b-bc00-67632af50c4b",
+    "fe12cf3d-abed-4cff-af08-454b09304e2c",
+    "65f5f424-71c9-464e-9f3b-088e696bb83b",
+    "9d617062-91a0-425f-a1dc-e43da951a391"
+  ],
+  "away_xi": [
+    "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+    "c1bb2edb-3da1-4cc5-b3f2-50b681302257",
+    "dc81c5b7-6ede-4c64-80c1-5bf6912ea062",
+    "6bed59f6-e757-4847-aa7d-17144007ca48",
+    "3e50e341-b6f7-4182-97d1-617ff86d73af",
+    "7d82b075-0021-4684-b602-4963af3e8486",
+    "1a510a3e-1066-4a41-940c-929e5a981cff",
+    "85a3870a-7732-4878-946e-abf51a4096a6",
+    "ae4b9f29-97d1-412a-826b-b63591c75f1d",
+    "5b982f77-1134-4c58-863d-5bfa9bc2fc1d",
+    "76662b37-ef7b-4ef7-b99b-eabf467c413e"
+  ],
+  "home_captain": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+  "away_captain": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+  "home_keeper": "3dbcca10-78b9-4d0b-9fd1-c3bef7143192",
+  "away_keeper": "c1bb2edb-3da1-4cc5-b3f2-50b681302257",
+  "innings": [
+    {
+      "index": 0,
+      "batting": "home",
+      "bowling": "away",
+      "runs": 21,
+      "wickets": 1,
+      "legal_balls": 6,
+      "extras": 7,
+      "batters": [
+        {
+          "player_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "runs": 12,
+          "balls": 6,
+          "fours": 1,
+          "sixes": 1,
+          "out": true,
+          "dismissal": "caught",
+          "retired_hurt": false,
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "fielder_id": "6bed59f6-e757-4847-aa7d-17144007ca48"
+        },
+        {
+          "player_id": "3dbcca10-78b9-4d0b-9fd1-c3bef7143192",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": "retired_hurt",
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "7d0f2ac5-2a82-4f46-a0e8-4e0e4baba508",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "1ba886f4-1778-4701-beae-a2060dcc5b4d",
+          "runs": 2,
+          "balls": 1,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "4d983a52-aa28-4548-bb75-01393fd4db89",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "1955f70c-34db-43fd-bb41-dcc8be0df40b",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "38b0f0d7-0480-46a1-81b3-a71be676f0d5",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "6866c26f-ab55-483b-bc00-67632af50c4b",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "fe12cf3d-abed-4cff-af08-454b09304e2c",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "65f5f424-71c9-464e-9f3b-088e696bb83b",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "9d617062-91a0-425f-a1dc-e43da951a391",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        }
+      ],
+      "bowlers": [
+        {
+          "player_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "balls": 5,
+          "runs": 14,
+          "wickets": 1,
+          "maidens": 0,
+          "current_over_runs": 14,
+          "wides": 1,
+          "no_balls": 1
+        },
+        {
+          "player_id": "c1bb2edb-3da1-4cc5-b3f2-50b681302257",
+          "balls": 1,
+          "runs": 2,
+          "wickets": 0,
+          "maidens": 0,
+          "current_over_runs": 2,
+          "wides": 0,
+          "no_balls": 0
+        }
+      ],
+      "fall": [
+        {
+          "score": 19,
+          "wickets": 1,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "over_ball": "0.5",
+          "partnership_runs": 19,
+          "partnership_balls": 5
+        }
+      ],
+      "deliveries": [
+        {
+          "over": 0,
+          "ball_in_over": 1,
+          "label": "4",
+          "runs": 4,
+          "is_legal": true,
+          "is_wicket": false,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "shot": {
+            "angle": 300,
+            "kind": "drive",
+            "reach": 0.9
+          }
+        },
+        {
+          "over": 0,
+          "ball_in_over": 2,
+          "label": "6",
+          "runs": 6,
+          "is_legal": true,
+          "is_wicket": false,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "shot": {
+            "angle": 20,
+            "kind": "loft",
+            "reach": 1.0
+          }
+        },
+        {
+          "over": 0,
+          "ball_in_over": 2,
+          "label": "wd",
+          "runs": 1,
+          "is_legal": false,
+          "is_wicket": false,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "shot": null
+        },
+        {
+          "over": 0,
+          "ball_in_over": 2,
+          "label": "nb+2",
+          "runs": 3,
+          "is_legal": false,
+          "is_wicket": false,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "shot": {
+            "angle": 120,
+            "kind": "sweep",
+            "reach": 0.5
+          }
+        },
+        {
+          "over": 0,
+          "ball_in_over": 2,
+          "label": "5p",
+          "runs": 5,
+          "is_legal": false,
+          "is_wicket": false,
+          "batter_id": null,
+          "bowler_id": null,
+          "shot": null
+        },
+        {
+          "over": 0,
+          "ball_in_over": 2,
+          "label": "RH",
+          "runs": 0,
+          "is_legal": false,
+          "is_wicket": false,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "shot": null
+        },
+        {
+          "over": 0,
+          "ball_in_over": 3,
+          "label": "0",
+          "runs": 0,
+          "is_legal": true,
+          "is_wicket": false,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "shot": null
+        },
+        {
+          "over": 0,
+          "ball_in_over": 4,
+          "label": "0",
+          "runs": 0,
+          "is_legal": true,
+          "is_wicket": false,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "shot": null
+        },
+        {
+          "over": 0,
+          "ball_in_over": 5,
+          "label": "W",
+          "runs": 0,
+          "is_legal": true,
+          "is_wicket": true,
+          "batter_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "bowler_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "shot": null
+        },
+        {
+          "over": 0,
+          "ball_in_over": 1,
+          "label": "2",
+          "runs": 2,
+          "is_legal": true,
+          "is_wicket": false,
+          "batter_id": "1ba886f4-1778-4701-beae-a2060dcc5b4d",
+          "bowler_id": "c1bb2edb-3da1-4cc5-b3f2-50b681302257",
+          "shot": {
+            "angle": 200,
+            "kind": "glance",
+            "reach": 0.4
+          }
+        }
+      ],
+      "striker_id": "1ba886f4-1778-4701-beae-a2060dcc5b4d",
+      "non_striker_id": "3dbcca10-78b9-4d0b-9fd1-c3bef7143192",
+      "bowler_id": "c1bb2edb-3da1-4cc5-b3f2-50b681302257",
+      "complete": true,
+      "balls_in_current_over": 1,
+      "wides": 1,
+      "no_balls": 1,
+      "byes": 0,
+      "leg_byes": 0,
+      "penalties": 5,
+      "partnership_runs": 2,
+      "partnership_balls": 1,
+      "wickets_allowed": 10,
+      "overs_available": 4,
+      "last_over_bowler": null,
+      "free_hit": false,
+      "super_over": false,
+      "powerplay_overs": 0,
+      "fielders_outside": 4,
+      "fielders_behind_square_leg": 2,
+      "penalty_runs_awarded": 5,
+      "started_at": "2026-09-19T22:02:10Z",
+      "last_ball_at": "2026-09-19T22:09:40Z"
+    },
+    {
+      "index": 1,
+      "batting": "away",
+      "bowling": "home",
+      "runs": 1,
+      "wickets": 0,
+      "legal_balls": 1,
+      "extras": 0,
+      "batters": [
+        {
+          "player_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "runs": 1,
+          "balls": 1,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "c1bb2edb-3da1-4cc5-b3f2-50b681302257",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "dc81c5b7-6ede-4c64-80c1-5bf6912ea062",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "6bed59f6-e757-4847-aa7d-17144007ca48",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "3e50e341-b6f7-4182-97d1-617ff86d73af",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "7d82b075-0021-4684-b602-4963af3e8486",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "1a510a3e-1066-4a41-940c-929e5a981cff",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "85a3870a-7732-4878-946e-abf51a4096a6",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "ae4b9f29-97d1-412a-826b-b63591c75f1d",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "5b982f77-1134-4c58-863d-5bfa9bc2fc1d",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        },
+        {
+          "player_id": "76662b37-ef7b-4ef7-b99b-eabf467c413e",
+          "runs": 0,
+          "balls": 0,
+          "fours": 0,
+          "sixes": 0,
+          "out": false,
+          "dismissal": null,
+          "retired_hurt": false,
+          "bowler_id": null,
+          "fielder_id": null
+        }
+      ],
+      "bowlers": [
+        {
+          "player_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "balls": 1,
+          "runs": 1,
+          "wickets": 0,
+          "maidens": 0,
+          "current_over_runs": 1,
+          "wides": 0,
+          "no_balls": 0
+        }
+      ],
+      "fall": [],
+      "deliveries": [
+        {
+          "over": 0,
+          "ball_in_over": 1,
+          "label": "1",
+          "runs": 1,
+          "is_legal": true,
+          "is_wicket": false,
+          "batter_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+          "bowler_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+          "shot": null
+        }
+      ],
+      "striker_id": "c1bb2edb-3da1-4cc5-b3f2-50b681302257",
+      "non_striker_id": "322768f1-14a1-4d21-bd49-5dba6bbb497a",
+      "bowler_id": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+      "complete": false,
+      "balls_in_current_over": 1,
+      "wides": 0,
+      "no_balls": 0,
+      "byes": 0,
+      "leg_byes": 0,
+      "penalties": 0,
+      "partnership_runs": 1,
+      "partnership_balls": 1,
+      "wickets_allowed": 10,
+      "overs_available": 5,
+      "last_over_bowler": null,
+      "free_hit": false,
+      "super_over": false,
+      "powerplay_overs": 0,
+      "fielders_outside": null,
+      "fielders_behind_square_leg": null,
+      "penalty_runs_awarded": 0,
+      "started_at": "2026-09-19T22:11:10Z",
+      "last_ball_at": "2026-09-19T22:11:10Z"
+    }
+  ],
+  "target": 22,
+  "winner": "home",
+  "margin": "by 12 runs",
+  "abandoned": false,
+  "last_seq": 30,
+  "player_names": {
+    "1955f70c-34db-43fd-bb41-dcc8be0df40b": "Home 5",
+    "1a510a3e-1066-4a41-940c-929e5a981cff": "Away 6",
+    "1ba886f4-1778-4701-beae-a2060dcc5b4d": "Home 3",
+    "322768f1-14a1-4d21-bd49-5dba6bbb497a": "Away 0",
+    "38b0f0d7-0480-46a1-81b3-a71be676f0d5": "Home 6",
+    "3dbcca10-78b9-4d0b-9fd1-c3bef7143192": "Home 1",
+    "3e50e341-b6f7-4182-97d1-617ff86d73af": "Away 4",
+    "469ef4ce-88d1-4792-ac46-dc95f5734312": "Home 0",
+    "4d983a52-aa28-4548-bb75-01393fd4db89": "Home 4",
+    "5b982f77-1134-4c58-863d-5bfa9bc2fc1d": "Away 9",
+    "65f5f424-71c9-464e-9f3b-088e696bb83b": "Home 9",
+    "6866c26f-ab55-483b-bc00-67632af50c4b": "Home 7",
+    "6bed59f6-e757-4847-aa7d-17144007ca48": "Away 3",
+    "76662b37-ef7b-4ef7-b99b-eabf467c413e": "Away 10",
+    "7d0f2ac5-2a82-4f46-a0e8-4e0e4baba508": "Home 2",
+    "7d82b075-0021-4684-b602-4963af3e8486": "Away 5",
+    "85a3870a-7732-4878-946e-abf51a4096a6": "Away 7",
+    "9d617062-91a0-425f-a1dc-e43da951a391": "Home 10",
+    "ae4b9f29-97d1-412a-826b-b63591c75f1d": "Away 8",
+    "c1bb2edb-3da1-4cc5-b3f2-50b681302257": "Away 1",
+    "dc81c5b7-6ede-4c64-80c1-5bf6912ea062": "Away 2",
+    "fe12cf3d-abed-4cff-af08-454b09304e2c": "Home 8"
+  },
+  "left_handers": [
+    "1ba886f4-1778-4701-beae-a2060dcc5b4d",
+    "38b0f0d7-0480-46a1-81b3-a71be676f0d5",
+    "469ef4ce-88d1-4792-ac46-dc95f5734312",
+    "65f5f424-71c9-464e-9f3b-088e696bb83b"
+  ],
+  "conditions": {
+    "overs_limit": 5,
+    "overs_per_bowler": 1,
+    "ground": "open",
+    "ball": "white",
+    "powerplay_overs": 0,
+    "fielders_outside_powerplay": 2,
+    "fielders_outside_normal": 5,
+    "fielders_behind_square_leg": 2,
+    "target_overs_per_hour": 0
+  },
+  "conditions_proposed_by": "home",
+  "agreed_home": "Sam",
+  "agreed_away": "Ravi",
+  "officials": {
+    "umpires": [
+      {
+        "id": "9d617062-91a0-425f-a1dc-e43da951a391",
+        "name": "Home 10",
+        "bats_left": false
+      }
+    ],
+    "scorers": [
+      {
+        "id": "76662b37-ef7b-4ef7-b99b-eabf467c413e",
+        "name": "Away 10",
+        "bats_left": false
+      }
+    ]
+  },
+  "player_of_the_match": "469ef4ce-88d1-4792-ac46-dc95f5734312",
+  "super_overs": 0,
+  "pending_penalties": {},
+  "dls": {
+    "par": 3,
+    "ahead_by": -2,
+    "target": 55,
+    "resources_first": 3.4,
+    "resources_second": 17.2,
+    "resources_used": 0.5,
+    "method": "standard_approximation",
+    "used_g50": true
+  }
+}

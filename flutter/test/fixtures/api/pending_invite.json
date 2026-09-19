@@ -1,0 +1,14 @@
+{
+  "id": "ebdde43c-b1bb-471f-bf1b-cd204ab111cb",
+  "target_type": "club",
+  "target_id": "adb6277d-eda7-40fd-8e58-41c9777c33a3",
+  "invited_user_id": "07fe48f4-4379-424f-b8ee-9647a8e09cd1",
+  "invited_email": null,
+  "invited_by": "58250173-cb6e-46a1-bb27-4da13fc0a0d2",
+  "token": "deadbeefdeadbeefdeadbeefdeadbeef",
+  "status": "pending",
+  "created_at": "2026-09-19T21:16:51.103934Z",
+  "accepted_at": null,
+  "target_name": "Watford Wanderers",
+  "invited_by_name": "Demo Captain"
+}

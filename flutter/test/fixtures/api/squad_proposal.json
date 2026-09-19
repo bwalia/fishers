@@ -1,0 +1,78 @@
+{
+  "source": "ranking",
+  "selected": [
+    {
+      "user_id": "1b34935d-f211-465d-9656-e3a92ab110f4",
+      "name": "Alex Khan",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "07fe48f4-4379-424f-b8ee-9647a8e09cd1",
+      "name": "Dan Foster",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "58250173-cb6e-46a1-bb27-4da13fc0a0d2",
+      "name": "Demo Captain",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "3721ee86-f4ce-4146-8e92-526e4f6b4b40",
+      "name": "Joe Miller",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "84865361-004d-4600-afa7-fa3d2e22d424",
+      "name": "Ravi Sharma",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "6977791b-9dff-4c88-a3fc-7a0ed4ee4bf4",
+      "name": "Sam Blake",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    },
+    {
+      "user_id": "3ff42e4b-e462-44be-9983-18a5679f2085",
+      "name": "Tom Reed",
+      "score": 225,
+      "reasons": [
+        "no availability marked",
+        "reliability 25 (unproven)"
+      ]
+    }
+  ],
+  "reserves": [],
+  "unmet_quotas": [
+    "1 short of 1 Wicketkeeper",
+    "2 short of 2 Fast Bowler",
+    "1 short of 1 Spinner"
+  ],
+  "announcement": "Squad for League vs Watford \u2014 result \u2014 7 named. Please confirm in the app at least 48 hours before start.",
+  "concerns": "1 short of 1 Wicketkeeper; 2 short of 2 Fast Bowler; 1 short of 1 Spinner",
+  "confidence": null,
+  "published": false
+}

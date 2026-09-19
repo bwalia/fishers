@@ -1,0 +1,13 @@
+{
+  "id": "fd19a7ab-196b-4145-bb4f-be0178284736",
+  "event_id": "8103a0b3-ac4d-4a4d-929a-163b0c4b91ae",
+  "user_id": "58250173-cb6e-46a1-bb27-4da13fc0a0d2",
+  "name": null,
+  "guests": 0,
+  "guest_names": null,
+  "amount_cents": 0,
+  "currency": "GBP",
+  "status": "reserved",
+  "notes": "table 4",
+  "created_at": "2026-09-19T21:17:00.159454Z"
+}
