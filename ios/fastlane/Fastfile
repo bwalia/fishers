@@ -669,10 +669,11 @@ platform :ios do
     )
 
     ensure_sign_in_with_apple_capability!(api_key)
+    # force regenerates so the new Sign in with Apple entitlement is included
+    # (readonly + force conflict in sigh).
     get_provisioning_profile(
       api_key: api_key,
       app_identifier: APP_ID,
-      readonly: false,
       force: true
     )
     app_profile_name = lane_context[SharedValues::SIGH_NAME]
