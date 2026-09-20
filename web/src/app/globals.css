@@ -6027,3 +6027,50 @@ main .panel[id] { scroll-margin-top: 80px; }
   .tour-chapter .tour-stamp { grid-column: 2; }
   .tour-contents-chapter li button { grid-template-columns: 3.6rem 1fr; }
 }
+
+/* Roster grid — the bulk people editor at /clubs/<id>/people.
+   Named for what it is, because `.sheet` in this file is already the modal
+   that slides up from the bottom and inheriting that here would be a mess. */
+.roster-grid {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  background: var(--surface);
+}
+.roster-grid table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.roster-grid th {
+  text-align: left;
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.roster-grid td { padding: 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.roster-grid tr:last-child td { border-bottom: 0; }
+.roster-grid td:first-child { padding: 0 var(--s2); text-align: right; font-variant-numeric: tabular-nums; }
+.roster-grid td:last-child { padding: var(--s2) var(--s3); }
+/* Cells read as one surface until focused, so a pasted sheet looks like a
+   sheet rather than a wall of boxes. */
+.roster-grid input,
+.roster-grid select {
+  width: 100%;
+  min-width: 9rem;
+  border: 0;
+  background: transparent;
+  padding: var(--s2) var(--s3);
+  color: inherit;
+  font: inherit;
+  border-radius: 0;
+}
+.roster-grid input:focus,
+.roster-grid select:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  background: var(--surface-2);
+}
+/* A row that cannot be sent: marked with colour AND the reason in the last
+   cell, never colour alone. */
+.roster-grid tr.bad td { background: color-mix(in srgb, var(--red-600) 7%, transparent); }
+.roster-grid tr.bad td:last-child { color: var(--red-600); }
+.btn.active { background: var(--surface-2); color: var(--fg); border-color: var(--fg-muted); }
