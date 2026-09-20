@@ -522,6 +522,58 @@ export type Venue = {
   lng: number | null;
 };
 
+/** Bookable unit inside a venue site (venue hire Phase 1). */
+export type VenueSpace = {
+  id: string;
+  venue_id: string;
+  name: string;
+  kind: string;
+  sports: string[];
+  capacity: number | null;
+  is_hireable: boolean;
+  requires_approval: boolean;
+  notice_hours_min: number;
+  notice_days_max: number;
+  slot_minutes: number;
+  buffer_minutes: number;
+  notes: string | null;
+  active: boolean;
+  timezone: string;
+};
+
+export type VenueRateCard = {
+  id: string;
+  space_id: string;
+  name: string;
+  unit: string;
+  amount_cents: number;
+  currency: string;
+  member_amount_cents: number | null;
+  days_of_week: number[];
+  min_units: number;
+  active: boolean;
+};
+
+/** Row from `GET /hire/spaces` — public browse of hireable spaces. */
+export type HireableSpace = {
+  space_id: string;
+  space_name: string;
+  kind: string;
+  sports: string[];
+  capacity: number | null;
+  requires_approval: boolean;
+  timezone: string;
+  venue_id: string;
+  venue_name: string;
+  venue_address: string | null;
+  venue_lat: number | null;
+  venue_lng: number | null;
+  club_id: string;
+  club_name: string;
+  from_amount_cents: number | null;
+  currency: string | null;
+};
+
 export type TeamMemberRow = {
   user_id: string;
   name: string;

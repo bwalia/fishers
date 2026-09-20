@@ -15,6 +15,7 @@ mod stats;
 mod tournament;
 mod users;
 pub(crate) mod verification;
+mod venue_hire;
 
 use axum::http::StatusCode;
 use axum::routing::get;
@@ -54,6 +55,7 @@ fn api_v1() -> Router<AppState> {
         .merge(orders::router())
         .merge(notifications::router())
         .merge(verification::router())
+        .merge(venue_hire::router())
 }
 
 /// Liveness says the process answers; readiness says it can serve a request.
