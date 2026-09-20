@@ -15,3 +15,4 @@ pub mod stats;
 pub mod tournament;
 pub mod users;
 pub mod verification;
+pub mod venue_hire;

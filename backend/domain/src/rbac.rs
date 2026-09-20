@@ -26,6 +26,12 @@ pub enum Permission {
     UseAdminAssistant,
     /// Live cricket scoring / claim scorer session.
     ScoreMatch,
+    /// Define hireable spaces, rates and availability for club venues.
+    ManageVenues,
+    /// Confirm, decline or cancel venue hire bookings (Phase 2).
+    ApproveBookings,
+    /// Engage suppliers / stalls (later phase).
+    ManageSuppliers,
     ManagePlatform,
 }
 
@@ -43,6 +49,9 @@ impl Permission {
             Self::ManageClubOps => "manage_club_ops",
             Self::UseAdminAssistant => "use_admin_assistant",
             Self::ScoreMatch => "score_match",
+            Self::ManageVenues => "manage_venues",
+            Self::ApproveBookings => "approve_bookings",
+            Self::ManageSuppliers => "manage_suppliers",
             Self::ManagePlatform => "manage_platform",
         }
     }
@@ -97,6 +106,9 @@ const SUPER_ADMIN_PERMS: &[Permission] = &[
     ManageClubOps,
     UseAdminAssistant,
     ScoreMatch,
+    ManageVenues,
+    ApproveBookings,
+    ManageSuppliers,
     ManagePlatform,
 ];
 
@@ -112,6 +124,9 @@ const CLUB_SECRETARY_PERMS: &[Permission] = &[
     ManageClubOps,
     UseAdminAssistant,
     ScoreMatch,
+    ManageVenues,
+    ApproveBookings,
+    ManageSuppliers,
 ];
 
 const TEAM_CAPTAIN_PERMS: &[Permission] = &[
@@ -208,5 +223,14 @@ mod tests {
     fn parse_vice_captain() {
         assert_eq!(parse_role("vice_captain"), Some(UserRole::TeamViceCaptain));
         assert_eq!(parse_role("team_vice_captain"), Some(UserRole::TeamViceCaptain));
+    }
+
+    #[test]
+    fn secretary_manages_venue_hire_captain_does_not() {
+        assert!(UserRole::ClubAdmin.can(Permission::ManageVenues));
+        assert!(UserRole::ClubAdmin.can(Permission::ApproveBookings));
+        assert!(!UserRole::TeamCaptain.can(Permission::ManageVenues));
+        assert!(!UserRole::Member.can(Permission::ManageVenues));
+        assert_eq!(Permission::ManageVenues.as_str(), "manage_venues");
     }
 }

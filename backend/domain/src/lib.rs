@@ -24,6 +24,7 @@ pub mod selection;
 /// Reliability scoring is namespaced: `reliability::score(counts)`.
 pub mod reliability;
 mod user;
+mod venue_hire;
 
 pub use agent::*;
 pub use availability::*;
@@ -48,6 +49,7 @@ pub use selection::*;
 pub use tournament::*;
 pub use reliability::{ReliabilityBand, ReliabilityCounts, ReliabilityScore};
 pub use user::*;
+pub use venue_hire::*;
 
 use thiserror::Error;
 

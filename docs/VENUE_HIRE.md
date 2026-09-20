@@ -257,7 +257,12 @@ deciding before implementation.
 
 Do not build the marketplace first. Build the thing one club needs on Saturday.
 
-1. **Hireable spaces + rate cards + availability.** Read-only browse.
+1. **Hireable spaces + rate cards + availability.** Read-only browse. **Shipped
+   (Phase 1):** migration `20260920000001_venue_hire_spaces.sql`, domain
+   `venue_hire`, APIs under `/api/v1/hire/spaces`, `/venues/{id}/spaces`,
+   `/spaces/{id}/…`, web `/hire` browse and `/clubs/[id]/hire` owner setup.
+   Permissions: `ManageVenues`, `ApproveBookings`, `ManageSuppliers` (latter
+   two reserved for later phases).
 2. **Booking with owner approval**, holds, expiry, the exclusion constraint,
    `platform_events`. Pitch hire works end to end, all sports.
 3. **Money**: deposits, pay-on-the-day, settlement, refunds against policy.

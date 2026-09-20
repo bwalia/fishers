@@ -623,6 +623,11 @@ function Venues({
         <h2>Grounds</h2>
         <span className="tag grey">{venues.length}</span>
       </div>
+      {canEdit && (
+        <p className="muted" style={{ marginBottom: 12 }}>
+          <Link href={`/clubs/${clubId}/hire`}>Hireable spaces &amp; rates →</Link>
+        </p>
+      )}
 
       {venues.length === 0 ? (
         <p className="muted">
