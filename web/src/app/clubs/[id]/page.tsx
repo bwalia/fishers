@@ -253,6 +253,11 @@ function Members({
       <div className="panel-head">
         <h2>Members</h2>
         <span className="tag grey">{members.length}</span>
+        {isSecretary && (
+          <Link className="btn ghost sm" href={`/clubs/${clubId}/people`} style={{ marginLeft: "auto" }}>
+            Bulk invite &amp; roles →
+          </Link>
+        )}
       </div>
       <p className="muted">
         A role is what somebody is allowed to <em>run</em>, not whether they play.
