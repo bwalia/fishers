@@ -1,0 +1,215 @@
+name: Android Release (Google Play)
+
+# Build, sign and upload the Flutter Android app to Google Play.
+#
+#   AUTO (merge to main) : push to main touching flutter/** or this workflow
+#                          → internal track
+#   PRIMARY              : workflow_dispatch — internal by default
+#   SECONDARY            : push a v*.*.* tag (e.g. from auto-tag.yml) → internal
+#   PRODUCTION           : workflow_dispatch with track = production (after QA)
+#
+# Same shape as ios_release.yml deliberately, so whoever ships one can ship the
+# other. Skip an auto release with [skip release] or [skip android].
+#
+# Secrets — see docs/ANDROID_RELEASE.md:
+#   ANDROID_KEYSTORE_B64        base64 of the upload keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD   its store password
+#   ANDROID_KEY_ALIAS           the key alias inside it
+#   ANDROID_KEY_PASSWORD        that key's password
+#   PLAY_SERVICE_ACCOUNT_JSON   Play Console service account, JSON body
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "flutter/**"
+      - ".github/workflows/android_release.yml"
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version name override (blank = flutter/pubspec.yaml)"
+        required: false
+        default: ""
+      track:
+        description: "Play track to upload to"
+        required: true
+        type: choice
+        default: internal
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      status:
+        description: "Release status on that track"
+        required: false
+        type: choice
+        default: completed
+        options:
+          - completed
+          - draft
+          - inProgress
+
+concurrency:
+  group: fishers-android-release
+  # Keep only the tip-of-main release when several flutter/** merges land close
+  # together — versionCode comes from the run number, so an older one losing is
+  # the correct outcome.
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Pinned, not read from pubspec.yaml: `environment:` there constrains the Dart
+# SDK only, so flutter-version-file resolves to null and the action fails with
+# "Unable to determine Flutter version". This is the version the foundation was
+# built and tested on — bump it deliberately, not by drifting with the channel.
+env:
+  FLUTTER_VERSION: "3.44.2"
+
+defaults:
+  run:
+    working-directory: flutter
+
+jobs:
+  release:
+    name: Build & upload (${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }})
+    # Two conditions. The first is the skip switches; the second keeps merges to
+    # main quiet until the keystore exists, because Play needs a manual first
+    # upload before any of this can work (see docs/ANDROID_RELEASE.md) and a
+    # release job that goes red on every merge until then is one people learn
+    # to ignore. A deliberate dispatch always runs and always fails loudly —
+    # if you asked for a release, you want to be told why you are not getting one.
+    if: >-
+      (
+        github.event_name != 'push'
+        || github.ref_type == 'tag'
+        || (
+          !contains(github.event.head_commit.message, '[skip release]')
+          && !contains(github.event.head_commit.message, '[skip android]')
+        )
+      )
+      && (
+        github.event_name == 'workflow_dispatch'
+        || secrets.ANDROID_KEYSTORE_B64 != ''
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # Everything that can fail without a keystore fails here, before signing.
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --reporter expanded
+
+      # pubspec's `version: x.y.z+n`. The name is the x.y.z; the code is the
+      # run number, never the +n, because Play rejects a versionCode it has
+      # already seen and a hand-maintained counter is a merge conflict waiting
+      # to happen. A tag overrides the name so `v1.4.0` ships as 1.4.0.
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" = tag ]; then
+            name="${GITHUB_REF_NAME#v}"
+          elif [ -n "${INPUT_VERSION:-}" ]; then
+            name="$INPUT_VERSION"
+          else
+            name="$(awk -F'[ +]' '/^version:/{print $2; exit}' pubspec.yaml)"
+          fi
+          code="${GITHUB_RUN_NUMBER}"
+          echo "name=$name"   >> "$GITHUB_OUTPUT"
+          echo "code=$code"   >> "$GITHUB_OUTPUT"
+          echo "Releasing $name (versionCode $code)"
+
+      # The keystore and its passwords, from secrets to the two files Gradle
+      # reads. Both are gitignored; neither survives the runner.
+      - name: Write signing config
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_B64 is not set on this repository."
+            echo "::error::Without it the build would sign with debug keys, which Play refuses."
+            echo "::error::See docs/ANDROID_RELEASE.md to create and upload the keystore."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 --decode > android/upload-keystore.jks
+          # storeFile is resolved against android/, which is rootProject there.
+          {
+            echo "storeFile=upload-keystore.jks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
+          echo "keystore and key.properties written"
+
+      - name: Build signed AAB
+        run: |
+          flutter build appbundle --release \
+            --build-name='${{ steps.version.outputs.name }}' \
+            --build-number='${{ steps.version.outputs.code }}'
+
+      - name: Write Play service account
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PLAY_JSON:-}" ]; then
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set on this repository."
+            echo "::error::See docs/ANDROID_RELEASE.md for creating the Play Console service account."
+            exit 1
+          fi
+          printf '%s' "$PLAY_JSON" > "$RUNNER_TEMP/play-service-account.json"
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
+          packageName: com.fishers.app
+          releaseFiles: flutter/build/app/outputs/bundle/release/app-release.aab
+          track: ${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }}
+          status: ${{ github.event_name == 'workflow_dispatch' && inputs.status || 'completed' }}
+          # Play symbolicates release crashes from these; without them a stack
+          # trace from a shrunk build is unreadable.
+          mappingFile: flutter/build/app/outputs/mapping/release/mapping.txt
+          debugSymbols: flutter/build/app/intermediates/merged_native_libs/release/out/lib
+
+      # Signing material must not outlive the job, even on failure.
+      - name: Shred signing material
+        if: always()
+        run: rm -f android/upload-keystore.jks android/key.properties "$RUNNER_TEMP/play-service-account.json"
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo "### Fishers Android"
+            echo "- version: \`${{ steps.version.outputs.name }}\` (code \`${{ steps.version.outputs.code }}\`)"
+            echo "- track: \`${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }}\`"
+            echo "- package: \`com.fishers.app\`"
+          } >> "$GITHUB_STEP_SUMMARY"
