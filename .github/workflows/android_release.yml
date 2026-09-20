@@ -81,6 +81,12 @@ jobs:
   gate:
     name: Check signing is configured
     runs-on: ubuntu-latest
+    # The workflow-level default is `flutter`, which only exists after a
+    # checkout — and this job deliberately does not do one, because it reads a
+    # secret and nothing else. Without this override bash cannot start at all.
+    defaults:
+      run:
+        working-directory: .
     outputs:
       configured: ${{ steps.check.outputs.configured }}
     steps:
