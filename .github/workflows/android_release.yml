@@ -74,8 +74,33 @@ defaults:
     working-directory: flutter
 
 jobs:
+  # Is there a keystore to sign with? This exists as a job only because the
+  # `secrets` context is not available in a job-level `if:` — it can be read in
+  # a step's `env:`, so the answer is carried out as an output instead. Says
+  # nothing secret: just yes or no.
+  gate:
+    name: Check signing is configured
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            echo "configured=yes" >> "$GITHUB_OUTPUT"
+            echo "signing is configured"
+          else
+            echo "configured=no" >> "$GITHUB_OUTPUT"
+            echo "no ANDROID_KEYSTORE_B64 — automatic releases stay paused."
+            echo "See docs/ANDROID_RELEASE.md; Play needs a manual first upload before this can work."
+          fi
+
   release:
     name: Build & upload (${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }})
+    needs: [gate]
     # Two conditions. The first is the skip switches; the second keeps merges to
     # main quiet until the keystore exists, because Play needs a manual first
     # upload before any of this can work (see docs/ANDROID_RELEASE.md) and a
@@ -93,7 +118,7 @@ jobs:
       )
       && (
         github.event_name == 'workflow_dispatch'
-        || secrets.ANDROID_KEYSTORE_B64 != ''
+        || needs.gate.outputs.configured == 'yes'
       )
     runs-on: ubuntu-latest
     steps:
