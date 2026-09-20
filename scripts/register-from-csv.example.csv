@@ -1,0 +1,5 @@
+name,email,phone,password,club,club_sport,club_visibility,club_description,role,team
+Ada Fielding,ada@example.com,+447700900001,,Marlow Wanderers,cricket,invite_only,Saturday league and Sunday friendlies,club_admin,1st XI
+Bram Cole,bram@example.com,,,Marlow Wanderers,,,,member,1st XI
+Cara Nunes,cara@example.com,,,Marlow Wanderers,,,,team_captain,1st XI
+Dev Shah,dev@example.com,,,Thames FC,football,public,,club_admin,
