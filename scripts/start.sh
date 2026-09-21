@@ -85,19 +85,31 @@ fi
 # .env overwrites everything it names, so `API_PORT=7399 ./scripts/start.sh`
 # used to be quietly ignored — the environment has to win over the file for a
 # one-off override to mean anything.
-for var in POSTGRES_PORT API_PORT WEB_PORT RUST_LOG; do
-  eval "_cli_${var}=\${${var}:-}"
-done
+# Everything .env names, not a list of four. The allowlist covered the ports
+# and RUST_LOG, so `APNS_PRIVATE_KEY_PATH=... ./scripts/start.sh` was read,
+# then silently replaced by the empty line in .env — the same bug the ports
+# had, for every other variable. This is what dotenvy does for the API: the
+# file fills in what the environment has not already said.
+_cli_kept=""
+while IFS= read -r _line; do
+  case "$_line" in ''|\#*) continue ;; esac
+  _key="${_line%%=*}"
+  case "$_key" in *[!A-Za-z0-9_]*|'') continue ;; esac
+  if [ -n "${!_key:-}" ]; then
+    eval "_cli_val_${_key}=\${${_key}}"
+    _cli_kept="$_cli_kept $_key"
+  fi
+done < "$ROOT/.env"
 
 set -a
 # shellcheck disable=SC1091
 source "$ROOT/.env"
 set +a
 
-for var in POSTGRES_PORT API_PORT WEB_PORT RUST_LOG; do
-  eval "_was=\$_cli_${var}"
-  [ -n "$_was" ] && eval "${var}=\$_was"
+for _key in $_cli_kept; do
+  eval "${_key}=\$_cli_val_${_key}"
 done
+unset _line _key _cli_kept
 unset _was
 
 POSTGRES_PORT="${POSTGRES_PORT:-7313}"
@@ -409,7 +421,11 @@ API_ENV=(
   "JWT_SECRET=${JWT_SECRET:-dev-secret-not-for-production-use-only}"
   "JWT_ACCESS_TTL_SECS=${JWT_ACCESS_TTL_SECS:-900}"
   "JWT_REFRESH_TTL_SECS=${JWT_REFRESH_TTL_SECS:-2592000}"
-  "RUST_LOG=${RUST_LOG:-fishers_api=debug,tower_http=info,sqlx=warn}"
+  # Matches DEFAULT_LOG in backend/api/src/main.rs. fishers_notifications is
+  # what says whether email and iOS push came up, and reports every push that
+  # failed — leaving it out is why a local run could not tell a working APNs
+  # key from a missing one.
+  "RUST_LOG=${RUST_LOG:-fishers_api=debug,fishers_notifications=info,fishers_db=info,fishers_jobs=info,tower_http=info,sqlx=warn}"
   "PUBLIC_WEB_BASE=${WEB_BASE}"
   "CORS_ALLOWED_ORIGINS=${WEB_BASE},http://127.0.0.1:${WEB_PORT},http://localhost:${WEB_PORT},http://[::1]:${WEB_PORT}"
   "DLS_G50=${DLS_G50:-245}"
@@ -429,10 +445,18 @@ API_ENV=(
 # Passing them through empty is not the same as leaving them unset: an empty
 # DLS_RESOURCE_TABLE made the API try to open "" and log a read error on every
 # single start, which is noise that trains you to ignore the log.
+# A .p8 is a file, and a relative path in .env means "next to the repo" to the
+# person who wrote it — not "next to wherever this shell happens to be".
+if [ -n "${APNS_PRIVATE_KEY_PATH:-}" ] && [ "${APNS_PRIVATE_KEY_PATH#/}" = "$APNS_PRIVATE_KEY_PATH" ]; then
+  APNS_PRIVATE_KEY_PATH="$ROOT/$APNS_PRIVATE_KEY_PATH"
+fi
+
 for var in ANTHROPIC_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET DLS_RESOURCE_TABLE OLLAMA_URL \
            SMTP_HOST SMTP_PORT SMTP_TLS SMTP_USERNAME SMTP_PASSWORD EMAIL_FROM VERIFICATION_REQUIRED \
            WHATSAPP_TOKEN WHATSAPP_PHONE_NUMBER_ID WHATSAPP_TEMPLATE WHATSAPP_TEMPLATE_LANG \
-           WHATSAPP_DEFAULT_COUNTRY GOOGLE_CLIENT_ID GOOGLE_IOS_CLIENT_ID APPLE_CLIENT_ID; do
+           WHATSAPP_DEFAULT_COUNTRY GOOGLE_CLIENT_ID GOOGLE_IOS_CLIENT_ID APPLE_CLIENT_ID \
+           APNS_KEY_ID APNS_TEAM_ID APNS_BUNDLE_ID APNS_PRIVATE_KEY APNS_PRIVATE_KEY_PATH \
+           APNS_ENVIRONMENT VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
   [ -n "${!var:-}" ] && API_ENV+=( "${var}=${!var}" )
 done
 
