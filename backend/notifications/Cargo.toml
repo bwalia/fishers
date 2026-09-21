@@ -16,3 +16,5 @@ reqwest = { workspace = true }
 sqlx = { workspace = true }
 web-push-native = { workspace = true }
 lettre = { workspace = true }
+# Signs the ES256 provider token APNs authenticates every push with.
+jsonwebtoken = { workspace = true }

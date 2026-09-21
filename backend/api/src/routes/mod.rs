@@ -6,6 +6,7 @@ pub(crate) mod cricket;
 mod events;
 mod invites;
 mod live;
+mod motm;
 mod notifications;
 mod orders;
 mod payments;
@@ -50,6 +51,7 @@ fn api_v1() -> Router<AppState> {
         .merge(selection::router())
         .merge(tournament::router())
         .merge(cricket::router())
+        .merge(motm::router())
         .merge(scoreboard_share::router())
         .merge(stats::router())
         .merge(orders::router())

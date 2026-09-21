@@ -6,5 +6,13 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- Remote notifications. Without this key the app can ask for
+	     permission and get it, register with APNs, and still never receive
+	     anything: the token it gets back is not one any push server can use.
+	     "development" is rewritten to "production" by Xcode when archiving
+	     for the App Store, so one value covers both, and it must match
+	     APNS_ENVIRONMENT on the API. -->
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>

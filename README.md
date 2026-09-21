@@ -184,7 +184,7 @@ backend/          Cargo workspace
   domain/         Models & business logic
   db/             sqlx pool + migrations
   payments/       Stripe stubs (Phase 4)
-  notifications/  APNs stubs (Phase 3)
+  notifications/  Push to browsers (Web Push) and iPhones (APNs), plus SMTP email
   jobs/           Recurring events & reminders
   agent/          Claude client for the chat assistant
 ios/              SwiftUI app (XcodeGen)
@@ -213,7 +213,7 @@ deployed ring. It runs on every pull request and after each int deploy, and repo
 
 1. **Foundation** — auth, profile setup (per-sport level, division, stats, logistics, reliability), clubs/teams, schema ✅
 2. **Events & calendar** — CRUD, recurrence, availability, RSVP ✅
-3. **Invites & push** — invite links, APNs stubs ✅ / wire APNs next
+3. **Invites & push** — invite links, Web Push and APNs ✅
 3b. **Chat & assistant** — threads, unread state, agent proposals with human approval ✅
 4. **Payments** — Stripe intent stubs ✅ / real Stripe next
 5. **Shop** — products, cart, checkout ✅

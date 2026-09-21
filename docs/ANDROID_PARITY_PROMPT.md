@@ -272,7 +272,7 @@ Parity is behavioural, not pixel-level. Adapt these, and note each in the PR:
   that cost is not worth paying before the app is in people's hands. Do not call
   `/auth/apple` and do not render the button. This is the one deliberate gap in
   the auth screen's parity with iOS; note it in the parity table and move on.
-- **Push notifications.** iOS registers for no remote/APNs push; do not add FCM
+- **Push notifications.** iOS registers for APNs (see `ios/Fishers/Services/PushRegistrar.swift`); do not add FCM
   unless asked. In-app notifications come from the API and the SSE stream.
 - **Local notifications, however, do exist.** `Services/ProfileReminder.swift`
   schedules local reminders to finish a profile via `UNUserNotificationCenter`.

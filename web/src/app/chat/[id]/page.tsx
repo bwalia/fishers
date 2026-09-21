@@ -16,6 +16,7 @@ import {
   type ConversationSummary,
 } from "@/lib/chat";
 import { Avatar } from "@/components/Avatar";
+import { ManOfTheMatch, motmPollId } from "@/components/ManOfTheMatch";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
 
@@ -255,7 +256,13 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
           <div key={day.day}>
             <p className="thread-day">{day.day}</p>
             {day.messages.map((m) => (
-              <Bubble key={m.id} message={m} mine={m.sender_id === me?.id} />
+              <div key={m.id}>
+                <Bubble message={m} mine={m.sender_id === me?.id} />
+                {/* A vote the server opened when the game ended, under the
+                    message that announced it — part of the conversation
+                    rather than a screen somebody has to go and find. */}
+                {motmPollId(m.metadata) && <ManOfTheMatch pollId={motmPollId(m.metadata)!} />}
+              </div>
             ))}
           </div>
         ))}

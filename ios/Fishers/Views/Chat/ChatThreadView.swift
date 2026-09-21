@@ -25,6 +25,15 @@ struct ChatThreadView: View {
                         ForEach(store.messages) { message in
                             MessageBubble(message: message)
                                 .id(message.id)
+                            // A vote the server opened when the game ended.
+                            // Rendered under the message that announced it,
+                            // so it reads as part of the conversation rather
+                            // than a screen somebody has to go and find.
+                            if let poll = message.motmPollId {
+                                ManOfTheMatchCard(pollId: poll)
+                                    .padding(.horizontal)
+                                    .id(poll)
+                            }
                         }
                     }
                     .padding(.vertical, 12)

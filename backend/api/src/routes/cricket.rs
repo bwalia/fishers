@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
 use crate::rbac::{require_club_member, require_event_permission, require_permission};
+use crate::services::motm as motm_service;
 use crate::services::platform_bus;
 use crate::state::AppState;
 
@@ -385,6 +386,22 @@ async fn post_events(
             state_out.margin.clone(),
         )
         .await;
+        // The game is over, so the club gets its vote. Off the scorer's
+        // thread for the same reason the toss notifications are: opening a
+        // poll means a chat write and a push to two rosters, and the tap that
+        // ended the match must not sit waiting on either.
+        let (bus, row, finished) = (state.clone(), row.clone(), state_out.clone());
+        tokio::spawn(async move {
+            motm_service::open_for_completed_cricket_match(
+                &bus,
+                row.club_id,
+                row.opponent_club_id,
+                row.event_id,
+                row.id,
+                &finished,
+            )
+            .await;
+        });
     }
 
     let row = cricket_repo::get_match(&state.pool, id)

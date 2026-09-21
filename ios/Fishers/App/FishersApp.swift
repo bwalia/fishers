@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 #if canImport(GoogleSignIn)
 import GoogleSignIn
@@ -7,6 +8,10 @@ import GoogleSignIn
 
 @main
 struct FishersApp: App {
+    /// SwiftUI has no hook for the APNs device token, so a UIKit delegate
+    /// supplies one. See `PushRegistrar`.
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
+
     @StateObject private var session = SessionStore()
     @StateObject private var cart = CartStore()
     @StateObject private var clubContext = ClubContextStore()
@@ -40,13 +45,23 @@ struct FishersApp: App {
                     CricketSyncService.shared.configure(container: cricketContainer)
                     if session.isAuthenticated {
                         await clubContext.bootstrap()
+                        // Only once there is an account behind it: iOS shows
+                        // the permission prompt once and never again, so
+                        // spending it on the launch screen wastes it.
+                        await PushRegistrar.shared.start()
                     }
                 }
                 .onChange(of: session.isAuthenticated) { _, signedIn in
                     if signedIn {
-                        Task { await clubContext.bootstrap() }
+                        Task {
+                            await clubContext.bootstrap()
+                            await PushRegistrar.shared.start()
+                        }
                     } else {
                         clubContext.clear()
+                        // A shared phone must stop buzzing with the last
+                        // person's club the moment they sign out of it.
+                        Task { await PushRegistrar.shared.unregister() }
                     }
                 }
                 // Google's OAuth redirect lands here; without this the sheet

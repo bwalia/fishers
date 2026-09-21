@@ -6074,3 +6074,92 @@ main .panel[id] { scroll-margin-top: 80px; }
 .roster-grid tr.bad td { background: color-mix(in srgb, var(--red-600) 7%, transparent); }
 .roster-grid tr.bad td:last-child { color: var(--red-600); }
 .btn.active { background: var(--surface-2); color: var(--fg); border-color: var(--fg-muted); }
+
+/* ---------- Man of the match ---------- */
+
+/* The club's vote, in the thread where the game's end was announced. Styled
+   like a proposal card — gold-edged, on the surface — because it is the same
+   kind of thing: something in the conversation asking to be acted on. */
+.motm {
+  margin: var(--s2) 0 var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.motm-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+.motm-top h3 { margin: 0; font-size: 0.95rem; }
+.motm-top p { margin: 0; font-size: 0.8rem; }
+.motm-top > div { flex: 1; min-width: 0; }
+.motm-top > div p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Two team sheets side by side on a desktop, stacked on a phone: both
+   elevens are on the ballot, because a man of the match is quite often the
+   opposition's opening bowler. */
+.motm-sheets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--s3);
+  margin: var(--s3) 0;
+}
+.motm-sheet ul { margin: 0; padding: 0; list-style: none; }
+.motm-sheet-name {
+  margin: 0 0 var(--s1);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.motm-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  padding: 6px var(--s2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 8px);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.motm-pick:hover:not(:disabled) { background: var(--surface-3); }
+.motm-pick:disabled { cursor: default; opacity: 0.75; }
+.motm-pick.chosen {
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+  background: var(--gold-100);
+  font-weight: 600;
+}
+/* Holds the tick's place, so choosing somebody does not shuffle every other
+   name along by the width of an icon. */
+.motm-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex: none;
+  color: var(--gold-700);
+}
+.motm-pick > span:nth-child(2) { flex: 1; min-width: 0; }
+.motm-count { font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+
+.motm-winner {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s2) 0;
+  color: var(--gold-700);
+}
+
+.motm-all { margin-top: var(--s2); font-size: 0.85rem; }
+.motm-all ul { margin: var(--s2) 0 0; padding: 0; list-style: none; }
+.motm-all li { display: flex; justify-content: space-between; padding: 2px 0; }

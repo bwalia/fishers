@@ -75,6 +75,19 @@ struct ChatMessage: Codable, Identifiable, Equatable {
 
     var isFromAgent: Bool { kind == "agent" }
     var authorLabel: String { senderName ?? "Assistant" }
+
+    /// The man-of-the-match vote this message opened, if it opened one.
+    ///
+    /// Only the message that *opened* the vote carries a card. The server
+    /// also posts the result when voting closes, and that message carries the
+    /// same poll id — but the card already shows the result once it reloads,
+    /// so honouring both would put two identical cards in the thread.
+    var motmPollId: UUID? {
+        guard case let .string(kind)? = metadata?["kind"], kind == "motm_poll",
+              case let .string(raw)? = metadata?["motm_poll_id"]
+        else { return nil }
+        return UUID(uuidString: raw)
+    }
 }
 
 enum ProposalKind: String, Codable {

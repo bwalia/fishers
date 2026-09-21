@@ -1,7 +1,10 @@
 //! Push and email delivery.
 //!
-//! Browser push is real (see `webpush`); APNs is still a stub.
+//! Both halves are real: browsers over Web Push (`webpush`), iPhones over
+//! APNs (`apns`). Either can be unconfigured, and an unconfigured one is
+//! quiet rather than broken.
 
+pub mod apns;
 pub mod webpush;
 pub mod whatsapp;
 
@@ -17,14 +20,12 @@ use uuid::Uuid;
 pub struct PushService {
     pub bundle_id: String,
     pub web: webpush::WebPushService,
+    pub apns: apns::ApnsService,
 }
 
 impl Default for PushService {
     fn default() -> Self {
-        Self {
-            bundle_id: "com.fishers.app".into(),
-            web: webpush::WebPushService::from_env(),
-        }
+        Self::from_env()
     }
 }
 
@@ -34,16 +35,17 @@ impl PushService {
             bundle_id: std::env::var("APNS_BUNDLE_ID")
                 .unwrap_or_else(|_| "com.fishers.app".into()),
             web: webpush::WebPushService::from_env(),
+            apns: apns::ApnsService::from_env(),
         }
     }
 
     /// Deliver to every device this person has registered.
     ///
-    /// Browsers get a real encrypted push; iOS is still a log line until APNs
-    /// is wired. A failure to one device never stops the others, and a
-    /// subscription the push service says is gone is deleted rather than
-    /// retried until the end of time — browsers rotate them on reinstall, so
-    /// dead rows accumulate quietly otherwise.
+    /// Browsers get an encrypted Web Push, iPhones an APNs alert. A failure
+    /// to one device never stops the others, and a token either service says
+    /// is gone is deleted rather than retried until the end of time — both
+    /// browsers and phones rotate them on reinstall, so dead rows accumulate
+    /// quietly otherwise.
     pub async fn send(
         &self,
         pool: &sqlx::PgPool,
@@ -66,20 +68,30 @@ impl PushService {
 
         let mut dead = Vec::new();
         for (id, token, platform) in devices {
-            if platform != "web" {
-                info!(%user_id, notification_type, platform, "APNs push stub");
-                continue;
-            }
-            let Ok(subscription) = serde_json::from_str::<webpush::PushSubscription>(&token) else {
-                // Not a subscription at all. It will never become one.
-                dead.push(id);
-                continue;
+            let outcome = if platform == "web" {
+                let Ok(subscription) = serde_json::from_str::<webpush::PushSubscription>(&token)
+                else {
+                    // Not a subscription at all. It will never become one.
+                    dead.push(id);
+                    continue;
+                };
+                self.web.send(&subscription, title, body, url, tag).await
+            } else {
+                if !self.apns.is_configured() {
+                    // No key on this server. Said once per push rather than
+                    // per device, and at debug: the notification is stored
+                    // either way, so this is a note, not a failure.
+                    tracing::debug!(%user_id, notification_type, "iOS push is off");
+                    continue;
+                }
+                self.apns.send(&token, title, body, &payload, tag).await
             };
-            match self.web.send(&subscription, title, body, url, tag).await {
+
+            match outcome {
                 webpush::PushOutcome::Delivered => {}
                 webpush::PushOutcome::Gone => dead.push(id),
                 webpush::PushOutcome::Failed(error) => {
-                    tracing::warn!(%user_id, notification_type, error, "web push failed");
+                    tracing::warn!(%user_id, notification_type, platform, error, "push failed");
                 }
             }
         }
