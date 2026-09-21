@@ -20,6 +20,11 @@ pub struct MotmPoll {
     pub conversation_id: Option<Uuid>,
     pub message_id: Option<Uuid>,
     pub title: String,
+    /// The match result as it stood when the card was posted — "Match tied",
+    /// "Hemel won by 7 wickets". Kept so a later completion (a super over, a
+    /// corrected last ball) can be told apart from the same result arriving
+    /// twice, which is routine.
+    pub result: Option<String>,
     /// `open` | `closed`
     pub status: String,
     pub closes_at: DateTime<Utc>,
