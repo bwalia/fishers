@@ -126,12 +126,73 @@ from a `.p8` key. The app registers for remote notifications after sign-in —
 not on first launch, because iOS shows the permission prompt once and spending
 it on a stranger wastes it.
 
-Configure with `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (or
-`APNS_PRIVATE_KEY_PATH`), `APNS_BUNDLE_ID` and `APNS_ENVIRONMENT`; see
-`.env.example`. Unconfigured is a normal state — the app's bell still works and
-the phone simply stays quiet.
+### Getting a key
 
-`APNS_ENVIRONMENT` must match the build. A Debug or TestFlight token is only
-valid against the sandbox, an App Store one only against production, and
-getting this the wrong way round is the usual reason a correct setup comes back
-`BadDeviceToken`.
+Only a person with the Apple Developer account can do this, and the `.p8`
+downloads exactly once — Apple keeps no copy.
+
+1. developer.apple.com → Certificates, Identifiers & Profiles → **Keys** → **+**
+2. Name it (`Fishers APNs`), tick **Apple Push Notifications service (APNs)**,
+   Continue → Register
+3. **Download** the `.p8`. Note the **Key ID** on that page.
+4. The **Team ID** is the ten characters top-right of the portal, and is
+   already in `ios/project.yml` as `DEVELOPMENT_TEAM`.
+
+It is one key per team, not per app — if one already exists under Keys with
+APNs enabled, use that rather than making a second.
+
+### Configuring it
+
+```
+APNS_KEY_ID=ABC123DEFG
+APNS_TEAM_ID=PAS2QUVJHC
+APNS_BUNDLE_ID=com.fishers.app
+APNS_PRIVATE_KEY_PATH=.dev/AuthKey_ABC123DEFG.p8   # or APNS_PRIVATE_KEY=<the PEM>
+APNS_ENVIRONMENT=sandbox                           # production for App Store builds
+```
+
+`.dev/` is gitignored, which is where a local key belongs. In the cluster the
+same names go into Vault at `kv/fishers/<ring>/config` — the ExternalSecret
+uses `dataFrom.extract`, so a key added there reaches the API on the next
+deploy with no chart change.
+
+`APNS_PRIVATE_KEY` takes the key in whatever shape the store hands back:
+
+- the PEM itself, as `cat AuthKey_XXX.p8` prints it;
+- the PEM with literal `\n`, because a `.env` file cannot hold a newline;
+- **base64 of the whole file**, which is how this repo already keeps the App
+  Store Connect key (`ASC_PRIVATE_KEY_B64`) — secret UIs mangle multi-line
+  values, and `ios/ci/load-ios-vault-secrets.sh` has the scar tissue to prove
+  it. `base64 -i AuthKey_XXX.p8 | pbcopy`.
+
+Unconfigured is a normal state — the bell still fills up and the phone stays
+quiet. The API says which at startup:
+
+```
+INFO fishers_notifications::apns: iOS push on bundle_id="com.fishers.app" host="https://api.sandbox.push.apple.com"
+INFO fishers_notifications::apns: APNS_KEY_ID / APNS_TEAM_ID / APNS_PRIVATE_KEY not all set: iOS push is off
+```
+
+### Checking it
+
+```bash
+./scripts/apns-check.sh                  # the key, the ids, and an ES256 JWT
+./scripts/apns-check.sh <device-token>   # …and send a real push to a phone
+```
+
+It talks to Apple rather than checking the file parses, and reads the refusal
+back. The device token is the hex string the app registers; it is in
+`device_tokens.device_token` for a signed-in account.
+
+Three things go wrong, and all three look identical from the app — nothing
+arrives:
+
+| Apple says | What it actually means |
+|---|---|
+| `BadDeviceToken` | **Usually the environment, not the token.** A Debug or TestFlight build's token is only valid against the sandbox; an App Store build's only against production. |
+| `InvalidProviderToken` | The credentials, not the device. Key ID and Team ID are both ten characters — check they are not swapped, and that the key has APNs enabled. |
+| `DeviceTokenNotForTopic` | The token belongs to a different app than `APNS_BUNDLE_ID`. |
+
+A credential failure never deletes anybody's token: only `410 Gone`,
+`BadDeviceToken` and `Unregistered` retire a row. A misconfigured key must not
+quietly unsubscribe a whole club.

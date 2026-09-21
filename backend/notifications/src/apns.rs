@@ -26,6 +26,7 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use base64::Engine as _;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -132,6 +133,7 @@ impl ApnsService {
         // Parsed once, at boot: a malformed key should fail here, where
         // somebody is watching the log, rather than on the first notification
         // of a Saturday afternoon.
+        let pem = normalise_key(&pem);
         let key = match EncodingKey::from_ec_pem(pem.as_bytes()) {
             Ok(key) => Some(Arc::new(key)),
             Err(error) => {
@@ -212,23 +214,7 @@ impl ApnsService {
             return PushOutcome::Failed("APNs is not configured".into());
         };
 
-        let mut message = json!({
-            "aps": {
-                "alert": { "title": title, "body": body },
-                "sound": "default",
-                // Lets iOS badge and group them; the app re-reads the real
-                // unread count from /notifications when it opens.
-                "thread-id": collapse.unwrap_or("fishers"),
-            }
-        });
-        // Custom keys sit beside `aps`, never inside it.
-        if let (Some(object), Some(extra)) = (message.as_object_mut(), payload.as_object()) {
-            for (key, value) in extra {
-                if key != "aps" {
-                    object.insert(key.clone(), value.clone());
-                }
-            }
-        }
+        let message = alert_payload(title, body, payload, collapse);
 
         let url = format!("{}/3/device/{device_token}", self.host);
         let mut request = self
@@ -242,9 +228,8 @@ impl ApnsService {
             .header("apns-expiration", expiry_in(48 * 3600).to_string())
             .header("apns-priority", "10")
             .json(&message);
-        if let Some(collapse) = collapse {
-            // Apple caps this at 64 bytes and rejects anything longer.
-            request = request.header("apns-collapse-id", &collapse[..collapse.len().min(64)]);
+        if let Some(collapse) = collapse_id(collapse) {
+            request = request.header("apns-collapse-id", collapse);
         }
 
         let response = match request.send().await {
@@ -252,35 +237,117 @@ impl ApnsService {
             Err(error) => return PushOutcome::Failed(error.to_string()),
         };
 
-        let status = response.status();
-        if status.is_success() {
+        let status = response.status().as_u16();
+        if (200..300).contains(&status) {
             return PushOutcome::Delivered;
         }
+        classify(status, &reason_from(response.text().await.ok()))
+    }
+}
 
-        let reason = response
-            .text()
-            .await
-            .ok()
-            .and_then(|body| {
-                serde_json::from_str::<Value>(&body)
-                    .ok()
-                    .and_then(|v| v.get("reason").and_then(Value::as_str).map(str::to_owned))
-                    .or(Some(body))
-            })
-            .unwrap_or_default();
-
-        // 410 Gone, and 400 BadDeviceToken, both mean this token will never
-        // work again — the app was deleted, or the build moved between the
-        // sandbox and production environments. Deleting the row is right;
-        // retrying it forever is what fills a log with noise.
-        let dead = status.as_u16() == 410
-            || reason.contains("BadDeviceToken")
-            || reason.contains("Unregistered");
-        if dead {
-            PushOutcome::Gone
-        } else {
-            PushOutcome::Failed(format!("APNs {status}: {reason}"))
+/// The body APNs is sent: the `aps` dictionary, and the app's own keys beside
+/// it — never inside it, which is the one way to get a payload silently
+/// ignored by iOS.
+fn alert_payload(title: &str, body: &str, payload: &Value, collapse: Option<&str>) -> Value {
+    let mut message = json!({
+        "aps": {
+            "alert": { "title": title, "body": body },
+            "sound": "default",
+            // Lets iOS group them; the app re-reads the real unread count
+            // from /notifications when it opens.
+            "thread-id": collapse.unwrap_or("fishers"),
         }
+    });
+    if let (Some(object), Some(extra)) = (message.as_object_mut(), payload.as_object()) {
+        for (key, value) in extra {
+            if key != "aps" {
+                object.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    message
+}
+
+/// Apple caps `apns-collapse-id` at 64 *bytes* and rejects anything longer.
+///
+/// Truncated on a character boundary, not at byte 64: slicing a `&str` mid
+/// character panics, and these ids come from notification payloads rather
+/// than from a fixed list, so a club with an emoji in its name would have
+/// taken the whole push thread down with it.
+fn collapse_id(raw: Option<&str>) -> Option<&str> {
+    let raw = raw?;
+    if raw.is_empty() {
+        return None;
+    }
+    if raw.len() <= 64 {
+        return Some(raw);
+    }
+    let mut end = 64;
+    while end > 0 && !raw.is_char_boundary(end) {
+        end -= 1;
+    }
+    (end > 0).then(|| &raw[..end])
+}
+
+/// APNs answers a refusal as `{"reason": "BadDeviceToken"}`. Anything else it
+/// sends is kept whole rather than thrown away — an unrecognised body is the
+/// thing worth reading in a log.
+fn reason_from(body: Option<String>) -> String {
+    let Some(body) = body else {
+        return String::new();
+    };
+    serde_json::from_str::<Value>(&body)
+        .ok()
+        .and_then(|v| v.get("reason").and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or(body)
+}
+
+/// Whether this token is worth keeping.
+///
+/// 410 Gone, and 400 BadDeviceToken, both mean it will never work again — the
+/// app was deleted, or the build moved between the sandbox and production
+/// environments. Deleting the row is right. Everything else is this attempt
+/// failing, not the token: APNs being down must not quietly unsubscribe a
+/// club from its own notifications.
+fn classify(status: u16, reason: &str) -> PushOutcome {
+    let dead = status == 410
+        || reason.contains("BadDeviceToken")
+        || reason.contains("Unregistered")
+        || reason.contains("DeviceTokenNotForTopic");
+    if dead {
+        PushOutcome::Gone
+    } else {
+        PushOutcome::Failed(format!("APNs {status}: {reason}"))
+    }
+}
+
+/// The .p8 as PEM, however it was stored.
+///
+/// Three shapes reach this, and all three are somebody doing the sensible
+/// thing with the tool in front of them:
+///
+///   - the PEM itself, which is what `cat AuthKey_XXX.p8` gives;
+///   - the PEM with literal `\n` in it, because a .env file cannot hold a
+///     newline and pasting one in is the obvious move;
+///   - base64 of the whole file, which is how this repo already stores the
+///     App Store Connect key (`ASC_PRIVATE_KEY_B64`) — secret UIs mangle
+///     multi-line values, and the iOS release scripts have the scar tissue
+///     to prove it.
+///
+/// Anything unrecognised is handed back unchanged, so the parse fails with
+/// the key's own error rather than one invented here.
+fn normalise_key(raw: &str) -> String {
+    let text = raw.trim().trim_matches('"').trim_matches('\'').trim();
+    if text.contains("BEGIN") {
+        return text.replace("\\n", "\n");
+    }
+    let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+    match base64::engine::general_purpose::STANDARD.decode(&compact) {
+        Ok(bytes) => match String::from_utf8(bytes) {
+            Ok(decoded) if decoded.contains("BEGIN") => decoded,
+            _ => text.to_string(),
+        },
+        Err(_) => text.to_string(),
     }
 }
 
@@ -289,4 +356,148 @@ fn expiry_in(seconds: u64) -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() + seconds)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The app's own keys route a tap — which conversation, which poll. Put
+    /// inside `aps` they are silently ignored by iOS, so this is the shape
+    /// that matters.
+    #[test]
+    fn custom_keys_sit_beside_aps_not_inside_it() {
+        let payload = json!({ "conversation_id": "abc", "url": "/chat/abc" });
+        let message = alert_payload("Man of the match", "Vote now", &payload, None);
+
+        assert_eq!(message["conversation_id"], "abc");
+        assert_eq!(message["url"], "/chat/abc");
+        assert!(message["aps"]["conversation_id"].is_null());
+        assert_eq!(message["aps"]["alert"]["title"], "Man of the match");
+        assert_eq!(message["aps"]["alert"]["body"], "Vote now");
+    }
+
+    /// A payload cannot smuggle its own `aps` in and overwrite the alert.
+    #[test]
+    fn a_payload_cannot_replace_the_aps_dictionary() {
+        let payload = json!({ "aps": { "alert": "hijacked" }, "keep": 1 });
+        let message = alert_payload("Real", "Body", &payload, None);
+        assert_eq!(message["aps"]["alert"]["title"], "Real");
+        assert_eq!(message["keep"], 1);
+    }
+
+    /// Apple caps the collapse id at 64 bytes. Truncating at byte 64 would
+    /// panic when that byte falls inside a character — a club with an emoji
+    /// in its name would have taken the whole push thread down.
+    #[test]
+    fn a_long_collapse_id_is_cut_on_a_character_boundary() {
+        let emoji = "🏏".repeat(40); // 4 bytes each: 160
+        let cut = collapse_id(Some(&emoji)).expect("something survives");
+        assert!(cut.len() <= 64, "{} bytes", cut.len());
+        assert!(emoji.starts_with(cut));
+        // The proof it did not slice mid-character: it is still valid UTF-8
+        // made of whole cricket balls.
+        assert_eq!(cut.chars().count(), 16);
+    }
+
+    #[test]
+    fn a_short_collapse_id_is_left_alone() {
+        assert_eq!(collapse_id(Some("motm_vote_open")), Some("motm_vote_open"));
+        assert_eq!(collapse_id(None), None);
+        assert_eq!(collapse_id(Some("")), None);
+    }
+
+    /// A token APNs says is gone gets deleted. Anything else is this attempt
+    /// failing — APNs being down must not unsubscribe a club from its own
+    /// notifications.
+    #[test]
+    fn only_a_dead_token_is_thrown_away() {
+        assert!(matches!(classify(410, "Unregistered"), PushOutcome::Gone));
+        assert!(matches!(classify(400, "BadDeviceToken"), PushOutcome::Gone));
+        assert!(matches!(
+            classify(400, "DeviceTokenNotForTopic"),
+            PushOutcome::Gone
+        ));
+
+        assert!(matches!(classify(503, "ServiceUnavailable"), PushOutcome::Failed(_)));
+        assert!(matches!(classify(429, "TooManyRequests"), PushOutcome::Failed(_)));
+        // A bad provider token is *our* problem, not the device's. Deleting
+        // every row on a misconfigured key would be a very bad afternoon.
+        assert!(matches!(classify(403, "InvalidProviderToken"), PushOutcome::Failed(_)));
+    }
+
+    /// The failure a human reads has to name the status and the reason.
+    #[test]
+    fn a_failure_says_what_apns_said() {
+        let PushOutcome::Failed(message) = classify(403, "ExpiredProviderToken") else {
+            panic!("a 403 is not a dead token");
+        };
+        assert!(message.contains("403"), "{message}");
+        assert!(message.contains("ExpiredProviderToken"), "{message}");
+    }
+
+    #[test]
+    fn a_reason_is_read_out_of_apnss_json_or_kept_whole() {
+        assert_eq!(reason_from(Some(r#"{"reason":"BadDeviceToken"}"#.into())), "BadDeviceToken");
+        // Not JSON — worth keeping verbatim rather than discarding.
+        assert_eq!(reason_from(Some("502 Bad Gateway".into())), "502 Bad Gateway");
+        assert_eq!(reason_from(None), "");
+    }
+
+    /// A key is a key however the secret store mangled it on the way in.
+    #[test]
+    fn a_p8_is_recognised_in_every_shape_it_arrives_in() {
+        // Not a real key — the shape is what is under test, not the maths.
+        let pem = "-----BEGIN PRIVATE KEY-----\nMIGHAgEA\n-----END PRIVATE KEY-----";
+
+        // Straight from `cat AuthKey_XXX.p8`.
+        assert_eq!(normalise_key(pem), pem);
+
+        // Out of a .env file, which cannot hold a newline.
+        let escaped = pem.replace('\n', "\\n");
+        assert_eq!(normalise_key(&escaped), pem);
+
+        // Base64 of the whole file — how this repo already stores the App
+        // Store Connect key, because secret UIs mangle multi-line values.
+        let encoded = base64::engine::general_purpose::STANDARD.encode(pem);
+        assert_eq!(normalise_key(&encoded), pem);
+
+        // Base64 that a text box wrapped, and one a UI quoted.
+        let wrapped = encoded
+            .as_bytes()
+            .chunks(20)
+            .map(|c| String::from_utf8_lossy(c).to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_eq!(normalise_key(&wrapped), pem);
+        assert_eq!(normalise_key(&format!("\"{encoded}\"")), pem);
+    }
+
+    /// Something that is not a key at all is handed back untouched, so the
+    /// parse fails with the key's own error rather than one invented here.
+    #[test]
+    fn junk_is_left_for_the_parser_to_reject() {
+        assert_eq!(normalise_key("not a key"), "not a key");
+        // Valid base64 of something that is not a PEM.
+        let noise = base64::engine::general_purpose::STANDARD.encode("hello");
+        assert_eq!(normalise_key(&noise), noise);
+    }
+
+    /// Unconfigured is a normal state: the bell still fills up and the phone
+    /// stays quiet, rather than the server erroring on every notification.
+    #[test]
+    fn an_unconfigured_service_is_quiet_rather_than_broken() {
+        let service = ApnsService {
+            key_id: String::new(),
+            team_id: String::new(),
+            bundle_id: "com.fishers.app".into(),
+            host: SANDBOX,
+            key: None,
+            token: Arc::new(RwLock::new(None)),
+            client: reqwest::Client::new(),
+        };
+        assert!(!service.is_configured());
+        // And it never leaks the key material into a log line.
+        assert!(!format!("{service:?}").contains("key_id"));
+    }
 }

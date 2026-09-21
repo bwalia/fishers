@@ -21,11 +21,29 @@ use tracing_subscriber::EnvFilter;
 
 use crate::state::AppState;
 
+/// What the API logs when RUST_LOG says nothing.
+///
+/// Every crate in this workspace is named. The old default was
+/// `fishers_api=debug` alone, which meant the lines saying whether email and
+/// iOS push had come up — and every push that failed — went nowhere, because
+/// they are written by `fishers_notifications`. `scripts/start.sh` sets the
+/// same list; the two have to agree or a local run hides what a deploy shows.
+const DEFAULT_LOG: &str = "warn,fishers_api=debug,fishers_notifications=info,\
+fishers_db=info,fishers_jobs=info,fishers_agent=info,tower_http=info,sqlx=warn";
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
+    // RUST_LOG wins when it is set. Without it the default was
+    // `fishers_api=debug` and ERROR for everything else — which silently hid
+    // every line the other crates in this workspace write, including the two
+    // that say whether email and iOS push came up at all, and every push
+    // that failed. An operator could not tell a working APNs key from a
+    // missing one without attaching a debugger.
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive("fishers_api=debug".parse()?))
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new(DEFAULT_LOG)
+        }))
         .init();
 
     let database_url = std::env::var("DATABASE_URL")
