@@ -1466,19 +1466,6 @@ textarea { line-height: 1.5; resize: vertical; }
 /* Result header */
 .result-panel { border-left: 3px solid var(--accent); }
 .result-line { margin: var(--s2) 0 var(--s3); font-size: 1.6rem; }
-.result-innings {
-  display: flex;
-  gap: var(--s5);
-  flex-wrap: wrap;
-  margin-bottom: var(--s2);
-}
-.result-side .result-score {
-  font-family: var(--font-display);
-  font-size: 1.8rem;
-  font-weight: 700;
-}
-.result-side.won .result-score { color: var(--primary-ink); }
-
 /* ---------- QR codes and tabs ---------- */
 
 .qr-grid {

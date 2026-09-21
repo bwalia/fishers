@@ -657,11 +657,13 @@ test("Step 17 — The result", async () => {
     await page.goto(`/score/${matchId}`);
     await expect(page.locator(".result-line"), `${a.who.name} sees the result`).toContainText(expected);
     await expect(page.locator(".status-pill")).toHaveText(/complete/i);
-    const sides = page.locator(".result-side");
+    // One card per innings, in the order they batted. A super over gets its
+    // own card here too, which is why these are indexed rather than counted.
+    const sides = page.locator(".innings-card");
     await expect(sides.nth(0)).toContainText(`${inn1.runs}-${inn1.wickets}`);
-    await expect(sides.nth(0)).toContainText(`(${inn1.overs} ov)`);
+    await expect(sides.nth(0)).toContainText(`${inn1.overs} ov`);
     await expect(sides.nth(1)).toContainText(`${inn2.runs}-${inn2.wickets}`);
-    await expect(sides.nth(1)).toContainText(`(${inn2.overs} ov)`);
+    await expect(sides.nth(1)).toContainText(`${inn2.overs} ov`);
     await verifyScorecard(page, 0, inn1, `1st innings (${a.who.name})`);
     await verifyScorecard(page, 1, inn2, `2nd innings (${a.who.name})`);
   }
