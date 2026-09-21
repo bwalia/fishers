@@ -47,6 +47,14 @@ enum APIError: LocalizedError {
     }
 
     var isUnverified: Bool { code == "unverified" }
+
+    /// Refused on permissions, rather than failed. Lets a screen say what the
+    /// refusal means in its own terms where the API's shared wording — which
+    /// names the permission — is too technical to put in front of somebody.
+    var isForbidden: Bool {
+        if case .http(403, _) = self { return true }
+        return false
+    }
 }
 
 /// Shared JSON decoder for API payloads. Accepts ISO-8601 with or without

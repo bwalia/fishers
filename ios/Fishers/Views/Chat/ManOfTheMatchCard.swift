@@ -102,6 +102,17 @@ struct ManOfTheMatchCard: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer()
+            // Offered to everybody, the same as on the dashboard. Most people
+            // get a 403, which the card shows as the sentence the API sent —
+            // better than hiding the button behind this app's own guess at
+            // who counts as a captain, which is the server's call to make.
+            Button("Close the vote") {
+                Task { await store.close() }
+            }
+            .font(.caption2.weight(.semibold))
+            .buttonStyle(.plain)
+            .foregroundStyle(FishersTheme.accent)
+            .disabled(store.isVoting)
         }
     }
 

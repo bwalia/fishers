@@ -49,17 +49,23 @@ final class MotmStore: ObservableObject {
         }
     }
 
-    /// Captain or secretary. A 403 here is ordinary — most people cannot
-    /// close a vote — so the button is only offered once the server has
-    /// said it would work, and a refusal is shown as the sentence it sent.
+    /// Captain or secretary. A refusal here is ordinary — most of a club
+    /// cannot close a vote — so it is said plainly. The shared RBAC error
+    /// answers with the permission's own name ("cannot manage_events"),
+    /// which is the right sentence for an API and the wrong one for a card
+    /// every member of the club is going to tap once.
     func close() async {
         isVoting = true
         defer { isVoting = false }
         errorMessage = nil
         do {
             view = try await FishersAPI.closeManOfTheMatchVote(pollId: pollId)
+        } catch let error as APIError {
+            errorMessage = error.isForbidden
+                ? "Only a captain or club secretary can close the vote."
+                : error.friendlyMessage
         } catch {
-            errorMessage = (error as? APIError)?.friendlyMessage ?? error.localizedDescription
+            errorMessage = error.localizedDescription
         }
     }
 }

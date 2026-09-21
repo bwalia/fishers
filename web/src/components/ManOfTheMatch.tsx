@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { readErr } from "@/lib/api";
+import { isForbidden, readErr } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import {
   castVote,
@@ -79,7 +79,15 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
     try {
       setPoll(await closeVote(pollId));
     } catch (err) {
-      setError(readErr(err, "Could not close the vote"));
+      // Most of a club cannot close a vote, so a refusal is ordinary and is
+      // said plainly. The shared RBAC error answers with the permission's own
+      // name ("cannot manage_events") — the right sentence for an API and the
+      // wrong one for a card every member is going to click once.
+      setError(
+        isForbidden(err)
+          ? "Only a captain or club secretary can close the vote."
+          : readErr(err, "Could not close the vote")
+      );
     } finally {
       setBusy(false);
     }

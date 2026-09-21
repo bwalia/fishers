@@ -163,17 +163,22 @@ pub async fn close_and_announce(
                 .map(|row| row.display_name.as_str())
                 .collect();
             format!(
-                "The man-of-the-match vote is a tie on {} votes: {}. A captain picks.",
+                "The man-of-the-match vote is a tie on {} {}: {}. A captain picks.",
                 first.votes,
+                if first.votes == 1 { "vote" } else { "votes" },
                 names.join(", ")
             )
         }
-        (Some(first), false) => format!(
-            "{} is your man of the match with {} of {} votes.",
-            first.display_name,
-            first.votes,
-            tally.iter().map(|row| row.votes).sum::<i64>()
-        ),
+        (Some(first), false) => {
+            let total = tally.iter().map(|row| row.votes).sum::<i64>();
+            format!(
+                "{} is your man of the match with {} of {} {}.",
+                first.display_name,
+                first.votes,
+                total,
+                if total == 1 { "vote" } else { "votes" }
+            )
+        }
     };
 
     if let Some(conversation_id) = closed
