@@ -1,0 +1,13 @@
+-- What the match result said when the vote opened.
+--
+-- A match reaches "complete" more than once. A tie sets the status with no
+-- winner, and the super over that settles it is played *afterwards* — so the
+-- vote opens, correctly, on a scoreline that is about to be overtaken. The
+-- chat then read "Match tied" for the rest of the evening while the scorecard
+-- and the live board showed Kings Langley had won the super over.
+--
+-- Holding the result the card was posted with is what makes the difference
+-- detectable: on any later completion the service compares, and says so in
+-- the thread when it has changed. Nullable because a match with no margin
+-- recorded is a match nobody has finished scoring.
+ALTER TABLE motm_polls ADD COLUMN IF NOT EXISTS result TEXT;

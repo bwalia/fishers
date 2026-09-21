@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 const POLL_COLS: &str = "id, club_id, event_id, match_id, conversation_id, message_id, title, \
-     status, closes_at, winner_user_id, created_at, closed_at";
+     result, status, closes_at, winner_user_id, created_at, closed_at";
 
 /// A name on a team sheet, ready to go on the ballot.
 #[derive(Debug, Clone)]
@@ -26,20 +26,22 @@ pub struct CandidateInput {
 /// rather than replaced: somebody who came on as a substitute after the first
 /// poll opened joins the list, and nobody who has already been voted for
 /// falls off it.
+#[allow(clippy::too_many_arguments)]
 pub async fn open_poll(
     pool: &PgPool,
     club_id: Uuid,
     event_id: Uuid,
     match_id: Option<Uuid>,
     title: &str,
+    result: Option<&str>,
     closes_at: DateTime<Utc>,
     candidates: &[CandidateInput],
 ) -> Result<(MotmPoll, bool), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let inserted = sqlx::query_as::<_, MotmPoll>(&format!(
-        "INSERT INTO motm_polls (club_id, event_id, match_id, title, closes_at)
-         VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO motm_polls (club_id, event_id, match_id, title, result, closes_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (event_id) DO NOTHING
          RETURNING {POLL_COLS}"
     ))
@@ -47,6 +49,7 @@ pub async fn open_poll(
     .bind(event_id)
     .bind(match_id)
     .bind(title)
+    .bind(result)
     .bind(closes_at)
     .fetch_optional(&mut *tx)
     .await?;
@@ -82,6 +85,33 @@ pub async fn open_poll(
 
     tx.commit().await?;
     Ok((poll, is_new))
+}
+
+/// Record a match result that has moved on, and say whether it actually had.
+///
+/// The write *is* the check: `IS DISTINCT FROM` means only the caller whose
+/// update changed the row gets `true` back, so the follow-up is posted once
+/// however many replicas saw the same super over finish. Doing it the other
+/// way round — read, compare, write — is two API pods announcing the same
+/// result twice to the same thread.
+///
+/// `NULL` is handled by `IS DISTINCT FROM` rather than `<>`, which would
+/// answer NULL (falsy) for a poll opened before a margin was recorded and
+/// leave that result silently unannounced.
+pub async fn record_result_change(
+    pool: &PgPool,
+    poll_id: Uuid,
+    result: Option<&str>,
+) -> Result<bool, sqlx::Error> {
+    let done = sqlx::query(
+        "UPDATE motm_polls SET result = $2
+          WHERE id = $1 AND result IS DISTINCT FROM $2",
+    )
+    .bind(poll_id)
+    .bind(result)
+    .execute(pool)
+    .await?;
+    Ok(done.rows_affected() > 0)
 }
 
 /// Remember where the vote card was posted, so a client holding the message

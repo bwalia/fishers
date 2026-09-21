@@ -15,6 +15,18 @@ This is the other half, and the two are kept apart on purpose. The vote never
 silently overwrites an award the scorer gave; it fills one in when they gave
 none.
 
+Since the post-match awards work there is a third thing in the picture, and
+the three form a precedence rather than a competition:
+
+| | | |
+|---|---|---|
+| Scorer's pick | `player_of_the_match`, stored in the log | wins if it is set |
+| The club's vote | this feature | fills the field when the scorer named nobody |
+| The computed ranking | `MatchState::impact()` | shown when the field is still empty, captioned "Worked out from the card" |
+
+So the club's vote replaces the app's suggestion on the scorecard rather than
+sitting beside it, and a scorer who has already given the award keeps it.
+
 ## The shape of it
 
 When a cricket match reaches `Complete` for the first time:
@@ -65,6 +77,19 @@ card, re-notifying two clubs, or splitting the vote across two polls.
 sweeper runs every quarter of an hour, so there is always a window where the two
 disagree; `MotmPoll::is_open` reads both, and every client does the same.
 
+**A result can change after the card goes up.** A tie sets the status with no
+winner, and the super over that settles it is played *afterwards* — so the vote
+opens, correctly, on a scoreline about to be overtaken. Deferring the vote until
+a super over could not happen would be worse: a tie left as a tie is ordinary at
+club level and would get no vote at all. Instead `motm_polls.result` holds the
+scoreline the card was posted with, and a later completion that differs posts one
+note to the thread. The ballot is untouched — it was the same twenty-two players
+either way — and nobody is pushed a second time.
+
+The comparison is the write: `UPDATE … WHERE result IS DISTINCT FROM $2` means
+only the replica whose update changed the row announces it, so two API pods
+watching the same last ball land do not both post.
+
 ## API
 
 | | |
@@ -83,7 +108,7 @@ The poll's own fields are flattened into the response beside `candidates`,
 
 | | |
 |---|---|
-| Schema | `backend/db/migrations/20260921000001_man_of_the_match.sql` |
+| Schema | `backend/db/migrations/20260921000001_man_of_the_match.sql`, `…000002_motm_result_line.sql` |
 | Types | `backend/domain/src/motm.rs` |
 | Queries | `backend/db/src/repos/motm.rs` |
 | Opening, closing, announcing | `backend/api/src/services/motm.rs` |

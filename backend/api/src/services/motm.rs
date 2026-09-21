@@ -56,6 +56,7 @@ pub async fn open_for_completed_cricket_match(
         event_id,
         Some(match_id),
         &title,
+        match_state.margin.as_deref(),
         closes_at,
         &candidates,
     )
@@ -68,9 +69,13 @@ pub async fn open_for_completed_cricket_match(
         }
     };
 
-    // A match reaching "complete" a second time — a corrected last ball, a
-    // super over — must not repost the card or push everyone again.
+    // A match reaching "complete" a second time must not repost the card or
+    // push two rosters again. But it may have reached a *different* result:
+    // a tie sets the status with no winner and the super over that settles
+    // it is played afterwards, so the card goes up on a scoreline that is
+    // about to be overtaken. When that happens the thread is told, once.
     if !is_new {
+        announce_a_changed_result(state, &poll, match_state.margin.as_deref()).await;
         return;
     }
 
@@ -120,6 +125,67 @@ pub async fn open_for_completed_cricket_match(
         None,
     )
     .await;
+}
+
+/// Tell the thread the match ended differently from the card that is on it.
+///
+/// Only ever a note: the ballot is the same twenty-two players either way, so
+/// the vote carries on untouched and nobody is pushed a second time. They
+/// were watching the super over; what they need is the chat to stop saying
+/// the game was tied.
+async fn announce_a_changed_result(state: &AppState, poll: &MotmPoll, result: Option<&str>) {
+    // The write is the check — see `record_result_change`. Two replicas
+    // watching the same last ball land here together, and one of them posts.
+    match motm_repo::record_result_change(&state.pool, poll.id, result).await {
+        Ok(false) => return,
+        Ok(true) => {}
+        Err(error) => {
+            warn!(%error, %poll.id, "could not record the changed result");
+            return;
+        }
+    }
+    let Some(body) = changed_result_message(result, poll.is_open()) else {
+        return;
+    };
+
+    let Some(conversation_id) = poll
+        .conversation_id
+        .or(conversation_for(state, poll.club_id, poll.event_id).await)
+    else {
+        return;
+    };
+    if let Err(error) = chat_repo::post_message(
+        &state.pool,
+        conversation_id,
+        None,
+        "system",
+        &body,
+        // Not `motm_poll`: that is the kind the clients draw a card for, and
+        // a second card for the same vote is not what this is.
+        json!({ "kind": "motm_result_changed", "motm_poll_id": poll.id }),
+    )
+    .await
+    {
+        warn!(%error, %poll.id, "could not post the changed result");
+    }
+}
+
+/// What to say when the scoreline moved after the card went up.
+///
+/// `None` when there is nothing worth saying — a result that has gone *away*
+/// rather than changed, which is a match being unpicked rather than decided.
+fn changed_result_message(result: Option<&str>, voting_open: bool) -> Option<String> {
+    let result = result?.trim();
+    if result.is_empty() {
+        return None;
+    }
+    Some(if voting_open {
+        format!("{result}. The man-of-the-match vote is still open.")
+    } else {
+        // Closed already — a super over after a vote nobody hurried. The
+        // award stands: it was the club's, not the scoreboard's.
+        format!("{result}. The man-of-the-match vote has already closed.")
+    })
 }
 
 /// Close a poll, announce the result and record the award.
@@ -524,5 +590,36 @@ mod tests {
     #[test]
     fn no_team_sheet_is_no_ballot() {
         assert!(candidates_from(&MatchState::default()).is_empty());
+    }
+
+    /// The case this exists for: a tie opens the vote, the super over settles
+    /// it afterwards, and the thread has to stop saying the game was tied.
+    #[test]
+    fn a_super_over_result_is_announced_while_voting_continues() {
+        let result = "Kings Langley 2nd XI won the super over by 5 runs";
+        let body = changed_result_message(Some(result), true)
+            .expect("a changed result is worth saying");
+        assert_eq!(
+            body,
+            format!("{result}. The man-of-the-match vote is still open.")
+        );
+        // The scoreline leads, because that is what changed.
+        assert!(body.starts_with(result), "{body}");
+    }
+
+    /// A result that lands after the vote has closed says so: the award was
+    /// the club's, and a late scoreboard correction does not take it back.
+    #[test]
+    fn a_result_after_the_close_does_not_claim_voting_is_open() {
+        let body = changed_result_message(Some("Match tied"), false).unwrap();
+        assert!(body.ends_with("has already closed."), "{body}");
+    }
+
+    /// A margin that has gone away is a match being unpicked, not decided.
+    /// There is nothing to tell the thread.
+    #[test]
+    fn a_result_that_vanished_is_not_announced() {
+        assert!(changed_result_message(None, true).is_none());
+        assert!(changed_result_message(Some("   "), true).is_none());
     }
 }

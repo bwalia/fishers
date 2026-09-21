@@ -14,6 +14,9 @@ struct MotmPoll: Codable, Identifiable, Equatable {
     let conversationId: UUID?
     let messageId: UUID?
     var title: String
+    /// The match result as it stood when the card went up. A later completion
+    /// — a super over settling a tie — moves it, and the thread is told.
+    var result: String?
     /// `open` | `closed`
     var status: String
     var closesAt: Date
@@ -22,7 +25,7 @@ struct MotmPoll: Codable, Identifiable, Equatable {
     var closedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, status
+        case id, title, status, result
         case clubId = "club_id"
         case eventId = "event_id"
         case matchId = "match_id"

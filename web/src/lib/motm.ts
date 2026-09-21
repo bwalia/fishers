@@ -26,6 +26,9 @@ export type MotmPollView = {
   conversation_id: string | null;
   message_id: string | null;
   title: string;
+  /// The match result as it stood when the card went up. A later completion —
+  /// a super over settling a tie — moves it, and the thread is told.
+  result: string | null;
   /// `open` | `closed`
   status: string;
   closes_at: string;
