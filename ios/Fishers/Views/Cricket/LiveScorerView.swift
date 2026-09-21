@@ -340,7 +340,23 @@ struct LiveScorerView: View {
                 dlsRow
             }
 
-            if store.state.status == .inningsBreak {
+            // The reply to a super over also arrives at an innings break, and
+            // it is not "the second innings": it is one over, two wickets, and
+            // the other side's turn. Sending it down the normal path is what
+            // gave one side three innings and the other one.
+            if store.state.status == .inningsBreak && store.state.nextIsSuperOver {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(
+                        "\(store.state.name(for: store.state.superOverNextBatting ?? .away)) reply — one over, two wickets.",
+                        systemImage: "bolt.fill"
+                    )
+                    .font(FishersTheme.headline)
+                    .foregroundStyle(FishersTheme.seam)
+                    Button("Start the reply") { showSuperOver = true }
+                        .buttonStyle(.borderedProminent)
+                        .tint(FishersTheme.accent)
+                }
+            } else if store.state.status == .inningsBreak {
                 // The first decision of the break: naming the openers of a
                 // side you do not know is the wrong job, and this is the
                 // moment to pass it on.
@@ -1390,7 +1406,7 @@ private struct SecondInningsSheet: View {
             return
         }
         if store.append(.inningsStarted(
-            inningsIndex: 1, batting: batting,
+            inningsIndex: UInt8(store.state.innings.count), batting: batting,
             strikerId: s, nonStrikerId: ns, bowlerId: b
         )) {
             dismiss()
@@ -1642,16 +1658,27 @@ private struct AwardSheet: View {
 
     var body: some View {
         NavigationStack {
-            List(candidates) { player in
-                Button {
-                    _ = store.append(.playerOfTheMatch(playerId: player.id))
-                    dismiss()
-                } label: {
-                    HStack {
-                        Text(player.name)
-                        Spacer()
-                        if store.state.playerOfTheMatch == player.id {
-                            Image(systemName: "star.fill").foregroundStyle(FishersTheme.maybe)
+            List {
+                if !ranked.isEmpty {
+                    Section {
+                        ForEach(ranked) { player in
+                            row(
+                                id: player.playerId,
+                                name: player.name,
+                                detail: "\(store.state.name(for: player.side)) · \(player.line)",
+                                suggested: player.playerId == ranked[0].playerId
+                            )
+                        }
+                    } header: {
+                        Text("Who had the game")
+                    } footer: {
+                        Text("Ranked off the scorecard — runs and wickets weighed against how the match was going. The award is still yours to give.")
+                    }
+                }
+                if !others.isEmpty {
+                    Section("Did not feature") {
+                        ForEach(others) { player in
+                            row(id: player.id, name: player.name, detail: nil, suggested: false)
                         }
                     }
                 }
@@ -1667,8 +1694,52 @@ private struct AwardSheet: View {
         .presentationDetents([.medium, .large])
     }
 
-    private var candidates: [MatchPlayer] {
-        store.state.players(for: .home) + store.state.players(for: .away)
+    @ViewBuilder
+    private func row(id: UUID, name: String, detail: String?, suggested: Bool) -> some View {
+        Button {
+            _ = store.append(.playerOfTheMatch(playerId: id))
+            dismiss()
+        } label: {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                    if let detail {
+                        Text(detail)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if store.state.playerOfTheMatch == id {
+                    Image(systemName: "star.fill").foregroundStyle(FishersTheme.maybe)
+                } else if suggested {
+                    Text("Suggested")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .accessibilityLabel(accessibilityLabel(name: name, detail: detail, suggested: suggested))
+        // The label reads the whole row out; the identifier stays the bare
+        // name so the tour can still tap a player by name.
+        .accessibilityIdentifier(name)
+    }
+
+    private func accessibilityLabel(name: String, detail: String?, suggested: Bool) -> String {
+        [suggested ? "Suggested" : nil, name, detail]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
+    /// Everyone who batted, bowled or took a catch, best game first.
+    private var ranked: [PlayerImpact] { store.state.impact }
+
+    /// The rest of both sheets — a twelfth man can still be given it.
+    private var others: [MatchPlayer] {
+        let listed = Set(ranked.map(\.playerId))
+        return (store.state.players(for: .home) + store.state.players(for: .away))
+            .filter { !listed.contains($0.id) }
     }
 }
 
@@ -1732,7 +1803,7 @@ private struct SuperOverSheet: View {
     }
 
     private var batting: MatchSide {
-        store.state.superOverFirstBatting ?? .away
+        store.state.superOverNextBatting ?? .away
     }
 
     private var batters: [MatchPlayer] { store.state.players(for: batting) }

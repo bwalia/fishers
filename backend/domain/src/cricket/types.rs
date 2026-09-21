@@ -1063,12 +1063,29 @@ impl MatchState {
         self.status == MatchStatus::Complete
             && self.winner.is_none()
             && self.innings.len() >= 2
-            && self.innings.len() % 2 == 0
+            && self.innings.len().is_multiple_of(2)
     }
 
-    /// Which side bats first in the super over: whoever batted second last.
-    pub fn super_over_first_batting(&self) -> Option<MatchSide> {
-        self.innings.last().map(|inn| inn.batting)
+    /// Which side bats the next innings of a super over.
+    ///
+    /// The first one is opened by whoever batted second in the match — which
+    /// is the side that has just batted, so the same side bats twice running
+    /// across the join. After that they alternate like any other innings.
+    /// Getting this wrong is how one side came to bat three times and the
+    /// other once.
+    pub fn super_over_next_batting(&self) -> Option<MatchSide> {
+        let last = self.innings.last()?;
+        Some(if last.super_over {
+            last.batting.opposite()
+        } else {
+            last.batting
+        })
+    }
+
+    /// The innings about to start is part of a super over, whether it is the
+    /// first of a pair or the reply.
+    pub fn next_is_super_over(&self) -> bool {
+        self.needs_a_super_over() || self.innings.last().is_some_and(|inn| inn.super_over)
     }
 
     /// Anyone appointed to stand or to score — they may score the match.

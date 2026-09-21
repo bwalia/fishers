@@ -82,6 +82,42 @@ final class OfflineVenueModeTests: XCTestCase {
         XCTAssertEqual(event?.clubId, row.clubId)
     }
 
+    /// The team sheet's last resort at a ground with no signal. If this comes
+    /// back empty the scorer is typing twenty-two names by hand, and none of
+    /// them attach to a real profile.
+    func testRosterRoundTripKeepsWhoCaptains() throws {
+        let club = UUID(uuidString: "a1f63def-c9c9-4bf0-8ee1-6f375a59d402")!
+        let skipper = UUID(uuidString: "b19e7f6b-75ad-47b8-9d19-14932c99ad78")!
+        OfflineCache.saveRoster(clubId: club, players: [
+            OfflineCache.CachedPlayer(id: skipper, name: "Arjun Mehta", isCaptain: true),
+            OfflineCache.CachedPlayer(id: UUID(), name: "Tom Fisher", isCaptain: false),
+        ])
+
+        let loaded = OfflineCache.loadRoster(clubId: club)
+        XCTAssertEqual(loaded.count, 2)
+        XCTAssertEqual(loaded.first?.name, "Arjun Mehta")
+        XCTAssertEqual(loaded.filter { $0.isCaptain == true }.map(\.id), [skipper])
+    }
+
+    /// A club this device has never opened reads as empty, not as a crash —
+    /// the sheet falls through to typed names and the match still starts.
+    func testRosterForAnUnseenClubIsEmpty() throws {
+        XCTAssertTrue(OfflineCache.loadRoster(clubId: UUID()).isEmpty)
+    }
+
+    /// The cached roster is deliberately not the member record. This file is
+    /// unencrypted in Application Support, so if someone widens `CachedPlayer`
+    /// to carry contact details, this fails.
+    func testCachedRosterCarriesNoContactDetails() throws {
+        let encoded = try JSONEncoder().encode(
+            OfflineCache.CachedPlayer(id: UUID(), name: "Arjun Mehta", isCaptain: true)
+        )
+        let json = String(decoding: encoded, as: UTF8.self).lowercased()
+        for field in ["email", "phone", "address", "avatar"] {
+            XCTAssertFalse(json.contains(field), "\(field) must not reach the disk cache")
+        }
+    }
+
     func testLocalMatchHasPendingWorkIncludesPendingEvent() throws {
         // Mirror the flag the sync sweep uses — a fixture minted offline must
         // count as pending even before any ball is bowled.

@@ -73,6 +73,39 @@ enum OfflineCache {
         read("teams-\(clubId.uuidString)") ?? []
     }
 
+    // MARK: Squads and rosters
+
+    /// A player as a team sheet needs them.
+    ///
+    /// Deliberately not the whole member record: this file sits unencrypted in
+    /// Application Support, and a club roster's phone numbers and addresses
+    /// have no business being there to pick a batting order.
+    struct CachedPlayer: Codable, Equatable {
+        let id: UUID
+        let name: String
+        var isCaptain: Bool?
+        var batsLeft: Bool?
+    }
+
+    static func saveSquads(_ squads: MatchSquads, matchId: UUID) {
+        write(squads, to: "squad-\(matchId.uuidString)")
+    }
+
+    static func loadSquads(matchId: UUID) -> MatchSquads? {
+        read("squad-\(matchId.uuidString)")
+    }
+
+    /// A club's roster, warmed on the Score Hub before anyone leaves for the
+    /// ground. Without it a scorer with no signal types twenty-two names that
+    /// match nobody's profile, and the runs land on no one.
+    static func saveRoster(clubId: UUID, players: [CachedPlayer]) {
+        write(players, to: "roster-\(clubId.uuidString)")
+    }
+
+    static func loadRoster(clubId: UUID) -> [CachedPlayer] {
+        read("roster-\(clubId.uuidString)") ?? []
+    }
+
     // MARK: Events
 
     static func saveEvent(_ event: Event) {

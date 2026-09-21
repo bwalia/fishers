@@ -86,18 +86,13 @@ pub struct Page<T> {
 ///
 /// An enum rather than a string, because the only safe way to put a column
 /// name into SQL is to never take one from the caller.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EventSort {
+    #[default]
     StartAt,
     Title,
     CreatedAt,
-}
-
-impl Default for EventSort {
-    fn default() -> Self {
-        Self::StartAt
-    }
 }
 
 impl EventSort {

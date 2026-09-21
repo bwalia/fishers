@@ -705,7 +705,7 @@ final class CricketEngineTests: XCTestCase {
         for _ in 0..<6 { try f.runs(1) }
         XCTAssertEqual(f.state.margin, "Match tied")
         XCTAssertTrue(f.state.needsASuperOver)
-        XCTAssertEqual(f.state.superOverFirstBatting, .away)
+        XCTAssertEqual(f.state.superOverNextBatting, .away)
     }
 
     func testASuperOverIsOneOverAndTwoWickets() throws {

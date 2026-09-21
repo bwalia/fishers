@@ -11,7 +11,7 @@ pub const PLAY_CRICKET_HOME_URL: &str = "https://play-cricket.com/";
 
 /// Rewrite any Play-Cricket URL to the canonical homepage.
 pub fn canonicalize_play_cricket_url(url: Option<String>) -> Option<String> {
-    let Some(raw) = url else { return None };
+    let raw = url?;
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return None;

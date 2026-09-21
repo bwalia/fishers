@@ -121,7 +121,42 @@ struct MatchResponse {
     /// Where the chase stands on DLS, from the first ball of the second innings.
     #[serde(skip_serializing_if = "Option::is_none")]
     dls: Option<DlsPar>,
+    /// Who had the biggest game, best first — the shortlist the scorer picks
+    /// the player of the match from. Empty until the game is over: mid-match
+    /// it is noise on a payload the scorer polls every few seconds.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    awards: Vec<fishers_domain::PlayerImpact>,
+    /// The best game in the losing side, when there was one worth naming.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fighter: Option<fishers_domain::PlayerImpact>,
+    /// Both sides totalled up for the post-match comparison. Sent from the
+    /// second innings on, because a comparison needs somebody to compare with.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    insights: Option<fishers_domain::MatchInsights>,
     state: MatchState,
+}
+
+/// What the app shows once the players are off: the shortlist, the fighter and
+/// the two innings side by side.
+///
+/// Gated on a finished match because the scorer's device polls this payload
+/// every few seconds while the game is on, and none of it means anything until
+/// there is a result.
+struct PostMatch {
+    awards: Vec<fishers_domain::PlayerImpact>,
+    fighter: Option<fishers_domain::PlayerImpact>,
+    insights: Option<fishers_domain::MatchInsights>,
+}
+
+fn post_match(state: &MatchState) -> PostMatch {
+    if !state.status.is_finished() {
+        return PostMatch { awards: Vec::new(), fighter: None, insights: None };
+    }
+    PostMatch {
+        awards: state.impact(),
+        fighter: state.fighter_of_the_match(),
+        insights: state.insights(),
+    }
 }
 
 fn to_response(
@@ -134,6 +169,7 @@ fn to_response(
 ) -> MatchResponse {
     let projection = cricket_repo::parse_state(row);
     let dls = projection.dls_par(&state.dls, state.g50);
+    let post = post_match(&projection);
     MatchResponse {
         id: row.id,
         event_id: row.event_id,
@@ -151,6 +187,9 @@ fn to_response(
         my_club_side,
         my_sides,
         dls,
+        awards: post.awards,
+        fighter: post.fighter,
+        insights: post.insights,
         state: projection,
     }
 }
@@ -442,6 +481,12 @@ struct ScorecardResponse {
     state: MatchState,
     #[serde(skip_serializing_if = "Option::is_none")]
     dls: Option<DlsPar>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    awards: Vec<fishers_domain::PlayerImpact>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fighter: Option<fishers_domain::PlayerImpact>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    insights: Option<fishers_domain::MatchInsights>,
 }
 
 async fn scorecard(
@@ -455,9 +500,13 @@ async fn scorecard(
     require_either_side(&state, &row, auth.user_id).await?;
     let projection = cricket_repo::parse_state(&row);
     let dls = projection.dls_par(&state.dls, state.g50);
+    let post = post_match(&projection);
     Ok(Json(ScorecardResponse {
         state: projection,
         dls,
+        awards: post.awards,
+        fighter: post.fighter,
+        insights: post.insights,
     }))
 }
 
@@ -953,7 +1002,7 @@ async fn squad(
             name: c.name,
         })
         .collect();
-    home_players.sort_by(|a, b| standing_rank(&a.standing).cmp(&standing_rank(&b.standing)));
+    home_players.sort_by_key(|p| standing_rank(&p.standing));
 
     // Members carry no name of their own, so look them up as the scoreboard does.
     let away_players = match row.opponent_club_id {

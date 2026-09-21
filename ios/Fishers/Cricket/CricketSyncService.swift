@@ -28,6 +28,11 @@ final class CricketSyncService: ObservableObject {
             }
         }
         monitor.start(queue: DispatchQueue(label: "fishers.cricket.sync"))
+        // Whatever last weekend's match left behind goes up now. The path
+        // handler cannot do this: it fires with `.satisfied` on a launch that
+        // is already online, and `isOnline` starts true, so the old
+        // offline->online edge never triggered.
+        requestFlush()
     }
 
     /// The scorer's screen registers itself so its match syncs first and its
@@ -42,17 +47,24 @@ final class CricketSyncService: ObservableObject {
     }
 
     private func pathChanged(_ online: Bool) {
-        let wasOffline = !isOnline
         isOnline = online
-        if online && wasOffline {
-            activeStore?.setSyncing(false)
-            requestFlush()
-        } else if !online {
+        guard online else {
             activeStore?.setSyncing(false, offline: true)
+            return
         }
+        // Any path change while online is a retry, not just the edge out of
+        // offline: dropping from wifi to 3G in the car park is exactly when the
+        // batch that failed a minute ago deserves another go. `flushing` makes
+        // the extra calls free.
+        activeStore?.setSyncing(false)
+        requestFlush()
     }
 
     /// Fire-and-forget: scoring never waits on the network.
+    ///
+    /// ponytail: no retry timer. Launch, foreground and any path change cover
+    /// the realistic cases, and a network coming back *is* a path change. Add
+    /// a timer only if a match is ever seen stranded with all three firing.
     func requestFlush() {
         Task { await flush() }
     }

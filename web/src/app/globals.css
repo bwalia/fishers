@@ -681,6 +681,248 @@ textarea { line-height: 1.5; resize: vertical; }
 .table tbody tr:last-child td,
 .score-table tbody tr:last-child td { border-bottom: none; }
 
+/* ---------- Result ---------- */
+
+/* The post-match panel. Two columns from tablet up: the awards read down one
+   side while the comparison fills the other, instead of a single narrow
+   ribbon of content down the left of a very wide card. */
+.result-grid {
+  display: grid;
+  gap: var(--s5);
+  margin-top: var(--s4);
+}
+@media (min-width: 60rem) {
+  .result-grid {
+    grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+/* Each innings as its own card, so a super over reads as a separate passage
+   of play rather than two more numbers in a row. */
+.innings-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: var(--s3);
+  margin-top: var(--s4);
+}
+.innings-card {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-width: 0;
+}
+/* The winning innings is the one that should pull the eye. The plain cards
+   have to stay quieter than it, which a filled grey does not. */
+.innings-card.won {
+  border-color: var(--primary);
+  background: var(--pitch-50);
+  box-shadow: var(--shadow-1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .innings-card.won { background: var(--surface-3); }
+}
+.innings-card .won-mark {
+  display: inline-block;
+  margin-left: var(--s2);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary-ink);
+  vertical-align: middle;
+}
+.innings-card .side {
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.innings-card .score {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.innings-card.won .score { color: var(--primary-ink); }
+.innings-card .when { font-size: 0.78rem; color: var(--fg-subtle); }
+.innings-card .super {
+  display: inline-block;
+  margin-top: var(--s1);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* An award, given or worked out: the name is the thing you read. */
+.award-card {
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: var(--s3);
+}
+.award-card.fight { border-left-color: var(--primary); }
+.award-card .what {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.award-card .who {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-top: 2px;
+}
+.award-card .figures {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.award-card .basis { font-size: 0.78rem; color: var(--fg-subtle); margin-top: var(--s2); }
+.award-card .btn { margin-top: var(--s3); }
+
+/* Everyone else who featured. */
+.had-the-game {
+  list-style: none;
+  margin: var(--s2) 0 0;
+  padding: 0;
+  counter-reset: rank;
+}
+.had-the-game li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+  counter-increment: rank;
+}
+.had-the-game li::before {
+  content: counter(rank);
+  flex: 0 0 1.2rem;
+  font-size: 0.75rem;
+  color: var(--fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.had-the-game li:last-child { border-bottom: none; }
+.had-the-game .nm { flex: 1; min-width: 0; }
+.had-the-game .fg {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- Head to head ---------- */
+
+/* The two innings read across: value | what | value, in the order they batted
+   so the columns line up with the scores above.
+   A row label is not a column header, so it deliberately does not inherit the
+   small uppercase `.table th` treatment — at 0.72rem in --fg-subtle these were
+   unreadable, which is how they shipped the first time. */
+.compare {
+  width: 100%;
+  /* Capped so the two figures stay near the label they belong to. Stretched
+     across a very wide column they drift to opposite edges and stop reading
+     as a pair. */
+  max-width: 46rem;
+  margin: var(--s2) 0 0;
+  border-collapse: collapse;
+}
+.compare thead th {
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--fg);
+  padding: var(--s2);
+  border-bottom: 1px solid var(--border-strong);
+  white-space: normal;
+}
+.compare thead th:first-child { text-align: left; width: 30%; }
+.compare thead th:last-child { text-align: right; width: 30%; }
+.compare tbody th {
+  /* The middle column: what is being compared. Sentence case, readable size. */
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--fg-muted);
+  text-align: center;
+  white-space: nowrap;
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--border);
+}
+.compare tbody td {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: var(--s2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.compare tbody td:first-child { text-align: left; }
+.compare tbody td:last-child { text-align: right; }
+.compare tbody tr:last-child th,
+.compare tbody tr:last-child td { border-bottom: none; }
+/* Whichever side came out ahead on that line. Weight carries it as well as
+   colour, so it still reads without seeing the difference in hue. */
+.compare td.ahead { color: var(--primary-ink); font-weight: 800; }
+
+/* Phone: the middle column is the one that has to give, and the figures stay
+   legible rather than being shrunk to fit. */
+@media (max-width: 30rem) {
+  .compare tbody th { white-space: normal; padding: var(--s2) var(--s1); font-size: 0.8rem; }
+  .compare tbody td { font-size: 0.95rem; padding: var(--s2) var(--s1); }
+  .compare thead th { font-size: 0.85rem; }
+}
+
+/* ---------- Collapsible block ---------- */
+
+.fold { border-top: 1px solid var(--border); margin-top: var(--s4); }
+.fold > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  /* 44px so it is a real touch target, not just clickable text. */
+  min-height: 44px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 160ms ease-out;
+}
+.fold[open] > summary::before { transform: rotate(45deg); }
+.fold > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .fold > summary::before { transition: none; }
+}
+
 /* ---------- Scoreboard ---------- */
 
 .scoreline {

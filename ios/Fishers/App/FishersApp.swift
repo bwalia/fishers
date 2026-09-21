@@ -23,6 +23,8 @@ struct FishersApp: App {
         }
     }()
 
+    @Environment(\.scenePhase) private var scenePhase
+
     init() {
         FishersTheme.applyNavigationChrome()
     }
@@ -51,6 +53,12 @@ struct FishersApp: App {
                 }
                 // Google's OAuth redirect lands here; without this the sheet
                 // never closes after the user picks an account.
+                // Coming back to the app is the other moment a stranded
+                // match gets its chance — the scorer drove home and is on
+                // wifi, and no path change happened while they were away.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { CricketSyncService.shared.requestFlush() }
+                }
                 .onOpenURL { url in
                     #if canImport(GoogleSignIn)
                     GIDSignIn.sharedInstance.handle(url)
