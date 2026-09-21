@@ -64,3 +64,53 @@ the screenshots and videos.
 | `E2E_PASSWORD` (secret) | runs against int — the kept accounts' password; the same value as in your `.env` |
 | `SLACK_WEBHOOK` (secret) | the Slack message |
 | `SLACK_BOT_TOKEN` (secret) + `SLACK_CHANNEL` (variable, a channel id) | optional: failure screenshots uploaded into the channel |
+
+## When the browser will not install
+
+`npx playwright install chromium` fetches the build this repo's Playwright is
+pinned to — 1.56.1 wants Chromium 1194 — into `~/Library/Caches/ms-playwright`.
+Three ways that goes wrong, none of which say so:
+
+**It exits 0 having downloaded nothing.** Piping the installer anywhere that
+closes the pipe early — `| head`, and `| tail` on a short read — kills it with
+SIGPIPE mid-download. It leaves no output and no directory, so it looks like a
+no-op. Run it on its own, or redirect to a file.
+
+**It hangs after "100% of 129.7 MiB".** The download finished and the child
+(`oopDownloadBrowserMain.js`) is asleep on a socket with no timeout. Kill it
+and try again; if it happens twice, fetch the archives yourself — they are
+plain zips, and curl has timeouts:
+
+```sh
+C=~/Library/Caches/ms-playwright
+B=https://cdn.playwright.dev/dbazure/download/playwright/builds/chromium/1194
+for z in chromium-mac-arm64 chromium-headless-shell-mac-arm64; do
+  curl -fL --retry 3 --connect-timeout 20 -o "/tmp/$z.zip" "$B/$z.zip"
+done
+rm -rf "$C/chromium-1194" "$C/chromium_headless_shell-1194"
+unzip -q /tmp/chromium-mac-arm64.zip -d "$C/chromium-1194"
+unzip -q /tmp/chromium-headless-shell-mac-arm64.zip -d "$C/chromium_headless_shell-1194"
+# Without these Playwright treats the directory as absent and downloads again.
+for d in chromium-1194 chromium_headless_shell-1194; do
+  touch "$C/$d/INSTALLATION_COMPLETE" "$C/$d/DEPENDENCIES_VALIDATED"
+done
+# macOS quarantines anything unzipped from a download; a quarantined app
+# bundle is killed on launch rather than run.
+xattr -dr com.apple.quarantine "$C/chromium-1194" "$C/chromium_headless_shell-1194"
+```
+
+Replace `1194` with whatever `playwright install --dry-run chromium` prints,
+and `mac-arm64` with your platform. The revision is in
+`node_modules/playwright-core/browsers.json`.
+
+**"Executable doesn't exist", with the directory right there.** An install
+that was interrupted leaves a part-extracted tree with no
+`INSTALLATION_COMPLETE` marker — a few hundred KB where there should be a few
+hundred MB. `du -sh` the directory; if it is small, delete it and install
+again. A half-extracted `Chromium.app` fails with a `dlopen` error naming a
+missing `Chromium Framework`, which reads like a broken machine rather than a
+broken download.
+
+`playwright install --dry-run chromium` prints where each browser is expected
+and which URL it would come from, which is the quickest way to tell a missing
+browser from a wrong one.
