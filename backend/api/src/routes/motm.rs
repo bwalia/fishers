@@ -145,6 +145,34 @@ async fn require_voter(state: &AppState, poll: &MotmPoll, user_id: Uuid) -> ApiR
     ))
 }
 
+/// A ballot while it is open; a leaderboard once it is not.
+///
+/// The repo hands these back votes-descending, which is right for a result
+/// and wrong for a list somebody is still using: voting reveals the tally,
+/// the tally re-sorted the list, and the name you were about to pick instead
+/// had moved — on twenty-two names, somewhere else entirely. The card invites
+/// you to change your vote, so the order it invites you to change it in has
+/// to hold still. Counts still show; only the position is frozen.
+fn order_for_display(candidates: &mut [MotmCandidate], is_open: bool) {
+    if is_open {
+        candidates.sort_by(|a, b| {
+            side_rank(&a.side)
+                .cmp(&side_rank(&b.side))
+                .then(a.display_name.cmp(&b.display_name))
+        });
+    }
+}
+
+/// Home sheet first, the way a scorecard is read. Said outright rather than
+/// left to `"away" < "home"`, which happens to be the wrong way round and
+/// only looked right because both clients regroup by side before drawing.
+fn side_rank(side: &str) -> u8 {
+    match side {
+        "home" => 0,
+        _ => 1,
+    }
+}
+
 /// The poll as this person is allowed to see it.
 ///
 /// The tally is withheld until they have voted or the poll has closed:
@@ -159,13 +187,13 @@ async fn view_for(state: &AppState, poll: &MotmPoll, user_id: Uuid) -> ApiResult
     let mut candidates = motm_repo::candidates(&state.pool, poll.id).await?;
     if !tally_visible {
         // Zeroed rather than omitted: the ballot still has to be drawn, and
-        // sorting it by a count nobody may see leaks the count.
-        candidates.sort_by(|a, b| a.side.cmp(&b.side).then(a.display_name.cmp(&b.display_name)));
+        // a count nobody may see must not leak through the order either.
         candidates = candidates
             .into_iter()
             .map(|c| MotmCandidate { votes: 0, ..c })
             .collect();
     }
+    order_for_display(&mut candidates, is_open);
 
     let can_vote = is_open && require_voter(state, poll, user_id).await.is_ok();
 
@@ -188,4 +216,68 @@ async fn view_for(state: &AppState, poll: &MotmPoll, user_id: Uuid) -> ApiResult
         can_vote,
         scorer_award_user_id,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn candidate(name: &str, side: &str, votes: i64) -> MotmCandidate {
+        MotmCandidate {
+            user_id: Uuid::new_v4(),
+            display_name: name.into(),
+            side: side.into(),
+            votes,
+        }
+    }
+
+    /// Found by clicking it: voting revealed the tally, the tally re-sorted
+    /// the ballot, and the next name you wanted had moved. The card asks you
+    /// to change your vote, so the list has to hold still while you do.
+    #[test]
+    fn an_open_ballot_holds_its_order_however_the_votes_fall() {
+        let mut rows = vec![
+            candidate("Stokes", "home", 9),
+            candidate("Cummins", "away", 4),
+            candidate("Bairstow", "home", 0),
+            candidate("Anderson", "away", 7),
+        ];
+        order_for_display(&mut rows, true);
+
+        // Home sheet first, alphabetical within each — the same order it was
+        // in before anybody voted, regardless of the counts.
+        assert_eq!(
+            rows.iter().map(|c| c.display_name.as_str()).collect::<Vec<_>>(),
+            ["Bairstow", "Stokes", "Anderson", "Cummins"]
+        );
+        // The counts are still there; only the position is frozen.
+        assert_eq!(rows[1].votes, 9);
+    }
+
+    /// Once it is closed it is a result, and a result reads best in order.
+    #[test]
+    fn a_closed_vote_is_left_as_the_leaderboard_the_repo_built() {
+        let mut rows = vec![
+            candidate("Stokes", "home", 9),
+            candidate("Anderson", "away", 7),
+            candidate("Cummins", "away", 4),
+        ];
+        let before: Vec<String> = rows.iter().map(|c| c.display_name.clone()).collect();
+        order_for_display(&mut rows, false);
+        assert_eq!(
+            rows.iter().map(|c| c.display_name.clone()).collect::<Vec<_>>(),
+            before
+        );
+    }
+
+    /// The order must not leak a tally the viewer is not allowed to see.
+    #[test]
+    fn a_hidden_tally_cannot_be_read_off_the_order() {
+        let mut rows = vec![
+            candidate("Zampa", "home", 11),
+            candidate("Archer", "home", 0),
+        ];
+        order_for_display(&mut rows, true);
+        assert_eq!(rows[0].display_name, "Archer", "the leader sorted to the top");
+    }
 }
