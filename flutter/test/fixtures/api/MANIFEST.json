@@ -36,6 +36,8 @@
   "match_state": "GET /cricket/matches/{id} .state",
   "match_state_scored": "GET /cricket/matches/{id}/scorecard",
   "me_stats": "GET /me/stats",
+  "motm_poll_view": "GET /motm/polls/40c55245-c945-4ead-aa69-0160a8cce0db",
+  "motm_poll_view_closed": "POST /motm/polls/40c55245-c945-4ead-aa69-0160a8cce0db/close",
   "my_fixture": "GET /events/mine [0] (player6, answered)",
   "notification_feed": "GET /notifications (player6)",
   "order": "POST /orders .order",
