@@ -99,7 +99,7 @@ pub async fn candidates(pool: &PgPool, event_id: Uuid) -> Result<Vec<Candidate>,
                 state: row
                     .selection_state
                     .as_deref()
-                    .and_then(SelectionState::from_str)
+                    .and_then(SelectionState::parse)
                     .unwrap_or(SelectionState::Pool),
                 is_confirmed: row.is_confirmed.unwrap_or(false),
             }

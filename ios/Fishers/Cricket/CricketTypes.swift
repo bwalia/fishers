@@ -1400,8 +1400,23 @@ struct MatchState: Codable, Equatable {
         status == .complete && winner == nil && innings.count >= 2 && innings.count % 2 == 0
     }
 
-    /// Which side bats first in the super over: whoever batted second last.
-    var superOverFirstBatting: MatchSide? { innings.last?.batting }
+    /// Which side bats the next innings of a super over.
+    ///
+    /// The first one is opened by whoever batted second in the match — which
+    /// is the side that has just batted, so the same side bats twice running
+    /// across the join. After that they alternate like any other innings.
+    /// Getting this wrong is how one side came to bat three times and the
+    /// other once.
+    var superOverNextBatting: MatchSide? {
+        guard let last = innings.last else { return nil }
+        return last.superOver ? last.batting.opposite : last.batting
+    }
+
+    /// The innings about to start is part of a super over, whether it is the
+    /// first of a pair or the reply.
+    var nextIsSuperOver: Bool {
+        needsASuperOver || (innings.last?.superOver ?? false)
+    }
 
     /// Anyone appointed to stand or to score — they may score the match.
     func isOfficial(_ id: UUID) -> Bool {

@@ -75,7 +75,7 @@ pub fn allocate_groups(entrants: &[Entrant], group_count: usize) -> Vec<(Uuid, S
             let pass = index / group_count;
             let position = index % group_count;
             // Reverse every other pass — that's what makes it a snake.
-            let group = if pass % 2 == 0 {
+            let group = if pass.is_multiple_of(2) {
                 position
             } else {
                 group_count - 1 - position

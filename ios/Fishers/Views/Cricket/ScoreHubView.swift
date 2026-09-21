@@ -311,6 +311,20 @@ struct ScoreHubPane: View {
                     OfflineCache.saveRole(role, clubId: club.id)
                     if role.permissions.contains("manage_events") {
                         can.append(club)
+                        // And the roster. This screen is the last place with
+                        // signal before the drive out to a ground that has
+                        // none, and a team sheet with no players to pick from
+                        // is where an offline match actually stops.
+                        if let members = try? await FishersAPI.clubMembers(clubId: club.id) {
+                            OfflineCache.saveRoster(
+                                clubId: club.id,
+                                players: members.map {
+                                    OfflineCache.CachedPlayer(
+                                        id: $0.userId, name: $0.name, isCaptain: $0.isCaptain
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }

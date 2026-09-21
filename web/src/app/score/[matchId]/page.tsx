@@ -34,7 +34,10 @@ import {
   type Innings,
   type MatchConditions,
   type MatchResponse,
+  type MatchInsights,
   type MatchState,
+  type PlayerImpact,
+  type SideInsights,
   type Side,
   type SideSquad,
   type MatchOfficial,
@@ -814,6 +817,206 @@ function SetupRail({ st, hasScorer }: { st: MatchState; hasScorer: boolean }) {
   );
 }
 
+/// The two innings read across: value · what · value.
+///
+/// Columns run in the order the sides batted, so they line up with the scores
+/// directly above rather than making the reader check which way round it is.
+/// Every figure comes off the ball-by-ball log the scorer was keeping anyway —
+/// nobody records dot balls or a powerplay total by hand.
+function Comparison({
+  insights,
+  battedFirst,
+}: {
+  insights: MatchInsights;
+  battedFirst: Side;
+}) {
+  const [left, right] =
+    battedFirst === "home"
+      ? [insights.home, insights.away]
+      : [insights.away, insights.home];
+
+  const rate = (n: number) => n.toFixed(2);
+  const pct = (n: number) => `${Math.round(n)}%`;
+  const phaseOf = (side: SideInsights, name: string) => {
+    const p = side.phases.find((x) => x.name === name);
+    return p ? `${p.runs}/${p.wickets}` : "—";
+  };
+  const phaseNames = ["Powerplay", "Middle", "Death"].filter(
+    (n) => left.phases.some((p) => p.name === n) || right.phases.some((p) => p.name === n)
+  );
+  const oversOf = (name: string) =>
+    left.phases.find((p) => p.name === name)?.overs ??
+    right.phases.find((p) => p.name === name)?.overs;
+
+  /// `better` says which way is good on that line, for the highlight. Dot
+  /// balls are the one where fewer wins; "none" is for rows where being ahead
+  /// means nothing, like how many overs each side faced.
+  type Row = {
+    label: string;
+    left: string;
+    right: string;
+    lead?: number;
+    better?: "high" | "low";
+  };
+  const rows: Row[] = [
+    { label: "Score", left: `${left.runs}/${left.wickets}`, right: `${right.runs}/${right.wickets}`, lead: left.runs - right.runs, better: "high" },
+    { label: "Overs", left: left.overs, right: right.overs },
+    { label: "Run rate", left: rate(left.run_rate), right: rate(right.run_rate), lead: left.run_rate - right.run_rate, better: "high" },
+    { label: "Dot balls", left: `${left.dots} · ${pct(left.dot_percent)}`, right: `${right.dots} · ${pct(right.dot_percent)}`, lead: left.dots - right.dots, better: "low" },
+    { label: "Fours", left: `${left.fours}`, right: `${right.fours}`, lead: left.fours - right.fours, better: "high" },
+    { label: "Sixes", left: `${left.sixes}`, right: `${right.sixes}`, lead: left.sixes - right.sixes, better: "high" },
+    { label: "In boundaries", left: `${left.boundary_runs} · ${pct(left.boundary_percent)}`, right: `${right.boundary_runs} · ${pct(right.boundary_percent)}`, lead: left.boundary_runs - right.boundary_runs, better: "high" },
+    ...phaseNames.map((n): Row => {
+      const l = left.phases.find((p) => p.name === n);
+      const r = right.phases.find((p) => p.name === n);
+      return {
+        label: oversOf(n) ? `${n} ${oversOf(n)}` : n,
+        left: phaseOf(left, n),
+        right: phaseOf(right, n),
+        lead: (l?.runs ?? 0) - (r?.runs ?? 0),
+        better: "high",
+      };
+    }),
+    { label: "Top order 1-3", left: `${left.top_order}`, right: `${right.top_order}`, lead: left.top_order - right.top_order, better: "high" },
+    { label: "Middle order 4-7", left: `${left.middle_order}`, right: `${right.middle_order}`, lead: left.middle_order - right.middle_order, better: "high" },
+    { label: "Lower order 8+", left: `${left.lower_order}`, right: `${right.lower_order}`, lead: left.lower_order - right.lower_order, better: "high" },
+    { label: "Best stand", left: `${left.best_partnership}`, right: `${right.best_partnership}`, lead: left.best_partnership - right.best_partnership, better: "high" },
+    { label: "Extras", left: `${left.extras}`, right: `${right.extras}`, lead: left.extras - right.extras, better: "low" },
+  ];
+
+  const ahead = (row: Row, side: "left" | "right") => {
+    if (!row.better || !row.lead) return "";
+    const leftWins = row.better === "high" ? row.lead > 0 : row.lead < 0;
+    return (side === "left") === leftWins ? " ahead" : "";
+  };
+
+  return (
+    // Wrapped so a narrow phone scrolls the table, never the page.
+    <div className="table-wrap">
+    <table className="compare">
+      <thead>
+        <tr>
+          <th scope="col">{left.name}</th>
+          <th scope="col">&nbsp;</th>
+          <th scope="col">{right.name}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.label}>
+            <td className={`num${ahead(row, "left")}`}>{row.left}</td>
+            <th scope="row">{row.label}</th>
+            <td className={`num${ahead(row, "right")}`}>{row.right}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    </div>
+  );
+}
+
+/// The awards: who had the game, and who made a contest of it.
+///
+/// Nobody in cricket computes this — an adjudicator watches and picks. So the
+/// app names the top of the ranking and says plainly that it worked it out,
+/// rather than leaving the headline award blank until somebody remembers to
+/// tap it. The scorer's pick, when they make one, replaces it.
+function Awards({
+  st,
+  awards,
+  fighter,
+  send,
+  canAct,
+  nameOf,
+}: {
+  st: MatchState;
+  awards: PlayerImpact[];
+  fighter?: PlayerImpact | null;
+  send: (kind: Record<string, unknown>) => Promise<void>;
+  canAct: boolean;
+  nameOf: (id?: string | null) => string;
+}) {
+  const [picking, setPicking] = useState(false);
+  const given = st.player_of_the_match
+    ? awards.find((p) => p.player_id === st.player_of_the_match)
+    : undefined;
+  const potmName = st.player_of_the_match ? nameOf(st.player_of_the_match) : awards[0]?.name;
+  const potmLine = given?.line ?? (st.player_of_the_match ? undefined : awards[0]?.line);
+  const awarded = !!st.player_of_the_match;
+  // The rest of the ranking, minus whoever already has a card above.
+  const named = new Set([st.player_of_the_match ?? awards[0]?.player_id, fighter?.player_id]);
+  const rest = awards.filter((p) => !named.has(p.player_id)).slice(0, 5);
+
+  if (!potmName && !fighter) return null;
+
+  return (
+    <div>
+      {potmName && (
+        <div className="award-card">
+          <span className="what">Player of the match</span>
+          <div className="who">{potmName}</div>
+          {potmLine && <div className="figures">{potmLine}</div>}
+          {!awarded && (
+            <p className="basis">
+              Worked out from the card — runs and wickets weighed against how
+              the match was going. Yours to change.
+            </p>
+          )}
+          {canAct && (
+            <button
+              type="button"
+              className="btn sm"
+              onClick={() => setPicking((v) => !v)}
+            >
+              {picking ? "Close" : awarded ? "Change the award" : "Give the award"}
+            </button>
+          )}
+          {canAct && picking && (
+            <div className="chips" style={{ marginTop: "var(--s3)" }}>
+              {awards.map((p) => (
+                <button
+                  key={p.player_id}
+                  type="button"
+                  className={`chip${p.player_id === st.player_of_the_match ? " on" : ""}`}
+                  onClick={async () => {
+                    setPicking(false);
+                    await send({ type: "player_of_the_match", player_id: p.player_id });
+                  }}
+                >
+                  {p.name} <span className="subtle num">{p.line}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {fighter && (
+        <div className="award-card fight">
+          <span className="what">Fighter of the match</span>
+          <div className="who">{fighter.name}</div>
+          <div className="figures">{fighter.line}</div>
+          <p className="basis">The best game in the losing side.</p>
+        </div>
+      )}
+
+      {rest.length > 0 && (
+        <details className="fold">
+          <summary>Who else had a game</summary>
+          <ol className="had-the-game">
+            {rest.map((p) => (
+              <li key={p.player_id}>
+                <span className="nm">{p.name}</span>
+                <span className="fg">{p.line}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </div>
+  );
+}
+
 /// Which panel the scorer needs is decided by the state, not by a wizard step
 /// the browser remembers — reopening the page mid-match lands in the right place.
 function Stages({
@@ -852,25 +1055,76 @@ function Stages({
     (battingNext === "home" || !!match.opponent_club_id);
 
   if (st.status === "complete") {
+    // The Laws, and `MatchState::needs_a_super_over` on the server: the scores
+    // are level, nobody has won, and every innings bowled so far has a reply.
+    const needsSuperOver =
+      !st.winner &&
+      !st.abandoned &&
+      st.innings.length >= 2 &&
+      st.innings.length % 2 === 0;
+
+    // One card carries the result: the winners' last innings. Marking every
+    // innings they batted lit three of four cards in a super over and read
+    // like a bug.
+    const decidedBy = st.winner
+      ? st.innings.reduce((best, i, n) => (i.batting === st.winner ? n : best), -1)
+      : -1;
+
     return (
-      <div className="panel result-panel">
-        <span className="tag gold">Result</span>
-        <h2 className="result-line">{st.margin || "Match complete."}</h2>
-        <div className="result-innings">
-          {st.innings.map((i, n) => (
-            <div key={n} className={`result-side${st.winner === i.batting ? " won" : ""}`}>
-              <div className="subtle">{i.batting === "home" ? st.home_name : st.away_name}</div>
-              <div className="result-score num">
-                {i.runs}-{i.wickets}
-                <span className="subtle"> ({overs(i.legal_balls)} ov)</span>
+      <>
+        <div className="panel result-panel">
+          <span className="tag gold">Result</span>
+          <h2 className="result-line">{st.margin || "Match complete."}</h2>
+
+          {/* Each innings its own card: a super over is a separate passage of
+              play, not two more numbers on the end of a row. */}
+          <div className="innings-strip">
+            {st.innings.map((i, n) => (
+              <div key={n} className={`innings-card${n === decidedBy ? " won" : ""}`}>
+                <div className="side">{i.batting === "home" ? st.home_name : st.away_name}</div>
+                <div className="score">
+                  {i.runs}-{i.wickets}
+                  {n === decidedBy && <span className="won-mark">Won</span>}
+                </div>
+                <div className="when">{overs(i.legal_balls)} ov</div>
+                {i.super_over && <span className="super">Super over</span>}
               </div>
+            ))}
+          </div>
+
+          {!needsSuperOver && (
+            <div className="result-grid">
+              <Awards
+                st={st}
+                awards={match.awards ?? []}
+                fighter={match.fighter}
+                send={send}
+                canAct={canAct}
+                nameOf={nameOf}
+              />
+              {match.insights && (
+                <details className="fold" open>
+                  <summary>How the game went</summary>
+                  <Comparison
+                    insights={match.insights}
+                    battedFirst={(st.innings[0]?.batting as Side) ?? "home"}
+                  />
+                </details>
+              )}
             </div>
-          ))}
+          )}
         </div>
-        {st.player_of_the_match && (
-          <p className="muted">Player of the match: {nameOf(st.player_of_the_match)}</p>
-        )}
-      </div>
+
+        {needsSuperOver &&
+          (scoring ? (
+            <OpenersPanel st={st} send={send} canAct={canAct} nameOf={nameOf} superOver />
+          ) : (
+            <ScorersTurn
+              title="Scores level"
+              note="It needs a super over. Whoever is scoring starts it; this page follows."
+            />
+          ))}
+      </>
     );
   }
   if (!agreed)
@@ -1867,6 +2121,7 @@ function OpenersPanel({
   canAct,
   nameOf,
   onHandOver,
+  superOver = false,
 }: {
   st: MatchState;
   send: (kind: Record<string, unknown>) => Promise<void>;
@@ -1875,14 +2130,33 @@ function OpenersPanel({
   /// Offered at an innings break, when the side about to bat is somebody else's
   /// — `Stages` decides whether that is worth saying here.
   onHandOver?: () => void;
+  /// One over a side to break a tie. Same three choices, different rules —
+  /// so this is the same panel rather than a second one to keep in step.
+  superOver?: boolean;
 }) {
   const index = st.innings.length;
+  const last = st.innings[index - 1];
+  // The reply to a super over arrives here too, at an ordinary innings break.
+  // Treating it as a normal innings is what handed it the full match
+  // allocation and let the same side bat again.
+  const replying = !!last?.super_over;
+  const isSuperOver = superOver || replying;
+
   // Whoever won the toss and chose to bat opens; the sides swap after that.
   const first: Side =
     st.toss_decision === "bat"
       ? (st.toss_winner as Side)
       : other(st.toss_winner as Side);
-  const batting: Side = index % 2 === 0 ? first : other(first);
+  // A super over does not follow that alternation. The side that batted second
+  // in the match opens it — so the same side bats twice running across the
+  // join — and the other side replies.
+  const batting: Side = isSuperOver
+    ? replying
+      ? other(last.batting as Side)
+      : (last?.batting as Side)
+    : index % 2 === 0
+      ? first
+      : other(first);
   const battingXi = batting === "home" ? st.home_xi : st.away_xi;
   const bowlingXi = batting === "home" ? st.away_xi : st.home_xi;
   const battingName = batting === "home" ? st.home_name : st.away_name;
@@ -1911,11 +2185,28 @@ function OpenersPanel({
   return (
     <div className="panel setup-panel">
       <div className="setup-head">
-        <h2>{index === 0 ? "Who is opening?" : `Innings ${index + 1}`}</h2>
+        <h2>
+          {isSuperOver
+            ? replying
+              ? "Super over — the reply"
+              : "Super over"
+            : index === 0
+              ? "Who is opening?"
+              : `Innings ${index + 1}`}
+        </h2>
         <p className="muted">
           <strong>{battingName}</strong> batting, <strong>{bowlingName}</strong> in the field
+          {/* A super over reply is a chase like any other — the engine sets
+              the target from the over just bowled. */}
           {st.target ? ` · chasing ${st.target}` : ""}.
         </p>
+        {isSuperOver && (
+          <p className="muted">
+            {replying
+              ? "One over, two wickets down and it is over."
+              : "Scores are level. One over each, two wickets and the innings is over. The side that batted second in the match opens."}
+          </p>
+        )}
       </div>
 
       {/* The first decision of the break, above the crease rather than under
@@ -1995,14 +2286,20 @@ function OpenersPanel({
               striker_id: striker,
               non_striker_id: nonStriker,
               bowler_id: bowler,
-              super_over: false,
+              super_over: isSuperOver,
             });
           } finally {
             setBusy(false);
           }
         }}
       >
-        {busy ? "Starting…" : "Start the innings"}
+        {busy
+          ? "Starting…"
+          : isSuperOver
+            ? replying
+              ? "Start the reply"
+              : "Start the super over"
+            : "Start the innings"}
       </button>
       <p className="subtle">
         {!striker || !nonStriker

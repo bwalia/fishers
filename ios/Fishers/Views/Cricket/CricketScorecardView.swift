@@ -220,6 +220,9 @@ struct CricketScorecardView: View {
                 }
             }
 
+            // Named either way. The fighter below is worked out from the
+            // card, so leaving the headline award blank until somebody
+            // remembers to tap it read as though the app had missed it.
             if let award = state.playerOfTheMatch {
                 Section {
                     Label(state.name(for: award), systemImage: "star.fill")
@@ -228,6 +231,43 @@ struct CricketScorecardView: View {
                 } header: {
                     Text("Player of the match")
                 }
+            } else if let top = state.impact.first {
+                Section {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(top.name, systemImage: "star.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(FishersTheme.maybe)
+                        Text(top.line)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Player of the match")
+                } footer: {
+                    Text("Worked out from the card. The scorer can give it to someone else.")
+                }
+            }
+
+            if let fighter = state.fighterOfTheMatch {
+                Section {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(fighter.name, systemImage: "shield.lefthalf.filled")
+                            .font(.subheadline.weight(.semibold))
+                        Text(fighter.line)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Fighter of the match")
+                } footer: {
+                    Text("The best game in the losing side — worked out from the card, not awarded by anyone.")
+                }
+            }
+
+            if let insights = state.insights {
+                comparisonSection(insights)
             }
 
             ForEach(Array(state.innings.enumerated()), id: \.offset) { _, innings in
@@ -247,6 +287,86 @@ struct CricketScorecardView: View {
             }
         }
         .listStyle(.insetGrouped)
+    }
+
+    // MARK: How the game went
+
+    /// The two innings read across rather than down. Every figure comes off
+    /// the ball log, so this needs no network and no extra tapping from the
+    /// scorer, who has already done enough.
+    private func comparisonSection(_ ins: MatchInsights) -> some View {
+        let home = ins.home
+        let away = ins.away
+        return Section {
+            HStack {
+                Text("").frame(maxWidth: .infinity, alignment: .leading)
+                Text(home.name).frame(width: 84, alignment: .trailing)
+                Text(away.name).frame(width: 84, alignment: .trailing)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+
+            compare("Score", "\(home.runs)/\(home.wickets)", "\(away.runs)/\(away.wickets)")
+            compare("Overs", home.overs, away.overs)
+            compare("Run rate", rate(home.runRate), rate(away.runRate))
+            compare(
+                "Dot balls",
+                "\(home.dots) · \(percent(home.dotPercent))",
+                "\(away.dots) · \(percent(away.dotPercent))"
+            )
+            compare("Fours", "\(home.fours)", "\(away.fours)")
+            compare("Sixes", "\(home.sixes)", "\(away.sixes)")
+            compare(
+                "In boundaries",
+                "\(home.boundaryRuns) · \(percent(home.boundaryPercent))",
+                "\(away.boundaryRuns) · \(percent(away.boundaryPercent))"
+            )
+            ForEach(["Powerplay", "Middle", "Death"], id: \.self) { name in
+                let h = home.phases.first { $0.name == name }
+                let a = away.phases.first { $0.name == name }
+                if h != nil || a != nil {
+                    compare(
+                        h.map { "\(name) (\($0.overs))" } ?? name,
+                        phase(h),
+                        phase(a)
+                    )
+                }
+            }
+            compare("Top order 1-3", "\(home.topOrder)", "\(away.topOrder)")
+            compare("Middle order 4-7", "\(home.middleOrder)", "\(away.middleOrder)")
+            compare("Lower order 8+", "\(home.lowerOrder)", "\(away.lowerOrder)")
+            compare("Best stand", "\(home.bestPartnership)", "\(away.bestPartnership)")
+            compare("Extras", "\(home.extras)", "\(away.extras)")
+        } header: {
+            Text("How the game went")
+        }
+    }
+
+    private func compare(_ label: String, _ home: String, _ away: String) -> some View {
+        HStack {
+            Text(label)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(home).frame(width: 84, alignment: .trailing)
+            Text(away).frame(width: 84, alignment: .trailing)
+        }
+        .font(.footnote)
+        .monospacedDigit()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(home) against \(away)")
+    }
+
+    private func phase(_ score: PhaseScore?) -> String {
+        guard let score else { return "—" }
+        return "\(score.runs)/\(score.wickets)"
+    }
+
+    private func rate(_ value: Double) -> String {
+        String(format: "%.2f", value)
+    }
+
+    private func percent(_ value: Double) -> String {
+        String(format: "%.0f%%", value)
     }
 
     // MARK: Batting

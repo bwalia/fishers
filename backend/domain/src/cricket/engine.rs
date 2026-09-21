@@ -264,7 +264,8 @@ impl MatchState {
                 }
             }
             ScoringEventKind::InningsStarted {
-                innings_index,
+                // Deliberately ignored: the engine counts its own innings.
+                innings_index: _,
                 batting,
                 striker_id,
                 non_striker_id,
@@ -284,6 +285,19 @@ impl MatchState {
                         "both sides need a team sheet before the first ball".into(),
                     ));
                 }
+                // A super over is a pair of innings, and if the scores are
+                // still level another pair follows — so once one has started,
+                // every innings after it belongs to one. Derived rather than
+                // trusted: a client that forgets the flag on the reply used to
+                // be handed the full match allocation, which is how a two-over
+                // game's "super over" came back asking for two overs and ten
+                // wickets.
+                let super_over =
+                    *super_over || self.innings.last().is_some_and(|inn| inn.super_over);
+                // The index is the engine's own count. Taking it from the
+                // event let a client with a hardcoded "1" file the fourth
+                // innings of a match as the second.
+                let innings_index = self.innings.len() as u8;
                 let bowling = batting.opposite();
                 let batting_xi = self.xi(*batting).to_vec();
                 let mut batters: Vec<BatterStats> =
@@ -294,18 +308,18 @@ impl MatchState {
                     }
                 }
                 // A super over is one over and two wickets, whatever the match is.
-                let wickets_allowed = if *super_over {
+                let wickets_allowed = if super_over {
                     2
                 } else {
                     (batters.len().saturating_sub(1)).clamp(1, 10) as u8
                 };
-                let overs_available = if *super_over {
+                let overs_available = if super_over {
                     1
                 } else {
                     self.conditions.overs_limit.max(self.overs_limit)
                 };
                 let mut inn = InningsState {
-                    index: *innings_index,
+                    index: innings_index,
                     batting: *batting,
                     bowling,
                     batters,
@@ -314,8 +328,8 @@ impl MatchState {
                     bowler_id: Some(*bowler_id),
                     wickets_allowed,
                     overs_available,
-                    super_over: *super_over,
-                    powerplay_overs: if *super_over {
+                    super_over,
+                    powerplay_overs: if super_over {
                         0
                     } else {
                         self.conditions.powerplay_overs
@@ -336,7 +350,7 @@ impl MatchState {
                 }
                 self.innings.push(inn);
                 self.status = MatchStatus::Live;
-                if *super_over {
+                if super_over {
                     // A tie is no longer the result; the super over decides it.
                     self.winner = None;
                     self.margin = None;
@@ -345,7 +359,7 @@ impl MatchState {
                 // The opening bowler counts against the allocation like any other.
                 self.check_bowler_available(*bowler_id)?;
                 // Every odd innings is a chase of the one before it.
-                if *innings_index % 2 == 1 {
+                if innings_index % 2 == 1 {
                     if let Some(previous) = self.innings.iter().rev().nth(1) {
                         self.target = Some(previous.runs + 1);
                     }
@@ -2534,7 +2548,60 @@ mod tests {
         assert_eq!(m.state.margin.as_deref(), Some("Match tied"));
         assert!(m.state.needs_a_super_over());
         // Whoever batted second bats first in the super over.
-        assert_eq!(m.state.super_over_first_batting(), Some(MatchSide::Away));
+        assert_eq!(m.state.super_over_next_batting(), Some(MatchSide::Away));
+        assert!(m.state.next_is_super_over());
+    }
+
+    /// The reply to a super over is part of the same super over.
+    ///
+    /// Both clients got this wrong and sent `super_over: false` for it, so the
+    /// decider came back asking for the whole match allocation again — a
+    /// two-over game's "super over" wanted two overs and ten wickets. The
+    /// engine now derives it rather than believing the event.
+    #[test]
+    fn the_reply_to_a_super_over_is_still_a_super_over() {
+        let mut m = Fixture::new(1);
+        start_chase(&mut m, 6);
+        for _ in 0..6 {
+            m.runs(1);
+        }
+        assert!(m.state.needs_a_super_over());
+
+        // First of the pair: the side that batted second opens it.
+        assert_eq!(m.state.super_over_next_batting(), Some(MatchSide::Away));
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 2,
+            batting: MatchSide::Away,
+            striker_id: m.away[0].id,
+            non_striker_id: m.away[1].id,
+            bowler_id: m.home[0].id,
+            super_over: true,
+        });
+        for _ in 0..6 {
+            m.runs(1);
+        }
+        assert!(m.innings().complete, "one over and the super over innings is done");
+
+        // The reply. The other side bats — and the flag and index arrive
+        // exactly as the broken clients sent them.
+        assert_eq!(m.state.super_over_next_batting(), Some(MatchSide::Home));
+        assert!(m.state.next_is_super_over());
+        m.push(ScoringEventKind::InningsStarted {
+            innings_index: 1,
+            batting: MatchSide::Home,
+            striker_id: m.home[0].id,
+            non_striker_id: m.home[1].id,
+            bowler_id: m.away[0].id,
+            super_over: false,
+        });
+
+        let inn = m.innings();
+        assert!(inn.super_over, "the reply belongs to the same super over");
+        assert_eq!(inn.overs_available, 1, "one over, not the match allocation");
+        assert_eq!(inn.wickets_allowed, 2, "two down and you are out");
+        assert_eq!(inn.powerplay_overs, 0);
+        assert_eq!(inn.index, 3, "the engine numbers the innings, not the client");
+        assert_eq!(inn.batting, MatchSide::Home, "the other side replies");
     }
 
     #[test]

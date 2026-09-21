@@ -54,6 +54,11 @@ struct CricketScoringFlowView: View {
     /// Who each side picks from, with their captains marked. Asked for once
     /// the match is on the server, which is by the time the sheets are named.
     @State private var squads: MatchSquads?
+    /// The club roster warmed on the Score Hub, read off disk once rather than
+    /// on every pass through `body`. The last resort for the home sheet when
+    /// there is no signal and nobody has said they are coming.
+    @State private var warmRoster: [MatchPlayer] = []
+    @State private var warmCaptains: Set<UUID> = []
 
     enum Step: Hashable {
         case setup, agreement, toss, sheets, openers, live
@@ -106,11 +111,24 @@ struct CricketScoringFlowView: View {
         }
         .task(id: opponent?.clubId) { await loadOpponentPlayers() }
         .task(id: step) {
-            guard step == .sheets, squads == nil else { return }
-            // A match started a moment ago may still be on its way up.
-            for _ in 0..<5 {
+            guard step == .sheets else { return }
+            // Whatever is on disk goes up first, so the sheet is usable the
+            // instant it opens instead of after ten seconds of retries.
+            let roster = OfflineCache.loadRoster(clubId: event.clubId)
+            warmRoster = roster.map { MatchPlayer(id: $0.id, name: $0.name) }
+            warmCaptains = Set(roster.filter { $0.isCaptain == true }.map(\.id))
+            if squads == nil, let matchId = store.matchId {
+                squads = OfflineCache.loadSquads(matchId: matchId)
+            }
+            guard squads == nil else { return }
+            // A match started a moment ago may still be on its way up — worth
+            // waiting out. With no signal there is nothing to wait for, and
+            // ten seconds of dead screen at the toss is its own bug.
+            let attempts = CricketSyncService.shared.isOnline ? 5 : 0
+            for _ in 0..<attempts {
                 if let matchId = store.matchId, let found = try? await FishersAPI.squads(matchId: matchId) {
                     squads = found
+                    OfflineCache.saveSquads(found, matchId: matchId)
                     if !found.away.players.isEmpty {
                         opponentPlayers = found.away.players.map { MatchPlayer(id: $0.id, name: $0.name, batsLeft: $0.batsLeft) }
                     }
@@ -372,11 +390,24 @@ struct CricketScoringFlowView: View {
         if let matchId = store.matchId,
            let squads = try? await FishersAPI.squads(matchId: matchId),
            !squads.away.players.isEmpty {
+            OfflineCache.saveSquads(squads, matchId: matchId)
             opponentPlayers = squads.away.players.map { MatchPlayer(id: $0.id, name: $0.name) }
             return
         }
-        let members = (try? await FishersAPI.clubMembers(clubId: club)) ?? []
-        opponentPlayers = members.map { MatchPlayer(id: $0.userId, name: $0.name) }
+        if let members = try? await FishersAPI.clubMembers(clubId: club) {
+            OfflineCache.saveRoster(
+                clubId: club,
+                players: members.map {
+                    OfflineCache.CachedPlayer(id: $0.userId, name: $0.name, isCaptain: $0.isCaptain)
+                }
+            )
+            opponentPlayers = members.map { MatchPlayer(id: $0.userId, name: $0.name) }
+            return
+        }
+        // Both calls need the network. A visiting club played before is still
+        // on disk from that day.
+        opponentPlayers = OfflineCache.loadRoster(clubId: club)
+            .map { MatchPlayer(id: $0.id, name: $0.name) }
     }
 
     private func confirmAgreement() {
@@ -573,13 +604,22 @@ struct CricketScoringFlowView: View {
         if let home = squads?.home.players, !home.isEmpty {
             return home.map { MatchPlayer(id: $0.id, name: $0.name, batsLeft: $0.batsLeft) }
         }
-        return attendees.map { MatchPlayer(id: $0.userId, name: $0.name) }
+        if !attendees.isEmpty {
+            return attendees.map { MatchPlayer(id: $0.userId, name: $0.name) }
+        }
+        // No signal, and this screen was opened from somewhere that carries no
+        // attendee list. Real ids, so a hundred scored at a ground with no bars
+        // still lands on the right profile.
+        return warmRoster
     }
 
     /// Each club's captains, marked for them as they are picked.
     private var captains: Set<UUID> {
         let squad = (squads?.home.players ?? []) + (squads?.away.players ?? [])
-        return Set(squad.filter { $0.isCaptain == true }.map(\.id))
+        let named = Set(squad.filter { $0.isCaptain == true }.map(\.id))
+        // With no signal the squad call never answered; the warmed roster
+        // still knows who captains, which is what pre-selects them.
+        return named.isEmpty ? warmCaptains : named
     }
 
     private var firstInningsBatting: MatchSide {

@@ -136,7 +136,7 @@ impl ProfileStrength {
         ];
         let mut missing: Vec<_> = items.iter().filter(|i| !i.3).collect();
         // Stable, so equal weights keep the order above.
-        missing.sort_by(|a, b| b.2.cmp(&a.2));
+        missing.sort_by_key(|i| std::cmp::Reverse(i.2));
         let words: Vec<&str> = missing.iter().take(3).map(|i| i.1).collect();
         let next_up = match words.as_slice() {
             [] => String::new(),

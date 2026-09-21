@@ -33,8 +33,9 @@ pub use club::*;
 pub use cricket::{
     dls, evt, BallType, BatterStats, BowlerStats, DeliveryRecord, DismissalKind, DlsMethod, DlsPar,
     ExtraKind, FallOfWicket, GroundType, InningsResources, InningsState, MatchConditions,
-    MatchPlayer, MatchSide, MatchState, MatchStatus, ResourceTable, ScoringEvent, ScoringEventKind,
-    region_for, ShotKind, ShotRecord, TossDecision,
+    MatchInsights, MatchPlayer, MatchSide, MatchState, MatchStatus, PhaseScore, PlayerImpact,
+    ResourceTable, ScoringEvent, ScoringEventKind, SideInsights, region_for, ShotKind, ShotRecord,
+    TossDecision,
 };
 pub use enums::*;
 pub use event::*;

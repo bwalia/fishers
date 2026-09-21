@@ -39,7 +39,9 @@ impl SelectionState {
         }
     }
 
-    pub fn from_str(raw: &str) -> Option<Self> {
+    /// The inverse of `as_str`. Not `FromStr`: an unrecognised string is
+    /// not an error worth a type, it is simply not one of these.
+    pub fn parse(raw: &str) -> Option<Self> {
         match raw {
             "pool" => Some(Self::Pool),
             "selected" => Some(Self::Selected),

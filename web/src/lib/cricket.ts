@@ -121,6 +121,9 @@ export type MatchState = {
   target?: number | null;
   winner?: string | null;
   margin?: string | null;
+  /// Called off with no result. `winner` is null either way, so this is what
+  /// separates abandoned from a tie that still needs a super over.
+  abandoned?: boolean;
   last_seq: number;
   player_names: Record<string, string>;
   left_handers?: string[];
@@ -135,6 +138,18 @@ export type MatchState = {
 };
 
 export type Side = "home" | "away";
+
+/// One player's match, weighed up. The server ranks these; the browser only
+/// renders them in the order they arrive.
+export type PlayerImpact = {
+  player_id: string;
+  name: string;
+  side: Side;
+  /// Higher is better. Runs-flavoured, but not runs — never show it as one.
+  score: number;
+  /// "75* (45) · 2-18 (4.0) · 1 ct" — why they are on the list.
+  line: string;
+};
 
 /// What `GET/POST /cricket/matches/{id}` replies with.
 export type MatchResponse = {
@@ -162,8 +177,49 @@ export type MatchResponse = {
   /// a captain on their own phone gets their own.
   my_sides: Side[];
   dls?: { par: number; ahead_by: number; target: number; method: string };
+  /// Who had the biggest game, best first. Only sent once the match is over.
+  awards?: PlayerImpact[];
+  /// The best game in the losing side, when there was one worth naming.
+  fighter?: PlayerImpact | null;
+  /// Both sides totalled up, from the second innings on.
+  insights?: MatchInsights | null;
   state: MatchState;
 };
+
+/// One stretch of an innings — powerplay, middle, death.
+export type PhaseScore = {
+  name: string;
+  /// The overs it covers, as a scorer would say them: "1-6".
+  overs: string;
+  runs: number;
+  wickets: number;
+  balls: number;
+};
+
+/// One side's innings, totalled every way a post-match chat asks about.
+export type SideInsights = {
+  side: Side;
+  name: string;
+  runs: number;
+  wickets: number;
+  balls: number;
+  overs: string;
+  run_rate: number;
+  dots: number;
+  dot_percent: number;
+  fours: number;
+  sixes: number;
+  boundary_runs: number;
+  boundary_percent: number;
+  extras: number;
+  phases: PhaseScore[];
+  top_order: number;
+  middle_order: number;
+  lower_order: number;
+  best_partnership: number;
+};
+
+export type MatchInsights = { home: SideInsights; away: SideInsights };
 
 export const GROUNDS = ["open", "boxed", "indoor"] as const;
 export const BALLS = ["red", "white", "pink", "tennis", "tape"] as const;
