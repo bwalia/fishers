@@ -74,10 +74,15 @@ pub async fn open_for_completed_cricket_match(
         return;
     }
 
+    // The margin is already a whole sentence — "Hemel won by 7 wickets (52
+    // balls remaining)" — so it is one, rather than the subject of another.
+    let result = match match_state.margin.as_deref() {
+        Some(margin) => format!("{margin}."),
+        None => "The match is over.".to_string(),
+    };
     let body = format!(
-        "{} is over. Who was your man of the match? Everyone in the club can vote — \
+        "{result} Who was your man of the match? Everyone in the club can vote — \
          voting closes {}.",
-        match_state.margin.as_deref().unwrap_or("The match"),
         closes_at.format("%a %e %b at %H:%M UTC")
     );
 
