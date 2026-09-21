@@ -558,6 +558,73 @@ paths:
         "200":
           description: MatchState
 
+  /events/{id}/motm:
+    get:
+      tags: [Man of the match]
+      summary: The club's man-of-the-match vote for a fixture
+      description: >-
+        Opens on its own when the match finishes. The tally is withheld until
+        the caller has voted or the vote has closed.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: MotmPollView
+        "404":
+          description: This fixture has no vote
+
+  /motm/polls/{id}:
+    get:
+      tags: [Man of the match]
+      summary: One vote, as the caller may see it
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: MotmPollView
+
+  /motm/polls/{id}/vote:
+    post:
+      tags: [Man of the match]
+      summary: Vote, or move a vote already cast
+      description: >-
+        Any active member of either club, whether or not they played. One vote
+        each, changeable while the vote is open.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: MotmPollView, now with the tally
+        "400":
+          description: That player was not named on either team sheet
+        "403":
+          description: Not a member of either club
+        "409":
+          description: Voting has closed
+    delete:
+      tags: [Man of the match]
+      summary: Take a vote back
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: MotmPollView
+
+  /motm/polls/{id}/close:
+    post:
+      tags: [Man of the match]
+      summary: End the vote early and announce the winner
+      description: >-
+        Captain or secretary. A vote closes itself when its window is up, so
+        this is only for calling it sooner. A tie closes with no winner.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: MotmPollView
+        "409":
+          description: Already closed
+
   /availability:
     get:
       tags: [Availability]

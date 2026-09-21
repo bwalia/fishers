@@ -9,6 +9,8 @@ pub mod cricket;
 mod enums;
 mod event;
 mod invite;
+/// Man of the match, voted for by the club after the game.
+mod motm;
 mod order;
 mod payment;
 /// Cross-cutting club activity events (AI, stats, notifications).
@@ -40,6 +42,7 @@ pub use cricket::{
 pub use enums::*;
 pub use event::*;
 pub use invite::*;
+pub use motm::*;
 pub use order::*;
 pub use payment::*;
 pub use platform::{MatchStatsDelta, PlatformActor, PlatformEvent, PlatformEventKind};

@@ -85,10 +85,11 @@ impl AppState {
 
     /// Tell somebody something happened.
     ///
-    /// Always stored, then pushed. The push half is still an APNs stub, so
-    /// storing is what makes a notification real: the app reads them back the
-    /// next time it is opened, and a promise of "they'll be told" stops being
-    /// a lie whether or not a device is registered.
+    /// Always stored, then pushed — in that order, and the store is what
+    /// makes it real. Push is best-effort by nature: a phone with no token
+    /// registered, a server with no APNs key, a browser whose subscription
+    /// has lapsed. The app reads notifications back the next time it is
+    /// opened, so "they'll be told" is true whether or not a device answered.
     pub async fn notify(
         &self,
         user_id: uuid::Uuid,

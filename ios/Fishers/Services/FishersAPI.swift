@@ -447,6 +447,63 @@ enum FishersAPI {
         )
     }
 
+    // MARK: Man of the match
+
+    /// The club's vote for a fixture. Throws a 404 when the game has not
+    /// finished, or finished without a team sheet to vote on.
+    static func motmPoll(eventId: UUID) async throws -> MotmPollView {
+        try await NetworkService.shared.request(
+            "GET", path: "/events/\(eventId.uuidString)/motm"
+        )
+    }
+
+    static func motmPoll(id: UUID) async throws -> MotmPollView {
+        try await NetworkService.shared.request(
+            "GET", path: "/motm/polls/\(id.uuidString)"
+        )
+    }
+
+    /// Vote, or move a vote already cast. The answer carries the tally, which
+    /// the API withholds until you have voted.
+    static func voteForManOfTheMatch(pollId: UUID, candidate: UUID) async throws -> MotmPollView {
+        struct Body: Encodable { let candidate_user_id: UUID }
+        return try await NetworkService.shared.request(
+            "POST", path: "/motm/polls/\(pollId.uuidString)/vote",
+            body: Body(candidate_user_id: candidate)
+        )
+    }
+
+    static func withdrawManOfTheMatchVote(pollId: UUID) async throws -> MotmPollView {
+        try await NetworkService.shared.request(
+            "DELETE", path: "/motm/polls/\(pollId.uuidString)/vote"
+        )
+    }
+
+    /// Captain or secretary: end the vote now rather than waiting it out.
+    static func closeManOfTheMatchVote(pollId: UUID) async throws -> MotmPollView {
+        try await NetworkService.shared.request(
+            "POST", path: "/motm/polls/\(pollId.uuidString)/close"
+        )
+    }
+
+    // MARK: Push
+
+    static func registerDevice(token: String, platform: String) async throws {
+        struct Body: Encodable { let device_token: String; let platform: String }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/notifications/register-device",
+            body: Body(device_token: token, platform: platform)
+        )
+    }
+
+    static func unregisterDevice(token: String) async throws {
+        struct Body: Encodable { let device_token: String }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/notifications/unregister-device",
+            body: Body(device_token: token)
+        )
+    }
+
     // MARK: QR codes and opponents
 
     static func clubQRCode(clubId: UUID) async throws -> ClubQRCode {

@@ -45,6 +45,7 @@ async fn main() -> anyhow::Result<()> {
     fishers_jobs::spawn_scheduler(pool.clone(), push.clone(), email);
 
     let state = AppState::new(pool, jwt_secret, push);
+    services::motm::spawn_sweeper(state.clone());
 
     // A layer wraps only the routes already added when it is applied, so the
     // live stream is merged after the timeout: 30 seconds is right for a

@@ -377,10 +377,21 @@ export async function api<T>(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    const error = new Error(text || `HTTP ${res.status}`);
+    // Carried so a screen can tell "refused" from "failed" without reading
+    // the sentence. `readErr` still hands back the API's own wording; this is
+    // for the few places where that wording is written for an API rather than
+    // for the person looking at it.
+    (error as Error & { status?: number }).status = res.status;
+    throw error;
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+/// Whether a thrown `api` error was a refusal on permissions.
+export function isForbidden(err: unknown): boolean {
+  return (err as { status?: number } | null)?.status === 403;
 }
 
 /// A file upload. Separate from `api` because the browser must set the

@@ -29,7 +29,9 @@ hmac = "0.12"
 hex = "0.4"
 jsonwebtoken = "9"
 rand = "0.8"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# `http2` is named explicitly because default features are off: APNs accepts
+# nothing but HTTP/2, so without it every iOS push fails at the protocol.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

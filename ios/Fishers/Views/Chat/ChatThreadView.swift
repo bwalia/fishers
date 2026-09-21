@@ -25,14 +25,27 @@ struct ChatThreadView: View {
                         ForEach(store.messages) { message in
                             MessageBubble(message: message)
                                 .id(message.id)
+                            // A vote the server opened when the game ended.
+                            // Rendered under the message that announced it,
+                            // so it reads as part of the conversation rather
+                            // than a screen somebody has to go and find.
+                            if let poll = message.motmPollId {
+                                ManOfTheMatchCard(pollId: poll)
+                                    .padding(.horizontal)
+                                    .id(poll)
+                            }
                         }
                     }
                     .padding(.vertical, 12)
                 }
                 .onChange(of: store.messages.count) {
-                    if let last = store.messages.last {
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                    }
+                    Task { await scrollToEnd(proxy, animated: true) }
+                }
+                .task {
+                    await store.open(conversation)
+                    // Opening a thread lands at the bottom of it, same as
+                    // every other chat app.
+                    await scrollToEnd(proxy, animated: false)
                 }
             }
 
@@ -63,7 +76,6 @@ struct ChatThreadView: View {
                 .disabled(store.isThinking)
             }
         }
-        .task { await store.open(conversation) }
         .task {
             for await event in LiveStream.shared.events() {
                 switch event {
@@ -76,6 +88,31 @@ struct ChatThreadView: View {
         // The thread on screen is not something to be alerted about.
         .onAppear { LiveAlerts.openThread = conversation.id }
         .onDisappear { if LiveAlerts.openThread == conversation.id { LiveAlerts.openThread = nil } }
+    }
+
+    /// The bottom of the thread — which is the *card*, not the message, when
+    /// the last message opened a man-of-the-match vote. The card renders under
+    /// its message, so scrolling to the message leaves the one thing you are
+    /// meant to act on just off the bottom of the screen.
+    ///
+    /// A beat first: the stack is lazy, so the row has to be built before it
+    /// can be scrolled to, and asking in the same turn as the messages arrive
+    /// lands on whatever was there before.
+    private func scrollToEnd(_ proxy: ScrollViewProxy, animated: Bool) async {
+        guard let last = store.messages.last else { return }
+        // A message is read from its end, so it lands at the bottom. A vote
+        // card is a whole eleven a side and taller than the screen, so its
+        // bottom is the end of the away sheet — it lands at the top instead,
+        // where the heading and the first names are.
+        let poll = last.motmPollId
+        let target = poll ?? last.id
+        let anchor: UnitPoint = poll == nil ? .bottom : .top
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        if animated {
+            withAnimation { proxy.scrollTo(target, anchor: anchor) }
+        } else {
+            proxy.scrollTo(target, anchor: anchor)
+        }
     }
 
     private var proposalsHeader: some View {
