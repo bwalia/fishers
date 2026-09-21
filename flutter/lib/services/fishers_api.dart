@@ -9,12 +9,18 @@ import 'social_auth.dart';
 /// `ios/Fishers/Services/FishersAPI.swift`, in the same order, so the two can
 /// be diffed.
 ///
-/// No screen hand-rolls a URL. Swift has 119 functions here; this has 117, and
-/// the two that are missing are `appleAuthConfig` and `signInWithApple`:
-/// **Sign in with Apple is out of scope for v1**, so `/auth/apple` is never
-/// called. Swift's two `setAvailability` overloads become
-/// [setAvailability] and [setAvailabilityForDates], because Dart has no
-/// overloading. Nothing else differs.
+/// No screen hand-rolls a URL. Swift has 126 functions here; this has 122, and
+/// the four that are missing are deliberate:
+///
+///   * `appleAuthConfig` and `signInWithApple` — **Sign in with Apple is out
+///     of scope for v1**, so `/auth/apple` is never called.
+///   * `registerDevice` and `unregisterDevice` — **push is out of scope**.
+///     Android push is FCM, which the brief defers; every notification is
+///     stored server-side either way, so the bell still fills up.
+///
+/// Swift's two `setAvailability` overloads become [setAvailability] and
+/// [setAvailabilityForDates], because Dart has no overloading. Nothing else
+/// differs.
 abstract final class FishersAPI {
   static NetworkService get _net => NetworkService.shared;
 
@@ -100,6 +106,37 @@ abstract final class FishersAPI {
   );
 
   /// Invitations addressed to this account, any status.
+  // MARK: Man of the match
+
+  /// The club's vote for a fixture. Throws a 404 when the game has not
+  /// finished, or finished without a team sheet to vote on.
+  static Future<MotmPollView> motmPollForEvent({required String eventId}) =>
+      _net.requestObject('GET', '/events/$eventId/motm', MotmPollView.fromJson);
+
+  static Future<MotmPollView> motmPoll({required String pollId}) =>
+      _net.requestObject('GET', '/motm/polls/$pollId', MotmPollView.fromJson);
+
+  /// Vote, or move a vote already cast. The answer carries the tally, which
+  /// the API withholds until you have voted.
+  static Future<MotmPollView> voteForManOfTheMatch({
+    required String pollId,
+    required String candidateUserId,
+  }) => _net.requestObject(
+    'POST',
+    '/motm/polls/$pollId/vote',
+    MotmPollView.fromJson,
+    body: <String, dynamic>{'candidate_user_id': candidateUserId},
+  );
+
+  static Future<MotmPollView> withdrawManOfTheMatchVote({required String pollId}) =>
+      _net.requestObject('DELETE', '/motm/polls/$pollId/vote', MotmPollView.fromJson);
+
+  /// Captain or secretary: end the vote now rather than waiting it out. A 403
+  /// is ordinary — most of a club cannot close one — and is worth saying in
+  /// plain words rather than passing on the permission's own name.
+  static Future<MotmPollView> closeManOfTheMatchVote({required String pollId}) =>
+      _net.requestObject('POST', '/motm/polls/$pollId/close', MotmPollView.fromJson);
+
   static Future<List<PendingInvite>> myInvites() =>
       _net.requestList('GET', '/invites/mine', PendingInvite.fromJson);
 

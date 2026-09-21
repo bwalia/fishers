@@ -13,6 +13,7 @@ export 'cricket_types.dart';
 export 'fixtures.dart';
 export 'json.dart';
 export 'models.dart';
+export 'motm.dart';
 export 'onboarding.dart';
 export 'player_profile.dart';
 export 'profile_strength.dart';

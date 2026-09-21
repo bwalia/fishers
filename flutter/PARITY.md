@@ -74,7 +74,8 @@ path and the same information in the same order of visual priority.
 | iOS | Android | Status | Notes |
 |---|---|---|---|
 | `Views/Chat/ChatListView.swift` | `lib/views/chat/chat_list_view.dart` | planned | Unread counts and a proposals badge. |
-| `Views/Chat/ChatThreadView.swift` (`ChatThreadView`, `MessageBubble`, `ProposalCard`) | `lib/views/chat/chat_thread_view.dart` | planned | The assistant proposes; a captain applies or dismisses. |
+| `Views/Chat/ChatThreadView.swift` (`ChatThreadView`, `MessageBubble`, `ProposalCard`) | `lib/views/chat/chat_thread_view.dart` | planned | The assistant proposes; a captain applies or dismisses. Opens on the man-of-the-match card when the last message carries one — a card renders *under* its message, so scrolling to the message hides it. |
+| `Views/Chat/ManOfTheMatchCard.swift` (`ManOfTheMatchCard`, `CandidateRow`) | `lib/views/chat/man_of_the_match_card.dart` | planned | Both elevens on the ballot; the tally hidden until you vote; the order held still while the vote is open; "Close the vote" offered to everyone, with the server's refusal shown as a plain sentence. |
 
 ### Clubs
 
@@ -139,6 +140,7 @@ redesign.
 | `ClubContextStore.swift` | `lib/stores/club_context_store.dart` | planned | `clubs`, `activeClubId` (persisted), `roleInfo`, `isLoading` |
 | `CartStore.swift` | `lib/stores/cart_store.dart` | planned | `lines`, `clubId`; `totalCents` derived |
 | `ChatStore.swift` | `lib/stores/chat_store.dart` | planned | `conversations`, `messages`, `proposals`, `isLoading`, `isSending`, `isThinking`, `errorMessage`, `agentSummary` |
+| `MotmStore.swift` | `lib/stores/motm_store.dart` | planned | One per card, not one for the app: a thread can carry several finished fixtures' votes at once and they are independent. `view`, `isLoading`, `isVoting`, `errorMessage` |
 | `ClubAdminStore.swift` | `lib/stores/club_admin_store.dart` | planned | `members`, `settings`, `fees`, `isLoading`, `isSaving`, `isChasing`, `errorMessage`, `invite` |
 | `SelectionStore.swift` | `lib/stores/selection_store.dart` | planned | `board`, `proposal`, `selected`, `reserves`, `isLoading`, `isThinking`, `isPublishing`, `errorMessage` |
 | `CalendarViewModel.swift` | `lib/stores/calendar_store.dart` | planned | `month`, `days`, `events`, `fixtures`, `bulkBusy`, `isLoading`, `errorMessage`, `cricketSeasonOnly` |
@@ -171,6 +173,7 @@ check that no wire key is silently dropped.
 | `Models/SeasonStats.swift` | `lib/models/season_stats.dart` | `PlayCricketLinks`, `PlayCricketPlayerLink`, `PlayerSeasonStats`, `UserAchievement`, `MeStatsResponse`, `PlayCricketClubSite`, `ClubSeasonStats`, `ClubSeasonBoard` |
 | `Models/Tournament.swift` | `lib/models/tournament.dart` | `TournamentFormat`, `FixtureBlock`, `TournamentEntrant`, `ScheduleRow`, `Standing`, `EventTicket`, `TicketSummary`, `TicketBooking`, `CricketFixtureRow` |
 | `Models/Chat.swift` | `lib/models/chat.dart` | `ConversationSummary`, `Conversation`, `ChatMessage`, `ProposalKind`, `AgentProposal`, `ProposalPayload`, `AgentRun`, `AgentAnalysis` |
+| `Models/ManOfTheMatch.swift` | `lib/models/motm.dart` | `MotmPoll`, `MotmCandidate`, `MotmPollView` — the poll's own fields arrive flattened in beside the ballot, so `fromJson` reads both out of one object |
 | `Models/Onboarding.swift` | `lib/models/onboarding.dart` | `RoleIntent`, `VerificationStatus`, `VerificationChannelStatus`, `VerificationChannel`, `VerificationSent`, `PendingInvite`, `ShareLinkToken` |
 | `Cricket/CricketTypes.swift` | `lib/models/cricket_types.dart` | The nine enums the brief names, plus `MatchOfficials`, `MatchConditions`, `MatchPlayer`, `ShotRecord`, `cricketRegion`, `ScoringEventKind` (20 cases), `ScoringEvent`, `BatterStats`, `BowlerStats`, `FallOfWicket`, `DeliveryRecord`, `InningsState`, `MatchState`, `DlsPar`, `CricketMatchDto`, `ScoreboardShareResponse` |
 | — (new) | `lib/models/json.dart` | The decoding layer Swift gets free from `Codable`: the multi-format ISO-8601 reader, the encoder, `JsonValue`, and the id and enum helpers |
@@ -190,7 +193,7 @@ read-only that screens use is already here.
 | iOS | Android | Status | Notes |
 |---|---|---|---|
 | `Services/NetworkService.swift` | `lib/services/network_service.dart` | **done** | Base URL + `/api/v1`, bearer token, single-flight refresh-then-retry-once, multipart upload, `ApiException` with the API's own sentence |
-| `Services/FishersAPI.swift` | `lib/services/fishers_api.dart` | **done** | 117 of 119 — see [Endpoints](#6-endpoints) |
+| `Services/FishersAPI.swift` | `lib/services/fishers_api.dart` | **done** | 122 of 126 — see [Endpoints](#6-endpoints) |
 | `Services/LiveStream.swift` | `lib/services/live_stream.dart` | **done** | SSE parser and the five events; one connection, shared; reconnect with backoff and jitter |
 | `Services/KeychainStore.swift` | `lib/services/keychain_store.dart` | **done** | `flutter_secure_storage` with `EncryptedSharedPreferences` |
 | `Services/SocialAuth.swift` | `lib/services/social_auth.dart` | partial | `SocialAuthConfig` is **done**; the Google sign-in call lands with the auth layer (`google_sign_in`). Apple is a **gap** |
@@ -375,6 +378,7 @@ Anything else is ignored. Reconnection is itself a resync.
 
 | What | iOS | Android | Why |
 |---|---|---|---|
+| **Push registration** | `registerDevice` / `unregisterDevice`, called after sign-in; APNs delivers man-of-the-match and chat notifications | **Not shipped.** Neither endpoint is called and no token is ever registered | Android push is FCM, which the brief puts out of scope. Nothing is lost but the buzz: every notification is stored server-side, so the bell fills up and the app reads them back on open. The two endpoints are the whole of the work when FCM lands |
 | **Sign in with Apple** | `AuthView` renders the button, `SocialAuth` runs the native flow | **Not shipped.** `/auth/apple` is never called, the button never rendered | Settled before this work started. On Android it is a web redirect, not a native flow, and that cost is not worth paying before the app is in people's hands. The auth screen still drives its buttons off the server's config, so a third provider slots in without rework |
 | **Back** | No equivalent obligation | The system back gesture and button work on every screen and inside every sheet | Android |
 | **Sheets** | `.sheet` | Material bottom sheet or full-screen dialog, by the weight of the iOS presentation | Android |
