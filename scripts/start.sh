@@ -447,16 +447,21 @@ API_ENV=(
 # single start, which is noise that trains you to ignore the log.
 # A .p8 is a file, and a relative path in .env means "next to the repo" to the
 # person who wrote it — not "next to wherever this shell happens to be".
-if [ -n "${APNS_PRIVATE_KEY_PATH:-}" ] && [ "${APNS_PRIVATE_KEY_PATH#/}" = "$APNS_PRIVATE_KEY_PATH" ]; then
-  APNS_PRIVATE_KEY_PATH="$ROOT/$APNS_PRIVATE_KEY_PATH"
-fi
+for _keyvar in APNS_PRIVATE_KEY_PATH FCM_SERVICE_ACCOUNT_PATH; do
+  _keypath="${!_keyvar:-}"
+  if [ -n "$_keypath" ] && [ "${_keypath#/}" = "$_keypath" ]; then
+    eval "${_keyvar}=\"\$ROOT/\$_keypath\""
+  fi
+done
+unset _keyvar _keypath
 
 for var in ANTHROPIC_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET DLS_RESOURCE_TABLE OLLAMA_URL \
            SMTP_HOST SMTP_PORT SMTP_TLS SMTP_USERNAME SMTP_PASSWORD EMAIL_FROM VERIFICATION_REQUIRED \
            WHATSAPP_TOKEN WHATSAPP_PHONE_NUMBER_ID WHATSAPP_TEMPLATE WHATSAPP_TEMPLATE_LANG \
            WHATSAPP_DEFAULT_COUNTRY GOOGLE_CLIENT_ID GOOGLE_IOS_CLIENT_ID APPLE_CLIENT_ID \
            APNS_KEY_ID APNS_TEAM_ID APNS_BUNDLE_ID APNS_PRIVATE_KEY APNS_PRIVATE_KEY_PATH \
-           APNS_ENVIRONMENT VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
+           APNS_ENVIRONMENT VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT \
+           FCM_PROJECT_ID FCM_SERVICE_ACCOUNT FCM_SERVICE_ACCOUNT_PATH; do
   [ -n "${!var:-}" ] && API_ENV+=( "${var}=${!var}" )
 done
 
