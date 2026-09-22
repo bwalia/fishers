@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { apiPort } from "@/lib/ports";
+
 type BoardPreview = {
   home_name: string;
   away_name: string;
@@ -19,7 +21,7 @@ function apiOrigin() {
   if (explicit) return explicit;
   const internal = process.env.API_INTERNAL_BASE?.replace(/\/$/, "");
   if (internal) return internal;
-  return `http://127.0.0.1:${process.env.NEXT_PUBLIC_API_PORT || "7312"}`;
+  return `http://127.0.0.1:${apiPort()}`;
 }
 
 export async function generateMetadata({

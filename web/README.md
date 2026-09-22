@@ -4,18 +4,34 @@ Next.js App Router dashboard against the same Fishers API as iOS.
 
 ## Run
 
+The stack script is the short way, and the one that gets the ports right — it
+starts the API and the dashboard together and writes `web/.env.local` with
+whatever port `.env` resolved to:
+
 ```bash
-# API must be on :7312 (bound to 0.0.0.0 for LAN phones)
+../scripts/start.sh --no-ios
+```
+
+By hand, when you already have an API running:
+
+```bash
 cd web
-cp .env.local.example .env.local
 npm install
 npm run dev
 ```
 
-`npm run dev` listens on **all interfaces** (`0.0.0.0:7311`). Always open the dashboard on the LAN host:
+Both listen on **all interfaces**, so a phone on the same Wi-Fi can reach them.
+The ports come from `.env` — `WEB_PORT` for the dashboard, `API_PORT` for the
+API — and default to 7311 and 7312, which is what `.env.example` ships. Open
+the dashboard on this machine's LAN address rather than localhost if you want a
+phone to follow the same link.
 
-Open [http://192.168.1.99:7311](http://192.168.1.99:7311).
+`start.sh --status` prints both addresses, so there is no number here to go
+stale.
+
+The browser works out the API's host from the page it loaded and only needs its
+port; `.env.local.example` has the two overrides for when it is somewhere else.
 
 Demo login: `demo@fishers.test` / `password123`
 
-API / Swagger: [http://192.168.1.99:7312/swagger-ui](http://192.168.1.99:7312/swagger-ui)
+Swagger lives on the API at `/swagger-ui`.
