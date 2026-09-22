@@ -389,7 +389,7 @@ Anything else is ignored. Reconnection is itself a resync.
 | **Permissions** | Asked on iOS's timing | Asked at point of use — camera for the QR scanner, `POST_NOTIFICATIONS` on API 33+ | Android |
 | **Push** | Registers for none | None added. In-app notifications come from the API and the SSE stream | Parity |
 | **Local notifications** | `UNUserNotificationCenter` in `ProfileReminder.swift` | `flutter_local_notifications`, plus the API 33+ runtime permission | Android |
-| **Debug fallback host** | Simulator → `127.0.0.1:7312` | Emulator → `10.0.2.2:7312` | An emulator does not share this Mac's network stack; `127.0.0.1` inside it is the emulator itself |
+| **Debug fallback host** | Simulator → `127.0.0.1:7312` | Emulator → `10.0.2.2:$API_PORT` (7312 by default) | An emulator does not share this Mac's network stack; `127.0.0.1` inside it is the emulator itself. The port follows `.env` via `--dart-define=API_PORT=…`, because `.env` moves it and iOS's hard-coded 7312 is wrong the moment it does |
 | **Loopback rejection** | Keyed off `targetEnvironment(simulator)` | Keyed off `kReleaseMode` | Dart has no simulator flag, and "is this a release build" is the same question in every case that matters |
 | **Touch target** | 44 pt | 48 dp (`FishersTheme.minTap`; the iOS value stays as `minTapIOS`) | Material's minimum is larger |
 | **Type** | SF Rounded / New York / SF Text | Weight and role carry the distinction on Material's type scale | Android's system font has no equivalent trio. Sizes stay at Material's defaults so the system font-size setting scales them |
