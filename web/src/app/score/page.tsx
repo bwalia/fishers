@@ -12,7 +12,7 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { OppositionPicker } from "@/components/OppositionPicker";
-import { overs, titleCase, type MatchResponse } from "@/lib/cricket";
+import { titleCase, type MatchResponse } from "@/lib/cricket";
 import { useRequireAuth } from "@/lib/require-auth";
 
 /// A fixture and the match on it, as `GET /cricket/fixtures` returns them —

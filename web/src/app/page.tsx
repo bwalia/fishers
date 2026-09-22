@@ -112,7 +112,7 @@ export default function HomePage() {
         <section className="panel welcome" aria-labelledby="welcome-title">
           <h2 id="welcome-title">How will you use Fishers?</h2>
           <p className="muted">
-            We'll show you exactly what to do next. You can switch later.
+            We&apos;ll show you exactly what to do next. You can switch later.
           </p>
           <RoleChooser onPicked={(u) => u && setUser(u)} />
         </section>

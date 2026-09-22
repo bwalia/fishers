@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, getAccessToken, getStoredUser, readErr, roleLabel, type ClubMemberRow } from "@/lib/api";
+import { api, getAccessToken, getStoredUser, readErr } from "@/lib/api";
 import { randomUUID } from "@/lib/uuid";
 import { subscribeLive } from "@/lib/live";
 import { WagonWheel } from "@/components/WagonWheel";
@@ -59,13 +59,6 @@ function deviceId() {
 /// A full side. Not enforced — the engine happily plays nine a side — but it
 /// is the number a captain is counting towards, so the screen says so.
 const XI_SIZE = 11;
-
-function ballClass(ball: { runs: number; is_wicket: boolean }) {
-  if (ball.is_wicket) return "wicket";
-  if (ball.runs >= 6) return "six";
-  if (ball.runs >= 4) return "boundary";
-  return undefined;
-}
 
 
 const other = (s: Side): Side => (s === "home" ? "away" : "home");
@@ -1131,7 +1124,6 @@ function Stages({
     return (
       <ConditionsPanel
         st={st}
-        send={send}
         canAct={canAct}
         matchId={match.id}
         mySides={match.my_sides ?? []}
@@ -1210,7 +1202,6 @@ function ScorersTurn({ title, note }: { title: string; note: string }) {
 
 function ConditionsPanel({
   st,
-  send,
   canAct,
   matchId,
   mySides,
@@ -1219,7 +1210,6 @@ function ConditionsPanel({
   onAgreed,
 }: {
   st: MatchState;
-  send: (kind: Record<string, unknown>) => Promise<void>;
   canAct: boolean;
   matchId: string;
   mySides: Side[];

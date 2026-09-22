@@ -74,10 +74,13 @@ export function Spotlight({
     };
   }, [targetId, measure, onClose]);
 
+  // The note is measured once the box exists, not every time it moves — a
+  // scroll changes box and would otherwise remeasure on every frame.
+  const boxed = box !== null;
   useLayoutEffect(() => {
     const n = noteRef.current;
     if (n) setNote({ w: n.offsetWidth, h: n.offsetHeight });
-  }, [box !== null, title, body]);
+  }, [boxed, title, body]);
 
   useEffect(() => {
     primary.current?.focus({ preventScroll: true });
