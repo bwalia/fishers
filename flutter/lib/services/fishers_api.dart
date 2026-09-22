@@ -9,14 +9,10 @@ import 'social_auth.dart';
 /// `ios/Fishers/Services/FishersAPI.swift`, in the same order, so the two can
 /// be diffed.
 ///
-/// No screen hand-rolls a URL. Swift has 126 functions here; this has 122, and
-/// the four that are missing are deliberate:
-///
-///   * `appleAuthConfig` and `signInWithApple` — **Sign in with Apple is out
-///     of scope for v1**, so `/auth/apple` is never called.
-///   * `registerDevice` and `unregisterDevice` — **push is out of scope**.
-///     Android push is FCM, which the brief defers; every notification is
-///     stored server-side either way, so the bell still fills up.
+/// No screen hand-rolls a URL. Swift has 126 functions here; this has 124,
+/// and the two that are missing are `appleAuthConfig` and `signInWithApple`:
+/// **Sign in with Apple is out of scope for v1**, so `/auth/apple` is never
+/// called.
 ///
 /// Swift's two `setAvailability` overloads become [setAvailability] and
 /// [setAvailabilityForDates], because Dart has no overloading. Nothing else
@@ -105,7 +101,6 @@ abstract final class FishersAPI {
     body: <String, dynamic>{'code': code},
   );
 
-  /// Invitations addressed to this account, any status.
   // MARK: Man of the match
 
   /// The club's vote for a fixture. Throws a 404 when the game has not
@@ -397,6 +392,26 @@ abstract final class FishersAPI {
 
   static Future<AgentProposal> dismissProposal(String id) =>
       _net.requestObject('POST', '/agent/proposals/$id/dismiss', AgentProposal.fromJson);
+
+  // MARK: Push
+
+  /// The token this device hears notifications on. `platform` tells the
+  /// server which transport to use: `android` is FCM, `ios` is APNs, `web` is
+  /// a Web Push subscription.
+  static Future<void> registerDevice({required String token, required String platform}) =>
+      _net.requestVoid(
+        'POST',
+        '/notifications/register-device',
+        body: <String, dynamic>{'device_token': token, 'platform': platform},
+      );
+
+  /// Stop pushing to this device. Scoped to the caller by the server, so
+  /// knowing somebody else's token buys nothing.
+  static Future<void> unregisterDevice({required String token}) => _net.requestVoid(
+    'POST',
+    '/notifications/unregister-device',
+    body: <String, dynamic>{'device_token': token},
+  );
 
   // MARK: QR codes and opponents
 
