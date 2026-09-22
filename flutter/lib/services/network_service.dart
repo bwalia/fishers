@@ -75,6 +75,12 @@ class ApiException implements Exception {
 
   bool get isUnverified => code == 'unverified';
 
+  /// Refused on permissions, rather than failed — `APIError.isForbidden` on
+  /// iOS. Lets a screen say what the refusal means in its own terms where the
+  /// API's shared wording, which names the permission, is too technical to
+  /// put in front of somebody.
+  bool get isForbidden => statusCode == 403;
+
   String? _field(String key) {
     try {
       final Object? parsed = jsonDecode(body);

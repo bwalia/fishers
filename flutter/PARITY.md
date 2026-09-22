@@ -5,9 +5,11 @@ Android counterpart lives or will live. `ios/Fishers/` is the specification;
 where this table and the Swift disagree, the Swift is right.
 
 **Status of this document.** The foundation layers — `config/`, `theme/`,
-`models/`, `services/` — are built and tested. Everything else is a plan, and
-the rows below name the file each piece will land in so the layout is settled
-before anyone writes it. Paths are relative to `flutter/`.
+`models/`, `services/` — are built and tested, and so is the first vertical
+slice through them: sign in, the tab bar, the chat list, a thread, and the
+man-of-the-match vote inside it. Everything else is a plan, and the rows below
+name the file each piece will land in so the layout is settled before anyone
+writes it. Paths are relative to `flutter/`.
 
 | Status | Meaning |
 |---|---|
@@ -26,8 +28,8 @@ path and the same information in the same order of visual priority.
 
 | iOS | Android | Status | Notes |
 |---|---|---|---|
-| `Views/RootView.swift` | `lib/app/root_view.dart` | planned | Not authenticated → auth; `needsQuickStart` → quick start; otherwise tabs. Same 250 ms crossfade. `lib/app/fishers_app.dart` currently renders a palette proof in its place. |
-| `Views/MainTabView.swift` | `lib/views/main_tab_view.dart` | planned | A bottom `NavigationBar`: Home, Fixtures, Chats, Clubs, Profile, in that order, with `LiveAlerts` floating above. |
+| `Views/RootView.swift` | `lib/views/root_view.dart` | **done** | Not authenticated → auth, otherwise tabs, with the same 250 ms crossfade. The quick start is not ported, so there is no third branch yet. The palette proof it replaced is still there as `PaletteProof`, which is what the theme tests pump. |
+| `Views/MainTabView.swift` | `lib/views/main_tab_view.dart` | **done**, Chats only | A bottom `NavigationBar`: Home, Fixtures, Chats, Clubs, Profile, in that order. Only Chats is built; the other three say which screen is missing rather than rendering blank, and Profile carries sign-out. `LiveAlerts` is not ported. |
 | `Views/ShareSheet.swift` | `lib/views/share_sheet.dart` | planned | `UIActivityViewController` → the Android share intent. |
 | `Views/Components/FishersBrandHeader.swift` (`FishersBrandHeader`, `FishersMark`) | `lib/views/components/fishers_brand_header.dart` | planned | Auth hero and empty states. |
 | `Views/Components/LiveAlerts.swift` (`LiveAlerts`, `AlertThread`, `AlertCard`) | `lib/views/components/live_alerts.dart` | planned | The only `accessibilityIdentifier` in the iOS tree — `"live-alert"` — becomes `Key('live-alert')`. |
@@ -37,7 +39,7 @@ path and the same information in the same order of visual priority.
 
 | iOS | Android | Status | Notes |
 |---|---|---|---|
-| `Views/Auth/AuthView.swift` | `lib/views/auth/auth_view.dart` | planned | Sign in / sign up on one form. Buttons driven off `GET /auth/google`, as on iOS. **No Apple button** — see the gap below. |
+| `Views/Auth/AuthView.swift` | `lib/views/auth/auth_view.dart` | **done**, email only | Sign in / sign up on one form, with the role question on sign-up. **No social buttons yet**: Apple is a settled gap, and Google needs a native SDK and platform config that have not landed — `social_auth.dart` is ported but nothing calls it. |
 | `Views/Onboarding/QuickStartView.swift` (`QuickStartView`, `WelcomeShareSheet`) | `lib/views/onboarding/quick_start_view.dart` | planned | Sport + squad number, both skippable. |
 | `Views/Onboarding/RoleChooserView.swift` | `lib/views/onboarding/role_chooser_view.dart` | planned | "I run a club" / "I play for a club". |
 | `Views/Onboarding/GettingStarted.swift` (`GuideStep`, `GettingStartedGuide`, `GettingStartedStore`, `GettingStartedSection`) | `lib/views/onboarding/getting_started.dart` + `lib/stores/getting_started_store.dart` | planned | The store moves to `stores/`; the section stays a view. Reloads when the club context arrives. |
@@ -73,9 +75,9 @@ path and the same information in the same order of visual priority.
 
 | iOS | Android | Status | Notes |
 |---|---|---|---|
-| `Views/Chat/ChatListView.swift` | `lib/views/chat/chat_list_view.dart` | planned | Unread counts and a proposals badge. |
-| `Views/Chat/ChatThreadView.swift` (`ChatThreadView`, `MessageBubble`, `ProposalCard`) | `lib/views/chat/chat_thread_view.dart` | planned | The assistant proposes; a captain applies or dismisses. Opens on the man-of-the-match card when the last message carries one — a card renders *under* its message, so scrolling to the message hides it. |
-| `Views/Chat/ManOfTheMatchCard.swift` (`ManOfTheMatchCard`, `CandidateRow`) | `lib/views/chat/man_of_the_match_card.dart` | planned | Both elevens on the ballot; the tally hidden until you vote; the order held still while the vote is open; "Close the vote" offered to everyone, with the server's refusal shown as a plain sentence. |
+| `Views/Chat/ChatListView.swift` | `lib/views/chat/chat_list_view.dart` | **done** | Unread counts and a proposals badge. |
+| `Views/Chat/ChatThreadView.swift` (`ChatThreadView`, `MessageBubble`) | `lib/views/chat/chat_thread_view.dart` | **done**, minus proposals | Messages and the composer. Opens at the bottom, on the man-of-the-match card when the last message carries one — a card renders *under* its message, so scrolling to the message hides it. `ProposalCard` is **not** ported: applying a proposal is a captain's decision and goes with the rest of the assistant work. |
+| `Views/Chat/ManOfTheMatchCard.swift` (`ManOfTheMatchCard`, `CandidateRow`) | `lib/views/chat/man_of_the_match_card.dart` | **done** | Both elevens on the ballot; the tally hidden until you vote; the order held still while the vote is open; "Close the vote" offered to everyone, with the server's refusal shown as a plain sentence. |
 
 ### Clubs
 
@@ -136,11 +138,11 @@ redesign.
 
 | iOS | Android | Status | Published state |
 |---|---|---|---|
-| `SessionStore.swift` | `lib/stores/session_store.dart` | planned | `user`, `isAuthenticated`, `isLoading`, `errorMessage`, `justStarted`; `needsQuickStart` derived |
+| `SessionStore.swift` | `lib/stores/session_store.dart` | **done** | `user`, `isAuthenticated`, `isLoading`, `errorMessage`. `justStarted` and `needsQuickStart` wait on the quick start being ported |
 | `ClubContextStore.swift` | `lib/stores/club_context_store.dart` | planned | `clubs`, `activeClubId` (persisted), `roleInfo`, `isLoading` |
 | `CartStore.swift` | `lib/stores/cart_store.dart` | planned | `lines`, `clubId`; `totalCents` derived |
-| `ChatStore.swift` | `lib/stores/chat_store.dart` | planned | `conversations`, `messages`, `proposals`, `isLoading`, `isSending`, `isThinking`, `errorMessage`, `agentSummary` |
-| `MotmStore.swift` | `lib/stores/motm_store.dart` | planned | One per card, not one for the app: a thread can carry several finished fixtures' votes at once and they are independent. `view`, `isLoading`, `isVoting`, `errorMessage` |
+| `ChatStore.swift` | `lib/stores/chat_store.dart` | **done**, minus the assistant | `conversations`, `messages`, `isLoading`, `isSending`, `errorMessage`. `proposals`, `isThinking` and `agentSummary` go with the assistant work |
+| `MotmStore.swift` | `lib/stores/motm_store.dart` | **done** | One per card, not one for the app: a thread can carry several finished fixtures' votes at once and they are independent. `view`, `isLoading`, `isVoting`, `errorMessage` |
 | `ClubAdminStore.swift` | `lib/stores/club_admin_store.dart` | planned | `members`, `settings`, `fees`, `isLoading`, `isSaving`, `isChasing`, `errorMessage`, `invite` |
 | `SelectionStore.swift` | `lib/stores/selection_store.dart` | planned | `board`, `proposal`, `selected`, `reserves`, `isLoading`, `isThinking`, `isPublishing`, `errorMessage` |
 | `CalendarViewModel.swift` | `lib/stores/calendar_store.dart` | planned | `month`, `days`, `events`, `fixtures`, `bulkBusy`, `isLoading`, `errorMessage`, `cricketSeasonOnly` |

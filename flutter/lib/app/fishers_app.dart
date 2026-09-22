@@ -1,29 +1,56 @@
 import 'package:flutter/material.dart';
 
+import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
+
 import '../config/app_config.dart';
+import '../stores/chat_store.dart';
+import '../stores/session_store.dart';
 import '../theme/fishers_theme.dart';
+import '../views/root_view.dart';
 
 /// The root widget — `ios/Fishers/App/FishersApp.swift`.
 ///
-/// Foundation only, for now. The real app puts `SessionStore`, `CartStore` and
-/// `ClubContextStore` above a `RootView` that gates on authentication; this
-/// stands in for that until the stores land, and renders enough of the palette
-/// to see that the theme is wired up in both appearances.
+/// The stores sit above a [RootView] that gates on authentication, the way
+/// Swift puts `SessionStore` and friends above its own. `CartStore` and
+/// `ClubContextStore` are not ported yet and are not needed by anything that
+/// is.
 class FishersApp extends StatelessWidget {
-  const FishersApp({super.key});
+  const FishersApp({super.key, this.home});
+
+  /// Overridden by tests that want one screen without the session in front of
+  /// it. Production passes nothing and gets [RootView].
+  final Widget? home;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Fishers',
-      theme: FishersTheme.light,
-      darkTheme: FishersTheme.dark,
-      // Follow the phone's setting, as the iOS app follows the system
-      // appearance rather than carrying a switch of its own.
-      themeMode: ThemeMode.system,
-      home: const _PaletteProof(),
+    return MultiProvider(
+      providers: <SingleChildWidget>[
+        ChangeNotifierProvider<SessionStore>(create: (_) => SessionStore()),
+        ChangeNotifierProvider<ChatStore>(create: (_) => ChatStore()),
+      ],
+      child: MaterialApp(
+        title: 'Fishers',
+        theme: FishersTheme.light,
+        darkTheme: FishersTheme.dark,
+        // Follow the phone's setting, as the iOS app follows the system
+        // appearance rather than carrying a switch of its own.
+        themeMode: ThemeMode.system,
+        home: home ?? const RootView(),
+      ),
     );
   }
+}
+
+/// The palette, on a screen of its own.
+///
+/// It proves the theme renders in both appearances without anything else in
+/// the app having to run, which is why it outlived being the home screen.
+class PaletteProof extends StatelessWidget {
+  const PaletteProof({super.key});
+
+  @override
+  Widget build(BuildContext context) => const _PaletteProof();
 }
 
 /// A placeholder that proves the theme renders: the ramp, the three
