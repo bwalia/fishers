@@ -44,4 +44,21 @@ final class AppConfigTests: XCTestCase {
         XCTAssertThrowsError(try AppConfig.setAPIBaseURLOverride(""))
         XCTAssertThrowsError(try AppConfig.setAPIBaseURLOverride("$(FISHERS_API_BASE_URL)"))
     }
+
+    /// project.yml writes the ports into Info.plist as XcodeGen substitutions.
+    /// Generated without them exported, the literal `${API_PORT}` survives into
+    /// the build — and a URL with that where a port belongs is not a host we
+    /// can reach, so it has to lose to the fallback rather than be dialled.
+    func testRejectsAnUnsubstitutedPort() {
+        XCTAssertThrowsError(try AppConfig.setAPIBaseURLOverride("http://127.0.0.1:${API_PORT}"))
+        XCTAssertThrowsError(try AppConfig.setAPIBaseURLOverride("http://127.0.0.1:${WEB_PORT}"))
+    }
+
+    /// The fallback is only reached when every source above it is missing, so
+    /// it must name the port the stack actually defaults to rather than a
+    /// number that once happened to be right.
+    func testFallbackUsesTheDocumentedDefaultPorts() {
+        XCTAssertEqual(AppConfig.defaultAPIPort, 7312)
+        XCTAssertEqual(AppConfig.defaultWebPort, 7311)
+    }
 }

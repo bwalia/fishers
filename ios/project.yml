@@ -45,8 +45,24 @@ targets:
         # shared live-scoreboard links point. Release must name production —
         # a TestFlight build is in someone else's hands and cannot reach a
         # machine on your network.
-        FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
-        FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
+        #
+        # The ports are substitutions, not literals, because .env moves them
+        # and scripts/start.sh exports whatever it ended up using. Two layers
+        # read ${API_PORT}, and both have to be right:
+        #
+        #   * XcodeGen, at generate time, from the environment. start.sh
+        #     exports the ports, so its builds carry the real one.
+        #   * Xcode, at build time, from the build settings below — which is
+        #     what happens when XcodeGen found nothing to substitute, as on CI
+        #     and on any hand-run `xcodegen generate`.
+        #
+        # The defaults exist because of that second layer: Xcode expands an
+        # undefined ${API_PORT} to the empty string, and "http://127.0.0.1:"
+        # is a URL that quietly dials port 80 rather than failing.
+        API_PORT: "7312"
+        WEB_PORT: "7311"
+        FISHERS_API_BASE_URL: "http://127.0.0.1:${API_PORT}"
+        FISHERS_WEB_BASE_URL: "http://127.0.0.1:${WEB_PORT}"
         # iOS OAuth client from Google Cloud Console (type "iOS"). These are
         # public client ids that must live in Info.plist — without the reversed
         # URL scheme GIDSignIn aborts the process on Continue with Google.
@@ -59,9 +75,11 @@ targets:
           # stack. A real iPhone rejects it (that address is the phone itself)
           # and falls through to production — point it at a local API with
           # Profile -> API server, or FISHERS_API_URL in the scheme.
-          # API is :7312; web/share links are :7311 — Next does not serve /api/v1.
-          FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
-          FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
+          # The API port and the web port are different — Next does not serve
+          # /api/v1 — so both follow .env rather than one standing in for the
+          # other. See the note on the base config above.
+          FISHERS_API_BASE_URL: "http://127.0.0.1:${API_PORT}"
+          FISHERS_WEB_BASE_URL: "http://127.0.0.1:${WEB_PORT}"
         Release:
           # Production. Blank here meant TestFlight builds fell through to
           # AppConfig's fallback instead of reaching a server at all.

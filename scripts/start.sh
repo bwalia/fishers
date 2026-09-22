@@ -116,6 +116,12 @@ POSTGRES_PORT="${POSTGRES_PORT:-7313}"
 API_PORT="${API_PORT:-7312}"
 WEB_PORT="${WEB_PORT:-7311}"
 
+# Exported for XcodeGen, which substitutes ${API_PORT} / ${WEB_PORT} out of the
+# environment when it writes Info.plist. Without this the Simulator build is
+# compiled against whatever port the spec happened to name, and an .env that
+# moves the API leaves the app talking to nothing on a plain Run in Xcode.
+export API_PORT WEB_PORT
+
 # Older local .env files used 5455, which collides with other stacks on the
 # Mac Studio and made start.sh die looking like a Fishers port problem.
 if [ "$POSTGRES_PORT" = "5455" ]; then
@@ -643,8 +649,12 @@ if [ "$WANT_IOS" = 1 ]; then
   SPEC="$ROOT/ios/project.yml"
   STAMP="$ROOT/ios/.xcodegen-stamp"
   current_stamp() {
+    # The ports are in the hash because XcodeGen bakes them into Info.plist
+    # from the environment: the spec can be untouched and the generated project
+    # still stale, which is a build pointed at the previous port.
     { find "$ROOT/ios/Fishers" "$ROOT/ios/FishersTests" -type f 2>/dev/null | LC_ALL=C sort
-      cat "$SPEC"; } | shasum -a 256 | cut -d' ' -f1
+      cat "$SPEC"
+      echo "API_PORT=${API_PORT} WEB_PORT=${WEB_PORT}"; } | shasum -a 256 | cut -d' ' -f1
   }
   now_stamp="$(current_stamp)"
   if [ ! -f "$ROOT/ios/Fishers.xcodeproj/project.pbxproj" ] \
