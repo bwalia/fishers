@@ -124,10 +124,7 @@ void main() {
     // The announcement, and then the card under it — the card's own prompt
     // asks the same question, so these are matched exactly rather than by
     // substring.
-    expect(
-      find.text('Hemel won by 7 wickets. Who was your man of the match?'),
-      findsOneWidget,
-    );
+    expect(find.text('Hemel won by 7 wickets. Who was your man of the match?'), findsOneWidget);
     expect(find.text('Man of the match'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('^Vote for ')), findsNWidgets(22));
   });

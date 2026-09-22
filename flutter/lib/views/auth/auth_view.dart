@@ -84,11 +84,7 @@ class _AuthViewState extends State<AuthView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Text(
-                    'Fishers',
-                    textAlign: TextAlign.center,
-                    style: FishersTheme.brand(context),
-                  ),
+                  Text('Fishers', textAlign: TextAlign.center, style: FishersTheme.brand(context)),
                   const SizedBox(height: FishersTheme.space1),
                   Text(
                     'Clubs, calendars, and match day — organised.',
@@ -152,9 +148,9 @@ class _AuthViewState extends State<AuthView> {
                             Text(
                               session.errorMessage!,
                               key: const Key('auth.error'),
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: colors.unavailable,
-                              ),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodySmall?.copyWith(color: colors.unavailable),
                             ),
                           ],
                           const SizedBox(height: FishersTheme.space3),

@@ -214,10 +214,7 @@ class _Card extends StatelessWidget {
       ];
     }
     return <Widget>[
-      Text(
-        'Voting closed with nobody voted for.',
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
+      Text('Voting closed with nobody voted for.', style: Theme.of(context).textTheme.bodySmall),
     ];
   }
 
@@ -270,10 +267,7 @@ class _CandidateRow extends StatelessWidget {
               ),
               const SizedBox(width: FishersTheme.space1),
               Expanded(
-                child: Text(
-                  player.displayName,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                child: Text(player.displayName, style: Theme.of(context).textTheme.bodyMedium),
               ),
               if (isScorersPick)
                 Padding(

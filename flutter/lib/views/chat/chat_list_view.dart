@@ -43,15 +43,9 @@ class _ChatListViewState extends State<ChatListView> {
               return ListView(
                 children: <Widget>[
                   const SizedBox(height: 80),
-                  Icon(
-                    Icons.forum_outlined,
-                    size: 40,
-                    color: Theme.of(context).disabledColor,
-                  ),
+                  Icon(Icons.forum_outlined, size: 40, color: Theme.of(context).disabledColor),
                   const SizedBox(height: FishersTheme.space2),
-                  Center(
-                    child: Text('No chats yet', style: FishersTheme.contentTitle(context)),
-                  ),
+                  Center(child: Text('No chats yet', style: FishersTheme.contentTitle(context))),
                   const SizedBox(height: FishersTheme.space1),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: FishersTheme.space3),
@@ -79,11 +73,7 @@ class _ChatListViewState extends State<ChatListView> {
                   title: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis),
                   subtitle: c.lastMessageBody == null
                       ? null
-                      : Text(
-                          c.lastMessageBody!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      : Text(c.lastMessageBody!, maxLines: 1, overflow: TextOverflow.ellipsis),
                   trailing: _trailing(context, c),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -110,10 +100,7 @@ class _ChatListViewState extends State<ChatListView> {
       if (c.unreadCount > 0)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-          decoration: BoxDecoration(
-            color: colors.accent,
-            borderRadius: BorderRadius.circular(999),
-          ),
+          decoration: BoxDecoration(color: colors.accent, borderRadius: BorderRadius.circular(999)),
           child: Text(
             '${c.unreadCount}',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white),
@@ -121,11 +108,7 @@ class _ChatListViewState extends State<ChatListView> {
         ),
     ];
     if (badges.isEmpty) return null;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: badges,
-    );
+    return Row(mainAxisSize: MainAxisSize.min, spacing: 6, children: badges);
   }
 
   static IconData _iconFor(String kind) => switch (kind) {

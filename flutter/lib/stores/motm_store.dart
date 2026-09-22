@@ -54,10 +54,7 @@ class MotmStore extends ChangeNotifier {
     try {
       _view = myVote == candidateUserId
           ? await FishersAPI.withdrawManOfTheMatchVote(pollId: pollId)
-          : await FishersAPI.voteForManOfTheMatch(
-              pollId: pollId,
-              candidateUserId: candidateUserId,
-            );
+          : await FishersAPI.voteForManOfTheMatch(pollId: pollId, candidateUserId: candidateUserId);
     } on ApiException catch (error) {
       _errorMessage = error.friendlyMessage;
     } on Object catch (error) {

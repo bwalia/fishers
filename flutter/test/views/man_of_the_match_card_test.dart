@@ -66,13 +66,12 @@ void main() {
 
   /// The open fixture is captured with a `closes_at` that has since passed, so
   /// it is pushed forward — the card reads the clock, not just the status.
-  String openNow({Map<String, dynamic> overrides = const <String, dynamic>{}}) => jsonEncode(
-    <String, dynamic>{
-      ...open,
-      'closes_at': DateTime.now().toUtc().add(const Duration(days: 1)).toIso8601String(),
-      ...overrides,
-    },
-  );
+  String openNow({Map<String, dynamic> overrides = const <String, dynamic>{}}) =>
+      jsonEncode(<String, dynamic>{
+        ...open,
+        'closes_at': DateTime.now().toUtc().add(const Duration(days: 1)).toIso8601String(),
+        ...overrides,
+      });
 
   testWidgets('both elevens are on the ballot, with the tally hidden', (WidgetTester tester) async {
     serve((RecordedRequest _) => (200, openNow()));

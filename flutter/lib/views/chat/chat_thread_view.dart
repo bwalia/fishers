@@ -180,10 +180,7 @@ class _Bubble extends StatelessWidget {
     final FishersColors colors = FishersColors.of(context);
     final bool fromAgent = message.isFromAgent;
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: FishersTheme.space2,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: FishersTheme.space2, vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -212,9 +209,7 @@ class _Bubble extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: fromAgent
-                  ? colors.accent.withValues(alpha: 0.12)
-                  : colors.raised,
+              color: fromAgent ? colors.accent.withValues(alpha: 0.12) : colors.raised,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(message.body, style: Theme.of(context).textTheme.bodyMedium),

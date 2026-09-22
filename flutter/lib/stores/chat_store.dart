@@ -18,7 +18,8 @@ class ChatStore extends ChangeNotifier {
   String? _errorMessage;
   String? _openConversationId;
 
-  List<ConversationSummary> get conversations => List<ConversationSummary>.unmodifiable(_conversations);
+  List<ConversationSummary> get conversations =>
+      List<ConversationSummary>.unmodifiable(_conversations);
 
   /// Oldest at the top, as a thread reads. The API pages newest-first — "the
   /// latest 50" is a LIMIT on a descending query — so what arrives is upside
@@ -98,10 +99,7 @@ class ChatStore extends ChangeNotifier {
     _isSending = true;
     notifyListeners();
     try {
-      final ChatMessage message = await FishersAPI.postMessage(
-        conversationId: id,
-        body: trimmed,
-      );
+      final ChatMessage message = await FishersAPI.postMessage(conversationId: id, body: trimmed);
       _messages = <ChatMessage>[..._messages, message];
       _errorMessage = null;
     } on ApiException catch (error) {
