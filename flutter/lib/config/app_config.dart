@@ -41,8 +41,41 @@ class AppConfig {
   /// (iOS says `127.0.0.1` here because the Simulator shares the Mac's network
   /// stack. An emulator does not, which is the one substantive difference in
   /// this file.)
-  static const String emulatorApiBase = 'http://10.0.2.2:7312';
-  static const String emulatorWebBase = 'http://10.0.2.2:7311';
+  ///
+  /// The ports are not hard-coded, because `.env` moves them and a default
+  /// that contradicts the stack it is meant to reach is worse than no default:
+  /// the app quietly talks to nothing. Pass them instead —
+  ///
+  ///     set -a; . ../.env; set +a
+  ///     flutter run --dart-define=API_PORT=$API_PORT --dart-define=WEB_PORT=$WEB_PORT
+  ///
+  /// — which is the only way a port can reach an app on a device, since the
+  /// emulator has its own process environment rather than this Mac's. It is
+  /// the same trick the dashboard plays with `NEXT_PUBLIC_API_PORT`.
+  ///
+  /// Two defines rather than `--dart-define-from-file=../.env`, which would
+  /// bake every key in that file — `JWT_SECRET`, `ANTHROPIC_API_KEY`, the push
+  /// credentials — into the artifact as a compile-time constant.
+  String get emulatorApiBase => 'http://10.0.2.2:${_port(apiPortKey, _definedApiPort)}';
+  String get emulatorWebBase => 'http://10.0.2.2:${_port(webPortKey, _definedWebPort)}';
+
+  /// The names `.env` and `scripts/start.sh` use, so one file configures both.
+  static const String apiPortKey = 'API_PORT';
+  static const String webPortKey = 'WEB_PORT';
+
+  /// `scripts/start.sh`'s own defaults, deliberately off the beaten track so
+  /// the stack does not fight Postgres on 5432 or another dev server on 8080.
+  static const String defaultApiPort = '7312';
+  static const String defaultWebPort = '7311';
+
+  static const String _definedApiPort = String.fromEnvironment(
+    apiPortKey,
+    defaultValue: defaultApiPort,
+  );
+  static const String _definedWebPort = String.fromEnvironment(
+    webPortKey,
+    defaultValue: defaultWebPort,
+  );
 
   /// Release fallback: production. A phone in someone else's hands cannot use
   /// a loopback address — that is the phone itself — and a LAN address shipped
@@ -154,6 +187,14 @@ class AppConfig {
   String? _envValue(String key, String defined) {
     final String fromProcess = _environment[key] ?? '';
     return fromProcess.isNotEmpty ? fromProcess : (defined.isEmpty ? null : defined);
+  }
+
+  /// The same order as [_envValue], minus the null case: a port always has a
+  /// value. The process environment only exists under the Dart VM — `flutter
+  /// test` and CI — where it is the natural way to point a run at a stack.
+  String _port(String key, String defined) {
+    final String fromProcess = _environment[key] ?? '';
+    return fromProcess.isNotEmpty ? fromProcess : defined;
   }
 
   /// A debug build reaches for the host machine; a release build reaches for

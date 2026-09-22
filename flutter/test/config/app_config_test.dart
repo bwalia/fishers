@@ -17,8 +17,26 @@ void main() {
 
   group('resolution order', () {
     test('falls back when nothing is set', () {
-      expect(configWith().apiBaseUrl.toString(), AppConfig.emulatorApiBase);
-      expect(configWith().webBaseUrl.toString(), AppConfig.emulatorWebBase);
+      expect(configWith().apiBaseUrl.toString(), configWith().emulatorApiBase);
+      expect(configWith().webBaseUrl.toString(), configWith().emulatorWebBase);
+    });
+
+    /// The ports live in `.env`, which moves them — `API_PORT=8080` is enough
+    /// to make a hard-coded 7312 point at nothing. A build passes the same
+    /// file with `--dart-define-from-file=../.env`; under the Dart VM the
+    /// process environment does the same job.
+    test('the fallback follows the ports the stack is actually on', () {
+      final AppConfig config = configWith(
+        env: <String, String>{AppConfig.apiPortKey: '8080', AppConfig.webPortKey: '3000'},
+      );
+      expect(config.apiBaseUrl.toString(), 'http://10.0.2.2:8080');
+      expect(config.webBaseUrl.toString(), 'http://10.0.2.2:3000');
+    });
+
+    test('without them, the fallback is what scripts/start.sh defaults to', () {
+      final AppConfig config = configWith();
+      expect(config.apiBaseUrl.toString(), 'http://10.0.2.2:${AppConfig.defaultApiPort}');
+      expect(config.webBaseUrl.toString(), 'http://10.0.2.2:${AppConfig.defaultWebPort}');
     });
 
     test('a stored override beats the fallback', () async {
