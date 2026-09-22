@@ -44,15 +44,17 @@ class _ChatThreadViewState extends State<ChatThreadView> {
     super.dispose();
   }
 
-  /// Opening a thread lands at the bottom of it, as every other chat app does.
+  /// Back to the newest message.
   ///
-  /// A beat first: the list builds its rows as they come into view, so asking
-  /// in the same frame as the messages arrive scrolls to where the list used
-  /// to end. The iOS card had the same problem and the same answer.
+  /// The list is reversed, so "the end" is offset zero and needs no chasing.
+  /// Jumping to `maxScrollExtent` on a forward list does not work here: the
+  /// rows build as they come into view, so the extent is an estimate that
+  /// grows, and a man-of-the-match card is twenty-two names tall — the first
+  /// estimate landed above the very card the thread exists to show.
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) return;
-      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      if (!mounted || !_scroll.hasClients) return;
+      _scroll.jumpTo(0);
     });
   }
 
@@ -79,10 +81,14 @@ class _ChatThreadViewState extends State<ChatThreadView> {
                 ? const Center(child: CircularProgressIndicator())
                 : ListView.builder(
                     controller: _scroll,
+                    // Built from the newest backwards, which is how every
+                    // chat app opens on the last thing said. It also means
+                    // the thread does not have to guess how tall it is.
+                    reverse: true,
                     padding: const EdgeInsets.symmetric(vertical: FishersTheme.space2),
                     itemCount: messages.length,
                     itemBuilder: (BuildContext context, int index) {
-                      final ChatMessage message = messages[index];
+                      final ChatMessage message = messages[messages.length - 1 - index];
                       final String? poll = _motmPollId(message);
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
