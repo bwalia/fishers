@@ -34,6 +34,10 @@ const STRIPE_TIMEOUT_SECS: u64 = 15;
 #[derive(Debug, Clone, Default)]
 pub struct StripeClient {
     pub secret_key: Option<String>,
+    /// `pk_…`. Not a secret — it is designed to sit in a web page — but it is
+    /// per-deployment, and one image serves every ring here, so the browser is
+    /// told at runtime rather than at build time.
+    pub publishable_key: Option<String>,
     webhook_secret: Option<String>,
     http: reqwest::Client,
 }
@@ -59,6 +63,12 @@ impl StripeClient {
             secret_key: std::env::var("STRIPE_SECRET_KEY")
                 .ok()
                 .filter(|s| !s.is_empty()),
+            // The web app reads it from the API; `NEXT_PUBLIC_` is the name
+            // Next.js would use for it, kept so one variable serves both.
+            publishable_key: std::env::var("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY")
+                .or_else(|_| std::env::var("STRIPE_PUBLISHABLE_KEY"))
+                .ok()
+                .filter(|s| !s.is_empty()),
             webhook_secret,
             ..Self::default()
         }
@@ -66,6 +76,16 @@ impl StripeClient {
 
     pub fn is_configured(&self) -> bool {
         self.secret_key.is_some()
+    }
+
+    /// Whether a card can actually be taken end to end.
+    ///
+    /// Both halves are needed and they fail differently: no secret key and
+    /// nothing is ever charged; no publishable key and the browser cannot put
+    /// a card form on the screen to charge it with. Offering a card form that
+    /// cannot work is worse than not offering one.
+    pub fn can_take_cards(&self) -> bool {
+        self.secret_key.is_some() && self.publishable_key.is_some()
     }
 
     /// Open a payment at Stripe and hand back the client secret the app needs

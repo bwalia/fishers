@@ -7,7 +7,7 @@
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::HeaderMap;
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::payments as payments_repo;
 use fishers_domain::{CreatePaymentIntentRequest, PaymentIntentResponse, PaymentStatus};
@@ -25,8 +25,21 @@ const MAX_PAYMENT_CENTS: i32 = 100_000;
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/payments/config", get(config))
         .route("/payments/intent", post(create_intent))
         .route("/payments/webhook", post(webhook))
+}
+
+/// What the app needs to put a card form on the screen.
+///
+/// Unauthenticated because it carries nothing private: the publishable key is
+/// meant to be read by a browser, and `cards` only says whether this
+/// deployment has been configured to take them.
+async fn config(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "cards": state.stripe.can_take_cards(),
+        "publishable_key": state.stripe.publishable_key,
+    }))
 }
 
 async fn create_intent(
@@ -195,11 +208,16 @@ async fn webhook(
         }
     }
 
-    // A succeeded ticket payment settles the ticket in the same breath.
+    // A succeeded payment settles whatever it was for, in the same breath. A
+    // payment is for one of them, so the other is a no-op rather than a
+    // branch nobody maintains.
     if status == PaymentStatus::Succeeded {
         if let Err(error) = payments_repo::settle_ticket_for_payment(&state.pool, payment.id).await
         {
             error!(%error, "could not settle the ticket for a paid payment");
+        }
+        if let Err(error) = payments_repo::settle_entry_for_payment(&state.pool, payment.id).await {
+            error!(%error, "could not settle the tournament entry for a paid payment");
         }
     }
 

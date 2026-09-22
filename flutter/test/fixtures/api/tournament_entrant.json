@@ -1,6 +1,6 @@
 {
-  "id": "829bd8e6-3bea-47a4-8ae9-ed28ce657d66",
-  "block_id": "82760a35-66d1-41f9-bf60-d5cd199ff28b",
+  "id": "d4cbdf4b-bbf4-435b-8336-a564c79bfda9",
+  "block_id": "b6d199e8-8b95-462a-9456-87da9df908d7",
   "name": "Lords A",
   "club_id": null,
   "team_id": null,
@@ -11,5 +11,7 @@
   "status": "accepted",
   "invited_by": null,
   "responded_at": null,
+  "entry_paid_at": null,
+  "entry_payment_method": null,
   "withdrawn": false
 }

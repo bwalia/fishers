@@ -120,7 +120,14 @@ struct TournamentEntrant: Codable, Identifiable, Equatable {
     /// still decodes; `status` is what the server has decided.
     var status: EntryStatus?
     var respondedAt: Date?
+    /// Set when the entry fee is settled, by card or by an organiser recording
+    /// a cheque. Nil when the tournament is free, or when they still owe.
+    var entryPaidAt: Date?
+    /// `card` | `cash` | `transfer` | `cheque`
+    var entryPaymentMethod: String?
     var withdrawn: Bool
+
+    var entryPaid: Bool { entryPaidAt != nil }
 
     /// What the row says. Falls back to the old boolean when an older API
     /// sends no status at all.
@@ -134,6 +141,8 @@ struct TournamentEntrant: Codable, Identifiable, Equatable {
         case contactName = "contact_name"
         case contactEmail = "contact_email"
         case respondedAt = "responded_at"
+        case entryPaidAt = "entry_paid_at"
+        case entryPaymentMethod = "entry_payment_method"
     }
 }
 

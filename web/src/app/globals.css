@@ -6567,3 +6567,50 @@ main .panel[id] { scroll-margin-top: 80px; }
   .opt-cards-wide { grid-template-columns: 1fr; }
   .form-summary { flex-direction: column; gap: var(--s2); }
 }
+
+/* --- Paying by card -----------------------------------------------------
+   A sheet rather than a page: paying is a step inside what somebody was
+   already doing, and sending them somewhere else to do it is how a half-paid
+   booking happens. */
+
+.pay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: color-mix(in srgb, #000 55%, transparent);
+  overflow-y: auto;
+}
+.pay-sheet {
+  width: min(28rem, 100%);
+  max-height: calc(100dvh - var(--s6));
+  overflow-y: auto;
+  padding: var(--s5);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.28);
+}
+.pay-amount {
+  margin: var(--s2) 0 var(--s4);
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.pay-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: var(--s4) 0 0;
+  font-size: 0.8rem;
+}
+.pay-note svg { flex: none; }
+
+@media (max-width: 640px) {
+  /* Full-height on a phone: a centred card with the keyboard up leaves the
+     card field behind it. */
+  .pay-backdrop { padding: 0; place-items: stretch; }
+  .pay-sheet { width: 100%; max-height: 100dvh; border-radius: 0; }
+}

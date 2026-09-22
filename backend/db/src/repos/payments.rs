@@ -190,6 +190,78 @@ pub async fn settle_ticket_for_payment(
     Ok(())
 }
 
+/// A paid entry-fee payment settles the entry in the same breath. Idempotent:
+/// a replayed webhook changes nothing, because `COALESCE` keeps the first
+/// timestamp.
+pub async fn settle_entry_for_payment(
+    pool: &PgPool,
+    payment_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        UPDATE tournament_entrants en
+        SET entry_paid_at = COALESCE(en.entry_paid_at, NOW()),
+            entry_payment_method = COALESCE(en.entry_payment_method, 'card')
+        FROM payments p
+        WHERE p.id = $1
+          AND p.status = 'succeeded'
+          AND en.id = p.entrant_id
+        "#,
+    )
+    .bind(payment_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// A payment already opened for this entry and still waiting to settle.
+pub async fn pending_for_entrant(
+    pool: &PgPool,
+    entrant_id: Uuid,
+) -> Result<Option<Payment>, sqlx::Error> {
+    sqlx::query_as::<_, Payment>(
+        r#"
+        SELECT id, user_id, event_id, order_id, amount_cents, currency, status,
+               stripe_payment_intent_id, created_at, updated_at
+        FROM payments
+        WHERE entrant_id = $1 AND status IN ('pending', 'requires_action')
+        ORDER BY created_at DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(entrant_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Open a payment for a tournament entry.
+///
+/// `payments` grew an `entrant_id` rather than gaining a second kind of
+/// payment: the intent, the webhook and the idempotency are all the same, and
+/// only what it settles differs.
+pub async fn create_pending_entry(
+    pool: &PgPool,
+    user_id: Uuid,
+    entrant_id: Uuid,
+    amount_cents: i32,
+    currency: &str,
+) -> Result<Payment, sqlx::Error> {
+    sqlx::query_as::<_, Payment>(
+        r#"
+        INSERT INTO payments (user_id, entrant_id, amount_cents, currency, status)
+        VALUES ($1, $2, $3, $4, 'pending')
+        RETURNING id, user_id, event_id, order_id, amount_cents, currency, status,
+                  stripe_payment_intent_id, created_at, updated_at
+        "#,
+    )
+    .bind(user_id)
+    .bind(entrant_id)
+    .bind(amount_cents)
+    .bind(currency)
+    .fetch_one(pool)
+    .await
+}
+
 /// Whether this member has already paid for this fixture — the check that keeps
 /// a second tap from taking a second payment.
 pub async fn has_paid_for_event(

@@ -34,6 +34,8 @@ pub fn router() -> Router<AppState> {
         .route("/fixture-blocks/{id}/invite", post(invite_entrant))
         .route("/entrants/{id}/withdraw", post(withdraw_entrant))
         .route("/entrants/{id}/respond", post(respond_to_entry))
+        .route("/entrants/{id}/pay-entry", post(pay_entry))
+        .route("/entrants/{id}/mark-entry-paid", post(mark_entry_paid))
         .route("/clubs/{id}/tournament-invites", get(club_invitations))
         // Unauthenticated, like the shared scoreboard: the side being asked has
         // no Fishers account, and the unguessable token is what stands in for
@@ -408,6 +410,98 @@ async fn public_respond(
     }
 
     Ok(Json(json!({ "status": entrant.status, "side": entrant.name })))
+}
+
+/// Start paying a tournament's entry fee.
+///
+/// The entering club pays. Like a ticket, the entry only counts as paid when
+/// the provider's webhook says the money arrived — a club cannot mark its own
+/// entry settled.
+async fn pay_entry(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let entrant = tournament_repo::get_entrant(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("entrant not found"))?;
+
+    // The club that is entering pays for its own entry. A side with no club of
+    // its own is the host's to settle, the same rule as answering for it.
+    let paying_club = match entrant.club_id {
+        Some(club_id) => club_id,
+        None => block_club(&state, entrant.block_id).await?,
+    };
+    require_organiser(&state, paying_club, auth.user_id).await?;
+
+    let (_, fee, paid_at) = tournament_repo::entry_fee_for(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("entrant not found"))?;
+
+    if paid_at.is_some() {
+        return Ok(Json(json!({ "already_paid": true })));
+    }
+    let Some(fee) = fee.filter(|f| *f > 0) else {
+        return Err(ApiError::bad_request(
+            "this tournament is free to enter — nothing to pay",
+        ));
+    };
+    if entrant.status != EntryStatus::ACCEPTED {
+        return Err(ApiError::conflict(
+            "accept the invitation before paying the entry fee",
+        ));
+    }
+
+    // Reused while it is still for the right amount, so a second tap reaches
+    // Stripe with the same idempotency key and gets the same intent back.
+    let payment = match payments_repo::pending_for_entrant(&state.pool, id).await? {
+        Some(open) if open.amount_cents == fee => open,
+        _ => payments_repo::create_pending_entry(&state.pool, auth.user_id, id, fee, "GBP").await?,
+    };
+
+    let request = fishers_domain::CreatePaymentIntentRequest {
+        event_id: None,
+        order_id: None,
+        amount_cents: fee,
+        currency: Some("GBP".into()),
+    };
+    let intent = state
+        .stripe
+        .create_payment_intent(payment.id, &request)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    payments_repo::attach_intent(&state.pool, payment.id, &intent.intent_id).await?;
+
+    Ok(Json(json!({
+        "payment_id": intent.payment_id,
+        "client_secret": intent.client_secret,
+        "amount_cents": intent.amount_cents,
+        "currency": intent.currency,
+    })))
+}
+
+/// Record an entry fee paid outside the app — a cheque, a transfer, cash in an
+/// envelope, which for club cricket is most of the time. The host's button,
+/// not the entering club's.
+async fn mark_entry_paid(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<MarkPaidBody>,
+) -> ApiResult<Json<TournamentEntrant>> {
+    if !matches!(body.method.as_str(), "cash" | "transfer" | "cheque") {
+        return Err(ApiError::bad_request("method must be cash, transfer or cheque"));
+    }
+    let entrant = tournament_repo::get_entrant(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("entrant not found"))?;
+    let host = block_club(&state, entrant.block_id).await?;
+    require_organiser(&state, host, auth.user_id).await?;
+
+    tournament_repo::record_entry_payment(&state.pool, id, &body.method)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("entrant not found"))
 }
 
 fn entry_link(token: &str) -> String {

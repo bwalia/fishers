@@ -209,6 +209,8 @@ class TournamentEntrant {
     this.contactEmail,
     this.status,
     this.respondedAt,
+    this.entryPaidAt,
+    this.entryPaymentMethod,
   });
 
   final String id;
@@ -223,7 +225,16 @@ class TournamentEntrant {
   /// Null only when talking to an API that predates entry invites.
   final EntryStatus? status;
   final DateTime? respondedAt;
+
+  /// Set when the entry fee is settled, by card or by an organiser recording a
+  /// cheque. Null when the tournament is free, or when they still owe.
+  final DateTime? entryPaidAt;
+
+  /// `card` | `cash` | `transfer` | `cheque`
+  final String? entryPaymentMethod;
   final bool withdrawn;
+
+  bool get entryPaid => entryPaidAt != null;
 
   /// What the row says, falling back to the old boolean.
   EntryStatus get entry =>
@@ -243,6 +254,11 @@ class TournamentEntrant {
       null => null,
     },
     respondedAt: asDateOrNull(json['responded_at'], key: 'responded_at'),
+    entryPaidAt: asDateOrNull(json['entry_paid_at'], key: 'entry_paid_at'),
+    entryPaymentMethod: asStringOrNull(
+      json['entry_payment_method'],
+      key: 'entry_payment_method',
+    ),
     withdrawn: asBool(json['withdrawn'], key: 'withdrawn'),
   );
 
@@ -257,6 +273,8 @@ class TournamentEntrant {
     'contact_email': contactEmail,
     'status': status?.wire,
     'responded_at': respondedAt == null ? null : encodeDate(respondedAt!),
+    'entry_paid_at': entryPaidAt == null ? null : encodeDate(entryPaidAt!),
+    'entry_payment_method': entryPaymentMethod,
     'withdrawn': withdrawn,
   };
 
@@ -273,6 +291,8 @@ class TournamentEntrant {
       other.contactEmail == contactEmail &&
       other.status == status &&
       other.respondedAt == respondedAt &&
+      other.entryPaidAt == entryPaidAt &&
+      other.entryPaymentMethod == entryPaymentMethod &&
       other.withdrawn == withdrawn;
 
   @override
@@ -287,6 +307,8 @@ class TournamentEntrant {
     contactEmail,
     status,
     respondedAt,
+    entryPaidAt,
+    entryPaymentMethod,
     withdrawn,
   );
 }

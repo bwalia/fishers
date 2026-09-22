@@ -655,6 +655,11 @@ pub struct TournamentEntrant {
     pub status: String,
     pub invited_by: Option<Uuid>,
     pub responded_at: Option<DateTime<Utc>>,
+    /// Set when the entry fee is settled, by card or by an organiser recording
+    /// a cheque. Null when the tournament is free, or when they still owe.
+    pub entry_paid_at: Option<DateTime<Utc>>,
+    /// `card` | `cash` | `transfer`
+    pub entry_payment_method: Option<String>,
     /// Derived from `status` in the database, and kept because the apps, the
     /// web UI and the standings view all read it.
     pub withdrawn: bool,

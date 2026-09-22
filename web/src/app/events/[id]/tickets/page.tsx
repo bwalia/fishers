@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api, getStoredUser, money, readErr } from "@/lib/api";
 import { type EventTicket, type TicketBooking } from "@/lib/tournament";
 import { Avatar } from "@/components/Avatar";
-import { Icon } from "@/components/Icon";
+import { PayDialog, useCardPayments } from "@/components/PayDialog";
 import { useRequireAuth } from "@/lib/require-auth";
 
 /// A ticketed club event — the dinner, the quiz, presentation night.
@@ -24,6 +24,8 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const cards = useCardPayments();
   const me = getStoredUser();
 
   const load = useCallback(async () => {
@@ -107,15 +109,23 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                 <div><dt>To pay</dt><dd className="num">{money(mine.amount_cents, mine.currency)}</dd></div>
               </dl>
               <div className="field-row" style={{ marginTop: "var(--s4)" }}>
-                {mine.status !== "paid" && (
+                {mine.status !== "paid" && mine.amount_cents > 0 && cards && (
                   <button
                     className="btn primary"
                     type="button"
                     disabled={busy !== null}
-                    onClick={() => act("pay", () => api("POST", `/tickets/${mine.id}/pay`, {}), "Payment opened — your club confirms it once it clears.")}
+                    onClick={() => setPaying(true)}
                   >
-                    {busy === "pay" ? "Opening…" : `Pay ${money(mine.amount_cents, mine.currency)}`}
+                    Pay {money(mine.amount_cents, mine.currency)} by card
                   </button>
+                )}
+                {mine.status !== "paid" && cards === false && (
+                  // Said rather than shown as a button that cannot work: this
+                  // server has no Stripe keys, so the only way to pay is to
+                  // hand the money over.
+                  <span className="subtle">
+                    Pay your club directly — card payments are not switched on here.
+                  </span>
                 )}
                 <button
                   className="btn"
@@ -256,6 +266,28 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
           </p>
         </aside>
       </div>
+
+      {paying && mine && (
+        <PayDialog
+          title={summary.title}
+          amountCents={mine.amount_cents}
+          currency={mine.currency}
+          open={() => api<{ client_secret: string }>("POST", `/tickets/${mine.id}/pay`, {})}
+          // The webhook settles the ticket, so the ticket is what is asked —
+          // not Stripe, and not our own optimism.
+          settled={async () =>
+            (await api<TicketBooking>("GET", `/events/${id}/tickets`)).tickets.some(
+              (t) => t.id === mine.id && t.status === "paid"
+            )
+          }
+          onDone={() => {
+            setPaying(false);
+            setNote("Paid — thank you.");
+            load();
+          }}
+          onClose={() => setPaying(false)}
+        />
+      )}
     </main>
   );
 }

@@ -20,7 +20,7 @@ pub const BLOCK_COLS: &str = "id, club_id, team_id, name, kind, starts_on, ends_
 /// and silently missing from another.
 const ENTRANT_COLS: &str = "id, block_id, name, club_id, team_id, seed, group_label, \
                             contact_name, contact_email, status, invited_by, responded_at, \
-                            withdrawn";
+                            entry_paid_at, entry_payment_method, withdrawn";
 
 pub async fn get_block(pool: &PgPool, id: Uuid) -> Result<Option<FixtureBlock>, sqlx::Error> {
     sqlx::query_as::<_, FixtureBlock>(&format!(
@@ -436,6 +436,42 @@ pub async fn set_entry_status(
 
     tx.commit().await?;
     Ok(Ok(entrant))
+}
+
+/// Mark an entry fee settled by an organiser — a cheque, a bank transfer, cash
+/// in an envelope. The card path settles itself through the webhook.
+pub async fn record_entry_payment(
+    pool: &PgPool,
+    entrant_id: Uuid,
+    method: &str,
+) -> Result<Option<TournamentEntrant>, sqlx::Error> {
+    sqlx::query_as::<_, TournamentEntrant>(&format!(
+        "UPDATE tournament_entrants
+         SET entry_paid_at = COALESCE(entry_paid_at, NOW()),
+             entry_payment_method = COALESCE(entry_payment_method, $2)
+         WHERE id = $1
+         RETURNING {ENTRANT_COLS}"
+    ))
+    .bind(entrant_id)
+    .bind(method)
+    .fetch_optional(pool)
+    .await
+}
+
+/// What a side owes to enter, and whether they have paid it.
+pub async fn entry_fee_for(
+    pool: &PgPool,
+    entrant_id: Uuid,
+) -> Result<Option<(Uuid, Option<i32>, Option<DateTime<Utc>>)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT en.block_id, fb.entry_fee_cents, en.entry_paid_at
+         FROM tournament_entrants en
+         JOIN fixture_blocks fb ON fb.id = en.block_id
+         WHERE en.id = $1",
+    )
+    .bind(entrant_id)
+    .fetch_optional(pool)
+    .await
 }
 
 /// Tournaments a club has been asked into and has not answered, plus the ones
