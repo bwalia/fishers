@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api, readErr, type Club } from "@/lib/api";
+import { api, money, readErr, type Club } from "@/lib/api";
 import { defaultConditions, type EntryInvitation, type FixtureBlock } from "@/lib/tournament";
 import {
   emptyRules,
@@ -136,77 +136,46 @@ export default function TournamentsPage() {
 /// The host is waiting on this to make the draw, so it is the first thing on
 /// the page and it says who asked — an invitation from a club you have never
 /// heard of is answered differently from one from your league rivals.
-function Invitations({
-  invites,
-  onAnswered,
-}: {
-  invites: EntryInvitation[];
-  onAnswered: () => void;
-}) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const answer = async (invite: EntryInvitation, status: "accepted" | "declined") => {
-    setBusy(invite.entrant_id);
-    setError(null);
-    try {
-      await api("POST", `/entrants/${invite.entrant_id}/respond`, { status });
-      onAnswered();
-    } catch (err) {
-      setError(readErr(err, "Could not send that answer"));
-    } finally {
-      setBusy(null);
-    }
-  };
-
+function Invitations({ invites }: { invites: EntryInvitation[]; onAnswered: () => void }) {
   return (
     <div className="panel">
       <div className="panel-head">
         <h2>You have been asked</h2>
         <span className="tag gold">{invites.length}</span>
       </div>
-      {error && <p className="error">{error}</p>}
-      <ul className="pick-list">
+      <ul className="thread-list">
         {invites.map((i) => (
           <li key={i.entrant_id}>
-            <span className="thread-mark" aria-hidden>
-              <Icon name="trophy" size={18} />
-            </span>
-            <div className="pick-who">
-              <strong>{i.block_name}</strong>
-              <span className="pick-signals">
-                <span className="subtle">
-                  {i.host_club_name}
-                  {i.invited_by_name ? ` · ${i.invited_by_name}` : ""}
-                </span>
-                {blockDates(i) && <span className="subtle">{blockDates(i)}</span>}
-                <span className="subtle">entering as {i.entrant_name}</span>
+            {/* Opened rather than answered here: a club should read the
+                format, the fee and who may play before it agrees to them,
+                and none of that fits on a list row. */}
+            <Link href={`/tournaments/invite/${i.entrant_id}`} className="thread-row">
+              <span className="thread-mark" aria-hidden>
+                <Icon name="trophy" size={18} />
               </span>
-            </div>
-            <div className="pick-actions">
-              <button
-                className="btn primary sm"
-                type="button"
-                disabled={busy !== null}
-                onClick={() => answer(i, "accepted")}
-              >
-                {busy === i.entrant_id ? "…" : "Accept"}
-              </button>
-              <button
-                className="btn ghost sm"
-                type="button"
-                disabled={busy !== null}
-                onClick={() => answer(i, "declined")}
-              >
-                Decline
-              </button>
-            </div>
+              <span className="thread-body">
+                <span className="thread-head">
+                  <strong>{i.block_name}</strong>
+                  <span className="subtle">{blockDates(i)}</span>
+                </span>
+                <span className="thread-last">
+                  {i.host_club_name}
+                  {i.invited_by_name ? ` · ${i.invited_by_name}` : ""} — entering as{" "}
+                  {i.entrant_name}
+                </span>
+              </span>
+              <span className="thread-badges">
+                {i.entry_fee_cents ? (
+                  <span className="tag grey">{money(i.entry_fee_cents)} to enter</span>
+                ) : null}
+                <span className="tag gold">Answer</span>
+              </span>
+            </Link>
           </li>
         ))}
       </ul>
       <p className="subtle" style={{ marginTop: "var(--s3)" }}>
-        Accepting puts your side in the draw. Declining tells them now, while
-        they can still find somebody else.
+        Open one to see what you would be entering, then accept or decline.
       </p>
     </div>
   );

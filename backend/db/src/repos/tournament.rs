@@ -495,6 +495,8 @@ pub async fn entry_invitations(
                en.club_id,
                en.status,
                (SELECT name FROM users WHERE id = en.invited_by) AS invited_by_name,
+               fb.entry_fee_cents,
+               en.entry_paid_at,
                en.created_at
         FROM tournament_entrants en
         JOIN fixture_blocks fb ON fb.id = en.block_id
@@ -1001,23 +1003,128 @@ pub async fn ticket_event(pool: &PgPool, ticket_id: Uuid) -> Result<Option<Uuid>
 /// Entrants as the generator wants them.
 /// The sides a draw is actually made from.
 ///
-/// Accepted only: a club that was asked and has not answered is not a fixture,
-/// and scheduling one would put a match in the diary nobody agreed to play.
+/// Confirmed only, which means two things: a club that was asked and never
+/// answered is not a fixture, and — where the tournament charges — neither is
+/// one that said yes and has not paid. Building a fixture list around sides
+/// who might still not turn up is how an organiser loses a Saturday.
+///
+/// The same rule as `tournament_standings`, and in SQL for the same reason:
+/// the draw and the table must not each decide it for themselves.
 pub async fn entrants_for_generation(
     pool: &PgPool,
     block_id: Uuid,
 ) -> Result<Vec<Entrant>, sqlx::Error> {
-    Ok(list_entrants(pool, block_id)
-        .await?
-        .into_iter()
-        .filter(|e| e.status == EntryStatus::ACCEPTED)
-        .map(|e| Entrant {
-            id: e.id,
-            name: e.name,
-            seed: e.seed,
-            group_label: e.group_label,
-        })
-        .collect())
+    sqlx::query_as::<_, (Uuid, String, Option<i32>, Option<String>)>(
+        "SELECT en.id, en.name, en.seed, en.group_label
+         FROM tournament_entrants en
+         JOIN fixture_blocks fb ON fb.id = en.block_id
+         WHERE en.block_id = $1
+           AND en.status = 'accepted'
+           AND (COALESCE(fb.entry_fee_cents, 0) = 0 OR en.entry_paid_at IS NOT NULL)
+         ORDER BY en.group_label NULLS LAST, en.seed NULLS LAST, en.name",
+    )
+    .bind(block_id)
+    .fetch_all(pool)
+    .await
+    .map(|rows| {
+        rows.into_iter()
+            .map(|(id, name, seed, group_label)| Entrant { id, name, seed, group_label })
+            .collect()
+    })
+}
+
+/// The whole invitation as the club being asked needs to read it: what the
+/// tournament is, who is running it, what it costs, and where their answer
+/// has got to.
+///
+/// One query, because the invited club cannot read the tournament any other
+/// way — they are not members of the club running it.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct InvitationView {
+    pub entrant_id: Uuid,
+    pub entrant_name: String,
+    pub status: String,
+    pub club_id: Option<Uuid>,
+    pub entry_paid_at: Option<DateTime<Utc>>,
+    pub entry_payment_method: Option<String>,
+    pub block_id: Uuid,
+    pub block_name: String,
+    pub kind: String,
+    pub description: Option<String>,
+    pub starts_on: Option<chrono::NaiveDate>,
+    pub ends_on: Option<chrono::NaiveDate>,
+    pub host_club_id: Uuid,
+    pub host_club_name: String,
+    pub invited_by_name: Option<String>,
+    pub entry_fee_cents: Option<i32>,
+    pub entry_deadline: Option<DateTime<Utc>>,
+    pub max_entrants: Option<i32>,
+    pub players_per_side: i32,
+    pub guest_players_allowed: i32,
+    pub age_group: String,
+    pub gender: String,
+    #[sqlx(json(nullable))]
+    pub conditions: Option<fishers_domain::MatchConditions>,
+    pub rules_notes: Option<String>,
+    pub venue_name: Option<String>,
+}
+
+pub async fn invitation(
+    pool: &PgPool,
+    entrant_id: Uuid,
+) -> Result<Option<InvitationView>, sqlx::Error> {
+    sqlx::query_as::<_, InvitationView>(
+        r#"
+        SELECT en.id AS entrant_id, en.name AS entrant_name, en.status, en.club_id,
+               en.entry_paid_at, en.entry_payment_method,
+               fb.id AS block_id, fb.name AS block_name, fb.kind, fb.description,
+               fb.starts_on, fb.ends_on,
+               fb.club_id AS host_club_id, c.name AS host_club_name,
+               (SELECT name FROM users WHERE id = en.invited_by) AS invited_by_name,
+               fb.entry_fee_cents, fb.entry_deadline, fb.max_entrants,
+               fb.players_per_side, fb.guest_players_allowed, fb.age_group, fb.gender,
+               fb.conditions, fb.rules_notes,
+               (SELECT name FROM venues WHERE id = fb.venue_id) AS venue_name
+        FROM tournament_entrants en
+        JOIN fixture_blocks fb ON fb.id = en.block_id
+        JOIN clubs c ON c.id = fb.club_id
+        WHERE en.id = $1
+        "#,
+    )
+    .bind(entrant_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Whether this person may read a tournament: a member of the club running it,
+/// or of a club it has asked in. Without the second half the invited club
+/// cannot see what it is being asked to agree to.
+pub async fn may_read_block(
+    pool: &PgPool,
+    block_id: Uuid,
+    user_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM fixture_blocks fb
+            JOIN club_members cm ON cm.club_id = fb.club_id
+                                AND cm.user_id = $2 AND cm.status = 'active'
+            WHERE fb.id = $1
+        ) OR EXISTS (
+            SELECT 1
+            FROM tournament_entrants en
+            JOIN club_members cm ON cm.club_id = en.club_id
+                                AND cm.user_id = $2 AND cm.status = 'active'
+            WHERE en.block_id = $1 AND en.club_id IS NOT NULL
+        )
+        "#,
+    )
+    .bind(block_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
 }
 
 /// Default rest between a side's games, used when a request omits it.

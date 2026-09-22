@@ -72,7 +72,13 @@ struct EntryInvitationsSection: View {
                     Text("\(invitations.count)").font(FishersTheme.caption)
                 }
             } footer: {
-                Text("Accepting puts your side in the draw. Declining tells them now, while they can still find somebody else.")
+                // Accepting is not entering when there is a fee, and saying
+                // otherwise would leave a club thinking its place was safe.
+                Text(
+                    invitations.contains(where: { ($0.entryFeeCents ?? 0) > 0 })
+                        ? "Accepting holds your place. Where there is an entry fee your side is in the draw once it is settled — pay it on the web, or the host will record it."
+                        : "Accepting puts your side in the draw. Declining tells them now, while they can still find somebody else."
+                )
             }
         }
     }
@@ -82,6 +88,10 @@ struct EntryInvitationsSection: View {
         if let by = invitation.invitedByName { parts.append(by) }
         if let dates = invitation.dates { parts.append(dates) }
         parts.append("as \(invitation.entrantName)")
+        // What it costs, before the Accept button rather than after it.
+        if let fee = invitation.entryFeeCents, fee > 0 {
+            parts.append("£\(String(format: "%.2f", Double(fee) / 100)) to enter")
+        }
         return parts.joined(separator: " · ")
     }
 

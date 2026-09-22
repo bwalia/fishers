@@ -131,6 +131,11 @@ export type TournamentEntrant = {
   status: EntryStatus;
   invited_by: string | null;
   responded_at: string | null;
+  /// Set when the entry fee is settled, by card or by an organiser recording a
+  /// cheque. Null when the tournament is free, or when they still owe.
+  entry_paid_at: string | null;
+  /// `card` | `cash` | `transfer` | `cheque`
+  entry_payment_method: string | null;
   /// Derived from `status` by the database. Kept because several screens read it.
   withdrawn: boolean;
 };
@@ -149,6 +154,9 @@ export type EntryInvitation = {
   club_id: string | null;
   status: EntryStatus;
   invited_by_name: string | null;
+  /// What entering costs, so a club is told before it says yes.
+  entry_fee_cents: number | null;
+  entry_paid_at: string | null;
   created_at: string;
 };
 

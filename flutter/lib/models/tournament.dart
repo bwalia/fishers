@@ -361,6 +361,8 @@ class EntryInvitation {
     this.endsOn,
     this.clubId,
     this.invitedByName,
+    this.entryFeeCents,
+    this.entryPaidAt,
   });
 
   final String entrantId;
@@ -376,6 +378,14 @@ class EntryInvitation {
   final EntryStatus status;
   final String? invitedByName;
 
+  /// What entering costs. Accepting without being told is how a club ends up
+  /// owing £50 it never agreed to.
+  final int? entryFeeCents;
+  final DateTime? entryPaidAt;
+
+  /// Said yes, still owes. Not in the draw until it is settled.
+  bool get owesEntryFee => (entryFeeCents ?? 0) > 0 && entryPaidAt == null;
+
   factory EntryInvitation.fromJson(JsonMap json) => EntryInvitation(
     entrantId: asUuid(json['entrant_id'], key: 'entrant_id'),
     blockId: asUuid(json['block_id'], key: 'block_id'),
@@ -389,6 +399,8 @@ class EntryInvitation {
     clubId: asUuidOrNull(json['club_id'], key: 'club_id'),
     status: EntryStatus.parse(asString(json['status'], key: 'status')),
     invitedByName: asStringOrNull(json['invited_by_name'], key: 'invited_by_name'),
+    entryFeeCents: asIntOrNull(json['entry_fee_cents'], key: 'entry_fee_cents'),
+    entryPaidAt: asDateOrNull(json['entry_paid_at'], key: 'entry_paid_at'),
   );
 
   JsonMap toJson() => <String, dynamic>{
@@ -404,6 +416,8 @@ class EntryInvitation {
     'club_id': clubId,
     'status': status.wire,
     'invited_by_name': invitedByName,
+    'entry_fee_cents': entryFeeCents,
+    'entry_paid_at': entryPaidAt == null ? null : encodeDate(entryPaidAt!),
   };
 
   String? get dates {
@@ -428,7 +442,9 @@ class EntryInvitation {
       other.entrantName == entrantName &&
       other.clubId == clubId &&
       other.status == status &&
-      other.invitedByName == invitedByName;
+      other.invitedByName == invitedByName &&
+      other.entryFeeCents == entryFeeCents &&
+      other.entryPaidAt == entryPaidAt;
 
   @override
   int get hashCode => Object.hash(
@@ -444,6 +460,8 @@ class EntryInvitation {
     clubId,
     status,
     invitedByName,
+    entryFeeCents,
+    entryPaidAt,
   );
 }
 

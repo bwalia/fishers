@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api, readErr } from "@/lib/api";
+import { api, money, readErr } from "@/lib/api";
 import {
   AGE_LABEL,
   BALL_LABEL,
@@ -89,11 +89,17 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   if (loading)
     return <main id="main"><div className="skeleton" style={{ height: 300 }} /></main>;
 
-  // Only accepted sides are in the tournament. A club that has been asked and
-  // not answered is counted separately, because chasing them is the organiser's
-  // next job and a single "12 in" hides it.
-  const playing = entrants.filter((e) => e.status === "accepted");
+  // "In" means confirmed: accepted, and — where the tournament charges — paid.
+  // The server draws from exactly this set, so the count on the screen and the
+  // sides in the fixture list cannot disagree.
+  const fee = block?.entry_fee_cents ?? 0;
+  const confirmed = (e: TournamentEntrant) =>
+    e.status === "accepted" && (fee === 0 || !!e.entry_paid_at);
+  const playing = entrants.filter(confirmed);
   const waiting = entrants.filter((e) => e.status === "invited");
+  // Said yes, owes the fee. Chasing them is the organiser's next job, and a
+  // single "in" count would hide it.
+  const owing = entrants.filter((e) => e.status === "accepted" && fee > 0 && !e.entry_paid_at);
 
   return (
     <main id="main">
@@ -109,6 +115,9 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           </span>
           {waiting.length > 0 && (
             <span className="tag gold">{waiting.length} yet to answer</span>
+          )}
+          {owing.length > 0 && (
+            <span className="tag danger">{owing.length} owe the entry fee</span>
           )}
           <span className="tag grey">{slots.length} free slots</span>
           <span className="tag grey">{fixtures.length} fixtures</span>
@@ -140,7 +149,9 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 
       {error && <p className="error">{error}</p>}
 
-      {tab === "entrants" && <Entrants blockId={id} entrants={entrants} onChanged={load} />}
+      {tab === "entrants" && (
+        <Entrants blockId={id} entrants={entrants} entryFee={fee} onChanged={load} />
+      )}
       {tab === "grid" && <Grid blockId={id} slots={slots} onChanged={load} />}
       {tab === "fixtures" && (
         <Fixtures
@@ -166,10 +177,13 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 function Entrants({
   blockId,
   entrants,
+  entryFee,
   onChanged,
 }: {
   blockId: string;
   entrants: TournamentEntrant[];
+  /// What a side pays to enter. Zero means nobody owes anything.
+  entryFee: number;
   onChanged: () => void;
 }) {
   const [names, setNames] = useState("");
@@ -209,6 +223,9 @@ function Entrants({
   };
 
   const waiting = entrants.filter((e) => e.status === "invited");
+  const owing = entrants.filter(
+    (e) => e.status === "accepted" && entryFee > 0 && !e.entry_paid_at
+  );
 
   return (
     <>
@@ -217,6 +234,9 @@ function Entrants({
           <h2>The sides</h2>
           {waiting.length > 0 && (
             <span className="tag gold">{waiting.length} yet to answer</span>
+          )}
+          {owing.length > 0 && (
+            <span className="tag danger">{owing.length} owe the entry fee</span>
           )}
         </div>
         {entrants.length === 0 ? (
@@ -238,7 +258,14 @@ function Entrants({
                   </span>
                 </div>
                 <div className="pick-actions">
-                  <EntryTag status={e.status} />
+                  {/* Accepted and owing reads as "in" from the status alone,
+                      which is exactly the side the organiser must not build a
+                      fixture around. */}
+                  {e.status === "accepted" && entryFee > 0 && !e.entry_paid_at ? (
+                    <span className="tag danger">Owes {money(entryFee)}</span>
+                  ) : (
+                    <EntryTag status={e.status} />
+                  )}
                   {e.status === "accepted" && (
                     <button
                       className="btn ghost sm"
@@ -253,6 +280,25 @@ function Entrants({
                       }
                     >
                       Withdraw
+                    </button>
+                  )}
+                  {e.status === "accepted" && entryFee > 0 && !e.entry_paid_at && (
+                    <button
+                      className="btn ghost sm"
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        run(
+                          e.id,
+                          () =>
+                            api("POST", `/entrants/${e.id}/mark-entry-paid`, {
+                              method: "transfer",
+                            }),
+                          `${e.name}'s entry fee recorded.`
+                        )
+                      }
+                    >
+                      Mark paid
                     </button>
                   )}
                   {(e.status === "declined" || e.status === "withdrawn") && e.club_id && (
@@ -281,9 +327,11 @@ function Entrants({
         )}
         {error && <p className="error">{error}</p>}
         {note && <p className="notice">{note}</p>}
-        {waiting.length > 0 && (
+        {(waiting.length > 0 || owing.length > 0) && (
           <p className="subtle" style={{ marginTop: "var(--s3)" }}>
-            Only sides that have accepted go into the draw.
+            {entryFee > 0
+              ? "A side is in the draw once it has accepted and settled the entry fee."
+              : "Only sides that have accepted go into the draw."}
           </p>
         )}
       </div>

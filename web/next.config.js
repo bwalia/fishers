@@ -29,11 +29,20 @@ const nextConfig = {
           // A share link should not carry the whole path to another site —
           // a scoreboard link is a secret, and it lives in the URL.
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          // The camera is used to scan an opposition's QR code at the ground;
-          // nothing else is, and nobody embedded needs any of it.
+          // The camera is used to scan an opposition's QR code at the ground.
+          //
+          // `payment` is delegated to Stripe's frames and nowhere else. It was
+          // `payment=()` — an empty allowlist, which switches the capability
+          // off for this document *and everything it embeds*, so Stripe's card
+          // form sat on its loading skeleton forever and logged "payment is
+          // not allowed in this document". Card details are entered in an
+          // iframe served by js.stripe.com; it needs the capability, and
+          // nothing else here does.
           {
             key: "Permissions-Policy",
-            value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
+            value:
+              'camera=(self), microphone=(), geolocation=(), usb=(), ' +
+              'payment=(self "https://js.stripe.com")',
           },
         ],
       },

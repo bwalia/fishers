@@ -31,6 +31,16 @@ invited ──► accepted ──► withdrawn
    └─► declined ┴────────────┘
 ```
 
+**Accepted is not the same as entered.** Where a tournament charges, a side is
+in the draw once it has accepted *and* settled the entry fee. Until then the
+place is held and nothing else: the fixtures are not built around it and the
+table does not count it. That rule lives in SQL — in `tournament_standings` and
+in `entrants_for_generation` — because the organiser's screen and the invited
+club's screen must not each decide it for themselves.
+
+It applies to a side the organiser typed in as well. The fee belongs to the
+tournament, not to how the side was asked.
+
 `EntryStatus::can_move` in `domain/src/tournament.rs` is the whole rule, and it
 is the same rule on the server, on iOS and on Android. A side that never
 answered cannot be recorded as having pulled out; a side already in the draw
@@ -49,7 +59,25 @@ Two kinds of side end up in a draw and the difference decides who is scheduled:
 view, the API, both apps and the web UI all keep reading the column they
 already read, and there is still exactly one source of truth.
 
-## 3. Reaching a club that is not on Fishers
+## 3. Answering one
+
+The invitation arrives as a notification and lands on
+`/tournaments/invite/{entrantId}`, which is the whole conversation in one
+screen: what the tournament is, who is running it, the rules the club would be
+agreeing to, what it costs, and Accept or Decline. Where there is a fee, paying
+it is the next thing on the same screen, and the place is not confirmed until
+it clears.
+
+Two bugs made that screen necessary rather than merely nice:
+
+- The notification pointed at `/clubs/{id}?invites=1`, a page with nothing on
+  it to answer an invitation with. It arrived and led nowhere.
+- `GET /fixture-blocks/{id}` required membership of the **host** club, so the
+  invited club could not read the rules it was being asked to agree to.
+  `may_read_block` now allows a member of the host club *or* of any club it has
+  asked in.
+
+## 4. Reaching a club that is not on Fishers
 
 Most opposition clubs are not. They get an email with an unguessable token; the
 link opens `/entry/{token}`, which asks one question and takes one answer,
@@ -65,7 +93,7 @@ An invite-only club **cannot be found by searching**, by design
 (`search_opponents` filters on visibility). Reaching one means scanning its code
 or pasting its link, which is what the opposition picker already offers.
 
-## 4. Selling a ticket to somebody who is not a member
+## 5. Selling a ticket to somebody who is not a member
 
 `events.tickets_public`, off by default, so every event that exists today keeps
 behaving exactly as it does. On, any signed-in Fishers user may buy.
@@ -79,7 +107,7 @@ on the filtering alone.
 Truly public, logged-out ticket sales are **not** built. That needs guest
 checkout and an anonymous buyer identity, which is a bigger step than this one.
 
-## 5. What a tournament settles up front
+## 6. What a tournament settles up front
 
 `fixture_blocks` could say its format and its points, and nothing else. Not how
 many sides fit, not when entries close, not how many overs, not what colour the
@@ -125,7 +153,31 @@ limit meaningless and the draw wrong. A batch that would not fit is refused
 whole rather than entering some and dropping the rest: "only room for 1 more —
 you gave 2".
 
-## 6. Money
+## 7. Money
+
+Cards work. `POST /tickets/{id}/pay` and `POST /entrants/{id}/pay-entry` open a
+Stripe PaymentIntent; the browser confirms it with Stripe's `PaymentElement`,
+and the webhook settles the ticket or the entry. Verified against real Stripe
+in test mode, including a replayed `payment_intent.succeeded`, which changes
+nothing.
+
+Three things had to be true at once, and each failed differently:
+
+| Missing | What happened |
+|---|---|
+| Secret key | Nothing is charged; a stub intent is issued and logged |
+| Publishable key | The browser cannot draw a card form, so the button is hidden |
+| Webhook secret | Money is taken and nothing is ever marked paid |
+
+`GET /payments/config` reports whether all of it is in place, so a button that
+cannot work is never drawn.
+
+One trap worth recording: `next.config.js` sent
+`Permissions-Policy: payment=()`. An empty allowlist disables the capability for
+the document *and everything it embeds*, so Stripe's form sat on its loading
+skeleton for ever and logged only a console warning. It is now delegated
+narrowly — `payment=(self "https://js.stripe.com")`.
+
 
 `create_payment_intent` now calls Stripe when `STRIPE_SECRET_KEY` is set, and
 falls back to the stub when it is not — which is how local development and CI
@@ -152,7 +204,7 @@ intent, a `connected_account_id` on the club, an application fee, and an FCA
 position worth confirming. The call is deliberately one function so that change
 lands in one place.
 
-## 7. Schema
+## 8. Schema
 
 Migration `20260922000001_tournament_entries_and_ticket_sales.sql`.
 
@@ -165,11 +217,16 @@ fixture_blocks
   + rules_notes
 
 tournament_entrants
-  + status         invited | accepted | declined | withdrawn
-  + invited_by     who asked
-  + responded_at   when they answered
-  + invite_token   the emailed link, spent on use
-  ~ withdrawn      now GENERATED ALWAYS AS (status = 'withdrawn')
+  + status           invited | accepted | declined | withdrawn
+  + invited_by       who asked
+  + responded_at     when they answered
+  + invite_token     the emailed link, spent on use
+  + entry_paid_at    when the entry fee settled — until then, not in the draw
+  + entry_payment_method   card | cash | transfer | cheque
+  ~ withdrawn        now GENERATED ALWAYS AS (status = 'withdrawn')
+
+payments
+  + entrant_id     so one payment shape serves a ticket, an order and an entry
 
 events
   + tickets_public  default false
@@ -183,7 +240,7 @@ not both enter, and the `ON CONFLICT` that relied on it silently overwrote the
 first. In its place: a club enters once (`block_id, club_id`), and free-text
 sides stay unique by name among themselves, case-insensitively.
 
-## 8. Permissions
+## 9. Permissions
 
 No new permissions. Asking a side in, and answering for a club, are both
 `ManageEvents` — held by a secretary or a captain, which is who does this. The
@@ -191,22 +248,22 @@ invited club's own officers answer; the host may answer only for a side that has
 no club of its own, because otherwise nobody could and an emailed invitation
 would strand the entry.
 
-## 9. What this deliberately does not do
+## 10. What this deliberately does not do
 
-- **Charging the entry fee.** `entry_fee_cents` is recorded and shown to the
-  club being asked; taking the money is a `Payment` against the entrant and
-  reuses everything in §6. Not wired up yet.
+- **Refunding an entry fee.** A side that withdraws after paying keeps its
+  `entry_paid_at`; getting the money back is a conversation with the organiser,
+  not a button.
 - **Enforcing the squad rules.** `players_per_side` and `guest_players_allowed`
   are published and read; selection does not yet refuse an XI that breaks them.
   That belongs with the selection board, not here.
-- **Logged-out ticket sales.** See §4.
-- **Stripe Connect.** See §6 — a commercial decision first.
+- **Logged-out ticket sales.** See §5.
+- **Stripe Connect.** See §7 — a commercial decision first.
 - **A tournament screen on Android.** The models and API calls are ported and
   tested; the screens are not. See `flutter/PARITY.md`.
 - **Overriding a fixture's `batting` side.** Unrelated, and still true: see the
   note in `domain/src/cricket/engine.rs`.
 
-## 10. Known rough edges
+## 11. Known rough edges
 
 - `tournament_standings.conceded` sums *all* opponents' scores per event.
   Correct for a two-side match, wrong for the `side = 'entrant'` americano

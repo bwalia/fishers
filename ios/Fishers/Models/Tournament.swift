@@ -174,8 +174,14 @@ struct EntryInvitation: Codable, Identifiable, Equatable {
     let entrantName: String
     let status: EntryStatus
     let invitedByName: String?
+    /// What entering costs. Optional only so an older API still decodes.
+    let entryFeeCents: Int?
+    let entryPaidAt: Date?
 
     var id: UUID { entrantId }
+
+    /// Said yes, still owes. Not in the draw until it is settled.
+    var owesEntryFee: Bool { (entryFeeCents ?? 0) > 0 && entryPaidAt == nil }
 
     enum CodingKeys: String, CodingKey {
         case kind, status
@@ -188,6 +194,8 @@ struct EntryInvitation: Codable, Identifiable, Equatable {
         case hostClubName = "host_club_name"
         case entrantName = "entrant_name"
         case invitedByName = "invited_by_name"
+        case entryFeeCents = "entry_fee_cents"
+        case entryPaidAt = "entry_paid_at"
     }
 
     var dates: String? {

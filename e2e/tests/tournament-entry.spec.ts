@@ -188,7 +188,7 @@ test("3. the host asks the other club in, and it is not yet in the draw", async 
   check("entries", "invited, not yet in", true, `${asked!.name} is ${asked!.status}`);
 });
 
-test("4. the guest club sees it and accepts", async () => {
+test("4. the guest club opens the invitation and reads what it would be entering", async () => {
   const page = guest.page;
   await page.goto("/tournaments");
   await clearOverlays(page);
@@ -199,41 +199,67 @@ test("4. the guest club sees it and accepts", async () => {
   await expect(waiting, "the invitation is on their tournaments screen").toBeVisible();
   await expect(waiting.getByText(TOURNAMENT)).toBeVisible();
   await expect(waiting.getByText(hostClub.name)).toBeVisible();
+  // What it costs, before they tap through to say yes.
+  await expect(waiting.getByText("£50.00 to enter")).toBeVisible();
 
-  await waiting
-    .locator("li", { hasText: TOURNAMENT })
-    .getByRole("button", { name: "Accept" })
-    .click();
+  await waiting.getByRole("link", { name: new RegExp(TOURNAMENT) }).click();
+  await page.waitForURL(/\/tournaments\/invite\/[0-9a-f-]{36}/);
 
-  await expect(waiting.getByText(TOURNAMENT)).toBeHidden();
-  check("entries", "the invited club accepted for itself", true, guestClub.name);
+  // The rules they are being asked to agree to — which they could not read at
+  // all before, because they are not members of the club running it.
+  await expect(page.getByRole("heading", { name: "What you would be entering" })).toBeVisible();
+  await expect(page.getByText("6 a side", { exact: false }).or(page.getByText("6"))).toBeTruthy();
+  await expect(page.locator(".pro-rail")).toContainText("£50.00");
+  check("entries", "the invited club can read the rules before agreeing", true, TOURNAMENT);
 });
 
-test("5. the host sees them in, and the draw can be made", async () => {
+test("5. accepting holds the place; it is not in the draw until the fee is paid", async () => {
+  const page = guest.page;
+  await page.getByRole("button", { name: /Yes —/ }).click();
+
+  // The whole point: accepted is not entered when there is a fee.
+  await expect(page.getByRole("heading", { name: "Entry fee" })).toBeVisible();
+  await expect(page.getByText(/is not in the draw until the entry fee is settled/)).toBeVisible();
+  await expect(page.locator(".hero-tags")).toContainText("Entry fee outstanding");
+
+  const v = await apiGet<{ confirmed: boolean; owes_entry_fee: boolean }>(
+    page,
+    `/entrants/${await entrantIdFrom(page)}/invitation`
+  );
+  expect(v.owes_entry_fee).toBe(true);
+  expect(v.confirmed, "accepted, but not yet in").toBe(false);
+  check("entries", "accepted but unpaid is not in the draw", true, guestClub.name);
+});
+
+test("6. the host records the fee, and only then is the side in", async () => {
   const page = host.page;
   await page.goto(`/tournaments/${blockId}`);
   await clearOverlays(page);
 
-  const entrants = await apiGet<{ name: string; status: string; club_id: string | null }[]>(
-    page,
-    `/fixture-blocks/${blockId}/entrants`
-  );
-  expect(entrants.find((e) => e.club_id === guestClub.id)!.status).toBe("accepted");
-
-  // One accepted side is not a tournament: enter a second so there is a
-  // fixture to draw, and check the draw is made from accepted sides only.
+  // The organiser's own side owes it too — it is the tournament's fee, not a
+  // rule about who was asked.
   const sides = page.locator(".panel", { has: page.getByRole("heading", { name: "Enter sides yourself" }) });
   await sides.locator("textarea").fill("E2E Wanderers");
   await sides.getByRole("button", { name: /Enter them/ }).click();
   await expect(page.getByText("Entered 1 side.")).toBeVisible();
 
-  // "2 of 4 in", not "2 in": how many places are left is what the organiser
-  // is counting, and the cap was set when the tournament was created.
+  await expect(page.locator(".hero-tags"), "nobody has paid yet").toContainText("owe the entry fee");
+  await expect(page.locator(".hero-tags")).toContainText("0 of 4 in");
+
+  // Most entry fees arrive as a cheque, so the organiser records them.
+  const list = page.locator(".panel", { has: page.getByRole("heading", { name: "The sides" }) });
+  for (const name of [guestClub.name, "E2E Wanderers"]) {
+    await list.locator("li", { hasText: name }).getByRole("button", { name: "Mark paid" }).click();
+    await expect(page.getByText(new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'s entry fee recorded`))).toBeVisible();
+  }
+
   await expect(page.locator(".hero-tags")).toContainText("2 of 4 in");
-  check("entries", "accepted sides make the draw", true, "2 of 4 in");
+  const table = await apiGet<{ name: string }[]>(page, `/fixture-blocks/${blockId}/standings`);
+  expect(table.map((r) => r.name), "both settled sides are in the table").toContain(guestClub.name);
+  check("entries", "paid sides make the draw", true, "2 of 4 in");
 });
 
-test("6. a declined invitation keeps the side out of the draw", async () => {
+test("7. a declined invitation keeps the side out of the draw", async () => {
   // Room for one more: the tournament was created with a cap of four, and
   // three sides are already in or asked.
 
@@ -269,7 +295,7 @@ test("6. a declined invitation keeps the side out of the draw", async () => {
   check("entries", "a declined side stays out of the table", true, "E2E Declined CC");
 });
 
-test("7. the host puts tickets on sale, open to anyone", async () => {
+test("8. the host puts tickets on sale, open to anyone", async () => {
   const page = host.page;
   // A fixture to sell tickets to. Made through the API because scheduling a
   // match is the full-match journey's job, not this one's.
@@ -309,7 +335,7 @@ test("7. the host puts tickets on sale, open to anyone", async () => {
   check("tickets", "put on sale from the fixture screen", true, "£5.00, open to all");
 });
 
-test("8. someone from the other club buys one, and cannot see the guest list", async () => {
+test("9. someone from the other club buys one, and cannot see the guest list", async () => {
   const page = guest.page;
   await page.goto(`/events/${ticketedEventId}/tickets`);
   await clearOverlays(page);
@@ -336,7 +362,7 @@ test("8. someone from the other club buys one, and cannot see the guest list", a
   check("tickets", "a non-member buys without seeing club business", true, guestClub.name);
 });
 
-test("9. the host sees the booking, and the money", async () => {
+test("10. the host sees the booking, and the money", async () => {
   const page = host.page;
   await page.goto(`/events/${ticketedEventId}/tickets`);
   await clearOverlays(page);
@@ -360,4 +386,11 @@ async function apiBase(page: import("@playwright/test").Page): Promise<string> {
 async function authHeader(page: import("@playwright/test").Page) {
   const token = await page.evaluate(() => localStorage.getItem("fishers_access_token"));
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+}
+
+/// The entrant id from the invitation screen's own URL.
+async function entrantIdFrom(page: import("@playwright/test").Page): Promise<string> {
+  const m = page.url().match(/\/tournaments\/invite\/([0-9a-f-]{36})/);
+  if (!m) throw new Error(`not on an invitation screen: ${page.url()}`);
+  return m[1];
 }

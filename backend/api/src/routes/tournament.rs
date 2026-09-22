@@ -33,6 +33,7 @@ pub fn router() -> Router<AppState> {
         .route("/fixture-blocks/{id}/entrants", get(list_entrants).post(add_entrants))
         .route("/fixture-blocks/{id}/invite", post(invite_entrant))
         .route("/entrants/{id}/withdraw", post(withdraw_entrant))
+        .route("/entrants/{id}/invitation", get(invitation))
         .route("/entrants/{id}/respond", post(respond_to_entry))
         .route("/entrants/{id}/pay-entry", post(pay_entry))
         .route("/entrants/{id}/mark-entry-paid", post(mark_entry_paid))
@@ -66,7 +67,12 @@ async fn get_block(
     let block = tournament_repo::get_block(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("tournament not found"))?;
-    require_member(&state, block.club_id, auth.user_id).await?;
+    // A member of the club running it, or of one it has asked in. Requiring
+    // membership of the *host* club meant the invited club could not read the
+    // rules it was being asked to agree to.
+    if !tournament_repo::may_read_block(&state.pool, id, auth.user_id).await? {
+        return Err(ApiError::forbidden("not a club member"));
+    }
     Ok(Json(block))
 }
 
@@ -212,7 +218,10 @@ async fn invite_entrant(
                         "block_name": settings.name,
                         "host_club": host,
                         "club_id": club.id,
-                        "url": format!("/clubs/{}?invites=1", club.id),
+                        // Where a tap on the push lands. It used to be the
+                        // club page, which has no way to answer an invitation
+                        // on it — so the notification arrived and led nowhere.
+                        "url": format!("/tournaments/invite/{}", entrant.id),
                         "tag": format!("entry:{}", entrant.id),
                     }),
                 )
@@ -240,6 +249,54 @@ async fn invite_entrant(
         // Only ever handed back to the organiser who created it, so they can
         // pass the link on themselves if the email does not arrive.
         "invite_link": token.as_deref().map(entry_link),
+    })))
+}
+
+/// Everything the invited club needs to answer: the tournament, who is
+/// running it, what it costs, the rules they would be agreeing to, and where
+/// their answer has got to.
+///
+/// Readable by any member of the invited club — deciding is `ManageEvents`,
+/// but a club should be able to look at what it has been asked into.
+async fn invitation(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let view = tournament_repo::invitation(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("invitation not found"))?;
+
+    let mine = match view.club_id {
+        Some(club) => clubs_repo::is_club_member(&state.pool, club, auth.user_id).await?,
+        None => false,
+    };
+    let host = clubs_repo::is_club_member(&state.pool, view.host_club_id, auth.user_id).await?;
+    if !mine && !host {
+        return Err(ApiError::forbidden("that invitation is not yours"));
+    }
+
+    // Whether *this* person can answer, so the screen shows buttons only to
+    // somebody who can use them.
+    let answering_club = view.club_id.unwrap_or(view.host_club_id);
+    let can_answer = require_permission(
+        &state,
+        answering_club,
+        auth.user_id,
+        None,
+        Permission::ManageEvents,
+    )
+    .await
+    .is_ok();
+
+    let owes = view.entry_fee_cents.unwrap_or(0) > 0 && view.entry_paid_at.is_none();
+    Ok(Json(json!({
+        "invitation": view,
+        "can_answer": can_answer,
+        // Accepted and, where the tournament charges, paid. Until then the
+        // side is not in the draw and not in the table.
+        "confirmed": !owes && view.status == EntryStatus::ACCEPTED,
+        "owes_entry_fee": owes,
     })))
 }
 

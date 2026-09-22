@@ -732,6 +732,10 @@ pub struct EntryInvitation {
     pub club_id: Option<Uuid>,
     pub status: String,
     pub invited_by_name: Option<String>,
+    /// What entering costs. Accepting without being told is how a club ends
+    /// up owing £50 it never agreed to.
+    pub entry_fee_cents: Option<i32>,
+    pub entry_paid_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
 
