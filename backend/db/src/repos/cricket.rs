@@ -60,11 +60,23 @@ pub async fn create_match(
     home_name: &str,
     away_name: &str,
     overs_limit: i32,
+    // `conditions`: the tournament's playing terms, when this fixture belongs
+    // to one. `None` leaves the sport's default for the two captains to agree.
+    conditions: Option<fishers_domain::MatchConditions>,
 ) -> Result<CricketMatchRow, sqlx::Error> {
+    // A tournament that says twenty overs means twenty, whatever the scorer's
+    // screen last remembered.
+    let overs_limit = conditions
+        .as_ref()
+        .map(|c| c.overs_limit as i32)
+        .unwrap_or(overs_limit);
     let state = MatchState {
         overs_limit: overs_limit.clamp(1, 255) as u8,
         home_name: home_name.to_string(),
         away_name: away_name.to_string(),
+        conditions: conditions.unwrap_or_else(|| {
+            fishers_domain::MatchConditions::standard(overs_limit.clamp(1, 255) as u8)
+        }),
         ..Default::default()
     };
     sqlx::query_as::<_, CricketMatchRow>(&format!(

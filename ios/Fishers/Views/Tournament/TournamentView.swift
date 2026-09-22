@@ -229,6 +229,59 @@ struct TournamentView: View {
                     : "Seeds are used to spread the strong sides across the groups."
             )
         }
+
+        rulesSection
+    }
+
+    /// What a club is agreeing to when it enters, and what every fixture in
+    /// the tournament plays to.
+    ///
+    /// Read-only on the phone: these are settled once at a desk, and a
+    /// mis-tap on a boundary rope should not change the ball colour mid-day.
+    @ViewBuilder
+    private var rulesSection: some View {
+        let entryRules = [
+            block.maxEntrants.map { "Up to \($0) sides" },
+            block.entryFeeCents.map { "£\(String(format: "%.2f", Double($0) / 100)) to enter" },
+            block.guestPlayersAllowed.map {
+                $0 == 0 ? "Club members only" : "Up to \($0) guest players"
+            },
+        ].compactMap { $0 }
+
+        Section {
+            LabeledContent("Players a side", value: "\(block.side)")
+            if let age = block.ageGroup, age != "open" {
+                LabeledContent("Age group", value: age.uppercased())
+            }
+            if let gender = block.gender, gender != "open" {
+                LabeledContent("For", value: gender.capitalized)
+            }
+            ForEach(entryRules, id: \.self) { rule in
+                Text(rule).font(FishersTheme.footnote).foregroundStyle(.secondary)
+            }
+            if let c = block.conditions {
+                LabeledContent("Overs", value: "\(c.oversLimit)")
+                LabeledContent(
+                    "Most per bowler",
+                    value: c.oversPerBowler == 0 ? "No limit" : "\(c.oversPerBowler)"
+                )
+                LabeledContent("Ball", value: c.ball.label)
+                if c.powerplayOvers > 0 {
+                    LabeledContent("Powerplay", value: "\(c.powerplayOvers) overs")
+                }
+            }
+            if let notes = block.rulesNotes, !notes.isEmpty {
+                Text(notes).font(FishersTheme.footnote)
+            }
+        } header: {
+            Text("The rules")
+        } footer: {
+            Text(
+                block.conditions == nil
+                    ? "No playing conditions set — each match is agreed between its two captains."
+                    : "Every match in this tournament starts on these terms."
+            )
+        }
     }
 }
 

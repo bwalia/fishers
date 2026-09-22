@@ -552,6 +552,11 @@ async fn create_block(
     Json(body): Json<CreateFixtureBlockRequest>,
 ) -> ApiResult<Json<FixtureBlock>> {
     body.validate()?;
+    // Said as a sentence here rather than left to a constraint violation:
+    // "a side is between 2 and 15 players" is a fixable answer, `23514` is not.
+    if let Some(problem) = body.settings.problem() {
+        return Err(ApiError::bad_request(problem));
+    }
     require_club_selector(&state, body.club_id, auth.user_id).await?;
     Ok(Json(
         events_repo::create_fixture_block(&state.pool, auth.user_id, &body).await?,

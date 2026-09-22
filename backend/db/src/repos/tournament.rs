@@ -8,7 +8,13 @@ use fishers_domain::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-const BLOCK_COLS: &str = "id, club_id, team_id, name, kind, starts_on, ends_on, created_at";
+/// Every column of a block, in one place: `events` reads them too, and a
+/// settings column returned by one query and missing from the other is a field
+/// that silently reads as null on half the screens.
+pub const BLOCK_COLS: &str = "id, club_id, team_id, name, kind, starts_on, ends_on, created_at, \
+                              description, venue_id, max_entrants, entry_deadline, \
+                              entry_fee_cents, players_per_side, guest_players_allowed, \
+                              age_group, gender, conditions, rules_notes";
 
 /// One list, so a column added to an entrant cannot be returned by one query
 /// and silently missing from another.
@@ -52,6 +58,34 @@ pub async fn block_settings(pool: &PgPool, id: Uuid) -> Result<BlockSettings, sq
     .await
 }
 
+/// The playing conditions a fixture inherits, when it belongs to a tournament
+/// that set any.
+///
+/// One join rather than two queries, and deliberately not a field on `Event`:
+/// every screen that reads a fixture would then have to carry a column it has
+/// no use for.
+pub async fn conditions_for_event(
+    pool: &PgPool,
+    event_id: Uuid,
+) -> Result<Option<fishers_domain::MatchConditions>, sqlx::Error> {
+    let row: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
+        "SELECT fb.conditions
+         FROM events e
+         JOIN fixture_blocks fb ON fb.id = e.fixture_block_id
+         WHERE e.id = $1",
+    )
+    .bind(event_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row
+        .and_then(|r| r.0)
+        // A stored shape we cannot read is treated as "not set" rather than
+        // failing the match: a scorer at a ground needs to start, and the two
+        // captains can agree the terms themselves.
+        .and_then(|v| serde_json::from_value(v).ok()))
+}
+
 pub async fn points_rules(pool: &PgPool, block_id: Uuid) -> Result<PointsRules, sqlx::Error> {
     let settings = block_settings(pool, block_id).await?;
     Ok(PointsRules {
@@ -79,7 +113,28 @@ pub async fn update_block(
              departs_at = COALESCE($9, departs_at),
              travel_notes = COALESCE($10, travel_notes),
              accommodation_notes = COALESCE($11, accommodation_notes),
-             cost_cents = COALESCE($12, cost_cents)
+             cost_cents = COALESCE($12, cost_cents),
+             -- `$24` names the settings being unset. Without it a cap could be
+             -- set and never removed: COALESCE cannot tell a field that was
+             -- left alone from one that was cleared, because JSON cannot.
+             description = CASE WHEN 'description' = ANY($24::TEXT[]) THEN NULL
+                                ELSE COALESCE($13, description) END,
+             venue_id = CASE WHEN 'venue_id' = ANY($24::TEXT[]) THEN NULL
+                             ELSE COALESCE($14, venue_id) END,
+             max_entrants = CASE WHEN 'max_entrants' = ANY($24::TEXT[]) THEN NULL
+                                 ELSE COALESCE($15, max_entrants) END,
+             entry_deadline = CASE WHEN 'entry_deadline' = ANY($24::TEXT[]) THEN NULL
+                                   ELSE COALESCE($16, entry_deadline) END,
+             entry_fee_cents = CASE WHEN 'entry_fee_cents' = ANY($24::TEXT[]) THEN NULL
+                                    ELSE COALESCE($17, entry_fee_cents) END,
+             players_per_side = COALESCE($18, players_per_side),
+             guest_players_allowed = COALESCE($19, guest_players_allowed),
+             age_group = COALESCE($20, age_group),
+             gender = COALESCE($21, gender),
+             conditions = CASE WHEN 'conditions' = ANY($24::TEXT[]) THEN NULL
+                               ELSE COALESCE($22, conditions) END,
+             rules_notes = CASE WHEN 'rules_notes' = ANY($24::TEXT[]) THEN NULL
+                                ELSE COALESCE($23, rules_notes) END
          WHERE id = $1
          RETURNING {BLOCK_COLS}"
     ))
@@ -95,6 +150,25 @@ pub async fn update_block(
     .bind(&req.travel_notes)
     .bind(&req.accommodation_notes)
     .bind(req.cost_cents)
+    .bind(&req.settings.description)
+    .bind(req.settings.venue_id)
+    .bind(req.settings.max_entrants)
+    .bind(req.settings.entry_deadline)
+    .bind(req.settings.entry_fee_cents)
+    .bind(req.settings.players_per_side)
+    .bind(req.settings.guest_players_allowed)
+    .bind(&req.settings.age_group)
+    .bind(&req.settings.gender)
+    .bind(
+        req.settings
+            .conditions
+            .as_ref()
+            .map(serde_json::to_value)
+            .transpose()
+            .unwrap_or_default(),
+    )
+    .bind(&req.settings.rules_notes)
+    .bind(&req.settings.clear)
     .fetch_one(pool)
     .await
 }
@@ -129,8 +203,37 @@ pub async fn add_entrants(
     pool: &PgPool,
     block_id: Uuid,
     req: &AddEntrantsRequest,
-) -> Result<Vec<TournamentEntrant>, sqlx::Error> {
+) -> Result<Result<Vec<TournamentEntrant>, String>, sqlx::Error> {
     let mut tx = pool.begin().await?;
+
+    // The organiser's own cap applies to the organiser. Typing eleven names
+    // into an eight-side tournament otherwise made the limit meaningless and
+    // the draw wrong, while inviting a ninth club was refused.
+    let max: Option<i32> =
+        sqlx::query_scalar("SELECT max_entrants FROM fixture_blocks WHERE id = $1 FOR UPDATE")
+            .bind(block_id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if let Some(max) = max {
+        let taken: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM tournament_entrants
+             WHERE block_id = $1 AND status IN ('invited', 'accepted')",
+        )
+        .bind(block_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        // Counted before any are written, so "room for two, you gave five" is
+        // refused whole rather than entering two and dropping three.
+        let room = max as i64 - taken.0;
+        if (req.entrants.len() as i64) > room {
+            return Ok(Err(if room <= 0 {
+                format!("this tournament is full at {max} sides")
+            } else {
+                format!("only room for {room} more — you gave {}", req.entrants.len())
+            }));
+        }
+    }
+
     let mut added = Vec::with_capacity(req.entrants.len());
     for entrant in &req.entrants {
         // Two unique indexes, so two conflict targets: a club enters once, and
@@ -171,7 +274,7 @@ pub async fn add_entrants(
         added.push(row);
     }
     tx.commit().await?;
-    Ok(added)
+    Ok(Ok(added))
 }
 
 /// Ask a side into a tournament. They answer for themselves.
@@ -191,11 +294,20 @@ pub async fn invite_entrant(
     let mut tx = pool.begin().await?;
 
     // Lock the block: two organisers inviting the same club at the same moment
-    // would otherwise both read "not entered" and both insert.
-    sqlx::query("SELECT id FROM fixture_blocks WHERE id = $1 FOR UPDATE")
-        .bind(block_id)
-        .execute(&mut *tx)
-        .await?;
+    // would otherwise both read "not entered" and both insert, and both could
+    // pass a "one place left" check.
+    let limits: (Option<i32>, Option<DateTime<Utc>>) = sqlx::query_as(
+        "SELECT max_entrants, entry_deadline FROM fixture_blocks WHERE id = $1 FOR UPDATE",
+    )
+    .bind(block_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if let Some(closed) = limits.1 {
+        if Utc::now() > closed {
+            return Ok(Err("entries for this tournament have closed".into()));
+        }
+    }
 
     let existing = sqlx::query_as::<_, TournamentEntrant>(&format!(
         "SELECT {ENTRANT_COLS} FROM tournament_entrants
@@ -237,6 +349,24 @@ pub async fn invite_entrant(
                 Ok(again)
             }
         });
+    }
+
+    // A side that is already in the draw was returned above, so reaching here
+    // means one more. A declined side being asked again also passes through the
+    // branch above, which is why the count is only checked on a genuinely new
+    // entry: re-asking somebody who pulled out must not be refused for space
+    // they are about to give back.
+    if let Some(max) = limits.0 {
+        let taken: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM tournament_entrants
+             WHERE block_id = $1 AND status IN ('invited', 'accepted')",
+        )
+        .bind(block_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if taken.0 >= max as i64 {
+            return Ok(Err(format!("this tournament is full at {max} sides")));
+        }
     }
 
     let entrant = sqlx::query_as::<_, TournamentEntrant>(&format!(

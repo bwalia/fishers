@@ -5,7 +5,7 @@
 //! then works inside it exactly as it does for a league fixture.
 
 use axum::extract::{Path, State};
-use axum::routing::{get, patch, post};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::Duration;
 use fishers_db::repos::{
@@ -29,7 +29,7 @@ use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/fixture-blocks/{id}", patch(update_block))
+        .route("/fixture-blocks/{id}", get(get_block).patch(update_block))
         .route("/fixture-blocks/{id}/entrants", get(list_entrants).post(add_entrants))
         .route("/fixture-blocks/{id}/invite", post(invite_entrant))
         .route("/entrants/{id}/withdraw", post(withdraw_entrant))
@@ -51,6 +51,23 @@ pub fn router() -> Router<AppState> {
         .route("/tickets/{id}/mark-paid", post(mark_ticket_paid))
 }
 
+/// One tournament: its format, its entry rules and its playing conditions.
+///
+/// Members only. The rules are what a club is agreeing to when it enters, so
+/// every member of the host club can read them; changing them is
+/// `ManageEvents`, like everything else here.
+async fn get_block(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<FixtureBlock>> {
+    let block = tournament_repo::get_block(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("tournament not found"))?;
+    require_member(&state, block.club_id, auth.user_id).await?;
+    Ok(Json(block))
+}
+
 async fn update_block(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -59,6 +76,9 @@ async fn update_block(
 ) -> ApiResult<Json<FixtureBlock>> {
     let club_id = block_club(&state, id).await?;
     require_organiser(&state, club_id, auth.user_id).await?;
+    if let Some(problem) = body.settings.problem() {
+        return Err(ApiError::bad_request(problem));
+    }
     Ok(Json(tournament_repo::update_block(&state.pool, id, &body).await?))
 }
 
@@ -73,9 +93,10 @@ async fn add_entrants(
     if body.entrants.is_empty() {
         return Err(ApiError::bad_request("no entrants given"));
     }
-    Ok(Json(
-        tournament_repo::add_entrants(&state.pool, id, &body).await?,
-    ))
+    match tournament_repo::add_entrants(&state.pool, id, &body).await? {
+        Ok(entrants) => Ok(Json(entrants)),
+        Err(reason) => Err(ApiError::conflict(reason)),
+    }
 }
 
 async fn list_entrants(

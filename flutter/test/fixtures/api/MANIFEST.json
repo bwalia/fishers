@@ -26,10 +26,12 @@
   "cricket_match_abandoned": "GET /cricket/matches/{id}",
   "cricket_match_dto": "GET /cricket/matches/97203718-9a34-4d3b-adaf-e7fe4b80839b",
   "cricket_scorecard": "GET /cricket/matches/{id}/scorecard",
+  "entry_invitation": "GET /clubs/{id}/tournament-invites?pending=true [0]",
   "event": "POST /events (ticketed social)",
   "event_page": "GET /events?page=1&per_page=50",
   "event_ticket": "POST /events/{id}/tickets",
   "fixture_block": "GET /clubs/{id}/fixture-blocks [0]",
+  "fixture_block_plain": "POST /fixture-blocks (no tournament rules)",
   "innings_state": "GET /cricket/matches/{id} .state.innings[0]",
   "match_official_row": "POST /cricket/matches/{id}/officials [0]",
   "match_squads": "GET /cricket/matches/97203718-9a34-4d3b-adaf-e7fe4b80839b/squad",
@@ -65,8 +67,7 @@
   "teammate_profile": "GET /users/{id}",
   "ticket_booking": "GET /events/{id}/tickets",
   "tournament_entrant": "POST /fixture-blocks/{id}/entrants [0]",
+  "tournament_entrant_invited": "POST /fixture-blocks/{id}/invite .entrant",
   "venue": "GET /clubs/{id}/venues [0]",
-  "verification_status": "GET /me/verification",
-  "entry_invitation": "GET /clubs/{id}/tournament-invites?pending=true [0]",
-  "tournament_entrant_invited": "POST /fixture-blocks/{id}/invite .entrant"
+  "verification_status": "GET /me/verification"
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'cricket_types.dart';
 import 'json.dart';
 
 /// A port of `ios/Fishers/Models/Tournament.swift`.
@@ -39,6 +40,16 @@ class FixtureBlock {
     this.teamId,
     this.startsOn,
     this.endsOn,
+    this.description,
+    this.maxEntrants,
+    this.entryDeadline,
+    this.entryFeeCents,
+    this.playersPerSide,
+    this.guestPlayersAllowed,
+    this.ageGroup,
+    this.gender,
+    this.conditions,
+    this.rulesNotes,
   });
 
   final String id;
@@ -53,6 +64,34 @@ class FixtureBlock {
   final String? startsOn;
   final String? endsOn;
 
+  // What a tournament settles before anybody enters. All optional: a block
+  // created before tournaments carried rules sends none of it, and a plain
+  // block of fixtures never will.
+  final String? description;
+
+  /// How many sides fit. Null is no limit.
+  final int? maxEntrants;
+  final DateTime? entryDeadline;
+
+  /// What a side pays to enter — not a spectator's ticket.
+  final int? entryFeeCents;
+
+  /// Eleven normally; six for sixes. Null only from an older API.
+  final int? playersPerSide;
+
+  /// 0 means every player must belong to the entering club.
+  final int? guestPlayersAllowed;
+  final String? ageGroup;
+  final String? gender;
+
+  /// Overs, ball, ground and the fielding restrictions every fixture in the
+  /// tournament inherits. Null means the two captains agree their own.
+  final MatchConditions? conditions;
+  final String? rulesNotes;
+
+  /// A side is eleven unless the tournament says otherwise.
+  int get side => playersPerSide ?? 11;
+
   factory FixtureBlock.fromJson(JsonMap json) => FixtureBlock(
     id: asUuid(json['id'], key: 'id'),
     clubId: asUuid(json['club_id'], key: 'club_id'),
@@ -61,6 +100,22 @@ class FixtureBlock {
     kind: asString(json['kind'], key: 'kind'),
     startsOn: asStringOrNull(json['starts_on'], key: 'starts_on'),
     endsOn: asStringOrNull(json['ends_on'], key: 'ends_on'),
+    description: asStringOrNull(json['description'], key: 'description'),
+    maxEntrants: asIntOrNull(json['max_entrants'], key: 'max_entrants'),
+    entryDeadline: asDateOrNull(json['entry_deadline'], key: 'entry_deadline'),
+    entryFeeCents: asIntOrNull(json['entry_fee_cents'], key: 'entry_fee_cents'),
+    playersPerSide: asIntOrNull(json['players_per_side'], key: 'players_per_side'),
+    guestPlayersAllowed: asIntOrNull(
+      json['guest_players_allowed'],
+      key: 'guest_players_allowed',
+    ),
+    ageGroup: asStringOrNull(json['age_group'], key: 'age_group'),
+    gender: asStringOrNull(json['gender'], key: 'gender'),
+    conditions: switch (asMapOrNull(json['conditions'], key: 'conditions')) {
+      final JsonMap c => MatchConditions.fromJson(c),
+      null => null,
+    },
+    rulesNotes: asStringOrNull(json['rules_notes'], key: 'rules_notes'),
   );
 
   JsonMap toJson() => <String, dynamic>{
@@ -71,6 +126,16 @@ class FixtureBlock {
     'kind': kind,
     'starts_on': startsOn,
     'ends_on': endsOn,
+    'description': description,
+    'max_entrants': maxEntrants,
+    'entry_deadline': entryDeadline == null ? null : encodeDate(entryDeadline!),
+    'entry_fee_cents': entryFeeCents,
+    'players_per_side': playersPerSide,
+    'guest_players_allowed': guestPlayersAllowed,
+    'age_group': ageGroup,
+    'gender': gender,
+    'conditions': conditions?.toJson(),
+    'rules_notes': rulesNotes,
   };
 
   @override
@@ -82,10 +147,24 @@ class FixtureBlock {
       other.name == name &&
       other.kind == kind &&
       other.startsOn == startsOn &&
-      other.endsOn == endsOn;
+      other.endsOn == endsOn &&
+      other.description == description &&
+      other.maxEntrants == maxEntrants &&
+      other.entryDeadline == entryDeadline &&
+      other.entryFeeCents == entryFeeCents &&
+      other.playersPerSide == playersPerSide &&
+      other.guestPlayersAllowed == guestPlayersAllowed &&
+      other.ageGroup == ageGroup &&
+      other.gender == gender &&
+      other.conditions == conditions &&
+      other.rulesNotes == rulesNotes;
 
   @override
-  int get hashCode => Object.hash(id, clubId, teamId, name, kind, startsOn, endsOn);
+  int get hashCode => Object.hashAll(<Object?>[
+    id, clubId, teamId, name, kind, startsOn, endsOn,
+    description, maxEntrants, entryDeadline, entryFeeCents,
+    playersPerSide, guestPlayersAllowed, ageGroup, gender, conditions, rulesNotes,
+  ]);
 }
 
 /// Where a side is in the entry process.

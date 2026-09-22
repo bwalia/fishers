@@ -72,19 +72,62 @@ test("1. both clubs exist, and their secretaries are signed in", async () => {
   check("entries", "two clubs, two secretaries", true, `${hostClub.name} · ${guestClub.name}`);
 });
 
-test("2. the host starts a tournament", async () => {
+test("2. the host starts a tournament, and settles its rules up front", async () => {
   const page = host.page;
   await page.goto("/tournaments");
   await clearOverlays(page);
   await page.getByRole("button", { name: /New tournament/ }).click();
   await page.locator('input[placeholder="Summer Sixes"]').fill(TOURNAMENT);
+
+  // Entry, who may play, and the playing conditions — the three things an
+  // organiser used to keep in the covering email.
+  await page.getByLabel("How many sides").fill("4");
+  await page.getByLabel("Entry fee per side").fill("50.00");
+  await page.getByLabel("Players a side").fill("6");
+  await page.getByLabel("Guest players allowed").fill("2");
+  await page.getByLabel("Age group").selectOption("u15");
+  await page.getByLabel("Who it is for").selectOption("mixed");
+  await page.getByLabel("Overs an innings").fill("6");
+  await page.getByLabel("Ball").selectOption("white");
   await page.getByRole("button", { name: "Create it" }).click();
 
   await expect(page.getByRole("link", { name: new RegExp(TOURNAMENT) })).toBeVisible();
   await page.getByRole("link", { name: new RegExp(TOURNAMENT) }).click();
   await page.waitForURL(/\/tournaments\/[0-9a-f-]{36}/);
   blockId = page.url().match(/\/tournaments\/([0-9a-f-]{36})/)![1];
-  check("entries", "tournament created", true, TOURNAMENT);
+
+  const block = await apiGet<{
+    max_entrants: number; entry_fee_cents: number; players_per_side: number;
+    guest_players_allowed: number; age_group: string; gender: string;
+    conditions: { overs_limit: number; overs_per_bowler: number; ball: string };
+  }>(page, `/fixture-blocks/${blockId}`);
+  expect(block.max_entrants).toBe(4);
+  // Pounds in the box, pence in the database.
+  expect(block.entry_fee_cents, "£50.00 saved as 5000p").toBe(5000);
+  expect(block.players_per_side).toBe(6);
+  expect(block.guest_players_allowed).toBe(2);
+  expect(block.age_group).toBe("u15");
+  expect(block.gender).toBe("mixed");
+  expect(block.conditions.overs_limit).toBe(6);
+  // A fifth of the innings, rounded up, unless the organiser says otherwise.
+  expect(block.conditions.overs_per_bowler, "6 overs gives 2 each").toBe(2);
+  expect(block.conditions.ball).toBe("white");
+  check("rules", "created with entry, squad and playing rules", true,
+        "4 sides · 6 a side · 6 overs · white ball");
+});
+
+test("2b. the rules are on the tournament for a club to read", async () => {
+  const page = host.page;
+  await page.goto(`/tournaments/${blockId}`);
+  await clearOverlays(page);
+  await page.getByRole("tab", { name: "Rules" }).click();
+
+  await expect(page.getByText("Up to 4")).toBeVisible();
+  await expect(page.getByText("£50.00")).toBeVisible();
+  await expect(page.getByText("Up to 2 from outside the club")).toBeVisible();
+  await expect(page.getByText("Under 15")).toBeVisible();
+  await expect(page.getByText("White leather")).toBeVisible();
+  check("rules", "a club can read what it is agreeing to", true, "Rules tab");
 });
 
 test("3. the host asks the other club in, and it is not yet in the draw", async () => {
@@ -153,11 +196,16 @@ test("5. the host sees them in, and the draw can be made", async () => {
   await sides.getByRole("button", { name: /Enter them/ }).click();
   await expect(page.getByText("Entered 1 side.")).toBeVisible();
 
-  await expect(page.locator(".hero-tags")).toContainText("2 in");
-  check("entries", "accepted sides make the draw", true, "2 in");
+  // "2 of 4 in", not "2 in": how many places are left is what the organiser
+  // is counting, and the cap was set when the tournament was created.
+  await expect(page.locator(".hero-tags")).toContainText("2 of 4 in");
+  check("entries", "accepted sides make the draw", true, "2 of 4 in");
 });
 
 test("6. a declined invitation keeps the side out of the draw", async () => {
+  // Room for one more: the tournament was created with a cap of four, and
+  // three sides are already in or asked.
+
   // A third side, asked and refused. It must not appear as a team on nought
   // points, and it must not be scheduled against anybody.
   const page = host.page;

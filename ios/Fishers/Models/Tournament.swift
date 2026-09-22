@@ -28,12 +28,55 @@ struct FixtureBlock: Codable, Identifiable, Hashable {
     var startsOn: String?
     var endsOn: String?
 
+    // MARK: what a tournament settles before anybody enters
+    //
+    // All optional: a block created before tournaments carried rules sends
+    // none of this, and a plain block of fixtures never will.
+    var description: String?
+    /// How many sides fit. Nil is no limit.
+    var maxEntrants: Int?
+    var entryDeadline: Date?
+    /// What a side pays to enter — not a spectator's ticket.
+    var entryFeeCents: Int?
+    /// Eleven normally; six for sixes. Nil only from an older API.
+    var playersPerSide: Int?
+    /// 0 means every player must belong to the entering club.
+    var guestPlayersAllowed: Int?
+    var ageGroup: String?
+    var gender: String?
+    /// Overs, ball, ground and the fielding restrictions every fixture in the
+    /// tournament inherits. Nil means the two captains agree their own.
+    var conditions: MatchConditions?
+    var rulesNotes: String?
+
     enum CodingKeys: String, CodingKey {
-        case id, name, kind
+        case id, name, kind, description, gender, conditions
         case clubId = "club_id"
         case teamId = "team_id"
         case startsOn = "starts_on"
         case endsOn = "ends_on"
+        case maxEntrants = "max_entrants"
+        case entryDeadline = "entry_deadline"
+        case entryFeeCents = "entry_fee_cents"
+        case playersPerSide = "players_per_side"
+        case guestPlayersAllowed = "guest_players_allowed"
+        case ageGroup = "age_group"
+        case rulesNotes = "rules_notes"
+    }
+
+    /// A side is eleven unless the tournament says otherwise.
+    var side: Int { playersPerSide ?? 11 }
+
+    /// What the entry rules amount to, in one line for a list row.
+    var entryLine: String {
+        var parts: [String] = ["\(side) a side"]
+        if let age = ageGroup, age != "open" { parts.append(age.uppercased()) }
+        if let g = gender, g != "open" { parts.append(g.capitalized) }
+        if let overs = conditions?.oversLimit { parts.append("\(overs) overs") }
+        if let guests = guestPlayersAllowed, guests > 0 {
+            parts.append("\(guests) guest\(guests == 1 ? "" : "s")")
+        }
+        return parts.joined(separator: " · ")
     }
 
     var systemImage: String {

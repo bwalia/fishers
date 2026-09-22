@@ -174,7 +174,7 @@ check that no wire key is silently dropped.
 | `Models/TeammateProfile.swift` | `lib/models/teammate_profile.dart` | `TeammateProfile` |
 | `Models/Selection.swift` | `lib/models/selection.dart` | `SelectionState`, `SelectionCandidate`, `RankedCandidate`, `PositionQuota`, `SquadRequirements`, `SelectionBoard`, `SquadProposal`, `OutstandingFee`, `OutstandingFees` |
 | `Models/SeasonStats.swift` | `lib/models/season_stats.dart` | `PlayCricketLinks`, `PlayCricketPlayerLink`, `PlayerSeasonStats`, `UserAchievement`, `MeStatsResponse`, `PlayCricketClubSite`, `ClubSeasonStats`, `ClubSeasonBoard` |
-| `Models/Tournament.swift` | `lib/models/tournament.dart` | `TournamentFormat`, `FixtureBlock`, `EntryStatus`, `TournamentEntrant`, `InviteEntrantResult`, `EntryInvitation`, `ScheduleRow`, `Standing`, `EventTicket`, `TicketSummary`, `TicketBooking`, `CricketFixtureRow` |
+| `Models/Tournament.swift` | `lib/models/tournament.dart` | `TournamentFormat`, `FixtureBlock` (with its entry, squad and playing rules), `EntryStatus`, `TournamentEntrant`, `InviteEntrantResult`, `EntryInvitation`, `ScheduleRow`, `Standing`, `EventTicket`, `TicketSummary`, `TicketBooking`, `CricketFixtureRow` |
 | `Models/Chat.swift` | `lib/models/chat.dart` | `ConversationSummary`, `Conversation`, `ChatMessage`, `ProposalKind`, `AgentProposal`, `ProposalPayload`, `AgentRun`, `AgentAnalysis` |
 | `Models/ManOfTheMatch.swift` | `lib/models/motm.dart` | `MotmPoll`, `MotmCandidate`, `MotmPollView` — the poll's own fields arrive flattened in beside the ballot, so `fromJson` reads both out of one object |
 | `Models/Onboarding.swift` | `lib/models/onboarding.dart` | `RoleIntent`, `VerificationStatus`, `VerificationChannelStatus`, `VerificationChannel`, `VerificationSent`, `PendingInvite`, `ShareLinkToken` |
@@ -251,6 +251,7 @@ and body it sends.
 | `entrants` | `GET /fixture-blocks/{id}/entrants` |
 | `addEntrants` | `POST /fixture-blocks/{id}/entrants` |
 | `inviteEntrant` | `POST /fixture-blocks/{id}/invite` |
+| — (no store yet) | `GET /fixture-blocks/{id}` — one tournament and its rules |
 | `tournamentInvitations` | `GET /clubs/{id}/tournament-invites` |
 | `respondToEntry` | `POST /entrants/{id}/respond` |
 | `tournamentSchedule` | `GET /fixture-blocks/{id}/schedule` |

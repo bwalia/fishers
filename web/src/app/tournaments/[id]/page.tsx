@@ -4,11 +4,21 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, readErr } from "@/lib/api";
 import {
+  AGE_GROUPS,
+  AGE_LABEL,
+  BALLS,
+  BALL_LABEL,
   byGroup,
+  defaultConditions,
   difference,
   ENTRY_LABEL,
   FORMAT_LABEL,
+  GENDERS,
+  GENDER_LABEL,
+  GROUNDS,
+  GROUND_LABEL,
   type EntryStatus,
+  type FixtureBlock,
   type ScheduleRow,
   type SchedulePreview,
   type Slot,
@@ -21,7 +31,7 @@ import { OppositionPicker } from "@/components/OppositionPicker";
 import { type OpponentIdentity } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 
-type Tab = "entrants" | "grid" | "fixtures" | "table";
+type Tab = "entrants" | "grid" | "fixtures" | "table" | "rules";
 
 /// Running one tournament.
 ///
@@ -37,21 +47,24 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   const [slots, setSlots] = useState<Slot[]>([]);
   const [fixtures, setFixtures] = useState<ScheduleRow[]>([]);
   const [table, setTable] = useState<Standing[]>([]);
+  const [block, setBlock] = useState<FixtureBlock | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [e, s, f, t] = await Promise.all([
+      const [e, s, f, t, b] = await Promise.all([
         api<TournamentEntrant[]>("GET", `/fixture-blocks/${id}/entrants`),
         api<{ free: Slot[] }>("GET", `/fixture-blocks/${id}/slots`).catch(() => ({ free: [] })),
         api<ScheduleRow[]>("GET", `/fixture-blocks/${id}/schedule`).catch(() => []),
         api<Standing[]>("GET", `/fixture-blocks/${id}/standings`).catch(() => []),
+        api<FixtureBlock>("GET", `/fixture-blocks/${id}`).catch(() => null),
       ]);
       setEntrants(e);
       setSlots(s.free);
       setFixtures(f);
       setTable(t);
+      setBlock(b);
       setError(null);
     } catch (err) {
       setError(readErr(err, "Could not load this tournament"));
@@ -80,9 +93,15 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   return (
     <main id="main">
       <section className="hero">
-        <h1>Tournament</h1>
+        <h1>{block?.name ?? "Tournament"}</h1>
+        {block?.description && <p>{block.description}</p>}
         <div className="hero-tags">
-          <span className="tag">{playing.length} in</span>
+          <span className="tag">
+            {/* "6 of 8 in" rather than "6 in": how many places are left is the
+                thing an organiser is counting. */}
+            {playing.length}
+            {block?.max_entrants ? ` of ${block.max_entrants}` : ""} in
+          </span>
           {waiting.length > 0 && (
             <span className="tag gold">{waiting.length} yet to answer</span>
           )}
@@ -92,7 +111,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       </section>
 
       <div className="people-tabs" role="tablist" aria-label="Tournament">
-        {(["entrants", "grid", "fixtures", "table"] as Tab[]).map((t) => (
+        {(["entrants", "grid", "fixtures", "table", "rules"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -101,7 +120,15 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
             className={tab === t ? "on" : undefined}
             onClick={() => setTab(t)}
           >
-            {{ entrants: "Who is in", grid: "Pitches & times", fixtures: "Fixtures", table: "Table" }[t]}
+            {
+              {
+                entrants: "Who is in",
+                grid: "Pitches & times",
+                fixtures: "Fixtures",
+                table: "Table",
+                rules: "Rules",
+              }[t]
+            }
           </button>
         ))}
       </div>
@@ -120,6 +147,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
         />
       )}
       {tab === "table" && <Table blockId={id} rows={table} onChanged={load} />}
+      {tab === "rules" && <Rules blockId={id} block={block} onChanged={load} />}
 
       <p className="muted" style={{ marginTop: "var(--s5)" }}>
         <Link href="/tournaments">← All tournaments</Link>
@@ -939,4 +967,332 @@ function clock(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
     day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   });
+}
+
+/* ---------- Rules ---------- */
+
+/// What a club is agreeing to when it enters, and what every fixture plays to.
+///
+/// One screen for three different conversations — entry, who may play, and the
+/// playing conditions — because an organiser settles all three in one sitting
+/// and a club reading them wants them in one place.
+function Rules({
+  blockId,
+  block,
+  onChanged,
+}: {
+  blockId: string;
+  block: FixtureBlock | null;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  if (!block) return <div className="skeleton" style={{ height: 240 }} />;
+  if (editing)
+    return (
+      <RulesForm
+        blockId={blockId}
+        block={block}
+        onClose={() => setEditing(false)}
+        onSaved={onChanged}
+      />
+    );
+
+  const c = block.conditions;
+  const money = (p: number) => `£${(p / 100).toFixed(2)}`;
+  const when = (iso: string) =>
+    new Date(iso).toLocaleString("en-GB", {
+      weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+
+  return (
+    <>
+      <div className="panel">
+        <div className="panel-head">
+          <h2>Entry</h2>
+          <button className="btn ghost sm" type="button" onClick={() => setEditing(true)}>
+            Change the rules
+          </button>
+        </div>
+        <dl className="pro-about">
+          <div>
+            <dt>Sides</dt>
+            <dd>{block.max_entrants ? `Up to ${block.max_entrants}` : "No limit"}</dd>
+          </div>
+          <div>
+            <dt>Entries close</dt>
+            <dd>{block.entry_deadline ? when(block.entry_deadline) : "No deadline"}</dd>
+          </div>
+          <div>
+            <dt>Entry fee</dt>
+            <dd>{block.entry_fee_cents ? money(block.entry_fee_cents) : "Free to enter"}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="panel">
+        <h2>Who may play</h2>
+        <dl className="pro-about">
+          <div><dt>Players a side</dt><dd className="num">{block.players_per_side}</dd></div>
+          <div>
+            <dt>Guest players</dt>
+            <dd>
+              {block.guest_players_allowed === 0
+                ? "None — every player must be a club member"
+                : `Up to ${block.guest_players_allowed} from outside the club`}
+            </dd>
+          </div>
+          <div><dt>Age group</dt><dd>{AGE_LABEL[block.age_group] ?? block.age_group}</dd></div>
+          <div><dt>Who it is for</dt><dd>{GENDER_LABEL[block.gender] ?? block.gender}</dd></div>
+        </dl>
+      </div>
+
+      <div className="panel">
+        <h2>Playing conditions</h2>
+        {c ? (
+          <>
+            <dl className="pro-about">
+              <div><dt>Overs an innings</dt><dd className="num">{c.overs_limit}</dd></div>
+              <div>
+                <dt>Most overs one bowler</dt>
+                <dd className="num">{c.overs_per_bowler === 0 ? "No limit" : c.overs_per_bowler}</dd>
+              </div>
+              <div><dt>Ball</dt><dd>{BALL_LABEL[c.ball] ?? c.ball}</dd></div>
+              <div><dt>Ground</dt><dd>{GROUND_LABEL[c.ground] ?? c.ground}</dd></div>
+              <div>
+                <dt>Powerplay</dt>
+                <dd>{c.powerplay_overs === 0 ? "None" : `${c.powerplay_overs} overs`}</dd>
+              </div>
+            </dl>
+            <p className="subtle">
+              Every match in this tournament starts on these terms — the scorer
+              does not type them again.
+            </p>
+          </>
+        ) : (
+          <p className="muted">
+            Not set. Each match is agreed between its two captains, as a one-off
+            fixture is.
+          </p>
+        )}
+        {block.rules_notes && (
+          <>
+            <h3 style={{ marginTop: "var(--s4)" }}>Anything else</h3>
+            <p style={{ whiteSpace: "pre-wrap" }}>{block.rules_notes}</p>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function RulesForm({
+  blockId,
+  block,
+  onClose,
+  onSaved,
+}: {
+  blockId: string;
+  block: FixtureBlock;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const c = block.conditions ?? defaultConditions();
+  const [maxEntrants, setMaxEntrants] = useState(block.max_entrants?.toString() ?? "");
+  // datetime-local wants "YYYY-MM-DDTHH:mm" in local time, not an ISO instant.
+  const [deadline, setDeadline] = useState(
+    block.entry_deadline ? toLocalInput(block.entry_deadline) : ""
+  );
+  const [fee, setFee] = useState(
+    block.entry_fee_cents != null ? (block.entry_fee_cents / 100).toFixed(2) : ""
+  );
+  const [playersPerSide, setPlayersPerSide] = useState(block.players_per_side);
+  const [guests, setGuests] = useState(block.guest_players_allowed);
+  const [ageGroup, setAgeGroup] = useState(block.age_group);
+  const [gender, setGender] = useState(block.gender);
+  const [overs, setOvers] = useState(c.overs_limit);
+  const [perBowler, setPerBowler] = useState(c.overs_per_bowler);
+  const [ball, setBall] = useState(c.ball);
+  const [ground, setGround] = useState(c.ground);
+  const [powerplay, setPowerplay] = useState(c.powerplay_overs);
+  const [notes, setNotes] = useState(block.rules_notes ?? "");
+  const [description, setDescription] = useState(block.description ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const feePence =
+    fee.trim() === ""
+      ? null
+      : /^\d+(\.\d{1,2})?$/.test(fee.trim().replace(/^£/, ""))
+        ? Math.round(Number(fee.trim().replace(/^£/, "")) * 100)
+        : NaN;
+  const feeOk = feePence === null || Number.isFinite(feePence);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    // An emptied box means "remove this", and has to say so: the server
+    // leaves alone anything it was not sent, which is what lets one screen
+    // edit the entry rules without wiping the playing conditions.
+    const clear = [
+      maxEntrants.trim() === "" && "max_entrants",
+      deadline === "" && "entry_deadline",
+      fee.trim() === "" && "entry_fee_cents",
+      description.trim() === "" && "description",
+      notes.trim() === "" && "rules_notes",
+    ].filter((v): v is string => typeof v === "string");
+
+    try {
+      await api("PATCH", `/fixture-blocks/${blockId}`, {
+        description: description.trim() || null,
+        max_entrants: maxEntrants.trim() === "" ? null : Number(maxEntrants),
+        entry_deadline: deadline ? new Date(deadline).toISOString() : null,
+        entry_fee_cents: feePence,
+        players_per_side: playersPerSide,
+        guest_players_allowed: guests,
+        age_group: ageGroup,
+        gender,
+        conditions: { ...c, overs_limit: overs, overs_per_bowler: perBowler, ball, ground,
+                      powerplay_overs: powerplay },
+        rules_notes: notes.trim() || null,
+        clear,
+      });
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(readErr(err, "Could not save the rules"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel setup-panel">
+      <div className="panel-head">
+        <h2>The rules</h2>
+        <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
+      </div>
+
+      <label>
+        What to tell the clubs you invite
+        <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </label>
+
+      <fieldset className="setup-group">
+        <legend>Entry</legend>
+        <div className="setup-fields">
+          <label>
+            How many sides
+            <span className="subtle">Empty for no limit.</span>
+            <input type="number" min={2} value={maxEntrants}
+                   onChange={(e) => setMaxEntrants(e.target.value)} />
+          </label>
+          <label>
+            Entries close
+            <input type="datetime-local" value={deadline}
+                   onChange={(e) => setDeadline(e.target.value)} />
+          </label>
+          <label>
+            Entry fee per side
+            <input inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)}
+                   placeholder="50.00" />
+          </label>
+        </div>
+        {!feeOk && <p className="error">Give the entry fee as an amount, like 50.00.</p>}
+      </fieldset>
+
+      <fieldset className="setup-group">
+        <legend>Who may play</legend>
+        <div className="setup-fields">
+          <label>
+            Players a side
+            <input type="number" min={2} max={15} value={playersPerSide}
+                   onChange={(e) =>
+                     setPlayersPerSide(Math.max(2, Math.min(15, Number(e.target.value) || 11)))} />
+          </label>
+          <label>
+            Guest players allowed
+            <span className="subtle">
+              {guests === 0
+                ? "Every player must be a member of the entering club."
+                : `A side may borrow up to ${guests} from outside.`}
+            </span>
+            <input type="number" min={0} max={playersPerSide} value={guests}
+                   onChange={(e) =>
+                     setGuests(Math.max(0, Math.min(playersPerSide, Number(e.target.value) || 0)))} />
+          </label>
+          <label>
+            Age group
+            <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)}>
+              {AGE_GROUPS.map((a) => <option key={a} value={a}>{AGE_LABEL[a]}</option>)}
+            </select>
+          </label>
+          <label>
+            Who it is for
+            <select value={gender} onChange={(e) => setGender(e.target.value)}>
+              {GENDERS.map((g) => <option key={g} value={g}>{GENDER_LABEL[g]}</option>)}
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="setup-group">
+        <legend>Playing conditions</legend>
+        <div className="setup-fields">
+          <label>
+            Overs an innings
+            <input type="number" min={1} max={100} value={overs}
+                   onChange={(e) => setOvers(Math.max(1, Math.min(100, Number(e.target.value) || 1)))} />
+          </label>
+          <label>
+            Most overs one bowler
+            <input type="number" min={1} max={overs} value={perBowler}
+                   onChange={(e) =>
+                     setPerBowler(Math.max(1, Math.min(overs, Number(e.target.value) || 1)))} />
+          </label>
+          <label>
+            Ball
+            <select value={ball} onChange={(e) => setBall(e.target.value)}>
+              {BALLS.map((b) => <option key={b} value={b}>{BALL_LABEL[b]}</option>)}
+            </select>
+          </label>
+          <label>
+            Ground
+            <select value={ground} onChange={(e) => setGround(e.target.value)}>
+              {GROUNDS.map((g) => <option key={g} value={g}>{GROUND_LABEL[g]}</option>)}
+            </select>
+          </label>
+          <label>
+            Powerplay overs
+            <input type="number" min={0} max={overs} value={powerplay}
+                   onChange={(e) =>
+                     setPowerplay(Math.max(0, Math.min(overs, Number(e.target.value) || 0)))} />
+          </label>
+        </div>
+        <label>
+          Anything else in the rules
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </label>
+        <p className="subtle">
+          Changing these does not re-open matches already being scored — they
+          keep the terms they started under.
+        </p>
+      </fieldset>
+
+      {error && <p className="error">{error}</p>}
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn primary" type="button" disabled={busy || !feeOk} onClick={save}>
+          {busy ? "Saving…" : "Save the rules"}
+        </button>
+        <button className="btn" type="button" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/// An instant as `datetime-local` wants it: local wall-clock, no zone.
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

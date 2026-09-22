@@ -400,12 +400,26 @@ void main() {
   });
 
   group('Tournament.swift', () {
-    test('FixtureBlock', () {
+    test('FixtureBlock — a tournament with its rules set', () {
       expectRoundTrip<FixtureBlock>(
         'fixture_block',
         FixtureBlock.fromJson,
         (FixtureBlock b) => b.toJson(),
-        ignoredWireKeys: <String>{'created_at'},
+        // `venue_id` names the main ground; no Android screen resolves a venue
+        // yet, and iOS's `FixtureBlock` leaves it out of its CodingKeys too.
+        ignoredWireKeys: <String>{'created_at', 'venue_id'},
+      );
+    });
+
+    // The same shape with none of the tournament rules set — which is every
+    // block made before they existed, and every plain block of fixtures. This
+    // is the one that catches a null `conditions` being read as an error.
+    test('FixtureBlock — a plain block with no rules', () {
+      expectRoundTrip<FixtureBlock>(
+        'fixture_block_plain',
+        FixtureBlock.fromJson,
+        (FixtureBlock b) => b.toJson(),
+        ignoredWireKeys: <String>{'created_at', 'venue_id'},
       );
     });
 

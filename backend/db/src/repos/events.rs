@@ -411,13 +411,24 @@ pub async fn create_fixture_block(
     req: &fishers_domain::CreateFixtureBlockRequest,
 ) -> Result<fishers_domain::FixtureBlock, sqlx::Error> {
     let mut tx = pool.begin().await?;
-    let block = sqlx::query_as::<_, fishers_domain::FixtureBlock>(
+    let set = &req.settings;
+    let block = sqlx::query_as::<_, fishers_domain::FixtureBlock>(&format!(
         r#"
-        INSERT INTO fixture_blocks (club_id, team_id, name, kind, starts_on, ends_on, created_by)
-        VALUES ($1, $2, $3, COALESCE($4, 'block'), $5, $6, $7)
-        RETURNING id, club_id, team_id, name, kind, starts_on, ends_on, created_at
+        INSERT INTO fixture_blocks (
+            club_id, team_id, name, kind, starts_on, ends_on, created_by,
+            description, venue_id, max_entrants, entry_deadline, entry_fee_cents,
+            players_per_side, guest_players_allowed, age_group, gender,
+            conditions, rules_notes
+        )
+        VALUES ($1, $2, $3, COALESCE($4, 'block'), $5, $6, $7,
+                $8, $9, $10, $11, $12,
+                COALESCE($13, 11), COALESCE($14, 0),
+                COALESCE($15, 'open'), COALESCE($16, 'open'),
+                $17, $18)
+        RETURNING {}
         "#,
-    )
+        crate::repos::tournament::BLOCK_COLS
+    ))
     .bind(req.club_id)
     .bind(req.team_id)
     .bind(&req.name)
@@ -425,6 +436,18 @@ pub async fn create_fixture_block(
     .bind(req.starts_on)
     .bind(req.ends_on)
     .bind(created_by)
+    .bind(&set.description)
+    .bind(set.venue_id)
+    .bind(set.max_entrants)
+    .bind(set.entry_deadline)
+    .bind(set.entry_fee_cents)
+    .bind(set.players_per_side)
+    .bind(set.guest_players_allowed)
+    .bind(&set.age_group)
+    .bind(&set.gender)
+    .bind(set.conditions.as_ref().map(serde_json::to_value).transpose()
+        .unwrap_or_default())
+    .bind(&set.rules_notes)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -445,12 +468,11 @@ pub async fn list_fixture_blocks(
     pool: &PgPool,
     club_id: Uuid,
 ) -> Result<Vec<fishers_domain::FixtureBlock>, sqlx::Error> {
-    sqlx::query_as::<_, fishers_domain::FixtureBlock>(
-        r#"
-        SELECT id, club_id, team_id, name, kind, starts_on, ends_on, created_at
-        FROM fixture_blocks WHERE club_id = $1 ORDER BY starts_on DESC NULLS LAST, created_at DESC
-        "#,
-    )
+    sqlx::query_as::<_, fishers_domain::FixtureBlock>(&format!(
+        "SELECT {} FROM fixture_blocks WHERE club_id = $1
+         ORDER BY starts_on DESC NULLS LAST, created_at DESC",
+        crate::repos::tournament::BLOCK_COLS
+    ))
     .bind(club_id)
     .fetch_all(pool)
     .await

@@ -821,6 +821,10 @@ pub struct UpdateBlockRequest {
     pub travel_notes: Option<String>,
     pub accommodation_notes: Option<String>,
     pub cost_cents: Option<i32>,
+    /// Entry rules, who may play, and the playing conditions. Flattened so one
+    /// PATCH can change the format and the ball in the same breath.
+    #[serde(flatten, default)]
+    pub settings: crate::TournamentSettings,
 }
 
 /// One fixture in a running tournament, as the app displays it.
