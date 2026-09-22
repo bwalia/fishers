@@ -79,16 +79,47 @@ test("2. the host starts a tournament, and settles its rules up front", async ()
   await page.getByRole("button", { name: /New tournament/ }).click();
   await page.locator('input[placeholder="Summer Sixes"]').fill(TOURNAMENT);
 
-  // Entry, who may play, and the playing conditions — the three things an
-  // organiser used to keep in the covering email.
+  // The format is picked, not typed: that is the whole point of the cards, and
+  // it is the path somebody who has never run a tournament actually takes.
+  // Sixes means 6 overs, 2 an over each, six a side — none of which they have
+  // to know.
+  await page.getByRole("radio", { name: /Sixes/ }).check();
+
   await page.getByLabel("How many sides").fill("4");
   await page.getByLabel("Entry fee per side").fill("50.00");
-  await page.getByLabel("Players a side").fill("6");
+
+  // A ground is added here rather than on the club page: leaving a half-filled
+  // tournament to go and make one is how "not decided" got picked every time.
+  const ground = `E2E Ground ${Date.now().toString(36).slice(-4)}`;
+  await page.getByLabel("Main ground").selectOption("__new");
+  await page.getByLabel("New ground").fill(ground);
+  await page.getByRole("button", { name: "Add it" }).click();
+  await expect(
+    page.getByLabel("Main ground"),
+    "the new ground is made and chosen, without leaving the form"
+  ).toHaveValue(/[0-9a-f-]{36}/);
+  const onClub = await apiGet<{ name: string }[]>(page, `/clubs/${hostClub.id}/venues`);
+  expect(onClub.map((v) => v.name), "and it is saved on the club").toContain(ground);
+
   await page.getByLabel("Guest players allowed").fill("2");
   await page.getByLabel("Age group").selectOption("u15");
   await page.getByLabel("Who it is for").selectOption("mixed");
-  await page.getByLabel("Overs an innings").fill("6");
+
+  // The numbers behind the preset are there for anybody who wants them, and
+  // closed for everybody who does not.
+  const details = page.getByRole("button", { name: "Change the details" });
+  await expect(details, "the detail is folded away until asked for").toBeVisible();
+  await details.click();
+  await expect(page.getByLabel("Overs an innings")).toHaveValue("6");
+  await expect(page.getByLabel("Most overs one bowler")).toHaveValue("2");
+  await expect(page.getByLabel("Players a side")).toHaveValue("6");
   await page.getByLabel("Ball").selectOption("white");
+
+  // The whole thing said back in one line before it is created.
+  await expect(page.locator(".form-summary-text")).toContainText("4 sides");
+  await expect(page.locator(".form-summary-text")).toContainText("Sixes");
+  await expect(page.locator(".form-summary-text")).toContainText("2 guests a side");
+
   await page.getByRole("button", { name: "Create it" }).click();
 
   await expect(page.getByRole("link", { name: new RegExp(TOURNAMENT) })).toBeVisible();

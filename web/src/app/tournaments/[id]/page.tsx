@@ -4,18 +4,14 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, readErr } from "@/lib/api";
 import {
-  AGE_GROUPS,
   AGE_LABEL,
-  BALLS,
   BALL_LABEL,
   byGroup,
   defaultConditions,
   difference,
   ENTRY_LABEL,
   FORMAT_LABEL,
-  GENDERS,
   GENDER_LABEL,
-  GROUNDS,
   GROUND_LABEL,
   type EntryStatus,
   type FixtureBlock,
@@ -28,6 +24,15 @@ import {
 } from "@/lib/tournament";
 import { Icon } from "@/components/Icon";
 import { OppositionPicker } from "@/components/OppositionPicker";
+import {
+  emptyRules,
+  pence,
+  rulesPayload,
+  rulesSummary,
+  TournamentRuleFields,
+  type Rules,
+  type Venue,
+} from "@/components/TournamentRules";
 import { type OpponentIdentity } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 
@@ -1097,66 +1102,48 @@ function RulesForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const c = block.conditions ?? defaultConditions();
-  const [maxEntrants, setMaxEntrants] = useState(block.max_entrants?.toString() ?? "");
-  // datetime-local wants "YYYY-MM-DDTHH:mm" in local time, not an ISO instant.
-  const [deadline, setDeadline] = useState(
-    block.entry_deadline ? toLocalInput(block.entry_deadline) : ""
-  );
-  const [fee, setFee] = useState(
-    block.entry_fee_cents != null ? (block.entry_fee_cents / 100).toFixed(2) : ""
-  );
-  const [playersPerSide, setPlayersPerSide] = useState(block.players_per_side);
-  const [guests, setGuests] = useState(block.guest_players_allowed);
-  const [ageGroup, setAgeGroup] = useState(block.age_group);
-  const [gender, setGender] = useState(block.gender);
-  const [overs, setOvers] = useState(c.overs_limit);
-  const [perBowler, setPerBowler] = useState(c.overs_per_bowler);
-  const [ball, setBall] = useState(c.ball);
-  const [ground, setGround] = useState(c.ground);
-  const [powerplay, setPowerplay] = useState(c.powerplay_overs);
-  const [notes, setNotes] = useState(block.rules_notes ?? "");
-  const [description, setDescription] = useState(block.description ?? "");
+  const existing = block.conditions ?? defaultConditions();
+  // Seeded from what is already stored, so the same fields that created the
+  // tournament are the ones that change it — one component, no drift.
+  const [rules, setRules] = useState<Rules>(() => ({
+    ...emptyRules(),
+    description: block.description ?? "",
+    maxEntrants: block.max_entrants?.toString() ?? "",
+    // datetime-local wants local wall-clock, not an ISO instant.
+    entryDeadline: block.entry_deadline ? toLocalInput(block.entry_deadline) : "",
+    entryFee: block.entry_fee_cents != null ? (block.entry_fee_cents / 100).toFixed(2) : "",
+    venueId: block.venue_id ?? "",
+    playersPerSide: block.players_per_side,
+    guests: block.guest_players_allowed,
+    ageGroup: block.age_group,
+    gender: block.gender,
+    overs: existing.overs_limit,
+    perBowler: existing.overs_per_bowler,
+    ball: existing.ball,
+    ground: existing.ground,
+    powerplay: existing.powerplay_overs,
+    rulesNotes: block.rules_notes ?? "",
+  }));
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const feePence =
-    fee.trim() === ""
-      ? null
-      : /^\d+(\.\d{1,2})?$/.test(fee.trim().replace(/^£/, ""))
-        ? Math.round(Number(fee.trim().replace(/^£/, "")) * 100)
-        : NaN;
-  const feeOk = feePence === null || Number.isFinite(feePence);
+  const set = (patch: Partial<Rules>) => setRules((r) => ({ ...r, ...patch }));
+
+  useEffect(() => {
+    api<Venue[]>("GET", `/clubs/${block.club_id}/venues`)
+      .then(setVenues)
+      .catch(() => setVenues([]));
+  }, [block.club_id]);
+
+  const fee = pence(rules.entryFee);
+  const feeOk = fee === null || Number.isFinite(fee);
 
   const save = async () => {
     setBusy(true);
     setError(null);
-    // An emptied box means "remove this", and has to say so: the server
-    // leaves alone anything it was not sent, which is what lets one screen
-    // edit the entry rules without wiping the playing conditions.
-    const clear = [
-      maxEntrants.trim() === "" && "max_entrants",
-      deadline === "" && "entry_deadline",
-      fee.trim() === "" && "entry_fee_cents",
-      description.trim() === "" && "description",
-      notes.trim() === "" && "rules_notes",
-    ].filter((v): v is string => typeof v === "string");
-
     try {
-      await api("PATCH", `/fixture-blocks/${blockId}`, {
-        description: description.trim() || null,
-        max_entrants: maxEntrants.trim() === "" ? null : Number(maxEntrants),
-        entry_deadline: deadline ? new Date(deadline).toISOString() : null,
-        entry_fee_cents: feePence,
-        players_per_side: playersPerSide,
-        guest_players_allowed: guests,
-        age_group: ageGroup,
-        gender,
-        conditions: { ...c, overs_limit: overs, overs_per_bowler: perBowler, ball, ground,
-                      powerplay_overs: powerplay },
-        rules_notes: notes.trim() || null,
-        clear,
-      });
+      await api("PATCH", `/fixture-blocks/${blockId}`, rulesPayload(rules, existing));
       onSaved();
       onClose();
     } catch (err) {
@@ -1175,109 +1162,35 @@ function RulesForm({
 
       <label>
         What to tell the clubs you invite
-        <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+        <textarea
+          rows={2}
+          value={rules.description}
+          onChange={(e) => set({ description: e.target.value })}
+        />
       </label>
 
-      <fieldset className="setup-group">
-        <legend>Entry</legend>
-        <div className="setup-fields">
-          <label>
-            How many sides
-            <span className="subtle">Empty for no limit.</span>
-            <input type="number" min={2} value={maxEntrants}
-                   onChange={(e) => setMaxEntrants(e.target.value)} />
-          </label>
-          <label>
-            Entries close
-            <input type="datetime-local" value={deadline}
-                   onChange={(e) => setDeadline(e.target.value)} />
-          </label>
-          <label>
-            Entry fee per side
-            <input inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)}
-                   placeholder="50.00" />
-          </label>
-        </div>
-        {!feeOk && <p className="error">Give the entry fee as an amount, like 50.00.</p>}
-      </fieldset>
+      <div style={{ marginTop: "var(--s5)" }}>
+        <TournamentRuleFields
+          rules={rules}
+          set={set}
+          venues={venues}
+          clubId={block.club_id}
+          onVenueAdded={(v) => setVenues((all) => [...all, v])}
+        />
+      </div>
 
-      <fieldset className="setup-group">
-        <legend>Who may play</legend>
-        <div className="setup-fields">
-          <label>
-            Players a side
-            <input type="number" min={2} max={15} value={playersPerSide}
-                   onChange={(e) =>
-                     setPlayersPerSide(Math.max(2, Math.min(15, Number(e.target.value) || 11)))} />
-          </label>
-          <label>
-            Guest players allowed
-            <span className="subtle">
-              {guests === 0
-                ? "Every player must be a member of the entering club."
-                : `A side may borrow up to ${guests} from outside.`}
-            </span>
-            <input type="number" min={0} max={playersPerSide} value={guests}
-                   onChange={(e) =>
-                     setGuests(Math.max(0, Math.min(playersPerSide, Number(e.target.value) || 0)))} />
-          </label>
-          <label>
-            Age group
-            <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)}>
-              {AGE_GROUPS.map((a) => <option key={a} value={a}>{AGE_LABEL[a]}</option>)}
-            </select>
-          </label>
-          <label>
-            Who it is for
-            <select value={gender} onChange={(e) => setGender(e.target.value)}>
-              {GENDERS.map((g) => <option key={g} value={g}>{GENDER_LABEL[g]}</option>)}
-            </select>
-          </label>
-        </div>
-      </fieldset>
+      <div className="form-summary">
+        <Icon name="check" size={16} />
+        <span className="form-summary-body">
+          <span className="form-summary-title">What this tournament will be</span>
+          <span className="form-summary-text">{rulesSummary(rules)}</span>
+        </span>
+      </div>
 
-      <fieldset className="setup-group">
-        <legend>Playing conditions</legend>
-        <div className="setup-fields">
-          <label>
-            Overs an innings
-            <input type="number" min={1} max={100} value={overs}
-                   onChange={(e) => setOvers(Math.max(1, Math.min(100, Number(e.target.value) || 1)))} />
-          </label>
-          <label>
-            Most overs one bowler
-            <input type="number" min={1} max={overs} value={perBowler}
-                   onChange={(e) =>
-                     setPerBowler(Math.max(1, Math.min(overs, Number(e.target.value) || 1)))} />
-          </label>
-          <label>
-            Ball
-            <select value={ball} onChange={(e) => setBall(e.target.value)}>
-              {BALLS.map((b) => <option key={b} value={b}>{BALL_LABEL[b]}</option>)}
-            </select>
-          </label>
-          <label>
-            Ground
-            <select value={ground} onChange={(e) => setGround(e.target.value)}>
-              {GROUNDS.map((g) => <option key={g} value={g}>{GROUND_LABEL[g]}</option>)}
-            </select>
-          </label>
-          <label>
-            Powerplay overs
-            <input type="number" min={0} max={overs} value={powerplay}
-                   onChange={(e) =>
-                     setPowerplay(Math.max(0, Math.min(overs, Number(e.target.value) || 0)))} />
-          </label>
-        </div>
-        <label>
-          Anything else in the rules
-          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </label>
-        <p className="subtle">
-          Changing these does not re-open matches already being scored — they
-          keep the terms they started under.
-        </p>
-      </fieldset>
+      <p className="subtle" style={{ marginTop: "var(--s3)" }}>
+        Changing these does not re-open matches already being scored — they keep
+        the terms they started under.
+      </p>
 
       {error && <p className="error">{error}</p>}
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
