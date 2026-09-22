@@ -31,6 +31,36 @@ enum AppConfig {
     static let apiDefaultsKey = "FishersAPIBaseURL"
     static let webDefaultsKey = "FishersWebBaseURL"
 
+    /// Info.plist keys carrying the Mac's LAN address, written by project.yml
+    /// in the Debug config only. Never a UserDefaults key: nothing writes
+    /// these at runtime, they are what the build was generated against.
+    static let lanAPIInfoKey = "FishersLANAPIBaseURL"
+    static let lanWebInfoKey = "FishersLANWebBaseURL"
+
+    /// The Mac's API on the Wi-Fi, if this build has one to offer.
+    ///
+    /// `nil` in Release, and `nil` in a Debug build generated without
+    /// `scripts/start.sh` — the plist key is then empty, or names a host that
+    /// is not a usable address from a phone.
+    static var lanAPIBase: URL? { lanBase(lanAPIInfoKey) }
+    static var lanWebBase: URL? { lanBase(lanWebInfoKey) }
+
+    private static func lanBase(_ key: String) -> URL? {
+        #if DEBUG
+        return usableURL(Bundle.main.object(forInfoDictionaryKey: key) as? String)
+        #else
+        // A LAN address has no meaning in a build that has left this machine.
+        return nil
+        #endif
+    }
+
+    /// What this build was compiled to talk to, before any override. Shown as
+    /// a Settings preset so the panel offers the build's own port rather than
+    /// a number typed into the source years ago.
+    static var buildAPIBase: URL? {
+        usableURL(Bundle.main.object(forInfoDictionaryKey: apiDefaultsKey) as? String)
+    }
+
     /// Where the API lives — re-read on every access so a Settings override
     /// applies to the next request without restarting the app.
     ///
@@ -60,13 +90,24 @@ enum AppConfig {
         )
     }
 
-    /// Loopback on the Simulator, production on a real device. Release sets
-    /// both hosts in Info.plist; this is what a build reaches for when that
-    /// substitution has gone wrong, so it has to be somewhere safe to land.
+    /// Loopback on the Simulator, the Mac's Wi-Fi address on a tethered Debug
+    /// build, production everywhere else. Release sets both hosts in
+    /// Info.plist; this is what a build reaches for when that substitution has
+    /// gone wrong, so it has to be somewhere safe to land.
+    ///
+    /// The device Debug case is the one that is not merely "safe": a phone
+    /// plugged into this Mac is here to talk to this Mac, and falling through
+    /// to production meant every such run began by typing a LAN address into
+    /// Settings. It is `#if DEBUG` and the key is empty in Release, so a
+    /// TestFlight build still lands on production — a tester's network has no
+    /// such host, or worse, something unrelated answering on it.
     private static func deviceAwareFallback(api: Bool) -> String {
         #if targetEnvironment(simulator)
         return api ? simulatorAPIBase : simulatorWebBase
         #else
+        if let lan = api ? lanAPIBase : lanWebBase {
+            return lan.absoluteString
+        }
         return api ? deviceAPIBase : deviceWebBase
         #endif
     }
@@ -150,7 +191,11 @@ enum AppConfig {
               !trimmed.hasPrefix("$("),
               !trimmed.contains("${"),
               let url = URL(string: trimmed),
-              let host = url.host
+              // Non-nil is not enough: "http://:7312" parses, and its host is
+              // the empty string rather than nil. That is what project.yml's
+              // LAN address collapses to when LAN_IP was never exported, and
+              // it has to read as "no address" rather than be dialled.
+              let host = url.host, !host.isEmpty
         else { return nil }
         #if !targetEnvironment(simulator)
         if host == "127.0.0.1" || host == "localhost" || host == "::1" {

@@ -120,6 +120,7 @@ WEB_PORT="${WEB_PORT:-7311}"
 # environment when it writes Info.plist. Without this the Simulator build is
 # compiled against whatever port the spec happened to name, and an .env that
 # moves the API leaves the app talking to nothing on a plain Run in Xcode.
+# LAN_IP joins them further down, once it has been worked out.
 export API_PORT WEB_PORT
 
 # Older local .env files used 5455, which collides with other stacks on the
@@ -157,6 +158,10 @@ lan_ip() {
 }
 
 LAN_IP="${FISHERS_LAN_IP:-$(lan_ip)}"
+# Exported for the same reason as the ports: project.yml's Debug config builds
+# the address a tethered iPhone uses out of it. Unexported it expands to
+# nothing, the host comes out empty, and a device falls back to production.
+export LAN_IP
 WEB_BASE="http://${LAN_IP}:${WEB_PORT}"
 API_BASE="http://${LAN_IP}:${API_PORT}"
 DATABASE_URL="postgres://fishers:fishers@localhost:${POSTGRES_PORT}/fishers"
@@ -649,12 +654,15 @@ if [ "$WANT_IOS" = 1 ]; then
   SPEC="$ROOT/ios/project.yml"
   STAMP="$ROOT/ios/.xcodegen-stamp"
   current_stamp() {
-    # The ports are in the hash because XcodeGen bakes them into Info.plist
-    # from the environment: the spec can be untouched and the generated project
-    # still stale, which is a build pointed at the previous port.
+    # The ports and the LAN address are in the hash because XcodeGen bakes
+    # them into Info.plist from the environment: the spec can be untouched and
+    # the generated project still stale, which is a build pointed at the
+    # previous port — or, after moving between Wi-Fi networks, at yesterday's
+    # address for this Mac.
     { find "$ROOT/ios/Fishers" "$ROOT/ios/FishersTests" -type f 2>/dev/null | LC_ALL=C sort
       cat "$SPEC"
-      echo "API_PORT=${API_PORT} WEB_PORT=${WEB_PORT}"; } | shasum -a 256 | cut -d' ' -f1
+      echo "API_PORT=${API_PORT} WEB_PORT=${WEB_PORT} LAN_IP=${LAN_IP}"; } \
+      | shasum -a 256 | cut -d' ' -f1
   }
   now_stamp="$(current_stamp)"
   if [ ! -f "$ROOT/ios/Fishers.xcodeproj/project.pbxproj" ] \

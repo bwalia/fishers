@@ -61,4 +61,30 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(AppConfig.defaultAPIPort, 7312)
         XCTAssertEqual(AppConfig.defaultWebPort, 7311)
     }
+
+    /// The LAN address is the one thing in here a phone can use, and the one
+    /// thing that must never ship. Debug fills it in; Release leaves the key
+    /// empty, so this reads nil there — which is what sends a TestFlight build
+    /// to production instead of a network its tester is not on.
+    func testLANBaseIsAUsableAddressOrNothing() {
+        guard let lan = AppConfig.lanAPIBase else { return }
+
+        XCTAssertNotNil(lan.host, "a preset with no host is worse than no preset")
+        XCTAssertFalse(
+            ["127.0.0.1", "localhost", "::1"].contains(lan.host ?? ""),
+            "loopback is the phone itself — it cannot be what a device is offered"
+        )
+        XCTAssertTrue(
+            ["http", "https"].contains(lan.scheme ?? ""),
+            "the panel writes this straight into the override, which rejects other schemes"
+        )
+    }
+
+    /// project.yml builds it as "http://${LAN_IP}:${API_PORT}". Generated
+    /// without start.sh, LAN_IP expands to nothing and the string arrives as
+    /// "http://:7312" — which has to be read as "no LAN address", not dialled.
+    func testAnEmptyHostIsNotAnAddress() {
+        XCTAssertThrowsError(try AppConfig.setAPIBaseURLOverride("http://:7312"))
+        XCTAssertThrowsError(try AppConfig.setAPIBaseURLOverride("http://"))
+    }
 }

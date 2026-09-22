@@ -10,19 +10,26 @@ struct APIServerSettingsView: View {
     @State private var errorMessage: String?
     @State private var resolved: String = AppConfig.apiBaseURL.absoluteString
 
-    private let presets: [(String, String)] = [
-        ("This Mac (Wi‑Fi)", "http://192.168.1.177:7312"),
-        ("Simulator loopback", "http://127.0.0.1:7312"),
-        ("int.fishers.cloud", "https://int.fishers.cloud"),
-        ("www.fishers.cloud", "https://www.fishers.cloud"),
-    ]
-
+    /// The local ones come from the build rather than the source: a hard-coded
+    /// `192.168.1.177:7312` was one house move and one `API_PORT=` away from
+    /// being a preset that cannot work, offered as if it could.
+    ///
+    /// Either may be absent — a Release build has no LAN address, and a
+    /// project generated without `scripts/start.sh` has no usable one — and an
+    /// absent preset is left out rather than shown broken.
     private var visiblePresets: [(String, String)] {
+        var items: [(String, String)] = []
+        if let lan = AppConfig.lanAPIBase {
+            items.append(("This Mac (Wi‑Fi)", lan.absoluteString))
+        }
         #if targetEnvironment(simulator)
-        presets
-        #else
-        presets.filter { !$0.1.contains("127.0.0.1") }
+        if let build = AppConfig.buildAPIBase, build.host == "127.0.0.1" {
+            items.append(("Simulator loopback", build.absoluteString))
+        }
         #endif
+        items.append(("int.fishers.cloud", "https://int.fishers.cloud"))
+        items.append(("www.fishers.cloud", "https://www.fishers.cloud"))
+        return items
     }
 
     var body: some View {
