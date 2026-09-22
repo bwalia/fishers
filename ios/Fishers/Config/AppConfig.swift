@@ -1,9 +1,22 @@
 import Foundation
 
 enum AppConfig {
-    /// Simulator fallback: loopback on the Mac's stack (same as Debug Info.plist).
-    private static let simulatorAPIBase = "http://127.0.0.1:7312"
-    private static let simulatorWebBase = "http://127.0.0.1:7311"
+    /// Simulator fallback: loopback on the Mac's stack.
+    ///
+    /// The ports are `scripts/start.sh`'s own defaults. They are not the
+    /// authority on where the stack is — `.env` moves them, and project.yml
+    /// substitutes whatever start.sh exported into Info.plist, which is read
+    /// first. This is only what a build lands on when that substitution never
+    /// happened, which is why it names the documented default rather than
+    /// guessing.
+    private static let simulatorAPIBase = "http://127.0.0.1:\(defaultAPIPort)"
+    private static let simulatorWebBase = "http://127.0.0.1:\(defaultWebPort)"
+
+    /// The ports `.env.example` ships and `scripts/start.sh` falls back to,
+    /// deliberately off the beaten track so the stack does not fight Postgres
+    /// on 5432 or another dev server on 8080.
+    static let defaultAPIPort = 7312
+    static let defaultWebPort = 7311
 
     /// Physical-device fallback: production. A phone cannot use 127.0.0.1 —
     /// that is the phone itself — and a LAN address here shipped to TestFlight,
@@ -120,7 +133,12 @@ enum AppConfig {
         return URL(string: fallback)!
     }
 
-    /// Empty and unsubstituted (`$(FISHERS_API_BASE_URL)`) values are not hosts.
+    /// Empty and unsubstituted values are not hosts. Two spellings reach here:
+    /// Xcode's own `$(FISHERS_API_BASE_URL)`, when a build setting is missing,
+    /// and XcodeGen's `${API_PORT}`, when the spec was generated without the
+    /// ports exported. Both mean "nobody filled this in", and both must lose to
+    /// the fallback rather than be parsed into a URL nothing answers on.
+    ///
     /// On the Simulator, loopback is honoured — that is the right address there.
     /// On a physical phone, loopback is the phone itself, so Debug Info.plist's
     /// `127.0.0.1` must not win over the fallback; reject it here so resolution
@@ -130,6 +148,7 @@ enum AppConfig {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty,
               !trimmed.hasPrefix("$("),
+              !trimmed.contains("${"),
               let url = URL(string: trimmed),
               let host = url.host
         else { return nil }
@@ -149,9 +168,9 @@ enum APIConfigError: LocalizedError {
         switch self {
         case .invalidURL:
             #if targetEnvironment(simulator)
-            return "Enter a full URL such as http://127.0.0.1:7312 or https://int.fishers.cloud"
+            return "Enter a full URL such as http://127.0.0.1:\(AppConfig.defaultAPIPort) or https://int.fishers.cloud"
             #else
-            return "Enter a full URL such as https://int.fishers.cloud or http://192.168.1.10:7312 — not localhost on a phone"
+            return "Enter a full URL such as https://int.fishers.cloud or http://192.168.1.10:\(AppConfig.defaultAPIPort) — not localhost on a phone"
             #endif
         }
     }

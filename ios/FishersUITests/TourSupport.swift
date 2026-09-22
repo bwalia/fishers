@@ -11,7 +11,11 @@ class APITourCase: XCTestCase {
     var app: XCUIApplication!
 
     static let apiBase =
-        ProcessInfo.processInfo.environment["FISHERS_API_URL"] ?? "http://127.0.0.1:7312"
+        ProcessInfo.processInfo.environment["FISHERS_API_URL"]
+        // scripts/ios-ui-test.sh reads the port out of .env and passes it as
+        // TEST_RUNNER_FISHERS_API_URL; this is only what a run straight from
+        // Xcode lands on, and matches AppConfig.defaultAPIPort.
+        ?? "http://127.0.0.1:7312"
     static let mailpit =
         ProcessInfo.processInfo.environment["FISHERS_MAILPIT_URL"] ?? "http://127.0.0.1:8025"
     static let password = "onboarding-tour-1"

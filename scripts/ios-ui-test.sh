@@ -20,6 +20,22 @@ DEVICE="${FISHERS_SIM_DEVICE:-iPhone 17 Pro}"
 DERIVED="${FISHERS_DERIVED_DATA:-/tmp/fishers-dd}"
 RESULTS="${FISHERS_UI_RESULTS:-/tmp/fishers-ui.xcresult}"
 
+# Point the runner at the API the stack is actually on.
+#
+# The tours skip themselves when they cannot reach it, and xcodebuild still
+# exits 0 — so a port read from a stale default is a whole suite that quietly
+# tests nothing. .env is where the port lives; TEST_RUNNER_ is the only prefix
+# that survives into the runner's environment (a plain FISHERS_API_URL is read
+# on the Simulator, not here). An explicit value still wins.
+if [ -z "${TEST_RUNNER_FISHERS_API_URL:-}" ]; then
+  api_port="${API_PORT:-}"
+  if [ -z "$api_port" ] && [ -f "$(dirname "$0")/../.env" ]; then
+    api_port="$(sed -nE 's/^[[:space:]]*API_PORT=([0-9]+).*/\1/p' "$(dirname "$0")/../.env" | tail -1)"
+  fi
+  export TEST_RUNNER_FISHERS_API_URL="http://127.0.0.1:${api_port:-7312}"
+  echo "==> runner API: $TEST_RUNNER_FISHERS_API_URL"
+fi
+
 cd "$(dirname "$0")/.."/ios
 
 udid=$(xcrun simctl list devices available -j \

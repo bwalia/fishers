@@ -18,12 +18,25 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>GoogleSignIn</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>FishersAPIBaseURL</key>
 	<string>$(FISHERS_API_BASE_URL)</string>
 	<key>FishersWebBaseURL</key>
 	<string>$(FISHERS_WEB_BASE_URL)</string>
+	<key>GIDClientID</key>
+	<string>$(GOOGLE_IOS_CLIENT_ID)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSAppTransportSecurity</key>
@@ -46,14 +59,14 @@
 			</dict>
 		</dict>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>Fishers uses the camera to scan another club's QR code when you start a match, so you don't have to type their name.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Fishers reaches your club's scoring API on the same Wi-Fi — for example a Mac running the local server while you test on a phone.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Fishers uses the camera to scan another club's QR code when you start a match, so you don't have to type their name.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Fishers reaches your club's scoring API on the same Wi-Fi — for example a Mac running the local server while you test on a phone.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

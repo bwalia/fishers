@@ -20,7 +20,11 @@ final class ScreenTour: XCTestCase {
 
     /// The Simulator shares the Mac's network stack, so loopback is the host.
     private static let apiBase =
-        ProcessInfo.processInfo.environment["FISHERS_API_URL"] ?? "http://127.0.0.1:7312"
+        ProcessInfo.processInfo.environment["FISHERS_API_URL"]
+        // scripts/ios-ui-test.sh reads the port out of .env and passes it as
+        // TEST_RUNNER_FISHERS_API_URL; this is only what a run straight from
+        // Xcode lands on, and matches AppConfig.defaultAPIPort.
+        ?? "http://127.0.0.1:7312"
 
     private static let email =
         ProcessInfo.processInfo.environment["FISHERS_UITEST_EMAIL"] ?? "demo@fishers.test"
