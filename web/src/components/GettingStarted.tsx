@@ -72,6 +72,10 @@ export function GettingStarted({
   const [tourOpen, setTourOpen] = useState(false);
 
   const ownClub = clubs.find((c) => c.owner_id === user.id) ?? null;
+  // clubs.find() answers with a new object every render, so the effect below
+  // depends on the id rather than the club: depending on the object would
+  // refetch the teams and members on every render for ever.
+  const ownClubId = ownClub?.id ?? null;
 
   useEffect(() => {
     setSharedOnce(read(sharedKey(user.id)) === "1");
@@ -81,15 +85,15 @@ export function GettingStarted({
   }, [user.id, user.email_verified, user.phone_verified]);
 
   useEffect(() => {
-    if (!ownClub) return;
+    if (!ownClubId) return;
     Promise.all([
-      api<Team[]>("GET", `/clubs/${ownClub.id}/teams`).catch(() => [] as Team[]),
-      api<ClubMemberRow[]>("GET", `/clubs/${ownClub.id}/members`).catch(() => [] as ClubMemberRow[]),
+      api<Team[]>("GET", `/clubs/${ownClubId}/teams`).catch(() => [] as Team[]),
+      api<ClubMemberRow[]>("GET", `/clubs/${ownClubId}/members`).catch(() => [] as ClubMemberRow[]),
     ]).then(([t, m]) => {
       setTeams(t);
       setMembers(m);
     });
-  }, [ownClub?.id]);
+  }, [ownClubId]);
 
   const verified = !!(user.email_verified || user.phone_verified);
   // Only a step when the server asks for confirmation AND can send a code.

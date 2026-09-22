@@ -5,7 +5,6 @@ import Link from "next/link";
 import { api, getStoredUser, money, readErr } from "@/lib/api";
 import { type EventTicket, type TicketBooking } from "@/lib/tournament";
 import { Avatar } from "@/components/Avatar";
-import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
 
 /// A ticketed club event — the dinner, the quiz, presentation night.
