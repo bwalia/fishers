@@ -117,7 +117,45 @@ The poll's own fields are flattened into the response beside `candidates`,
 | iOS | `ios/Fishers/Views/Chat/ManOfTheMatchCard.swift`, `ViewModels/MotmStore.swift` |
 | Web | `web/src/components/ManOfTheMatch.tsx`, `lib/motm.ts` |
 
-## Push to iPhones
+## Push to phones
+
+Three transports, one code path: `PushService::send` reads every device a
+person has registered and picks by `device_tokens.platform` — `web` to Web
+Push, `android` to FCM, anything else to APNs. Apple is the default because
+it is what every non-web token was before Android existed.
+
+Each is configured independently, and an unconfigured one is quiet rather
+than broken: the notification is stored either way, so the bell fills up and
+only the buzz is missing. The API says which at startup.
+
+### To Android, over FCM
+
+`backend/notifications/src/fcm.rs`, over the HTTP v1 API.
+
+The v1 API wants a **service account**, not the legacy server key older
+guides describe: Firebase console → Project settings → Service accounts →
+Generate new private key, which downloads a JSON file. That file carries the
+project id, so `FCM_PROJECT_ID` is only for overriding it. Set
+`FCM_SERVICE_ACCOUNT` to the JSON whole, or `FCM_SERVICE_ACCOUNT_PATH` to a
+file — which is what a mounted Kubernetes secret gives you.
+
+Getting an access token is two hops rather than one: an RS256 JWT signed with
+the service account's key, exchanged at Google's token endpoint for a bearer
+good for an hour. The key is **RSA**, not the elliptic-curve key APNs uses;
+the two are not interchangeable, and swapping them fails at boot with a
+sentence saying so.
+
+The app's own keys ride in `data`, which carries **strings and nothing else**
+— a number left as a number is refused as `INVALID_ARGUMENT`, taking the
+whole notification with it. They are stringified rather than dropped, so a
+tap still has the ids it needs to route.
+
+`UNREGISTERED` and `NOT_FOUND` retire a token. `INVALID_ARGUMENT` does not:
+FCM uses it both for a bad token and for a bad payload, and the second is our
+bug — deleting every row over a malformed payload would unsubscribe a whole
+club for a mistake on this side.
+
+### To iPhones, over APNs
 
 Until this change the iOS half of `PushService::send` was a log line: the bell
 filled up and no phone ever buzzed. It is now a real APNs client
