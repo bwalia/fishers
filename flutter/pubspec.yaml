@@ -25,6 +25,13 @@ dependencies:
   # UserDefaults, which is where AppConfig keeps the API base URL override.
   shared_preferences: ^2.3.2
 
+  # Android push. The Android half of ios/Fishers/Services/PushRegistrar.swift,
+  # which uses APNs — there is no shared layer between the two, only a shared
+  # endpoint: both register a token with /notifications/register-device and let
+  # the server pick the transport from the platform column.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

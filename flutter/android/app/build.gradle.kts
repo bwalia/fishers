@@ -6,6 +6,22 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase, when there is a project to talk to.
+//
+// google-services.json comes from the Firebase console and is gitignored, for
+// the same reason key.properties is: it belongs to whoever owns the project,
+// not to the repo. The plugin refuses to configure without it — "File
+// google-services.json is missing" — which would fail every build on a
+// machine that has not got one, including CI's APK job.
+//
+// So it is applied only when the file is there. Without it the app still
+// builds and runs; `Firebase.initializeApp()` finds no default options, and
+// PushRegistrar treats that the way the server treats a missing APNs key:
+// push is off, the bell still fills up, and only the buzz is missing.
+if (rootProject.file("app/google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // Release signing, when there is a keystore to sign with.
 //
 // CI writes android/key.properties and the .jks beside it from secrets; both
