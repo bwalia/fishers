@@ -16,6 +16,13 @@ export type FixtureBlock = {
   created_at: string;
 };
 
+/// Where a side is in the entry process.
+///
+/// A name an organiser typed in is `accepted` straight away — they are
+/// entering it, not asking it. `invited` belongs to a real club that answers
+/// for itself, and only `accepted` sides go into the draw.
+export type EntryStatus = "invited" | "accepted" | "declined" | "withdrawn";
+
 export type TournamentEntrant = {
   id: string;
   block_id: string;
@@ -26,7 +33,35 @@ export type TournamentEntrant = {
   group_label: string | null;
   contact_name: string | null;
   contact_email: string | null;
+  status: EntryStatus;
+  invited_by: string | null;
+  responded_at: string | null;
+  /// Derived from `status` by the database. Kept because several screens read it.
   withdrawn: boolean;
+};
+
+/// A tournament somebody has asked your club into.
+export type EntryInvitation = {
+  entrant_id: string;
+  block_id: string;
+  block_name: string;
+  kind: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  host_club_id: string;
+  host_club_name: string;
+  entrant_name: string;
+  club_id: string | null;
+  status: EntryStatus;
+  invited_by_name: string | null;
+  created_at: string;
+};
+
+export const ENTRY_LABEL: Record<EntryStatus, string> = {
+  invited: "Asked",
+  accepted: "In",
+  declined: "Declined",
+  withdrawn: "Withdrawn",
 };
 
 export type TournamentFormat = "round_robin" | "groups_knockout" | "knockout" | "ladder" | "none";
@@ -121,13 +156,21 @@ export type TicketSummary = {
   ticket_price_cents: number | null;
   /// How many guests one member may bring. Zero means members only.
   guests_allowed: number;
+  /// Anyone signed in may buy, rather than members of the hosting club only.
+  tickets_public: boolean;
   bookings: number;
   headcount: number;
   collected_cents: number;
   outstanding_cents: number;
 };
 
-export type TicketBooking = { summary: TicketSummary; tickets: EventTicket[] };
+export type TicketBooking = {
+  summary: TicketSummary;
+  tickets: EventTicket[];
+  /// False for a non-member at a public event: they get the headcount and
+  /// their own booking, never the guest list.
+  can_see_everyone: boolean;
+};
 
 export const FORMAT_LABEL: Record<TournamentFormat, string> = {
   round_robin: "Everyone plays everyone",

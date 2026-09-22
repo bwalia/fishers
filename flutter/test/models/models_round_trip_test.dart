@@ -100,7 +100,6 @@ void main() {
         'event',
         Event.fromJson,
         (Event e) => e.toJson(),
-        // Server-side bookkeeping; `Event`'s CodingKeys omit them on iOS too.
         // Server bookkeeping, plus the ticket and call-off fields that live on
         // `TicketSummary` and the fixture-status endpoint rather than on
         // `Event` — the same split `Event`'s CodingKeys make on iOS.
@@ -112,6 +111,7 @@ void main() {
           'recurrence_parent_id',
           'ticket_capacity',
           'guests_allowed',
+          'tickets_public',
           'status_note',
           'rescheduled_to',
         },
@@ -414,9 +414,32 @@ void main() {
         'tournament_entrant',
         TournamentEntrant.fromJson,
         (TournamentEntrant e) => e.toJson(),
-        // An entrant may be a Fishers club, but the tournament screens work off
-        // the name; iOS's CodingKeys leave both ids out too.
-        ignoredWireKeys: <String>{'club_id', 'team_id'},
+        // `team_id` names one of the entering club's sides, which no screen
+        // shows; `invited_by` is a user id the invited club never needs — it
+        // reads `invited_by_name` off the invitation instead. iOS leaves both
+        // out of its CodingKeys too.
+        ignoredWireKeys: <String>{'team_id', 'invited_by'},
+      );
+    });
+
+    // The same shape with a side that has been asked and has not answered,
+    // because `status` is the field that decides whether they are in the draw
+    // and the accepted fixture cannot exercise it.
+    test('TournamentEntrant — invited', () {
+      expectRoundTrip<TournamentEntrant>(
+        'tournament_entrant_invited',
+        TournamentEntrant.fromJson,
+        (TournamentEntrant e) => e.toJson(),
+        ignoredWireKeys: <String>{'team_id', 'invited_by'},
+      );
+    });
+
+    test('EntryInvitation', () {
+      expectRoundTrip<EntryInvitation>(
+        'entry_invitation',
+        EntryInvitation.fromJson,
+        (EntryInvitation i) => i.toJson(),
+        ignoredWireKeys: <String>{'created_at'},
       );
     });
 

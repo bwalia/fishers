@@ -188,6 +188,48 @@ abstract final class FishersAPI {
     },
   );
 
+  /// Ask a club into a tournament. They answer for themselves — this creates
+  /// the invitation, not the entry.
+  ///
+  /// Either `clubId` for a club on Fishers, who answer in the app, or `name`
+  /// plus `contactEmail` for one that is not, who answer by following a link.
+  static Future<InviteEntrantResult> inviteEntrant({
+    required String blockId,
+    String? clubId,
+    String? teamId,
+    String? name,
+    String? contactEmail,
+  }) => _net.requestObject(
+    'POST',
+    '/fixture-blocks/$blockId/invite',
+    InviteEntrantResult.fromJson,
+    body: <String, dynamic>{
+      'club_id': clubId,
+      'team_id': teamId,
+      'name': name,
+      'contact_email': contactEmail,
+    },
+  );
+
+  /// Tournaments this club has been asked into and has not answered.
+  static Future<List<EntryInvitation>> tournamentInvitations({required String clubId}) =>
+      _net.requestList(
+        'GET',
+        '/clubs/$clubId/tournament-invites?pending=true',
+        EntryInvitation.fromJson,
+      );
+
+  /// Accept or decline on behalf of the invited club.
+  static Future<TournamentEntrant> respondToEntry({
+    required String entrantId,
+    required EntryStatus status,
+  }) => _net.requestObject(
+    'POST',
+    '/entrants/$entrantId/respond',
+    TournamentEntrant.fromJson,
+    body: <String, dynamic>{'status': status.wire},
+  );
+
   static Future<List<ScheduleRow>> tournamentSchedule({required String blockId}) =>
       _net.requestList('GET', '/fixture-blocks/$blockId/schedule', ScheduleRow.fromJson);
 

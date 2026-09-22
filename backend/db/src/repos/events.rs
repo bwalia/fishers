@@ -21,13 +21,14 @@ pub async fn create_event(
             club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
             start_at, end_at, recurrence_rule, capacity, fee_amount_cents,
             fee_currency, ticket_price_cents, ticket_capacity, guests_allowed,
-            status, metadata, created_by
+            tickets_public, status, metadata, created_by
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,COALESCE($16,0),'scheduled',$17,$18)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,COALESCE($16,0),
+                COALESCE($17,FALSE),'scheduled',$18,$19)
         RETURNING id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
                   capacity, fee_amount_cents, fee_currency,
-               ticket_price_cents, ticket_capacity, guests_allowed, status, status_note,
+               ticket_price_cents, ticket_capacity, guests_allowed, tickets_public, status, status_note,
                   rescheduled_to, metadata, created_by, created_at, updated_at
         "#,
     )
@@ -47,6 +48,7 @@ pub async fn create_event(
     .bind(req.ticket_price_cents)
     .bind(req.ticket_capacity)
     .bind(req.guests_allowed)
+    .bind(req.tickets_public)
     .bind(metadata)
     .bind(created_by)
     .fetch_one(pool)
@@ -59,7 +61,7 @@ pub async fn get_event(pool: &PgPool, event_id: Uuid) -> Result<Option<Event>, s
         SELECT id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                start_at, end_at, recurrence_rule, recurrence_parent_id,
                capacity, fee_amount_cents, fee_currency,
-               ticket_price_cents, ticket_capacity, guests_allowed, status, status_note,
+               ticket_price_cents, ticket_capacity, guests_allowed, tickets_public, status, status_note,
                rescheduled_to, metadata, created_by, created_at, updated_at
         FROM events WHERE id = $1
         "#,
@@ -249,7 +251,7 @@ pub async fn list_events(
         SELECT e.id, e.club_id, e.opponent_club_id, e.team_id, e.sport, e.event_subtype, e.title, e.venue_id,
                e.start_at, e.end_at, e.recurrence_rule, e.recurrence_parent_id,
                e.capacity, e.fee_amount_cents, e.fee_currency,
-               e.ticket_price_cents, e.ticket_capacity, e.guests_allowed, e.status, e.status_note,
+               e.ticket_price_cents, e.ticket_capacity, e.guests_allowed, e.tickets_public, e.status, e.status_note,
                e.rescheduled_to, e.metadata, e.created_by, e.created_at, e.updated_at
         FROM events e
         {where_sql}
@@ -288,7 +290,7 @@ pub async fn upcoming_for_club(
         SELECT id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                start_at, end_at, recurrence_rule, recurrence_parent_id,
                capacity, fee_amount_cents, fee_currency,
-               ticket_price_cents, ticket_capacity, guests_allowed, status, status_note,
+               ticket_price_cents, ticket_capacity, guests_allowed, tickets_public, status, status_note,
                rescheduled_to, metadata, created_by, created_at, updated_at
         FROM events
         WHERE (club_id = $1 OR opponent_club_id = $1)
@@ -333,12 +335,13 @@ pub async fn update_event(
             ticket_price_cents = COALESCE($10, ticket_price_cents),
             ticket_capacity = COALESCE($11, ticket_capacity),
             guests_allowed = COALESCE($12, guests_allowed),
+            tickets_public = COALESCE($13, tickets_public),
             updated_at = NOW()
         WHERE id = $1
         RETURNING id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
                   capacity, fee_amount_cents, fee_currency,
-               ticket_price_cents, ticket_capacity, guests_allowed, status, status_note,
+               ticket_price_cents, ticket_capacity, guests_allowed, tickets_public, status, status_note,
                   rescheduled_to, metadata, created_by, created_at, updated_at
         "#,
     )
@@ -354,6 +357,7 @@ pub async fn update_event(
     .bind(req.ticket_price_cents)
     .bind(req.ticket_capacity)
     .bind(req.guests_allowed)
+    .bind(req.tickets_public)
     .fetch_one(pool)
     .await
 }
@@ -365,7 +369,7 @@ pub async fn cancel_event(pool: &PgPool, event_id: Uuid) -> Result<Event, sqlx::
         RETURNING id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id,
                   start_at, end_at, recurrence_rule, recurrence_parent_id,
                   capacity, fee_amount_cents, fee_currency,
-               ticket_price_cents, ticket_capacity, guests_allowed, status, status_note,
+               ticket_price_cents, ticket_capacity, guests_allowed, tickets_public, status, status_note,
                   rescheduled_to, metadata, created_by, created_at, updated_at
         "#,
     )
@@ -461,7 +465,7 @@ pub async fn list_block_events(
         r#"
         SELECT id, club_id, opponent_club_id, team_id, sport, event_subtype, title, venue_id, start_at, end_at,
                recurrence_rule, recurrence_parent_id, capacity, fee_amount_cents, fee_currency,
-               ticket_price_cents, ticket_capacity, guests_allowed,
+               ticket_price_cents, ticket_capacity, guests_allowed, tickets_public,
                status, status_note, rescheduled_to, metadata, created_by, created_at, updated_at
         FROM events
         WHERE fixture_block_id = $1 AND status <> 'cancelled'

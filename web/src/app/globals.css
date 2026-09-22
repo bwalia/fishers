@@ -637,6 +637,35 @@ textarea { line-height: 1.5; resize: vertical; }
   color: var(--fg);
 }
 
+/* A checkbox whose label needs a sentence under it explaining what it does.
+   `.checkbox` centres a one-line label; this one aligns to the top so the
+   explanation sits under the words it explains rather than beside the box. */
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
+  cursor: pointer;
+}
+.check-row input[type="checkbox"] {
+  /* Line it up with the cap height of the label rather than the line box. */
+  margin-top: 0.2em;
+  flex: none;
+  /* A 44px target is the rule; the box itself stays the size it looks. */
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.check-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.check-row .subtle {
+  font-weight: 400;
+  text-wrap: pretty;
+}
+
 /* ---------- Tables ---------- */
 
 .table-wrap {

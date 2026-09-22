@@ -6,7 +6,9 @@ import { api, readErr } from "@/lib/api";
 import {
   byGroup,
   difference,
+  ENTRY_LABEL,
   FORMAT_LABEL,
+  type EntryStatus,
   type ScheduleRow,
   type SchedulePreview,
   type Slot,
@@ -15,6 +17,8 @@ import {
   type TournamentFormat,
 } from "@/lib/tournament";
 import { Icon } from "@/components/Icon";
+import { OppositionPicker } from "@/components/OppositionPicker";
+import { type OpponentIdentity } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 
 type Tab = "entrants" | "grid" | "fixtures" | "table";
@@ -67,7 +71,11 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   if (loading)
     return <main id="main"><div className="skeleton" style={{ height: 300 }} /></main>;
 
-  const playing = entrants.filter((e) => !e.withdrawn);
+  // Only accepted sides are in the tournament. A club that has been asked and
+  // not answered is counted separately, because chasing them is the organiser's
+  // next job and a single "12 in" hides it.
+  const playing = entrants.filter((e) => e.status === "accepted");
+  const waiting = entrants.filter((e) => e.status === "invited");
 
   return (
     <main id="main">
@@ -75,6 +83,9 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
         <h1>Tournament</h1>
         <div className="hero-tags">
           <span className="tag">{playing.length} in</span>
+          {waiting.length > 0 && (
+            <span className="tag gold">{waiting.length} yet to answer</span>
+          )}
           <span className="tag grey">{slots.length} free slots</span>
           <span className="tag grey">{fixtures.length} fixtures</span>
         </div>
@@ -131,96 +142,245 @@ function Entrants({
   const [names, setNames] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
-  const add = async () => {
+  const run = async (what: string, job: () => Promise<unknown>, said?: string) => {
+    setBusy(what);
+    setError(null);
+    setNote(null);
+    try {
+      await job();
+      if (said) setNote(said);
+      onChanged();
+    } catch (err) {
+      setError(readErr(err, "That did not work"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const add = () => {
     // One per line: pasting a list out of an email is how entries actually
     // arrive, and re-typing them into a form one at a time is the reason
     // organisers keep using a spreadsheet.
     const rows = names.split("\n").map((n) => n.trim()).filter(Boolean);
     if (rows.length === 0) return;
-    setBusy("add");
-    setError(null);
-    try {
-      await api("POST", `/fixture-blocks/${blockId}/entrants`, {
-        entrants: rows.map((name) => ({ name })),
-      });
-      setNames("");
-      onChanged();
-    } catch (err) {
-      setError(readErr(err, "Could not add those"));
-    } finally {
-      setBusy(null);
-    }
+    return run(
+      "add",
+      () =>
+        api("POST", `/fixture-blocks/${blockId}/entrants`, {
+          entrants: rows.map((name) => ({ name })),
+        }).then(() => setNames("")),
+      `Entered ${rows.length} ${rows.length === 1 ? "side" : "sides"}.`
+    );
   };
 
-  const withdraw = async (entrantId: string) => {
-    setBusy(entrantId);
-    setError(null);
-    try {
-      await api("POST", `/entrants/${entrantId}/withdraw`, {});
-      onChanged();
-    } catch (err) {
-      setError(readErr(err, "Could not withdraw them"));
-    } finally {
-      setBusy(null);
-    }
-  };
+  const waiting = entrants.filter((e) => e.status === "invited");
 
   return (
     <>
       <div className="panel">
-        <h2>The sides</h2>
+        <div className="panel-head">
+          <h2>The sides</h2>
+          {waiting.length > 0 && (
+            <span className="tag gold">{waiting.length} yet to answer</span>
+          )}
+        </div>
         {entrants.length === 0 ? (
           <p className="muted">Nobody entered yet.</p>
         ) : (
           <ul className="pick-list">
             {entrants.map((e) => (
-              <li key={e.id} className={e.withdrawn ? "reserve" : undefined}>
+              <li key={e.id} className={e.status === "accepted" ? undefined : "reserve"}>
                 <span className="thread-mark" aria-hidden>
                   {e.group_label ?? (e.seed ? `#${e.seed}` : "–")}
                 </span>
                 <div className="pick-who">
                   <strong>{e.name}</strong>
-                  {e.withdrawn && <span className="subtle">withdrawn</span>}
+                  <span className="pick-signals">
+                    {e.club_id && <span className="subtle">on Fishers</span>}
+                    {e.contact_email && !e.club_id && (
+                      <span className="subtle">{e.contact_email}</span>
+                    )}
+                  </span>
                 </div>
-                {!e.withdrawn && (
-                  <div className="pick-actions">
+                <div className="pick-actions">
+                  <EntryTag status={e.status} />
+                  {e.status === "accepted" && (
                     <button
                       className="btn ghost sm"
                       type="button"
-                      disabled={busy === e.id}
-                      onClick={() => withdraw(e.id)}
+                      disabled={busy !== null}
+                      onClick={() =>
+                        run(
+                          e.id,
+                          () => api("POST", `/entrants/${e.id}/withdraw`, {}),
+                          `${e.name} withdrawn.`
+                        )
+                      }
                     >
                       Withdraw
                     </button>
-                  </div>
-                )}
+                  )}
+                  {(e.status === "declined" || e.status === "withdrawn") && e.club_id && (
+                    <button
+                      className="btn ghost sm"
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        run(
+                          e.id,
+                          () =>
+                            api("POST", `/fixture-blocks/${blockId}/invite`, {
+                              club_id: e.club_id,
+                            }),
+                          `Asked ${e.name} again.`
+                        )
+                      }
+                    >
+                      Ask again
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
         )}
+        {error && <p className="error">{error}</p>}
+        {note && <p className="notice">{note}</p>}
+        {waiting.length > 0 && (
+          <p className="subtle" style={{ marginTop: "var(--s3)" }}>
+            Only sides that have accepted go into the draw.
+          </p>
+        )}
       </div>
 
+      <InviteClub blockId={blockId} onInvited={onChanged} />
+
       <div className="panel">
-        <h2>Add sides</h2>
+        <h2>Enter sides yourself</h2>
+        <p className="subtle">
+          For a side you are entering on their behalf — they are in straight away
+          and are never asked.
+        </p>
         <label>
           One per line
           <textarea
-            rows={5}
+            rows={4}
             value={names}
             onChange={(e) => setNames(e.target.value)}
             placeholder={"Hemel CC\nWatford Wanderers\nSt Albans 2nd XI"}
           />
         </label>
-        {error && <p className="error">{error}</p>}
         <div className="field-row" style={{ marginTop: "var(--s4)" }}>
-          <button className="btn primary" type="button" disabled={busy !== null || !names.trim()}
+          <button className="btn" type="button" disabled={busy !== null || !names.trim()}
                   onClick={add}>
-            {busy === "add" ? "Adding…" : "Add them"}
+            {busy === "add" ? "Entering…" : "Enter them"}
           </button>
         </div>
       </div>
     </>
+  );
+}
+
+function EntryTag({ status }: { status: EntryStatus }) {
+  const tone =
+    status === "accepted" ? "" : status === "invited" ? "gold" : "grey";
+  return <span className={`tag ${tone}`.trim()}>{ENTRY_LABEL[status]}</span>;
+}
+
+/// Ask a club into the tournament.
+///
+/// Two kinds of side, and the difference matters: a club on Fishers answers in
+/// its own app, and one that is not gets a link by email. Either way they
+/// decide — an organiser cannot enter somebody else's club for them.
+function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => void }) {
+  const [picked, setPicked] = useState<OpponentIdentity | null>(null);
+  const [typed, setTyped] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [link, setLink] = useState<string | null>(null);
+
+  const offPlatform = !picked && typed.trim().length > 0;
+  const ready = picked ? true : offPlatform && email.trim().length > 0;
+
+  const send = async () => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    setLink(null);
+    try {
+      const body = picked
+        ? { club_id: picked.club_id, team_id: picked.kind === "team" ? picked.id : null,
+            name: picked.kind === "team" ? picked.name : null }
+        : { name: typed.trim(), contact_email: email.trim() };
+      const out = await api<{ invite_link: string | null }>(
+        "POST",
+        `/fixture-blocks/${blockId}/invite`,
+        body
+      );
+      setNote(`Asked ${picked?.name ?? typed.trim()}. They decide whether to enter.`);
+      setLink(out.invite_link);
+      setPicked(null);
+      setTyped("");
+      setEmail("");
+      onInvited();
+    } catch (err) {
+      setError(readErr(err, "Could not send that invitation"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel">
+      <h2>Invite a club</h2>
+      <p className="subtle">
+        They accept or decline themselves, and only then are they in the draw.
+      </p>
+
+      <OppositionPicker
+        onPick={(identity, name) => {
+          setPicked(identity);
+          setTyped(identity ? "" : name);
+        }}
+      />
+
+      {offPlatform && (
+        <label>
+          Where to send it
+          <span className="subtle">
+            {typed.trim()} is not on Fishers, so they answer by following a link.
+          </span>
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="secretary@theirclub.example"
+          />
+        </label>
+      )}
+
+      {error && <p className="error">{error}</p>}
+      {note && <p className="notice">{note}</p>}
+      {link && (
+        // Shown because club email goes to a shared inbox somebody checks on
+        // Sundays. Passing the link on by hand is often how this actually lands.
+        <p className="subtle">
+          Their link, if you would rather send it yourself: <code>{link}</code>
+        </p>
+      )}
+
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn primary" type="button" disabled={busy || !ready} onClick={send}>
+          {busy ? "Asking…" : "Send the invitation"}
+        </button>
+      </div>
+    </div>
   );
 }
 

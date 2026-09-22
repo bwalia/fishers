@@ -183,6 +183,46 @@ enum FishersAPI {
         )
     }
 
+    /// Ask a club into a tournament. They answer for themselves — this creates
+    /// the invitation, not the entry.
+    static func inviteEntrant(
+        blockId: UUID,
+        clubId: UUID?,
+        teamId: UUID? = nil,
+        name: String? = nil,
+        contactEmail: String? = nil
+    ) async throws -> InviteEntrantResult {
+        struct Body: Encodable {
+            let club_id: UUID?
+            let team_id: UUID?
+            let name: String?
+            let contact_email: String?
+        }
+        return try await NetworkService.shared.request(
+            "POST", path: "/fixture-blocks/\(blockId.uuidString)/invite",
+            body: Body(club_id: clubId, team_id: teamId, name: name, contact_email: contactEmail)
+        )
+    }
+
+    /// Tournaments this club has been asked into and has not answered.
+    static func tournamentInvitations(clubId: UUID) async throws -> [EntryInvitation] {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/tournament-invites?pending=true"
+        )
+    }
+
+    /// Accept or decline on behalf of the invited club.
+    static func respondToEntry(
+        entrantId: UUID,
+        status: EntryStatus
+    ) async throws -> TournamentEntrant {
+        struct Body: Encodable { let status: String }
+        return try await NetworkService.shared.request(
+            "POST", path: "/entrants/\(entrantId.uuidString)/respond",
+            body: Body(status: status.rawValue)
+        )
+    }
+
     static func tournamentSchedule(blockId: UUID) async throws -> [ScheduleRow] {
         try await NetworkService.shared.request(
             "GET", path: "/fixture-blocks/\(blockId.uuidString)/schedule"

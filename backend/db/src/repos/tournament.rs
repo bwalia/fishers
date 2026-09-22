@@ -1,14 +1,20 @@
 use chrono::{DateTime, Duration, Utc};
 use fishers_domain::tournament::{self, GeneratedFixture, Slot};
 use fishers_domain::{
-    AddEntrantsRequest, BookTicketRequest, Entrant, EventTicket, FixtureBlock,
-    GenerateSlotsRequest, PointsRules, RecordResultRequest, ScheduleRow, Standing, TicketSummary,
-    TournamentEntrant, TournamentFormat, UpdateBlockRequest,
+    AddEntrantsRequest, BookTicketRequest, Entrant, EntryInvitation, EntryStatus, EventTicket,
+    FixtureBlock, GenerateSlotsRequest, InviteEntrantRequest, PointsRules, RecordResultRequest,
+    ScheduleRow, Standing, TicketSummary, TournamentEntrant, TournamentFormat, UpdateBlockRequest,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
 
 const BLOCK_COLS: &str = "id, club_id, team_id, name, kind, starts_on, ends_on, created_at";
+
+/// One list, so a column added to an entrant cannot be returned by one query
+/// and silently missing from another.
+const ENTRANT_COLS: &str = "id, block_id, name, club_id, team_id, seed, group_label, \
+                            contact_name, contact_email, status, invited_by, responded_at, \
+                            withdrawn";
 
 pub async fn get_block(pool: &PgPool, id: Uuid) -> Result<Option<FixtureBlock>, sqlx::Error> {
     sqlx::query_as::<_, FixtureBlock>(&format!(
@@ -115,6 +121,10 @@ pub fn parse_format(raw: &str) -> TournamentFormat {
 
 // MARK: entrants
 
+/// Enter sides an organiser typed in themselves.
+///
+/// These are in the draw the moment they are added — the organiser is entering
+/// them, not asking them. Asking a real club is [`invite_entrant`].
 pub async fn add_entrants(
     pool: &PgPool,
     block_id: Uuid,
@@ -123,22 +133,32 @@ pub async fn add_entrants(
     let mut tx = pool.begin().await?;
     let mut added = Vec::with_capacity(req.entrants.len());
     for entrant in &req.entrants {
-        let row = sqlx::query_as::<_, TournamentEntrant>(
+        // Two unique indexes, so two conflict targets: a club enters once, and
+        // a free-text side is unique by name among the other free-text sides.
+        let conflict = if entrant.club_id.is_some() {
+            "(block_id, club_id) WHERE club_id IS NOT NULL"
+        } else {
+            "(block_id, lower(name)) WHERE club_id IS NULL"
+        };
+        let row = sqlx::query_as::<_, TournamentEntrant>(&format!(
             r#"
             INSERT INTO tournament_entrants
                 (block_id, name, club_id, team_id, seed, contact_name, contact_email)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT (block_id, name) DO UPDATE SET
+            ON CONFLICT {conflict} DO UPDATE SET
+                name = EXCLUDED.name,
                 club_id = EXCLUDED.club_id,
                 team_id = EXCLUDED.team_id,
                 seed = EXCLUDED.seed,
                 contact_name = EXCLUDED.contact_name,
                 contact_email = EXCLUDED.contact_email,
-                withdrawn = FALSE
-            RETURNING id, block_id, name, club_id, team_id, seed, group_label,
-                      contact_name, contact_email, withdrawn
-            "#,
-        )
+                -- A side that has been asked and not yet answered keeps its
+                -- invitation. Re-typing their name is not them saying yes.
+                status = CASE WHEN tournament_entrants.status = 'invited'
+                              THEN tournament_entrants.status ELSE 'accepted' END
+            RETURNING {ENTRANT_COLS}
+            "#
+        ))
         .bind(block_id)
         .bind(&entrant.name)
         .bind(entrant.club_id)
@@ -154,25 +174,218 @@ pub async fn add_entrants(
     Ok(added)
 }
 
+/// Ask a side into a tournament. They answer for themselves.
+///
+/// Asking a side that is already in the draw is refused rather than silently
+/// resetting their answer. Asking one that said no, or pulled out, puts the
+/// question back to them — clubs change their minds, and re-entering a side
+/// should not mean deleting them first.
+pub async fn invite_entrant(
+    pool: &PgPool,
+    block_id: Uuid,
+    invited_by: Uuid,
+    req: &InviteEntrantRequest,
+    name: &str,
+    token: Option<&str>,
+) -> Result<Result<TournamentEntrant, String>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    // Lock the block: two organisers inviting the same club at the same moment
+    // would otherwise both read "not entered" and both insert.
+    sqlx::query("SELECT id FROM fixture_blocks WHERE id = $1 FOR UPDATE")
+        .bind(block_id)
+        .execute(&mut *tx)
+        .await?;
+
+    let existing = sqlx::query_as::<_, TournamentEntrant>(&format!(
+        "SELECT {ENTRANT_COLS} FROM tournament_entrants
+         WHERE block_id = $1 AND (($2::UUID IS NOT NULL AND club_id = $2)
+                                  OR ($2::UUID IS NULL AND lower(name) = lower($3)))
+         FOR UPDATE"
+    ))
+    .bind(block_id)
+    .bind(req.club_id)
+    .bind(name)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if let Some(entrant) = existing {
+        return Ok(match entrant.status.as_str() {
+            EntryStatus::ACCEPTED => Err(format!("{name} is already in this tournament")),
+            // Still waiting on them: hand back the same invitation rather than
+            // stacking a second one up, so re-sending is safe.
+            EntryStatus::INVITED => Ok(entrant),
+            _ => {
+                let again = sqlx::query_as::<_, TournamentEntrant>(&format!(
+                    "UPDATE tournament_entrants
+                     SET status = 'invited', invited_by = $2, invite_token = $3,
+                         responded_at = NULL, seed = COALESCE($4, seed),
+                         contact_name = COALESCE($5, contact_name),
+                         contact_email = COALESCE($6, contact_email)
+                     WHERE id = $1
+                     RETURNING {ENTRANT_COLS}"
+                ))
+                .bind(entrant.id)
+                .bind(invited_by)
+                .bind(token)
+                .bind(req.seed)
+                .bind(&req.contact_name)
+                .bind(&req.contact_email)
+                .fetch_one(&mut *tx)
+                .await?;
+                tx.commit().await?;
+                Ok(again)
+            }
+        });
+    }
+
+    let entrant = sqlx::query_as::<_, TournamentEntrant>(&format!(
+        r#"
+        INSERT INTO tournament_entrants
+            (block_id, name, club_id, team_id, seed, contact_name, contact_email,
+             status, invited_by, invite_token)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9)
+        RETURNING {ENTRANT_COLS}
+        "#
+    ))
+    .bind(block_id)
+    .bind(name)
+    .bind(req.club_id)
+    .bind(req.team_id)
+    .bind(req.seed)
+    .bind(&req.contact_name)
+    .bind(&req.contact_email)
+    .bind(invited_by)
+    .bind(token)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Ok(entrant))
+}
+
+/// A side answers, or pulls out. The allowed moves live in the domain, so the
+/// rule is the same here as it is in the apps.
+pub async fn set_entry_status(
+    pool: &PgPool,
+    entrant_id: Uuid,
+    to: &str,
+) -> Result<Result<TournamentEntrant, String>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let current: Option<(String, String)> = sqlx::query_as(
+        "SELECT status, name FROM tournament_entrants WHERE id = $1 FOR UPDATE",
+    )
+    .bind(entrant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some((from, name)) = current else {
+        return Ok(Err("entrant not found".into()));
+    };
+    if from == to {
+        return Ok(Err(format!("{name} is already {to}")));
+    }
+    if !EntryStatus::can_move(&from, to) {
+        return Ok(Err(format!("a side that is {from} cannot become {to}")));
+    }
+
+    let entrant = sqlx::query_as::<_, TournamentEntrant>(&format!(
+        // This function only ever *answers* an invitation — `can_move` has no
+        // transition back to `invited` — so the link is always spent here.
+        // Re-inviting a side that declined issues a fresh one, in
+        // `invite_entrant`.
+        "UPDATE tournament_entrants
+         SET status = $2, responded_at = NOW(), invite_token = NULL
+         WHERE id = $1
+         RETURNING {ENTRANT_COLS}"
+    ))
+    .bind(entrant_id)
+    .bind(to)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Ok(entrant))
+}
+
+/// Tournaments a club has been asked into and has not answered, plus the ones
+/// it is already in — the club's own view of its season.
+pub async fn entry_invitations(
+    pool: &PgPool,
+    club_id: Uuid,
+    pending_only: bool,
+) -> Result<Vec<EntryInvitation>, sqlx::Error> {
+    sqlx::query_as::<_, EntryInvitation>(
+        r#"
+        SELECT en.id            AS entrant_id,
+               en.block_id,
+               fb.name          AS block_name,
+               fb.kind,
+               fb.starts_on,
+               fb.ends_on,
+               fb.club_id       AS host_club_id,
+               c.name           AS host_club_name,
+               en.name          AS entrant_name,
+               en.club_id,
+               en.status,
+               (SELECT name FROM users WHERE id = en.invited_by) AS invited_by_name,
+               en.created_at
+        FROM tournament_entrants en
+        JOIN fixture_blocks fb ON fb.id = en.block_id
+        JOIN clubs c ON c.id = fb.club_id
+        WHERE en.club_id = $1
+          AND (NOT $2 OR en.status = 'invited')
+        ORDER BY fb.starts_on NULLS LAST, en.created_at DESC
+        "#,
+    )
+    .bind(club_id)
+    .bind(pending_only)
+    .fetch_all(pool)
+    .await
+}
+
+/// Resolve an emailed invitation link.
+pub async fn entrant_by_token(
+    pool: &PgPool,
+    token: &str,
+) -> Result<Option<TournamentEntrant>, sqlx::Error> {
+    sqlx::query_as::<_, TournamentEntrant>(&format!(
+        "SELECT {ENTRANT_COLS} FROM tournament_entrants WHERE invite_token = $1"
+    ))
+    .bind(token)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn get_entrant(
+    pool: &PgPool,
+    entrant_id: Uuid,
+) -> Result<Option<TournamentEntrant>, sqlx::Error> {
+    sqlx::query_as::<_, TournamentEntrant>(&format!(
+        "SELECT {ENTRANT_COLS} FROM tournament_entrants WHERE id = $1"
+    ))
+    .bind(entrant_id)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn list_entrants(
     pool: &PgPool,
     block_id: Uuid,
 ) -> Result<Vec<TournamentEntrant>, sqlx::Error> {
-    sqlx::query_as::<_, TournamentEntrant>(
-        r#"
-        SELECT id, block_id, name, club_id, team_id, seed, group_label,
-               contact_name, contact_email, withdrawn
-        FROM tournament_entrants WHERE block_id = $1
-        ORDER BY group_label NULLS LAST, seed NULLS LAST, name
-        "#,
-    )
+    sqlx::query_as::<_, TournamentEntrant>(&format!(
+        "SELECT {ENTRANT_COLS} FROM tournament_entrants WHERE block_id = $1
+         ORDER BY group_label NULLS LAST, seed NULLS LAST, name"
+    ))
     .bind(block_id)
     .fetch_all(pool)
     .await
 }
 
 pub async fn withdraw_entrant(pool: &PgPool, entrant_id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE tournament_entrants SET withdrawn = TRUE WHERE id = $1")
+    // `withdrawn` is generated from `status` now, so this writes the status.
+    sqlx::query("UPDATE tournament_entrants SET status = 'withdrawn', responded_at = NOW()
+                 WHERE id = $1")
         .bind(entrant_id)
         .execute(pool)
         .await?;
@@ -537,7 +750,7 @@ pub async fn ticket_summary(
 ) -> Result<TicketSummary, sqlx::Error> {
     sqlx::query_as::<_, TicketSummary>(
         "SELECT event_id, title, ticket_capacity, ticket_price_cents, guests_allowed,
-                bookings, headcount, collected_cents, outstanding_cents
+                tickets_public, bookings, headcount, collected_cents, outstanding_cents
          FROM event_ticket_summary WHERE event_id = $1",
     )
     .bind(event_id)
@@ -620,6 +833,10 @@ pub async fn ticket_event(pool: &PgPool, ticket_id: Uuid) -> Result<Option<Uuid>
 }
 
 /// Entrants as the generator wants them.
+/// The sides a draw is actually made from.
+///
+/// Accepted only: a club that was asked and has not answered is not a fixture,
+/// and scheduling one would put a match in the diary nobody agreed to play.
 pub async fn entrants_for_generation(
     pool: &PgPool,
     block_id: Uuid,
@@ -627,7 +844,7 @@ pub async fn entrants_for_generation(
     Ok(list_entrants(pool, block_id)
         .await?
         .into_iter()
-        .filter(|e| !e.withdrawn)
+        .filter(|e| e.status == EntryStatus::ACCEPTED)
         .map(|e| Entrant {
             id: e.id,
             name: e.name,

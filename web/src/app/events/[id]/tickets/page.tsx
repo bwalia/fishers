@@ -63,6 +63,9 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
     return <main id="main"><div className="skeleton" style={{ height: 260 }} /></main>;
 
   const { summary, tickets } = booking;
+  // A non-member at a public event gets the headcount and their own booking.
+  // The guest list, the takings and the treasurer's buttons are club business.
+  const insider = booking.can_see_everyone;
   const mine = tickets.find((t) => t.user_id === me?.id && t.status !== "cancelled");
   const left =
     summary.ticket_capacity != null ? summary.ticket_capacity - summary.headcount : null;
@@ -81,6 +84,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
           {summary.ticket_price_cents != null && (
             <span className="tag gold">{money(summary.ticket_price_cents)} each</span>
           )}
+          {summary.tickets_public && <span className="tag grey">Open to all</span>}
         </div>
       </section>
 
@@ -198,32 +202,34 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
             </div>
           )}
 
-          <div className="panel">
-            <div className="panel-head">
-              <h2>Who is coming</h2>
-              <span className="tag grey">{summary.bookings} bookings</span>
+          {insider && (
+            <div className="panel">
+              <div className="panel-head">
+                <h2>Who is coming</h2>
+                <span className="tag grey">{summary.bookings} bookings</span>
+              </div>
+              {tickets.length === 0 ? (
+                <p className="muted">Nobody yet. Be the first.</p>
+              ) : (
+                <ul className="pick-list">
+                  {tickets.map((t) => (
+                    <TicketRow
+                      key={t.id}
+                      ticket={t}
+                      busy={busy !== null}
+                      onPaid={(method) =>
+                        act(
+                          t.id,
+                          () => api("POST", `/tickets/${t.id}/mark-paid`, { method }),
+                          `${t.name ?? "That booking"} marked paid.`
+                        )
+                      }
+                    />
+                  ))}
+                </ul>
+              )}
             </div>
-            {tickets.length === 0 ? (
-              <p className="muted">Nobody yet. Be the first.</p>
-            ) : (
-              <ul className="pick-list">
-                {tickets.map((t) => (
-                  <TicketRow
-                    key={t.id}
-                    ticket={t}
-                    busy={busy !== null}
-                    onPaid={(method) =>
-                      act(
-                        t.id,
-                        () => api("POST", `/tickets/${t.id}/mark-paid`, { method }),
-                        `${t.name ?? "That booking"} marked paid.`
-                      )
-                    }
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
+          )}
         </div>
 
         <aside className="pro-rail">
@@ -231,9 +237,13 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
             <h2>The numbers</h2>
             <dl className="pro-figures">
               <div><dt>Coming</dt><dd className="num">{summary.headcount}</dd></div>
-              <div><dt>Bookings</dt><dd className="num">{summary.bookings}</dd></div>
-              <div><dt>Taken</dt><dd className="num">{money(summary.collected_cents)}</dd></div>
-              <div><dt>Owed</dt><dd className="num">{money(summary.outstanding_cents)}</dd></div>
+              {insider && (
+                <>
+                  <div><dt>Bookings</dt><dd className="num">{summary.bookings}</dd></div>
+                  <div><dt>Taken</dt><dd className="num">{money(summary.collected_cents)}</dd></div>
+                  <div><dt>Owed</dt><dd className="num">{money(summary.outstanding_cents)}</dd></div>
+                </>
+              )}
             </dl>
             {summary.ticket_capacity != null && (
               <p className="subtle">

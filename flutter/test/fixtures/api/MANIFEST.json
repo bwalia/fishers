@@ -66,5 +66,7 @@
   "ticket_booking": "GET /events/{id}/tickets",
   "tournament_entrant": "POST /fixture-blocks/{id}/entrants [0]",
   "venue": "GET /clubs/{id}/venues [0]",
-  "verification_status": "GET /me/verification"
+  "verification_status": "GET /me/verification",
+  "entry_invitation": "GET /clubs/{id}/tournament-invites?pending=true [0]",
+  "tournament_entrant_invited": "POST /fixture-blocks/{id}/invite .entrant"
 }

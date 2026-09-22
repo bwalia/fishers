@@ -195,21 +195,22 @@ struct TournamentView: View {
                             .foregroundStyle(.secondary)
                             .frame(width: 18)
                     }
-                    Text(entrant.name)
-                        .strikethrough(entrant.withdrawn)
-                    Spacer()
-                    if entrant.withdrawn {
-                        Text("Withdrawn").font(.caption).foregroundStyle(.secondary)
-                    } else if let group = entrant.groupLabel {
-                        Text("Group \(group)")
-                            .font(.caption)
-                            .foregroundStyle(FishersTheme.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entrant.name)
+                            .strikethrough(entrant.entry == .withdrawn)
+                        if entrant.entry == .accepted, let group = entrant.groupLabel {
+                            Text("Group \(group)")
+                                .font(.caption)
+                                .foregroundStyle(FishersTheme.accent)
+                        }
                     }
+                    Spacer()
+                    EntryBadge(status: entrant.entry)
                 }
                 // Pulled out after the draw: their fixtures stay, marked, so
                 // the table and the history still add up.
                 .swipeActions(edge: .trailing) {
-                    if !entrant.withdrawn {
+                    if entrant.entry == .accepted {
                         Button("Withdraw", role: .destructive) {
                             Task {
                                 try? await FishersAPI.withdrawEntrant(entrant.id)
@@ -220,7 +221,46 @@ struct TournamentView: View {
                 }
             }
         } footer: {
-            Text("Seeds are used to spread the strong sides across the groups.")
+            // Two different things share this list, and the difference decides
+            // who is in the draw, so it is said rather than left to the badges.
+            Text(
+                store.entrants.contains { $0.entry == .invited }
+                    ? "Sides that have been asked are not in the draw until they accept."
+                    : "Seeds are used to spread the strong sides across the groups."
+            )
+        }
+    }
+}
+
+/// Where a side is in the entry process, in one word.
+private struct EntryBadge: View {
+    let status: EntryStatus
+
+    var body: some View {
+        Text(status.label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.14), in: Capsule())
+            .accessibilityLabel(accessibility)
+    }
+
+    private var tint: Color {
+        switch status {
+        case .accepted: return FishersTheme.pitch
+        case .invited: return FishersTheme.accent
+        case .declined, .withdrawn: return .secondary
+        }
+    }
+
+    /// "In" and "Asked" mean nothing read aloud on their own.
+    private var accessibility: String {
+        switch status {
+        case .accepted: return "In the draw"
+        case .invited: return "Asked, not yet answered"
+        case .declined: return "Declined"
+        case .withdrawn: return "Withdrawn"
         }
     }
 }

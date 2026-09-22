@@ -32,6 +32,69 @@ pub async fn create_pending(
     .await
 }
 
+/// Claim a webhook delivery. `false` means we have already acted on this one.
+///
+/// Stripe retries until it gets a 2xx and re-sends on its own schedule
+/// besides, so "settle this ticket" arrives more than once as a matter of
+/// course. The primary key decides the race in the database; two API replicas
+/// processing the same delivery cannot both win.
+pub async fn claim_webhook_event(
+    pool: &PgPool,
+    event_id: &str,
+    kind: Option<&str>,
+) -> Result<bool, sqlx::Error> {
+    let claimed = sqlx::query(
+        "INSERT INTO payment_webhook_events (event_id, kind) VALUES ($1, $2)
+         ON CONFLICT (event_id) DO NOTHING",
+    )
+    .bind(event_id)
+    .bind(kind)
+    .execute(pool)
+    .await?;
+    Ok(claimed.rows_affected() == 1)
+}
+
+/// Note which payment a delivery turned out to be about, for the audit trail.
+pub async fn link_webhook_event(
+    pool: &PgPool,
+    event_id: &str,
+    payment_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE payment_webhook_events SET payment_id = $2 WHERE event_id = $1")
+        .bind(event_id)
+        .bind(payment_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// A payment already opened for this fixture and still waiting to settle.
+///
+/// Tapping Pay twice used to open a second payment, and a second Stripe
+/// intent, for the same ticket. Reusing the pending row means the second tap
+/// reaches Stripe with the same idempotency key and gets the same intent back.
+pub async fn pending_for_event(
+    pool: &PgPool,
+    user_id: Uuid,
+    event_id: Uuid,
+) -> Result<Option<Payment>, sqlx::Error> {
+    sqlx::query_as::<_, Payment>(
+        r#"
+        SELECT id, user_id, event_id, order_id, amount_cents, currency, status,
+               stripe_payment_intent_id, created_at, updated_at
+        FROM payments
+        WHERE user_id = $1 AND event_id = $2
+          AND status IN ('pending', 'requires_action')
+        ORDER BY created_at DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(user_id)
+    .bind(event_id)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn mark_status(
     pool: &PgPool,
     payment_id: Uuid,

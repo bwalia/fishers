@@ -54,7 +54,7 @@ async fn create_intent(
         .create_payment_intent(payment.id, &body)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    payments_repo::attach_intent(&state.pool, payment.id, &intent.client_secret).await?;
+    payments_repo::attach_intent(&state.pool, payment.id, &intent.intent_id).await?;
     Ok(Json(intent))
 }
 
@@ -127,6 +127,26 @@ async fn webhook(
     let event: StripeEvent = serde_json::from_slice(&body)
         .map_err(|e| ApiError::bad_request(format!("unreadable webhook body: {e}")))?;
 
+    // Claim the delivery before acting on it. Stripe retries until it gets a
+    // 2xx, so without this a slow first attempt and its retry both settle the
+    // same ticket. A delivery with no id at all — only the dev-mode shape has
+    // none — cannot be claimed, and is allowed through as before.
+    if let Some(delivery) = event.id.as_deref() {
+        match payments_repo::claim_webhook_event(&state.pool, delivery, event.kind.as_deref())
+            .await
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                info!(delivery, "webhook already processed — acknowledging without acting");
+                return Ok(Json(
+                    serde_json::json!({ "received": true, "acted": false, "duplicate": true }),
+                ));
+            }
+            // A failure here must not make Stripe give up on the delivery.
+            Err(error) => warn!(%error, delivery, "could not record a webhook delivery"),
+        }
+    }
+
     // Either shape can name the payment: our own metadata, or the intent id.
     let payment_id = event.payment_id.or_else(|| {
         event
@@ -166,6 +186,14 @@ async fn webhook(
         error!(event_id = ?event.id, "webhook names no payment we know about");
         return Ok(Json(serde_json::json!({ "received": true, "acted": false })));
     };
+
+    if let Some(delivery) = event.id.as_deref() {
+        if let Err(error) =
+            payments_repo::link_webhook_event(&state.pool, delivery, payment.id).await
+        {
+            warn!(%error, delivery, "could not link a webhook delivery to its payment");
+        }
+    }
 
     // A succeeded ticket payment settles the ticket in the same breath.
     if status == PaymentStatus::Succeeded {

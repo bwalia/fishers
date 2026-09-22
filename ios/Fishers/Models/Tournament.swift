@@ -46,22 +46,102 @@ struct FixtureBlock: Codable, Identifiable, Hashable {
     }
 }
 
+/// Where a side is in the entry process.
+///
+/// A name an organiser typed in is `accepted` straight away — they are entering
+/// it, not asking it. `invited` belongs to a real club that answers for itself,
+/// and only accepted sides go into the draw.
+enum EntryStatus: String, Codable, Equatable {
+    case invited, accepted, declined, withdrawn
+
+    var label: String {
+        switch self {
+        case .invited: return "Asked"
+        case .accepted: return "In"
+        case .declined: return "Declined"
+        case .withdrawn: return "Withdrawn"
+        }
+    }
+}
+
 struct TournamentEntrant: Codable, Identifiable, Equatable {
     let id: UUID
     let blockId: UUID
     var name: String
+    var clubId: UUID?
     var seed: Int?
     var groupLabel: String?
     var contactName: String?
     var contactEmail: String?
+    /// Optional only so a build talking to an API that predates entry invites
+    /// still decodes; `status` is what the server has decided.
+    var status: EntryStatus?
+    var respondedAt: Date?
     var withdrawn: Bool
 
+    /// What the row says. Falls back to the old boolean when an older API
+    /// sends no status at all.
+    var entry: EntryStatus { status ?? (withdrawn ? .withdrawn : .accepted) }
+
     enum CodingKeys: String, CodingKey {
-        case id, name, seed, withdrawn
+        case id, name, seed, withdrawn, status
         case blockId = "block_id"
+        case clubId = "club_id"
         case groupLabel = "group_label"
         case contactName = "contact_name"
         case contactEmail = "contact_email"
+        case respondedAt = "responded_at"
+    }
+}
+
+/// What came back from asking a side in.
+///
+/// `inviteLink` is set only for a side with no Fishers account: club email goes
+/// to a shared inbox somebody checks on Sundays, so the organiser often passes
+/// the link on themselves.
+struct InviteEntrantResult: Codable, Equatable {
+    let entrant: TournamentEntrant
+    let inviteLink: String?
+
+    enum CodingKeys: String, CodingKey {
+        case entrant
+        case inviteLink = "invite_link"
+    }
+}
+
+/// A tournament somebody has asked your club into.
+struct EntryInvitation: Codable, Identifiable, Equatable {
+    let entrantId: UUID
+    let blockId: UUID
+    let blockName: String
+    let kind: String
+    let startsOn: String?
+    let endsOn: String?
+    let hostClubId: UUID
+    let hostClubName: String
+    let entrantName: String
+    let status: EntryStatus
+    let invitedByName: String?
+
+    var id: UUID { entrantId }
+
+    enum CodingKeys: String, CodingKey {
+        case kind, status
+        case entrantId = "entrant_id"
+        case blockId = "block_id"
+        case blockName = "block_name"
+        case startsOn = "starts_on"
+        case endsOn = "ends_on"
+        case hostClubId = "host_club_id"
+        case hostClubName = "host_club_name"
+        case entrantName = "entrant_name"
+        case invitedByName = "invited_by_name"
+    }
+
+    var dates: String? {
+        guard let from = startsOn else { return nil }
+        guard let to = endsOn, to != from else { return from }
+        return "\(from) – \(to)"
     }
 }
 
@@ -167,6 +247,9 @@ struct TicketSummary: Codable, Equatable {
     /// How many guests one member may bring; zero means members only. Optional
     /// only so an API that predates it still decodes.
     let guestsAllowed: Int?
+    /// Anyone signed in may buy, not only members of the hosting club.
+    /// Optional so an API that predates public sales still decodes.
+    let ticketsPublic: Bool?
     let bookings: Int
     let headcount: Int
     let collectedCents: Int
@@ -178,6 +261,7 @@ struct TicketSummary: Codable, Equatable {
         case ticketCapacity = "ticket_capacity"
         case ticketPriceCents = "ticket_price_cents"
         case guestsAllowed = "guests_allowed"
+        case ticketsPublic = "tickets_public"
         case collectedCents = "collected_cents"
         case outstandingCents = "outstanding_cents"
     }
@@ -190,6 +274,18 @@ struct TicketSummary: Codable, Equatable {
 struct TicketBooking: Codable, Equatable {
     let summary: TicketSummary
     let tickets: [EventTicket]
+    /// False for a non-member at a public event: they get the headcount and
+    /// their own booking, never the guest list. Optional for an older API.
+    let canSeeEveryone: Bool?
+
+    /// Defaults to showing everything, which is what every event did before
+    /// public sales existed and what every member still sees.
+    var insider: Bool { canSeeEveryone ?? true }
+
+    enum CodingKeys: String, CodingKey {
+        case summary, tickets
+        case canSeeEveryone = "can_see_everyone"
+    }
 }
 
 /// A cricket fixture with its match state already joined on.

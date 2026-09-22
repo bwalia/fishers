@@ -606,6 +606,27 @@ mod tests {
     }
 
     #[test]
+    fn an_entry_moves_only_the_ways_a_club_can_actually_answer() {
+        use super::EntryStatus as E;
+        assert!(E::can_move(E::INVITED, E::ACCEPTED));
+        assert!(E::can_move(E::INVITED, E::DECLINED));
+        assert!(E::can_move(E::ACCEPTED, E::WITHDRAWN));
+        // Asked again after saying no, and this time they can come.
+        assert!(E::can_move(E::DECLINED, E::ACCEPTED));
+        assert!(E::can_move(E::WITHDRAWN, E::ACCEPTED));
+
+        // A side that never answered cannot be recorded as having pulled out,
+        // and one already in the draw cannot be re-invited into limbo.
+        assert!(!E::can_move(E::INVITED, E::WITHDRAWN));
+        assert!(!E::can_move(E::ACCEPTED, E::INVITED));
+        assert!(!E::can_move(E::ACCEPTED, E::DECLINED));
+        assert!(!E::can_move(E::DECLINED, E::WITHDRAWN));
+        // And nothing is a no-op that quietly reports success.
+        assert!(!E::can_move(E::ACCEPTED, E::ACCEPTED));
+        assert!(!E::can_move(E::INVITED, "nonsense"));
+    }
+
+    #[test]
     fn points_rules_follow_the_sport() {
         let cricket = PointsRules::default();
         assert_eq!(cricket.points_for("win"), 2);
@@ -630,7 +651,83 @@ pub struct TournamentEntrant {
     pub group_label: Option<String>,
     pub contact_name: Option<String>,
     pub contact_email: Option<String>,
+    /// `invited` | `accepted` | `declined` | `withdrawn`. See [`EntryStatus`].
+    pub status: String,
+    pub invited_by: Option<Uuid>,
+    pub responded_at: Option<DateTime<Utc>>,
+    /// Derived from `status` in the database, and kept because the apps, the
+    /// web UI and the standings view all read it.
     pub withdrawn: bool,
+}
+
+/// Where a side is in the entry process.
+///
+/// An organiser typing a name into the box is entering a side, not asking one:
+/// that lands on `Accepted` directly. `Invited` exists only for a real club
+/// that gets to answer for itself.
+pub struct EntryStatus;
+
+impl EntryStatus {
+    pub const INVITED: &'static str = "invited";
+    pub const ACCEPTED: &'static str = "accepted";
+    pub const DECLINED: &'static str = "declined";
+    pub const WITHDRAWN: &'static str = "withdrawn";
+
+    /// The statuses a side may move to from `from`, by answering an invitation
+    /// or pulling out. Anything not listed here is refused — this is what stops
+    /// a declined side being quietly marked as playing.
+    pub fn can_move(from: &str, to: &str) -> bool {
+        matches!(
+            (from, to),
+            (Self::INVITED, Self::ACCEPTED)
+                | (Self::INVITED, Self::DECLINED)
+                | (Self::ACCEPTED, Self::WITHDRAWN)
+                // A side that said no, or pulled out, can be asked again and
+                // change its mind — that conversation happens every season.
+                | (Self::DECLINED, Self::ACCEPTED)
+                | (Self::WITHDRAWN, Self::ACCEPTED)
+        )
+    }
+}
+
+/// Ask a club into a tournament.
+///
+/// Either `club_id` — a club on Fishers, who answer in the app — or a name and
+/// an email for one that is not, who answer by following a link.
+#[derive(Debug, Clone, Deserialize)]
+pub struct InviteEntrantRequest {
+    pub club_id: Option<Uuid>,
+    pub team_id: Option<Uuid>,
+    /// Overrides the club's own name in the draw. Required when there is no club.
+    pub name: Option<String>,
+    pub seed: Option<i32>,
+    pub contact_name: Option<String>,
+    pub contact_email: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RespondToEntryRequest {
+    /// `accepted` | `declined`
+    pub status: String,
+}
+
+/// A tournament somebody has asked your club into, as the invited club sees it
+/// — which is the host's name and the dates, not an entrant id.
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct EntryInvitation {
+    pub entrant_id: Uuid,
+    pub block_id: Uuid,
+    pub block_name: String,
+    pub kind: String,
+    pub starts_on: Option<chrono::NaiveDate>,
+    pub ends_on: Option<chrono::NaiveDate>,
+    pub host_club_id: Uuid,
+    pub host_club_name: String,
+    pub entrant_name: String,
+    pub club_id: Option<Uuid>,
+    pub status: String,
+    pub invited_by_name: Option<String>,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -781,6 +878,8 @@ pub struct TicketSummary {
     /// booking screen needs it — without it, it offers a field the server
     /// always refuses.
     pub guests_allowed: i32,
+    /// Whether anyone signed in may buy, or only members of the hosting club.
+    pub tickets_public: bool,
     pub bookings: i64,
     pub headcount: i64,
     pub collected_cents: i64,

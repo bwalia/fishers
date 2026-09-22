@@ -1,8 +1,16 @@
 //! Stripe payment integration.
 //!
-//! The API calls are still stubbed — swap `create_payment_intent` for a real
-//! Stripe call and nothing else moves. Webhook *verification* is not stubbed:
-//! an unsigned webhook is how someone marks their own match fee paid.
+//! `create_payment_intent` calls Stripe when a secret key is configured, and
+//! falls back to a stub when one is not — which is how local development and
+//! CI run, and the only reason the stub still exists. Webhook *verification* is
+//! never stubbed: an unsigned webhook is how someone marks their own fee paid.
+//!
+//! **The platform account is the merchant of record here.** Money lands in the
+//! Fishers Stripe account, not the club's. Paying it on to clubs is Stripe
+//! Connect and a different shape: `destination` / `on_behalf_of` on the intent,
+//! a `connected_account_id` on the club, and an FCA position worth confirming
+//! before it is switched on. The call below is deliberately one function, so
+//! that change lands in one place.
 
 use fishers_domain::{CreatePaymentIntentRequest, PaymentIntentResponse, PaymentStatus};
 use hmac::{Hmac, Mac};
@@ -16,10 +24,18 @@ type HmacSha256 = Hmac<Sha256>;
 /// cannot be replayed tomorrow.
 const MAX_SIGNATURE_AGE_SECS: i64 = 300;
 
+const PAYMENT_INTENTS_URL: &str = "https://api.stripe.com/v1/payment_intents";
+
+/// Stripe is in the request path of somebody tapping Pay. It answers in well
+/// under a second normally; past this the caller gets an error they can retry
+/// rather than a spinner that never ends.
+const STRIPE_TIMEOUT_SECS: u64 = 15;
+
 #[derive(Debug, Clone, Default)]
 pub struct StripeClient {
     pub secret_key: Option<String>,
     webhook_secret: Option<String>,
+    http: reqwest::Client,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -44,6 +60,7 @@ impl StripeClient {
                 .ok()
                 .filter(|s| !s.is_empty()),
             webhook_secret,
+            ..Self::default()
         }
     }
 
@@ -51,6 +68,14 @@ impl StripeClient {
         self.secret_key.is_some()
     }
 
+    /// Open a payment at Stripe and hand back the client secret the app needs
+    /// to confirm it.
+    ///
+    /// Our own payment id goes into the intent's metadata *and* is used as the
+    /// idempotency key. The metadata is what the webhook reads to know which
+    /// row it is settling; the idempotency key is what stops a double tap, or a
+    /// retried request, opening a second payment for the same thing — Stripe
+    /// returns the original intent instead of creating another.
     pub async fn create_payment_intent(
         &self,
         payment_id: Uuid,
@@ -62,20 +87,68 @@ impl StripeClient {
             .unwrap_or_else(|| "GBP".to_string())
             .to_lowercase();
 
-        // Stub: a real implementation calls the Stripe PaymentIntents API here.
-        let client_secret = format!("pi_stub_{payment_id}_secret_stub");
-        info!(
-            payment_id = %payment_id,
-            amount = req.amount_cents,
-            configured = self.secret_key.is_some(),
-            "created stub payment intent"
-        );
+        let Some(key) = self.secret_key.as_deref() else {
+            // No key: local development and CI. Nothing is charged, and the
+            // stub secret is obviously not a real one to anybody reading a log.
+            info!(
+                payment_id = %payment_id,
+                amount = req.amount_cents,
+                "STRIPE_SECRET_KEY unset — issuing a stub payment intent, nothing will be charged"
+            );
+            return Ok(PaymentIntentResponse {
+                payment_id,
+                client_secret: format!("pi_stub_{payment_id}_secret_stub"),
+                intent_id: format!("pi_stub_{payment_id}"),
+                amount_cents: req.amount_cents,
+                currency,
+                status: PaymentStatus::Pending,
+            });
+        };
 
+        let amount = req.amount_cents.to_string();
+        let reference = payment_id.to_string();
+        let form = [
+            ("amount", amount.as_str()),
+            ("currency", currency.as_str()),
+            // Let Stripe decide which methods to offer from the dashboard
+            // rather than pinning the list in code and shipping to change it.
+            ("automatic_payment_methods[enabled]", "true"),
+            ("metadata[fishers_payment_id]", reference.as_str()),
+        ];
+
+        let response = self
+            .http
+            .post(PAYMENT_INTENTS_URL)
+            .bearer_auth(key)
+            .header("Idempotency-Key", reference.as_str())
+            .timeout(std::time::Duration::from_secs(STRIPE_TIMEOUT_SECS))
+            .form(&form)
+            .send()
+            .await?;
+
+        let status = response.status();
+        let body = response.text().await?;
+        if !status.is_success() {
+            // Stripe's message is safe to log; it describes the request, not
+            // the key. The key never appears in an error body.
+            warn!(%payment_id, %status, "Stripe refused a payment intent");
+            anyhow::bail!("Stripe rejected the payment ({status}): {}", stripe_error(&body));
+        }
+
+        let intent: StripeIntent = serde_json::from_str(&body)?;
+        let client_secret = intent
+            .client_secret
+            .ok_or_else(|| anyhow::anyhow!("Stripe returned an intent with no client secret"))?;
+
+        info!(%payment_id, intent = %intent.id, "opened a Stripe payment intent");
         Ok(PaymentIntentResponse {
             payment_id,
             client_secret,
+            intent_id: intent.id,
             amount_cents: req.amount_cents,
             currency,
+            // Ours, not Stripe's: the money is not ours until the webhook says
+            // so, whatever the intent claims at the moment it is created.
             status: PaymentStatus::Pending,
         })
     }
@@ -141,6 +214,26 @@ impl StripeClient {
     }
 }
 
+/// The three fields we read back. Stripe sends a great deal more.
+#[derive(serde::Deserialize)]
+struct StripeIntent {
+    id: String,
+    client_secret: Option<String>,
+}
+
+/// Stripe's own words for what went wrong, for the log and the error we raise.
+fn stripe_error(body: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| {
+            v.get("error")
+                .and_then(|e| e.get("message"))
+                .and_then(|m| m.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "no reason given".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +250,7 @@ mod tests {
         StripeClient {
             secret_key: None,
             webhook_secret: secret.map(str::to_string),
+            ..StripeClient::default()
         }
     }
 

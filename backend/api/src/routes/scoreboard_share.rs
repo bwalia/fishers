@@ -78,7 +78,10 @@ pub struct PublicScoreboard {
     pub refreshed_at: chrono::DateTime<chrono::Utc>,
 }
 
-fn public_web_base() -> String {
+/// Where the web app lives, for links that leave the API — a shared scoreboard,
+/// an emailed tournament invitation. One definition, so two features cannot
+/// disagree about which host the link points at.
+pub(crate) fn public_web_base() -> String {
     std::env::var("PUBLIC_WEB_BASE")
         .or_else(|_| std::env::var("WEB_BASE_URL"))
         .unwrap_or_else(|_| "http://127.0.0.1:7311".into())

@@ -30,6 +30,12 @@ pub struct CreatePaymentIntentRequest {
 pub struct PaymentIntentResponse {
     pub payment_id: Uuid,
     pub client_secret: String,
+    /// The provider's own id for the intent — `pi_…`.
+    ///
+    /// Separate from `client_secret`, which is `{intent_id}_secret_{…}`. These
+    /// were conflated: the secret was stored as the id, so a webhook naming
+    /// only the intent could never find the payment it settled.
+    pub intent_id: String,
     pub amount_cents: i32,
     pub currency: String,
     pub status: PaymentStatus,

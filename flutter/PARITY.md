@@ -124,6 +124,7 @@ path and the same information in the same order of visual priority.
 |---|---|---|---|
 | `Views/Shop/ShopView.swift` (`ShopView`, `CheckoutView`) | `lib/views/shop/shop_view.dart` | planned | Club picker, cart, checkout. |
 | `Views/Tournament/TournamentView.swift` (+ `SetUpSheet`, `AddEntrantsSheet`, `ResultSheet`) | `lib/views/tournament/tournament_view.dart` | planned | Schedule / Table / Entrants. |
+| `Views/Tournament/EntryInvitationsSection.swift` | `lib/views/tournament/entry_invitations_section.dart` | planned | Tournaments another club has asked this one into. The models and the API calls are **done**; only the section is missing. |
 
 ---
 
@@ -173,7 +174,7 @@ check that no wire key is silently dropped.
 | `Models/TeammateProfile.swift` | `lib/models/teammate_profile.dart` | `TeammateProfile` |
 | `Models/Selection.swift` | `lib/models/selection.dart` | `SelectionState`, `SelectionCandidate`, `RankedCandidate`, `PositionQuota`, `SquadRequirements`, `SelectionBoard`, `SquadProposal`, `OutstandingFee`, `OutstandingFees` |
 | `Models/SeasonStats.swift` | `lib/models/season_stats.dart` | `PlayCricketLinks`, `PlayCricketPlayerLink`, `PlayerSeasonStats`, `UserAchievement`, `MeStatsResponse`, `PlayCricketClubSite`, `ClubSeasonStats`, `ClubSeasonBoard` |
-| `Models/Tournament.swift` | `lib/models/tournament.dart` | `TournamentFormat`, `FixtureBlock`, `TournamentEntrant`, `ScheduleRow`, `Standing`, `EventTicket`, `TicketSummary`, `TicketBooking`, `CricketFixtureRow` |
+| `Models/Tournament.swift` | `lib/models/tournament.dart` | `TournamentFormat`, `FixtureBlock`, `EntryStatus`, `TournamentEntrant`, `InviteEntrantResult`, `EntryInvitation`, `ScheduleRow`, `Standing`, `EventTicket`, `TicketSummary`, `TicketBooking`, `CricketFixtureRow` |
 | `Models/Chat.swift` | `lib/models/chat.dart` | `ConversationSummary`, `Conversation`, `ChatMessage`, `ProposalKind`, `AgentProposal`, `ProposalPayload`, `AgentRun`, `AgentAnalysis` |
 | `Models/ManOfTheMatch.swift` | `lib/models/motm.dart` | `MotmPoll`, `MotmCandidate`, `MotmPollView` — the poll's own fields arrive flattened in beside the ballot, so `fromJson` reads both out of one object |
 | `Models/Onboarding.swift` | `lib/models/onboarding.dart` | `RoleIntent`, `VerificationStatus`, `VerificationChannelStatus`, `VerificationChannel`, `VerificationSent`, `PendingInvite`, `ShareLinkToken` |
@@ -249,6 +250,9 @@ and body it sends.
 | `createTournament` | `POST /fixture-blocks` |
 | `entrants` | `GET /fixture-blocks/{id}/entrants` |
 | `addEntrants` | `POST /fixture-blocks/{id}/entrants` |
+| `inviteEntrant` | `POST /fixture-blocks/{id}/invite` |
+| `tournamentInvitations` | `GET /clubs/{id}/tournament-invites` |
+| `respondToEntry` | `POST /entrants/{id}/respond` |
 | `tournamentSchedule` | `GET /fixture-blocks/{id}/schedule` |
 | `standings` | `GET /fixture-blocks/{id}/standings` |
 | `generateSlots` | `POST /fixture-blocks/{id}/slots` |

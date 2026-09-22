@@ -31,6 +31,10 @@ pub struct Event {
     pub ticket_capacity: Option<i32>,
     /// How many guests one member may bring to a ticketed event.
     pub guests_allowed: i32,
+    /// Off, and a ticket is for members of the hosting club only. On, anyone
+    /// signed in to Fishers may buy one — which is what a tournament, a finals
+    /// day or a fundraiser needs, and what a members' AGM must never be.
+    pub tickets_public: bool,
     pub status: EventStatus,
     /// "Called off — ground unplayable after Friday's rain."
     pub status_note: Option<String>,
@@ -79,6 +83,8 @@ pub struct CreateEventRequest {
     pub ticket_capacity: Option<i32>,
     /// How many guests one member may bring. Defaults to none.
     pub guests_allowed: Option<i32>,
+    /// Sell to anyone signed in, not only members. Defaults to members only.
+    pub tickets_public: Option<bool>,
     pub metadata: Option<Value>,
 }
 
@@ -93,6 +99,7 @@ pub struct UpdateEventRequest {
     pub ticket_price_cents: Option<i32>,
     pub ticket_capacity: Option<i32>,
     pub guests_allowed: Option<i32>,
+    pub tickets_public: Option<bool>,
     pub status: Option<EventStatus>,
     pub metadata: Option<Value>,
 }

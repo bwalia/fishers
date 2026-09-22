@@ -1,0 +1,15 @@
+{
+  "block_id": "6c076198-26ee-4741-a453-46629f84021c",
+  "block_name": "Summer Sixes",
+  "club_id": "50b05159-ef2c-424b-8820-1ee04b89d7ba",
+  "created_at": "2026-09-22T06:26:45.504863Z",
+  "ends_on": null,
+  "entrant_id": "0a3dc26f-fbbc-4bce-9e9a-231496f24b47",
+  "entrant_name": "Watford Wanderers",
+  "host_club_id": "2dc96d82-e484-497f-b86d-8de741b1d2e5",
+  "host_club_name": "London Lords CC",
+  "invited_by_name": "Demo Captain",
+  "kind": "tournament",
+  "starts_on": null,
+  "status": "invited"
+}
