@@ -54,6 +54,56 @@ pub async fn claim_webhook_event(
     Ok(claimed.rows_affected() == 1)
 }
 
+/// What the payment actually was, off Stripe's `charge.*` events.
+///
+/// Recorded separately from the status because they arrive on different
+/// events and in no guaranteed order: a charge can land before the intent it
+/// belongs to. COALESCE throughout, so whichever arrives second does not wipe
+/// what the first already knew.
+pub struct ChargeDetail<'a> {
+    pub receipt_url: Option<&'a str>,
+    pub payer_email: Option<&'a str>,
+    pub card_brand: Option<&'a str>,
+    pub card_last4: Option<&'a str>,
+    pub failure_reason: Option<&'a str>,
+}
+
+pub async fn record_charge_detail(
+    pool: &PgPool,
+    payment_id: Uuid,
+    detail: &ChargeDetail<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE payments SET
+             receipt_url    = COALESCE($2, receipt_url),
+             payer_email    = COALESCE($3, payer_email),
+             card_brand     = COALESCE($4, card_brand),
+             card_last4     = COALESCE($5, card_last4),
+             failure_reason = COALESCE($6, failure_reason),
+             updated_at     = NOW()
+         WHERE id = $1",
+    )
+    .bind(payment_id)
+    .bind(detail.receipt_url)
+    .bind(detail.payer_email)
+    .bind(detail.card_brand)
+    .bind(detail.card_last4)
+    .bind(detail.failure_reason)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Stamp when the money landed. First answer wins: a replayed webhook must not
+/// move the date a club reconciles against.
+pub async fn mark_settled(pool: &PgPool, payment_id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE payments SET settled_at = COALESCE(settled_at, NOW()) WHERE id = $1")
+        .bind(payment_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 /// Note which payment a delivery turned out to be about, for the audit trail.
 pub async fn link_webhook_event(
     pool: &PgPool,

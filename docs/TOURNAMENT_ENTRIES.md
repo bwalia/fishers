@@ -172,6 +172,57 @@ Three things had to be true at once, and each failed differently:
 `GET /payments/config` reports whether all of it is in place, so a button that
 cannot work is never drawn.
 
+### The webhook is the only thing that says a payment happened
+
+Nothing marks a ticket or an entry paid except a delivery to
+`POST /api/v1/payments/webhook`. Not the browser coming back from Stripe, not
+what `confirmCheckout` returned — those are hints, and a payer can close the
+tab before either. The webhook is the record.
+
+So it has to be reachable, per ring:
+
+| | |
+|---|---|
+| Local | `stripe listen --forward-to localhost:7312/api/v1/payments/webhook` |
+| int / test / acc / prod | An endpoint in the Stripe dashboard at `https://<ring>.fishers.cloud/api/v1/payments/webhook`, and its signing secret in `kv/fishers/<ring>/config` as `STRIPE_WEBHOOK_SECRET` |
+
+Events worth sending: `checkout.session.completed`,
+`checkout.session.async_payment_succeeded`, `checkout.session.expired`,
+`payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.succeeded`
+and `charge.refunded`. Anything else is acknowledged and ignored.
+
+**Without the webhook secret, the endpoint refuses every delivery** — on
+purpose. An unsigned webhook is how somebody marks their own ticket paid.
+
+### What is recorded
+
+Settlement comes off the session or the intent; the detail comes off the
+charge, which is a different event and can arrive first. So they are written
+separately, and `COALESCE` throughout means whichever lands second does not
+wipe what the first already knew.
+
+```
+payments
+  status, settled_at          did the money arrive, and when
+  receipt_url                 Stripe's own receipt, to forward
+  payer_email                 who paid — often not the account holder
+  card_brand, card_last4      enough to match a bank statement
+  failure_reason              Stripe's words for a refusal
+  stripe_payment_intent_id    the cross-reference into Stripe's dashboard
+```
+
+### Coming back from Stripe
+
+`success_url` is built from the origin the payer is actually on, sent by the
+client and **checked against the origins this deployment serves**. Two reasons,
+and both have bitten:
+
+- `localStorage` is per origin. Somebody signed in at `localhost:7311` and
+  returned to `192.168.1.70:7311` arrives with no session — a login page, and a
+  payment they cannot see.
+- An unvalidated return URL is an open redirect, and this one is handed to
+  Stripe, who will send a paying customer to it.
+
 One trap worth recording: `next.config.js` sent
 `Permissions-Policy: payment=()`. An empty allowlist disables the capability for
 the document *and everything it embeds*, so Stripe's form sat on its loading

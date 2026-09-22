@@ -1,31 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
-import { loadStripe, type Stripe } from "@stripe/stripe-js";
-import { api, apiV1, money, readErr } from "@/lib/api";
-import { Icon } from "@/components/Icon";
+import { useEffect, useState } from "react";
+import { api, apiV1, readErr } from "@/lib/api";
 
-/// Paying by card.
+/// Sending somebody to Stripe to pay, and noticing when they come back.
 ///
-/// The API has been handing out a Stripe client secret for a long time and
-/// nothing on this side ever used it: the button said "payment opened" and
-/// threw the secret away, so no card was ever charged. This is the form it was
-/// always meant to be given to.
+/// The checkout page is Stripe's own, at checkout.stripe.com — their card
+/// fields, their wallets, their 3-D Secure step, their receipt, their
+/// translations. Card details never reach a Fishers origin, so there is no
+/// embedded form to maintain and far less of our surface in PCI scope.
 ///
-/// The card details never touch Fishers — they go from the browser straight to
-/// Stripe, and we are told the answer by webhook. That is why the dialog waits
-/// for the *server* to agree the money arrived rather than trusting what
-/// `confirmPayment` hands back.
+/// The cost is a round trip out of the app and back. That is why `paid=1` on
+/// the return URL matters: the page has to know it is coming back from a
+/// payment and wait for the webhook, rather than showing the booking still
+/// unpaid and inviting a second one.
 
 type Config = { cards: boolean; publishable_key: string | null };
-
-/// One `loadStripe` per key, because it injects a script tag.
-let stripeFor: { key: string; promise: Promise<Stripe | null> } | null = null;
-function stripePromise(key: string) {
-  if (stripeFor?.key !== key) stripeFor = { key, promise: loadStripe(key) };
-  return stripeFor.promise;
-}
 
 /// Whether this deployment can take a card at all, so a button that cannot
 /// work is never drawn. `null` while we are still asking.
@@ -44,158 +34,93 @@ export function useCardPayments(): boolean | null {
   return cards;
 }
 
-export function PayDialog({
-  title,
-  amountCents,
-  currency = "GBP",
-  /// Opens the payment on the server and hands back its client secret.
-  open,
-  /// True once the server agrees the money arrived. Polled, because the
-  /// webhook is what settles it and it does not arrive on our schedule.
+/// Open the checkout and send them there. Resolves only if it fails — on
+/// success the browser has already left.
+///
+/// The origin goes with the request because Stripe has to return them *here*,
+/// not to whatever base URL the server was configured with. `localStorage` is
+/// per origin: somebody signed in at localhost who is returned to the LAN
+/// address arrives with no session, sees a login page, and cannot tell whether
+/// they paid. The server checks the origin against the ones it serves before
+/// trusting it.
+export async function payAtStripe(openPath: string): Promise<string> {
+  const out = await api<{ checkout_url: string | null }>("POST", openPath, {
+    return_to: window.location.origin,
+  });
+  if (!out.checkout_url) {
+    return "Card payments are not switched on for this server.";
+  }
+  window.location.assign(out.checkout_url);
+  // The assignment is not instant; the caller keeps its spinner until the
+  // page actually goes.
+  await new Promise((r) => setTimeout(r, 4000));
+  return "";
+}
+
+/// Waiting for the webhook after Stripe sends them back.
+///
+/// Stripe redirects the moment the card clears, which is usually before our
+/// webhook has landed. Showing "unpaid" in that gap is how somebody pays
+/// twice, so the return is a state of its own.
+export function useReturnedFromStripe({
   settled,
-  onDone,
-  onClose,
+  onSettled,
 }: {
-  title: string;
-  amountCents: number;
-  currency?: string;
-  open: () => Promise<{ client_secret: string }>;
   settled: () => Promise<boolean>;
-  onDone: () => void;
-  onClose: () => void;
-}) {
-  const [config, setConfig] = useState<Config | null>(null);
-  const [secret, setSecret] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  onSettled: () => void;
+}): { waiting: boolean; gaveUp: boolean } {
+  const [waiting, setWaiting] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
 
   useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("paid") !== "1") return;
+    // Taken out of the address bar so a refresh, or a shared link, does not
+    // put the page back into waiting for a payment that already happened.
+    url.searchParams.delete("paid");
+    window.history.replaceState({}, "", url.toString());
+
     let alive = true;
+    setWaiting(true);
     (async () => {
-      try {
-        const c: Config = await (await fetch(`${apiV1()}/payments/config`)).json();
-        if (!alive) return;
-        setConfig(c);
-        if (!c.cards || !c.publishable_key) {
-          setError("Card payments are not switched on for this server.");
+      for (let i = 0; i < 20 && alive; i++) {
+        if (await settled().catch(() => false)) {
+          if (!alive) return;
+          setWaiting(false);
+          onSettled();
           return;
         }
-        const started = await open();
-        if (alive) setSecret(started.client_secret);
-      } catch (err) {
-        if (alive) setError(readErr(err, "Could not start that payment"));
+        await new Promise((r) => setTimeout(r, 1000));
       }
+      if (!alive) return;
+      setWaiting(false);
+      // Not an error: the money is taken either way. Saying otherwise would
+      // invite a second payment, which is the one outcome worth avoiding.
+      setGaveUp(true);
+      onSettled();
     })();
     return () => {
       alive = false;
     };
-    // Opening runs once per dialog: a second intent would be a second payment.
+    // Runs once, on arrival back from Stripe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const key = config?.publishable_key;
-
-  return (
-    <div className="pay-backdrop" role="dialog" aria-modal="true" aria-label={`Pay for ${title}`}>
-      <div className="pay-sheet">
-        <div className="panel-head">
-          <h2>{title}</h2>
-          <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
-        </div>
-        <p className="pay-amount">{money(amountCents, currency)}</p>
-
-        {error && <p className="error">{error}</p>}
-
-        {!error && (!secret || !key) && <div className="skeleton" style={{ height: 180 }} />}
-
-        {!error && secret && key && (
-          <Elements
-            stripe={stripePromise(key)}
-            options={{ clientSecret: secret, appearance: { theme: "flat" } }}
-          >
-            <CardForm settled={settled} onDone={onDone} />
-          </Elements>
-        )}
-
-        <p className="subtle pay-note">
-          <Icon name="lock" size={12} /> Your card details go straight to Stripe.
-          Fishers never sees them.
-        </p>
-      </div>
-    </div>
-  );
+  return { waiting, gaveUp };
 }
 
-function CardForm({
-  settled,
-  onDone,
-}: {
-  settled: () => Promise<boolean>;
-  onDone: () => void;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [busy, setBusy] = useState(false);
-  const [waiting, setWaiting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  /// Stripe says the card went through; the ticket is not paid until our own
-  /// webhook has said so. Ten seconds is generous for a test card and honest
-  /// about the alternative — it is already paid, the screen is just behind.
-  const waitForSettlement = useCallback(async () => {
-    setWaiting(true);
-    for (let i = 0; i < 10; i++) {
-      if (await settled().catch(() => false)) {
-        setWaiting(false);
-        onDone();
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-    setWaiting(false);
-    // Not an error: the money is taken either way, and saying otherwise would
-    // invite a second payment.
-    onDone();
-  }, [settled, onDone]);
-
-  const pay = async () => {
-    if (!stripe || !elements) return;
-    setBusy(true);
-    setError(null);
-    const { error: err } = await stripe.confirmPayment({
-      elements,
-      redirect: "if_required",
-    });
-    setBusy(false);
-    if (err) {
-      setError(err.message ?? "That card was refused.");
-      return;
-    }
-    await waitForSettlement();
-  };
-
-  return (
-    <>
-      <PaymentElement />
-      {error && <p className="error">{error}</p>}
-      {waiting && <p className="notice">Taken — waiting for it to clear.</p>}
-      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
-        <button
-          className="btn primary lg"
-          type="button"
-          disabled={!stripe || busy || waiting}
-          onClick={pay}
-        >
-          {busy ? "Paying…" : waiting ? "Clearing…" : "Pay now"}
-        </button>
-      </div>
-    </>
-  );
+/// The line to show while the webhook catches up.
+export function PaymentReturn({ waiting, gaveUp }: { waiting: boolean; gaveUp: boolean }) {
+  if (waiting) return <p className="notice">Paid — waiting for it to clear.</p>;
+  if (gaveUp) {
+    return (
+      <p className="notice">
+        Your payment went through. It can take a moment to show here — refresh
+        in a minute rather than paying again.
+      </p>
+    );
+  }
+  return null;
 }
 
-/// Convenience for the common shape: POST to open it, GET to see if it landed.
-export function payVia(openPath: string, check: () => Promise<boolean>) {
-  return {
-    open: () => api<{ client_secret: string }>("POST", openPath, {}),
-    settled: check,
-  };
-}
+export { readErr };

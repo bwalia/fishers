@@ -478,6 +478,7 @@ async fn pay_entry(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Json(body): Json<PayBody>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let entrant = tournament_repo::get_entrant(&state.pool, id)
         .await?
@@ -522,18 +523,31 @@ async fn pay_entry(
         amount_cents: fee,
         currency: Some("GBP".into()),
     };
-    let intent = state
+    let settings = tournament_repo::block_settings(&state.pool, entrant.block_id).await?;
+    let back = format!(
+        "{}/tournaments/invite/{}",
+        return_origin(body.return_to.as_deref()),
+        entrant.id
+    );
+    let session = state
         .stripe
-        .create_payment_intent(payment.id, &request)
+        .create_checkout_session(
+            payment.id,
+            &request,
+            &fishers_payments::CheckoutFor {
+                name: &format!("{} — entry fee", settings.name),
+                success_url: &format!("{back}?paid=1"),
+                cancel_url: &back,
+            },
+        )
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    payments_repo::attach_intent(&state.pool, payment.id, &intent.intent_id).await?;
 
     Ok(Json(json!({
-        "payment_id": intent.payment_id,
-        "client_secret": intent.client_secret,
-        "amount_cents": intent.amount_cents,
-        "currency": intent.currency,
+        "payment_id": session.payment_id,
+        "checkout_url": session.url,
+        "amount_cents": session.amount_cents,
+        "currency": session.currency,
     })))
 }
 
@@ -559,6 +573,52 @@ async fn mark_entry_paid(
         .await?
         .map(Json)
         .ok_or_else(|| ApiError::not_found("entrant not found"))
+}
+
+/// What a Pay request may say about where to come back to.
+#[derive(Debug, Default, serde::Deserialize)]
+struct PayBody {
+    /// The origin the payer is actually browsing — `window.location.origin`.
+    #[serde(default)]
+    return_to: Option<String>,
+}
+
+/// Where Stripe sends the payer back to.
+///
+/// It has to be the origin they are on, not the one this server was configured
+/// with. `localStorage` is per origin, so returning somebody who signed in at
+/// `localhost:7311` to `192.168.1.70:7311` hands them a login page and a
+/// payment they cannot see — which is exactly what happened.
+///
+/// Checked against the origins this deployment serves, because an unvalidated
+/// return URL is an open redirect, and this one is handed to Stripe, who will
+/// send a paying customer to it.
+fn pick_return_origin(requested: Option<&str>, allowed: &[&str], fallback: &str) -> String {
+    let Some(asked) = requested
+        .map(str::trim)
+        .map(|o| o.trim_end_matches('/'))
+        .filter(|o| !o.is_empty())
+    else {
+        return fallback.to_string();
+    };
+    let permitted = allowed
+        .iter()
+        .map(|o| o.trim().trim_end_matches('/'))
+        .filter(|o| !o.is_empty())
+        .chain(std::iter::once(fallback.trim_end_matches('/')));
+    if permitted.into_iter().any(|o| o.eq_ignore_ascii_case(asked)) {
+        asked.to_string()
+    } else {
+        tracing::warn!(asked, "refused an unknown return origin for a payment");
+        fallback.to_string()
+    }
+}
+
+fn return_origin(requested: Option<&str>) -> String {
+    let fallback = super::scoreboard_share::public_web_base();
+    let configured = std::env::var("CORS_ALLOWED_ORIGINS").unwrap_or_default();
+    let allowed: Vec<&str> = configured.split(',').collect();
+    pick_return_origin(requested, &allowed, &fallback)
 }
 
 fn entry_link(token: &str) -> String {
@@ -875,6 +935,7 @@ async fn pay_ticket(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Json(body): Json<PayBody>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let ticket = tournament_repo::get_ticket(&state.pool, id)
         .await?
@@ -919,18 +980,33 @@ async fn pay_ticket(
         _ => payments_repo::create_pending(&state.pool, auth.user_id, &request, None).await?,
     };
 
-    let intent = state
+    // Stripe's own page, not a form of ours: they own the card fields, the
+    // wallets, the 3-D Secure step and the receipt, and card details never
+    // reach a Fishers origin.
+    let back = format!(
+        "{}/events/{}/tickets",
+        return_origin(body.return_to.as_deref()),
+        ticket.event_id
+    );
+    let session = state
         .stripe
-        .create_payment_intent(payment.id, &request)
+        .create_checkout_session(
+            payment.id,
+            &request,
+            &fishers_payments::CheckoutFor {
+                name: &format!("{} — ticket", event.title),
+                success_url: &format!("{back}?paid=1"),
+                cancel_url: &back,
+            },
+        )
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    payments_repo::attach_intent(&state.pool, payment.id, &intent.intent_id).await?;
 
     Ok(Json(json!({
-        "payment_id": intent.payment_id,
-        "client_secret": intent.client_secret,
-        "amount_cents": intent.amount_cents,
-        "currency": intent.currency,
+        "payment_id": session.payment_id,
+        "checkout_url": session.url,
+        "amount_cents": session.amount_cents,
+        "currency": session.currency,
         "ticket_status": ticket.status,
     })))
 }
@@ -1029,4 +1105,67 @@ async fn require_organiser(state: &AppState, club_id: Uuid, user_id: Uuid) -> Ap
     require_permission(state, club_id, user_id, None, Permission::ManageEvents)
         .await
         .map(|_| ())
+}
+
+#[cfg(test)]
+mod return_origin_tests {
+    use super::pick_return_origin;
+
+    const FALLBACK: &str = "https://int.fishers.cloud";
+    const ALLOWED: [&str; 3] = [
+        "https://int.fishers.cloud",
+        "http://localhost:7311",
+        "http://127.0.0.1:7311",
+    ];
+
+    #[test]
+    fn the_origin_the_payer_is_on_is_used() {
+        // The bug: signed in on localhost, returned to the LAN address, no
+        // token there, login page.
+        assert_eq!(
+            pick_return_origin(Some("http://localhost:7311"), &ALLOWED, FALLBACK),
+            "http://localhost:7311"
+        );
+    }
+
+    #[test]
+    fn a_trailing_slash_is_the_same_origin() {
+        assert_eq!(
+            pick_return_origin(Some("http://localhost:7311/"), &ALLOWED, FALLBACK),
+            "http://localhost:7311"
+        );
+    }
+
+    #[test]
+    fn nothing_asked_for_falls_back() {
+        assert_eq!(pick_return_origin(None, &ALLOWED, FALLBACK), FALLBACK);
+        assert_eq!(pick_return_origin(Some("  "), &ALLOWED, FALLBACK), FALLBACK);
+    }
+
+    #[test]
+    fn an_origin_we_do_not_serve_is_refused() {
+        // Handed straight to Stripe, who will send a paying customer to it.
+        // An open redirect here is a phishing page with a real payment behind
+        // it, so anything unrecognised falls back rather than being trusted.
+        for hostile in [
+            "https://fishers.cloud.evil.test",
+            "http://localhost:7311.evil.test",
+            "https://evil.test",
+            "javascript:alert(1)",
+        ] {
+            assert_eq!(
+                pick_return_origin(Some(hostile), &ALLOWED, FALLBACK),
+                FALLBACK,
+                "{hostile} was allowed through"
+            );
+        }
+    }
+
+    #[test]
+    fn the_fallback_is_always_allowed_even_if_not_listed() {
+        assert_eq!(
+            pick_return_origin(Some(FALLBACK), &[], FALLBACK),
+            FALLBACK
+        );
+    }
 }

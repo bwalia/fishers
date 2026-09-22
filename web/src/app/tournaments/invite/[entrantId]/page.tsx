@@ -4,7 +4,12 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, money, readErr } from "@/lib/api";
 import { Icon } from "@/components/Icon";
-import { PayDialog, useCardPayments } from "@/components/PayDialog";
+import {
+  PaymentReturn,
+  payAtStripe,
+  useCardPayments,
+  useReturnedFromStripe,
+} from "@/components/PayDialog";
 import {
   AGE_LABEL,
   BALL_LABEL,
@@ -71,6 +76,13 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
   const [paying, setPaying] = useState(false);
   const cards = useCardPayments();
 
+  // Back from Stripe's page, where the redirect usually beats our webhook.
+  const back = useReturnedFromStripe({
+    settled: async () =>
+      (await api<View>("GET", `/entrants/${entrantId}/invitation`)).confirmed,
+    onSettled: () => load(),
+  });
+
   const load = useCallback(async () => {
     try {
       setView(await api<View>("GET", `/entrants/${entrantId}/invitation`));
@@ -131,6 +143,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
       </section>
 
       {error && <p className="error">{error}</p>}
+      <PaymentReturn waiting={back.waiting} gaveUp={back.gaveUp} />
 
       <div className="pro-cols">
         <div className="pro-main">
@@ -234,9 +247,17 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
                   <button
                     className="btn primary lg"
                     type="button"
-                    onClick={() => setPaying(true)}
+                    disabled={paying}
+                    onClick={async () => {
+                      setPaying(true);
+                      const problem = await payAtStripe(`/entrants/${entrantId}/pay-entry`);
+                      if (problem) {
+                        setError(problem);
+                        setPaying(false);
+                      }
+                    }}
                   >
-                    Pay {money(fee)} by card
+                    {paying ? "Taking you to Stripe…" : `Pay ${money(fee)} by card`}
                   </button>
                 </div>
               )}
@@ -313,22 +334,6 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
         </aside>
       </div>
 
-      {paying && (
-        <PayDialog
-          title={`${i.block_name} — entry fee`}
-          amountCents={fee}
-          open={() => api<{ client_secret: string }>("POST", `/entrants/${entrantId}/pay-entry`, {})}
-          // The webhook settles the entry, so the entry is what gets asked.
-          settled={async () =>
-            (await api<View>("GET", `/entrants/${entrantId}/invitation`)).confirmed
-          }
-          onDone={() => {
-            setPaying(false);
-            load();
-          }}
-          onClose={() => setPaying(false)}
-        />
-      )}
     </main>
   );
 }

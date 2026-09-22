@@ -97,6 +97,13 @@ struct StripeEventData {
 struct StripeObject {
     #[serde(default)]
     id: Option<String>,
+    #[serde(flatten, default)]
+    charge: ChargeFields,
+    /// On a `checkout.session.*` event `id` is the session (`cs_…`) and this
+    /// is the intent it created. On a `payment_intent.*` event `id` is already
+    /// the intent and this is absent.
+    #[serde(default)]
+    payment_intent: Option<String>,
     #[serde(default)]
     metadata: Option<PaymentMetadata>,
 }
@@ -105,6 +112,40 @@ struct StripeObject {
 struct PaymentMetadata {
     #[serde(default)]
     fishers_payment_id: Option<Uuid>,
+}
+
+/// The parts of a `charge.*` object worth keeping. Stripe sends a great deal
+/// more; this is what a treasurer reconciling a bank statement needs.
+#[derive(Deserialize, Default)]
+struct ChargeFields {
+    #[serde(default)]
+    receipt_url: Option<String>,
+    #[serde(default)]
+    billing_details: Option<BillingDetails>,
+    #[serde(default)]
+    payment_method_details: Option<PaymentMethodDetails>,
+    #[serde(default)]
+    failure_message: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct BillingDetails {
+    #[serde(default)]
+    email: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct PaymentMethodDetails {
+    #[serde(default)]
+    card: Option<CardDetails>,
+}
+
+#[derive(Deserialize, Default)]
+struct CardDetails {
+    #[serde(default)]
+    brand: Option<String>,
+    #[serde(default)]
+    last4: Option<String>,
 }
 
 async fn webhook(
@@ -169,14 +210,50 @@ async fn webhook(
             .and_then(|o| o.metadata.as_ref())
             .and_then(|m| m.fishers_payment_id)
     });
-    let intent_id = event
-        .data
-        .as_ref()
-        .and_then(|d| d.object.as_ref())
-        .and_then(|o| o.id.clone());
+    // The intent, wherever this event carries it.
+    let object = event.data.as_ref().and_then(|d| d.object.as_ref());
+    let intent_id = object
+        .and_then(|o| o.payment_intent.clone())
+        .or_else(|| object.and_then(|o| o.id.clone()))
+        .filter(|id| id.starts_with("pi_"));
+
+    // A charge carries what the payment actually was — the receipt, the card,
+    // the payer's email — and no status we act on. Recorded and done with.
+    if matches!(event.kind.as_deref(), Some("charge.succeeded" | "charge.updated" | "charge.failed")) {
+        if let Some(id) = payment_id {
+            let c = object.map(|o| &o.charge);
+            let detail = payments_repo::ChargeDetail {
+                receipt_url: c.and_then(|c| c.receipt_url.as_deref()),
+                payer_email: c
+                    .and_then(|c| c.billing_details.as_ref())
+                    .and_then(|b| b.email.as_deref()),
+                card_brand: c
+                    .and_then(|c| c.payment_method_details.as_ref())
+                    .and_then(|d| d.card.as_ref())
+                    .and_then(|card| card.brand.as_deref()),
+                card_last4: c
+                    .and_then(|c| c.payment_method_details.as_ref())
+                    .and_then(|d| d.card.as_ref())
+                    .and_then(|card| card.last4.as_deref()),
+                failure_reason: c.and_then(|c| c.failure_message.as_deref()),
+            };
+            if let Err(error) = payments_repo::record_charge_detail(&state.pool, id, &detail).await {
+                warn!(%error, "could not record what a payment was");
+            }
+        }
+        return Ok(Json(
+            serde_json::json!({ "received": true, "acted": true, "recorded": "charge" }),
+        ));
+    }
 
     let status = match event.kind.as_deref().or(event.status.as_deref()) {
-        Some("payment_intent.succeeded") | Some("succeeded") => PaymentStatus::Succeeded,
+        // A hosted checkout settles on the session as well as the intent, and
+        // whichever lands first is the one that counts — the delivery table
+        // stops the second one acting twice.
+        Some("checkout.session.completed") | Some("checkout.session.async_payment_succeeded")
+        | Some("payment_intent.succeeded") | Some("succeeded") => PaymentStatus::Succeeded,
+        Some("checkout.session.expired") => PaymentStatus::Cancelled,
+        Some("checkout.session.async_payment_failed") => PaymentStatus::Failed,
         Some("payment_intent.payment_failed") | Some("failed") => PaymentStatus::Failed,
         Some("charge.refunded") | Some("refunded") => PaymentStatus::Refunded,
         Some("payment_intent.canceled") | Some("cancelled") => PaymentStatus::Cancelled,
@@ -208,10 +285,26 @@ async fn webhook(
         }
     }
 
+    // A hosted checkout settles by metadata, so the intent id is learnt here
+    // rather than at creation. Recorded so a payment in our database can be
+    // found in Stripe's dashboard, and the other way about.
+    if let Some(intent) = intent_id.as_deref() {
+        if payment.stripe_payment_intent_id.as_deref() != Some(intent) {
+            if let Err(error) =
+                payments_repo::attach_intent(&state.pool, payment.id, intent).await
+            {
+                warn!(%error, "could not record the Stripe intent against a payment");
+            }
+        }
+    }
+
     // A succeeded payment settles whatever it was for, in the same breath. A
     // payment is for one of them, so the other is a no-op rather than a
     // branch nobody maintains.
     if status == PaymentStatus::Succeeded {
+        if let Err(error) = payments_repo::mark_settled(&state.pool, payment.id).await {
+            warn!(%error, "could not stamp when a payment settled");
+        }
         if let Err(error) = payments_repo::settle_ticket_for_payment(&state.pool, payment.id).await
         {
             error!(%error, "could not settle the ticket for a paid payment");

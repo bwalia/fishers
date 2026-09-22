@@ -5,7 +5,12 @@ import Link from "next/link";
 import { api, getStoredUser, money, readErr } from "@/lib/api";
 import { type EventTicket, type TicketBooking } from "@/lib/tournament";
 import { Avatar } from "@/components/Avatar";
-import { PayDialog, useCardPayments } from "@/components/PayDialog";
+import {
+  PaymentReturn,
+  payAtStripe,
+  useCardPayments,
+  useReturnedFromStripe,
+} from "@/components/PayDialog";
 import { useRequireAuth } from "@/lib/require-auth";
 
 /// A ticketed club event — the dinner, the quiz, presentation night.
@@ -27,6 +32,16 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
   const [paying, setPaying] = useState(false);
   const cards = useCardPayments();
   const me = getStoredUser();
+
+  // Back from Stripe's page. The redirect beats our webhook more often than
+  // not, so the wait is shown rather than a booking that still says unpaid.
+  const back = useReturnedFromStripe({
+    settled: async () =>
+      (await api<TicketBooking>("GET", `/events/${id}/tickets`)).tickets.some(
+        (t) => t.user_id === me?.id && t.status === "paid"
+      ),
+    onSettled: () => load(),
+  });
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +107,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
 
       {error && <p className="error">{error}</p>}
       {note && <p className="notice">{note}</p>}
+      <PaymentReturn waiting={back.waiting} gaveUp={back.gaveUp} />
 
       <div className="pro-cols">
         <div className="pro-main">
@@ -113,10 +129,19 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                   <button
                     className="btn primary"
                     type="button"
-                    disabled={busy !== null}
-                    onClick={() => setPaying(true)}
+                    disabled={busy !== null || paying}
+                    onClick={async () => {
+                      setPaying(true);
+                      const problem = await payAtStripe(`/tickets/${mine.id}/pay`);
+                      if (problem) {
+                        setError(problem);
+                        setPaying(false);
+                      }
+                    }}
                   >
-                    Pay {money(mine.amount_cents, mine.currency)} by card
+                    {paying
+                      ? "Taking you to Stripe…"
+                      : `Pay ${money(mine.amount_cents, mine.currency)} by card`}
                   </button>
                 )}
                 {mine.status !== "paid" && cards === false && (
@@ -267,27 +292,6 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
         </aside>
       </div>
 
-      {paying && mine && (
-        <PayDialog
-          title={summary.title}
-          amountCents={mine.amount_cents}
-          currency={mine.currency}
-          open={() => api<{ client_secret: string }>("POST", `/tickets/${mine.id}/pay`, {})}
-          // The webhook settles the ticket, so the ticket is what is asked —
-          // not Stripe, and not our own optimism.
-          settled={async () =>
-            (await api<TicketBooking>("GET", `/events/${id}/tickets`)).tickets.some(
-              (t) => t.id === mine.id && t.status === "paid"
-            )
-          }
-          onDone={() => {
-            setPaying(false);
-            setNote("Paid — thank you.");
-            load();
-          }}
-          onClose={() => setPaying(false)}
-        />
-      )}
     </main>
   );
 }

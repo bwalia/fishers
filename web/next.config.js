@@ -29,20 +29,19 @@ const nextConfig = {
           // A share link should not carry the whole path to another site —
           // a scoreboard link is a secret, and it lives in the URL.
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          // The camera is used to scan an opposition's QR code at the ground.
+          // The camera is used to scan an opposition's QR code at the ground;
+          // nothing else is, and nobody embedded needs any of it.
           //
-          // `payment` is delegated to Stripe's frames and nowhere else. It was
-          // `payment=()` — an empty allowlist, which switches the capability
-          // off for this document *and everything it embeds*, so Stripe's card
-          // form sat on its loading skeleton forever and logged "payment is
-          // not allowed in this document". Card details are entered in an
-          // iframe served by js.stripe.com; it needs the capability, and
-          // nothing else here does.
+          // `payment=()` is right again now that checkout is Stripe's own
+          // page: nothing on a Fishers origin embeds a card field, so nothing
+          // here needs the capability. It briefly had to be delegated to
+          // js.stripe.com for the embedded form, which is worth knowing if one
+          // ever comes back — an empty allowlist switches the capability off
+          // for this document *and everything it embeds*, and the only symptom
+          // is a form that never appears.
           {
             key: "Permissions-Policy",
-            value:
-              'camera=(self), microphone=(), geolocation=(), usb=(), ' +
-              'payment=(self "https://js.stripe.com")',
+            value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
           },
         ],
       },
