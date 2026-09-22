@@ -1,5 +1,5 @@
 import { expect, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
-import { BASE_URL, PASSWORD } from "./env";
+import { API_PORT, BASE_URL, PASSWORD, WEB_PORT } from "./env";
 import type { ClubSpec, Person } from "./people";
 
 /// One person at their own browser: their own cookies and storage, so two
@@ -69,15 +69,17 @@ export async function signIn(page: Page, who: Person): Promise<boolean> {
   ]);
   if (outcome === "in") return true;
 
-  const status = await page.evaluate(async ([email, password]) => {
-    const base = location.port === "7311" ? `${location.protocol}//${location.hostname}:7312` : "";
+  // The ports are handed in: this closure runs in the browser, which has no
+  // process.env to read them from.
+  const status = await page.evaluate(async ([email, password, webPort, apiPort]) => {
+    const base = location.port === webPort ? `${location.protocol}//${location.hostname}:${apiPort}` : "";
     const r = await fetch(`${base}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier: email, password }),
     });
     return r.status;
-  }, [who.email, PASSWORD]);
+  }, [who.email, PASSWORD, WEB_PORT, API_PORT]);
   if (status === 401) return false; // no such account (or the password changed)
   throw new Error(`Signing ${who.email} in failed with HTTP ${status} — not a missing account.`);
 }
@@ -163,10 +165,11 @@ export async function storedUser(page: Page): Promise<{ id: string; name: string
 /// showed was really saved. Refreshes an expired session the way the app does.
 export async function apiGet<T = any>(page: Page, path: string): Promise<T> {
   const out = await stableEval(page, () =>
-    page.evaluate(async (path) => {
-      // The same rule the app uses: the dev server's API is on the next port;
-      // anywhere else it is this origin under /api.
-      const base = location.port === "7311" ? `${location.protocol}//${location.hostname}:7312` : "";
+    page.evaluate(async ([path, webPort, apiPort]) => {
+      // The same rule the app uses: on the dev server the API is its own
+      // port beside the dashboard; anywhere else it is this origin under
+      // /api. Both ports are handed in — there is no process.env in here.
+      const base = location.port === webPort ? `${location.protocol}//${location.hostname}:${apiPort}` : "";
       const get = () =>
         fetch(`${base}/api/v1${path}`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("fishers_access_token")}` },
@@ -186,7 +189,7 @@ export async function apiGet<T = any>(page: Page, path: string): Promise<T> {
         }
       }
       return { status: r.status, body: await r.json().catch(() => null) };
-    }, path)
+    }, [path, WEB_PORT, API_PORT])
   );
   if (out.status >= 300) throw new Error(`GET ${path}: ${out.status} ${JSON.stringify(out.body)}`);
   return out.body as T;
