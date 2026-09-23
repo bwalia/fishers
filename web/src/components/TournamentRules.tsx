@@ -441,7 +441,7 @@ function GroundField({
           <button
             className="btn primary sm"
             type="button"
-            disabled={busy || !name.trim()}
+            disabled={busy || !name.trim() || !clubId}
             onClick={add}
           >
             {busy ? "Adding…" : "Add it"}

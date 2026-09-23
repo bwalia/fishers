@@ -212,7 +212,12 @@ function NewBlock({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [clubId, setClubId] = useState(clubs[0]?.id ?? "");
+  // The club list arrives after this form's first render, and useState reads its
+  // argument only once — seeding from it left clubId "" for good while the select
+  // happily showed the first club, so adding a ground posted to /clubs//venues.
+  // Derive it instead: the default follows the list the moment it lands.
+  const [pickedClub, setPickedClub] = useState("");
+  const clubId = pickedClub || clubs[0]?.id || "";
   const [name, setName] = useState("");
   const [kind, setKind] = useState("tournament");
   const [startsOn, setStartsOn] = useState("");
@@ -282,7 +287,7 @@ function NewBlock({
         <div className="setup-fields">
           <label>
             Club
-            <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
+            <select value={clubId} onChange={(e) => setPickedClub(e.target.value)}>
               {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <span className="subtle">Whoever is running it.</span>

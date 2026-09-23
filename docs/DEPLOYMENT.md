@@ -129,6 +129,33 @@ Two things worth knowing when it misbehaves:
   `kube-system` namespaces only, so a direct probe from inside
   `fishers-<ring>` is refused by design. The deploy's smoke test goes through
   the ingress with the ring's Host header for exactly this reason.
+- **The rate limits are not in this repo.** They live in the declarative config
+  in `workflow-examples/fishers-kongapi`, so anything patched into the
+  `fishers-kong-dbless-<ring>` ConfigMap by hand is gone the next time that
+  chart deploys. Three of them were wrong for int:
+
+  - `/api/v1/auth` needs room for the full-match E2E run, which signs 24
+    accounts in from one runner IP: **120/minute** is the floor, and 20/minute
+    is not enough — the run dies partway through registering players with a
+    429. Credential stuffing is held off by the API's own per-identifier
+    lockout (8 failures in 300s), not by this limit.
+  - The `fishers-ai` route matched the bare `/api/v1/conversations` and
+    `/api/v1/events` prefixes, so club messaging and the **whole events API**
+    were sharing the AI budget of 30/minute. The endpoints that actually call a
+    model are only `/api/v1/agent`,
+    `/api/v1/events/{id}/selection/{suggest,agent}` and
+    `/api/v1/conversations/{id}/agent/analyse`; match those and let the rest
+    fall through to `fishers-api-protected`.
+  - `fishers-api-protected`, the `/api/v1` catch-all, allowed **30/second**.
+    The full-match E2E drives 24 browser contexts and peaks at ~49 requests a
+    second (~205 a minute), so it tripped the burst limit while sitting well
+    inside the per-minute one — a single 429 on `/api/v1/me` is enough to leave
+    the profile page blank and fail the run. It is now 150/second, 1200/minute.
+
+  All three are `limit_by: consumer`/`ip`, but Kong identifies no consumer
+  here and every client address resolves to the same cluster IP, so in practice
+  each is one bucket shared by everyone using the ring — size them for the
+  ring, not for one browser.
 
 Current intent: **int on; test, acc and prod off** until each is enabled
 deliberately.
