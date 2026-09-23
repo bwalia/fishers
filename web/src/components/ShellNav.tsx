@@ -10,6 +10,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { OverflowMenu } from "@/components/OverflowMenu";
 import { ChatBadge } from "@/components/ChatBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { brand } from "@/brand.generated";
 
 const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/", label: "Overview", icon: "home" },
@@ -62,7 +63,7 @@ export function ShellNav() {
       <div className="topbar-inner">
       <Link href="/" className="brand">
         <BrandMark size={24} />
-        Fishers
+        {brand.name}
       </Link>
       {!landing && <>
       <nav className="nav" aria-label="Main">

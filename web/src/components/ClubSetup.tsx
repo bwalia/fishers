@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "@/components/Icon";
 import { Spotlight } from "@/components/Spotlight";
 import type { ClubMemberRow, Team, Venue } from "@/lib/api";
+import { brand } from "@/brand.generated";
 
 type Step = {
   key: string;
@@ -68,7 +69,7 @@ export function ClubSetup({
       target: "add-players",
       tour: {
         title: "Add your first players",
-        body: "Type a player's email or mobile number. Already on Fishers? Press Add. Not yet? Press Invite instead and send them the link.",
+        body: `Type a player's email or mobile number. Already on ${brand.name}? Press Add. Not yet? Press Invite instead and send them the link.`,
       },
     },
     {

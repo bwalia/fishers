@@ -10,6 +10,7 @@ import {
   type PushState,
 } from "@/lib/push";
 import { Icon } from "@/components/Icon";
+import { brand } from "@/brand.generated";
 
 /// Turning browser notifications on.
 ///
@@ -75,7 +76,7 @@ export function PushToggle() {
         </h2>
         {state === "denied" ? (
           <p className="muted">
-            This browser is blocking notifications from Fishers. It will not ask again — you
+            This browser is blocking notifications from {brand.name}. It will not ask again — you
             can turn them back on in the site settings, usually behind the padlock in the
             address bar.
           </p>

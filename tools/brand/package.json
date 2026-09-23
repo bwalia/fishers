@@ -1,0 +1,15 @@
+{
+  "name": "@fishers/brand",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Turns a brand file into what each frontend needs to become that brand.",
+  "bin": { "brand": "./index.mjs" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "yaml": "^2.6.1"
+  },
+  "engines": { "node": ">=20" }
+}

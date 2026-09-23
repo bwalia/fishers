@@ -9,6 +9,7 @@ import {
   TOUR_VIDEO_ID,
   type TourChapter,
 } from "@/app/tour/chapters";
+import { brand } from "@/brand.generated";
 
 /// The film, its chapters, and everything it says.
 ///
@@ -36,7 +37,7 @@ export function TourFilm() {
         {playing ? (
           <iframe
             src={source}
-            title="Fishers — the video tour"
+            title={`${brand.name} — the video tour`}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
             allowFullScreen
           />

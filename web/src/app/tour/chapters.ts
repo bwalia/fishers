@@ -1,3 +1,5 @@
+import { brand } from "@/brand.generated";
+
 // Generated from the film's own index by scripts/tour-page-data.py, so every timestamp
 // here is the video's arithmetic rather than a second copy of it that can drift.
 //
@@ -25,7 +27,7 @@ export const TOUR_CHAPTERS: TourChapter[] = [
     at: 5,
     stamp: "0:05",
     beats: [
-      { at: 11, stamp: "0:11", text: "Fishers is club cricket on a phone: fixtures, availability, selection and the scorebook. This is a player opening it for the first time." },
+      { at: 11, stamp: "0:11", text: `${brand.name} is club cricket on a phone: fixtures, availability, selection and the scorebook. This is a player opening it for the first time.` },
       { at: 46, stamp: "0:46", text: "Signing up asks one thing first \u2014 whether you run a club or play for one. The app is a different shape for each." },
       { at: 73, stamp: "1:13", text: "The quick start is a sport and a mobile number. Everything else about a player can wait until they have been picked once." },
       { at: 85, stamp: "1:25", text: "New players are not searched for; they hand over a link. This one goes in the club's WhatsApp group, and the secretary invites them from it." },

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { apiPort } from "@/lib/ports";
+import { brand } from "@/brand.generated";
 
 type BoardPreview = {
   home_name: string;
@@ -32,7 +33,7 @@ export async function generateMetadata({
   // Catch-all, and a mangled link keeps only its leading hex — as the page does.
   const token = /^[0-9a-f]*/i.exec((await params).token[0] ?? "")?.[0] ?? "";
   const fallback: Metadata = {
-    title: "Live scoreboard — Fishers",
+    title: `Live scoreboard — ${brand.name}`,
     description: "Follow the full live cricket scoreboard. No sign-in required.",
   };
   try {
@@ -45,7 +46,7 @@ export async function generateMetadata({
     const score = inn
       ? `${inn.runs}/${inn.wickets}`
       : board.state?.margin || "Waiting for first ball";
-    const title = `${board.home_name} vs ${board.away_name} — live on Fishers`;
+    const title = `${board.home_name} vs ${board.away_name} — live on ${brand.name}`;
     const description = board.club_name
       ? `${score} · ${board.club_name}`
       : `${score} · live cricket scoreboard`;

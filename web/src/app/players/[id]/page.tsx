@@ -14,6 +14,7 @@ import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { MessageButton } from "@/components/MessageButton";
 import { useRequireAuth } from "@/lib/require-auth";
+import { brand } from "@/brand.generated";
 
 type Achievement = {
   id: string;
@@ -118,7 +119,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
               <h2>Nothing scored yet</h2>
               <p className="muted">
                 {player.name.split(" ")[0]}&apos;s figures appear here once they play a
-                match somebody scored on Fishers.
+                match somebody scored on {brand.name}.
               </p>
             </div>
           ) : (

@@ -12,6 +12,7 @@ import {
   type PlayerSeasonStats,
 } from "@/lib/stats";
 import { useRequireAuth } from "@/lib/require-auth";
+import { brand } from "@/brand.generated";
 
 const SEASONS = [2026, 2025, 2024];
 
@@ -87,7 +88,7 @@ export default function StatsPage() {
         <h1>Season stats</h1>
         <p>
           Batting, bowling and results for the club and every player, by season. Figures
-          come from matches scored in Fishers and from ECB Play-Cricket where a club is
+          come from matches scored in {brand.name} and from ECB Play-Cricket where a club is
           linked.
         </p>
       </section>

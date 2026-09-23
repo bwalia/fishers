@@ -1,0 +1,56 @@
+# The original. Its palette is the one the club chose, and the ramp below is
+# what `web/src/app/globals.css` documents: each source colour darkened until
+# it carries white text.
+id: fishers
+name: Fishers
+# Used where a sentence needs the company rather than the product — the
+# privacy policy's "the operator of X".
+legalName: Fishers
+tagline: The club app for grassroots sport
+description: >-
+  Fixtures, availability, live scoring and the numbers afterwards — for clubs
+  that run on a group chat and a spreadsheet.
+
+domain: fishers.cloud
+# Where a ring lives. The CD pipeline builds the hostname from these.
+rings:
+  int: int.fishers.cloud
+  test: test.fishers.cloud
+  acc: acc.fishers.cloud
+  prod: www.fishers.cloud
+
+support:
+  email: hello@fishers.cloud
+
+# The four the club chose. Lovely, and all light — none of them carries white
+# text, which is why the ramp exists.
+source:
+  primary: "#8fa28a"   # sage
+  primaryPale: "#c7d3c0"
+  surface: "#f7f4ed"   # cream
+  accent: "#c8a96b"    # gold
+
+# Darkened until they carry text. Every pair here is checked by
+# `npm run brand:check`; the numbers in globals.css are these.
+ramp:
+  primary400: "#8fa28a"
+  primary500: "#798c76"
+  primary600: "#667964"   # + white = 4.68:1
+  primary700: "#556754"
+  primary800: "#445645"
+  primary900: "#2c3a2d"
+  accent400: "#c8a96b"
+  accent500: "#ac9058"
+  accent600: "#927947"
+  accent700: "#7e673a"    # + white = 5.40:1
+  ink900: "#202a21"
+  ink700: "#374337"
+  ink500: "#4e5c4d"
+
+assets:
+  icon: brands/fishers/icon-192.png
+  badge: brands/fishers/badge.png
+
+mobile:
+  bundleId: com.fishers.app
+  displayName: Fishers

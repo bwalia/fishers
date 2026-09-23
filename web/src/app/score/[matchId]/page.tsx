@@ -44,6 +44,7 @@ import {
   type SquadResponse,
   inningsScore,
 } from "@/lib/cricket";
+import { brand } from "@/brand.generated";
 
 /// The device the book is held on. The API ties the scoring lock to it, so it
 /// has to survive a refresh or the scorer loses their own claim.
@@ -652,7 +653,7 @@ function sidesAndOfficials(
     // nobody there has an account the book could go to.
     emptyText:
       s && !s.club_id
-        ? `${name} isn't on Fishers, so none of its players has an account the book can go to.`
+        ? `${name} isn't on ${brand.name}, so none of its players has an account the book can go to.`
         : `Nobody else from ${name} is named on this match yet.`,
   });
 
@@ -1439,7 +1440,7 @@ function ProposePanel({
           value={name}
           onChange={setName}
           loading={squad.loading}
-          emptyHint="Nobody on Fishers for that side — type their captain's name."
+          emptyHint={`Nobody on ${brand.name} for that side — type their captain's name.`}
         />
       </fieldset>
 
@@ -2073,7 +2074,7 @@ function SideSheet({
 
       {side.players.length === 0 && (
         <p className="muted">
-          Not a Fishers club, so there is no squad to pick from. Add whoever turned up.
+          Not a {brand.name} club, so there is no squad to pick from. Add whoever turned up.
         </p>
       )}
 

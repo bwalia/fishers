@@ -16,6 +16,7 @@ import { FixtureAnswer } from "@/components/FixtureAnswer";
 import { OppositionPicker } from "@/components/OppositionPicker";
 import { Icon, type IconName } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
+import { brand } from "@/brand.generated";
 
 const SUBTYPE_ICON: Record<string, IconName> = {
   league_match: "trophy",
@@ -488,8 +489,8 @@ function ScheduleMatch({
         />
         <p className="subtle">
           {opponent
-            ? `${opponent.name} are on Fishers — their players get asked too.`
-            : "A club on Fishers gets asked as well. Otherwise only your side is."}
+            ? `${opponent.name} are on ${brand.name} — their players get asked too.`
+            : `A club on ${brand.name} gets asked as well. Otherwise only your side is.`}
         </p>
       </fieldset>
 

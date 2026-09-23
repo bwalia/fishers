@@ -4,6 +4,7 @@ import "./globals.css";
 import { ShellNav } from "@/components/ShellNav";
 import { MobileNav } from "@/components/MobileNav";
 import { LiveAlerts } from "@/components/LiveAlerts";
+import { brand } from "@/brand.generated";
 
 // next/font self-hosts and sets font-display: swap, so no FOIT and no layout
 // shift waiting on Google.
@@ -19,7 +20,7 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata = {
-  title: "Fishers — The club app for grassroots sport",
+  title: `${brand.name} — The club app for grassroots sport`,
   description:
     "Fixtures, availability, team selection, live scoring, chat, fees and season stats for your club — cricket first, multi-sport ready.",
 };

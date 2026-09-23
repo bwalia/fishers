@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api, readErr, saveUser, type PublicUser, type RoleIntent } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
+import { brand } from "@/brand.generated";
 
 const ROLES: { value: RoleIntent; icon: IconName; title: string; body: string }[] = [
   {
@@ -51,7 +52,7 @@ export function RoleChooser({
 
   return (
     <div className={`role-chooser${compact ? " compact" : ""}`}>
-      <div className="role-options" role="radiogroup" aria-label="How will you use Fishers?">
+      <div className="role-options" role="radiogroup" aria-label={`How will you use ${brand.name}?`}>
         {ROLES.map((r) => {
           const selected = value === r.value;
           return (

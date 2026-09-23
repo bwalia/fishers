@@ -13,6 +13,7 @@ import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { PeoplePicker, type PeopleTab } from "@/components/PeoplePicker";
 import { useRequireAuth } from "@/lib/require-auth";
+import { brand } from "@/brand.generated";
 
 /// Everyone the fixture knows about, and what they said.
 type Attendee = {
@@ -470,7 +471,7 @@ function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
           onChange={(e) => setIsPublic(e.target.checked)}
         />
         <span>
-          <strong>Anyone on Fishers can buy</strong>
+          <strong>Anyone on {brand.name} can buy</strong>
           <span className="subtle">
             {isPublic
               ? "Visiting clubs and their supporters can buy a ticket. They see the headcount and their own booking — never who else is coming."

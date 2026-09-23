@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { apiV1 } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
+import { brand } from "@/brand.generated";
 
 type ClubPage = {
   club: {
@@ -207,7 +208,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
       </section>
 
       <footer className="club-foot">
-        Fixtures and figures kept on Fishers.
+        Fixtures and figures kept on {brand.name}.
       </footer>
     </main>
   );

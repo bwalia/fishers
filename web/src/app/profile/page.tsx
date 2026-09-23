@@ -22,6 +22,7 @@ import { Avatar } from "@/components/Avatar";
 import { ShareProfile } from "@/components/ShareProfile";
 import { ProfileStrength } from "@/components/ProfileStrength";
 import { useRequireAuth } from "@/lib/require-auth";
+import { brand } from "@/brand.generated";
 
 type Tab = "overview" | "batting" | "bowling";
 
@@ -255,7 +256,7 @@ function Overview({
           {seasons.length === 0 ? (
             <p className="muted">
               Nothing scored yet. Your numbers appear here as soon as you play a match
-              somebody scored on Fishers.
+              somebody scored on {brand.name}.
             </p>
           ) : (
             <>
@@ -415,7 +416,7 @@ function CareerStats({
         <Icon name={discipline === "batting" ? "bat" : "ball"} size={32} />
         <h2>No {discipline} figures yet</h2>
         <p className="muted">
-          These are worked out from matches scored on Fishers. Play one — or ask your
+          These are worked out from matches scored on {brand.name}. Play one — or ask your
           scorer to record it here — and it shows up the same evening.
         </p>
         <Link className="btn primary" href="/matches">Find a match</Link>
