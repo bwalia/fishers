@@ -1,4 +1,19 @@
-# Build the Fishers Android app in Flutter — prompt
+# Build the Fishers Android app in Kotlin and Compose — prompt
+
+> **This brief was written for a Flutter port and has been acted on.** The
+> Android app is Kotlin and Compose, and the living map is
+> [`android/PARITY.md`](../android/PARITY.md) — go there first.
+>
+> What is still true here is the **specification**: what each screen does, what
+> the push behaviour is, what "done" means, and that `ios/Fishers/` wins any
+> disagreement. None of that depends on the toolkit. What is stale is every
+> mention of Dart, pub packages and `flutter` commands — read those as "the
+> Kotlin equivalent".
+>
+> One instruction is no longer true at all: **do not port the cricket engine.**
+> `backend/ffi` exposes the Rust one through UniFFI and the app calls it, so the
+> Laws run once, in the code the server scores with. Three hand-written copies
+> drifted twice in a week; a fourth was the thing worth not doing.
 
 Hand the whole of the next section to a coding agent working in this repo.
 It is a brief, not a tutorial: it says what "done" means, where the truth
@@ -88,7 +103,7 @@ done on a subset.
 
 ## Where the project lives
 
-Create the Flutter app at **`flutter/`** at the repo root, beside `ios/`, `web/`
+Create the Android app at **`android/`** at the repo root, beside `ios/`, `web/`
 and `backend/`. Name the package `fishers`. The iPhone app's bundle id is
 `com.fishers.app`, so use **`com.fishers.app`** as the Android application id —
 the two stores are separate namespaces and sharing the identifier keeps the
@@ -103,10 +118,11 @@ the repo's existing `ios/`.
 
 Match the iOS structure so the two apps can be read side by side. A reviewer
 holding `ios/Fishers/Views/Cricket/ScoreHubView.swift` should find
-`flutter/lib/views/cricket/score_hub_view.dart` without searching.
+`android/app/src/main/kotlin/com/fishers/app/views/cricket/ScoreHubView.kt`
+without searching.
 
 ```
-flutter/lib/
+android/app/src/main/kotlin/com/fishers/app/
   app/          entry point, root widget, providers      ← App/FishersApp.swift
   config/       API/web base URL resolution              ← Config/AppConfig.swift
   theme/        colour ramp, typography, dark mode       ← Theme/FishersTheme.swift

@@ -7,7 +7,7 @@ local.properties
 captures/
 .cxx/
 
-# Release signing, the same way flutter/android keeps it: the keystore and the
+# Release signing: the keystore and the
 # properties that point at it belong to whoever owns the Play listing, not to
 # the repo. CI writes both from secrets.
 key.properties

@@ -4,8 +4,16 @@ Two workflows, the same split as iOS:
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `android.yml` | any change to `flutter/**` | format, analyze, test, build a debug APK |
-| `android_release.yml` | merge to `main`, a `v*.*.*` tag, or dispatch | signed AAB → Play |
+| `android-kotlin.yml` | any change to `android/**` | build the engine, run the tests, build a debug APK |
+| _(release)_ | — | **not written yet** |
+
+> **The release workflow is gone.** It built the Flutter app, which this repo
+> no longer has. It had never released anything: the upload job was gated on
+> `ANDROID_KEYSTORE_B64`, that secret was never set, and every run skipped it.
+> So nothing is lost by its going, and nothing ships from Android until a new
+> one is written against `android/`. Everything below about the keystore and
+> Play's manual first upload still applies — that part is about Play, not about
+> which toolkit built the app.
 
 Skip an automatic release with `[skip release]` or `[skip android]` in the
 commit message.
@@ -74,7 +82,7 @@ usually means "not yet", not "wrong".
 
 ## Versioning
 
-`versionName` comes from `flutter/pubspec.yaml`, or from the tag (`v1.4.0`
+`versionName` comes from `android/app/build.gradle.kts`, or from the tag (`v1.4.0`
 ships as `1.4.0`), or from the dispatch input.
 
 `versionCode` is **`github.run_number`**, never pubspec's `+n`. Play refuses a
@@ -91,17 +99,21 @@ the same way the App Store is on iOS.
 ## Building locally
 
 ```bash
-cd flutter
-flutter build appbundle --release
+cd android
+./gradlew :app:bundleRelease
 ```
 
-Without `android/key.properties` this signs with the **debug** key, so it runs
-on a device but cannot be uploaded. That fallback is deliberate — it keeps
-`flutter run --release` working for everyone without a keystore — and it is
-safe because uploads only ever happen in the release workflow, which writes
-`key.properties` first or fails.
+It needs a Rust toolchain and the NDK, like every Android build here: the
+cricket engine is Rust, cross-compiled in. There is no fallback that skips it,
+because an app with no scoring rules is worse than no app.
 
-To sign locally, create `flutter/android/key.properties` (gitignored):
+Without `android/key.properties` this signs with the **debug** key, so it runs
+on a device but cannot be uploaded. That fallback is deliberate — it keeps a
+release build working for everyone without a keystore — and it is safe because
+uploads only ever happen in the release workflow, which writes `key.properties`
+first or fails.
+
+To sign locally, create `android/key.properties` (gitignored):
 
 ```properties
 storeFile=upload-keystore.jks
@@ -110,12 +122,16 @@ keyAlias=upload
 keyPassword=…
 ```
 
-with the `.jks` beside it in `flutter/android/`.
+with the `.jks` beside it in `android/`.
 
 ## What the release build does
 
 `isMinifyEnabled` and `isShrinkResources` are on, so the bundle ships an R8
 mapping file and native debug symbols, both uploaded to Play. Without them a
-release stack trace is unreadable. `flutter/android/app/proguard-rules.pro`
-is empty on purpose: Flutter and its plugins carry their own consumer rules,
-and a rule added speculatively is a rule nobody can safely remove later.
+release stack trace is unreadable.
+
+`android/app/proguard-rules.pro` keeps only what R8 cannot work out for itself:
+kotlinx.serialization finds its serializers by annotation, and without the
+keep rules a release build decodes every API response into nothing. Nothing
+speculative goes in there — a rule added just in case is a rule nobody can
+safely remove later.
