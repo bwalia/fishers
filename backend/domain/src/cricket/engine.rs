@@ -121,12 +121,17 @@ impl MatchState {
                 by,
                 by_name,
             } => {
-                if conditions.overs_limit == 0 {
+                // A limited-overs match with no overs is not a match. A
+                // declaration game has no over limit by design — it is played
+                // to a clock — so nought there is an answer, not an omission.
+                if conditions.overs_limit == 0 && !conditions.two_innings() {
                     return Err(DomainError::Validation(
                         "a match needs at least one over".into(),
                     ));
                 }
-                if conditions.overs_per_bowler > conditions.overs_limit {
+                if conditions.overs_limit > 0
+                    && conditions.overs_per_bowler > conditions.overs_limit
+                {
                     return Err(DomainError::Validation(
                         "a bowler cannot be allowed more overs than the innings has".into(),
                     ));
@@ -526,7 +531,11 @@ impl MatchState {
                     inn.bowler_id = None;
                 }
             }
-            ScoringEventKind::InningsCompleted => {
+            ScoringEventKind::InningsCompleted { declared, forfeited } => {
+                if let Some(inn) = self.current_innings_mut() {
+                    inn.declared = *declared;
+                    inn.forfeited = *forfeited;
+                }
                 self.complete_innings()?;
             }
             ScoringEventKind::MatchCompleted { winner, margin } => {
@@ -1020,17 +1029,92 @@ impl MatchState {
             .current_innings_mut()
             .ok_or_else(|| DomainError::Validation("no innings".into()))?;
         inn.complete = true;
-        let idx = inn.index;
-        let runs = inn.runs;
-        if idx % 2 == 0 {
-            // The side batting next is chasing this.
-            self.target = Some(runs + 1);
-            self.status = MatchStatus::InningsBreak;
+        self.settle_after_innings();
+        Ok(())
+    }
+
+    /// Runs a side has made across the match. Super overs are their own
+    /// contest and never count towards it.
+    fn aggregate(&self, side: MatchSide) -> u16 {
+        self.innings
+            .iter()
+            .filter(|i| i.batting == side && !i.super_over)
+            .map(|i| i.runs)
+            .sum()
+    }
+
+    /// The last innings this format allows, ignoring super overs: the second
+    /// of a limited-overs game, the fourth of a two-innings one.
+    fn final_innings_index(&self) -> u8 {
+        self.conditions.innings_per_side.max(1) * 2 - 1
+    }
+
+    /// Whether the innings at `index` is the last one to be played.
+    ///
+    /// A super over is always a pair, however long the match was, so it keeps
+    /// the old odd-index rule rather than the format's.
+    fn is_final_innings(&self, index: u8, super_over: bool) -> bool {
+        if super_over {
+            index % 2 == 1
         } else {
+            index == self.final_innings_index()
+        }
+    }
+
+    /// Where the match stands now this innings has closed: whose turn it is,
+    /// what they need, or whether it is over.
+    fn settle_after_innings(&mut self) {
+        let Some(inn) = self.current_innings() else {
+            return;
+        };
+        let (index, runs, super_over) = (inn.index, inn.runs, inn.super_over);
+
+        if self.is_final_innings(index, super_over) {
             self.status = MatchStatus::Complete;
             self.finish_result();
+            return;
         }
-        Ok(())
+
+        // One innings a side: the side batting next is chasing what was just
+        // made, and that is the whole of it.
+        if super_over || !self.conditions.two_innings() {
+            self.target = Some(runs + 1);
+            self.status = MatchStatus::InningsBreak;
+            return;
+        }
+
+        // Two innings a side. Nobody is chasing anything until three innings
+        // are done, because until then neither side has finished batting.
+        if index < 2 {
+            self.status = MatchStatus::InningsBreak;
+            return;
+        }
+
+        // Three innings down, so the side that just batted has had both of
+        // theirs — whether they followed on or not. The other side has batted
+        // once and has one left.
+        let batted_twice = self.innings[index as usize].batting;
+        let waiting = batted_twice.opposite();
+        let (theirs, ours) = (self.aggregate(batted_twice), self.aggregate(waiting));
+
+        if theirs < ours {
+            // They batted twice and still did not make up the deficit, so the
+            // other side has won without needing to bat again.
+            let by = ours - theirs;
+            let margin = format!(
+                "{} won by an innings and {by} run{}",
+                self.side_name(waiting),
+                if by == 1 { "" } else { "s" }
+            );
+            self.winner = Some(waiting);
+            self.margin = Some(margin);
+            self.status = MatchStatus::Complete;
+            return;
+        }
+
+        // Level counts as a chase for one run: they are not past it yet.
+        self.target = Some(theirs - ours + 1);
+        self.status = MatchStatus::InningsBreak;
     }
 
     /// A chase reaching its target, an innings running out of balls or wickets,
@@ -1042,9 +1126,15 @@ impl MatchState {
         let index = inn.index;
         let complete = inn.complete;
         let runs = inn.runs;
+        let super_over = inn.super_over;
+        let is_final = self.is_final_innings(index, super_over);
 
+        // A chase is only ever on in the last innings, and only once somebody
+        // has set a target. The target is what they need *in this innings* —
+        // in a two-innings match it already has their first innings taken off
+        // it — so it is this innings' runs that chase it, never the aggregate.
         if !complete {
-            if index % 2 == 1 {
+            if is_final {
                 if let Some(target) = self.target {
                     if runs >= target {
                         if let Some(inn) = self.current_innings_mut() {
@@ -1058,12 +1148,10 @@ impl MatchState {
             return;
         }
 
-        if index % 2 == 0 && self.status == MatchStatus::Live {
-            self.target = Some(runs + 1);
-            self.status = MatchStatus::InningsBreak;
-        } else if index % 2 == 1 && self.status != MatchStatus::Complete {
-            self.status = MatchStatus::Complete;
-            self.finish_result();
+        // The innings closed on its own — out of wickets, out of overs — so
+        // settle what follows, unless something already has.
+        if self.status != MatchStatus::Complete && self.status != MatchStatus::InningsBreak {
+            self.settle_after_innings();
         }
     }
 
@@ -1071,6 +1159,12 @@ impl MatchState {
     /// a match that the regular innings tied.
     fn finish_result(&mut self) {
         if self.innings.len() < 2 {
+            return;
+        }
+        // A match where a side bats twice is won on aggregate, not on the last
+        // pair of innings, and it is lost by a margin the pair cannot express.
+        if self.conditions.two_innings() && !self.innings.iter().any(|i| i.super_over) {
+            self.finish_two_innings_result();
             return;
         }
         let count = self.innings.len();
@@ -1118,6 +1212,44 @@ impl MatchState {
             } else {
                 "Match tied".into()
             });
+        }
+    }
+
+    /// Two innings a side: the side batting last either gets past the other's
+    /// aggregate with wickets to spare, or falls short by runs.
+    fn finish_two_innings_result(&mut self) {
+        let Some(last) = self.innings.last() else {
+            return;
+        };
+        let chasing = last.batting;
+        let defending = chasing.opposite();
+        let (wickets, wickets_allowed) = (last.wickets, last.wickets_allowed);
+        let (theirs, ours) = (self.aggregate(chasing), self.aggregate(defending));
+
+        if theirs > ours {
+            let left = wickets_allowed.saturating_sub(wickets);
+            let margin = format!(
+                "{} won by {left} wicket{}",
+                self.side_name(chasing),
+                if left == 1 { "" } else { "s" }
+            );
+            self.winner = Some(chasing);
+            self.margin = Some(margin);
+        } else if theirs < ours {
+            let by = ours - theirs;
+            let margin = format!(
+                "{} won by {by} run{}",
+                self.side_name(defending),
+                if by == 1 { "" } else { "s" }
+            );
+            self.winner = Some(defending);
+            self.margin = Some(margin);
+        } else {
+            // Level on aggregate with the last innings closed: a tie, which is
+            // not a draw — a draw is running out of time, and the scorer calls
+            // that one.
+            self.winner = None;
+            self.margin = Some("Match tied".into());
         }
     }
 }
@@ -1222,7 +1354,19 @@ mod tests {
     }
 
     impl Fixture {
+        /// Two innings a side, no over limit — a declaration game.
+        fn multi_day() -> Self {
+            let f = Self::with_conditions(0, MatchConditions::multi_day(0));
+            assert!(f.state.conditions.two_innings(), "two innings a side");
+            assert_eq!(f.state.innings[0].overs_available, 0, "no over limit");
+            f
+        }
+
         fn new(overs: u8) -> Self {
+            Self::with_conditions(overs, MatchConditions::standard(overs))
+        }
+
+        fn with_conditions(overs: u8, conditions: MatchConditions) -> Self {
             let home = team("Home", 11);
             let away = team("Away", 11);
             let mut state = MatchState::default();
@@ -1244,7 +1388,7 @@ mod tests {
                 &mut state,
                 &mut seq,
                 ScoringEventKind::ConditionsProposed {
-                    conditions: MatchConditions::standard(overs),
+                    conditions,
                     by: MatchSide::Home,
                     by_name: "Home captain".into(),
                 },
@@ -1346,16 +1490,61 @@ mod tests {
             if inn.bowler_id.is_none() || inn.last_over_bowler != inn.bowler_id {
                 return;
             }
-            let next = if inn.bowler_id == Some(self.away[0].id) {
-                self.away[1].id
+            // Rotate within whichever side is bowling. Always reaching for the
+            // away team worked while Home only ever batted first and once; a
+            // two-innings match has Home bowling too.
+            let current = inn.bowler_id;
+            let bowling = inn.bowling;
+            let squad = match bowling {
+                MatchSide::Home => &self.home,
+                MatchSide::Away => &self.away,
+            };
+            let next = if current == Some(squad[0].id) {
+                squad[1].id
             } else {
-                self.away[0].id
+                squad[0].id
             };
             self.push(ScoringEventKind::BowlerChanged { bowler_id: next });
         }
 
         fn innings(&self) -> &InningsState {
             self.state.current_innings().unwrap()
+        }
+
+        /// Open an innings for `batting`, whoever batted last — a side may bat
+        /// twice running when they follow on.
+        fn start_innings(&mut self, batting: MatchSide) {
+            let (bat, bowl) = match batting {
+                MatchSide::Home => (&self.home, &self.away),
+                MatchSide::Away => (&self.away, &self.home),
+            };
+            let (striker, non_striker, bowler) = (bat[0].id, bat[1].id, bowl[0].id);
+            let index = self.state.innings.len() as u8;
+            self.push(ScoringEventKind::InningsStarted {
+                innings_index: index,
+                batting,
+                striker_id: striker,
+                non_striker_id: non_striker,
+                bowler_id: bowler,
+                super_over: false,
+            });
+        }
+
+        /// Score up to `runs` off the bat without losing a wicket, in fours and
+        /// singles. Stops early if the innings or the match ends — a chase does
+        /// not politely wait for the loop to finish.
+        fn score_innings(&mut self, runs: u16) {
+            let mut left = runs;
+            while left > 0 {
+                if self.state.status == MatchStatus::Complete
+                    || self.state.current_innings().is_none_or(|i| i.complete)
+                {
+                    break;
+                }
+                let ball: u8 = if left >= 4 { 4 } else { 1 };
+                self.runs(ball);
+                left -= ball as u16;
+            }
         }
     }
 
@@ -1782,7 +1971,7 @@ mod tests {
     fn chasing_side_wins_by_wickets_with_balls_to_spare() {
         let mut m = Fixture::new(2);
         m.runs(4);
-        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
         assert_eq!(m.state.target, Some(5));
         m.push(ScoringEventKind::InningsStarted {
             innings_index: 1,
@@ -1847,7 +2036,7 @@ mod tests {
     fn the_chase_line_reads_like_a_scoreboard() {
         let mut m = Fixture::new(2);
         m.runs(4);
-        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
         m.push(ScoringEventKind::InningsStarted {
             innings_index: 1,
             batting: MatchSide::Away,
@@ -2478,6 +2667,134 @@ mod tests {
         assert_eq!(m.innings().striker_id, Some(m.home[2].id));
     }
 
+    // ---- two innings a side ----
+
+    /// The shape of a declaration game: four innings, won on aggregate. Home
+    /// 200 and 150, Away 120, so Away need 231 in the fourth. They get there,
+    /// and the margin is the wickets they had left.
+    #[test]
+    fn a_two_innings_match_is_won_on_aggregate() {
+        let mut m = Fixture::multi_day();
+
+        // First innings: Home 200.
+        m.score_innings(200);
+        m.push(ScoringEventKind::InningsCompleted { declared: true, forfeited: false });
+        assert_eq!(m.state.status, MatchStatus::InningsBreak);
+        assert_eq!(m.state.target, None, "nobody is chasing after one innings");
+
+        // Second: Away 120.
+        m.start_innings(MatchSide::Away);
+        m.score_innings(120);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
+        assert_eq!(m.state.target, None, "still nobody chasing");
+
+        // Third: Home 150, so Home lead by 230.
+        m.start_innings(MatchSide::Home);
+        m.score_innings(150);
+        m.push(ScoringEventKind::InningsCompleted { declared: true, forfeited: false });
+        assert_eq!(m.state.target, Some(231), "350 against 120, so 231 to win");
+        assert_eq!(m.state.status, MatchStatus::InningsBreak);
+
+        // Fourth: Away need 231 in this innings, their first 120 already
+        // taken off the 350 they are chasing.
+        m.start_innings(MatchSide::Away);
+        m.score_innings(231);
+        assert_eq!(m.state.status, MatchStatus::Complete, "the chase ended it");
+        assert_eq!(m.state.winner, Some(MatchSide::Away));
+        assert!(
+            m.state.margin.as_deref().unwrap().contains("won by"),
+            "{:?}",
+            m.state.margin
+        );
+        assert!(
+            m.state.margin.as_deref().unwrap().contains("wicket"),
+            "a chase is won by wickets: {:?}",
+            m.state.margin
+        );
+    }
+
+    /// Bat twice and still not make up the deficit and you have lost by an
+    /// innings — the other side never bats again, so there is no fourth.
+    #[test]
+    fn falling_short_after_batting_twice_loses_by_an_innings() {
+        let mut m = Fixture::multi_day();
+
+        m.score_innings(300);
+        m.push(ScoringEventKind::InningsCompleted { declared: true, forfeited: false });
+
+        // Away 100, then follow on and make 150: 250 against 300.
+        m.start_innings(MatchSide::Away);
+        m.score_innings(100);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
+
+        m.start_innings(MatchSide::Away); // following on
+        m.score_innings(150);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
+
+        assert_eq!(m.state.status, MatchStatus::Complete);
+        assert_eq!(m.state.winner, Some(MatchSide::Home));
+        assert_eq!(
+            m.state.margin.as_deref(),
+            Some("Lords won by an innings and 50 runs")
+        );
+        assert_eq!(m.state.innings.len(), 3, "the fourth innings is never played");
+    }
+
+    /// The follow-on is simply the same side batting again, so the engine must
+    /// not insist the sides alternate.
+    #[test]
+    fn the_same_side_may_bat_two_innings_running() {
+        let mut m = Fixture::multi_day();
+        m.score_innings(400);
+        m.push(ScoringEventKind::InningsCompleted { declared: true, forfeited: false });
+        m.start_innings(MatchSide::Away);
+        m.score_innings(100);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
+        m.start_innings(MatchSide::Away);
+        assert_eq!(m.innings().batting, MatchSide::Away, "they followed on");
+        assert_eq!(m.innings().index, 2);
+    }
+
+    /// A declared innings is not an all-out one, and the card has to say so.
+    #[test]
+    fn a_declaration_is_recorded_as_one() {
+        let mut m = Fixture::multi_day();
+        m.score_innings(40);
+        m.push(ScoringEventKind::InningsCompleted { declared: true, forfeited: false });
+        let inn = &m.state.innings[0];
+        assert!(inn.declared, "350 for 4 declared is not 350 all out");
+        assert!(!inn.forfeited);
+        assert!(inn.complete);
+    }
+
+    /// Law 15.2. An innings can be given up without being played.
+    #[test]
+    fn an_innings_can_be_forfeited() {
+        let mut m = Fixture::multi_day();
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: true });
+        assert!(m.state.innings[0].forfeited);
+        assert_eq!(m.state.innings[0].runs, 0);
+    }
+
+    /// Nought overs is a real answer for a declaration game and a nonsense one
+    /// for a limited-overs match, and the engine tells them apart.
+    #[test]
+    fn only_a_declaration_game_may_have_no_over_limit() {
+        let m = Fixture::multi_day();
+        assert_eq!(m.innings().overs_available, 0, "played to a clock");
+
+        // The same terms without the two-innings flag are refused.
+        let mut limited = MatchConditions::multi_day(0);
+        limited.innings_per_side = 1;
+        let mut f = Fixture::new(20);
+        let refused = f.try_push(ScoringEventKind::ConditionsProposed {
+            conditions: limited,
+            by: MatchSide::Home,
+            by_name: "Home captain".into(),
+        });
+        assert!(refused.is_err(), "a limited-overs match needs overs");
+    }
+
     /// Law 24. A sub may catch, and the card has to say they were a sub: "c
     /// sub (Patel) b Jones" is a different claim from "c Patel b Jones". They
     /// are named without joining the XI, because they may not bat or bowl.
@@ -2781,7 +3098,7 @@ mod tests {
         for _ in 0..first_innings_runs {
             m.runs(1);
         }
-        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
         m.push(ScoringEventKind::InningsStarted {
             innings_index: 1,
             batting: MatchSide::Away,
@@ -3104,7 +3421,7 @@ mod tests {
         assert_eq!(m.innings().runs, 4, "the batting side keeps its own score");
         assert_eq!(m.state.pending_penalty(MatchSide::Away), 5);
 
-        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
         m.push(ScoringEventKind::InningsStarted {
             innings_index: 1,
             batting: MatchSide::Away,
@@ -3122,7 +3439,7 @@ mod tests {
     fn a_penalty_to_a_side_that_has_already_batted_lands_on_their_innings() {
         let mut m = Fixture::new(20);
         m.runs(4);
-        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
         m.push(ScoringEventKind::InningsStarted {
             innings_index: 1,
             batting: MatchSide::Away,
@@ -3485,7 +3802,7 @@ mod tests {
         for _ in 0..6 {
             m.runs(4);
         }
-        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
         m.push(ScoringEventKind::InningsStarted {
             innings_index: 1,
             batting: MatchSide::Away,
@@ -3512,7 +3829,7 @@ mod tests {
         for _ in 0..12 {
             m.runs(3);
         }
-        m.push(ScoringEventKind::InningsCompleted);
+        m.push(ScoringEventKind::InningsCompleted { declared: false, forfeited: false });
         m.push(ScoringEventKind::InningsStarted {
             innings_index: 1,
             batting: MatchSide::Away,
