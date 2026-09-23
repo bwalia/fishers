@@ -85,7 +85,11 @@ function main(argv) {
     console.log(`${brand.name} (${id})`);
     if (!reportContrast(brand)) return 1;
 
-    const chosen = flags.filter((f) => f.startsWith("--")).map((f) => f.slice(2));
+    const outFlag = flags.find((f) => f.startsWith("--out="));
+    const outDir = outFlag ? outFlag.slice("--out=".length) : undefined;
+    const chosen = flags
+      .filter((f) => f.startsWith("--") && !f.startsWith("--out="))
+      .map((f) => f.slice(2));
     const targets = chosen.length ? chosen : Object.keys(TARGETS);
     for (const target of targets) {
       const build = TARGETS[target];
@@ -94,7 +98,7 @@ function main(argv) {
           `No target called "${target}". There is: ${Object.keys(TARGETS).join(", ")}`,
         );
       }
-      write(build(brand, repoRoot));
+      write(build(brand, repoRoot, outDir));
     }
     return 0;
   }

@@ -7,8 +7,13 @@ import { join } from "node:path";
  * the per-brand resources: the app name and the palette. The flavour itself is
  * declared in build.gradle.kts, which is code somebody reads, not output.
  */
-export function androidFiles(brand, repoRoot) {
-  const dir = join(repoRoot, "android", "app", "src", brand.id, "res", "values");
+export function androidFiles(brand, repoRoot, outDir) {
+  // Gradle passes where it wants them, because generated resources go through
+  // the variant API — a directory written into a source set is one AGP cannot
+  // see a task dependency for.
+  const dir = outDir
+    ? join(outDir, "values")
+    : join(repoRoot, "android", "app", "src", brand.id, "res", "values");
   return [
     { path: join(dir, "strings.xml"), contents: strings(brand) },
     { path: join(dir, "brand_colors.xml"), contents: colours(brand) },
