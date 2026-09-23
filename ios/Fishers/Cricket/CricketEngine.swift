@@ -56,10 +56,13 @@ extension MatchState {
             status = .preparing
 
         case let .conditionsProposed(proposed, by, byName):
-            guard proposed.oversLimit > 0 else {
+            // A limited-overs match with no overs is not a match. A
+            // declaration game has no over limit by design — it is played to a
+            // clock — so nought there is an answer, not an omission.
+            guard proposed.oversLimit > 0 || proposed.twoInnings else {
                 throw CricketEngineError.validation("a match needs at least one over")
             }
-            guard proposed.oversPerBowler <= proposed.oversLimit else {
+            guard proposed.oversLimit == 0 || proposed.oversPerBowler <= proposed.oversLimit else {
                 throw CricketEngineError.validation(
                     "a bowler cannot be allowed more overs than the innings has"
                 )
@@ -251,8 +254,12 @@ extension MatchState {
             }
             // The opening bowler counts against the allocation like any other.
             try checkBowlerAvailable(bowler)
-            // Every odd innings is a chase of the one before it.
-            if idx % 2 == 1, innings.count >= 2 {
+            // Every odd innings is a chase of the one before it — in a match
+            // where each side bats once. Where they bat twice the target is an
+            // aggregate, settled when the third innings closes, not when the
+            // fourth opens.
+            if idx % 2 == 1, innings.count >= 2,
+               superOver || !conditions.twoInnings {
                 target = innings[innings.count - 2].runs + 1
             }
 
@@ -303,7 +310,11 @@ extension MatchState {
             // open rather than pointing at a bowler who may not bowl.
             if innings[idx].bowlerId == bowlerId { innings[idx].bowlerId = nil }
 
-        case .inningsCompleted:
+        case let .inningsCompleted(declared, forfeited):
+            if !innings.isEmpty {
+                innings[innings.count - 1].declared = declared
+                innings[innings.count - 1].forfeited = forfeited
+            }
             try completeInnings()
 
         case let .matchCompleted(winner, margin):
@@ -692,33 +703,115 @@ extension MatchState {
 
     private mutating func completeInnings() throws {
         guard !innings.isEmpty else { throw CricketEngineError.validation("no innings") }
-        let idx = innings.count - 1
-        innings[idx].complete = true
-        if innings[idx].index == 0 {
-            target = innings[idx].runs + 1
-            status = .inningsBreak
-        } else {
+        innings[innings.count - 1].complete = true
+        settleAfterInnings()
+    }
+
+    /// Runs a side has made across the match. Super overs are their own
+    /// contest and never count towards it.
+    private func aggregate(_ side: MatchSide) -> UInt16 {
+        innings.filter { $0.batting == side && !$0.superOver }
+            .reduce(UInt16(0)) { $0 + $1.runs }
+    }
+
+    /// The last innings this format allows, ignoring super overs: the second
+    /// of a limited-overs game, the fourth of a two-innings one.
+    private var finalInningsIndex: UInt8 { max(1, conditions.inningsPerSide) * 2 - 1 }
+
+    /// A super over is always a pair, however long the match was, so it keeps
+    /// the old odd-index rule rather than the format's.
+    private func isFinalInnings(_ index: UInt8, superOver: Bool) -> Bool {
+        superOver ? index % 2 == 1 : index == finalInningsIndex
+    }
+
+    /// Where the match stands now this innings has closed.
+    private mutating func settleAfterInnings() {
+        guard let inn = currentInnings else { return }
+        let (index, runs, superOver) = (inn.index, inn.runs, inn.superOver)
+
+        if isFinalInnings(index, superOver: superOver) {
             status = .complete
             finishResult()
+            return
         }
+
+        // One innings a side: the side batting next chases what was just made.
+        if superOver || !conditions.twoInnings {
+            target = runs + 1
+            status = .inningsBreak
+            return
+        }
+
+        // Two innings a side. Nobody chases anything until three are done,
+        // because until then neither side has finished batting.
+        if index < 2 {
+            status = .inningsBreak
+            return
+        }
+
+        // Three down, so the side that just batted has had both of theirs,
+        // whether they followed on or not.
+        let battedTwice = innings[Int(index)].batting
+        let waiting = battedTwice.opposite
+        let theirs = aggregate(battedTwice)
+        let ours = aggregate(waiting)
+
+        if theirs < ours {
+            let by = ours - theirs
+            winner = waiting
+            margin = "\(name(for: waiting)) won by an innings and \(by) run\(by == 1 ? "" : "s")"
+            status = .complete
+            return
+        }
+
+        // Level counts as a chase for one run: they are not past it yet.
+        target = theirs - ours + 1
+        status = .inningsBreak
     }
 
     private mutating func checkAutoComplete() {
         guard let inn = currentInnings else { return }
+        let isFinal = isFinalInnings(inn.index, superOver: inn.superOver)
+
+        // The target is what they need *in this innings* — in a two-innings
+        // match their first innings has already been taken off it — so this
+        // innings' runs chase it, never the aggregate.
         if !inn.complete {
-            if inn.index % 2 == 1, let target, inn.runs >= target {
+            if isFinal, let target, inn.runs >= target {
                 innings[innings.count - 1].complete = true
                 status = .complete
                 finishResult()
             }
             return
         }
-        if inn.index % 2 == 0 && status == .live {
-            target = inn.runs + 1
-            status = .inningsBreak
-        } else if inn.index % 2 == 1 && status != .complete {
-            status = .complete
-            finishResult()
+        if status != .complete && status != .inningsBreak {
+            settleAfterInnings()
+        }
+    }
+
+    /// Two innings a side: the side batting last either gets past the other's
+    /// aggregate with wickets to spare, or falls short by runs.
+    private mutating func finishTwoInningsResult() {
+        guard let last = innings.last else { return }
+        let chasing = last.batting
+        let defending = chasing.opposite
+        let theirs = aggregate(chasing)
+        let ours = aggregate(defending)
+
+        if theirs > ours {
+            let left = last.wicketsAllowed > last.wickets
+                ? last.wicketsAllowed - last.wickets : 0
+            winner = chasing
+            margin = "\(name(for: chasing)) won by \(left) wicket\(left == 1 ? "" : "s")"
+        } else if theirs < ours {
+            let by = ours - theirs
+            winner = defending
+            margin = "\(name(for: defending)) won by \(by) run\(by == 1 ? "" : "s")"
+        } else {
+            // Level with the last innings closed is a tie, not a draw — a draw
+            // is running out of time, and the scorer calls that one.
+            winner = nil
+            margin = "Match tied"
         }
     }
 
@@ -748,6 +841,12 @@ extension MatchState {
     /// a match that the regular innings tied.
     private mutating func finishResult() {
         guard innings.count >= 2 else { return }
+        // A match where a side bats twice is won on aggregate, not on the last
+        // pair of innings, and lost by a margin the pair cannot express.
+        if conditions.twoInnings && !innings.contains(where: { $0.superOver }) {
+            finishTwoInningsResult()
+            return
+        }
         let first = innings[innings.count - 2]
         let second = innings[innings.count - 1]
         let isSuperOver = second.superOver

@@ -188,6 +188,16 @@ pub struct MatchConditions {
     /// Overs a side is expected to bowl in an hour. 0 means nobody is counting.
     #[serde(default)]
     pub target_overs_per_hour: u8,
+    /// Innings each side bats. One for limited-overs; two for declaration
+    /// cricket — a two-day club game, a county match, a Test. Two changes how
+    /// the match is won: on aggregate across both innings, with a draw a real
+    /// result rather than a failure to get one.
+    #[serde(default = "default_innings_per_side")]
+    pub innings_per_side: u8,
+}
+
+fn default_innings_per_side() -> u8 {
+    1
 }
 
 fn default_powerplay_outside() -> u8 {
@@ -233,7 +243,25 @@ impl MatchConditions {
             fielders_outside_normal: 5,
             fielders_behind_square_leg: 2,
             target_overs_per_hour: 0,
+            innings_per_side: 1,
         }
+    }
+
+    /// Two innings a side, played to a clock rather than an over limit — the
+    /// shape of a declaration game. `overs` of 0 means nobody is counting.
+    pub fn multi_day(overs: u8) -> Self {
+        Self {
+            overs_limit: overs,
+            overs_per_bowler: 0,
+            powerplay_overs: 0,
+            innings_per_side: 2,
+            ..Self::standard(overs.max(1))
+        }
+    }
+
+    /// Whether this is a match where a side bats twice.
+    pub fn two_innings(&self) -> bool {
+        self.innings_per_side >= 2
     }
 
     /// The terms of a super over: one over, two wickets, no restrictions.
@@ -243,6 +271,7 @@ impl MatchConditions {
             overs_per_bowler: 1,
             powerplay_overs: 0,
             target_overs_per_hour: 0,
+            innings_per_side: 1,
             ..*self
         }
     }
@@ -542,7 +571,14 @@ pub enum ScoringEventKind {
         /// What they were taken off for. It reads out in the commentary.
         reason: String,
     },
-    InningsCompleted,
+    InningsCompleted {
+        /// The batting captain closed it (Law 15).
+        #[serde(default)]
+        declared: bool,
+        /// Given up without being played (Law 15.2).
+        #[serde(default)]
+        forfeited: bool,
+    },
     MatchCompleted {
         winner: Option<MatchSide>,
         margin: String,
@@ -731,6 +767,13 @@ pub struct InningsState {
     /// on; they do not bowl again.
     #[serde(default)]
     pub suspended_bowlers: BTreeSet<Uuid>,
+    /// Law 15: the batting captain closed it. "350/4 dec" is not "350 all out",
+    /// and the card has to say which.
+    #[serde(default)]
+    pub declared: bool,
+    /// Law 15.2: the innings was given up without being played at all.
+    #[serde(default)]
+    pub forfeited: bool,
     /// All out at this many wickets — one fewer than the team sheet.
     #[serde(default = "default_wickets_allowed")]
     pub wickets_allowed: u8,
@@ -801,6 +844,8 @@ impl Default for InningsState {
             overs_available: 0,
             last_over_bowler: None,
             suspended_bowlers: BTreeSet::new(),
+            declared: false,
+            forfeited: false,
             free_hit: false,
             super_over: false,
             powerplay_overs: 0,
