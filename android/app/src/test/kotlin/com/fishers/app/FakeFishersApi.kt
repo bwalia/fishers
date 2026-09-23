@@ -7,6 +7,9 @@ import com.fishers.app.chat.PostMessageRequest
 import com.fishers.app.clubs.Club
 import com.fishers.app.clubs.ClubMemberDetail
 import com.fishers.app.clubs.Team
+import com.fishers.app.cricket.CricketMatch
+import com.fishers.app.cricket.EventsBatch
+import com.fishers.app.cricket.ScoringEvent
 import com.fishers.app.fixtures.FishersEvent
 import com.fishers.app.fixtures.RsvpRequest
 import com.fishers.app.motm.CastMotmVoteRequest
@@ -32,6 +35,8 @@ import com.fishers.app.net.SignupRequest
  * that returns `Unit` — which is every void endpoint here.
  */
 open class FakeFishersApi : FishersApi {
+
+    // ---- auth ----
     override suspend fun login(body: LoginRequest): AuthTokens = error("login not expected")
     override suspend fun signup(body: SignupRequest): AuthTokens = error("signup not expected")
     override suspend fun refresh(body: RefreshRequest): AuthTokens = error("refresh not expected")
@@ -39,6 +44,40 @@ open class FakeFishersApi : FishersApi {
     override suspend fun setRoleIntent(body: RoleIntentPatch): PublicUser =
         error("setRoleIntent not expected")
 
+    // ---- cricket ----
+    override suspend fun cricketMatch(eventId: String): CricketMatch =
+        error("cricketMatch not expected")
+
+    override suspend fun scoringEvents(matchId: String): List<ScoringEvent> =
+        error("scoringEvents not expected")
+
+    override suspend fun postScoringEvents(matchId: String, body: EventsBatch): CricketMatch =
+        error("postScoringEvents not expected")
+
+    // ---- clubs ----
+    override suspend fun myClubs(): List<Club> = error("myClubs not expected")
+    override suspend fun clubMembers(id: String): List<ClubMemberDetail> =
+        error("clubMembers not expected")
+
+    override suspend fun clubTeams(id: String): List<Team> = error("clubTeams not expected")
+
+    // ---- fixtures ----
+    override suspend fun myFixtures(): List<FishersEvent> = error("myFixtures not expected")
+    override suspend fun event(id: String): FishersEvent = error("event not expected")
+    override suspend fun rsvp(id: String, body: RsvpRequest): Unit = error("rsvp not expected")
+
+    // ---- man of the match ----
+    override suspend fun motmPoll(id: String): MotmPollView = error("motmPoll not expected")
+    override suspend fun motmForEvent(eventId: String): MotmPollView =
+        error("motmForEvent not expected")
+
+    override suspend fun castMotmVote(id: String, body: CastMotmVoteRequest): MotmPollView =
+        error("castMotmVote not expected")
+
+    override suspend fun withdrawMotmVote(id: String): MotmPollView =
+        error("withdrawMotmVote not expected")
+
+    // ---- chat ----
     override suspend fun conversations(): List<ConversationSummary> =
         error("conversations not expected")
 
@@ -49,23 +88,4 @@ open class FakeFishersApi : FishersApi {
 
     override suspend fun markRead(id: String, body: MarkReadRequest): Unit =
         error("markRead not expected")
-
-    override suspend fun myClubs(): List<Club> = error("myClubs not expected")
-    override suspend fun clubMembers(id: String): List<ClubMemberDetail> =
-        error("clubMembers not expected")
-    override suspend fun clubTeams(id: String): List<Team> = error("clubTeams not expected")
-
-    override suspend fun myFixtures(): List<FishersEvent> = error("myFixtures not expected")
-    override suspend fun event(id: String): FishersEvent = error("event not expected")
-    override suspend fun rsvp(id: String, body: RsvpRequest): Unit = error("rsvp not expected")
-
-    override suspend fun motmPoll(id: String): MotmPollView = error("motmPoll not expected")
-    override suspend fun motmForEvent(eventId: String): MotmPollView =
-        error("motmForEvent not expected")
-
-    override suspend fun castMotmVote(id: String, body: CastMotmVoteRequest): MotmPollView =
-        error("castMotmVote not expected")
-
-    override suspend fun withdrawMotmVote(id: String): MotmPollView =
-        error("withdrawMotmVote not expected")
 }

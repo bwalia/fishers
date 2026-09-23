@@ -100,6 +100,22 @@ interface FishersApi {
         @Body body: com.fishers.app.chat.PostMessageRequest,
     ): com.fishers.app.chat.ChatMessage
 
+    // ---- cricket ----
+
+    @GET("events/{id}/cricket-match")
+    suspend fun cricketMatch(@Path("id") eventId: String): com.fishers.app.cricket.CricketMatch
+
+    @GET("cricket/matches/{id}/events")
+    suspend fun scoringEvents(
+        @Path("id") matchId: String,
+    ): List<com.fishers.app.cricket.ScoringEvent>
+
+    @POST("cricket/matches/{id}/events")
+    suspend fun postScoringEvents(
+        @Path("id") matchId: String,
+        @Body body: com.fishers.app.cricket.EventsBatch,
+    ): com.fishers.app.cricket.CricketMatch
+
     // ---- clubs ----
 
     @GET("me/clubs")
