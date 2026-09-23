@@ -105,10 +105,7 @@ class FixtureBlock {
     entryDeadline: asDateOrNull(json['entry_deadline'], key: 'entry_deadline'),
     entryFeeCents: asIntOrNull(json['entry_fee_cents'], key: 'entry_fee_cents'),
     playersPerSide: asIntOrNull(json['players_per_side'], key: 'players_per_side'),
-    guestPlayersAllowed: asIntOrNull(
-      json['guest_players_allowed'],
-      key: 'guest_players_allowed',
-    ),
+    guestPlayersAllowed: asIntOrNull(json['guest_players_allowed'], key: 'guest_players_allowed'),
     ageGroup: asStringOrNull(json['age_group'], key: 'age_group'),
     gender: asStringOrNull(json['gender'], key: 'gender'),
     conditions: switch (asMapOrNull(json['conditions'], key: 'conditions')) {
@@ -161,9 +158,23 @@ class FixtureBlock {
 
   @override
   int get hashCode => Object.hashAll(<Object?>[
-    id, clubId, teamId, name, kind, startsOn, endsOn,
-    description, maxEntrants, entryDeadline, entryFeeCents,
-    playersPerSide, guestPlayersAllowed, ageGroup, gender, conditions, rulesNotes,
+    id,
+    clubId,
+    teamId,
+    name,
+    kind,
+    startsOn,
+    endsOn,
+    description,
+    maxEntrants,
+    entryDeadline,
+    entryFeeCents,
+    playersPerSide,
+    guestPlayersAllowed,
+    ageGroup,
+    gender,
+    conditions,
+    rulesNotes,
   ]);
 }
 
@@ -237,8 +248,7 @@ class TournamentEntrant {
   bool get entryPaid => entryPaidAt != null;
 
   /// What the row says, falling back to the old boolean.
-  EntryStatus get entry =>
-      status ?? (withdrawn ? EntryStatus.withdrawn : EntryStatus.accepted);
+  EntryStatus get entry => status ?? (withdrawn ? EntryStatus.withdrawn : EntryStatus.accepted);
 
   factory TournamentEntrant.fromJson(JsonMap json) => TournamentEntrant(
     id: asUuid(json['id'], key: 'id'),
@@ -255,10 +265,7 @@ class TournamentEntrant {
     },
     respondedAt: asDateOrNull(json['responded_at'], key: 'responded_at'),
     entryPaidAt: asDateOrNull(json['entry_paid_at'], key: 'entry_paid_at'),
-    entryPaymentMethod: asStringOrNull(
-      json['entry_payment_method'],
-      key: 'entry_payment_method',
-    ),
+    entryPaymentMethod: asStringOrNull(json['entry_payment_method'], key: 'entry_payment_method'),
     withdrawn: asBool(json['withdrawn'], key: 'withdrawn'),
   );
 
@@ -330,16 +337,11 @@ class InviteEntrantResult {
     inviteLink: asStringOrNull(json['invite_link'], key: 'invite_link'),
   );
 
-  JsonMap toJson() => <String, dynamic>{
-    'entrant': entrant.toJson(),
-    'invite_link': inviteLink,
-  };
+  JsonMap toJson() => <String, dynamic>{'entrant': entrant.toJson(), 'invite_link': inviteLink};
 
   @override
   bool operator ==(Object other) =>
-      other is InviteEntrantResult &&
-      other.entrant == entrant &&
-      other.inviteLink == inviteLink;
+      other is InviteEntrantResult && other.entrant == entrant && other.inviteLink == inviteLink;
 
   @override
   int get hashCode => Object.hash(entrant, inviteLink);
@@ -848,11 +850,7 @@ class TicketSummary {
 
 @immutable
 class TicketBooking {
-  const TicketBooking({
-    required this.summary,
-    required this.tickets,
-    this.canSeeEveryone,
-  });
+  const TicketBooking({required this.summary, required this.tickets, this.canSeeEveryone});
 
   final TicketSummary summary;
   final List<EventTicket> tickets;
