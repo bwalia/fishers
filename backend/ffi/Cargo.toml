@@ -1,0 +1,24 @@
+[package]
+name = "fishers-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# One cricket engine, called from three places.
+#
+# `staticlib` is what an iOS XCFramework links; `cdylib` is the .so an Android
+# app loads; `lib` keeps it usable as an ordinary Rust dependency so its tests
+# run in the normal workspace build.
+[lib]
+name = "fishers_ffi"
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[dependencies]
+fishers-domain = { path = "../domain" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uniffi = { version = "0.28", features = ["cli"] }
+
+[build-dependencies]
+uniffi = { version = "0.28", features = ["build"] }

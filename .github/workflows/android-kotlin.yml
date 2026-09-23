@@ -46,12 +46,31 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # The cricket engine is Rust, cross-compiled into the app, so the Android
+      # build needs a Rust toolchain and the NDK. There is no fallback on
+      # purpose: a build that quietly skipped the engine would produce an app
+      # with no scoring rules at all.
+      - name: Rust, with the Android targets
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          cargo install cargo-ndk --locked
+
+      - name: NDK
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r27
+
       - name: Unit tests
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
         run: ./gradlew :app:testDebugUnitTest --no-daemon
 
       # The honest check: the Kotlin compiling is not the same as an APK that
       # links, packages and passes resource linking.
       - name: Debug APK
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
         run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Keep the APK

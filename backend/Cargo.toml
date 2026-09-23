@@ -5,6 +5,7 @@ members = [
     "api",
     "domain",
     "db",
+    "ffi",
     "payments",
     "notifications",
     "jobs",
@@ -63,3 +64,14 @@ validator = { version = "0.19", features = ["derive"] }
 # no OpenSSL in it. This one hands back an `http::Request` with the encrypted
 # body and the headers to send it with; reqwest posts that perfectly well.
 web-push-native = "0.5"
+
+# What the phones link. A separate profile rather than tightening `release`,
+# because the API's build time is not worth spending on a smaller binary — and
+# `panic = "abort"` is deliberately absent: UniFFI catches a panic at the
+# boundary and turns it into an error, which abort would turn into a crash.
+[profile.mobile]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
