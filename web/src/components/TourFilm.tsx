@@ -42,6 +42,11 @@ export function TourFilm() {
           />
         ) : (
           <button className="tour-poster" type="button" onClick={() => play(0)}>
+            {/* YouTube's own thumbnail, behind a click-to-play poster.
+                next/image would mean listing i.ytimg.com in remotePatterns and
+                proxying someone else's static JPEG through our server to
+                optimise it. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`https://i.ytimg.com/vi/${TOUR_VIDEO_ID}/maxresdefault.jpg`}
               alt=""

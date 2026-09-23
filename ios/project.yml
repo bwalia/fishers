@@ -45,8 +45,35 @@ targets:
         # shared live-scoreboard links point. Release must name production —
         # a TestFlight build is in someone else's hands and cannot reach a
         # machine on your network.
-        FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
-        FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
+        #
+        # The ports are substitutions, not literals, because .env moves them
+        # and scripts/start.sh exports whatever it ended up using. Two layers
+        # read ${API_PORT}, and both have to be right:
+        #
+        #   * XcodeGen, at generate time, from the environment. start.sh
+        #     exports the ports, so its builds carry the real one.
+        #   * Xcode, at build time, from the build settings below — which is
+        #     what happens when XcodeGen found nothing to substitute, as on CI
+        #     and on any hand-run `xcodegen generate`.
+        #
+        # The defaults exist because of that second layer: Xcode expands an
+        # undefined ${API_PORT} to the empty string, and "http://127.0.0.1:"
+        # is a URL that quietly dials port 80 rather than failing.
+        API_PORT: "7312"
+        WEB_PORT: "7311"
+        FISHERS_API_BASE_URL: "http://127.0.0.1:${API_PORT}"
+        FISHERS_WEB_BASE_URL: "http://127.0.0.1:${WEB_PORT}"
+        # The Mac's address on the Wi-Fi, for a tethered iPhone — loopback is
+        # the phone itself there, so the Simulator's URL is no use to it.
+        #
+        # Empty here on purpose, which is what Release keeps: a LAN address in
+        # a build that has left this machine points at a network the tester is
+        # not on, or at some unrelated box that happens to answer on it. Only
+        # the Debug config below fills it in, and AppConfig only reads it in a
+        # DEBUG build on a device.
+        LAN_IP: ""
+        FISHERS_LAN_API_BASE_URL: ""
+        FISHERS_LAN_WEB_BASE_URL: ""
         # iOS OAuth client from Google Cloud Console (type "iOS"). These are
         # public client ids that must live in Info.plist — without the reversed
         # URL scheme GIDSignIn aborts the process on Continue with Google.
@@ -59,9 +86,17 @@ targets:
           # stack. A real iPhone rejects it (that address is the phone itself)
           # and falls through to production — point it at a local API with
           # Profile -> API server, or FISHERS_API_URL in the scheme.
-          # API is :7312; web/share links are :7311 — Next does not serve /api/v1.
-          FISHERS_API_BASE_URL: "http://127.0.0.1:7312"
-          FISHERS_WEB_BASE_URL: "http://127.0.0.1:7311"
+          # The API port and the web port are different — Next does not serve
+          # /api/v1 — so both follow .env rather than one standing in for the
+          # other. See the note on the base config above.
+          FISHERS_API_BASE_URL: "http://127.0.0.1:${API_PORT}"
+          FISHERS_WEB_BASE_URL: "http://127.0.0.1:${WEB_PORT}"
+          # scripts/start.sh exports LAN_IP along with the ports. Without it
+          # these expand to "http://:7312", whose host is empty — AppConfig
+          # rejects that and a device falls through to production, which is
+          # the same place it landed before any of this existed.
+          FISHERS_LAN_API_BASE_URL: "http://${LAN_IP}:${API_PORT}"
+          FISHERS_LAN_WEB_BASE_URL: "http://${LAN_IP}:${WEB_PORT}"
         Release:
           # Production. Blank here meant TestFlight builds fell through to
           # AppConfig's fallback instead of reaching a server at all.
@@ -75,6 +110,9 @@ targets:
         # Release expands to production — see the Release config above.
         FishersAPIBaseURL: "$(FISHERS_API_BASE_URL)"
         FishersWebBaseURL: "$(FISHERS_WEB_BASE_URL)"
+        # Debug-only, and empty in Release — see the LAN_IP note above.
+        FishersLANAPIBaseURL: "$(FISHERS_LAN_API_BASE_URL)"
+        FishersLANWebBaseURL: "$(FISHERS_LAN_WEB_BASE_URL)"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}

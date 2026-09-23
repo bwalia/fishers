@@ -116,6 +116,13 @@ POSTGRES_PORT="${POSTGRES_PORT:-7313}"
 API_PORT="${API_PORT:-7312}"
 WEB_PORT="${WEB_PORT:-7311}"
 
+# Exported for XcodeGen, which substitutes ${API_PORT} / ${WEB_PORT} out of the
+# environment when it writes Info.plist. Without this the Simulator build is
+# compiled against whatever port the spec happened to name, and an .env that
+# moves the API leaves the app talking to nothing on a plain Run in Xcode.
+# LAN_IP joins them further down, once it has been worked out.
+export API_PORT WEB_PORT
+
 # Older local .env files used 5455, which collides with other stacks on the
 # Mac Studio and made start.sh die looking like a Fishers port problem.
 if [ "$POSTGRES_PORT" = "5455" ]; then
@@ -151,6 +158,10 @@ lan_ip() {
 }
 
 LAN_IP="${FISHERS_LAN_IP:-$(lan_ip)}"
+# Exported for the same reason as the ports: project.yml's Debug config builds
+# the address a tethered iPhone uses out of it. Unexported it expands to
+# nothing, the host comes out empty, and a device falls back to production.
+export LAN_IP
 WEB_BASE="http://${LAN_IP}:${WEB_PORT}"
 API_BASE="http://${LAN_IP}:${API_PORT}"
 DATABASE_URL="postgres://fishers:fishers@localhost:${POSTGRES_PORT}/fishers"
@@ -447,9 +458,13 @@ API_ENV=(
 # single start, which is noise that trains you to ignore the log.
 # A .p8 is a file, and a relative path in .env means "next to the repo" to the
 # person who wrote it — not "next to wherever this shell happens to be".
-if [ -n "${APNS_PRIVATE_KEY_PATH:-}" ] && [ "${APNS_PRIVATE_KEY_PATH#/}" = "$APNS_PRIVATE_KEY_PATH" ]; then
-  APNS_PRIVATE_KEY_PATH="$ROOT/$APNS_PRIVATE_KEY_PATH"
-fi
+for _keyvar in APNS_PRIVATE_KEY_PATH FCM_SERVICE_ACCOUNT_PATH; do
+  _keypath="${!_keyvar:-}"
+  if [ -n "$_keypath" ] && [ "${_keypath#/}" = "$_keypath" ]; then
+    eval "${_keyvar}=\"\$ROOT/\$_keypath\""
+  fi
+done
+unset _keyvar _keypath
 
 # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is read by the API, not by Next: one
 # image serves every ring, so the browser is told the key at runtime rather
@@ -462,7 +477,8 @@ for var in ANTHROPIC_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET \
            WHATSAPP_TOKEN WHATSAPP_PHONE_NUMBER_ID WHATSAPP_TEMPLATE WHATSAPP_TEMPLATE_LANG \
            WHATSAPP_DEFAULT_COUNTRY GOOGLE_CLIENT_ID GOOGLE_IOS_CLIENT_ID APPLE_CLIENT_ID \
            APNS_KEY_ID APNS_TEAM_ID APNS_BUNDLE_ID APNS_PRIVATE_KEY APNS_PRIVATE_KEY_PATH \
-           APNS_ENVIRONMENT VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
+           APNS_ENVIRONMENT VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT \
+           FCM_PROJECT_ID FCM_SERVICE_ACCOUNT FCM_SERVICE_ACCOUNT_PATH; do
   [ -n "${!var:-}" ] && API_ENV+=( "${var}=${!var}" )
 done
 
@@ -644,8 +660,15 @@ if [ "$WANT_IOS" = 1 ]; then
   SPEC="$ROOT/ios/project.yml"
   STAMP="$ROOT/ios/.xcodegen-stamp"
   current_stamp() {
+    # The ports and the LAN address are in the hash because XcodeGen bakes
+    # them into Info.plist from the environment: the spec can be untouched and
+    # the generated project still stale, which is a build pointed at the
+    # previous port — or, after moving between Wi-Fi networks, at yesterday's
+    # address for this Mac.
     { find "$ROOT/ios/Fishers" "$ROOT/ios/FishersTests" -type f 2>/dev/null | LC_ALL=C sort
-      cat "$SPEC"; } | shasum -a 256 | cut -d' ' -f1
+      cat "$SPEC"
+      echo "API_PORT=${API_PORT} WEB_PORT=${WEB_PORT} LAN_IP=${LAN_IP}"; } \
+      | shasum -a 256 | cut -d' ' -f1
   }
   now_stamp="$(current_stamp)"
   if [ ! -f "$ROOT/ios/Fishers.xcodeproj/project.pbxproj" ] \

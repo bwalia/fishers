@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname :: -p 7311",
+    "dev": "next dev --hostname :: -p ${WEB_PORT:-7311}",
     "build": "next build",
-    "start": "next start --hostname :: -p 7311",
-    "lint": "next lint"
+    "start": "next start --hostname :: -p ${WEB_PORT:-7311}",
+    "lint": "eslint ."
   },
   "dependencies": {
     "next": "^15.5.2",
@@ -14,9 +14,12 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
     "@types/node": "^22.17.2",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.26",
     "typescript": "^5.9.2"
   }
 }

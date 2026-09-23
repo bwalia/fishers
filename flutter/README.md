@@ -27,8 +27,26 @@ flutter run --dart-define=FISHERS_API_URL=https://int.fishers.cloud
 
 Resolution order is environment → stored override (the in-app API server panel)
 → the build's `--dart-define=FishersAPIBaseURL` → a fallback, which is
-`10.0.2.2:7312` for a debug build (an emulator's view of the host machine) and
-production for a release one. `lib/config/app_config.dart` has the detail.
+`10.0.2.2:$API_PORT` for a debug build (an emulator's view of the host machine)
+and production for a release one. `lib/config/app_config.dart` has the detail.
+
+To run against a local stack whose ports `.env` has moved, pass the two ports:
+
+```sh
+set -a; . ../.env; set +a
+flutter run --dart-define=API_PORT=$API_PORT --dart-define=WEB_PORT=$WEB_PORT
+```
+
+They reach the build as compile-time constants, which is the only way a port
+can reach an app on a device: the emulator has its own process environment
+rather than this Mac's. Without them the fallback is `scripts/start.sh`'s own
+defaults, 7312 and 7311 — right for a stock checkout, and wrong the moment
+`.env` moves them, which is why the port is no longer hard-coded.
+
+Pass the two ports rather than `--dart-define-from-file=../.env`: that flag
+turns **every** key in the file into a compile-time constant baked into the
+artifact, and `.env` holds `JWT_SECRET`, `ANTHROPIC_API_KEY` and the push
+credentials.
 
 A local stack comes up with `../scripts/start.sh --api-only` and seeds with
 `../scripts/seed-demo.sh`.

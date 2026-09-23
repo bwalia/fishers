@@ -385,7 +385,7 @@ Anything else is ignored. Reconnection is itself a resync.
 
 | What | iOS | Android | Why |
 |---|---|---|---|
-| **Push registration** | `registerDevice` / `unregisterDevice`, called after sign-in; APNs delivers man-of-the-match and chat notifications | **Not shipped.** Neither endpoint is called and no token is ever registered | Android push is FCM, which the brief puts out of scope. Nothing is lost but the buzz: every notification is stored server-side, so the bell fills up and the app reads them back on open. The two endpoints are the whole of the work when FCM lands |
+| **Push registration** | `registerDevice` / `unregisterDevice`, called after sign-in; APNs delivers man-of-the-match and chat notifications | **Half shipped.** The server sends to Android over FCM; the app does not yet register a token, so nothing arrives | The server half is built and tested (`backend/notifications/src/fcm.rs`). The client half needs a Firebase project and its `google-services.json`, which is not something the repo can carry — until it does, every notification is still stored server-side, so the bell fills up and only the buzz is missing |
 | **Sign in with Apple** | `AuthView` renders the button, `SocialAuth` runs the native flow | **Not shipped.** `/auth/apple` is never called, the button never rendered | Settled before this work started. On Android it is a web redirect, not a native flow, and that cost is not worth paying before the app is in people's hands. The auth screen still drives its buttons off the server's config, so a third provider slots in without rework |
 | **Back** | No equivalent obligation | The system back gesture and button work on every screen and inside every sheet | Android |
 | **Sheets** | `.sheet` | Material bottom sheet or full-screen dialog, by the weight of the iOS presentation | Android |
@@ -394,7 +394,7 @@ Anything else is ignored. Reconnection is itself a resync.
 | **Permissions** | Asked on iOS's timing | Asked at point of use — camera for the QR scanner, `POST_NOTIFICATIONS` on API 33+ | Android |
 | **Push** | Registers for none | None added. In-app notifications come from the API and the SSE stream | Parity |
 | **Local notifications** | `UNUserNotificationCenter` in `ProfileReminder.swift` | `flutter_local_notifications`, plus the API 33+ runtime permission | Android |
-| **Debug fallback host** | Simulator → `127.0.0.1:7312` | Emulator → `10.0.2.2:7312` | An emulator does not share this Mac's network stack; `127.0.0.1` inside it is the emulator itself |
+| **Debug fallback host** | Simulator → `127.0.0.1:7312` | Emulator → `10.0.2.2:$API_PORT` (7312 by default) | An emulator does not share this Mac's network stack; `127.0.0.1` inside it is the emulator itself. The port follows `.env` via `--dart-define=API_PORT=…`, because `.env` moves it and iOS's hard-coded 7312 is wrong the moment it does |
 | **Loopback rejection** | Keyed off `targetEnvironment(simulator)` | Keyed off `kReleaseMode` | Dart has no simulator flag, and "is this a release build" is the same question in every case that matters |
 | **Touch target** | 44 pt | 48 dp (`FishersTheme.minTap`; the iOS value stays as `minTapIOS`) | Material's minimum is larger |
 | **Type** | SF Rounded / New York / SF Text | Weight and role carry the distinction on Material's type scale | Android's system font has no equivalent trio. Sizes stay at Material's defaults so the system font-size setting scales them |

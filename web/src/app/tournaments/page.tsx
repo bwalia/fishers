@@ -233,8 +233,6 @@ function NewBlock({
     if (!clubId) return;
     set({ venueId: "" });
     api<Venue[]>("GET", `/clubs/${clubId}/venues`).then(setVenues).catch(() => setVenues([]));
-    // `set` is stable enough for this — it only ever writes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clubId]);
 
   const fee = pence(rules.entryFee);
@@ -245,7 +243,10 @@ function NewBlock({
     setBusy(true);
     setError(null);
     try {
-      const { clear: _clear, ...settings } = rulesPayload(rules, defaultConditions(rules.overs));
+      // `clear` names settings to unset, which means nothing on a tournament
+      // that does not exist yet.
+      const settings = rulesPayload(rules, defaultConditions(rules.overs));
+      delete (settings as Partial<typeof settings>).clear;
       await api("POST", "/fixture-blocks", {
         club_id: clubId,
         name: name.trim(),

@@ -1,5 +1,7 @@
 import { test as base, expect } from "@playwright/test";
 
+import { API_PORT, WEB_PORT } from "../lib/ports";
+
 /// The man-of-the-match card on the dashboard, clicked by somebody who did
 /// not play — the web half of what `ios/FishersUITests/ManOfTheMatchTour`
 /// does on a phone.
@@ -16,8 +18,11 @@ import { test as base, expect } from "@playwright/test";
 ///
 /// A machine whose Playwright never unpacked its own browser can point at
 /// another with CHROME_BIN.
-const WEB = process.env.WEB_BASE ?? "http://localhost:7311";
-const API = process.env.API_BASE ?? "http://localhost:8080";
+// Both follow the stack's own ports rather than a pair written down here:
+// API_BASE said :8080 because that is what one machine's .env happened to
+// say, which is exactly the way a default goes wrong.
+const WEB = process.env.WEB_BASE ?? `http://localhost:${WEB_PORT}`;
+const API = process.env.API_BASE ?? `http://localhost:${API_PORT}`;
 const EMAIL = process.env.MOTM_VOTER_EMAIL;
 const PASSWORD = process.env.MOTM_VOTER_PASSWORD ?? "password123";
 const SHOTS = process.env.SHOT_DIR ?? "test-results";

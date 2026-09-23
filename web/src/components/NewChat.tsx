@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getStoredUser, readErr, type Club, type ClubMemberRow, type Team } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
@@ -80,9 +81,9 @@ export function NewChat({ onClose }: { onClose: () => void }) {
           <p className="muted">
             You chat with the people in your clubs. Join one — or start yours — and they are all here.
           </p>
-          <a className="btn primary" href="/clubs">
+          <Link className="btn primary" href="/clubs">
             <Icon name="users" size={16} /> Your clubs
-          </a>
+          </Link>
         </div>
       )}
       {clubs && clubs.length > 0 && mode === "people" && (

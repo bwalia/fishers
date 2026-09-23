@@ -1,3 +1,5 @@
+import { apiPort } from "./ports";
+
 /// Where the API lives, worked out at call time.
 ///
 /// Baking a LAN IP in at build time meant the dashboard stopped talking to the
@@ -8,7 +10,7 @@
 export function apiOrigin(): string {
   const explicit = process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "");
   if (explicit) return explicit;
-  const port = process.env.NEXT_PUBLIC_API_PORT || "7312";
+  const port = apiPort();
   if (typeof window !== "undefined") {
     // A page served on the default port arrived through the ingress, and the
     // ingress puts the API on this same origin under /api. Returning an empty

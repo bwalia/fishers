@@ -1,9 +1,22 @@
 import Foundation
 
 enum AppConfig {
-    /// Simulator fallback: loopback on the Mac's stack (same as Debug Info.plist).
-    private static let simulatorAPIBase = "http://127.0.0.1:7312"
-    private static let simulatorWebBase = "http://127.0.0.1:7311"
+    /// Simulator fallback: loopback on the Mac's stack.
+    ///
+    /// The ports are `scripts/start.sh`'s own defaults. They are not the
+    /// authority on where the stack is — `.env` moves them, and project.yml
+    /// substitutes whatever start.sh exported into Info.plist, which is read
+    /// first. This is only what a build lands on when that substitution never
+    /// happened, which is why it names the documented default rather than
+    /// guessing.
+    private static let simulatorAPIBase = "http://127.0.0.1:\(defaultAPIPort)"
+    private static let simulatorWebBase = "http://127.0.0.1:\(defaultWebPort)"
+
+    /// The ports `.env.example` ships and `scripts/start.sh` falls back to,
+    /// deliberately off the beaten track so the stack does not fight Postgres
+    /// on 5432 or another dev server on 8080.
+    static let defaultAPIPort = 7312
+    static let defaultWebPort = 7311
 
     /// Physical-device fallback: production. A phone cannot use 127.0.0.1 —
     /// that is the phone itself — and a LAN address here shipped to TestFlight,
@@ -17,6 +30,36 @@ enum AppConfig {
     /// UserDefaults / launch-argument key written by Settings and `scripts/start.sh`.
     static let apiDefaultsKey = "FishersAPIBaseURL"
     static let webDefaultsKey = "FishersWebBaseURL"
+
+    /// Info.plist keys carrying the Mac's LAN address, written by project.yml
+    /// in the Debug config only. Never a UserDefaults key: nothing writes
+    /// these at runtime, they are what the build was generated against.
+    static let lanAPIInfoKey = "FishersLANAPIBaseURL"
+    static let lanWebInfoKey = "FishersLANWebBaseURL"
+
+    /// The Mac's API on the Wi-Fi, if this build has one to offer.
+    ///
+    /// `nil` in Release, and `nil` in a Debug build generated without
+    /// `scripts/start.sh` — the plist key is then empty, or names a host that
+    /// is not a usable address from a phone.
+    static var lanAPIBase: URL? { lanBase(lanAPIInfoKey) }
+    static var lanWebBase: URL? { lanBase(lanWebInfoKey) }
+
+    private static func lanBase(_ key: String) -> URL? {
+        #if DEBUG
+        return usableURL(Bundle.main.object(forInfoDictionaryKey: key) as? String)
+        #else
+        // A LAN address has no meaning in a build that has left this machine.
+        return nil
+        #endif
+    }
+
+    /// What this build was compiled to talk to, before any override. Shown as
+    /// a Settings preset so the panel offers the build's own port rather than
+    /// a number typed into the source years ago.
+    static var buildAPIBase: URL? {
+        usableURL(Bundle.main.object(forInfoDictionaryKey: apiDefaultsKey) as? String)
+    }
 
     /// Where the API lives — re-read on every access so a Settings override
     /// applies to the next request without restarting the app.
@@ -47,13 +90,24 @@ enum AppConfig {
         )
     }
 
-    /// Loopback on the Simulator, production on a real device. Release sets
-    /// both hosts in Info.plist; this is what a build reaches for when that
-    /// substitution has gone wrong, so it has to be somewhere safe to land.
+    /// Loopback on the Simulator, the Mac's Wi-Fi address on a tethered Debug
+    /// build, production everywhere else. Release sets both hosts in
+    /// Info.plist; this is what a build reaches for when that substitution has
+    /// gone wrong, so it has to be somewhere safe to land.
+    ///
+    /// The device Debug case is the one that is not merely "safe": a phone
+    /// plugged into this Mac is here to talk to this Mac, and falling through
+    /// to production meant every such run began by typing a LAN address into
+    /// Settings. It is `#if DEBUG` and the key is empty in Release, so a
+    /// TestFlight build still lands on production — a tester's network has no
+    /// such host, or worse, something unrelated answering on it.
     private static func deviceAwareFallback(api: Bool) -> String {
         #if targetEnvironment(simulator)
         return api ? simulatorAPIBase : simulatorWebBase
         #else
+        if let lan = api ? lanAPIBase : lanWebBase {
+            return lan.absoluteString
+        }
         return api ? deviceAPIBase : deviceWebBase
         #endif
     }
@@ -120,7 +174,12 @@ enum AppConfig {
         return URL(string: fallback)!
     }
 
-    /// Empty and unsubstituted (`$(FISHERS_API_BASE_URL)`) values are not hosts.
+    /// Empty and unsubstituted values are not hosts. Two spellings reach here:
+    /// Xcode's own `$(FISHERS_API_BASE_URL)`, when a build setting is missing,
+    /// and XcodeGen's `${API_PORT}`, when the spec was generated without the
+    /// ports exported. Both mean "nobody filled this in", and both must lose to
+    /// the fallback rather than be parsed into a URL nothing answers on.
+    ///
     /// On the Simulator, loopback is honoured — that is the right address there.
     /// On a physical phone, loopback is the phone itself, so Debug Info.plist's
     /// `127.0.0.1` must not win over the fallback; reject it here so resolution
@@ -130,8 +189,13 @@ enum AppConfig {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty,
               !trimmed.hasPrefix("$("),
+              !trimmed.contains("${"),
               let url = URL(string: trimmed),
-              let host = url.host
+              // Non-nil is not enough: "http://:7312" parses, and its host is
+              // the empty string rather than nil. That is what project.yml's
+              // LAN address collapses to when LAN_IP was never exported, and
+              // it has to read as "no address" rather than be dialled.
+              let host = url.host, !host.isEmpty
         else { return nil }
         #if !targetEnvironment(simulator)
         if host == "127.0.0.1" || host == "localhost" || host == "::1" {
@@ -149,9 +213,9 @@ enum APIConfigError: LocalizedError {
         switch self {
         case .invalidURL:
             #if targetEnvironment(simulator)
-            return "Enter a full URL such as http://127.0.0.1:7312 or https://int.fishers.cloud"
+            return "Enter a full URL such as http://127.0.0.1:\(AppConfig.defaultAPIPort) or https://int.fishers.cloud"
             #else
-            return "Enter a full URL such as https://int.fishers.cloud or http://192.168.1.10:7312 — not localhost on a phone"
+            return "Enter a full URL such as https://int.fishers.cloud or http://192.168.1.10:\(AppConfig.defaultAPIPort) — not localhost on a phone"
             #endif
         }
     }
