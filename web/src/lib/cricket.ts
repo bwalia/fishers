@@ -81,6 +81,8 @@ export type Innings = {
   overs_available?: number;
   balls_in_current_over?: number;
   last_over_bowler?: string | null;
+  /// Taken off for the rest of this innings under Law 41.
+  suspended_bowlers?: string[];
   fall?: FallOfWicket[];
   partnership_runs?: number;
   partnership_balls?: number;

@@ -501,6 +501,8 @@ enum ScoringEventKind: Codable, Equatable {
         runs: UInt8, onExtra: Bool
     )
     case bowlerChanged(bowlerId: UUID)
+    /// Law 41.6/41.7. Off for the rest of the innings; they field on.
+    case bowlerSuspended(bowlerId: UUID, reason: String)
     case inningsCompleted
     case matchCompleted(winner: MatchSide?, margin: String)
     /// Called off, with no result. Distinct from `matchCompleted`: a game
@@ -640,6 +642,9 @@ enum ScoringEventKind: Codable, Equatable {
             try c.encode(onExtra, forKey: .onExtra)
         case let .bowlerChanged(bowler):
             try c.encode(bowler, forKey: .bowlerId)
+        case let .bowlerSuspended(bowler, reason):
+            try c.encode(bowler, forKey: .bowlerId)
+            try c.encode(reason, forKey: .reason)
         case .inningsCompleted, .undoLast:
             break
         case let .matchCompleted(winner, margin):
@@ -747,6 +752,11 @@ enum ScoringEventKind: Codable, Equatable {
             )
         case "bowler_changed":
             self = .bowlerChanged(bowlerId: try c.decode(UUID.self, forKey: .bowlerId))
+        case "bowler_suspended":
+            self = .bowlerSuspended(
+                bowlerId: try c.decode(UUID.self, forKey: .bowlerId),
+                reason: try c.decode(String.self, forKey: .reason)
+            )
         case "innings_completed":
             self = .inningsCompleted
         case "match_completed":
@@ -1026,6 +1036,8 @@ struct InningsState: Codable, Equatable {
     var oversAvailable: UInt8
     /// Who bowled the over that just finished — nobody bowls two in a row.
     var lastOverBowler: UUID?
+    /// Taken off for the rest of this innings under Law 41.
+    var suspendedBowlers: Set<UUID> = []
     /// The next legal delivery is a free hit: only a run out can get them.
     var freeHit: Bool
     /// One over a side, two wickets, to break a tie.
@@ -1056,6 +1068,7 @@ struct InningsState: Codable, Equatable {
         case wicketsAllowed = "wickets_allowed"
         case oversAvailable = "overs_available"
         case lastOverBowler = "last_over_bowler"
+        case suspendedBowlers = "suspended_bowlers"
         case freeHit = "free_hit"
         case superOver = "super_over"
         case powerplayOvers = "powerplay_overs"
@@ -1079,6 +1092,7 @@ struct InningsState: Codable, Equatable {
         wicketsAllowed = 10
         oversAvailable = 0
         lastOverBowler = nil
+        suspendedBowlers = []
         freeHit = false
         superOver = false
         powerplayOvers = 0
@@ -1117,6 +1131,7 @@ struct InningsState: Codable, Equatable {
         wicketsAllowed = try c.decodeIfPresent(UInt8.self, forKey: .wicketsAllowed) ?? 10
         oversAvailable = try c.decodeIfPresent(UInt8.self, forKey: .oversAvailable) ?? 0
         lastOverBowler = try c.decodeIfPresent(UUID.self, forKey: .lastOverBowler)
+        suspendedBowlers = try c.decodeIfPresent(Set<UUID>.self, forKey: .suspendedBowlers) ?? []
         freeHit = try c.decodeIfPresent(Bool.self, forKey: .freeHit) ?? false
         superOver = try c.decodeIfPresent(Bool.self, forKey: .superOver) ?? false
         powerplayOvers = try c.decodeIfPresent(UInt8.self, forKey: .powerplayOvers) ?? 0

@@ -523,6 +523,14 @@ pub enum ScoringEventKind {
     BowlerChanged {
         bowler_id: Uuid,
     },
+    /// Law 41.6 and 41.7. The umpire takes a bowler off for the rest of the
+    /// innings — a second beamer, or dangerous short-pitched bowling after a
+    /// final warning. They stay on the field; they simply do not bowl again.
+    BowlerSuspended {
+        bowler_id: Uuid,
+        /// What they were taken off for. It reads out in the commentary.
+        reason: String,
+    },
     InningsCompleted,
     MatchCompleted {
         winner: Option<MatchSide>,
@@ -708,6 +716,10 @@ pub struct InningsState {
     pub partnership_runs: u16,
     #[serde(default)]
     pub partnership_balls: u16,
+    /// Taken off for the rest of this innings under Law 41. They may field
+    /// on; they do not bowl again.
+    #[serde(default)]
+    pub suspended_bowlers: BTreeSet<Uuid>,
     /// All out at this many wickets — one fewer than the team sheet.
     #[serde(default = "default_wickets_allowed")]
     pub wickets_allowed: u8,
@@ -777,6 +789,7 @@ impl Default for InningsState {
             wickets_allowed: 10,
             overs_available: 0,
             last_over_bowler: None,
+            suspended_bowlers: BTreeSet::new(),
             free_hit: false,
             super_over: false,
             powerplay_overs: 0,

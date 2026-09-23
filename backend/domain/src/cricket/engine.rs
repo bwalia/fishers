@@ -502,6 +502,18 @@ impl MatchState {
                 inn.bowler_id = Some(*bowler_id);
                 inn.balls_in_current_over = 0;
             }
+            ScoringEventKind::BowlerSuspended { bowler_id, reason } => {
+                let _ = reason; // carried in the log for the commentary to read
+                let inn = self
+                    .current_innings_mut()
+                    .ok_or_else(|| DomainError::Validation("no innings".into()))?;
+                inn.suspended_bowlers.insert(*bowler_id);
+                // Taken off mid-over, somebody else finishes it, so the end is
+                // left open rather than pointing at a bowler who may not bowl.
+                if inn.bowler_id == Some(*bowler_id) {
+                    inn.bowler_id = None;
+                }
+            }
             ScoringEventKind::InningsCompleted => {
                 self.complete_innings()?;
             }
@@ -567,6 +579,14 @@ impl MatchState {
         let Some(inn) = self.current_innings() else {
             return Ok(());
         };
+        // A suspension is for the rest of the innings and has no way back, so
+        // it is checked before anything a captain could otherwise argue with.
+        if inn.suspended_bowlers.contains(&bowler) {
+            return Err(DomainError::Validation(format!(
+                "{} has been taken off and cannot bowl again this innings",
+                self.name_for(bowler)
+            )));
+        }
         if inn.last_over_bowler == Some(bowler) && self.xi(inn.bowling).len() > 1 {
             return Err(DomainError::Validation(format!(
                 "{} bowled the last over — nobody bowls two in a row",
@@ -2444,6 +2464,29 @@ mod tests {
         assert!(batter.can_resume());
         assert_eq!(m.state.dismissal_text(batter), "retired hurt");
         assert_eq!(m.innings().striker_id, Some(m.home[2].id));
+    }
+
+    /// Law 41.6/41.7. Taken off for the rest of the innings: the end is left
+    /// open so somebody else finishes the over, and there is no way back.
+    #[test]
+    fn a_suspended_bowler_does_not_bowl_again() {
+        let mut m = Fixture::new(20);
+        let opener = m.innings().bowler_id.unwrap();
+        m.push(ScoringEventKind::BowlerSuspended {
+            bowler_id: opener,
+            reason: "second beamer".into(),
+        });
+        assert!(m.innings().suspended_bowlers.contains(&opener));
+        assert_eq!(m.innings().bowler_id, None, "the end is open");
+
+        // Somebody else can pick it up.
+        let other = m.away[1].id;
+        m.push(ScoringEventKind::BowlerChanged { bowler_id: other });
+        assert_eq!(m.innings().bowler_id, Some(other));
+
+        // The suspended one cannot come back, even after another over.
+        let refused = m.try_push(ScoringEventKind::BowlerChanged { bowler_id: opener });
+        assert!(refused.is_err(), "a suspension has no way back");
     }
 
     /// Law 18.4. The score and the ends part company here and nowhere else:

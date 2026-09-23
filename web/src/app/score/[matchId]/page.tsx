@@ -3199,6 +3199,9 @@ function MoreSheet({
   const [reason, setReason] = useState("slow over rate");
   const [side, setSide] = useState<Side>("home");
   const [overs, setOvers] = useState(inn.overs_available ?? st.overs_limit);
+  const [suspend, setSuspend] = useState("");
+  const [suspendWhy, setSuspendWhy] = useState("second beamer");
+  const suspended = inn.suspended_bowlers ?? [];
   const [resuming, setResuming] = useState("");
   const [resumeFor, setResumeFor] = useState("");
 
@@ -3220,8 +3223,16 @@ function MoreSheet({
             value={inn.bowler_id ?? ""}
             onChange={(e) => send({ type: "bowler_changed", bowler_id: e.target.value })}
           >
-            {bowlingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
+            <option value="">Nobody yet</option>
+            {bowlingXi
+              .filter((id) => !suspended.includes(id))
+              .map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
           </select>
+          {suspended.length > 0 && (
+            <span className="subtle">
+              Off for the innings: {suspended.map(nameOf).join(", ")}.
+            </span>
+          )}
         </label>
         <label>
           Fielders outside the circle
@@ -3328,6 +3339,45 @@ function MoreSheet({
           </div>
         </>
       )}
+
+      <h3 style={{ marginTop: "var(--s4)" }}>Take a bowler off</h3>
+      <p className="muted">
+        Law 41: a second beamer, or short-pitched bowling after a final warning.
+        They stay on the field and field on — they just do not bowl again this
+        innings, and there is no way back.
+      </p>
+      <div className="form">
+        <label>
+          Bowler
+          <select value={suspend} onChange={(e) => setSuspend(e.target.value)}>
+            <option value="">Nobody</option>
+            {bowlingXi
+              .filter((id) => !suspended.includes(id))
+              .map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
+          </select>
+        </label>
+        <label>
+          What for
+          <input value={suspendWhy} onChange={(e) => setSuspendWhy(e.target.value)} />
+        </label>
+      </div>
+      <div className="sheet-actions">
+        <button
+          className="btn danger"
+          type="button"
+          disabled={!suspend || !suspendWhy.trim()}
+          onClick={async () => {
+            onClose();
+            await send({
+              type: "bowler_suspended",
+              bowler_id: suspend,
+              reason: suspendWhy.trim(),
+            });
+          }}
+        >
+          Take them off
+        </button>
+      </div>
 
       <h3 style={{ marginTop: "var(--s4)" }}>Penalty runs</h3>
       <div className="form">

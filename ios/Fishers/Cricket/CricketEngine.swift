@@ -289,6 +289,14 @@ extension MatchState {
             innings[idx].bowlerId = bowlerId
             innings[idx].ballsInCurrentOver = 0
 
+        case let .bowlerSuspended(bowlerId, _):
+            guard !innings.isEmpty else { throw CricketEngineError.validation("no innings") }
+            let idx = innings.count - 1
+            innings[idx].suspendedBowlers.insert(bowlerId)
+            // Taken off mid-over, somebody else finishes it, so the end is left
+            // open rather than pointing at a bowler who may not bowl.
+            if innings[idx].bowlerId == bowlerId { innings[idx].bowlerId = nil }
+
         case .inningsCompleted:
             try completeInnings()
 
@@ -338,6 +346,12 @@ extension MatchState {
 
     private func checkBowlerAvailable(_ bowler: UUID) throws {
         guard let inn = currentInnings else { return }
+        // A suspension is for the rest of the innings and has no way back.
+        if inn.suspendedBowlers.contains(bowler) {
+            throw CricketEngineError.validation(
+                "\(name(for: bowler)) has been taken off and cannot bowl again this innings"
+            )
+        }
         if inn.lastOverBowler == bowler && xi(inn.bowling).count > 1 {
             throw CricketEngineError.validation(
                 "\(name(for: bowler)) bowled the last over — nobody bowls two in a row"
