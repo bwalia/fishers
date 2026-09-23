@@ -1,7 +1,0 @@
-{
-  "payment_id": "4a54d98f-7422-492b-843b-603a1d143a77",
-  "client_secret": "pi_stub_00000000-0000-0000-0000-000000000000_secret_stub",
-  "amount_cents": 500,
-  "currency": "gbp",
-  "status": "pending"
-}

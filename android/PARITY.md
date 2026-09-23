@@ -1,19 +1,34 @@
-# Parity inventory — iOS → Flutter
+# Parity inventory — iOS → Android
 
 Every screen, store, model and endpoint in the iPhone app, and where its
 Android counterpart lives or will live. `ios/Fishers/` is the specification;
 where this table and the Swift disagree, the Swift is right.
 
-**Status of this document.** The foundation layers — `config/`, `theme/`,
-`models/`, `services/` — are built and tested, and so is the first vertical
-slice through them: sign in, the tab bar, the chat list, a thread, and the
-man-of-the-match vote inside it. Everything else is a plan, and the rows below
-name the file each piece will land in so the layout is settled before anyone
-writes it. Paths are relative to `flutter/`.
+> **The Android app is Kotlin and Compose.** This inventory was written against
+> a Flutter port that reached its foundation and one vertical slice before we
+> changed course — Flutter earns its keep by serving both phones, and iOS is
+> already 26,726 lines of native SwiftUI, so here it was a single-platform
+> toolkit carrying an extra runtime for nothing.
+>
+> The inventory itself survived the change, which is why it is still here: what
+> it records is *what the iPhone does*, and that did not change. The **Status**
+> column did — everything is `planned` again — and the paths now point at
+> `android/app/src/main/kotlin/com/fishers/app/`. Read the Dart paths below as
+> the shape of the thing rather than its address.
+>
+> One row is already different in kind. The cricket engine is no longer ported
+> at all: `backend/ffi` exposes the Rust one through UniFFI and Android calls
+> it, so the Laws run once, in the code the server scores with.
+
+**Status of this document.** In Kotlin, the foundation is `config/` and
+`theme/`, plus the shared engine — built and tested. Everything else is a plan.
+The rows below name the piece and its place; the layout is settled before
+anyone writes it. Paths were relative to `flutter/` and are being restated
+against `android/` as each row is ported.
 
 | Status | Meaning |
 |---|---|
-| **done** | Ported, tested, on this branch |
+| **done** | Ported to Kotlin, tested, on this branch |
 | planned | Named and placed; not written yet |
 | **gap** | Deliberately not shipping in v1 — see [Deliberate divergences](#deliberate-divergences) |
 

@@ -1,7 +1,0 @@
-{
-  "selection_autonomy": "suggest",
-  "confirm_lead_hours": 48,
-  "drop_lead_hours": 24,
-  "fee_chase_after_hours": 24,
-  "fee_chase_max_reminders": 3
-}

@@ -310,7 +310,7 @@ would strand the entry.
 - **Logged-out ticket sales.** See §5.
 - **Stripe Connect.** See §7 — a commercial decision first.
 - **A tournament screen on Android.** The models and API calls are ported and
-  tested; the screens are not. See `flutter/PARITY.md`.
+  tested; the screens are not. See `android/PARITY.md`.
 - **Overriding a fixture's `batting` side.** Unrelated, and still true: see the
   note in `domain/src/cricket/engine.rs`.
 
