@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start --hostname :: -p ${WEB_PORT:-7311}",
     "lint": "eslint .",
-    "brand": "node ../tools/brand/index.mjs generate ${BRAND:-fishers} --web",
-    "brand:check": "node ../tools/brand/index.mjs check",
+    "brand": "node ../tools/brand/ensure-installed.mjs generate ${BRAND:-fishers} --web",
+    "brand:check": "node ../tools/brand/ensure-installed.mjs check",
     "prebuild": "npm run brand",
     "predev": "npm run brand"
   },
