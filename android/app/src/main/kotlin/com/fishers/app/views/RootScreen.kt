@@ -34,6 +34,7 @@ fun RootScreen(
     viewModel: SessionViewModel,
     chatList: com.fishers.app.chat.ChatListViewModel,
     threadFor: (String) -> com.fishers.app.chat.ChatThreadViewModel,
+    fixtures: com.fishers.app.fixtures.FixturesViewModel,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -68,6 +69,7 @@ fun RootScreen(
                 onSignOut = viewModel::signOut,
                 chatList = chatList,
                 threadFor = threadFor,
+                fixtures = fixtures,
             )
         }
     }

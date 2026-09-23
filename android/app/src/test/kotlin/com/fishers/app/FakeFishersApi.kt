@@ -4,6 +4,8 @@ import com.fishers.app.chat.ChatMessage
 import com.fishers.app.chat.ConversationSummary
 import com.fishers.app.chat.MarkReadRequest
 import com.fishers.app.chat.PostMessageRequest
+import com.fishers.app.fixtures.FishersEvent
+import com.fishers.app.fixtures.RsvpRequest
 import com.fishers.app.motm.CastMotmVoteRequest
 import com.fishers.app.motm.MotmPollView
 import com.fishers.app.net.AuthTokens
@@ -44,6 +46,10 @@ open class FakeFishersApi : FishersApi {
 
     override suspend fun markRead(id: String, body: MarkReadRequest): Unit =
         error("markRead not expected")
+
+    override suspend fun myFixtures(): List<FishersEvent> = error("myFixtures not expected")
+    override suspend fun event(id: String): FishersEvent = error("event not expected")
+    override suspend fun rsvp(id: String, body: RsvpRequest): Unit = error("rsvp not expected")
 
     override suspend fun motmPoll(id: String): MotmPollView = error("motmPoll not expected")
     override suspend fun motmForEvent(eventId: String): MotmPollView =

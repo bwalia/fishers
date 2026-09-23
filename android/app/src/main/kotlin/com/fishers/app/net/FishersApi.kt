@@ -100,6 +100,21 @@ interface FishersApi {
         @Body body: com.fishers.app.chat.PostMessageRequest,
     ): com.fishers.app.chat.ChatMessage
 
+    // ---- fixtures ----
+
+    /** Everything this person is involved in, across their clubs. */
+    @GET("events/mine")
+    suspend fun myFixtures(): List<com.fishers.app.fixtures.FishersEvent>
+
+    @GET("events/{id}")
+    suspend fun event(@Path("id") id: String): com.fishers.app.fixtures.FishersEvent
+
+    @POST("events/{id}/rsvp")
+    suspend fun rsvp(
+        @Path("id") id: String,
+        @Body body: com.fishers.app.fixtures.RsvpRequest,
+    )
+
     // ---- man of the match ----
 
     @GET("motm/polls/{id}")
