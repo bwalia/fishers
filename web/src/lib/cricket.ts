@@ -83,6 +83,10 @@ export type Innings = {
   last_over_bowler?: string | null;
   /// Taken off for the rest of this innings under Law 41.
   suspended_bowlers?: string[];
+  /// Law 15: the batting captain closed it. "350/4 dec", not "350 all out".
+  declared?: boolean;
+  /// Law 15.2: given up without being played.
+  forfeited?: boolean;
   fall?: FallOfWicket[];
   partnership_runs?: number;
   partnership_balls?: number;
@@ -98,6 +102,9 @@ export type MatchConditions = {
   fielders_outside_normal: number;
   fielders_behind_square_leg: number;
   target_overs_per_hour: number;
+  /// Innings each side bats. One for limited-overs; two for a declaration
+  /// game, which is won on aggregate and can be drawn.
+  innings_per_side?: number;
 };
 
 export type MatchPlayer = {
@@ -256,7 +263,16 @@ export const DEFAULT_CONDITIONS: MatchConditions = {
   fielders_outside_normal: 5,
   fielders_behind_square_leg: 2,
   target_overs_per_hour: 14,
+  innings_per_side: 1,
 };
+
+/// "182-4", or "350-4 dec" when the captain closed it. A declared innings is
+/// not an all-out one and a scorebook has always drawn the distinction; a
+/// forfeited one was never played at all.
+export function inningsScore(i: Innings): string {
+  if (i.forfeited) return "forfeited";
+  return `${i.runs}-${i.wickets}${i.declared ? " dec" : ""}`;
+}
 
 export function titleCase(s: string) {
   return s.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());

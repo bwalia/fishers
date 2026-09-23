@@ -400,7 +400,7 @@ struct CricketScorecardView: View {
             HStack {
                 Text("\(state.name(for: innings.batting)) innings")
                 Spacer()
-                Text("\(innings.runs)/\(innings.wickets) (\(innings.oversDisplay))")
+                Text("\(innings.scoreDisplay) (\(innings.oversDisplay))")
                     .font(.caption.monospacedDigit())
             }
         }
@@ -466,7 +466,7 @@ struct CricketScorecardView: View {
             HStack {
                 Text("Total").bold()
                 Spacer()
-                Text("\(innings.runs)/\(innings.wickets)")
+                Text("\(innings.scoreDisplay)")
                     .bold()
                     .monospacedDigit()
                 Text("(\(innings.oversDisplay) ov, RR \(String(format: "%.2f", innings.runRate)))")
@@ -586,7 +586,7 @@ struct CricketScoreSummary: View {
                     Text(state.name(for: innings.batting))
                         .font(.subheadline.weight(.semibold))
                     Spacer()
-                    Text("\(innings.runs)/\(innings.wickets)")
+                    Text("\(innings.scoreDisplay)")
                         .font(.subheadline.monospacedDigit().bold())
                     Text("(\(innings.oversDisplay))")
                         .font(.caption.monospacedDigit())
