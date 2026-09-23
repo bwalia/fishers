@@ -31,9 +31,16 @@ targets:
     dependencies:
       - package: GoogleSignIn
         product: GoogleSignIn
+    # The brand, written by tools/brand from brands/<id>.yaml. It carries the
+    # bundle identifier and the display name, so switching brand is running the
+    # generator and rebuilding rather than editing this file.
+    #
+    #   node tools/brand/index.mjs generate gullycricket --ios && xcodegen generate
+    configFiles:
+      Debug: Fishers/Brand/Generated/brand.xcconfig
+      Release: Fishers/Brand/Generated/brand.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.fishers.app
         INFOPLIST_FILE: Fishers/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: Fishers/Fishers.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"

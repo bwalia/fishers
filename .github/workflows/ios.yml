@@ -25,6 +25,16 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # project.yml names brand.xcconfig, which does not exist until this has
+      # run. The brand also decides the bundle identifier, so a build without
+      # it would be signed as the wrong app.
+      - name: Brand
+        run: |
+          cd tools/brand && npm ci --omit=dev && cd ../..
+          node tools/brand/index.mjs generate "${BRAND:-fishers}" --ios
+        env:
+          BRAND: ${{ inputs.brand || 'fishers' }}
+
       - name: Generate Xcode project
         run: xcodegen generate
 

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from brands/fishers.yaml. Do not edit. -->
+<resources>
+    <string name="app_name">Fishers</string>
+    <string name="brand_name">Fishers</string>
+    <string name="brand_tagline">The club app for grassroots sport</string>
+    <string name="brand_support_email">hello@fishers.cloud</string>
+</resources>
