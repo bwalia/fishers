@@ -1,0 +1,18 @@
+# Gradle and Android build output
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.cxx/
+
+# Release signing, the same way flutter/android keeps it: the keystore and the
+# properties that point at it belong to whoever owns the Play listing, not to
+# the repo. CI writes both from secrets.
+key.properties
+*.jks
+*.keystore
+
+# Firebase, from the console, per-project
+google-services.json

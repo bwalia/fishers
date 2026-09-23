@@ -1,0 +1,63 @@
+name: Android (Kotlin)
+
+# Build and test the Kotlin + Compose app.
+#
+# Separate from android.yml, which still watches `flutter/`. Both are here while
+# the port is in progress: the Flutter app is what ships until this one reaches
+# parity, so breaking it silently is not an option either.
+
+on:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/android-kotlin.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/android-kotlin.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: fishers-android-kotlin-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: android
+
+jobs:
+  build-and-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 17 is what the app compiles against; AGP itself wants a newer one, and
+      # the toolchain below is what reconciles the two.
+      - name: Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
+      # The honest check: the Kotlin compiling is not the same as an APK that
+      # links, packages and passes resource linking.
+      - name: Debug APK
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Keep the APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fishers-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 7
