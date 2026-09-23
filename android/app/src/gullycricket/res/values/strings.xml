@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Generated from brands/gullycricket.yaml. Do not edit. -->
-<resources>
-    <string name="app_name">GullyCricket</string>
-    <string name="brand_name">GullyCricket</string>
-    <string name="brand_tagline">The club app for gully cricket</string>
-    <string name="brand_support_email">hello@gullycricket.app</string>
-</resources>
