@@ -3,6 +3,7 @@ package com.fishers.app.net
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -98,6 +99,23 @@ interface FishersApi {
         @Path("id") id: String,
         @Body body: com.fishers.app.chat.PostMessageRequest,
     ): com.fishers.app.chat.ChatMessage
+
+    // ---- man of the match ----
+
+    @GET("motm/polls/{id}")
+    suspend fun motmPoll(@Path("id") id: String): com.fishers.app.motm.MotmPollView
+
+    @GET("events/{id}/motm")
+    suspend fun motmForEvent(@Path("id") eventId: String): com.fishers.app.motm.MotmPollView
+
+    @POST("motm/polls/{id}/vote")
+    suspend fun castMotmVote(
+        @Path("id") id: String,
+        @Body body: com.fishers.app.motm.CastMotmVoteRequest,
+    ): com.fishers.app.motm.MotmPollView
+
+    @DELETE("motm/polls/{id}/vote")
+    suspend fun withdrawMotmVote(@Path("id") id: String): com.fishers.app.motm.MotmPollView
 
     @POST("conversations/{id}/read")
     suspend fun markRead(
