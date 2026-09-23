@@ -5,6 +5,12 @@ import Link from "next/link";
 import { api, getStoredUser, money, readErr } from "@/lib/api";
 import { type EventTicket, type TicketBooking } from "@/lib/tournament";
 import { Avatar } from "@/components/Avatar";
+import {
+  PaymentReturn,
+  payAtStripe,
+  useCardPayments,
+  useReturnedFromStripe,
+} from "@/components/PayDialog";
 import { useRequireAuth } from "@/lib/require-auth";
 
 /// A ticketed club event — the dinner, the quiz, presentation night.
@@ -23,7 +29,19 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const cards = useCardPayments();
   const me = getStoredUser();
+
+  // Back from Stripe's page. The redirect beats our webhook more often than
+  // not, so the wait is shown rather than a booking that still says unpaid.
+  const back = useReturnedFromStripe({
+    settled: async () =>
+      (await api<TicketBooking>("GET", `/events/${id}/tickets`)).tickets.some(
+        (t) => t.user_id === me?.id && t.status === "paid"
+      ),
+    onSettled: () => load(),
+  });
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +80,9 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
     return <main id="main"><div className="skeleton" style={{ height: 260 }} /></main>;
 
   const { summary, tickets } = booking;
+  // A non-member at a public event gets the headcount and their own booking.
+  // The guest list, the takings and the treasurer's buttons are club business.
+  const insider = booking.can_see_everyone;
   const mine = tickets.find((t) => t.user_id === me?.id && t.status !== "cancelled");
   const left =
     summary.ticket_capacity != null ? summary.ticket_capacity - summary.headcount : null;
@@ -80,11 +101,13 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
           {summary.ticket_price_cents != null && (
             <span className="tag gold">{money(summary.ticket_price_cents)} each</span>
           )}
+          {summary.tickets_public && <span className="tag grey">Open to all</span>}
         </div>
       </section>
 
       {error && <p className="error">{error}</p>}
       {note && <p className="notice">{note}</p>}
+      <PaymentReturn waiting={back.waiting} gaveUp={back.gaveUp} />
 
       <div className="pro-cols">
         <div className="pro-main">
@@ -102,15 +125,32 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                 <div><dt>To pay</dt><dd className="num">{money(mine.amount_cents, mine.currency)}</dd></div>
               </dl>
               <div className="field-row" style={{ marginTop: "var(--s4)" }}>
-                {mine.status !== "paid" && (
+                {mine.status !== "paid" && mine.amount_cents > 0 && cards && (
                   <button
                     className="btn primary"
                     type="button"
-                    disabled={busy !== null}
-                    onClick={() => act("pay", () => api("POST", `/tickets/${mine.id}/pay`, {}), "Payment opened — your club confirms it once it clears.")}
+                    disabled={busy !== null || paying}
+                    onClick={async () => {
+                      setPaying(true);
+                      const problem = await payAtStripe(`/tickets/${mine.id}/pay`);
+                      if (problem) {
+                        setError(problem);
+                        setPaying(false);
+                      }
+                    }}
                   >
-                    {busy === "pay" ? "Opening…" : `Pay ${money(mine.amount_cents, mine.currency)}`}
+                    {paying
+                      ? "Taking you to Stripe…"
+                      : `Pay ${money(mine.amount_cents, mine.currency)} by card`}
                   </button>
+                )}
+                {mine.status !== "paid" && cards === false && (
+                  // Said rather than shown as a button that cannot work: this
+                  // server has no Stripe keys, so the only way to pay is to
+                  // hand the money over.
+                  <span className="subtle">
+                    Pay your club directly — card payments are not switched on here.
+                  </span>
                 )}
                 <button
                   className="btn"
@@ -197,32 +237,34 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
             </div>
           )}
 
-          <div className="panel">
-            <div className="panel-head">
-              <h2>Who is coming</h2>
-              <span className="tag grey">{summary.bookings} bookings</span>
+          {insider && (
+            <div className="panel">
+              <div className="panel-head">
+                <h2>Who is coming</h2>
+                <span className="tag grey">{summary.bookings} bookings</span>
+              </div>
+              {tickets.length === 0 ? (
+                <p className="muted">Nobody yet. Be the first.</p>
+              ) : (
+                <ul className="pick-list">
+                  {tickets.map((t) => (
+                    <TicketRow
+                      key={t.id}
+                      ticket={t}
+                      busy={busy !== null}
+                      onPaid={(method) =>
+                        act(
+                          t.id,
+                          () => api("POST", `/tickets/${t.id}/mark-paid`, { method }),
+                          `${t.name ?? "That booking"} marked paid.`
+                        )
+                      }
+                    />
+                  ))}
+                </ul>
+              )}
             </div>
-            {tickets.length === 0 ? (
-              <p className="muted">Nobody yet. Be the first.</p>
-            ) : (
-              <ul className="pick-list">
-                {tickets.map((t) => (
-                  <TicketRow
-                    key={t.id}
-                    ticket={t}
-                    busy={busy !== null}
-                    onPaid={(method) =>
-                      act(
-                        t.id,
-                        () => api("POST", `/tickets/${t.id}/mark-paid`, { method }),
-                        `${t.name ?? "That booking"} marked paid.`
-                      )
-                    }
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
+          )}
         </div>
 
         <aside className="pro-rail">
@@ -230,9 +272,13 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
             <h2>The numbers</h2>
             <dl className="pro-figures">
               <div><dt>Coming</dt><dd className="num">{summary.headcount}</dd></div>
-              <div><dt>Bookings</dt><dd className="num">{summary.bookings}</dd></div>
-              <div><dt>Taken</dt><dd className="num">{money(summary.collected_cents)}</dd></div>
-              <div><dt>Owed</dt><dd className="num">{money(summary.outstanding_cents)}</dd></div>
+              {insider && (
+                <>
+                  <div><dt>Bookings</dt><dd className="num">{summary.bookings}</dd></div>
+                  <div><dt>Taken</dt><dd className="num">{money(summary.collected_cents)}</dd></div>
+                  <div><dt>Owed</dt><dd className="num">{money(summary.outstanding_cents)}</dd></div>
+                </>
+              )}
             </dl>
             {summary.ticket_capacity != null && (
               <p className="subtle">
@@ -245,6 +291,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
           </p>
         </aside>
       </div>
+
     </main>
   );
 }

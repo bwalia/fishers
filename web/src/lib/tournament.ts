@@ -4,6 +4,23 @@
 /// puts it in: enter the sides, lay out the pitches and times, generate the
 /// fixtures into that grid, then read the table as results come in.
 
+/// Overs, ball and fielding restrictions — the same terms two captains agree
+/// before a one-off match (`backend/domain/src/cricket/types.rs`). A tournament
+/// sets them once and every fixture in it inherits the answer.
+export type MatchConditions = {
+  overs_limit: number;
+  overs_per_bowler: number;
+  /// `open` | `boxed` | `indoor`
+  ground: string;
+  /// `red` | `white` | `pink` | `tennis` | `tape`
+  ball: string;
+  powerplay_overs: number;
+  fielders_outside_powerplay: number;
+  fielders_outside_normal: number;
+  fielders_behind_square_leg: number;
+  target_overs_per_hour: number;
+};
+
 export type FixtureBlock = {
   id: string;
   club_id: string;
@@ -14,7 +31,92 @@ export type FixtureBlock = {
   starts_on: string | null;
   ends_on: string | null;
   created_at: string;
+
+  // What a tournament settles before anybody enters.
+  description: string | null;
+  venue_id: string | null;
+  /// How many sides fit. Null is no limit.
+  max_entrants: number | null;
+  entry_deadline: string | null;
+  /// What a side pays to enter — not a spectator's ticket.
+  entry_fee_cents: number | null;
+  players_per_side: number;
+  /// 0 means every player must belong to the entering club.
+  guest_players_allowed: number;
+  age_group: string;
+  gender: string;
+  conditions: MatchConditions | null;
+  rules_notes: string | null;
 };
+
+/// Everything an organiser can change after the tournament exists. Every field
+/// optional and applied only when sent, so editing the entry rules cannot wipe
+/// the playing conditions.
+export type TournamentSettings = Partial<{
+  description: string | null;
+  venue_id: string | null;
+  max_entrants: number | null;
+  entry_deadline: string | null;
+  entry_fee_cents: number | null;
+  players_per_side: number;
+  guest_players_allowed: number;
+  age_group: string;
+  gender: string;
+  conditions: MatchConditions;
+  rules_notes: string | null;
+  /// Settings to unset, by name. A missing field and a null field look the
+  /// same over JSON, and every field here means "leave it alone if not sent" —
+  /// so removing a cap has to be said out loud.
+  clear: string[];
+}>;
+
+export const AGE_GROUPS = ["open", "u11", "u13", "u15", "u17", "u19", "veterans"] as const;
+export const GENDERS = ["open", "men", "women", "mixed"] as const;
+export const BALLS = ["red", "white", "pink", "tennis", "tape"] as const;
+export const GROUNDS = ["open", "boxed", "indoor"] as const;
+
+export const AGE_LABEL: Record<string, string> = {
+  open: "Open age",
+  u11: "Under 11", u13: "Under 13", u15: "Under 15", u17: "Under 17", u19: "Under 19",
+  veterans: "Veterans",
+};
+export const GENDER_LABEL: Record<string, string> = {
+  open: "Open", men: "Men", women: "Women", mixed: "Mixed",
+};
+export const BALL_LABEL: Record<string, string> = {
+  red: "Red leather", white: "White leather", pink: "Pink leather",
+  tennis: "Tennis", tape: "Taped tennis",
+};
+export const GROUND_LABEL: Record<string, string> = {
+  open: "Open ground", boxed: "Caged / boxed", indoor: "Indoor",
+};
+
+/// The usual allocation: a fifth of the innings each, rounded up — twenty overs
+/// gives four, fifty gives ten. The same rule as `MatchConditions::standard`.
+export function standardOversPerBowler(overs: number): number {
+  return Math.max(1, Math.ceil(overs / 5));
+}
+
+export function defaultConditions(overs = 20): MatchConditions {
+  return {
+    overs_limit: overs,
+    overs_per_bowler: standardOversPerBowler(overs),
+    ground: "open",
+    ball: "white",
+    powerplay_overs: 0,
+    fielders_outside_powerplay: 2,
+    fielders_outside_normal: 5,
+    fielders_behind_square_leg: 2,
+    target_overs_per_hour: 0,
+  };
+}
+
+/// Where a side is in the entry process.
+///
+/// A name an organiser typed in is `accepted` straight away — they are
+/// entering it, not asking it. `invited` belongs to a real club that answers
+/// for itself, and only `accepted` sides go into the draw.
+export type EntryStatus = "invited" | "accepted" | "declined" | "withdrawn";
 
 export type TournamentEntrant = {
   id: string;
@@ -26,7 +128,43 @@ export type TournamentEntrant = {
   group_label: string | null;
   contact_name: string | null;
   contact_email: string | null;
+  status: EntryStatus;
+  invited_by: string | null;
+  responded_at: string | null;
+  /// Set when the entry fee is settled, by card or by an organiser recording a
+  /// cheque. Null when the tournament is free, or when they still owe.
+  entry_paid_at: string | null;
+  /// `card` | `cash` | `transfer` | `cheque`
+  entry_payment_method: string | null;
+  /// Derived from `status` by the database. Kept because several screens read it.
   withdrawn: boolean;
+};
+
+/// A tournament somebody has asked your club into.
+export type EntryInvitation = {
+  entrant_id: string;
+  block_id: string;
+  block_name: string;
+  kind: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  host_club_id: string;
+  host_club_name: string;
+  entrant_name: string;
+  club_id: string | null;
+  status: EntryStatus;
+  invited_by_name: string | null;
+  /// What entering costs, so a club is told before it says yes.
+  entry_fee_cents: number | null;
+  entry_paid_at: string | null;
+  created_at: string;
+};
+
+export const ENTRY_LABEL: Record<EntryStatus, string> = {
+  invited: "Asked",
+  accepted: "In",
+  declined: "Declined",
+  withdrawn: "Withdrawn",
 };
 
 export type TournamentFormat = "round_robin" | "groups_knockout" | "knockout" | "ladder" | "none";
@@ -121,13 +259,21 @@ export type TicketSummary = {
   ticket_price_cents: number | null;
   /// How many guests one member may bring. Zero means members only.
   guests_allowed: number;
+  /// Anyone signed in may buy, rather than members of the hosting club only.
+  tickets_public: boolean;
   bookings: number;
   headcount: number;
   collected_cents: number;
   outstanding_cents: number;
 };
 
-export type TicketBooking = { summary: TicketSummary; tickets: EventTicket[] };
+export type TicketBooking = {
+  summary: TicketSummary;
+  tickets: EventTicket[];
+  /// False for a non-member at a public event: they get the headcount and
+  /// their own booking, never the guest list.
+  can_see_everyone: boolean;
+};
 
 export const FORMAT_LABEL: Record<TournamentFormat, string> = {
   round_robin: "Everyone plays everyone",

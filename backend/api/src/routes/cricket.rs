@@ -5,7 +5,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::{
     clubs as clubs_repo, cricket as cricket_repo, events as events_repo,
-    selection as selection_repo, users as users_repo,
+    selection as selection_repo, tournament as tournament_repo, users as users_repo,
 };
 use fishers_domain::{
     DlsPar, MatchState, MatchStatus, Permission, ScoringEvent, ScoringEventKind, UserRole,
@@ -224,6 +224,12 @@ async fn create_or_get_match(
             return Err(ApiError::bad_request("pick two different teams to play each other"));
         }
     }
+    // A fixture inside a tournament plays to the tournament's terms. Setting
+    // them once on the block is the whole point of setting them there: without
+    // this, every scorer types the overs and the ball again and one of them
+    // gets it wrong.
+    let conditions = tournament_repo::conditions_for_event(&state.pool, event_id).await?;
+
     let row = cricket_repo::create_match(
         &state.pool,
         body.match_id,
@@ -234,6 +240,7 @@ async fn create_or_get_match(
         &body.home_name,
         &body.away_name,
         body.overs_limit,
+        conditions,
     )
     .await?;
     let sides = sides_for(&state, &row, auth.user_id).await;

@@ -105,43 +105,49 @@ struct EventTicketsView: View {
                     }
                 }
 
-                Section {
-                    if booking.tickets.isEmpty {
-                        Text("Nobody yet. Be the first.").foregroundStyle(.secondary)
-                    }
-                    ForEach(booking.tickets) { ticket in
-                        HStack(spacing: 12) {
-                            AvatarView(name: ticket.name ?? "A member", size: 32)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(ticket.name ?? "A member")
-                                    .strikethrough(ticket.status == "cancelled")
-                                if ticket.guests > 0 {
-                                    Text("+\(ticket.guests)\(ticket.guestNames.map { " — \($0)" } ?? "")")
-                                        .font(FishersTheme.footnote).foregroundStyle(.secondary)
+                // Who else is coming is club business. At an event open to
+                // anyone, a visitor gets the headcount and their own booking;
+                // the server sends them no more than that, so listing it here
+                // would show "12 bookings" above a list of one.
+                if booking.insider {
+                    Section {
+                        if booking.tickets.isEmpty {
+                            Text("Nobody yet. Be the first.").foregroundStyle(.secondary)
+                        }
+                        ForEach(booking.tickets) { ticket in
+                            HStack(spacing: 12) {
+                                AvatarView(name: ticket.name ?? "A member", size: 32)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(ticket.name ?? "A member")
+                                        .strikethrough(ticket.status == "cancelled")
+                                    if ticket.guests > 0 {
+                                        Text("+\(ticket.guests)\(ticket.guestNames.map { " — \($0)" } ?? "")")
+                                            .font(FishersTheme.footnote).foregroundStyle(.secondary)
+                                    }
+                                    if let notes = ticket.notes {
+                                        Text(notes).font(FishersTheme.footnote).foregroundStyle(.secondary)
+                                    }
                                 }
-                                if let notes = ticket.notes {
-                                    Text(notes).font(FishersTheme.footnote).foregroundStyle(.secondary)
+                                Spacer()
+                                Text(ticket.status.capitalized)
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(ticket.isPaid ? FishersTheme.pitch : .secondary)
+                            }
+                            // Cash at the door is how most club events are paid for;
+                            // whoever is collecting records it without a card reader.
+                            .swipeActions(edge: .trailing) {
+                                if canManage && ticket.status == "reserved" {
+                                    Button("Cash") { markPaid(ticket, "cash") }.tint(FishersTheme.pitch)
+                                    Button("Transfer") { markPaid(ticket, "transfer") }.tint(FishersTheme.gold700)
                                 }
                             }
-                            Spacer()
-                            Text(ticket.status.capitalized)
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(ticket.isPaid ? FishersTheme.pitch : .secondary)
                         }
-                        // Cash at the door is how most club events are paid for;
-                        // whoever is collecting records it without a card reader.
-                        .swipeActions(edge: .trailing) {
-                            if canManage && ticket.status == "reserved" {
-                                Button("Cash") { markPaid(ticket, "cash") }.tint(FishersTheme.pitch)
-                                Button("Transfer") { markPaid(ticket, "transfer") }.tint(FishersTheme.gold700)
-                            }
+                    } header: {
+                        Text("Who is coming · \(summary.bookings) bookings")
+                    } footer: {
+                        if canManage {
+                            Text("Taken \(money(summary.collectedCents)) · owed \(money(summary.outstandingCents)). Swipe a booking to mark it paid.")
                         }
-                    }
-                } header: {
-                    Text("Who is coming · \(summary.bookings) bookings")
-                } footer: {
-                    if canManage {
-                        Text("Taken \(money(summary.collectedCents)) · owed \(money(summary.outstandingCents)). Swipe a booking to mark it paid.")
                     }
                 }
             } else if let error {

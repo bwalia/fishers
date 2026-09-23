@@ -5,7 +5,7 @@
 //! then works inside it exactly as it does for a league fixture.
 
 use axum::extract::{Path, State};
-use axum::routing::{get, patch, post};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::Duration;
 use fishers_db::repos::{
@@ -14,9 +14,10 @@ use fishers_db::repos::{
 };
 use fishers_domain::tournament::{self, TournamentFormat};
 use fishers_domain::{
-    AddEntrantsRequest, BookTicketRequest, EventTicket, FixtureBlock, GenerateKnockoutRequest,
-    GenerateScheduleRequest, GenerateSlotsRequest, Permission, RecordResultRequest, ScheduleRow,
-    Standing, TicketSummary, TournamentEntrant, UpdateBlockRequest,
+    AddEntrantsRequest, BookTicketRequest, EntryInvitation, EntryStatus, EventTicket, FixtureBlock,
+    GenerateKnockoutRequest, GenerateScheduleRequest, GenerateSlotsRequest, InviteEntrantRequest,
+    Permission, RecordResultRequest, RespondToEntryRequest, ScheduleRow, Standing, TicketSummary,
+    TournamentEntrant, UpdateBlockRequest,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -28,9 +29,20 @@ use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/fixture-blocks/{id}", patch(update_block))
+        .route("/fixture-blocks/{id}", get(get_block).patch(update_block))
         .route("/fixture-blocks/{id}/entrants", get(list_entrants).post(add_entrants))
+        .route("/fixture-blocks/{id}/invite", post(invite_entrant))
         .route("/entrants/{id}/withdraw", post(withdraw_entrant))
+        .route("/entrants/{id}/invitation", get(invitation))
+        .route("/entrants/{id}/respond", post(respond_to_entry))
+        .route("/entrants/{id}/pay-entry", post(pay_entry))
+        .route("/entrants/{id}/mark-entry-paid", post(mark_entry_paid))
+        .route("/clubs/{id}/tournament-invites", get(club_invitations))
+        // Unauthenticated, like the shared scoreboard: the side being asked has
+        // no Fishers account, and the unguessable token is what stands in for
+        // one. Answering is all it can do.
+        .route("/public/entry/{token}", get(public_entry))
+        .route("/public/entry/{token}/respond", post(public_respond))
         .route("/fixture-blocks/{id}/slots", get(list_slots).post(generate_slots))
         .route("/fixture-blocks/{id}/schedule", get(schedule).post(generate_schedule))
         .route("/fixture-blocks/{id}/knockout", post(generate_knockout))
@@ -42,6 +54,28 @@ pub fn router() -> Router<AppState> {
         .route("/tickets/{id}/mark-paid", post(mark_ticket_paid))
 }
 
+/// One tournament: its format, its entry rules and its playing conditions.
+///
+/// Members only. The rules are what a club is agreeing to when it enters, so
+/// every member of the host club can read them; changing them is
+/// `ManageEvents`, like everything else here.
+async fn get_block(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<FixtureBlock>> {
+    let block = tournament_repo::get_block(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("tournament not found"))?;
+    // A member of the club running it, or of one it has asked in. Requiring
+    // membership of the *host* club meant the invited club could not read the
+    // rules it was being asked to agree to.
+    if !tournament_repo::may_read_block(&state.pool, id, auth.user_id).await? {
+        return Err(ApiError::forbidden("not a club member"));
+    }
+    Ok(Json(block))
+}
+
 async fn update_block(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -50,6 +84,9 @@ async fn update_block(
 ) -> ApiResult<Json<FixtureBlock>> {
     let club_id = block_club(&state, id).await?;
     require_organiser(&state, club_id, auth.user_id).await?;
+    if let Some(problem) = body.settings.problem() {
+        return Err(ApiError::bad_request(problem));
+    }
     Ok(Json(tournament_repo::update_block(&state.pool, id, &body).await?))
 }
 
@@ -64,9 +101,10 @@ async fn add_entrants(
     if body.entrants.is_empty() {
         return Err(ApiError::bad_request("no entrants given"));
     }
-    Ok(Json(
-        tournament_repo::add_entrants(&state.pool, id, &body).await?,
-    ))
+    match tournament_repo::add_entrants(&state.pool, id, &body).await? {
+        Ok(entrants) => Ok(Json(entrants)),
+        Err(reason) => Err(ApiError::conflict(reason)),
+    }
 }
 
 async fn list_entrants(
@@ -90,6 +128,509 @@ async fn withdraw_entrant(
     require_organiser(&state, club_id, auth.user_id).await?;
     tournament_repo::withdraw_entrant(&state.pool, id).await?;
     Ok(Json(json!({ "withdrawn": true })))
+}
+
+// MARK: entries
+
+/// Ask a club into a tournament.
+///
+/// Two kinds of side end up in a draw, and they are not the same thing. A name
+/// an organiser types in is an entry — [`add_entrants`] — and it is in the draw
+/// straight away. A real club is *asked*, and answers for itself; until it
+/// does, it is not scheduled against anybody.
+async fn invite_entrant(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<InviteEntrantRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let settings = tournament_repo::block_settings(&state.pool, id).await?;
+    require_organiser(&state, settings.club_id, auth.user_id).await?;
+
+    // What the side is called in the draw. A club's own name unless the
+    // organiser gave one — "Hemel 2nd XI" rather than "Hemel CC".
+    let invited_club = match body.club_id {
+        Some(club_id) => Some(
+            clubs_repo::get_club(&state.pool, club_id)
+                .await?
+                .ok_or_else(|| ApiError::not_found("no such club"))?,
+        ),
+        None => None,
+    };
+    let name = body
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .map(str::to_string)
+        .or_else(|| invited_club.as_ref().map(|c| c.name.clone()))
+        .ok_or_else(|| ApiError::bad_request("name the side, or pick a club"))?;
+
+    if body.club_id == Some(settings.club_id) {
+        return Err(ApiError::bad_request(
+            "you are running this one — add your own side rather than inviting it",
+        ));
+    }
+    if body.club_id.is_none() && body.contact_email.is_none() {
+        return Err(ApiError::bad_request(
+            "a side that is not on Fishers needs an email to be asked at",
+        ));
+    }
+
+    // A side with no Fishers club answers by following a link, so it needs one.
+    let token = body.club_id.is_none().then(entry_token);
+    let entrant = match tournament_repo::invite_entrant(
+        &state.pool,
+        id,
+        auth.user_id,
+        &body,
+        &name,
+        token.as_deref(),
+    )
+    .await?
+    {
+        Ok(entrant) => entrant,
+        Err(reason) => return Err(ApiError::conflict(reason)),
+    };
+
+    // Tell whoever can answer for them. A club nobody told is a club that
+    // never enters.
+    if let Some(club) = &invited_club {
+        let host = clubs_repo::get_club(&state.pool, settings.club_id)
+            .await?
+            .map(|c| c.name)
+            .unwrap_or_else(|| "A club".into());
+        let title = format!("{host} invited you to {}", settings.name);
+        let text = format!(
+            "{host} asked {} into {}. Open Fishers to accept or decline.",
+            club.name, settings.name
+        );
+        for officer in clubs_repo::event_managers(&state.pool, club.id).await? {
+            state
+                .notify(
+                    officer,
+                    "tournament_invite",
+                    &title,
+                    &text,
+                    json!({
+                        "entrant_id": entrant.id,
+                        "block_id": id,
+                        "block_name": settings.name,
+                        "host_club": host,
+                        "club_id": club.id,
+                        // Where a tap on the push lands. It used to be the
+                        // club page, which has no way to answer an invitation
+                        // on it — so the notification arrived and led nowhere.
+                        "url": format!("/tournaments/invite/{}", entrant.id),
+                        "tag": format!("entry:{}", entrant.id),
+                    }),
+                )
+                .await;
+        }
+    }
+
+    // A side off-platform gets the link by email. Best effort: a bounced
+    // invitation must not fail the organiser's request, which has already
+    // written the entry they can see on their own screen.
+    if let (Some(token), Some(email)) = (&token, body.contact_email.as_deref()) {
+        let link = entry_link(token);
+        let subject = format!("{} — invitation to enter", settings.name);
+        let text = format!(
+            "You have been invited to enter {} as {name}.\n\nAccept or decline here:\n{link}\n",
+            settings.name
+        );
+        if let Err(error) = state.email.send(email, &subject, &text).await {
+            tracing::warn!(%error, "could not email a tournament invitation");
+        }
+    }
+
+    Ok(Json(json!({
+        "entrant": entrant,
+        // Only ever handed back to the organiser who created it, so they can
+        // pass the link on themselves if the email does not arrive.
+        "invite_link": token.as_deref().map(entry_link),
+    })))
+}
+
+/// Everything the invited club needs to answer: the tournament, who is
+/// running it, what it costs, the rules they would be agreeing to, and where
+/// their answer has got to.
+///
+/// Readable by any member of the invited club — deciding is `ManageEvents`,
+/// but a club should be able to look at what it has been asked into.
+async fn invitation(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let view = tournament_repo::invitation(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("invitation not found"))?;
+
+    let mine = match view.club_id {
+        Some(club) => clubs_repo::is_club_member(&state.pool, club, auth.user_id).await?,
+        None => false,
+    };
+    let host = clubs_repo::is_club_member(&state.pool, view.host_club_id, auth.user_id).await?;
+    if !mine && !host {
+        return Err(ApiError::forbidden("that invitation is not yours"));
+    }
+
+    // Whether *this* person can answer, so the screen shows buttons only to
+    // somebody who can use them.
+    let answering_club = view.club_id.unwrap_or(view.host_club_id);
+    let can_answer = require_permission(
+        &state,
+        answering_club,
+        auth.user_id,
+        None,
+        Permission::ManageEvents,
+    )
+    .await
+    .is_ok();
+
+    let owes = view.entry_fee_cents.unwrap_or(0) > 0 && view.entry_paid_at.is_none();
+    Ok(Json(json!({
+        "invitation": view,
+        "can_answer": can_answer,
+        // Accepted and, where the tournament charges, paid. Until then the
+        // side is not in the draw and not in the table.
+        "confirmed": !owes && view.status == EntryStatus::ACCEPTED,
+        "owes_entry_fee": owes,
+    })))
+}
+
+/// Accept or decline on behalf of the invited club.
+async fn respond_to_entry(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RespondToEntryRequest>,
+) -> ApiResult<Json<TournamentEntrant>> {
+    if !matches!(
+        body.status.as_str(),
+        EntryStatus::ACCEPTED | EntryStatus::DECLINED | EntryStatus::WITHDRAWN
+    ) {
+        return Err(ApiError::bad_request(
+            "answer with accepted, declined or withdrawn",
+        ));
+    }
+
+    let entrant = tournament_repo::get_entrant(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("entrant not found"))?;
+
+    // The invited club answers for itself. Only the *host* may answer for a
+    // side with no club of its own — otherwise nobody could, and an emailed
+    // invitation would strand the entry.
+    let answering_club = match entrant.club_id {
+        Some(club_id) => club_id,
+        None => block_club(&state, entrant.block_id).await?,
+    };
+    require_organiser(&state, answering_club, auth.user_id).await?;
+
+    let entrant = match tournament_repo::set_entry_status(&state.pool, id, &body.status).await? {
+        Ok(entrant) => entrant,
+        Err(reason) => return Err(ApiError::conflict(reason)),
+    };
+
+    // Close the loop for whoever asked: they are waiting on this answer to
+    // know whether they can make the draw.
+    if let Some(inviter) = entrant.invited_by {
+        let settings = tournament_repo::block_settings(&state.pool, entrant.block_id).await?;
+        let said = match body.status.as_str() {
+            EntryStatus::ACCEPTED => "are in",
+            EntryStatus::DECLINED => "cannot make it",
+            _ => "have pulled out",
+        };
+        state
+            .notify(
+                inviter,
+                "tournament_entry_answered",
+                &format!("{} {said}", entrant.name),
+                &format!("{} {said} for {}.", entrant.name, settings.name),
+                json!({
+                    "entrant_id": entrant.id,
+                    "block_id": entrant.block_id,
+                    "block_name": settings.name,
+                    "status": entrant.status,
+                    "url": format!("/tournaments/{}", entrant.block_id),
+                    "tag": format!("entry-answer:{}", entrant.id),
+                }),
+            )
+            .await;
+    }
+
+    Ok(Json(entrant))
+}
+
+/// Tournaments this club has been asked into. `?pending=1` for unanswered only.
+async fn club_invitations(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    axum::extract::Query(query): axum::extract::Query<InvitesQuery>,
+) -> ApiResult<Json<Vec<EntryInvitation>>> {
+    require_member(&state, id, auth.user_id).await?;
+    Ok(Json(
+        tournament_repo::entry_invitations(&state.pool, id, query.pending()).await?,
+    ))
+}
+
+#[derive(serde::Deserialize)]
+struct InvitesQuery {
+    /// A string rather than a bool: `?pending=1` is what a link and a fetch
+    /// naturally send, and serde's bool rejects it with a 400 nobody can read.
+    #[serde(default)]
+    pending: Option<String>,
+}
+
+impl InvitesQuery {
+    fn pending(&self) -> bool {
+        matches!(
+            self.pending.as_deref(),
+            Some("1" | "true" | "yes" | "on")
+        )
+    }
+}
+
+/// What an emailed invitation is for, for the page the link opens.
+async fn public_entry(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let entrant = tournament_repo::entrant_by_token(&state.pool, &token)
+        .await?
+        .ok_or_else(|| ApiError::not_found("that invitation link is not valid"))?;
+    let settings = tournament_repo::block_settings(&state.pool, entrant.block_id).await?;
+    let host = clubs_repo::get_club(&state.pool, settings.club_id)
+        .await?
+        .map(|c| c.name)
+        .unwrap_or_else(|| "A club".into());
+
+    // Deliberately narrow. This is served to anybody holding the link, so it
+    // carries what the invitation says and nothing else about the club running
+    // it — no contacts, no other entrants, no member list.
+    Ok(Json(json!({
+        "tournament": settings.name,
+        "host_club": host,
+        "side": entrant.name,
+        "status": entrant.status,
+    })))
+}
+
+/// Accept or decline from the emailed link.
+async fn public_respond(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+    Json(body): Json<RespondToEntryRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    if !matches!(
+        body.status.as_str(),
+        EntryStatus::ACCEPTED | EntryStatus::DECLINED
+    ) {
+        return Err(ApiError::bad_request("answer with accepted or declined"));
+    }
+    let entrant = tournament_repo::entrant_by_token(&state.pool, &token)
+        .await?
+        .ok_or_else(|| ApiError::not_found("that invitation link is not valid"))?;
+
+    // The link is spent on the way through `set_entry_status`, so it answers
+    // once. A second visit gets a 404 rather than the chance to change a draw
+    // the organiser has already built.
+    let entrant = match tournament_repo::set_entry_status(&state.pool, entrant.id, &body.status)
+        .await?
+    {
+        Ok(entrant) => entrant,
+        Err(reason) => return Err(ApiError::conflict(reason)),
+    };
+
+    if let Some(inviter) = entrant.invited_by {
+        let settings = tournament_repo::block_settings(&state.pool, entrant.block_id).await?;
+        let said = if body.status == EntryStatus::ACCEPTED { "are in" } else { "cannot make it" };
+        state
+            .notify(
+                inviter,
+                "tournament_entry_answered",
+                &format!("{} {said}", entrant.name),
+                &format!("{} {said} for {}.", entrant.name, settings.name),
+                json!({
+                    "entrant_id": entrant.id,
+                    "block_id": entrant.block_id,
+                    "block_name": settings.name,
+                    "status": entrant.status,
+                    "url": format!("/tournaments/{}", entrant.block_id),
+                    "tag": format!("entry-answer:{}", entrant.id),
+                }),
+            )
+            .await;
+    }
+
+    Ok(Json(json!({ "status": entrant.status, "side": entrant.name })))
+}
+
+/// Start paying a tournament's entry fee.
+///
+/// The entering club pays. Like a ticket, the entry only counts as paid when
+/// the provider's webhook says the money arrived — a club cannot mark its own
+/// entry settled.
+async fn pay_entry(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PayBody>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let entrant = tournament_repo::get_entrant(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("entrant not found"))?;
+
+    // The club that is entering pays for its own entry. A side with no club of
+    // its own is the host's to settle, the same rule as answering for it.
+    let paying_club = match entrant.club_id {
+        Some(club_id) => club_id,
+        None => block_club(&state, entrant.block_id).await?,
+    };
+    require_organiser(&state, paying_club, auth.user_id).await?;
+
+    let (_, fee, paid_at) = tournament_repo::entry_fee_for(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("entrant not found"))?;
+
+    if paid_at.is_some() {
+        return Ok(Json(json!({ "already_paid": true })));
+    }
+    let Some(fee) = fee.filter(|f| *f > 0) else {
+        return Err(ApiError::bad_request(
+            "this tournament is free to enter — nothing to pay",
+        ));
+    };
+    if entrant.status != EntryStatus::ACCEPTED {
+        return Err(ApiError::conflict(
+            "accept the invitation before paying the entry fee",
+        ));
+    }
+
+    // Reused while it is still for the right amount, so a second tap reaches
+    // Stripe with the same idempotency key and gets the same intent back.
+    let payment = match payments_repo::pending_for_entrant(&state.pool, id).await? {
+        Some(open) if open.amount_cents == fee => open,
+        _ => payments_repo::create_pending_entry(&state.pool, auth.user_id, id, fee, "GBP").await?,
+    };
+
+    let request = fishers_domain::CreatePaymentIntentRequest {
+        event_id: None,
+        order_id: None,
+        amount_cents: fee,
+        currency: Some("GBP".into()),
+    };
+    let settings = tournament_repo::block_settings(&state.pool, entrant.block_id).await?;
+    let back = format!(
+        "{}/tournaments/invite/{}",
+        return_origin(body.return_to.as_deref()),
+        entrant.id
+    );
+    let session = state
+        .stripe
+        .create_checkout_session(
+            payment.id,
+            &request,
+            &fishers_payments::CheckoutFor {
+                name: &format!("{} — entry fee", settings.name),
+                success_url: &format!("{back}?paid=1"),
+                cancel_url: &back,
+            },
+        )
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    Ok(Json(json!({
+        "payment_id": session.payment_id,
+        "checkout_url": session.url,
+        "amount_cents": session.amount_cents,
+        "currency": session.currency,
+    })))
+}
+
+/// Record an entry fee paid outside the app — a cheque, a transfer, cash in an
+/// envelope, which for club cricket is most of the time. The host's button,
+/// not the entering club's.
+async fn mark_entry_paid(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<MarkPaidBody>,
+) -> ApiResult<Json<TournamentEntrant>> {
+    if !matches!(body.method.as_str(), "cash" | "transfer" | "cheque") {
+        return Err(ApiError::bad_request("method must be cash, transfer or cheque"));
+    }
+    let entrant = tournament_repo::get_entrant(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("entrant not found"))?;
+    let host = block_club(&state, entrant.block_id).await?;
+    require_organiser(&state, host, auth.user_id).await?;
+
+    tournament_repo::record_entry_payment(&state.pool, id, &body.method)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("entrant not found"))
+}
+
+/// What a Pay request may say about where to come back to.
+#[derive(Debug, Default, serde::Deserialize)]
+struct PayBody {
+    /// The origin the payer is actually browsing — `window.location.origin`.
+    #[serde(default)]
+    return_to: Option<String>,
+}
+
+/// Where Stripe sends the payer back to.
+///
+/// It has to be the origin they are on, not the one this server was configured
+/// with. `localStorage` is per origin, so returning somebody who signed in at
+/// `localhost:7311` to `192.168.1.70:7311` hands them a login page and a
+/// payment they cannot see — which is exactly what happened.
+///
+/// Checked against the origins this deployment serves, because an unvalidated
+/// return URL is an open redirect, and this one is handed to Stripe, who will
+/// send a paying customer to it.
+fn pick_return_origin(requested: Option<&str>, allowed: &[&str], fallback: &str) -> String {
+    let Some(asked) = requested
+        .map(str::trim)
+        .map(|o| o.trim_end_matches('/'))
+        .filter(|o| !o.is_empty())
+    else {
+        return fallback.to_string();
+    };
+    let permitted = allowed
+        .iter()
+        .map(|o| o.trim().trim_end_matches('/'))
+        .filter(|o| !o.is_empty())
+        .chain(std::iter::once(fallback.trim_end_matches('/')));
+    if permitted.into_iter().any(|o| o.eq_ignore_ascii_case(asked)) {
+        asked.to_string()
+    } else {
+        tracing::warn!(asked, "refused an unknown return origin for a payment");
+        fallback.to_string()
+    }
+}
+
+fn return_origin(requested: Option<&str>) -> String {
+    let fallback = super::scoreboard_share::public_web_base();
+    let configured = std::env::var("CORS_ALLOWED_ORIGINS").unwrap_or_default();
+    let allowed: Vec<&str> = configured.split(',').collect();
+    pick_return_origin(requested, &allowed, &fallback)
+}
+
+fn entry_link(token: &str) -> String {
+    format!("{}/entry/{token}", super::scoreboard_share::public_web_base())
+}
+
+/// The link an off-platform side follows. Unguessable rather than sequential:
+/// it is the only thing standing between a stranger and somebody else's entry.
+fn entry_token() -> String {
+    use rand::Rng;
+    let bytes: [u8; 16] = rand::thread_rng().gen();
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 async fn generate_slots(
@@ -313,7 +854,9 @@ async fn record_result(
 
 // MARK: ticketed club events
 
-/// Book a place at a social, dinner or AGM, with guests where allowed.
+/// Book a place at a social, dinner or AGM, with guests where allowed — or at
+/// a tournament, where most of the people buying are not members of the club
+/// running it.
 async fn book_ticket(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -323,7 +866,7 @@ async fn book_ticket(
     let event = events_repo::get_event(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))?;
-    require_member(&state, event.club_id, auth.user_id).await?;
+    require_buyer(&state, &event, auth.user_id).await?;
 
     match tournament_repo::book_ticket(&state.pool, id, auth.user_id, &body).await? {
         Ok(ticket) => Ok(Json(ticket)),
@@ -339,12 +882,22 @@ async fn list_tickets(
     let event = events_repo::get_event(&state.pool, id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))?;
-    require_member(&state, event.club_id, auth.user_id).await?;
+    require_buyer(&state, &event, auth.user_id).await?;
+
+    // Who else is coming is club business. Opening ticket sales to the public
+    // must not hand a stranger the guest list — names, dietary notes and all —
+    // so an outsider sees the headcount and their own booking, nothing more.
+    let member = clubs_repo::is_club_member(&state.pool, event.club_id, auth.user_id).await?;
+    let mut tickets = tournament_repo::list_tickets(&state.pool, id).await?;
+    if !member {
+        tickets.retain(|t| t.user_id == auth.user_id);
+    }
 
     let summary: TicketSummary = tournament_repo::ticket_summary(&state.pool, id).await?;
     Ok(Json(json!({
         "summary": summary,
-        "tickets": tournament_repo::list_tickets(&state.pool, id).await?,
+        "tickets": tickets,
+        "can_see_everyone": member,
     })))
 }
 
@@ -382,6 +935,7 @@ async fn pay_ticket(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
+    Json(body): Json<PayBody>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let ticket = tournament_repo::get_ticket(&state.pool, id)
         .await?
@@ -392,7 +946,7 @@ async fn pay_ticket(
     let event = events_repo::get_event(&state.pool, ticket.event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))?;
-    require_member(&state, event.club_id, auth.user_id).await?;
+    require_buyer(&state, &event, auth.user_id).await?;
 
     if ticket.status == "paid" {
         return Ok(Json(json!({ "already_paid": true })));
@@ -407,20 +961,52 @@ async fn pay_ticket(
         amount_cents: ticket.amount_cents,
         currency: Some(ticket.currency.clone()),
     };
-    let payment =
-        payments_repo::create_pending(&state.pool, auth.user_id, &request, None).await?;
-    let intent = state
+
+    // Tapping Pay twice, or coming back to a half-finished checkout, must not
+    // open a second payment for the same ticket. Reusing the pending row also
+    // reaches Stripe with the same idempotency key, so it hands back the
+    // original intent rather than creating another.
+    //
+    // Reused only while the amount still matches: a member who added a guest
+    // owes more than the intent was opened for, and that needs a new one.
+    let payment = match payments_repo::pending_for_event(
+        &state.pool,
+        auth.user_id,
+        ticket.event_id,
+    )
+    .await?
+    {
+        Some(open) if open.amount_cents == ticket.amount_cents => open,
+        _ => payments_repo::create_pending(&state.pool, auth.user_id, &request, None).await?,
+    };
+
+    // Stripe's own page, not a form of ours: they own the card fields, the
+    // wallets, the 3-D Secure step and the receipt, and card details never
+    // reach a Fishers origin.
+    let back = format!(
+        "{}/events/{}/tickets",
+        return_origin(body.return_to.as_deref()),
+        ticket.event_id
+    );
+    let session = state
         .stripe
-        .create_payment_intent(payment.id, &request)
+        .create_checkout_session(
+            payment.id,
+            &request,
+            &fishers_payments::CheckoutFor {
+                name: &format!("{} — ticket", event.title),
+                success_url: &format!("{back}?paid=1"),
+                cancel_url: &back,
+            },
+        )
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    payments_repo::attach_intent(&state.pool, payment.id, &intent.client_secret).await?;
 
     Ok(Json(json!({
-        "payment_id": intent.payment_id,
-        "client_secret": intent.client_secret,
-        "amount_cents": intent.amount_cents,
-        "currency": intent.currency,
+        "payment_id": session.payment_id,
+        "checkout_url": session.url,
+        "amount_cents": session.amount_cents,
+        "currency": session.currency,
         "ticket_status": ticket.status,
     })))
 }
@@ -489,6 +1075,22 @@ async fn sqlx_event_block(state: &AppState, event_id: Uuid) -> ApiResult<Option<
     Ok(row.and_then(|r| r.0))
 }
 
+/// Who may buy a ticket: a member of the hosting club, or — when the event
+/// says its tickets are public — anybody signed in to Fishers.
+///
+/// `tickets_public` is off by default, so a members' AGM stays a members' AGM
+/// unless somebody deliberately opens it.
+async fn require_buyer(
+    state: &AppState,
+    event: &fishers_domain::Event,
+    user_id: Uuid,
+) -> ApiResult<()> {
+    if event.tickets_public {
+        return Ok(());
+    }
+    require_member(state, event.club_id, user_id).await
+}
+
 async fn require_member(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<()> {
     if clubs_repo::is_club_member(&state.pool, club_id, user_id).await? {
         Ok(())
@@ -503,4 +1105,67 @@ async fn require_organiser(state: &AppState, club_id: Uuid, user_id: Uuid) -> Ap
     require_permission(state, club_id, user_id, None, Permission::ManageEvents)
         .await
         .map(|_| ())
+}
+
+#[cfg(test)]
+mod return_origin_tests {
+    use super::pick_return_origin;
+
+    const FALLBACK: &str = "https://int.fishers.cloud";
+    const ALLOWED: [&str; 3] = [
+        "https://int.fishers.cloud",
+        "http://localhost:7311",
+        "http://127.0.0.1:7311",
+    ];
+
+    #[test]
+    fn the_origin_the_payer_is_on_is_used() {
+        // The bug: signed in on localhost, returned to the LAN address, no
+        // token there, login page.
+        assert_eq!(
+            pick_return_origin(Some("http://localhost:7311"), &ALLOWED, FALLBACK),
+            "http://localhost:7311"
+        );
+    }
+
+    #[test]
+    fn a_trailing_slash_is_the_same_origin() {
+        assert_eq!(
+            pick_return_origin(Some("http://localhost:7311/"), &ALLOWED, FALLBACK),
+            "http://localhost:7311"
+        );
+    }
+
+    #[test]
+    fn nothing_asked_for_falls_back() {
+        assert_eq!(pick_return_origin(None, &ALLOWED, FALLBACK), FALLBACK);
+        assert_eq!(pick_return_origin(Some("  "), &ALLOWED, FALLBACK), FALLBACK);
+    }
+
+    #[test]
+    fn an_origin_we_do_not_serve_is_refused() {
+        // Handed straight to Stripe, who will send a paying customer to it.
+        // An open redirect here is a phishing page with a real payment behind
+        // it, so anything unrecognised falls back rather than being trusted.
+        for hostile in [
+            "https://fishers.cloud.evil.test",
+            "http://localhost:7311.evil.test",
+            "https://evil.test",
+            "javascript:alert(1)",
+        ] {
+            assert_eq!(
+                pick_return_origin(Some(hostile), &ALLOWED, FALLBACK),
+                FALLBACK,
+                "{hostile} was allowed through"
+            );
+        }
+    }
+
+    #[test]
+    fn the_fallback_is_always_allowed_even_if_not_listed() {
+        assert_eq!(
+            pick_return_origin(Some(FALLBACK), &[], FALLBACK),
+            FALLBACK
+        );
+    }
 }

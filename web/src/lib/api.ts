@@ -210,6 +210,10 @@ export type EventRow = {
   /// `fee_amount_cents`, which is what a player owes for a fixture.
   ticket_price_cents?: number | null;
   ticket_capacity?: number | null;
+  /// How many guests one member may bring. Zero means members only.
+  guests_allowed?: number;
+  /// Anyone signed in may buy, not only members of the hosting club.
+  tickets_public?: boolean;
   status: string;
 };
 

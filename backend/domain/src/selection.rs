@@ -228,6 +228,10 @@ pub struct CreateFixtureBlockRequest {
     /// Existing fixtures to pull into the block.
     #[serde(default)]
     pub event_ids: Vec<Uuid>,
+    /// Everything a tournament settles up front. Optional so creating a plain
+    /// block of fixtures stays one name and two dates.
+    #[serde(flatten, default)]
+    pub settings: TournamentSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -240,6 +244,134 @@ pub struct FixtureBlock {
     pub starts_on: Option<chrono::NaiveDate>,
     pub ends_on: Option<chrono::NaiveDate>,
     pub created_at: chrono::DateTime<chrono::Utc>,
+
+    // MARK: what a tournament has to settle before anybody enters
+    /// The organiser's own description, shown to a club deciding whether to enter.
+    pub description: Option<String>,
+    /// The main ground. Individual pitches hang off `tournament_slots`, which
+    /// is how a tournament runs across more than one.
+    pub venue_id: Option<Uuid>,
+    /// How many sides fit. `None` is no limit.
+    pub max_entrants: Option<i32>,
+    pub entry_deadline: Option<chrono::DateTime<chrono::Utc>>,
+    /// What a side pays to enter — not a spectator's ticket, and not the match
+    /// fee a player owes for being picked.
+    pub entry_fee_cents: Option<i32>,
+    /// Eleven normally; six for sixes, eight for eights.
+    pub players_per_side: i32,
+    /// 0 means every player must belong to the entering club. This is the rule
+    /// clubs argue about on the day when nobody wrote it down.
+    pub guest_players_allowed: i32,
+    /// `open` | `u11` | `u13` | `u15` | `u17` | `u19` | `veterans`
+    pub age_group: String,
+    /// `open` | `men` | `women` | `mixed`
+    pub gender: String,
+    /// Overs, overs per bowler, ball, ground, powerplay — the same terms two
+    /// captains agree before a one-off match. Set once here and every fixture
+    /// in the tournament inherits it. `None` means the sport's default.
+    // `nullable`, not a bare `json`: every block that existed before a
+    // tournament could carry conditions has NULL here, and a bare `json`
+    // decodes that as a hard error rather than as `None`.
+    #[sqlx(json(nullable))]
+    pub conditions: Option<crate::MatchConditions>,
+    /// Everything a form cannot hold: last-over rules, ties, boundary counts.
+    pub rules_notes: Option<String>,
+}
+
+/// The tournament settings an organiser can change after it is created.
+///
+/// Every field optional and every one applied only when present, so a screen
+/// that edits the entry rules cannot wipe the playing conditions.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct TournamentSettings {
+    pub description: Option<String>,
+    pub venue_id: Option<Uuid>,
+    pub max_entrants: Option<i32>,
+    pub entry_deadline: Option<chrono::DateTime<chrono::Utc>>,
+    pub entry_fee_cents: Option<i32>,
+    pub players_per_side: Option<i32>,
+    pub guest_players_allowed: Option<i32>,
+    pub age_group: Option<String>,
+    pub gender: Option<String>,
+    pub conditions: Option<crate::MatchConditions>,
+    pub rules_notes: Option<String>,
+    /// Settings to unset, by name — `["max_entrants", "entry_deadline"]`.
+    ///
+    /// A missing field and a field set to null look identical over JSON, and
+    /// every other field here is "leave it alone if you did not send it". That
+    /// makes a cap impossible to remove once set, which is what the form
+    /// offering "leave empty for no limit" promises. Naming them is explicit,
+    /// and avoids every field becoming a double option.
+    #[serde(default)]
+    pub clear: Vec<String>,
+}
+
+pub const AGE_GROUPS: [&str; 7] = ["open", "u11", "u13", "u15", "u17", "u19", "veterans"];
+pub const GENDERS: [&str; 4] = ["open", "men", "women", "mixed"];
+
+impl TournamentSettings {
+    /// What is wrong with these settings, in the organiser's words. `None` when
+    /// they are usable.
+    ///
+    /// The database has the same constraints; this exists so the answer is a
+    /// sentence rather than a constraint violation.
+    /// Settings that may be unset. The rest have a value at all times — a side
+    /// is always some number of players — so clearing them means nothing.
+    pub const CLEARABLE: [&'static str; 7] = [
+        "description",
+        "venue_id",
+        "max_entrants",
+        "entry_deadline",
+        "entry_fee_cents",
+        "conditions",
+        "rules_notes",
+    ];
+
+    pub fn problem(&self) -> Option<String> {
+        if let Some(unknown) = self
+            .clear
+            .iter()
+            .find(|name| !Self::CLEARABLE.contains(&name.as_str()))
+        {
+            return Some(format!("{unknown} is not something that can be cleared"));
+        }
+        if self.max_entrants.is_some_and(|n| n < 2) {
+            return Some("a tournament needs room for at least two sides".into());
+        }
+        if self.entry_fee_cents.is_some_and(|c| c < 0) {
+            return Some("an entry fee cannot be negative".into());
+        }
+        if self.players_per_side.is_some_and(|n| !(2..=15).contains(&n)) {
+            return Some("a side is between 2 and 15 players".into());
+        }
+        if self.guest_players_allowed.is_some_and(|n| !(0..=11).contains(&n)) {
+            return Some("guest players must be between 0 and 11".into());
+        }
+        if let (Some(side), Some(guests)) = (self.players_per_side, self.guest_players_allowed) {
+            if guests > side {
+                return Some("a side cannot be more guests than players".into());
+            }
+        }
+        if let Some(age) = self.age_group.as_deref() {
+            if !AGE_GROUPS.contains(&age) {
+                return Some(format!("{age} is not an age group"));
+            }
+        }
+        if let Some(gender) = self.gender.as_deref() {
+            if !GENDERS.contains(&gender) {
+                return Some(format!("{gender} is not one of the options"));
+            }
+        }
+        if let Some(c) = &self.conditions {
+            if c.overs_limit == 0 {
+                return Some("an innings needs at least one over".into());
+            }
+            if c.overs_per_bowler > c.overs_limit {
+                return Some("a bowler cannot be allowed more overs than the innings has".into());
+            }
+        }
+        None
+    }
 }
 
 /// Weights. Availability dominates: picking someone who said no wastes the slot.
@@ -645,5 +777,125 @@ mod tests {
     fn capacity_overrides_the_sport_default() {
         let requirements = SquadRequirements::for_sport("cricket", Some(8));
         assert_eq!(requirements.size, 8);
+    }
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+    use crate::MatchConditions;
+
+    fn ok(s: TournamentSettings) {
+        assert_eq!(s.problem(), None, "expected these settings to be usable");
+    }
+
+    fn refuses(s: TournamentSettings, because: &str) {
+        let problem = s.problem().expect("expected these settings to be refused");
+        assert!(
+            problem.contains(because),
+            "refused for the wrong reason: {problem:?} does not mention {because:?}"
+        );
+    }
+
+    #[test]
+    fn empty_settings_are_fine() {
+        // Creating a plain block of fixtures sets none of this.
+        ok(TournamentSettings::default());
+    }
+
+    #[test]
+    fn a_tournament_needs_room_for_two() {
+        refuses(
+            TournamentSettings { max_entrants: Some(1), ..Default::default() },
+            "at least two",
+        );
+        ok(TournamentSettings { max_entrants: Some(2), ..Default::default() });
+    }
+
+    #[test]
+    fn a_side_is_a_believable_number_of_players() {
+        ok(TournamentSettings { players_per_side: Some(6), ..Default::default() });
+        ok(TournamentSettings { players_per_side: Some(11), ..Default::default() });
+        refuses(
+            TournamentSettings { players_per_side: Some(1), ..Default::default() },
+            "between 2 and 15",
+        );
+        refuses(
+            TournamentSettings { players_per_side: Some(16), ..Default::default() },
+            "between 2 and 15",
+        );
+    }
+
+    #[test]
+    fn a_side_cannot_be_more_guests_than_players() {
+        ok(TournamentSettings {
+            players_per_side: Some(11),
+            guest_players_allowed: Some(2),
+            ..Default::default()
+        });
+        refuses(
+            TournamentSettings {
+                players_per_side: Some(6),
+                guest_players_allowed: Some(8),
+                ..Default::default()
+            },
+            "more guests than players",
+        );
+    }
+
+    #[test]
+    fn the_age_group_and_gender_come_from_the_lists() {
+        ok(TournamentSettings { age_group: Some("u15".into()), ..Default::default() });
+        ok(TournamentSettings { gender: Some("women".into()), ..Default::default() });
+        refuses(
+            TournamentSettings { age_group: Some("u14".into()), ..Default::default() },
+            "not an age group",
+        );
+        refuses(
+            TournamentSettings { gender: Some("anything".into()), ..Default::default() },
+            "not one of the options",
+        );
+    }
+
+    #[test]
+    fn a_bowler_cannot_be_allowed_more_overs_than_the_innings_has() {
+        ok(TournamentSettings {
+            conditions: Some(MatchConditions::standard(20)),
+            ..Default::default()
+        });
+        refuses(
+            TournamentSettings {
+                conditions: Some(MatchConditions {
+                    overs_limit: 6,
+                    overs_per_bowler: 10,
+                    ..MatchConditions::standard(6)
+                }),
+                ..Default::default()
+            },
+            "more overs than the innings has",
+        );
+    }
+
+    #[test]
+    fn an_innings_needs_an_over() {
+        refuses(
+            TournamentSettings {
+                conditions: Some(MatchConditions {
+                    overs_limit: 0,
+                    ..MatchConditions::standard(20)
+                }),
+                ..Default::default()
+            },
+            "at least one over",
+        );
+    }
+
+    #[test]
+    fn an_entry_fee_cannot_be_negative() {
+        ok(TournamentSettings { entry_fee_cents: Some(0), ..Default::default() });
+        refuses(
+            TournamentSettings { entry_fee_cents: Some(-1), ..Default::default() },
+            "cannot be negative",
+        );
     }
 }

@@ -176,6 +176,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           </div>
 
           <Invite eventId={id} clubId={event.club_id} asked={attendees} onInvited={load} />
+
+          <Tickets event={event} onSaved={load} />
         </div>
 
         <aside className="pro-rail">
@@ -345,6 +347,155 @@ function CallOff({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/// Selling tickets to this one.
+///
+/// Every field here has been on the API since ticketing was built; until now
+/// nothing in the product set any of them, so the booking screen existed and
+/// no event could ever reach it.
+function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
+  const selling = event.ticket_price_cents != null;
+  const [open, setOpen] = useState(selling);
+  const [pounds, setPounds] = useState(
+    event.ticket_price_cents != null ? (event.ticket_price_cents / 100).toFixed(2) : ""
+  );
+  const [capacity, setCapacity] = useState(event.ticket_capacity?.toString() ?? "");
+  const [guests, setGuests] = useState(event.guests_allowed ?? 0);
+  const [isPublic, setIsPublic] = useState(event.tickets_public ?? false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  // Pounds in, pence out. A price typed as "7.50" that reaches the API as 7
+  // is the kind of bug nobody notices until the takings are short.
+  //
+  // Anything that is not a plain amount is refused rather than coerced: a
+  // stray "abc" used to strip to "" and save the event as free.
+  const typed = pounds.trim().replace(/^£/, "");
+  const pence = /^\d+(\.\d{1,2})?$/.test(typed) ? Math.round(Number(typed) * 100) : NaN;
+  // The payments API refuses anything over £1,000 as a fat finger, so a price
+  // above it could be set and then never paid.
+  const tooMuch = pence > 100_000;
+  const priceOk = Number.isFinite(pence) && !tooMuch;
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      await api("PATCH", `/events/${event.id}`, {
+        ticket_price_cents: pence,
+        ticket_capacity: capacity.trim() === "" ? null : Number(capacity),
+        guests_allowed: guests,
+        tickets_public: isPublic,
+      });
+      setNote(selling ? "Ticket settings saved." : "Tickets are on sale.");
+      onSaved();
+    } catch (err) {
+      setError(readErr(err, "Could not save that"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <div className="panel">
+        <div className="panel-head">
+          <h2>Tickets</h2>
+          <button className="btn ghost sm" type="button" onClick={() => setOpen(true)}>
+            Sell tickets
+          </button>
+        </div>
+        <p className="muted">
+          Not selling tickets to this one. Turn it on for a dinner, a finals day
+          or anything people pay to come to.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h2>Tickets</h2>
+        {selling && (
+          <Link className="btn ghost sm" href={`/events/${event.id}/tickets`}>
+            See bookings
+          </Link>
+        )}
+      </div>
+
+      <div className="setup-fields">
+        <label>
+          Price each
+          <span className="subtle">Zero for a free event you still want a headcount for.</span>
+          <input
+            inputMode="decimal"
+            value={pounds}
+            onChange={(e) => setPounds(e.target.value)}
+            placeholder="7.50"
+          />
+        </label>
+        <label>
+          How many can come
+          <span className="subtle">Leave empty for no limit.</span>
+          <input
+            type="number"
+            min={1}
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            placeholder="80"
+          />
+        </label>
+        <label>
+          Guests each member may bring
+          <input
+            type="number"
+            min={0}
+            max={10}
+            value={guests}
+            onChange={(e) => setGuests(Math.max(0, Math.min(10, Number(e.target.value))))}
+          />
+        </label>
+      </div>
+
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={isPublic}
+          onChange={(e) => setIsPublic(e.target.checked)}
+        />
+        <span>
+          <strong>Anyone on Fishers can buy</strong>
+          <span className="subtle">
+            {isPublic
+              ? "Visiting clubs and their supporters can buy a ticket. They see the headcount and their own booking — never who else is coming."
+              : "Members of this club only. Leave this off for an AGM or a members' dinner."}
+          </span>
+        </span>
+      </label>
+
+      {pounds.trim() !== "" && !Number.isFinite(pence) && (
+        <p className="error">Give the price as an amount, like 7.50.</p>
+      )}
+      {tooMuch && <p className="error">That is over £1,000 — payments are refused above it.</p>}
+      {error && <p className="error">{error}</p>}
+      {note && <p className="notice">{note}</p>}
+
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn primary" type="button" disabled={busy || !priceOk} onClick={save}>
+          {busy ? "Saving…" : selling ? "Save" : "Put them on sale"}
+        </button>
+        {!selling && (
+          <button className="btn" type="button" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+        )}
+      </div>
     </div>
   );
 }

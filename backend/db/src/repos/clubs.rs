@@ -756,6 +756,23 @@ pub async fn captain_ids(
     .await
 }
 
+/// Who may answer for the club — the roles that hold `ManageEvents` in
+/// `domain::rbac`. Kept in step with that matrix by hand: the roles are stored
+/// as an enum in the database and the matrix is Rust, so neither can read the
+/// other.
+pub async fn event_managers(pool: &PgPool, club_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar::<_, Uuid>(
+        r#"
+        SELECT user_id FROM club_members
+        WHERE club_id = $1 AND status = 'active'
+          AND role IN ('super_admin', 'club_admin', 'team_captain')
+        "#,
+    )
+    .bind(club_id)
+    .fetch_all(pool)
+    .await
+}
+
 /// The knobs a club secretary can turn: how much the assistant may do, when
 /// players are chased, and how hard fees are pursued.
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]

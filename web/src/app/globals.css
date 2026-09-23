@@ -637,6 +637,35 @@ textarea { line-height: 1.5; resize: vertical; }
   color: var(--fg);
 }
 
+/* A checkbox whose label needs a sentence under it explaining what it does.
+   `.checkbox` centres a one-line label; this one aligns to the top so the
+   explanation sits under the words it explains rather than beside the box. */
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
+  cursor: pointer;
+}
+.check-row input[type="checkbox"] {
+  /* Line it up with the cap height of the label rather than the line box. */
+  margin-top: 0.2em;
+  flex: none;
+  /* A 44px target is the rule; the box itself stays the size it looks. */
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.check-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.check-row .subtle {
+  font-weight: 400;
+  text-wrap: pretty;
+}
+
 /* ---------- Tables ---------- */
 
 .table-wrap {
@@ -1895,11 +1924,32 @@ textarea { line-height: 1.5; resize: vertical; }
 .setup-group[disabled] { opacity: 0.45; }
 .setup-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  /* 150px could not hold a date input, so those fields overflowed their
+     column. 210px is the narrowest that fits `dd/mm/yyyy` with its picker. */
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: var(--s4);
+  align-items: start;
 }
-.setup-fields label { margin: 0; }
-.setup-fields .subtle { display: block; margin-top: var(--s1); }
+.setup-fields label {
+  margin: 0;
+  /* The helper line used to sit between the label and its control, so a field
+     that had one pushed its input down while the field beside it stayed up —
+     nothing in a row lined up. Ordering puts every control on the same line
+     and the help underneath it, which is where help belongs anyway. */
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.setup-fields label > input,
+.setup-fields label > select,
+.setup-fields label > textarea { order: 1; }
+.setup-fields label > .subtle {
+  order: 2;
+  display: block;
+  margin-top: var(--s1);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
 
 /* Picking a side is a two-way choice — two cards read faster than a menu. */
 .side-choice {
@@ -4918,7 +4968,8 @@ a.bell-item:hover { background: var(--surface-2); }
   font-weight: 600;
   color: var(--fg);
 }
-.cc-num {
+.cc-num,
+.step-num {
   display: inline-grid;
   place-items: center;
   width: 24px;
@@ -4943,12 +4994,14 @@ a.bell-item:hover { background: var(--surface-2); }
 .cc-chips { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .cc-chips .chip { display: inline-flex; align-items: center; gap: 6px; }
 
-.cc-options {
+.cc-options,
+.opt-cards {
   display: grid;
   gap: var(--s3);
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
-.cc-option {
+.cc-option,
+.opt-card {
   position: relative;
   display: flex;
   align-items: flex-start;
@@ -4963,14 +5016,17 @@ a.bell-item:hover { background: var(--surface-2); }
   cursor: pointer;
   transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
-.cc-option:hover { border-color: var(--border-strong); }
-.cc-option.on {
+.cc-option:hover,
+.opt-card:hover { border-color: var(--border-strong); }
+.cc-option.on,
+.opt-card.on {
   border-color: var(--primary);
   background: color-mix(in srgb, var(--primary) 10%, var(--surface-2));
   box-shadow: inset 0 0 0 1px var(--primary);
 }
 /* The real radio covers the card: native keyboard and click, no visuals. */
-.cc-option input {
+.cc-option input,
+.opt-card input {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -4980,8 +5036,10 @@ a.bell-item:hover { background: var(--surface-2); }
   opacity: 0;
   cursor: pointer;
 }
-.cc-option:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
-.cc-option-icon {
+.cc-option:has(input:focus-visible),
+.opt-card:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+.cc-option-icon,
+.opt-card-icon {
   flex: none;
   display: grid;
   place-items: center;
@@ -4992,11 +5050,16 @@ a.bell-item:hover { background: var(--surface-2); }
   color: var(--fg-muted);
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
-.cc-option.on .cc-option-icon { background: var(--primary); color: var(--on-primary); }
-.cc-option-body { flex: 1; min-width: 0; }
-.cc-option-title { display: block; font-weight: 600; }
-.cc-option-text { display: block; margin-top: 2px; font-size: 0.86rem; line-height: 1.4; color: var(--fg-muted); }
-.cc-option-tick {
+.cc-option.on .cc-option-icon,
+.opt-card.on .opt-card-icon { background: var(--primary); color: var(--on-primary); }
+.cc-option-body,
+.opt-card-body { flex: 1; min-width: 0; }
+.cc-option-title,
+.opt-card-title { display: block; font-weight: 600; }
+.cc-option-text,
+.opt-card-text { display: block; margin-top: 2px; font-size: 0.86rem; line-height: 1.4; color: var(--fg-muted); }
+.cc-option-tick,
+.opt-card-tick {
   flex: none;
   display: grid;
   place-items: center;
@@ -5006,7 +5069,8 @@ a.bell-item:hover { background: var(--surface-2); }
   border: 1.5px solid var(--border-strong);
   color: transparent;
 }
-.cc-option.on .cc-option-tick { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.cc-option.on .cc-option-tick,
+.opt-card.on .opt-card-tick { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 
 .cc-form .verify-gate,
 .cc-form .error { margin: 0; }
@@ -6392,3 +6456,114 @@ main .panel[id] { scroll-margin-top: 80px; }
 .motm-all { margin-top: var(--s2); font-size: 0.85rem; }
 .motm-all ul { margin: var(--s2) 0 0; padding: 0; list-style: none; }
 .motm-all li { display: flex; justify-content: space-between; padding: 2px 0; }
+
+/* --- Stepped forms -----------------------------------------------------
+   A tournament has eighteen things to settle. Shown at once they read as a
+   wall and somebody who has not run one before cannot tell which matter; in
+   numbered steps, with the format picked first so the numbers fill
+   themselves, they read as a short sequence. */
+
+.form-step { margin: 0 0 var(--s5); }
+.form-step:last-of-type { margin-bottom: 0; }
+.form-step-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s1);
+  font-size: 1rem;
+}
+.form-step-hint {
+  margin: 0 0 var(--s3);
+  font-size: 0.88rem;
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+/* Wider than the club form's, because a format card carries a line of numbers
+   and two per row leaves them legible on a laptop. */
+.opt-cards-wide { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* A card standing in for the chosen option rather than offering one: the
+   "your own numbers" summary is not something to click. */
+.opt-card:not(:has(input)) { cursor: default; }
+
+/* --- Disclosure --------------------------------------------------------- */
+
+.disclose {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s3);
+  padding: var(--s2) 0;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.disclose:hover { color: var(--fg); }
+.disclose:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 6px; }
+.disclose-chev {
+  transform: rotate(180deg);
+  transition: transform var(--dur) var(--ease);
+}
+.disclose[aria-expanded="true"] .disclose-chev { transform: rotate(270deg); }
+
+/* Adding a ground without leaving the form. Spans the grid so its two inputs
+   and its buttons are not squeezed into one column beside the other fields. */
+.ground-add {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--s3);
+  align-items: start;
+  padding: var(--s3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.ground-add > label { margin: 0; display: flex; flex-direction: column; min-width: 0; }
+.ground-add > .error,
+.ground-add > .field-row { grid-column: 1 / -1; margin: 0; }
+
+/* --- What the form adds up to ------------------------------------------
+   Eighteen fields answered one at a time are hard to check as a whole, so the
+   whole is said back in one line before anything is created. */
+
+.form-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  margin: var(--s5) 0 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.form-summary svg { flex: none; margin-top: 2px; color: var(--fg-subtle); }
+.form-summary-body { min-width: 0; }
+.form-summary-title {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.form-summary-text {
+  display: block;
+  margin-top: 2px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+@media (max-width: 640px) {
+  /* One field a row on a phone: two 210px columns do not fit, and a squeezed
+     date input is unusable. */
+  .setup-fields { grid-template-columns: 1fr; }
+  .opt-cards-wide { grid-template-columns: 1fr; }
+  .form-summary { flex-direction: column; gap: var(--s2); }
+}

@@ -2,11 +2,19 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api, readErr } from "@/lib/api";
+import { api, money, readErr } from "@/lib/api";
 import {
+  AGE_LABEL,
+  BALL_LABEL,
   byGroup,
+  defaultConditions,
   difference,
+  ENTRY_LABEL,
   FORMAT_LABEL,
+  GENDER_LABEL,
+  GROUND_LABEL,
+  type EntryStatus,
+  type FixtureBlock,
   type ScheduleRow,
   type SchedulePreview,
   type Slot,
@@ -15,9 +23,20 @@ import {
   type TournamentFormat,
 } from "@/lib/tournament";
 import { Icon } from "@/components/Icon";
+import { OppositionPicker } from "@/components/OppositionPicker";
+import {
+  emptyRules,
+  pence,
+  rulesPayload,
+  rulesSummary,
+  TournamentRuleFields,
+  type Rules,
+  type Venue,
+} from "@/components/TournamentRules";
+import { type OpponentIdentity } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 
-type Tab = "entrants" | "grid" | "fixtures" | "table";
+type Tab = "entrants" | "grid" | "fixtures" | "table" | "rules";
 
 /// Running one tournament.
 ///
@@ -33,21 +52,24 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   const [slots, setSlots] = useState<Slot[]>([]);
   const [fixtures, setFixtures] = useState<ScheduleRow[]>([]);
   const [table, setTable] = useState<Standing[]>([]);
+  const [block, setBlock] = useState<FixtureBlock | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [e, s, f, t] = await Promise.all([
+      const [e, s, f, t, b] = await Promise.all([
         api<TournamentEntrant[]>("GET", `/fixture-blocks/${id}/entrants`),
         api<{ free: Slot[] }>("GET", `/fixture-blocks/${id}/slots`).catch(() => ({ free: [] })),
         api<ScheduleRow[]>("GET", `/fixture-blocks/${id}/schedule`).catch(() => []),
         api<Standing[]>("GET", `/fixture-blocks/${id}/standings`).catch(() => []),
+        api<FixtureBlock>("GET", `/fixture-blocks/${id}`).catch(() => null),
       ]);
       setEntrants(e);
       setSlots(s.free);
       setFixtures(f);
       setTable(t);
+      setBlock(b);
       setError(null);
     } catch (err) {
       setError(readErr(err, "Could not load this tournament"));
@@ -67,21 +89,43 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   if (loading)
     return <main id="main"><div className="skeleton" style={{ height: 300 }} /></main>;
 
-  const playing = entrants.filter((e) => !e.withdrawn);
+  // "In" means confirmed: accepted, and — where the tournament charges — paid.
+  // The server draws from exactly this set, so the count on the screen and the
+  // sides in the fixture list cannot disagree.
+  const fee = block?.entry_fee_cents ?? 0;
+  const confirmed = (e: TournamentEntrant) =>
+    e.status === "accepted" && (fee === 0 || !!e.entry_paid_at);
+  const playing = entrants.filter(confirmed);
+  const waiting = entrants.filter((e) => e.status === "invited");
+  // Said yes, owes the fee. Chasing them is the organiser's next job, and a
+  // single "in" count would hide it.
+  const owing = entrants.filter((e) => e.status === "accepted" && fee > 0 && !e.entry_paid_at);
 
   return (
     <main id="main">
       <section className="hero">
-        <h1>Tournament</h1>
+        <h1>{block?.name ?? "Tournament"}</h1>
+        {block?.description && <p>{block.description}</p>}
         <div className="hero-tags">
-          <span className="tag">{playing.length} in</span>
+          <span className="tag">
+            {/* "6 of 8 in" rather than "6 in": how many places are left is the
+                thing an organiser is counting. */}
+            {playing.length}
+            {block?.max_entrants ? ` of ${block.max_entrants}` : ""} in
+          </span>
+          {waiting.length > 0 && (
+            <span className="tag gold">{waiting.length} yet to answer</span>
+          )}
+          {owing.length > 0 && (
+            <span className="tag danger">{owing.length} owe the entry fee</span>
+          )}
           <span className="tag grey">{slots.length} free slots</span>
           <span className="tag grey">{fixtures.length} fixtures</span>
         </div>
       </section>
 
       <div className="people-tabs" role="tablist" aria-label="Tournament">
-        {(["entrants", "grid", "fixtures", "table"] as Tab[]).map((t) => (
+        {(["entrants", "grid", "fixtures", "table", "rules"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -90,14 +134,24 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
             className={tab === t ? "on" : undefined}
             onClick={() => setTab(t)}
           >
-            {{ entrants: "Who is in", grid: "Pitches & times", fixtures: "Fixtures", table: "Table" }[t]}
+            {
+              {
+                entrants: "Who is in",
+                grid: "Pitches & times",
+                fixtures: "Fixtures",
+                table: "Table",
+                rules: "Rules",
+              }[t]
+            }
           </button>
         ))}
       </div>
 
       {error && <p className="error">{error}</p>}
 
-      {tab === "entrants" && <Entrants blockId={id} entrants={entrants} onChanged={load} />}
+      {tab === "entrants" && (
+        <Entrants blockId={id} entrants={entrants} entryFee={fee} onChanged={load} />
+      )}
       {tab === "grid" && <Grid blockId={id} slots={slots} onChanged={load} />}
       {tab === "fixtures" && (
         <Fixtures
@@ -109,6 +163,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
         />
       )}
       {tab === "table" && <Table blockId={id} rows={table} onChanged={load} />}
+      {tab === "rules" && <Rules blockId={id} block={block} onChanged={load} />}
 
       <p className="muted" style={{ marginTop: "var(--s5)" }}>
         <Link href="/tournaments">← All tournaments</Link>
@@ -122,105 +177,291 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 function Entrants({
   blockId,
   entrants,
+  entryFee,
   onChanged,
 }: {
   blockId: string;
   entrants: TournamentEntrant[];
+  /// What a side pays to enter. Zero means nobody owes anything.
+  entryFee: number;
   onChanged: () => void;
 }) {
   const [names, setNames] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
-  const add = async () => {
+  const run = async (what: string, job: () => Promise<unknown>, said?: string) => {
+    setBusy(what);
+    setError(null);
+    setNote(null);
+    try {
+      await job();
+      if (said) setNote(said);
+      onChanged();
+    } catch (err) {
+      setError(readErr(err, "That did not work"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const add = () => {
     // One per line: pasting a list out of an email is how entries actually
     // arrive, and re-typing them into a form one at a time is the reason
     // organisers keep using a spreadsheet.
     const rows = names.split("\n").map((n) => n.trim()).filter(Boolean);
     if (rows.length === 0) return;
-    setBusy("add");
-    setError(null);
-    try {
-      await api("POST", `/fixture-blocks/${blockId}/entrants`, {
-        entrants: rows.map((name) => ({ name })),
-      });
-      setNames("");
-      onChanged();
-    } catch (err) {
-      setError(readErr(err, "Could not add those"));
-    } finally {
-      setBusy(null);
-    }
+    return run(
+      "add",
+      () =>
+        api("POST", `/fixture-blocks/${blockId}/entrants`, {
+          entrants: rows.map((name) => ({ name })),
+        }).then(() => setNames("")),
+      `Entered ${rows.length} ${rows.length === 1 ? "side" : "sides"}.`
+    );
   };
 
-  const withdraw = async (entrantId: string) => {
-    setBusy(entrantId);
-    setError(null);
-    try {
-      await api("POST", `/entrants/${entrantId}/withdraw`, {});
-      onChanged();
-    } catch (err) {
-      setError(readErr(err, "Could not withdraw them"));
-    } finally {
-      setBusy(null);
-    }
-  };
+  const waiting = entrants.filter((e) => e.status === "invited");
+  const owing = entrants.filter(
+    (e) => e.status === "accepted" && entryFee > 0 && !e.entry_paid_at
+  );
 
   return (
     <>
       <div className="panel">
-        <h2>The sides</h2>
+        <div className="panel-head">
+          <h2>The sides</h2>
+          {waiting.length > 0 && (
+            <span className="tag gold">{waiting.length} yet to answer</span>
+          )}
+          {owing.length > 0 && (
+            <span className="tag danger">{owing.length} owe the entry fee</span>
+          )}
+        </div>
         {entrants.length === 0 ? (
           <p className="muted">Nobody entered yet.</p>
         ) : (
           <ul className="pick-list">
             {entrants.map((e) => (
-              <li key={e.id} className={e.withdrawn ? "reserve" : undefined}>
+              <li key={e.id} className={e.status === "accepted" ? undefined : "reserve"}>
                 <span className="thread-mark" aria-hidden>
                   {e.group_label ?? (e.seed ? `#${e.seed}` : "–")}
                 </span>
                 <div className="pick-who">
                   <strong>{e.name}</strong>
-                  {e.withdrawn && <span className="subtle">withdrawn</span>}
+                  <span className="pick-signals">
+                    {e.club_id && <span className="subtle">on Fishers</span>}
+                    {e.contact_email && !e.club_id && (
+                      <span className="subtle">{e.contact_email}</span>
+                    )}
+                  </span>
                 </div>
-                {!e.withdrawn && (
-                  <div className="pick-actions">
+                <div className="pick-actions">
+                  {/* Accepted and owing reads as "in" from the status alone,
+                      which is exactly the side the organiser must not build a
+                      fixture around. */}
+                  {e.status === "accepted" && entryFee > 0 && !e.entry_paid_at ? (
+                    <span className="tag danger">Owes {money(entryFee)}</span>
+                  ) : (
+                    <EntryTag status={e.status} />
+                  )}
+                  {e.status === "accepted" && (
                     <button
                       className="btn ghost sm"
                       type="button"
-                      disabled={busy === e.id}
-                      onClick={() => withdraw(e.id)}
+                      disabled={busy !== null}
+                      onClick={() =>
+                        run(
+                          e.id,
+                          () => api("POST", `/entrants/${e.id}/withdraw`, {}),
+                          `${e.name} withdrawn.`
+                        )
+                      }
                     >
                       Withdraw
                     </button>
-                  </div>
-                )}
+                  )}
+                  {e.status === "accepted" && entryFee > 0 && !e.entry_paid_at && (
+                    <button
+                      className="btn ghost sm"
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        run(
+                          e.id,
+                          () =>
+                            api("POST", `/entrants/${e.id}/mark-entry-paid`, {
+                              method: "transfer",
+                            }),
+                          `${e.name}'s entry fee recorded.`
+                        )
+                      }
+                    >
+                      Mark paid
+                    </button>
+                  )}
+                  {(e.status === "declined" || e.status === "withdrawn") && e.club_id && (
+                    <button
+                      className="btn ghost sm"
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        run(
+                          e.id,
+                          () =>
+                            api("POST", `/fixture-blocks/${blockId}/invite`, {
+                              club_id: e.club_id,
+                            }),
+                          `Asked ${e.name} again.`
+                        )
+                      }
+                    >
+                      Ask again
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
         )}
+        {error && <p className="error">{error}</p>}
+        {note && <p className="notice">{note}</p>}
+        {(waiting.length > 0 || owing.length > 0) && (
+          <p className="subtle" style={{ marginTop: "var(--s3)" }}>
+            {entryFee > 0
+              ? "A side is in the draw once it has accepted and settled the entry fee."
+              : "Only sides that have accepted go into the draw."}
+          </p>
+        )}
       </div>
 
+      <InviteClub blockId={blockId} onInvited={onChanged} />
+
       <div className="panel">
-        <h2>Add sides</h2>
+        <h2>Enter sides yourself</h2>
+        <p className="subtle">
+          For a side you are entering on their behalf — they are in straight away
+          and are never asked.
+        </p>
         <label>
           One per line
           <textarea
-            rows={5}
+            rows={4}
             value={names}
             onChange={(e) => setNames(e.target.value)}
             placeholder={"Hemel CC\nWatford Wanderers\nSt Albans 2nd XI"}
           />
         </label>
-        {error && <p className="error">{error}</p>}
         <div className="field-row" style={{ marginTop: "var(--s4)" }}>
-          <button className="btn primary" type="button" disabled={busy !== null || !names.trim()}
+          <button className="btn" type="button" disabled={busy !== null || !names.trim()}
                   onClick={add}>
-            {busy === "add" ? "Adding…" : "Add them"}
+            {busy === "add" ? "Entering…" : "Enter them"}
           </button>
         </div>
       </div>
     </>
+  );
+}
+
+function EntryTag({ status }: { status: EntryStatus }) {
+  const tone =
+    status === "accepted" ? "" : status === "invited" ? "gold" : "grey";
+  return <span className={`tag ${tone}`.trim()}>{ENTRY_LABEL[status]}</span>;
+}
+
+/// Ask a club into the tournament.
+///
+/// Two kinds of side, and the difference matters: a club on Fishers answers in
+/// its own app, and one that is not gets a link by email. Either way they
+/// decide — an organiser cannot enter somebody else's club for them.
+function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => void }) {
+  const [picked, setPicked] = useState<OpponentIdentity | null>(null);
+  const [typed, setTyped] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [link, setLink] = useState<string | null>(null);
+
+  const offPlatform = !picked && typed.trim().length > 0;
+  const ready = picked ? true : offPlatform && email.trim().length > 0;
+
+  const send = async () => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    setLink(null);
+    try {
+      const body = picked
+        ? { club_id: picked.club_id, team_id: picked.kind === "team" ? picked.id : null,
+            name: picked.kind === "team" ? picked.name : null }
+        : { name: typed.trim(), contact_email: email.trim() };
+      const out = await api<{ invite_link: string | null }>(
+        "POST",
+        `/fixture-blocks/${blockId}/invite`,
+        body
+      );
+      setNote(`Asked ${picked?.name ?? typed.trim()}. They decide whether to enter.`);
+      setLink(out.invite_link);
+      setPicked(null);
+      setTyped("");
+      setEmail("");
+      onInvited();
+    } catch (err) {
+      setError(readErr(err, "Could not send that invitation"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel">
+      <h2>Invite a club</h2>
+      <p className="subtle">
+        They accept or decline themselves, and only then are they in the draw.
+      </p>
+
+      <OppositionPicker
+        onPick={(identity, name) => {
+          setPicked(identity);
+          setTyped(identity ? "" : name);
+        }}
+      />
+
+      {offPlatform && (
+        <label>
+          Where to send it
+          <span className="subtle">
+            {typed.trim()} is not on Fishers, so they answer by following a link.
+          </span>
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="secretary@theirclub.example"
+          />
+        </label>
+      )}
+
+      {error && <p className="error">{error}</p>}
+      {note && <p className="notice">{note}</p>}
+      {link && (
+        // Shown because club email goes to a shared inbox somebody checks on
+        // Sundays. Passing the link on by hand is often how this actually lands.
+        <p className="subtle">
+          Their link, if you would rather send it yourself: <code>{link}</code>
+        </p>
+      )}
+
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn primary" type="button" disabled={busy || !ready} onClick={send}>
+          {busy ? "Asking…" : "Send the invitation"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -779,4 +1020,240 @@ function clock(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
     day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   });
+}
+
+/* ---------- Rules ---------- */
+
+/// What a club is agreeing to when it enters, and what every fixture plays to.
+///
+/// One screen for three different conversations — entry, who may play, and the
+/// playing conditions — because an organiser settles all three in one sitting
+/// and a club reading them wants them in one place.
+function Rules({
+  blockId,
+  block,
+  onChanged,
+}: {
+  blockId: string;
+  block: FixtureBlock | null;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  if (!block) return <div className="skeleton" style={{ height: 240 }} />;
+  if (editing)
+    return (
+      <RulesForm
+        blockId={blockId}
+        block={block}
+        onClose={() => setEditing(false)}
+        onSaved={onChanged}
+      />
+    );
+
+  const c = block.conditions;
+  const money = (p: number) => `£${(p / 100).toFixed(2)}`;
+  const when = (iso: string) =>
+    new Date(iso).toLocaleString("en-GB", {
+      weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+
+  return (
+    <>
+      <div className="panel">
+        <div className="panel-head">
+          <h2>Entry</h2>
+          <button className="btn ghost sm" type="button" onClick={() => setEditing(true)}>
+            Change the rules
+          </button>
+        </div>
+        <dl className="pro-about">
+          <div>
+            <dt>Sides</dt>
+            <dd>{block.max_entrants ? `Up to ${block.max_entrants}` : "No limit"}</dd>
+          </div>
+          <div>
+            <dt>Entries close</dt>
+            <dd>{block.entry_deadline ? when(block.entry_deadline) : "No deadline"}</dd>
+          </div>
+          <div>
+            <dt>Entry fee</dt>
+            <dd>{block.entry_fee_cents ? money(block.entry_fee_cents) : "Free to enter"}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="panel">
+        <h2>Who may play</h2>
+        <dl className="pro-about">
+          <div><dt>Players a side</dt><dd className="num">{block.players_per_side}</dd></div>
+          <div>
+            <dt>Guest players</dt>
+            <dd>
+              {block.guest_players_allowed === 0
+                ? "None — every player must be a club member"
+                : `Up to ${block.guest_players_allowed} from outside the club`}
+            </dd>
+          </div>
+          <div><dt>Age group</dt><dd>{AGE_LABEL[block.age_group] ?? block.age_group}</dd></div>
+          <div><dt>Who it is for</dt><dd>{GENDER_LABEL[block.gender] ?? block.gender}</dd></div>
+        </dl>
+      </div>
+
+      <div className="panel">
+        <h2>Playing conditions</h2>
+        {c ? (
+          <>
+            <dl className="pro-about">
+              <div><dt>Overs an innings</dt><dd className="num">{c.overs_limit}</dd></div>
+              <div>
+                <dt>Most overs one bowler</dt>
+                <dd className="num">{c.overs_per_bowler === 0 ? "No limit" : c.overs_per_bowler}</dd>
+              </div>
+              <div><dt>Ball</dt><dd>{BALL_LABEL[c.ball] ?? c.ball}</dd></div>
+              <div><dt>Ground</dt><dd>{GROUND_LABEL[c.ground] ?? c.ground}</dd></div>
+              <div>
+                <dt>Powerplay</dt>
+                <dd>{c.powerplay_overs === 0 ? "None" : `${c.powerplay_overs} overs`}</dd>
+              </div>
+            </dl>
+            <p className="subtle">
+              Every match in this tournament starts on these terms — the scorer
+              does not type them again.
+            </p>
+          </>
+        ) : (
+          <p className="muted">
+            Not set. Each match is agreed between its two captains, as a one-off
+            fixture is.
+          </p>
+        )}
+        {block.rules_notes && (
+          <>
+            <h3 style={{ marginTop: "var(--s4)" }}>Anything else</h3>
+            <p style={{ whiteSpace: "pre-wrap" }}>{block.rules_notes}</p>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function RulesForm({
+  blockId,
+  block,
+  onClose,
+  onSaved,
+}: {
+  blockId: string;
+  block: FixtureBlock;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const existing = block.conditions ?? defaultConditions();
+  // Seeded from what is already stored, so the same fields that created the
+  // tournament are the ones that change it — one component, no drift.
+  const [rules, setRules] = useState<Rules>(() => ({
+    ...emptyRules(),
+    description: block.description ?? "",
+    maxEntrants: block.max_entrants?.toString() ?? "",
+    // datetime-local wants local wall-clock, not an ISO instant.
+    entryDeadline: block.entry_deadline ? toLocalInput(block.entry_deadline) : "",
+    entryFee: block.entry_fee_cents != null ? (block.entry_fee_cents / 100).toFixed(2) : "",
+    venueId: block.venue_id ?? "",
+    playersPerSide: block.players_per_side,
+    guests: block.guest_players_allowed,
+    ageGroup: block.age_group,
+    gender: block.gender,
+    overs: existing.overs_limit,
+    perBowler: existing.overs_per_bowler,
+    ball: existing.ball,
+    ground: existing.ground,
+    powerplay: existing.powerplay_overs,
+    rulesNotes: block.rules_notes ?? "",
+  }));
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (patch: Partial<Rules>) => setRules((r) => ({ ...r, ...patch }));
+
+  useEffect(() => {
+    api<Venue[]>("GET", `/clubs/${block.club_id}/venues`)
+      .then(setVenues)
+      .catch(() => setVenues([]));
+  }, [block.club_id]);
+
+  const fee = pence(rules.entryFee);
+  const feeOk = fee === null || Number.isFinite(fee);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api("PATCH", `/fixture-blocks/${blockId}`, rulesPayload(rules, existing));
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(readErr(err, "Could not save the rules"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel setup-panel">
+      <div className="panel-head">
+        <h2>The rules</h2>
+        <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
+      </div>
+
+      <label>
+        What to tell the clubs you invite
+        <textarea
+          rows={2}
+          value={rules.description}
+          onChange={(e) => set({ description: e.target.value })}
+        />
+      </label>
+
+      <div style={{ marginTop: "var(--s5)" }}>
+        <TournamentRuleFields
+          rules={rules}
+          set={set}
+          venues={venues}
+          clubId={block.club_id}
+          onVenueAdded={(v) => setVenues((all) => [...all, v])}
+        />
+      </div>
+
+      <div className="form-summary">
+        <Icon name="check" size={16} />
+        <span className="form-summary-body">
+          <span className="form-summary-title">What this tournament will be</span>
+          <span className="form-summary-text">{rulesSummary(rules)}</span>
+        </span>
+      </div>
+
+      <p className="subtle" style={{ marginTop: "var(--s3)" }}>
+        Changing these does not re-open matches already being scored — they keep
+        the terms they started under.
+      </p>
+
+      {error && <p className="error">{error}</p>}
+      <div className="field-row" style={{ marginTop: "var(--s4)" }}>
+        <button className="btn primary" type="button" disabled={busy || !feeOk} onClick={save}>
+          {busy ? "Saving…" : "Save the rules"}
+        </button>
+        <button className="btn" type="button" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/// An instant as `datetime-local` wants it: local wall-clock, no zone.
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

@@ -195,21 +195,22 @@ struct TournamentView: View {
                             .foregroundStyle(.secondary)
                             .frame(width: 18)
                     }
-                    Text(entrant.name)
-                        .strikethrough(entrant.withdrawn)
-                    Spacer()
-                    if entrant.withdrawn {
-                        Text("Withdrawn").font(.caption).foregroundStyle(.secondary)
-                    } else if let group = entrant.groupLabel {
-                        Text("Group \(group)")
-                            .font(.caption)
-                            .foregroundStyle(FishersTheme.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entrant.name)
+                            .strikethrough(entrant.entry == .withdrawn)
+                        if entrant.entry == .accepted, let group = entrant.groupLabel {
+                            Text("Group \(group)")
+                                .font(.caption)
+                                .foregroundStyle(FishersTheme.accent)
+                        }
                     }
+                    Spacer()
+                    EntryBadge(status: entrant.entry)
                 }
                 // Pulled out after the draw: their fixtures stay, marked, so
                 // the table and the history still add up.
                 .swipeActions(edge: .trailing) {
-                    if !entrant.withdrawn {
+                    if entrant.entry == .accepted {
                         Button("Withdraw", role: .destructive) {
                             Task {
                                 try? await FishersAPI.withdrawEntrant(entrant.id)
@@ -220,7 +221,99 @@ struct TournamentView: View {
                 }
             }
         } footer: {
-            Text("Seeds are used to spread the strong sides across the groups.")
+            // Two different things share this list, and the difference decides
+            // who is in the draw, so it is said rather than left to the badges.
+            Text(
+                store.entrants.contains { $0.entry == .invited }
+                    ? "Sides that have been asked are not in the draw until they accept."
+                    : "Seeds are used to spread the strong sides across the groups."
+            )
+        }
+
+        rulesSection
+    }
+
+    /// What a club is agreeing to when it enters, and what every fixture in
+    /// the tournament plays to.
+    ///
+    /// Read-only on the phone: these are settled once at a desk, and a
+    /// mis-tap on a boundary rope should not change the ball colour mid-day.
+    @ViewBuilder
+    private var rulesSection: some View {
+        let entryRules = [
+            block.maxEntrants.map { "Up to \($0) sides" },
+            block.entryFeeCents.map { "£\(String(format: "%.2f", Double($0) / 100)) to enter" },
+            block.guestPlayersAllowed.map {
+                $0 == 0 ? "Club members only" : "Up to \($0) guest players"
+            },
+        ].compactMap { $0 }
+
+        Section {
+            LabeledContent("Players a side", value: "\(block.side)")
+            if let age = block.ageGroup, age != "open" {
+                LabeledContent("Age group", value: age.uppercased())
+            }
+            if let gender = block.gender, gender != "open" {
+                LabeledContent("For", value: gender.capitalized)
+            }
+            ForEach(entryRules, id: \.self) { rule in
+                Text(rule).font(FishersTheme.footnote).foregroundStyle(.secondary)
+            }
+            if let c = block.conditions {
+                LabeledContent("Overs", value: "\(c.oversLimit)")
+                LabeledContent(
+                    "Most per bowler",
+                    value: c.oversPerBowler == 0 ? "No limit" : "\(c.oversPerBowler)"
+                )
+                LabeledContent("Ball", value: c.ball.label)
+                if c.powerplayOvers > 0 {
+                    LabeledContent("Powerplay", value: "\(c.powerplayOvers) overs")
+                }
+            }
+            if let notes = block.rulesNotes, !notes.isEmpty {
+                Text(notes).font(FishersTheme.footnote)
+            }
+        } header: {
+            Text("The rules")
+        } footer: {
+            Text(
+                block.conditions == nil
+                    ? "No playing conditions set — each match is agreed between its two captains."
+                    : "Every match in this tournament starts on these terms."
+            )
+        }
+    }
+}
+
+/// Where a side is in the entry process, in one word.
+private struct EntryBadge: View {
+    let status: EntryStatus
+
+    var body: some View {
+        Text(status.label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.14), in: Capsule())
+            .accessibilityLabel(accessibility)
+    }
+
+    private var tint: Color {
+        switch status {
+        case .accepted: return FishersTheme.pitch
+        case .invited: return FishersTheme.accent
+        case .declined, .withdrawn: return .secondary
+        }
+    }
+
+    /// "In" and "Asked" mean nothing read aloud on their own.
+    private var accessibility: String {
+        switch status {
+        case .accepted: return "In the draw"
+        case .invited: return "Asked, not yet answered"
+        case .declined: return "Declined"
+        case .withdrawn: return "Withdrawn"
         }
     }
 }

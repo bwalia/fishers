@@ -17,6 +17,7 @@
   "ticket_price_cents": null,
   "ticket_capacity": null,
   "guests_allowed": 0,
+  "tickets_public": false,
   "status": "scheduled",
   "status_note": null,
   "rescheduled_to": null,

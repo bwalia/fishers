@@ -135,7 +135,16 @@ export function OppositionPicker({
               </li>
             ))}
             {query.trim().length >= 2 && results.filter(allowed).length === 0 && (
-              <li className="muted">Nobody by that name in Fishers.</li>
+              // Search only ever finds clubs that chose "anyone can find it".
+              // A club set to invite only is deliberately kept out of it, so
+              // "nobody by that name" read as though they were not on Fishers
+              // at all — and left no way forward.
+              <li className="muted">
+                Nobody by that name you can search for. A club set to{" "}
+                <strong>invite only</strong> is kept out of search — ask them for
+                their club code or link and use the tabs above, or enter them by
+                name below.
+              </li>
             )}
           </ul>
           {results.some((r) => !allowed(r)) && <p className="subtle">{ownClubNote}</p>}

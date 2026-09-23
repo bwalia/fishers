@@ -31,6 +31,10 @@ docs/screenshots/
 # Env & secrets
 .env
 .env.local
+# A backup of .env holds the same secrets it does. One was very nearly
+# committed after being made before an edit.
+.env.bak*
+.env.*.bak
 *.pem
 *.p8
 Secrets.xcconfig

@@ -31,6 +31,14 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           // The camera is used to scan an opposition's QR code at the ground;
           // nothing else is, and nobody embedded needs any of it.
+          //
+          // `payment=()` is right again now that checkout is Stripe's own
+          // page: nothing on a Fishers origin embeds a card field, so nothing
+          // here needs the capability. It briefly had to be delegated to
+          // js.stripe.com for the embedded form, which is worth knowing if one
+          // ever comes back — an empty allowlist switches the capability off
+          // for this document *and everything it embeds*, and the only symptom
+          // is a form that never appears.
           {
             key: "Permissions-Policy",
             value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=()",

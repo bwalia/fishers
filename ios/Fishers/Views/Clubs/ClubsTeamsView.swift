@@ -533,6 +533,7 @@ struct ClubDetailView: View {
     @State private var teams: [Team] = []
     @State private var events: [Event] = []
     @State private var blocks: [FixtureBlock] = []
+    @State private var entryInvitations: [EntryInvitation] = []
     @State private var venues: [Venue] = []
     @State private var members: [ClubMemberDetail] = []
     @State private var isCreatingTournament = false
@@ -663,6 +664,8 @@ struct ClubDetailView: View {
             } footer: {
                 Text("A page anyone can open — no login: your record, top players and next fixtures.")
             }
+
+            EntryInvitationsSection(invitations: entryInvitations) { await load() }
 
             Section {
                 if blocks.isEmpty {
@@ -849,12 +852,14 @@ struct ClubDetailView: View {
         async let r = FishersAPI.myClubRole(clubId: club.id)
         async let v = FishersAPI.venues(clubId: club.id)
         async let m = FishersAPI.clubMembers(clubId: club.id)
+        async let i = FishersAPI.tournamentInvitations(clubId: club.id)
         teams = (try? await t) ?? []
         events = (try? await e) ?? []
         blocks = (try? await b) ?? []
         role = try? await r
         venues = (try? await v) ?? []
         members = ((try? await m) ?? []).filter(\.isActive)
+        entryInvitations = (try? await i) ?? []
     }
 
     /// Weekly cricket series: Wednesday nets, Saturday league, Sunday social.
