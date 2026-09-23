@@ -2316,6 +2316,9 @@ type Draft = {
   boundary?: boolean;
   offTheBat?: boolean;
   shotKind?: string;
+  /// Law 18.4: runs they completed that the umpire called short. Not scored,
+  /// but they were still run, so they decide which end everybody ends at.
+  shortRuns?: number;
   step: "detail" | "shot" | "direction";
 };
 
@@ -2346,6 +2349,8 @@ function LivePanel({
   const batsLeft = (st.left_handers || []).includes((inn.striker_id || "").toLowerCase());
 
   const [draft, setDraft] = useState<Draft | null>(null);
+  /// Armed when the umpire signals one short, and spent on the next ball.
+  const [oneShort, setOneShort] = useState(false);
   const [sheet, setSheet] = useState<null | "wicket" | "more">(null);
   const [askShot, setAskShot] = useState(true);
   /// Model-written lines, keyed by ball. The log-written line shows instantly
@@ -2406,6 +2411,7 @@ function LivePanel({
           is_legal: true,
           is_boundary_four: d.runs === 4,
           is_boundary_six: d.runs === 6,
+          short_runs: d.shortRuns ?? 0,
           ...(shot ? { shot } : {}),
         };
     setDraft(null);
@@ -2413,7 +2419,13 @@ function LivePanel({
   };
 
   const startRuns = (runs: number) => {
-    const d: Draft = { runs, step: "shot" };
+    // The scorer taps what they ran. One short takes a run off the score but
+    // not off the ground they covered, so the count and the ends part company
+    // here and nowhere else.
+    const d: Draft = oneShort
+      ? { runs: Math.max(0, runs - 1), shortRuns: 1, step: "shot" }
+      : { runs, step: "shot" };
+    setOneShort(false);
     if (!askShot) return record(d);
     setDraft(d);
   };
@@ -2742,6 +2754,16 @@ function LivePanel({
             ))}
             <button className="btn danger" type="button" disabled={!canAct || needsBowler} onClick={() => setSheet("wicket")}>
               Wicket
+            </button>
+            <button
+              className={oneShort ? "btn primary" : "btn ghost"}
+              type="button"
+              disabled={!canAct || needsBowler}
+              aria-pressed={oneShort}
+              title="The umpire has signalled one short: the next ball scores one fewer, but the batters still finish where they ran to."
+              onClick={() => setOneShort((on) => !on)}
+            >
+              One short
             </button>
             <button className="btn ghost" type="button" disabled={!canAct} onClick={() => send({ type: "undo_last" })}>
               <Icon name="arrowLeft" size={16} /> Undo
@@ -3176,9 +3198,26 @@ function MoreSheet({
   const [penalty, setPenalty] = useState(5);
   const [reason, setReason] = useState("slow over rate");
   const [side, setSide] = useState<Side>("home");
+  const [overs, setOvers] = useState(inn.overs_available ?? st.overs_limit);
+  const [subName, setSubName] = useState("");
+  const [subFor, setSubFor] = useState("");
+  const [suspend, setSuspend] = useState("");
+  const [suspendWhy, setSuspendWhy] = useState("second beamer");
+  const suspended = inn.suspended_bowlers ?? [];
+  const [resuming, setResuming] = useState("");
+  const [resumeFor, setResumeFor] = useState("");
+
+  // The overs cannot be cut below what has already been bowled, and the engine
+  // says so — but a spinner that will not go there at all is kinder.
+  const oversBowled = Math.ceil(inn.legal_balls / 6);
+  // Retired hurt and still not out: they are entitled to come back.
+  const canResume = inn.batters.filter((b) => b.retired_hurt && !b.out);
+  // With both ends occupied the scorer has to say who is making way.
+  const endIsFree = !inn.striker_id || !inn.non_striker_id;
+  const atCrease = [inn.striker_id, inn.non_striker_id].filter(Boolean) as string[];
 
   return (
-    <Sheet title="Bowling, field and penalties" onClose={onClose}>
+    <Sheet title="Bowling, field and the rest" onClose={onClose}>
       <div className="form">
         <label>
           Bowler
@@ -3186,8 +3225,16 @@ function MoreSheet({
             value={inn.bowler_id ?? ""}
             onChange={(e) => send({ type: "bowler_changed", bowler_id: e.target.value })}
           >
-            {bowlingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
+            <option value="">Nobody yet</option>
+            {bowlingXi
+              .filter((id) => !suspended.includes(id))
+              .map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
           </select>
+          {suspended.length > 0 && (
+            <span className="subtle">
+              Off for the innings: {suspended.map(nameOf).join(", ")}.
+            </span>
+          )}
         </label>
         <label>
           Fielders outside the circle
@@ -3206,6 +3253,176 @@ function MoreSheet({
             }
           />
         </label>
+      </div>
+
+      <h3 style={{ marginTop: "var(--s4)" }}>Overs in this innings</h3>
+      <p className="muted">
+        Rain, bad light, a late start. Cutting the overs here is what moves the
+        Duckworth&ndash;Lewis&ndash;Stern par score, so do it before the players
+        are back on.
+      </p>
+      <div className="form">
+        <label>
+          Overs
+          <input
+            type="number"
+            min={Math.max(1, oversBowled)}
+            max={99}
+            value={overs}
+            onChange={(e) => setOvers(Number(e.target.value))}
+          />
+          <span className="subtle">
+            {oversBowled > 0
+              ? oversBowled + " already bowled, so it cannot go below that."
+              : "None bowled yet."}
+          </span>
+        </label>
+      </div>
+      <div className="sheet-actions">
+        <button
+          className="btn"
+          type="button"
+          disabled={overs === (inn.overs_available ?? st.overs_limit) || overs < oversBowled}
+          onClick={async () => {
+            onClose();
+            await send({ type: "overs_revised", innings_index: inn.index, overs });
+          }}
+        >
+          Cut the overs
+        </button>
+      </div>
+
+      {canResume.length > 0 && (
+        <>
+          <h3 style={{ marginTop: "var(--s4)" }}>Back from retired hurt</h3>
+          <div className="form">
+            <label>
+              Who is coming back
+              <select value={resuming} onChange={(e) => setResuming(e.target.value)}>
+                <option value="">Nobody</option>
+                {canResume.map((b) => (
+                  <option key={b.player_id} value={b.player_id}>
+                    {nameOf(b.player_id)} ({b.runs} off {b.balls})
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!endIsFree && (
+              <label>
+                Coming in for
+                <select value={resumeFor} onChange={(e) => setResumeFor(e.target.value)}>
+                  <option value="">Say who</option>
+                  {atCrease.map((id) => (
+                    <option key={id} value={id}>{nameOf(id)}</option>
+                  ))}
+                </select>
+                <span className="subtle">
+                  Both ends are occupied, so somebody has to make way.
+                </span>
+              </label>
+            )}
+          </div>
+          <div className="sheet-actions">
+            <button
+              className="btn"
+              type="button"
+              disabled={!resuming || (!endIsFree && !resumeFor)}
+              onClick={async () => {
+                onClose();
+                await send({
+                  type: "batter_resumed",
+                  batter_id: resuming,
+                  replacing_id: resumeFor || null,
+                });
+              }}
+            >
+              Back in
+            </button>
+          </div>
+        </>
+      )}
+
+      <h3 style={{ marginTop: "var(--s4)" }}>Substitute fielder</h3>
+      <p className="muted">
+        Law 24: somebody fielding for a player who is off. A sub may field and
+        catch, but not bat or bowl, so they join no team sheet — naming them
+        here is what lets a catch be credited, and the card reads
+        &ldquo;c sub (name)&rdquo;.
+      </p>
+      <div className="form">
+        <label>
+          Their name
+          <input
+            value={subName}
+            onChange={(e) => setSubName(e.target.value)}
+            placeholder="A Patel"
+            maxLength={80}
+          />
+        </label>
+        <label>
+          On for
+          <select value={subFor} onChange={(e) => setSubFor(e.target.value)}>
+            <option value="">Not saying</option>
+            {bowlingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="sheet-actions">
+        <button
+          className="btn"
+          type="button"
+          disabled={!subName.trim()}
+          onClick={async () => {
+            onClose();
+            await send({
+              type: "substitute_fielder",
+              side: inn.bowling,
+              player: { id: randomUUID(), name: subName.trim(), bats_left: false },
+              for_player_id: subFor || null,
+            });
+          }}
+        >
+          On they come
+        </button>
+      </div>
+
+      <h3 style={{ marginTop: "var(--s4)" }}>Take a bowler off</h3>
+      <p className="muted">
+        Law 41: a second beamer, or short-pitched bowling after a final warning.
+        They stay on the field and field on — they just do not bowl again this
+        innings, and there is no way back.
+      </p>
+      <div className="form">
+        <label>
+          Bowler
+          <select value={suspend} onChange={(e) => setSuspend(e.target.value)}>
+            <option value="">Nobody</option>
+            {bowlingXi
+              .filter((id) => !suspended.includes(id))
+              .map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
+          </select>
+        </label>
+        <label>
+          What for
+          <input value={suspendWhy} onChange={(e) => setSuspendWhy(e.target.value)} />
+        </label>
+      </div>
+      <div className="sheet-actions">
+        <button
+          className="btn danger"
+          type="button"
+          disabled={!suspend || !suspendWhy.trim()}
+          onClick={async () => {
+            onClose();
+            await send({
+              type: "bowler_suspended",
+              bowler_id: suspend,
+              reason: suspendWhy.trim(),
+            });
+          }}
+        >
+          Take them off
+        </button>
       </div>
 
       <h3 style={{ marginTop: "var(--s4)" }}>Penalty runs</h3>

@@ -165,6 +165,18 @@ impl MatchState {
                 }
                 self.officials = officials.clone();
             }
+            ScoringEventKind::SubstituteFielder {
+                side,
+                player,
+                for_player_id,
+            } => {
+                let _ = (side, for_player_id); // kept in the log for the card
+                // Named, not selected: a sub is on no team sheet, cannot bat or
+                // bowl, and must never be picked as one. Registering the name
+                // is the whole job — it is what lets a catch be credited.
+                self.player_names.insert(player.id, player.name.clone());
+                self.substitutes.insert(player.id);
+            }
             ScoringEventKind::PlayerOfTheMatch { player_id } => {
                 self.player_of_the_match = Some(*player_id);
             }
@@ -370,9 +382,17 @@ impl MatchState {
                 is_legal,
                 is_boundary_four,
                 is_boundary_six,
+                short_runs,
                 shot,
             } => {
-                self.apply_delivery(*runs, *is_legal, *is_boundary_four, *is_boundary_six, *shot)?;
+                self.apply_delivery(
+                    *runs,
+                    *is_legal,
+                    *is_boundary_four,
+                    *is_boundary_six,
+                    *short_runs,
+                    *shot,
+                )?;
             }
             ScoringEventKind::ExtrasRecorded {
                 kind,
@@ -494,6 +514,18 @@ impl MatchState {
                 inn.bowler_id = Some(*bowler_id);
                 inn.balls_in_current_over = 0;
             }
+            ScoringEventKind::BowlerSuspended { bowler_id, reason } => {
+                let _ = reason; // carried in the log for the commentary to read
+                let inn = self
+                    .current_innings_mut()
+                    .ok_or_else(|| DomainError::Validation("no innings".into()))?;
+                inn.suspended_bowlers.insert(*bowler_id);
+                // Taken off mid-over, somebody else finishes it, so the end is
+                // left open rather than pointing at a bowler who may not bowl.
+                if inn.bowler_id == Some(*bowler_id) {
+                    inn.bowler_id = None;
+                }
+            }
             ScoringEventKind::InningsCompleted => {
                 self.complete_innings()?;
             }
@@ -559,6 +591,14 @@ impl MatchState {
         let Some(inn) = self.current_innings() else {
             return Ok(());
         };
+        // A suspension is for the rest of the innings and has no way back, so
+        // it is checked before anything a captain could otherwise argue with.
+        if inn.suspended_bowlers.contains(&bowler) {
+            return Err(DomainError::Validation(format!(
+                "{} has been taken off and cannot bowl again this innings",
+                self.name_for(bowler)
+            )));
+        }
         if inn.last_over_bowler == Some(bowler) && self.xi(inn.bowling).len() > 1 {
             return Err(DomainError::Validation(format!(
                 "{} bowled the last over — nobody bowls two in a row",
@@ -589,6 +629,7 @@ impl MatchState {
         is_legal: bool,
         four: bool,
         six: bool,
+        short_runs: u8,
         shot: Option<ShotRecord>,
     ) -> Result<()> {
         self.check_new_over_bowler()?;
@@ -633,6 +674,8 @@ impl MatchState {
             "6".into()
         } else if four {
             "4".into()
+        } else if short_runs > 0 {
+            format!("{runs}s")
         } else {
             format!("{runs}")
         };
@@ -656,7 +699,10 @@ impl MatchState {
             inn.partnership_balls += 1;
             // A free hit lasts one legal delivery.
             inn.free_hit = false;
-            if runs % 2 == 1 {
+            // Which end they finished at is decided by how many they ran, not
+            // by how many counted: run two with one called short and they are
+            // back where they started, on one run.
+            if (runs + short_runs) % 2 == 1 {
                 inn.swap_strike();
             }
             inn.complete_over_if_due(Some(bowler));
@@ -1285,6 +1331,7 @@ mod tests {
                 is_legal: true,
                 is_boundary_four: runs == 4,
                 is_boundary_six: runs == 6,
+                short_runs: 0,
                 shot: None,
             });
         }
@@ -1484,6 +1531,7 @@ mod tests {
                     is_legal: true,
                     is_boundary_four: true,
                     is_boundary_six: false,
+                    short_runs: 0,
                     shot: None,
                 },
             ),
@@ -1494,6 +1542,7 @@ mod tests {
                     is_legal: true,
                     is_boundary_four: false,
                     is_boundary_six: false,
+                    short_runs: 0,
                     shot: None,
                 },
             ),
@@ -2240,6 +2289,7 @@ mod tests {
                         is_legal: true,
                         is_boundary_four: false,
                         is_boundary_six: false,
+                        short_runs: 0,
                         shot: None,
                     },
                 ))
@@ -2426,6 +2476,210 @@ mod tests {
         assert!(batter.can_resume());
         assert_eq!(m.state.dismissal_text(batter), "retired hurt");
         assert_eq!(m.innings().striker_id, Some(m.home[2].id));
+    }
+
+    /// Law 24. A sub may catch, and the card has to say they were a sub: "c
+    /// sub (Patel) b Jones" is a different claim from "c Patel b Jones". They
+    /// are named without joining the XI, because they may not bat or bowl.
+    #[test]
+    fn a_substitute_can_take_a_catch_and_the_card_says_sub() {
+        let mut m = Fixture::new(20);
+        let sub = MatchPlayer {
+            id: Uuid::new_v4(),
+            name: "Patel".into(),
+            bats_left: false,
+        };
+        let xi_before = m.state.away_xi.clone();
+        m.push(ScoringEventKind::SubstituteFielder {
+            side: MatchSide::Away,
+            player: sub.clone(),
+            for_player_id: Some(m.away[3].id),
+        });
+        assert_eq!(m.state.away_xi, xi_before, "a sub joins no team sheet");
+
+        let striker = m.innings().striker_id.unwrap();
+        let bowler = m.innings().bowler_id.unwrap();
+        m.push(ScoringEventKind::WicketRecorded {
+            batter_id: striker,
+            kind: DismissalKind::Caught,
+            fielder_id: Some(sub.id),
+            new_batter_id: Some(m.home[2].id),
+            runs: 0,
+            on_extra: false,
+        });
+
+        let out = m
+            .innings()
+            .batters
+            .iter()
+            .find(|b| b.player_id == striker)
+            .unwrap();
+        assert_eq!(
+            m.state.dismissal_text(out),
+            format!("c sub (Patel) b {}", m.state.name_for(bowler))
+        );
+    }
+
+    /// Law 41.6/41.7. Taken off for the rest of the innings: the end is left
+    /// open so somebody else finishes the over, and there is no way back.
+    #[test]
+    fn a_suspended_bowler_does_not_bowl_again() {
+        let mut m = Fixture::new(20);
+        let opener = m.innings().bowler_id.unwrap();
+        m.push(ScoringEventKind::BowlerSuspended {
+            bowler_id: opener,
+            reason: "second beamer".into(),
+        });
+        assert!(m.innings().suspended_bowlers.contains(&opener));
+        assert_eq!(m.innings().bowler_id, None, "the end is open");
+
+        // Somebody else can pick it up.
+        let other = m.away[1].id;
+        m.push(ScoringEventKind::BowlerChanged { bowler_id: other });
+        assert_eq!(m.innings().bowler_id, Some(other));
+
+        // The suspended one cannot come back, even after another over.
+        let refused = m.try_push(ScoringEventKind::BowlerChanged { bowler_id: opener });
+        assert!(refused.is_err(), "a suspension has no way back");
+    }
+
+    /// Law 18.4. The score and the ends part company here and nowhere else:
+    /// they ran two, one was called short, so it is one run — but they are
+    /// still at the ends two runs put them at. Scoring it as a plain single
+    /// would hand the strike to the wrong batter for the rest of the over,
+    /// which is the whole reason this field exists.
+    #[test]
+    fn a_short_run_costs_the_run_but_not_the_ends() {
+        let mut m = Fixture::new(20);
+        let striker = m.innings().striker_id.unwrap();
+        let non_striker = m.innings().non_striker_id.unwrap();
+
+        m.push(ScoringEventKind::DeliveryRecorded {
+            runs: 1,
+            is_legal: true,
+            is_boundary_four: false,
+            is_boundary_six: false,
+            short_runs: 1,
+            shot: None,
+        });
+
+        assert_eq!(m.innings().runs, 1, "one of the two counted");
+        assert_eq!(
+            m.innings().striker_id,
+            Some(striker),
+            "they ran two, so the same batter is on strike"
+        );
+        assert_eq!(m.innings().non_striker_id, Some(non_striker));
+        assert_eq!(
+            m.innings().deliveries.last().unwrap().label,
+            "1s",
+            "the book marks the short call"
+        );
+    }
+
+    /// The other half: one run, called short, is no runs — and they have still
+    /// crossed, so the strike does change.
+    #[test]
+    fn a_single_called_short_still_crosses() {
+        let mut m = Fixture::new(20);
+        let striker = m.innings().striker_id.unwrap();
+
+        m.push(ScoringEventKind::DeliveryRecorded {
+            runs: 0,
+            is_legal: true,
+            is_boundary_four: false,
+            is_boundary_six: false,
+            short_runs: 1,
+            shot: None,
+        });
+
+        assert_eq!(m.innings().runs, 0, "nothing scored");
+        assert_eq!(
+            m.innings().non_striker_id,
+            Some(striker),
+            "but they crossed, so the strike changed"
+        );
+    }
+
+    /// Three platforms carry their own copy of this enum — Rust here, Swift in
+    /// CricketTypes.swift, TypeScript in cricket.ts — and they only agree
+    /// because these strings match. Rust derives them from the variant names,
+    /// so a rename silently changes the wire format. Pin them.
+    #[test]
+    fn the_rare_dismissals_keep_their_wire_names() {
+        for (kind, wire, card) in [
+            (
+                DismissalKind::ObstructingTheField,
+                "\"obstructing_the_field\"",
+                "obstructing the field",
+            ),
+            (
+                DismissalKind::HitTheBallTwice,
+                "\"hit_the_ball_twice\"",
+                "hit the ball twice",
+            ),
+            (DismissalKind::TimedOut, "\"timed_out\"", "timed out"),
+        ] {
+            assert_eq!(serde_json::to_string(&kind).unwrap(), wire);
+
+            let mut m = Fixture::new(20);
+            let striker = m.innings().striker_id.unwrap();
+            m.push(wicket(striker, kind, Some(m.home[2].id)));
+            let batter = m
+                .innings()
+                .batters
+                .iter()
+                .find(|b| b.player_id == striker)
+                .unwrap();
+            assert_eq!(m.state.dismissal_text(batter), card);
+            assert_eq!(m.innings().wickets, 1, "{card} costs a wicket");
+        }
+    }
+
+    /// Timing out is the one dismissal with no delivery behind it: the batter
+    /// never got there to face one, so the over must not move on.
+    #[test]
+    fn timing_out_does_not_use_up_a_ball() {
+        let mut m = Fixture::new(20);
+        let before = m.innings().legal_balls;
+        let striker = m.innings().striker_id.unwrap();
+        m.push(wicket(striker, DismissalKind::TimedOut, Some(m.home[2].id)));
+        assert_eq!(m.innings().legal_balls, before, "no ball was bowled for it");
+        assert_eq!(m.innings().wickets, 1, "but it is still a wicket");
+    }
+
+    /// The scorer's two newest buttons send these exact payloads. Both events
+    /// were in the engine long before anything could reach them, so the risk
+    /// here is not the logic — it is a field name drifting and the button going
+    /// quiet. Parse what the client actually sends.
+    #[test]
+    fn the_scorer_buttons_send_what_the_engine_reads() {
+        let revised: ScoringEventKind =
+            serde_json::from_str(r#"{"type":"overs_revised","innings_index":0,"overs":12}"#)
+                .expect("the overs button's payload parses");
+        assert!(matches!(
+            revised,
+            ScoringEventKind::OversRevised {
+                innings_index: 0,
+                overs: 12
+            }
+        ));
+
+        // `replacing_id` is null whenever an end is already free.
+        let resumed: ScoringEventKind = serde_json::from_str(
+            r#"{"type":"batter_resumed","batter_id":"00000000-0000-0000-0000-000000000001","replacing_id":null}"#,
+        )
+        .expect("the back-in button's payload parses");
+        match resumed {
+            ScoringEventKind::BatterResumed {
+                batter_id,
+                replacing_id,
+            } => {
+                assert_eq!(batter_id.as_u128(), 1);
+                assert_eq!(replacing_id, None);
+            }
+            other => panic!("parsed as {other:?}"),
+        }
     }
 
     #[test]
@@ -2938,6 +3192,7 @@ mod tests {
                         is_legal: true,
                         is_boundary_four: false,
                         is_boundary_six: false,
+                        short_runs: 0,
                         shot: None,
                     },
                     start + Duration::minutes(30 * (ball + 1) / 12),
@@ -2979,6 +3234,7 @@ mod tests {
                         is_legal: true,
                         is_boundary_four: false,
                         is_boundary_six: false,
+                        short_runs: 0,
                         shot: None,
                     },
                     start + Duration::minutes(20 * (ball + 1) / 36),
@@ -2999,6 +3255,7 @@ mod tests {
                 is_legal: true,
                 is_boundary_four: false,
                 is_boundary_six: false,
+                short_runs: 0,
                 shot: None,
             });
         }
@@ -3007,6 +3264,7 @@ mod tests {
             is_legal: true,
             is_boundary_four: false,
             is_boundary_six: false,
+            short_runs: 0,
             shot: None,
         });
         assert!(
@@ -3031,6 +3289,7 @@ mod tests {
                 is_legal: true,
                 is_boundary_four: false,
                 is_boundary_six: false,
+                short_runs: 0,
                 shot: None,
             });
         }
@@ -3125,6 +3384,7 @@ mod tests {
             is_legal: true,
             is_boundary_four: true,
             is_boundary_six: false,
+            short_runs: 0,
             shot: Some(ShotRecord {
                 angle: 280,
                 kind: ShotKind::Drive,

@@ -81,6 +81,8 @@ export type Innings = {
   overs_available?: number;
   balls_in_current_over?: number;
   last_over_bowler?: string | null;
+  /// Taken off for the rest of this innings under Law 41.
+  suspended_bowlers?: string[];
   fall?: FallOfWicket[];
   partnership_runs?: number;
   partnership_balls?: number;
@@ -127,6 +129,8 @@ export type MatchState = {
   last_seq: number;
   player_names: Record<string, string>;
   left_handers?: string[];
+  /// Fielding substitutes, by id. Named, but on no team sheet.
+  substitutes?: string[];
   conditions?: MatchConditions;
   conditions_proposed_by?: string | null;
   /// The captain's name once they have agreed, not a flag.
@@ -232,7 +236,11 @@ export const SHOT_KINDS = [
 
 export const DISMISSALS = [
   "bowled", "caught", "lbw", "run_out", "stumped", "hit_wicket",
-  "retired", "retired_hurt", "other",
+  "retired", "retired_hurt",
+  // The rarities the Laws still name, which used to go down as "other" and
+  // print that way on the card.
+  "obstructing_the_field", "hit_the_ball_twice", "timed_out",
+  "other",
 ] as const;
 
 /// Dismissals where somebody other than the bowler did the work.
@@ -358,10 +366,20 @@ export function requiredRate(
 }
 
 /// "c Smith b Jones", "lbw b Jones", "not out" — read the way a scorebook reads.
-export function howOut(b: Batter, nameOf: (id?: string | null) => string): string {
+export function howOut(
+  b: Batter,
+  nameOf: (id?: string | null) => string,
+  substitutes: string[] = []
+): string {
   if (!b.out) return b.retired_hurt ? "retired hurt" : "not out";
   const bowler = b.bowler_id ? nameOf(b.bowler_id) : null;
-  const fielder = b.fielder_id ? nameOf(b.fielder_id) : null;
+  // A substitute is named as one: "c sub (Patel) b Jones" is not the same
+  // claim as "c Patel b Jones", and the card has always said so.
+  const fielder = b.fielder_id
+    ? substitutes.includes(b.fielder_id)
+      ? `sub (${nameOf(b.fielder_id)})`
+      : nameOf(b.fielder_id)
+    : null;
   switch (b.dismissal) {
     case "bowled":
       return bowler ? `b ${bowler}` : "bowled";
@@ -380,6 +398,12 @@ export function howOut(b: Batter, nameOf: (id?: string | null) => string): strin
       return "retired out";
     case "retired_hurt":
       return "retired hurt";
+    case "obstructing_the_field":
+      return "obstructing the field";
+    case "hit_the_ball_twice":
+      return "hit the ball twice";
+    case "timed_out":
+      return "timed out";
     default:
       return "out";
   }

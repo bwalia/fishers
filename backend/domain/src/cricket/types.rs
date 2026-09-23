@@ -58,7 +58,15 @@ pub enum DismissalKind {
     Retired,
     /// Retired hurt: they had to go off. Not a wicket, and they may come back.
     RetiredHurt,
-    /// Obstructing the field, handled the ball, and the other rarities.
+    /// Law 37. Handled the ball was folded into this one in 2017, so a batter
+    /// who palms it away off the stumps is out this way now.
+    ObstructingTheField,
+    /// Law 34. Struck it a second time other than to guard the wicket.
+    HitTheBallTwice,
+    /// Law 40. The incoming batter was not ready in time. No ball is bowled for
+    /// it, which is what makes it unlike every other way out.
+    TimedOut,
+    /// Anything left: a local rule, or something nobody has a name for.
     Other,
 }
 
@@ -71,9 +79,10 @@ impl DismissalKind {
         )
     }
 
-    /// Retiring, either way, does not use up a delivery.
+    /// Retiring does not use up a delivery, and neither does timing out — the
+    /// batter never arrived to face one.
     pub fn uses_a_ball(self) -> bool {
-        !matches!(self, Self::Retired | Self::RetiredHurt)
+        !matches!(self, Self::Retired | Self::RetiredHurt | Self::TimedOut)
     }
 
     /// Retired hurt costs the side a batter but not a wicket, and they may
@@ -82,9 +91,19 @@ impl DismissalKind {
         !matches!(self, Self::RetiredHurt)
     }
 
-    /// The only ways out on a free hit.
+    /// The only ways out on a free hit: the same short list as off a no ball,
+    /// because a free hit is bowled under the same protection.
     pub fn allowed_on_a_free_hit(self) -> bool {
-        matches!(self, Self::RunOut | Self::Retired | Self::RetiredHurt | Self::Other)
+        matches!(
+            self,
+            Self::RunOut
+                | Self::Retired
+                | Self::RetiredHurt
+                | Self::ObstructingTheField
+                | Self::HitTheBallTwice
+                | Self::TimedOut
+                | Self::Other
+        )
     }
 }
 
@@ -415,6 +434,17 @@ pub enum ScoringEventKind {
     OfficialsAppointed {
         officials: MatchOfficials,
     },
+    /// Law 24. Somebody fielding for a player who is off. A substitute may
+    /// field and catch, but may not bowl, bat or keep wicket unless the
+    /// umpires allow it — so they never join the XI. They are named here only
+    /// so a catch can be credited and the card can read "c sub (Patel)".
+    SubstituteFielder {
+        side: MatchSide,
+        player: MatchPlayer,
+        /// Who they are on for, when anybody has said.
+        #[serde(default)]
+        for_player_id: Option<Uuid>,
+    },
     /// A batter who retired hurt comes back in.
     BatterResumed {
         batter_id: Uuid,
@@ -458,6 +488,11 @@ pub enum ScoringEventKind {
         is_legal: bool,
         is_boundary_four: bool,
         is_boundary_six: bool,
+        /// Law 18.4: runs the batters completed that the umpire called short
+        /// and struck off. They are not in `runs`, but the batters still ran
+        /// them, so they are what decides which end everybody finished at.
+        #[serde(default)]
+        short_runs: u8,
         /// What the batter played and where it went, for the wagon wheel.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         shot: Option<ShotRecord>,
@@ -498,6 +533,14 @@ pub enum ScoringEventKind {
     },
     BowlerChanged {
         bowler_id: Uuid,
+    },
+    /// Law 41.6 and 41.7. The umpire takes a bowler off for the rest of the
+    /// innings — a second beamer, or dangerous short-pitched bowling after a
+    /// final warning. They stay on the field; they simply do not bowl again.
+    BowlerSuspended {
+        bowler_id: Uuid,
+        /// What they were taken off for. It reads out in the commentary.
+        reason: String,
     },
     InningsCompleted,
     MatchCompleted {
@@ -684,6 +727,10 @@ pub struct InningsState {
     pub partnership_runs: u16,
     #[serde(default)]
     pub partnership_balls: u16,
+    /// Taken off for the rest of this innings under Law 41. They may field
+    /// on; they do not bowl again.
+    #[serde(default)]
+    pub suspended_bowlers: BTreeSet<Uuid>,
     /// All out at this many wickets — one fewer than the team sheet.
     #[serde(default = "default_wickets_allowed")]
     pub wickets_allowed: u8,
@@ -753,6 +800,7 @@ impl Default for InningsState {
             wickets_allowed: 10,
             overs_available: 0,
             last_over_bowler: None,
+            suspended_bowlers: BTreeSet::new(),
             free_hit: false,
             super_over: false,
             powerplay_overs: 0,
@@ -908,6 +956,10 @@ pub struct MatchState {
     /// Who bats left-handed — the wagon wheel mirrors the field for them.
     #[serde(default)]
     pub left_handers: BTreeSet<Uuid>,
+    /// Fielding substitutes, by id. They are named but are on no team sheet,
+    /// which is exactly what the scorecard has to say about them.
+    #[serde(default)]
+    pub substitutes: BTreeSet<Uuid>,
     /// The terms of the game. `overs_limit` mirrors `conditions.overs_limit`.
     #[serde(default)]
     pub conditions: MatchConditions,
@@ -970,6 +1022,7 @@ impl Default for MatchState {
             last_seq: 0,
             player_names: BTreeMap::new(),
             left_handers: BTreeSet::new(),
+            substitutes: BTreeSet::new(),
             conditions: MatchConditions::standard(20),
             conditions_proposed_by: None,
             agreed_home: None,
@@ -1128,7 +1181,15 @@ impl MatchState {
             return "not out".into();
         }
         let bowler = batter.bowler_id.map(|id| self.name_for(id));
-        let fielder = batter.fielder_id.map(|id| self.name_for(id));
+        // A substitute is named as one: "c sub (Patel) b Jones" is not the
+        // same claim as "c Patel b Jones", and the card has always said so.
+        let fielder = batter.fielder_id.map(|id| {
+            if self.substitutes.contains(&id) {
+                format!("sub ({})", self.name_for(id))
+            } else {
+                self.name_for(id)
+            }
+        });
         match batter.dismissal {
             Some(DismissalKind::Bowled) => match bowler {
                 Some(b) => format!("b {b}"),
@@ -1158,6 +1219,9 @@ impl MatchState {
             },
             Some(DismissalKind::Retired) => "retired out".into(),
             Some(DismissalKind::RetiredHurt) => "retired hurt".into(),
+            Some(DismissalKind::ObstructingTheField) => "obstructing the field".into(),
+            Some(DismissalKind::HitTheBallTwice) => "hit the ball twice".into(),
+            Some(DismissalKind::TimedOut) => "timed out".into(),
             Some(DismissalKind::Other) | None => "out".into(),
         }
     }

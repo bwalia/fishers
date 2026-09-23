@@ -123,7 +123,7 @@ final class LiveTests: XCTestCase {
         }
 
         mutating func ball(_ runs: UInt8, four: Bool = false, six: Bool = false) throws {
-            try push(.deliveryRecorded(runs: runs, isLegal: true, isBoundaryFour: four, isBoundarySix: six, shot: nil))
+            try push(.deliveryRecorded(runs: runs, isLegal: true, isBoundaryFour: four, isBoundarySix: six, shortRuns: 0, shot: nil))
         }
 
         static func started() throws -> Match {
