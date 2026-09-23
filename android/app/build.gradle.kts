@@ -151,6 +151,21 @@ fun cargoBin(name: String): String = listOf(
     File("/usr/local/bin/$name"),
 ).firstOrNull { it.canExecute() }?.absolutePath ?: name
 
+/**
+ * What the host's own build of the engine is called. Written on a Mac, run on
+ * Linux in CI — hardcoding `.dylib` builds fine here and fails there, which is
+ * exactly the kind of thing only the other machine ever tells you.
+ */
+fun hostEngineLib(): File {
+    val os = System.getProperty("os.name").lowercase()
+    val name = when {
+        os.contains("mac") || os.contains("darwin") -> "libfishers_ffi.dylib"
+        os.contains("win") -> "fishers_ffi.dll"
+        else -> "libfishers_ffi.so"
+    }
+    return File(rustRoot, "target/debug/$name")
+}
+
 /** The NDK, from the environment or the newest one the SDK has installed. */
 fun ndkHome(): String? {
     System.getenv("ANDROID_NDK_HOME")?.takeIf { File(it).isDirectory }?.let { return it }
@@ -171,7 +186,7 @@ val cargoBuildHost by tasks.registering(Exec::class) {
     commandLine(cargoBin("cargo"), "build", "-q", "-p", "fishers-ffi")
     inputs.dir(File(rustRoot, "ffi/src"))
     inputs.dir(File(rustRoot, "domain/src"))
-    outputs.file(File(rustRoot, "target/debug/libfishers_ffi.dylib"))
+    outputs.file(hostEngineLib())
 }
 
 val cargoBuildEngine by tasks.registering(RustExec::class) {
@@ -217,7 +232,7 @@ val generateEngineBindings by tasks.registering(RustExec::class) {
         listOf(
             "run", "-q", "-p", "fishers-ffi", "--bin", "uniffi-bindgen", "--",
             "generate",
-            "--library", File(rustRoot, "target/debug/libfishers_ffi.dylib").absolutePath,
+            "--library", hostEngineLib().absolutePath,
             "--language", "kotlin",
             "--out-dir", outputDir.get().asFile.absolutePath,
         )
