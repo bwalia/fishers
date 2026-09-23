@@ -42,6 +42,7 @@ import {
   type SideSquad,
   type MatchOfficial,
   type SquadResponse,
+  inningsScore,
 } from "@/lib/cricket";
 
 /// The device the book is held on. The API ties the scoring lock to it, so it
@@ -1076,7 +1077,7 @@ function Stages({
               <div key={n} className={`innings-card${n === decidedBy ? " won" : ""}`}>
                 <div className="side">{i.batting === "home" ? st.home_name : st.away_name}</div>
                 <div className="score">
-                  {i.runs}-{i.wickets}
+                  {inningsScore(i)}
                   {n === decidedBy && <span className="won-mark">Won</span>}
                 </div>
                 <div className="when">{overs(i.legal_balls)} ov</div>
@@ -3204,6 +3205,9 @@ function MoreSheet({
   const [suspend, setSuspend] = useState("");
   const [suspendWhy, setSuspendWhy] = useState("second beamer");
   const suspended = inn.suspended_bowlers ?? [];
+  // A declaration game ends in ways a limited-overs one cannot, so those
+  // buttons only appear where they mean something.
+  const twoInnings = (st.conditions?.innings_per_side ?? 1) >= 2;
   const [resuming, setResuming] = useState("");
   const [resumeFor, setResumeFor] = useState("");
 
@@ -3460,12 +3464,55 @@ function MoreSheet({
           type="button"
           onClick={async () => {
             onClose();
-            await send({ type: "innings_completed" });
+            await send({ type: "innings_completed", declared: false, forfeited: false });
           }}
         >
           End innings
         </button>
       </div>
+
+      {twoInnings && (
+        <>
+          <h3 style={{ marginTop: "var(--s4)" }}>Declaration game</h3>
+          <p className="muted">
+            Two innings a side, won on aggregate. A captain may close an innings
+            early, give one up entirely, or the sides may run out of time — and
+            a draw is a result here, not the absence of one.
+          </p>
+          <div className="sheet-actions">
+            <button
+              className="btn"
+              type="button"
+              onClick={async () => {
+                onClose();
+                await send({ type: "innings_completed", declared: true, forfeited: false });
+              }}
+            >
+              Declare
+            </button>
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={async () => {
+                onClose();
+                await send({ type: "innings_completed", declared: false, forfeited: true });
+              }}
+            >
+              Forfeit the innings
+            </button>
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={async () => {
+                onClose();
+                await send({ type: "match_completed", winner: null, margin: "Match drawn" });
+              }}
+            >
+              Match drawn
+            </button>
+          </div>
+        </>
+      )}
     </Sheet>
   );
 }

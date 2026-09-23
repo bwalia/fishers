@@ -9,6 +9,7 @@ import {
   strikeRate,
   type Innings,
   type MatchState,
+  inningsScore,
 } from "@/lib/cricket";
 
 /// The full scorecard: one innings at a time, the way a scorebook reads.
@@ -56,7 +57,7 @@ export function Scorecard({
             >
               <strong>{i.batting === "home" ? st.home_name : st.away_name}</strong>
               <span className="num">
-                {i.runs}-{i.wickets} ({overs(i.legal_balls)})
+                {inningsScore(i)} ({overs(i.legal_balls)})
               </span>
             </button>
           ))}
@@ -114,7 +115,7 @@ export function Scorecard({
               </td>
               <td className="n">
                 <strong>
-                  {inn.runs}-{inn.wickets}
+                  {inningsScore(inn)}
                 </strong>
               </td>
               <td colSpan={4}></td>

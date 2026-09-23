@@ -375,8 +375,11 @@ impl MatchState {
                 }
                 // The opening bowler counts against the allocation like any other.
                 self.check_bowler_available(*bowler_id)?;
-                // Every odd innings is a chase of the one before it.
-                if innings_index % 2 == 1 {
+                // Every odd innings is a chase of the one before it — in a
+                // match where each side bats once. Where they bat twice the
+                // target is an aggregate, and it is settled when the third
+                // innings closes rather than when the fourth opens.
+                if innings_index % 2 == 1 && (super_over || !self.conditions.two_innings()) {
                     if let Some(previous) = self.innings.iter().rev().nth(1) {
                         self.target = Some(previous.runs + 1);
                     }
