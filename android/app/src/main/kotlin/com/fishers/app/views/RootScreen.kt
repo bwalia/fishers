@@ -37,6 +37,7 @@ fun RootScreen(
     fixtures: com.fishers.app.fixtures.FixturesViewModel,
     clubs: com.fishers.app.clubs.ClubsViewModel,
     clubDetailFor: (String) -> com.fishers.app.clubs.ClubDetailViewModel,
+    home: com.fishers.app.home.HomeViewModel,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -74,6 +75,7 @@ fun RootScreen(
                 fixtures = fixtures,
                 clubs = clubs,
                 clubDetailFor = clubDetailFor,
+                home = home,
             )
         }
     }

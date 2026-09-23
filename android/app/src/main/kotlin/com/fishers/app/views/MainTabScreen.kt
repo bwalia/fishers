@@ -36,6 +36,8 @@ import com.fishers.app.chat.ChatListViewModel
 import com.fishers.app.clubs.Club
 import com.fishers.app.clubs.ClubDetailViewModel
 import com.fishers.app.clubs.ClubsViewModel
+import com.fishers.app.home.HomeViewModel
+import com.fishers.app.views.home.HomeScreen
 import com.fishers.app.views.clubs.ClubDetailScreen
 import com.fishers.app.views.clubs.ClubsScreen
 import com.fishers.app.fixtures.FixturesViewModel
@@ -62,6 +64,7 @@ fun MainTabScreen(
     fixtures: FixturesViewModel,
     clubs: ClubsViewModel,
     clubDetailFor: (String) -> ClubDetailViewModel,
+    home: HomeViewModel,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
@@ -94,13 +97,19 @@ fun MainTabScreen(
                 .fillMaxSize()
                 .padding(inner)
                 // Chats fills the pane; the placeholders are centred in it.
-                .padding(if (tab == Tab.Profile || tab == Tab.Home) 24.dp else 0.dp),
-            verticalArrangement = if (tab == Tab.Profile || tab == Tab.Home) Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
+                .padding(if (tab == Tab.Profile) 24.dp else 0.dp),
+            verticalArrangement = if (tab == Tab.Profile) Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
             else Arrangement.Top,
-            horizontalAlignment = if (tab == Tab.Profile || tab == Tab.Home) Alignment.CenterHorizontally
+            horizontalAlignment = if (tab == Tab.Profile) Alignment.CenterHorizontally
             else Alignment.Start,
         ) {
             when (tab) {
+                Tab.Home -> {
+                    val state by home.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(Unit) { home.load() }
+                    HomeScreen(name = user?.name, state = state)
+                }
+
                 Tab.Clubs -> ClubsTab(
                     clubs = clubs,
                     detailFor = clubDetailFor,
@@ -197,7 +206,7 @@ private fun ChatsTab(
 }
 
 private enum class Tab(val title: String, val icon: ImageVector, val missing: String) {
-    Home("Home", Icons.Filled.Home, "The feed is not ported yet — HomeFeedView.swift."),
+    Home("Home", Icons.Filled.Home, ""),
     Fixtures("Fixtures", Icons.Filled.DateRange, ""),
     Chats("Chats", Icons.Filled.Email, ""),
     Clubs("Clubs", Icons.Filled.Person, ""),
