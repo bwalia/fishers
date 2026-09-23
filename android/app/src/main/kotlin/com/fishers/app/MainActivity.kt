@@ -4,61 +4,52 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
+import com.fishers.app.chat.ChatListViewModel
+import com.fishers.app.chat.ChatThreadViewModel
+import com.fishers.app.clubs.ClubDetailViewModel
+import com.fishers.app.clubs.ClubsViewModel
+import com.fishers.app.fixtures.FixturesViewModel
+import com.fishers.app.home.HomeViewModel
+import com.fishers.app.session.SessionViewModel
 import com.fishers.app.theme.FishersTheme
-import uniffi.fishers_ffi.engineVersion
+import com.fishers.app.views.RootScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val config = (application as FishersApp).config
+        val app = application as FishersApp
+
         setContent {
             FishersTheme {
+                val model: SessionViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                            SessionViewModel(app.network.api, app.session) as T
+                    },
+                )
                 Scaffold(modifier = Modifier.fillMaxSize()) { inner ->
-                    Groundwork(
-                        server = config.apiBaseUrl,
+                    RootScreen(
+                        viewModel = model,
+                        chatList = remember { ChatListViewModel(app.network.api) },
+                        threadFor = { id -> ChatThreadViewModel(app.network.api, id) },
+                        fixtures = remember { FixturesViewModel(app.network.api) },
+                        clubs = remember { ClubsViewModel(app.network.api) },
+                        clubDetailFor = { id -> ClubDetailViewModel(app.network.api, id) },
+                        home = remember { HomeViewModel(app.network.api) },
                         modifier = Modifier.padding(inner),
                     )
                 }
             }
         }
     }
-}
-
-/**
- * The scaffold's only screen for now: it proves the theme, the config
- * resolution and the build all work before anything is ported on top of them.
- * `flutter/PARITY.md` says what comes next and in what order.
- */
-@Composable
-private fun Groundwork(server: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Fishers", style = MaterialTheme.typography.headlineMedium)
-        Text(server, style = MaterialTheme.typography.bodySmall)
-        // Proof at runtime that the shared engine loaded: this string comes
-        // out of the Rust that the server scores with.
-        Text("engine ${engineVersion()}", style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun GroundworkPreview() {
-    FishersTheme { Groundwork(server = "http://10.0.2.2:7312") }
 }
