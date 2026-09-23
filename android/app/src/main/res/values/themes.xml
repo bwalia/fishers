@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws everything; this is only what the window shows before the
+         first frame, so it matches the app's own background rather than
+         flashing white into a dark theme. -->
+    <style name="Theme.Fishers" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

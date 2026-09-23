@@ -1,0 +1,24 @@
+# Gradle and Android build output
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.cxx/
+
+# Release signing, the same way flutter/android keeps it: the keystore and the
+# properties that point at it belong to whoever owns the Play listing, not to
+# the repo. CI writes both from secrets.
+key.properties
+*.jks
+*.keystore
+
+# Firebase, from the console, per-project
+google-services.json
+
+# The engine's build output: the .so per ABI and the generated bindings. Both
+# come from `backend/ffi`, and generated code that lives in the repo drifts
+# from the source it came from — which is the failure this whole thing ends.
+app/build/rustJniLibs/
+app/build/generatedUniffi/
