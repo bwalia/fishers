@@ -104,6 +104,8 @@ dependencies {
     implementation(variantOf(libs.jna) { artifactType("aar") })
 
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.security.crypto)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
@@ -114,6 +116,8 @@ dependencies {
     // The aar carries Android's native dispatcher and no desktop one, so the
     // JVM tests get the plain jar. Same JNA, different platform stubs.
     testImplementation(libs.jna)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
