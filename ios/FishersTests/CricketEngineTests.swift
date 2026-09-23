@@ -40,8 +40,33 @@ final class CricketEngineTests: XCTestCase {
             guard inn.ballsInCurrentOver == 0,
                   let bowler = inn.bowlerId,
                   inn.lastOverBowler == bowler else { return }
-            let next = bowler == away[0].id ? away[1].id : away[0].id
+            let squad = inn.bowling == .home ? home : away
+            let next = bowler == squad[0].id ? squad[1].id : squad[0].id
             try push(.bowlerChanged(bowlerId: next))
+        }
+
+        /// Open an innings for `batting` — a side may bat twice running when
+        /// they follow on.
+        mutating func startInnings(_ batting: MatchSide) throws {
+            let bat = batting == .home ? home : away
+            let bowl = batting == .home ? away : home
+            try push(.inningsStarted(
+                inningsIndex: UInt8(state.innings.count),
+                batting: batting,
+                strikerId: bat[0].id, nonStrikerId: bat[1].id, bowlerId: bowl[0].id
+            ))
+        }
+
+        /// Score up to `total` off the bat without losing a wicket. Stops early
+        /// if the innings or the match ends — a chase does not wait politely.
+        mutating func scoreInnings(_ total: UInt16) throws {
+            var left = total
+            while left > 0 {
+                if state.status == .complete || (state.currentInnings?.complete ?? true) { break }
+                let ball: UInt8 = left >= 4 ? 4 : 1
+                try runs(ball)
+                left -= UInt16(ball)
+            }
         }
 
         var innings: InningsState { state.currentInnings! }
@@ -68,6 +93,83 @@ final class CricketEngineTests: XCTestCase {
             strikerId: f.home[0].id, nonStrikerId: f.home[1].id, bowlerId: f.away[0].id
         ))
         return f
+    }
+
+    private func multiDayFixture() throws -> Fixture {
+        var f = Fixture(home: team("Home", 11), away: team("Away", 11))
+        try f.push(.matchPrepared(oversLimit: 0, homeName: "Lords", awayName: "Hemel"))
+        try f.push(.conditionsProposed(
+            conditions: MatchConditions.multiDay(), by: .home, byName: "Home captain"
+        ))
+        try f.push(.conditionsAgreed(side: .away, captainName: "Away captain"))
+        try f.push(.tossRecorded(winner: .home, decision: .bat))
+        try f.push(.xiSelected(
+            side: .home, players: f.home, captainId: f.home[0].id, keeperId: f.home[1].id
+        ))
+        try f.push(.xiSelected(
+            side: .away, players: f.away, captainId: f.away[0].id, keeperId: f.away[1].id
+        ))
+        try f.startInnings(.home)
+        return f
+    }
+
+    // MARK: Two innings a side
+
+    /// Four innings, won on aggregate: Home 200 and 150, Away 120, so Away
+    /// need 231 in the fourth.
+    func testTwoInningsMatchIsWonOnAggregate() throws {
+        var f = try multiDayFixture()
+        XCTAssertEqual(f.innings.oversAvailable, 0, "played to a clock")
+
+        try f.scoreInnings(200)
+        try f.push(.inningsCompleted(declared: true, forfeited: false))
+        XCTAssertNil(f.state.target, "nobody is chasing after one innings")
+
+        try f.startInnings(.away)
+        try f.scoreInnings(120)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
+        XCTAssertNil(f.state.target, "still nobody chasing")
+
+        try f.startInnings(.home)
+        try f.scoreInnings(150)
+        try f.push(.inningsCompleted(declared: true, forfeited: false))
+        XCTAssertEqual(f.state.target, 231, "350 against 120")
+
+        try f.startInnings(.away)
+        try f.scoreInnings(231)
+        XCTAssertEqual(f.state.status, .complete)
+        XCTAssertEqual(f.state.winner, .away)
+        XCTAssertTrue(f.state.margin?.contains("wicket") == true, "\(f.state.margin ?? "-")")
+    }
+
+    /// Bat twice and still trail and you have lost by an innings — the other
+    /// side never bats again.
+    func testFallingShortAfterBattingTwiceLosesByAnInnings() throws {
+        var f = try multiDayFixture()
+        try f.scoreInnings(300)
+        try f.push(.inningsCompleted(declared: true, forfeited: false))
+
+        try f.startInnings(.away)
+        try f.scoreInnings(100)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
+
+        try f.startInnings(.away) // following on
+        try f.scoreInnings(150)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
+
+        XCTAssertEqual(f.state.status, .complete)
+        XCTAssertEqual(f.state.winner, .home)
+        XCTAssertEqual(f.state.margin, "Lords won by an innings and 50 runs")
+        XCTAssertEqual(f.state.innings.count, 3, "the fourth is never played")
+    }
+
+    /// A declared innings is not an all-out one, and the card says so.
+    func testDeclarationShowsOnTheCard() throws {
+        var f = try multiDayFixture()
+        try f.scoreInnings(40)
+        try f.push(.inningsCompleted(declared: true, forfeited: false))
+        XCTAssertTrue(f.state.innings[0].declared)
+        XCTAssertEqual(f.state.innings[0].scoreDisplay, "40/0 dec")
     }
 
     // MARK: Scoring
@@ -238,7 +340,7 @@ final class CricketEngineTests: XCTestCase {
     func testChasingSideWinsByWickets() throws {
         var f = try fixture(overs: 2)
         try f.runs(4)
-        try f.push(.inningsCompleted)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
         XCTAssertEqual(f.state.target, 5)
         try f.push(.inningsStarted(
             inningsIndex: 1, batting: .away,
@@ -280,7 +382,7 @@ final class CricketEngineTests: XCTestCase {
     func testChaseLineReadsLikeAScoreboard() throws {
         var f = try fixture(overs: 2)
         try f.runs(4)
-        try f.push(.inningsCompleted)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
         try f.push(.inningsStarted(
             inningsIndex: 1, batting: .away,
             strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
@@ -553,7 +655,7 @@ final class CricketEngineTests: XCTestCase {
     func testDlsParStartsAtZeroAndClimbs() throws {
         var f = try fixture(overs: 20)
         for _ in 0..<6 { try f.runs(4) }
-        try f.push(.inningsCompleted)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
         try f.push(.inningsStarted(
             inningsIndex: 1, batting: .away,
             strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
@@ -587,7 +689,7 @@ final class CricketEngineTests: XCTestCase {
     func testAShortenedChaseNeedsLess() throws {
         var f = try fixture(overs: 20)
         for _ in 0..<12 { try f.runs(3) }
-        try f.push(.inningsCompleted)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
         try f.push(.inningsStarted(
             inningsIndex: 1, batting: .away,
             strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
@@ -695,7 +797,7 @@ final class CricketEngineTests: XCTestCase {
     /// Wind a fixture to a completed first innings and start the chase.
     private func startChase(_ f: inout Fixture, firstInningsRuns: Int) throws {
         for _ in 0..<firstInningsRuns { try f.runs(1) }
-        try f.push(.inningsCompleted)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
         try f.push(.inningsStarted(
             inningsIndex: 1, batting: .away,
             strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
@@ -860,7 +962,7 @@ final class CricketEngineTests: XCTestCase {
         XCTAssertEqual(f.innings.runs, 4, "the batting side keeps its own score")
         XCTAssertEqual(f.state.pendingPenalty(.away), 5)
 
-        try f.push(.inningsCompleted)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
         try f.push(.inningsStarted(
             inningsIndex: 1, batting: .away,
             strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id
@@ -873,7 +975,7 @@ final class CricketEngineTests: XCTestCase {
     func testAPenaltyToASideThatHasBattedLandsOnThatInnings() throws {
         var f = try fixture(overs: 20)
         try f.runs(4)
-        try f.push(.inningsCompleted)
+        try f.push(.inningsCompleted(declared: false, forfeited: false))
         try f.push(.inningsStarted(
             inningsIndex: 1, batting: .away,
             strikerId: f.away[0].id, nonStrikerId: f.away[1].id, bowlerId: f.home[0].id

@@ -178,7 +178,22 @@ struct LiveScorerView: View {
             isPresented: $confirmEndInnings,
             titleVisibility: .visible
         ) {
-            Button("End innings", role: .destructive) { _ = store.append(.inningsCompleted) }
+            Button("End innings", role: .destructive) {
+                _ = store.append(.inningsCompleted(declared: false, forfeited: false))
+            }
+            if store.state.conditions.twoInnings {
+                // Only a declaration game has these, and only there do they mean
+                // anything: a closed innings, one given up, or a drawn match.
+                Button("Declare") {
+                    _ = store.append(.inningsCompleted(declared: true, forfeited: false))
+                }
+                Button("Forfeit the innings", role: .destructive) {
+                    _ = store.append(.inningsCompleted(declared: false, forfeited: true))
+                }
+                Button("Match drawn") {
+                    _ = store.append(.matchCompleted(winner: nil, margin: "Match drawn"))
+                }
+            }
             Button("Keep scoring", role: .cancel) {}
         } message: {
             Text("Declarations and rain both end an innings early. You can undo it.")

@@ -247,6 +247,12 @@ struct MatchConditions: Codable, Equatable, Hashable {
     var fieldersBehindSquareLeg: UInt8
     /// Overs a side is expected to bowl in an hour. 0 means nobody is counting.
     var targetOversPerHour: UInt8
+    /// Innings each side bats. One for limited-overs; two for a declaration
+    /// game, which is won on aggregate and can be drawn.
+    var inningsPerSide: UInt8 = 1
+
+    /// Whether this is a match where a side bats twice.
+    var twoInnings: Bool { inningsPerSide >= 2 }
 
     enum CodingKeys: String, CodingKey {
         case ground, ball
@@ -257,6 +263,7 @@ struct MatchConditions: Codable, Equatable, Hashable {
         case fieldersOutsideNormal = "fielders_outside_normal"
         case fieldersBehindSquareLeg = "fielders_behind_square_leg"
         case targetOversPerHour = "target_overs_per_hour"
+        case inningsPerSide = "innings_per_side"
     }
 
     init(
@@ -265,7 +272,8 @@ struct MatchConditions: Codable, Equatable, Hashable {
         fieldersOutsidePowerplay: UInt8 = 2,
         fieldersOutsideNormal: UInt8 = 5,
         fieldersBehindSquareLeg: UInt8 = 2,
-        targetOversPerHour: UInt8 = 0
+        targetOversPerHour: UInt8 = 0,
+        inningsPerSide: UInt8 = 1
     ) {
         self.oversLimit = oversLimit
         self.oversPerBowler = oversPerBowler
@@ -276,6 +284,7 @@ struct MatchConditions: Codable, Equatable, Hashable {
         self.fieldersOutsideNormal = fieldersOutsideNormal
         self.fieldersBehindSquareLeg = fieldersBehindSquareLeg
         self.targetOversPerHour = targetOversPerHour
+        self.inningsPerSide = inningsPerSide
     }
 
     init(from decoder: Decoder) throws {
@@ -293,6 +302,7 @@ struct MatchConditions: Codable, Equatable, Hashable {
             try c.decodeIfPresent(UInt8.self, forKey: .fieldersBehindSquareLeg) ?? 2
         targetOversPerHour =
             try c.decodeIfPresent(UInt8.self, forKey: .targetOversPerHour) ?? 0
+        inningsPerSide = try c.decodeIfPresent(UInt8.self, forKey: .inningsPerSide) ?? 1
     }
 
     /// How many fielders may be outside the circle right now.
@@ -325,6 +335,17 @@ struct MatchConditions: Codable, Equatable, Hashable {
             ball: .white,
             powerplayOvers: standardPowerplay(overs)
         )
+    }
+
+    /// Two innings a side, played to a clock rather than an over limit — the
+    /// shape of a declaration game. `overs` of 0 means nobody is counting.
+    static func multiDay(overs: UInt8 = 0) -> MatchConditions {
+        var c = standard(overs: max(overs, 1))
+        c.oversLimit = overs
+        c.oversPerBowler = 0
+        c.powerplayOvers = 0
+        c.inningsPerSide = 2
+        return c
     }
 
     /// "20 overs · 4 per bowler · white leather · open ground"
@@ -506,7 +527,10 @@ enum ScoringEventKind: Codable, Equatable {
     case bowlerChanged(bowlerId: UUID)
     /// Law 41.6/41.7. Off for the rest of the innings; they field on.
     case bowlerSuspended(bowlerId: UUID, reason: String)
-    case inningsCompleted
+    /// How the innings ended. Defaulted keys rather than a new event type: an
+    /// iPhone throws on an event type it does not know but ignores a key it
+    /// does not know, so an older build degrades instead of breaking.
+    case inningsCompleted(declared: Bool, forfeited: Bool)
     case matchCompleted(winner: MatchSide?, margin: String)
     /// Called off, with no result. Distinct from `matchCompleted`: a game
     /// stopped by rain is not a win for anybody, and the scorecard has to say
@@ -530,6 +554,8 @@ enum ScoringEventKind: Codable, Equatable {
         case replacingId = "replacing_id"
         case reason
         case superOver = "super_over"
+        case declared
+        case forfeited
         case toSide = "to_side"
         case outsideCircle = "outside_circle"
         case behindSquareLeg = "behind_square_leg"
@@ -656,7 +682,10 @@ enum ScoringEventKind: Codable, Equatable {
         case let .bowlerSuspended(bowler, reason):
             try c.encode(bowler, forKey: .bowlerId)
             try c.encode(reason, forKey: .reason)
-        case .inningsCompleted, .undoLast:
+        case let .inningsCompleted(declared, forfeited):
+            try c.encode(declared, forKey: .declared)
+            try c.encode(forfeited, forKey: .forfeited)
+        case .undoLast:
             break
         case let .matchCompleted(winner, margin):
             try c.encodeIfPresent(winner, forKey: .winner)
@@ -775,7 +804,10 @@ enum ScoringEventKind: Codable, Equatable {
                 reason: try c.decode(String.self, forKey: .reason)
             )
         case "innings_completed":
-            self = .inningsCompleted
+            self = .inningsCompleted(
+                declared: try c.decodeIfPresent(Bool.self, forKey: .declared) ?? false,
+                forfeited: try c.decodeIfPresent(Bool.self, forKey: .forfeited) ?? false
+            )
         case "match_completed":
             self = .matchCompleted(
                 winner: try c.decodeIfPresent(MatchSide.self, forKey: .winner),
@@ -1059,6 +1091,10 @@ struct InningsState: Codable, Equatable {
     var freeHit: Bool
     /// One over a side, two wickets, to break a tie.
     var superOver: Bool
+    /// Law 15: the batting captain closed it. "350/4 dec", not "350 all out".
+    var declared: Bool = false
+    /// Law 15.2: given up without being played.
+    var forfeited: Bool = false
     /// Overs of fielding restrictions this innings gets.
     var powerplayOvers: UInt8
     /// Fielders the scorer last recorded outside the circle.
@@ -1088,6 +1124,8 @@ struct InningsState: Codable, Equatable {
         case suspendedBowlers = "suspended_bowlers"
         case freeHit = "free_hit"
         case superOver = "super_over"
+        case declared
+        case forfeited
         case powerplayOvers = "powerplay_overs"
         case fieldersOutside = "fielders_outside"
         case fieldersBehindSquareLeg = "fielders_behind_square_leg"
@@ -1151,6 +1189,8 @@ struct InningsState: Codable, Equatable {
         suspendedBowlers = try c.decodeIfPresent(Set<UUID>.self, forKey: .suspendedBowlers) ?? []
         freeHit = try c.decodeIfPresent(Bool.self, forKey: .freeHit) ?? false
         superOver = try c.decodeIfPresent(Bool.self, forKey: .superOver) ?? false
+        declared = try c.decodeIfPresent(Bool.self, forKey: .declared) ?? false
+        forfeited = try c.decodeIfPresent(Bool.self, forKey: .forfeited) ?? false
         powerplayOvers = try c.decodeIfPresent(UInt8.self, forKey: .powerplayOvers) ?? 0
         fieldersOutside = try c.decodeIfPresent(UInt8.self, forKey: .fieldersOutside)
         fieldersBehindSquareLeg =
@@ -1234,6 +1274,14 @@ struct InningsState: Codable, Equatable {
     }
 
     var oversDisplay: String { "\(legalBalls / 6).\(legalBalls % 6)" }
+
+    /// "182/4", or "350/4 dec" when the captain closed it. A declared innings
+    /// is not an all-out one and a scorebook has always drawn the distinction;
+    /// a forfeited one was never played at all.
+    var scoreDisplay: String {
+        if forfeited { return "forfeited" }
+        return "\(runs)/\(wickets)\(declared ? " dec" : "")"
+    }
 
     var runRate: Double {
         legalBalls == 0 ? 0 : Double(runs) * 6.0 / Double(legalBalls)
@@ -1611,7 +1659,7 @@ struct MatchState: Codable, Equatable {
         guard let inn = currentInnings else {
             return "\(homeName) v \(awayName)"
         }
-        return "\(name(for: inn.batting)) \(inn.runs)/\(inn.wickets) (\(inn.oversDisplay))"
+        return "\(name(for: inn.batting)) \(inn.scoreDisplay) (\(inn.oversDisplay))"
     }
 }
 
