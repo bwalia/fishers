@@ -370,9 +370,17 @@ impl MatchState {
                 is_legal,
                 is_boundary_four,
                 is_boundary_six,
+                short_runs,
                 shot,
             } => {
-                self.apply_delivery(*runs, *is_legal, *is_boundary_four, *is_boundary_six, *shot)?;
+                self.apply_delivery(
+                    *runs,
+                    *is_legal,
+                    *is_boundary_four,
+                    *is_boundary_six,
+                    *short_runs,
+                    *shot,
+                )?;
             }
             ScoringEventKind::ExtrasRecorded {
                 kind,
@@ -589,6 +597,7 @@ impl MatchState {
         is_legal: bool,
         four: bool,
         six: bool,
+        short_runs: u8,
         shot: Option<ShotRecord>,
     ) -> Result<()> {
         self.check_new_over_bowler()?;
@@ -633,6 +642,8 @@ impl MatchState {
             "6".into()
         } else if four {
             "4".into()
+        } else if short_runs > 0 {
+            format!("{runs}s")
         } else {
             format!("{runs}")
         };
@@ -656,7 +667,10 @@ impl MatchState {
             inn.partnership_balls += 1;
             // A free hit lasts one legal delivery.
             inn.free_hit = false;
-            if runs % 2 == 1 {
+            // Which end they finished at is decided by how many they ran, not
+            // by how many counted: run two with one called short and they are
+            // back where they started, on one run.
+            if (runs + short_runs) % 2 == 1 {
                 inn.swap_strike();
             }
             inn.complete_over_if_due(Some(bowler));
@@ -1285,6 +1299,7 @@ mod tests {
                 is_legal: true,
                 is_boundary_four: runs == 4,
                 is_boundary_six: runs == 6,
+                short_runs: 0,
                 shot: None,
             });
         }
@@ -1484,6 +1499,7 @@ mod tests {
                     is_legal: true,
                     is_boundary_four: true,
                     is_boundary_six: false,
+                    short_runs: 0,
                     shot: None,
                 },
             ),
@@ -1494,6 +1510,7 @@ mod tests {
                     is_legal: true,
                     is_boundary_four: false,
                     is_boundary_six: false,
+                    short_runs: 0,
                     shot: None,
                 },
             ),
@@ -2240,6 +2257,7 @@ mod tests {
                         is_legal: true,
                         is_boundary_four: false,
                         is_boundary_six: false,
+                        short_runs: 0,
                         shot: None,
                     },
                 ))
@@ -2426,6 +2444,64 @@ mod tests {
         assert!(batter.can_resume());
         assert_eq!(m.state.dismissal_text(batter), "retired hurt");
         assert_eq!(m.innings().striker_id, Some(m.home[2].id));
+    }
+
+    /// Law 18.4. The score and the ends part company here and nowhere else:
+    /// they ran two, one was called short, so it is one run — but they are
+    /// still at the ends two runs put them at. Scoring it as a plain single
+    /// would hand the strike to the wrong batter for the rest of the over,
+    /// which is the whole reason this field exists.
+    #[test]
+    fn a_short_run_costs_the_run_but_not_the_ends() {
+        let mut m = Fixture::new(20);
+        let striker = m.innings().striker_id.unwrap();
+        let non_striker = m.innings().non_striker_id.unwrap();
+
+        m.push(ScoringEventKind::DeliveryRecorded {
+            runs: 1,
+            is_legal: true,
+            is_boundary_four: false,
+            is_boundary_six: false,
+            short_runs: 1,
+            shot: None,
+        });
+
+        assert_eq!(m.innings().runs, 1, "one of the two counted");
+        assert_eq!(
+            m.innings().striker_id,
+            Some(striker),
+            "they ran two, so the same batter is on strike"
+        );
+        assert_eq!(m.innings().non_striker_id, Some(non_striker));
+        assert_eq!(
+            m.innings().deliveries.last().unwrap().label,
+            "1s",
+            "the book marks the short call"
+        );
+    }
+
+    /// The other half: one run, called short, is no runs — and they have still
+    /// crossed, so the strike does change.
+    #[test]
+    fn a_single_called_short_still_crosses() {
+        let mut m = Fixture::new(20);
+        let striker = m.innings().striker_id.unwrap();
+
+        m.push(ScoringEventKind::DeliveryRecorded {
+            runs: 0,
+            is_legal: true,
+            is_boundary_four: false,
+            is_boundary_six: false,
+            short_runs: 1,
+            shot: None,
+        });
+
+        assert_eq!(m.innings().runs, 0, "nothing scored");
+        assert_eq!(
+            m.innings().non_striker_id,
+            Some(striker),
+            "but they crossed, so the strike changed"
+        );
     }
 
     /// Three platforms carry their own copy of this enum — Rust here, Swift in
@@ -3019,6 +3095,7 @@ mod tests {
                         is_legal: true,
                         is_boundary_four: false,
                         is_boundary_six: false,
+                        short_runs: 0,
                         shot: None,
                     },
                     start + Duration::minutes(30 * (ball + 1) / 12),
@@ -3060,6 +3137,7 @@ mod tests {
                         is_legal: true,
                         is_boundary_four: false,
                         is_boundary_six: false,
+                        short_runs: 0,
                         shot: None,
                     },
                     start + Duration::minutes(20 * (ball + 1) / 36),
@@ -3080,6 +3158,7 @@ mod tests {
                 is_legal: true,
                 is_boundary_four: false,
                 is_boundary_six: false,
+                short_runs: 0,
                 shot: None,
             });
         }
@@ -3088,6 +3167,7 @@ mod tests {
             is_legal: true,
             is_boundary_four: false,
             is_boundary_six: false,
+            short_runs: 0,
             shot: None,
         });
         assert!(
@@ -3112,6 +3192,7 @@ mod tests {
                 is_legal: true,
                 is_boundary_four: false,
                 is_boundary_six: false,
+                short_runs: 0,
                 shot: None,
             });
         }
@@ -3206,6 +3287,7 @@ mod tests {
             is_legal: true,
             is_boundary_four: true,
             is_boundary_six: false,
+            short_runs: 0,
             shot: Some(ShotRecord {
                 angle: 280,
                 kind: ShotKind::Drive,

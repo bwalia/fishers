@@ -250,8 +250,11 @@ extension MatchState {
                 target = innings[innings.count - 2].runs + 1
             }
 
-        case let .deliveryRecorded(runs, isLegal, four, six, shot):
-            try applyDelivery(runs: runs, isLegal: isLegal, four: four, six: six, shot: shot)
+        case let .deliveryRecorded(runs, isLegal, four, six, shortRuns, shot):
+            try applyDelivery(
+                runs: runs, isLegal: isLegal, four: four, six: six,
+                shortRuns: shortRuns, shot: shot
+            )
 
         case let .extrasRecorded(kind, runs, boundary, offTheBat, shot):
             try applyExtras(
@@ -378,7 +381,8 @@ extension MatchState {
     // MARK: - Scoring
 
     private mutating func applyDelivery(
-        runs: UInt8, isLegal: Bool, four: Bool, six: Bool, shot: ShotRecord?
+        runs: UInt8, isLegal: Bool, four: Bool, six: Bool,
+        shortRuns: UInt8, shot: ShotRecord?
     ) throws {
         try checkNewOverBowler()
         guard !innings.isEmpty else { throw CricketEngineError.validation("no live innings") }
@@ -407,7 +411,7 @@ extension MatchState {
         innings[idx].bowlers[boi].currentOverRuns += UInt16(runs)
         if isLegal { innings[idx].bowlers[boi].balls += 1 }
 
-        let label = six ? "6" : (four ? "4" : "\(runs)")
+        let label = six ? "6" : (four ? "4" : (shortRuns > 0 ? "\(runs)s" : "\(runs)"))
         let over = innings[idx].legalBalls / 6
         let ballIn = innings[idx].ballsInCurrentOver + (isLegal ? 1 : 0)
         innings[idx].deliveries.append(DeliveryRecord(
@@ -422,7 +426,10 @@ extension MatchState {
             innings[idx].partnershipBalls += 1
             // A free hit lasts one legal delivery.
             innings[idx].freeHit = false
-            if runs % 2 == 1 { innings[idx].swapStrike() }
+            // Which end they finished at is decided by how many they ran, not
+            // by how many counted: run two with one called short and they are
+            // back where they started, on one run.
+            if (runs + shortRuns) % 2 == 1 { innings[idx].swapStrike() }
             completeOverIfDue(idx, bowler: bowler)
         }
         closeIfFinished(idx)

@@ -30,6 +30,7 @@ final class CricketEngineTests: XCTestCase {
             try push(.deliveryRecorded(
                 runs: runs, isLegal: true,
                 isBoundaryFour: runs == 4, isBoundarySix: runs == 6,
+                shortRuns: 0,
                 shot: nil
             ))
         }
@@ -217,10 +218,10 @@ final class CricketEngineTests: XCTestCase {
                 strikerId: home[0].id, nonStrikerId: home[1].id, bowlerId: away[0].id
             )),
             .make(seq: 5, kind: .deliveryRecorded(
-                runs: 4, isLegal: true, isBoundaryFour: true, isBoundarySix: false, shot: nil
+                runs: 4, isLegal: true, isBoundaryFour: true, isBoundarySix: false, shortRuns: 0, shot: nil
             )),
             .make(seq: 6, kind: .deliveryRecorded(
-                runs: 2, isLegal: true, isBoundaryFour: false, isBoundarySix: false, shot: nil
+                runs: 2, isLegal: true, isBoundaryFour: false, isBoundarySix: false, shortRuns: 0, shot: nil
             )),
         ]
 
@@ -491,6 +492,7 @@ final class CricketEngineTests: XCTestCase {
         let striker = try XCTUnwrap(f.innings.strikerId)
         try f.push(.deliveryRecorded(
             runs: 4, isLegal: true, isBoundaryFour: true, isBoundarySix: false,
+            shortRuns: 0,
             shot: ShotRecord(angle: 280, kind: .drive, reach: 1.0)
         ))
         let shots = f.innings.shots(for: striker)
@@ -513,6 +515,7 @@ final class CricketEngineTests: XCTestCase {
         var f = try fixture()
         try f.push(.deliveryRecorded(
             runs: 4, isLegal: true, isBoundaryFour: true, isBoundarySix: false,
+            shortRuns: 0,
             shot: ShotRecord(angle: 280, kind: .drive, reach: 1.0)
         ))
         let delivery = try XCTUnwrap(f.innings.deliveries.last)
@@ -884,7 +887,7 @@ final class CricketEngineTests: XCTestCase {
         var f = try fixture(overs: 20)
         // The fixture stamps nothing, so there is nothing to report.
         try f.push(.deliveryRecorded(
-            runs: 0, isLegal: true, isBoundaryFour: false, isBoundarySix: false, shot: nil
+            runs: 0, isLegal: true, isBoundaryFour: false, isBoundarySix: false, shortRuns: 0, shot: nil
         ))
         XCTAssertNil(f.innings.oversPerHour)
         XCTAssertNil(f.innings.oversBehind(target: 14))
@@ -907,7 +910,7 @@ final class CricketEngineTests: XCTestCase {
             try f.state.apply(ScoringEvent(
                 clientEventId: UUID(), seq: f.seq,
                 kind: .deliveryRecorded(
-                    runs: 0, isLegal: true, isBoundaryFour: false, isBoundarySix: false, shot: nil
+                    runs: 0, isLegal: true, isBoundaryFour: false, isBoundarySix: false, shortRuns: 0, shot: nil
                 ),
                 at: start.addingTimeInterval(Double(30 * (ball + 1) / 12) * 60)
             ))

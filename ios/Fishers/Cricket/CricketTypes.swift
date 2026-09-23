@@ -475,7 +475,7 @@ enum ScoringEventKind: Codable, Equatable {
     )
     case deliveryRecorded(
         runs: UInt8, isLegal: Bool, isBoundaryFour: Bool, isBoundarySix: Bool,
-        shot: ShotRecord?
+        shortRuns: UInt8, shot: ShotRecord?
     )
     /// An extra plus whatever came of the ball. `runs` is what the batters ran
     /// (or the boundary), on top of the one-run penalty a wide or no ball
@@ -538,6 +538,7 @@ enum ScoringEventKind: Codable, Equatable {
         case isLegal = "is_legal"
         case isBoundaryFour = "is_boundary_four"
         case isBoundarySix = "is_boundary_six"
+        case shortRuns = "short_runs"
         case kind
         case batterId = "batter_id"
         case fielderId = "fielder_id"
@@ -593,11 +594,12 @@ enum ScoringEventKind: Codable, Equatable {
             try c.encode(non, forKey: .nonStrikerId)
             try c.encode(bowler, forKey: .bowlerId)
             try c.encode(superOver, forKey: .superOver)
-        case let .deliveryRecorded(runs, legal, four, six, shot):
+        case let .deliveryRecorded(runs, legal, four, six, shortRuns, shot):
             try c.encode(runs, forKey: .runs)
             try c.encode(legal, forKey: .isLegal)
             try c.encode(four, forKey: .isBoundaryFour)
             try c.encode(six, forKey: .isBoundarySix)
+            try c.encode(shortRuns, forKey: .shortRuns)
             try c.encodeIfPresent(shot, forKey: .shot)
         case let .extrasRecorded(kind, runs, boundary, offTheBat, shot):
             try c.encode(kind, forKey: .kind)
@@ -685,6 +687,7 @@ enum ScoringEventKind: Codable, Equatable {
                 isLegal: try c.decode(Bool.self, forKey: .isLegal),
                 isBoundaryFour: try c.decode(Bool.self, forKey: .isBoundaryFour),
                 isBoundarySix: try c.decode(Bool.self, forKey: .isBoundarySix),
+                shortRuns: try c.decodeIfPresent(UInt8.self, forKey: .shortRuns) ?? 0,
                 shot: try c.decodeIfPresent(ShotRecord.self, forKey: .shot)
             )
         case "extras_recorded":

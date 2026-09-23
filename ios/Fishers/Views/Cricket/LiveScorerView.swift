@@ -697,6 +697,7 @@ struct LiveScorerView: View {
                 isLegal: true,
                 isBoundaryFour: runs == 4,
                 isBoundarySix: runs == 6,
+                shortRuns: 0,
                 shot: shot
             )) else { return }
             if runs >= 4 {

@@ -477,6 +477,11 @@ pub enum ScoringEventKind {
         is_legal: bool,
         is_boundary_four: bool,
         is_boundary_six: bool,
+        /// Law 18.4: runs the batters completed that the umpire called short
+        /// and struck off. They are not in `runs`, but the batters still ran
+        /// them, so they are what decides which end everybody finished at.
+        #[serde(default)]
+        short_runs: u8,
         /// What the batter played and where it went, for the wagon wheel.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         shot: Option<ShotRecord>,

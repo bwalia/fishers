@@ -2316,6 +2316,9 @@ type Draft = {
   boundary?: boolean;
   offTheBat?: boolean;
   shotKind?: string;
+  /// Law 18.4: runs they completed that the umpire called short. Not scored,
+  /// but they were still run, so they decide which end everybody ends at.
+  shortRuns?: number;
   step: "detail" | "shot" | "direction";
 };
 
@@ -2346,6 +2349,8 @@ function LivePanel({
   const batsLeft = (st.left_handers || []).includes((inn.striker_id || "").toLowerCase());
 
   const [draft, setDraft] = useState<Draft | null>(null);
+  /// Armed when the umpire signals one short, and spent on the next ball.
+  const [oneShort, setOneShort] = useState(false);
   const [sheet, setSheet] = useState<null | "wicket" | "more">(null);
   const [askShot, setAskShot] = useState(true);
   /// Model-written lines, keyed by ball. The log-written line shows instantly
@@ -2406,6 +2411,7 @@ function LivePanel({
           is_legal: true,
           is_boundary_four: d.runs === 4,
           is_boundary_six: d.runs === 6,
+          short_runs: d.shortRuns ?? 0,
           ...(shot ? { shot } : {}),
         };
     setDraft(null);
@@ -2413,7 +2419,13 @@ function LivePanel({
   };
 
   const startRuns = (runs: number) => {
-    const d: Draft = { runs, step: "shot" };
+    // The scorer taps what they ran. One short takes a run off the score but
+    // not off the ground they covered, so the count and the ends part company
+    // here and nowhere else.
+    const d: Draft = oneShort
+      ? { runs: Math.max(0, runs - 1), shortRuns: 1, step: "shot" }
+      : { runs, step: "shot" };
+    setOneShort(false);
     if (!askShot) return record(d);
     setDraft(d);
   };
@@ -2742,6 +2754,16 @@ function LivePanel({
             ))}
             <button className="btn danger" type="button" disabled={!canAct || needsBowler} onClick={() => setSheet("wicket")}>
               Wicket
+            </button>
+            <button
+              className={oneShort ? "btn primary" : "btn ghost"}
+              type="button"
+              disabled={!canAct || needsBowler}
+              aria-pressed={oneShort}
+              title="The umpire has signalled one short: the next ball scores one fewer, but the batters still finish where they ran to."
+              onClick={() => setOneShort((on) => !on)}
+            >
+              One short
             </button>
             <button className="btn ghost" type="button" disabled={!canAct} onClick={() => send({ type: "undo_last" })}>
               <Icon name="arrowLeft" size={16} /> Undo
