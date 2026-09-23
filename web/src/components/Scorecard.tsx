@@ -86,7 +86,7 @@ export function Scorecard({
                     {nameOf(b.player_id)}
                     {!b.out && atCrease.has(b.player_id) ? "\u00a0*" : ""}
                   </span>
-                  <span className="cell-sub">{howOut(b, nameOf)}</span>
+                  <span className="cell-sub">{howOut(b, nameOf, st.substitutes ?? [])}</span>
                 </td>
                 <td className="n"><strong>{b.runs}</strong></td>
                 <td className="n">{b.balls}</td>

@@ -434,6 +434,17 @@ pub enum ScoringEventKind {
     OfficialsAppointed {
         officials: MatchOfficials,
     },
+    /// Law 24. Somebody fielding for a player who is off. A substitute may
+    /// field and catch, but may not bowl, bat or keep wicket unless the
+    /// umpires allow it — so they never join the XI. They are named here only
+    /// so a catch can be credited and the card can read "c sub (Patel)".
+    SubstituteFielder {
+        side: MatchSide,
+        player: MatchPlayer,
+        /// Who they are on for, when anybody has said.
+        #[serde(default)]
+        for_player_id: Option<Uuid>,
+    },
     /// A batter who retired hurt comes back in.
     BatterResumed {
         batter_id: Uuid,
@@ -945,6 +956,10 @@ pub struct MatchState {
     /// Who bats left-handed — the wagon wheel mirrors the field for them.
     #[serde(default)]
     pub left_handers: BTreeSet<Uuid>,
+    /// Fielding substitutes, by id. They are named but are on no team sheet,
+    /// which is exactly what the scorecard has to say about them.
+    #[serde(default)]
+    pub substitutes: BTreeSet<Uuid>,
     /// The terms of the game. `overs_limit` mirrors `conditions.overs_limit`.
     #[serde(default)]
     pub conditions: MatchConditions,
@@ -1007,6 +1022,7 @@ impl Default for MatchState {
             last_seq: 0,
             player_names: BTreeMap::new(),
             left_handers: BTreeSet::new(),
+            substitutes: BTreeSet::new(),
             conditions: MatchConditions::standard(20),
             conditions_proposed_by: None,
             agreed_home: None,
@@ -1165,7 +1181,15 @@ impl MatchState {
             return "not out".into();
         }
         let bowler = batter.bowler_id.map(|id| self.name_for(id));
-        let fielder = batter.fielder_id.map(|id| self.name_for(id));
+        // A substitute is named as one: "c sub (Patel) b Jones" is not the
+        // same claim as "c Patel b Jones", and the card has always said so.
+        let fielder = batter.fielder_id.map(|id| {
+            if self.substitutes.contains(&id) {
+                format!("sub ({})", self.name_for(id))
+            } else {
+                self.name_for(id)
+            }
+        });
         match batter.dismissal {
             Some(DismissalKind::Bowled) => match bowler {
                 Some(b) => format!("b {b}"),

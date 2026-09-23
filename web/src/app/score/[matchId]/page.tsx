@@ -3199,6 +3199,8 @@ function MoreSheet({
   const [reason, setReason] = useState("slow over rate");
   const [side, setSide] = useState<Side>("home");
   const [overs, setOvers] = useState(inn.overs_available ?? st.overs_limit);
+  const [subName, setSubName] = useState("");
+  const [subFor, setSubFor] = useState("");
   const [suspend, setSuspend] = useState("");
   const [suspendWhy, setSuspendWhy] = useState("second beamer");
   const suspended = inn.suspended_bowlers ?? [];
@@ -3339,6 +3341,50 @@ function MoreSheet({
           </div>
         </>
       )}
+
+      <h3 style={{ marginTop: "var(--s4)" }}>Substitute fielder</h3>
+      <p className="muted">
+        Law 24: somebody fielding for a player who is off. A sub may field and
+        catch, but not bat or bowl, so they join no team sheet — naming them
+        here is what lets a catch be credited, and the card reads
+        &ldquo;c sub (name)&rdquo;.
+      </p>
+      <div className="form">
+        <label>
+          Their name
+          <input
+            value={subName}
+            onChange={(e) => setSubName(e.target.value)}
+            placeholder="A Patel"
+            maxLength={80}
+          />
+        </label>
+        <label>
+          On for
+          <select value={subFor} onChange={(e) => setSubFor(e.target.value)}>
+            <option value="">Not saying</option>
+            {bowlingXi.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="sheet-actions">
+        <button
+          className="btn"
+          type="button"
+          disabled={!subName.trim()}
+          onClick={async () => {
+            onClose();
+            await send({
+              type: "substitute_fielder",
+              side: inn.bowling,
+              player: { id: randomUUID(), name: subName.trim(), bats_left: false },
+              for_player_id: subFor || null,
+            });
+          }}
+        >
+          On they come
+        </button>
+      </div>
 
       <h3 style={{ marginTop: "var(--s4)" }}>Take a bowler off</h3>
       <p className="muted">

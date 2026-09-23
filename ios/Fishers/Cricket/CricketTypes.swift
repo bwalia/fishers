@@ -491,6 +491,9 @@ enum ScoringEventKind: Codable, Equatable {
     case officialsAppointed(officials: MatchOfficials)
     /// A batter who retired hurt comes back in.
     case batterResumed(batterId: UUID, replacingId: UUID?)
+    /// Law 24. Somebody fielding for a player who is off. They join no team
+    /// sheet: they may field and catch, but not bat or bowl.
+    case substituteFielder(side: MatchSide, player: MatchPlayer, forPlayerId: UUID?)
     case playerOfTheMatch(playerId: UUID)
     /// Runs the umpire awards that nobody bowled or ran.
     case penaltyRuns(runs: UInt8, reason: String, toSide: MatchSide?)
@@ -522,6 +525,8 @@ enum ScoringEventKind: Codable, Equatable {
         case officials
         case onExtra = "on_extra"
         case playerId = "player_id"
+        case player
+        case forPlayerId = "for_player_id"
         case replacingId = "replacing_id"
         case reason
         case superOver = "super_over"
@@ -624,6 +629,10 @@ enum ScoringEventKind: Codable, Equatable {
         case let .batterResumed(batterId, replacingId):
             try c.encode(batterId, forKey: .batterId)
             try c.encodeIfPresent(replacingId, forKey: .replacingId)
+        case let .substituteFielder(side, player, forPlayerId):
+            try c.encode(side, forKey: .side)
+            try c.encode(player, forKey: .player)
+            try c.encodeIfPresent(forPlayerId, forKey: .forPlayerId)
         case let .playerOfTheMatch(playerId):
             try c.encode(playerId, forKey: .playerId)
         case let .penaltyRuns(runs, reason, toSide):
@@ -727,6 +736,12 @@ enum ScoringEventKind: Codable, Equatable {
             self = .batterResumed(
                 batterId: try c.decode(UUID.self, forKey: .batterId),
                 replacingId: try c.decodeIfPresent(UUID.self, forKey: .replacingId)
+            )
+        case "substitute_fielder":
+            self = .substituteFielder(
+                side: try c.decode(MatchSide.self, forKey: .side),
+                player: try c.decode(MatchPlayer.self, forKey: .player),
+                forPlayerId: try c.decodeIfPresent(UUID.self, forKey: .forPlayerId)
             )
         case "player_of_the_match":
             self = .playerOfTheMatch(playerId: try c.decode(UUID.self, forKey: .playerId))
@@ -1298,6 +1313,8 @@ struct MatchState: Codable, Equatable {
     var playerNames: [String: String]
     /// Lower-case UUID strings of the left-handers, so the wheel mirrors.
     var leftHanders: Set<String>
+    /// Fielding substitutes, by id. Named, but on no team sheet.
+    var substitutes: Set<UUID> = []
     /// The terms of the game. `oversLimit` mirrors `conditions.oversLimit`.
     var conditions: MatchConditions
     var conditionsProposedBy: MatchSide?
@@ -1330,6 +1347,7 @@ struct MatchState: Codable, Equatable {
         case lastSeq = "last_seq"
         case playerNames = "player_names"
         case leftHanders = "left_handers"
+        case substitutes
         case conditions
         case conditionsProposedBy = "conditions_proposed_by"
         case agreedHome = "agreed_home"
@@ -1350,7 +1368,7 @@ struct MatchState: Codable, Equatable {
         homeCaptain = nil; awayCaptain = nil
         homeKeeper = nil; awayKeeper = nil
         innings = []; target = nil; winner = nil; margin = nil
-        lastSeq = 0; playerNames = [:]; leftHanders = []; history = []
+        lastSeq = 0; playerNames = [:]; leftHanders = []; substitutes = []; history = []
         conditions = MatchConditions.standard(overs: oversLimit)
         conditionsProposedBy = nil
         agreedHome = nil
@@ -1383,6 +1401,7 @@ struct MatchState: Codable, Equatable {
         playerNames = try c.decodeIfPresent([String: String].self, forKey: .playerNames) ?? [:]
         let lefties = try c.decodeIfPresent([String].self, forKey: .leftHanders) ?? []
         leftHanders = Set(lefties.map { $0.lowercased() })
+        substitutes = try c.decodeIfPresent(Set<UUID>.self, forKey: .substitutes) ?? []
         conditions = try c.decodeIfPresent(MatchConditions.self, forKey: .conditions)
             ?? MatchConditions.standard(overs: oversLimit)
         conditionsProposedBy = try c.decodeIfPresent(MatchSide.self, forKey: .conditionsProposedBy)
@@ -1549,7 +1568,11 @@ struct MatchState: Codable, Equatable {
         if batter.retiredHurt && !batter.out { return "retired hurt" }
         guard batter.out else { return batter.hasBatted ? "not out" : "did not bat" }
         let bowler = batter.bowlerId.map { name(for: $0) }
-        let fielder = batter.fielderId.map { name(for: $0) }
+        // A substitute is named as one: "c sub (Patel) b Jones" is not the same
+        // claim as "c Patel b Jones", and the card has always said so.
+        let fielder = batter.fielderId.map { id -> String in
+            substitutes.contains(id) ? "sub (\(name(for: id)))" : name(for: id)
+        }
         switch batter.dismissal {
         case .bowled:
             return bowler.map { "b \($0)" } ?? "bowled"

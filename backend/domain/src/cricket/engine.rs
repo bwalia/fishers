@@ -165,6 +165,18 @@ impl MatchState {
                 }
                 self.officials = officials.clone();
             }
+            ScoringEventKind::SubstituteFielder {
+                side,
+                player,
+                for_player_id,
+            } => {
+                let _ = (side, for_player_id); // kept in the log for the card
+                // Named, not selected: a sub is on no team sheet, cannot bat or
+                // bowl, and must never be picked as one. Registering the name
+                // is the whole job — it is what lets a catch be credited.
+                self.player_names.insert(player.id, player.name.clone());
+                self.substitutes.insert(player.id);
+            }
             ScoringEventKind::PlayerOfTheMatch { player_id } => {
                 self.player_of_the_match = Some(*player_id);
             }
@@ -2464,6 +2476,48 @@ mod tests {
         assert!(batter.can_resume());
         assert_eq!(m.state.dismissal_text(batter), "retired hurt");
         assert_eq!(m.innings().striker_id, Some(m.home[2].id));
+    }
+
+    /// Law 24. A sub may catch, and the card has to say they were a sub: "c
+    /// sub (Patel) b Jones" is a different claim from "c Patel b Jones". They
+    /// are named without joining the XI, because they may not bat or bowl.
+    #[test]
+    fn a_substitute_can_take_a_catch_and_the_card_says_sub() {
+        let mut m = Fixture::new(20);
+        let sub = MatchPlayer {
+            id: Uuid::new_v4(),
+            name: "Patel".into(),
+            bats_left: false,
+        };
+        let xi_before = m.state.away_xi.clone();
+        m.push(ScoringEventKind::SubstituteFielder {
+            side: MatchSide::Away,
+            player: sub.clone(),
+            for_player_id: Some(m.away[3].id),
+        });
+        assert_eq!(m.state.away_xi, xi_before, "a sub joins no team sheet");
+
+        let striker = m.innings().striker_id.unwrap();
+        let bowler = m.innings().bowler_id.unwrap();
+        m.push(ScoringEventKind::WicketRecorded {
+            batter_id: striker,
+            kind: DismissalKind::Caught,
+            fielder_id: Some(sub.id),
+            new_batter_id: Some(m.home[2].id),
+            runs: 0,
+            on_extra: false,
+        });
+
+        let out = m
+            .innings()
+            .batters
+            .iter()
+            .find(|b| b.player_id == striker)
+            .unwrap();
+        assert_eq!(
+            m.state.dismissal_text(out),
+            format!("c sub (Patel) b {}", m.state.name_for(bowler))
+        );
     }
 
     /// Law 41.6/41.7. Taken off for the rest of the innings: the end is left

@@ -93,6 +93,12 @@ extension MatchState {
             }
             officials = appointed
 
+        case let .substituteFielder(_, player, _):
+            // Named, not selected: a sub is on no team sheet and must never be
+            // picked to bat or bowl. The name is what lets a catch be credited.
+            setName(player.name, for: player.id)
+            substitutes.insert(player.id)
+
         case let .playerOfTheMatch(playerId):
             playerOfTheMatch = playerId
 
