@@ -35,6 +35,8 @@ fun RootScreen(
     chatList: com.fishers.app.chat.ChatListViewModel,
     threadFor: (String) -> com.fishers.app.chat.ChatThreadViewModel,
     fixtures: com.fishers.app.fixtures.FixturesViewModel,
+    clubs: com.fishers.app.clubs.ClubsViewModel,
+    clubDetailFor: (String) -> com.fishers.app.clubs.ClubDetailViewModel,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -70,6 +72,8 @@ fun RootScreen(
                 chatList = chatList,
                 threadFor = threadFor,
                 fixtures = fixtures,
+                clubs = clubs,
+                clubDetailFor = clubDetailFor,
             )
         }
     }

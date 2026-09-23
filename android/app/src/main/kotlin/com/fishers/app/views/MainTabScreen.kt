@@ -33,6 +33,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fishers.app.chat.ChatListViewModel
+import com.fishers.app.clubs.Club
+import com.fishers.app.clubs.ClubDetailViewModel
+import com.fishers.app.clubs.ClubsViewModel
+import com.fishers.app.views.clubs.ClubDetailScreen
+import com.fishers.app.views.clubs.ClubsScreen
 import com.fishers.app.fixtures.FixturesViewModel
 import com.fishers.app.views.fixtures.FixturesScreen
 import com.fishers.app.chat.ChatThreadViewModel
@@ -55,6 +60,8 @@ fun MainTabScreen(
     chatList: ChatListViewModel,
     threadFor: (String) -> ChatThreadViewModel,
     fixtures: FixturesViewModel,
+    clubs: ClubsViewModel,
+    clubDetailFor: (String) -> ClubDetailViewModel,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
@@ -62,6 +69,8 @@ fun MainTabScreen(
     // does not throw you back to the list.
     var openThread by rememberSaveable { mutableStateOf<String?>(null) }
     var openTitle by rememberSaveable { mutableStateOf("") }
+    var openClub by rememberSaveable { mutableStateOf<String?>(null) }
+    var openClubName by rememberSaveable { mutableStateOf("") }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -85,13 +94,22 @@ fun MainTabScreen(
                 .fillMaxSize()
                 .padding(inner)
                 // Chats fills the pane; the placeholders are centred in it.
-                .padding(if (tab == Tab.Chats || tab == Tab.Fixtures) 0.dp else 24.dp),
-            verticalArrangement = if (tab == Tab.Chats || tab == Tab.Fixtures) Arrangement.Top
-            else Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-            horizontalAlignment = if (tab == Tab.Chats || tab == Tab.Fixtures) Alignment.Start
-            else Alignment.CenterHorizontally,
+                .padding(if (tab == Tab.Profile || tab == Tab.Home) 24.dp else 0.dp),
+            verticalArrangement = if (tab == Tab.Profile || tab == Tab.Home) Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
+            else Arrangement.Top,
+            horizontalAlignment = if (tab == Tab.Profile || tab == Tab.Home) Alignment.CenterHorizontally
+            else Alignment.Start,
         ) {
             when (tab) {
+                Tab.Clubs -> ClubsTab(
+                    clubs = clubs,
+                    detailFor = clubDetailFor,
+                    openClub = openClub,
+                    openClubName = openClubName,
+                    onOpen = { openClub = it.id; openClubName = it.name },
+                    onBack = { openClub = null },
+                )
+
                 Tab.Fixtures -> {
                     val state by fixtures.state.collectAsStateWithLifecycle()
                     LaunchedEffect(Unit) { fixtures.load() }
@@ -129,6 +147,29 @@ fun MainTabScreen(
     }
 }
 
+/** The clubs list, or one club's roster. Back closes the roster. */
+@Composable
+private fun ClubsTab(
+    clubs: ClubsViewModel,
+    detailFor: (String) -> ClubDetailViewModel,
+    openClub: String?,
+    openClubName: String,
+    onOpen: (Club) -> Unit,
+    onBack: () -> Unit,
+) {
+    if (openClub == null) {
+        val state by clubs.state.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { clubs.load() }
+        ClubsScreen(state = state, onOpen = onOpen)
+    } else {
+        val model = remember(openClub) { detailFor(openClub) }
+        val state by model.state.collectAsStateWithLifecycle()
+        LaunchedEffect(openClub) { model.load() }
+        BackHandler(onBack = onBack)
+        ClubDetailScreen(clubName = openClubName, state = state)
+    }
+}
+
 /**
  * The list, or a thread from it. Back closes the thread rather than the app —
  * the commonest reason somebody presses it here is to go and read another one.
@@ -159,6 +200,6 @@ private enum class Tab(val title: String, val icon: ImageVector, val missing: St
     Home("Home", Icons.Filled.Home, "The feed is not ported yet — HomeFeedView.swift."),
     Fixtures("Fixtures", Icons.Filled.DateRange, ""),
     Chats("Chats", Icons.Filled.Email, ""),
-    Clubs("Clubs", Icons.Filled.Person, "Not ported yet — ClubsTeamsView.swift."),
+    Clubs("Clubs", Icons.Filled.Person, ""),
     Profile("Profile", Icons.Filled.AccountCircle, ""),
 }

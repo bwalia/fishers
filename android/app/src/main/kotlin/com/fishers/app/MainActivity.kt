@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.runtime.remember
 import com.fishers.app.chat.ChatListViewModel
 import com.fishers.app.chat.ChatThreadViewModel
+import com.fishers.app.clubs.ClubDetailViewModel
+import com.fishers.app.clubs.ClubsViewModel
 import com.fishers.app.fixtures.FixturesViewModel
 import com.fishers.app.session.SessionViewModel
 import com.fishers.app.theme.FishersTheme
@@ -40,6 +42,8 @@ class MainActivity : ComponentActivity() {
                         chatList = remember { ChatListViewModel(app.network.api) },
                         threadFor = { id -> ChatThreadViewModel(app.network.api, id) },
                         fixtures = remember { FixturesViewModel(app.network.api) },
+                        clubs = remember { ClubsViewModel(app.network.api) },
+                        clubDetailFor = { id -> ClubDetailViewModel(app.network.api, id) },
                         modifier = Modifier.padding(inner),
                     )
                 }

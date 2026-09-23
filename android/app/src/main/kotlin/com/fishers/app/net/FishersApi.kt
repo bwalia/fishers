@@ -100,6 +100,17 @@ interface FishersApi {
         @Body body: com.fishers.app.chat.PostMessageRequest,
     ): com.fishers.app.chat.ChatMessage
 
+    // ---- clubs ----
+
+    @GET("me/clubs")
+    suspend fun myClubs(): List<com.fishers.app.clubs.Club>
+
+    @GET("clubs/{id}/members")
+    suspend fun clubMembers(@Path("id") id: String): List<com.fishers.app.clubs.ClubMemberDetail>
+
+    @GET("clubs/{id}/teams")
+    suspend fun clubTeams(@Path("id") id: String): List<com.fishers.app.clubs.Team>
+
     // ---- fixtures ----
 
     /** Everything this person is involved in, across their clubs. */
