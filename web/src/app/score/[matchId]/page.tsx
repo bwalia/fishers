@@ -232,7 +232,11 @@ export default function ScorerPage({
           )}
           {st.conditions && (
             <>
-              <span className="tag">{st.conditions.overs_limit} overs</span>
+              <span className="tag">
+                {st.conditions.overs_limit > 0
+                  ? `${st.conditions.overs_limit} overs`
+                  : "no over limit"}
+              </span>
               <span className="tag">{titleCase(st.conditions.ball)} ball</span>
               <span className="tag">{titleCase(st.conditions.ground)} ground</span>
             </>
@@ -1328,7 +1332,37 @@ function ProposePanel({
       <fieldset className="setup-group">
         <legend>Format</legend>
         <div className="setup-fields">
-          <label>Overs <input {...num("overs_limit")} /></label>
+          <label>
+            Innings each
+            <select
+              value={c.innings_per_side ?? 1}
+              onChange={(e) => {
+                const per = Number(e.target.value);
+                // A declaration game is played to a clock and has no
+                // powerplay, so switching to it clears what stops meaning
+                // anything rather than leaving it to be argued about later.
+                setC(
+                  per >= 2
+                    ? { ...c, innings_per_side: per, powerplay_overs: 0, overs_per_bowler: 0 }
+                    : { ...c, innings_per_side: per }
+                );
+              }}
+            >
+              <option value={1}>One — limited overs</option>
+              <option value={2}>Two — declaration game</option>
+            </select>
+            <span className="subtle">
+              {(c.innings_per_side ?? 1) >= 2
+                ? "Won on aggregate, and it can be drawn."
+                : "The usual: one innings a side, most runs wins."}
+            </span>
+          </label>
+          <label>
+            Overs <input {...num("overs_limit")} />
+            {(c.innings_per_side ?? 1) >= 2 && (
+              <span className="subtle">0 for no limit — played to the clock</span>
+            )}
+          </label>
           <label>
             Ball
             <select value={c.ball} onChange={(e) => setC({ ...c, ball: e.target.value })}>
@@ -1507,7 +1541,16 @@ function WaitingPanel({
       </div>
 
       <dl className="terms-summary">
-        <div><dt>Overs</dt><dd className="num">{c.overs_limit}</dd></div>
+        <div>
+          <dt>Overs</dt>
+          <dd className="num">{c.overs_limit || "No limit"}</dd>
+        </div>
+        {(c.innings_per_side ?? 1) >= 2 && (
+          <div>
+            <dt>Innings each</dt>
+            <dd className="num">2</dd>
+          </div>
+        )}
         <div><dt>Ball</dt><dd>{titleCase(c.ball)}</dd></div>
         <div><dt>Ground</dt><dd>{titleCase(c.ground)}</dd></div>
         <div>
@@ -2987,7 +3030,9 @@ function Following({
             <dt>Overs</dt>
             <dd className="num">
               {overs(balls)}
-              <span className="subtle"> of {inn.overs_available ?? st.overs_limit}</span>
+              {(inn.overs_available ?? st.overs_limit) > 0 && (
+                <span className="subtle"> of {inn.overs_available ?? st.overs_limit}</span>
+              )}
             </dd>
           </div>
           <div><dt>Extras</dt><dd className="num">{inn.extras ?? 0}</dd></div>
