@@ -24,6 +24,9 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
     case bowled, caught, lbw, runOut = "run_out", stumped
     case hitWicket = "hit_wicket", retired
     case retiredHurt = "retired_hurt"
+    case obstructingTheField = "obstructing_the_field"
+    case hitTheBallTwice = "hit_the_ball_twice"
+    case timedOut = "timed_out"
     case other
 
     var id: String { rawValue }
@@ -38,6 +41,9 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
         case .hitWicket: return "Hit wicket"
         case .retired: return "Retired out"
         case .retiredHurt: return "Retired hurt"
+        case .obstructingTheField: return "Obstructing the field"
+        case .hitTheBallTwice: return "Hit the ball twice"
+        case .timedOut: return "Timed out"
         case .other: return "Other"
         }
     }
@@ -50,16 +56,19 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Retiring, either way, does not use up a delivery.
-    var usesABall: Bool { self != .retired && self != .retiredHurt }
+    /// Retiring does not use up a delivery, and neither does timing out — the
+    /// batter never arrived to face one.
+    var usesABall: Bool { self != .retired && self != .retiredHurt && self != .timedOut }
 
     /// Retired hurt costs a batter but not a wicket, and they may come back.
     var costsAWicket: Bool { self != .retiredHurt }
 
-    /// The only ways out on a free hit.
+    /// The only ways out on a free hit: the same short list as off a no ball,
+    /// because a free hit is bowled under the same protection.
     var allowedOnAFreeHit: Bool {
         switch self {
         case .runOut, .retired, .retiredHurt, .other: return true
+        case .obstructingTheField, .hitTheBallTwice, .timedOut: return true
         default: return false
         }
     }
@@ -68,6 +77,7 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
     var canFollowAnExtra: Bool {
         switch self {
         case .stumped, .runOut, .other: return true
+        case .obstructingTheField, .hitTheBallTwice: return true
         default: return false
         }
     }
@@ -1543,6 +1553,12 @@ struct MatchState: Codable, Equatable {
             return "retired out"
         case .retiredHurt:
             return "retired hurt"
+        case .obstructingTheField:
+            return "obstructing the field"
+        case .hitTheBallTwice:
+            return "hit the ball twice"
+        case .timedOut:
+            return "timed out"
         case .other, nil:
             return "out"
         }

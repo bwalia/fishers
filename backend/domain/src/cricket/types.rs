@@ -58,7 +58,15 @@ pub enum DismissalKind {
     Retired,
     /// Retired hurt: they had to go off. Not a wicket, and they may come back.
     RetiredHurt,
-    /// Obstructing the field, handled the ball, and the other rarities.
+    /// Law 37. Handled the ball was folded into this one in 2017, so a batter
+    /// who palms it away off the stumps is out this way now.
+    ObstructingTheField,
+    /// Law 34. Struck it a second time other than to guard the wicket.
+    HitTheBallTwice,
+    /// Law 40. The incoming batter was not ready in time. No ball is bowled for
+    /// it, which is what makes it unlike every other way out.
+    TimedOut,
+    /// Anything left: a local rule, or something nobody has a name for.
     Other,
 }
 
@@ -71,9 +79,10 @@ impl DismissalKind {
         )
     }
 
-    /// Retiring, either way, does not use up a delivery.
+    /// Retiring does not use up a delivery, and neither does timing out — the
+    /// batter never arrived to face one.
     pub fn uses_a_ball(self) -> bool {
-        !matches!(self, Self::Retired | Self::RetiredHurt)
+        !matches!(self, Self::Retired | Self::RetiredHurt | Self::TimedOut)
     }
 
     /// Retired hurt costs the side a batter but not a wicket, and they may
@@ -82,9 +91,19 @@ impl DismissalKind {
         !matches!(self, Self::RetiredHurt)
     }
 
-    /// The only ways out on a free hit.
+    /// The only ways out on a free hit: the same short list as off a no ball,
+    /// because a free hit is bowled under the same protection.
     pub fn allowed_on_a_free_hit(self) -> bool {
-        matches!(self, Self::RunOut | Self::Retired | Self::RetiredHurt | Self::Other)
+        matches!(
+            self,
+            Self::RunOut
+                | Self::Retired
+                | Self::RetiredHurt
+                | Self::ObstructingTheField
+                | Self::HitTheBallTwice
+                | Self::TimedOut
+                | Self::Other
+        )
     }
 }
 
@@ -1158,6 +1177,9 @@ impl MatchState {
             },
             Some(DismissalKind::Retired) => "retired out".into(),
             Some(DismissalKind::RetiredHurt) => "retired hurt".into(),
+            Some(DismissalKind::ObstructingTheField) => "obstructing the field".into(),
+            Some(DismissalKind::HitTheBallTwice) => "hit the ball twice".into(),
+            Some(DismissalKind::TimedOut) => "timed out".into(),
             Some(DismissalKind::Other) | None => "out".into(),
         }
     }

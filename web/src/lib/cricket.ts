@@ -232,7 +232,11 @@ export const SHOT_KINDS = [
 
 export const DISMISSALS = [
   "bowled", "caught", "lbw", "run_out", "stumped", "hit_wicket",
-  "retired", "retired_hurt", "other",
+  "retired", "retired_hurt",
+  // The rarities the Laws still name, which used to go down as "other" and
+  // print that way on the card.
+  "obstructing_the_field", "hit_the_ball_twice", "timed_out",
+  "other",
 ] as const;
 
 /// Dismissals where somebody other than the bowler did the work.
@@ -380,6 +384,12 @@ export function howOut(b: Batter, nameOf: (id?: string | null) => string): strin
       return "retired out";
     case "retired_hurt":
       return "retired hurt";
+    case "obstructing_the_field":
+      return "obstructing the field";
+    case "hit_the_ball_twice":
+      return "hit the ball twice";
+    case "timed_out":
+      return "timed out";
     default:
       return "out";
   }

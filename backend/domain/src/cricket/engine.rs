@@ -2428,6 +2428,53 @@ mod tests {
         assert_eq!(m.innings().striker_id, Some(m.home[2].id));
     }
 
+    /// Three platforms carry their own copy of this enum — Rust here, Swift in
+    /// CricketTypes.swift, TypeScript in cricket.ts — and they only agree
+    /// because these strings match. Rust derives them from the variant names,
+    /// so a rename silently changes the wire format. Pin them.
+    #[test]
+    fn the_rare_dismissals_keep_their_wire_names() {
+        for (kind, wire, card) in [
+            (
+                DismissalKind::ObstructingTheField,
+                "\"obstructing_the_field\"",
+                "obstructing the field",
+            ),
+            (
+                DismissalKind::HitTheBallTwice,
+                "\"hit_the_ball_twice\"",
+                "hit the ball twice",
+            ),
+            (DismissalKind::TimedOut, "\"timed_out\"", "timed out"),
+        ] {
+            assert_eq!(serde_json::to_string(&kind).unwrap(), wire);
+
+            let mut m = Fixture::new(20);
+            let striker = m.innings().striker_id.unwrap();
+            m.push(wicket(striker, kind, Some(m.home[2].id)));
+            let batter = m
+                .innings()
+                .batters
+                .iter()
+                .find(|b| b.player_id == striker)
+                .unwrap();
+            assert_eq!(m.state.dismissal_text(batter), card);
+            assert_eq!(m.innings().wickets, 1, "{card} costs a wicket");
+        }
+    }
+
+    /// Timing out is the one dismissal with no delivery behind it: the batter
+    /// never got there to face one, so the over must not move on.
+    #[test]
+    fn timing_out_does_not_use_up_a_ball() {
+        let mut m = Fixture::new(20);
+        let before = m.innings().legal_balls;
+        let striker = m.innings().striker_id.unwrap();
+        m.push(wicket(striker, DismissalKind::TimedOut, Some(m.home[2].id)));
+        assert_eq!(m.innings().legal_balls, before, "no ball was bowled for it");
+        assert_eq!(m.innings().wickets, 1, "but it is still a wicket");
+    }
+
     /// The scorer's two newest buttons send these exact payloads. Both events
     /// were in the engine long before anything could reach them, so the risk
     /// here is not the logic — it is a field name drifting and the button going
