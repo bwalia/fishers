@@ -2428,6 +2428,40 @@ mod tests {
         assert_eq!(m.innings().striker_id, Some(m.home[2].id));
     }
 
+    /// The scorer's two newest buttons send these exact payloads. Both events
+    /// were in the engine long before anything could reach them, so the risk
+    /// here is not the logic — it is a field name drifting and the button going
+    /// quiet. Parse what the client actually sends.
+    #[test]
+    fn the_scorer_buttons_send_what_the_engine_reads() {
+        let revised: ScoringEventKind =
+            serde_json::from_str(r#"{"type":"overs_revised","innings_index":0,"overs":12}"#)
+                .expect("the overs button's payload parses");
+        assert!(matches!(
+            revised,
+            ScoringEventKind::OversRevised {
+                innings_index: 0,
+                overs: 12
+            }
+        ));
+
+        // `replacing_id` is null whenever an end is already free.
+        let resumed: ScoringEventKind = serde_json::from_str(
+            r#"{"type":"batter_resumed","batter_id":"00000000-0000-0000-0000-000000000001","replacing_id":null}"#,
+        )
+        .expect("the back-in button's payload parses");
+        match resumed {
+            ScoringEventKind::BatterResumed {
+                batter_id,
+                replacing_id,
+            } => {
+                assert_eq!(batter_id.as_u128(), 1);
+                assert_eq!(replacing_id, None);
+            }
+            other => panic!("parsed as {other:?}"),
+        }
+    }
+
     #[test]
     fn a_batter_who_retired_hurt_can_come_back() {
         let mut m = Fixture::new(20);

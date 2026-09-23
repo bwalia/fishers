@@ -3176,9 +3176,21 @@ function MoreSheet({
   const [penalty, setPenalty] = useState(5);
   const [reason, setReason] = useState("slow over rate");
   const [side, setSide] = useState<Side>("home");
+  const [overs, setOvers] = useState(inn.overs_available ?? st.overs_limit);
+  const [resuming, setResuming] = useState("");
+  const [resumeFor, setResumeFor] = useState("");
+
+  // The overs cannot be cut below what has already been bowled, and the engine
+  // says so — but a spinner that will not go there at all is kinder.
+  const oversBowled = Math.ceil(inn.legal_balls / 6);
+  // Retired hurt and still not out: they are entitled to come back.
+  const canResume = inn.batters.filter((b) => b.retired_hurt && !b.out);
+  // With both ends occupied the scorer has to say who is making way.
+  const endIsFree = !inn.striker_id || !inn.non_striker_id;
+  const atCrease = [inn.striker_id, inn.non_striker_id].filter(Boolean) as string[];
 
   return (
-    <Sheet title="Bowling, field and penalties" onClose={onClose}>
+    <Sheet title="Bowling, field and the rest" onClose={onClose}>
       <div className="form">
         <label>
           Bowler
@@ -3207,6 +3219,93 @@ function MoreSheet({
           />
         </label>
       </div>
+
+      <h3 style={{ marginTop: "var(--s4)" }}>Overs in this innings</h3>
+      <p className="muted">
+        Rain, bad light, a late start. Cutting the overs here is what moves the
+        Duckworth&ndash;Lewis&ndash;Stern par score, so do it before the players
+        are back on.
+      </p>
+      <div className="form">
+        <label>
+          Overs
+          <input
+            type="number"
+            min={Math.max(1, oversBowled)}
+            max={99}
+            value={overs}
+            onChange={(e) => setOvers(Number(e.target.value))}
+          />
+          <span className="subtle">
+            {oversBowled > 0
+              ? oversBowled + " already bowled, so it cannot go below that."
+              : "None bowled yet."}
+          </span>
+        </label>
+      </div>
+      <div className="sheet-actions">
+        <button
+          className="btn"
+          type="button"
+          disabled={overs === (inn.overs_available ?? st.overs_limit) || overs < oversBowled}
+          onClick={async () => {
+            onClose();
+            await send({ type: "overs_revised", innings_index: inn.index, overs });
+          }}
+        >
+          Cut the overs
+        </button>
+      </div>
+
+      {canResume.length > 0 && (
+        <>
+          <h3 style={{ marginTop: "var(--s4)" }}>Back from retired hurt</h3>
+          <div className="form">
+            <label>
+              Who is coming back
+              <select value={resuming} onChange={(e) => setResuming(e.target.value)}>
+                <option value="">Nobody</option>
+                {canResume.map((b) => (
+                  <option key={b.player_id} value={b.player_id}>
+                    {nameOf(b.player_id)} ({b.runs} off {b.balls})
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!endIsFree && (
+              <label>
+                Coming in for
+                <select value={resumeFor} onChange={(e) => setResumeFor(e.target.value)}>
+                  <option value="">Say who</option>
+                  {atCrease.map((id) => (
+                    <option key={id} value={id}>{nameOf(id)}</option>
+                  ))}
+                </select>
+                <span className="subtle">
+                  Both ends are occupied, so somebody has to make way.
+                </span>
+              </label>
+            )}
+          </div>
+          <div className="sheet-actions">
+            <button
+              className="btn"
+              type="button"
+              disabled={!resuming || (!endIsFree && !resumeFor)}
+              onClick={async () => {
+                onClose();
+                await send({
+                  type: "batter_resumed",
+                  batter_id: resuming,
+                  replacing_id: resumeFor || null,
+                });
+              }}
+            >
+              Back in
+            </button>
+          </div>
+        </>
+      )}
 
       <h3 style={{ marginTop: "var(--s4)" }}>Penalty runs</h3>
       <div className="form">
