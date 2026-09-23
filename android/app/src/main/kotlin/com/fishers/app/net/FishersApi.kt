@@ -3,6 +3,8 @@ package com.fishers.app.net
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 
 /**
@@ -15,6 +17,24 @@ data class LoginRequest(
     /** An email or a mobile number — the server takes either. */
     val identifier: String,
     val password: String,
+)
+
+/**
+ * One of `email` or `phone` is required — the server says which is missing
+ * rather than insisting on an address somebody may not have.
+ */
+@Serializable
+data class SignupRequest(
+    val name: String,
+    val email: String? = null,
+    val phone: String? = null,
+    val password: String,
+)
+
+/** `PATCH /me` leaves everything it is not sent alone, so this is the one field. */
+@Serializable
+data class RoleIntentPatch(
+    @SerialName("role_intent") val roleIntent: String,
 )
 
 @Serializable
@@ -52,6 +72,15 @@ interface FishersApi {
     @POST("auth/login")
     suspend fun login(@Body body: LoginRequest): AuthTokens
 
+    @POST("auth/signup")
+    suspend fun signup(@Body body: SignupRequest): AuthTokens
+
     @POST("auth/refresh")
     suspend fun refresh(@Body body: RefreshRequest): AuthTokens
+
+    @GET("me")
+    suspend fun me(): PublicUser
+
+    @PATCH("me")
+    suspend fun setRoleIntent(@Body body: RoleIntentPatch): PublicUser
 }
