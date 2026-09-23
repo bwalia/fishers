@@ -1,5 +1,6 @@
 package com.fishers.app.session
 
+import com.fishers.app.FakeFishersApi
 import com.fishers.app.net.AuthTokens
 import com.fishers.app.net.FishersApi
 import com.fishers.app.net.LoginRequest
@@ -56,20 +57,11 @@ class SessionViewModelTest {
         Response.error<Any>(401, "".toResponseBody("application/json".toMediaType())),
     )
 
-    /** Only what each test needs; anything else being called is itself a failure. */
-    private open class FakeApi : FishersApi {
-        override suspend fun login(body: LoginRequest): AuthTokens = error("not expected")
-        override suspend fun signup(body: SignupRequest): AuthTokens = error("not expected")
-        override suspend fun refresh(body: RefreshRequest): AuthTokens = error("not expected")
-        override suspend fun me(): PublicUser = error("not expected")
-        override suspend fun setRoleIntent(body: RoleIntentPatch): PublicUser = error("not expected")
-    }
-
     // ---- bootstrap ----
 
     @Test
     fun `with no stored token the app goes straight to the form`() = runTest {
-        val model = SessionViewModel(FakeApi(), Session(FakeStore()))
+        val model = SessionViewModel(FakeFishersApi(), Session(FakeStore()))
 
         model.bootstrap()
         advanceUntilIdle()
@@ -90,7 +82,7 @@ class SessionViewModelTest {
             mutableMapOf(TokenStore.ACCESS to "stale", TokenStore.REFRESH to "also-stale"),
         )
         val session = Session(store)
-        val model = SessionViewModel(object : FakeApi() {
+        val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun me(): PublicUser = throw unauthorized()
         }, session)
 
@@ -106,7 +98,7 @@ class SessionViewModelTest {
     @Test
     fun `a token the server honours restores the session without asking again`() = runTest {
         val session = Session(FakeStore(mutableMapOf(TokenStore.ACCESS to "good")))
-        val model = SessionViewModel(object : FakeApi() {
+        val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun me() = alice
         }, session)
 
@@ -124,7 +116,7 @@ class SessionViewModelTest {
     fun `signing in keeps the tokens and the user`() = runTest {
         val store = FakeStore()
         val session = Session(store)
-        val model = SessionViewModel(object : FakeApi() {
+        val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun login(body: LoginRequest) = tokens(alice)
         }, session)
 
@@ -140,7 +132,7 @@ class SessionViewModelTest {
     @Test
     fun `the identifier is trimmed, because a keyboard adds a space`() = runTest {
         var seen: String? = null
-        val model = SessionViewModel(object : FakeApi() {
+        val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun login(body: LoginRequest): AuthTokens {
                 seen = body.identifier
                 return tokens(alice)
@@ -156,7 +148,7 @@ class SessionViewModelTest {
     @Test
     fun `a refused sign-in says so and stores nothing`() = runTest {
         val store = FakeStore()
-        val model = SessionViewModel(object : FakeApi() {
+        val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun login(body: LoginRequest): AuthTokens = throw unauthorized()
         }, Session(store))
 
@@ -175,7 +167,7 @@ class SessionViewModelTest {
     fun `an identifier with an at sign is an email, and one without is a phone`() = runTest {
         var asEmail: SignupRequest? = null
         var asPhone: SignupRequest? = null
-        val api = object : FakeApi() {
+        val api = object : FakeFishersApi() {
             override suspend fun signup(body: SignupRequest): AuthTokens {
                 if (body.email != null) asEmail = body else asPhone = body
                 return tokens(alice)
@@ -200,7 +192,7 @@ class SessionViewModelTest {
     fun `the role is saved after the account exists, because there was nowhere to put it before`() =
         runTest {
             var patched: String? = null
-            val model = SessionViewModel(object : FakeApi() {
+            val model = SessionViewModel(object : FakeFishersApi() {
                 override suspend fun signup(body: SignupRequest) = tokens(alice)
                 override suspend fun setRoleIntent(body: RoleIntentPatch): PublicUser {
                     patched = body.roleIntent
@@ -222,7 +214,7 @@ class SessionViewModelTest {
      */
     @Test
     fun `a role that will not save does not undo the sign-up`() = runTest {
-        val model = SessionViewModel(object : FakeApi() {
+        val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun signup(body: SignupRequest) = tokens(alice)
             override suspend fun setRoleIntent(body: RoleIntentPatch): PublicUser =
                 throw unauthorized()
@@ -243,7 +235,7 @@ class SessionViewModelTest {
         val store = FakeStore()
         val session = Session(store)
         session.set(Tokens("a", "r"))
-        val model = SessionViewModel(FakeApi(), session)
+        val model = SessionViewModel(FakeFishersApi(), session)
 
         model.signOut()
 

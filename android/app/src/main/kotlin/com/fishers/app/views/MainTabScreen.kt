@@ -17,7 +17,9 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -27,7 +29,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fishers.app.chat.ChatListViewModel
+import com.fishers.app.chat.ChatThreadViewModel
+import com.fishers.app.chat.ConversationSummary
 import com.fishers.app.net.PublicUser
+import com.fishers.app.views.chat.ChatListScreen
+import com.fishers.app.views.chat.ChatThreadScreen
 
 /**
  * The five top-level destinations, in the order `MainTabView.swift` has them.
@@ -40,9 +50,15 @@ import com.fishers.app.net.PublicUser
 fun MainTabScreen(
     user: PublicUser?,
     onSignOut: () -> Unit,
+    chatList: ChatListViewModel,
+    threadFor: (String) -> ChatThreadViewModel,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
+    // Which thread is open, if any. Saved, so rotating the phone mid-sentence
+    // does not throw you back to the list.
+    var openThread by rememberSaveable { mutableStateOf<String?>(null) }
+    var openTitle by rememberSaveable { mutableStateOf("") }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -62,11 +78,26 @@ fun MainTabScreen(
         },
     ) { inner ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(inner).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(inner)
+                // Chats fills the pane; the placeholders are centred in it.
+                .padding(if (tab == Tab.Chats) 0.dp else 24.dp),
+            verticalArrangement = if (tab == Tab.Chats) Arrangement.Top
+            else Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+            horizontalAlignment = if (tab == Tab.Chats) Alignment.Start
+            else Alignment.CenterHorizontally,
         ) {
             when (tab) {
+                Tab.Chats -> ChatsTab(
+                    chatList = chatList,
+                    threadFor = threadFor,
+                    openThread = openThread,
+                    openTitle = openTitle,
+                    onOpen = { openThread = it.id; openTitle = it.title },
+                    onBack = { openThread = null },
+                )
+
                 Tab.Profile -> {
                     Text(
                         user?.name ?: "Signed in",
@@ -89,10 +120,36 @@ fun MainTabScreen(
     }
 }
 
+/**
+ * The list, or a thread from it. Back closes the thread rather than the app —
+ * the commonest reason somebody presses it here is to go and read another one.
+ */
+@Composable
+private fun ChatsTab(
+    chatList: ChatListViewModel,
+    threadFor: (String) -> ChatThreadViewModel,
+    openThread: String?,
+    openTitle: String,
+    onOpen: (ConversationSummary) -> Unit,
+    onBack: () -> Unit,
+) {
+    if (openThread == null) {
+        val state by chatList.state.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { chatList.load() }
+        ChatListScreen(state = state, onOpen = onOpen)
+    } else {
+        val model = remember(openThread) { threadFor(openThread) }
+        val state by model.state.collectAsStateWithLifecycle()
+        LaunchedEffect(openThread) { model.load() }
+        BackHandler(onBack = onBack)
+        ChatThreadScreen(title = openTitle, state = state, onSend = model::send)
+    }
+}
+
 private enum class Tab(val title: String, val icon: ImageVector, val missing: String) {
     Home("Home", Icons.Filled.Home, "The feed is not ported yet — HomeFeedView.swift."),
     Fixtures("Fixtures", Icons.Filled.DateRange, "Not ported yet — FixturesView.swift."),
-    Chats("Chats", Icons.Filled.Email, "Not ported yet — ChatListView.swift."),
+    Chats("Chats", Icons.Filled.Email, ""),
     Clubs("Clubs", Icons.Filled.Person, "Not ported yet — ClubsTeamsView.swift."),
     Profile("Profile", Icons.Filled.AccountCircle, ""),
 }

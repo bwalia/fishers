@@ -30,7 +30,12 @@ import com.fishers.app.views.auth.AuthScreen
  * neither is shown.
  */
 @Composable
-fun RootScreen(viewModel: SessionViewModel, modifier: Modifier = Modifier) {
+fun RootScreen(
+    viewModel: SessionViewModel,
+    chatList: com.fishers.app.chat.ChatListViewModel,
+    threadFor: (String) -> com.fishers.app.chat.ChatThreadViewModel,
+    modifier: Modifier = Modifier,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.bootstrap() }
@@ -61,6 +66,8 @@ fun RootScreen(viewModel: SessionViewModel, modifier: Modifier = Modifier) {
             Destination.SignedIn -> MainTabScreen(
                 user = state.user,
                 onSignOut = viewModel::signOut,
+                chatList = chatList,
+                threadFor = threadFor,
             )
         }
     }

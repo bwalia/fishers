@@ -6,6 +6,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Path
 
 /**
  * The server's own shapes, from `backend/domain/src/user.rs`. Named as the wire
@@ -83,4 +84,24 @@ interface FishersApi {
 
     @PATCH("me")
     suspend fun setRoleIntent(@Body body: RoleIntentPatch): PublicUser
+
+    // ---- chat ----
+
+    @GET("conversations")
+    suspend fun conversations(): List<com.fishers.app.chat.ConversationSummary>
+
+    @GET("conversations/{id}/messages")
+    suspend fun messages(@Path("id") id: String): List<com.fishers.app.chat.ChatMessage>
+
+    @POST("conversations/{id}/messages")
+    suspend fun postMessage(
+        @Path("id") id: String,
+        @Body body: com.fishers.app.chat.PostMessageRequest,
+    ): com.fishers.app.chat.ChatMessage
+
+    @POST("conversations/{id}/read")
+    suspend fun markRead(
+        @Path("id") id: String,
+        @Body body: com.fishers.app.chat.MarkReadRequest = com.fishers.app.chat.MarkReadRequest(),
+    )
 }
