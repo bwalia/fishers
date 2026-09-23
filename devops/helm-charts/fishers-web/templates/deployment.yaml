@@ -45,6 +45,10 @@ spec:
               value: "::"
             - name: NODE_ENV
               value: production
+            # What this build was branded as. The brand is baked in at build
+            # time, so this is for whoever is reading logs, not for the app.
+            - name: FISHERS_BRAND
+              value: {{ .Values.brand | quote }}
             # No NEXT_PUBLIC_API_BASE. The browser derives the API origin from
             # the page it loaded, and the ingress puts the API on that same
             # origin under /api — so one image serves int, test, acc and prod

@@ -27,6 +27,14 @@ on:
         description: "int | test | acc | prod"
         type: string
         required: true
+      brand:
+        description: >-
+          Which brand in brands/ to deploy. Each is its own stack — its own
+          namespace, its own API, its own database — so this picks the whole
+          deployment, not a skin on a shared one.
+        type: string
+        required: false
+        default: fishers
       image_tag:
         description: "Commit sha to deploy. Never a moving tag — see 'Refuse a moving tag'."
         type: string
@@ -104,22 +112,31 @@ jobs:
             exit 1
           fi
 
+      # The brand file is the one place that knows where a brand's ring
+      # answers and which namespace it lives in. Asking it beats repeating a
+      # case statement that a new brand would have to be added to twice.
+      - name: Brand tool
+        working-directory: tools/brand
+        run: npm ci --omit=dev
+
       - name: Resolve ring
         id: ring
+        env:
+          BRAND: ${{ inputs.brand || 'fishers' }}
         run: |
           set -euo pipefail
-          # One host per ring; the ingress splits / and /api behind it.
-          case "$TARGET_ENV" in
-            int)  HOSTNAME=int.fishers.cloud  ;;
-            test) HOSTNAME=test.fishers.cloud ;;
-            acc)  HOSTNAME=acc.fishers.cloud  ;;
-            prod) HOSTNAME=www.fishers.cloud  ;;
-            *) echo "::error::unknown environment '$TARGET_ENV'"; exit 1 ;;
-          esac
-          # Namespace per ring. `fishers-prod` rather than `prod` so this does
-          # not collide with another project's namespace on a shared cluster.
-          echo "namespace=fishers-$TARGET_ENV" >> "$GITHUB_OUTPUT"
-          echo "hostname=$HOSTNAME"            >> "$GITHUB_OUTPUT"
+          HOSTNAME=$(node tools/brand/index.mjs host "$BRAND" "$TARGET_ENV")
+          # `<brand>-<ring>`, which for fishers is `fishers-int` — exactly what
+          # it has always been, so nothing moves. A new brand gets its own,
+          # which is what keeps two brands' databases apart on one cluster.
+          NAMESPACE=$(node tools/brand/index.mjs namespace "$BRAND" "$TARGET_ENV")
+          # And the overlay Helm applies last.
+          node tools/brand/index.mjs helm "$BRAND" "$TARGET_ENV" > /tmp/brand-values.yaml
+
+          echo "namespace=$NAMESPACE" >> "$GITHUB_OUTPUT"
+          echo "hostname=$HOSTNAME"   >> "$GITHUB_OUTPUT"
+          echo "brand=$BRAND"         >> "$GITHUB_OUTPUT"
+          echo "deploying $BRAND to $NAMESPACE at $HOSTNAME"
 
           case "${{ inputs.registry_provider || 'NEBULACR' }}" in
             GHCR) echo "registry=ghcr.io" >> "$GITHUB_OUTPUT"
@@ -410,10 +427,13 @@ jobs:
           NS: ${{ steps.ring.outputs.namespace }}
         run: |
           set -euo pipefail
+          # The brand overlay goes last, because Helm applies -f in order and
+          # the brand is what should win over a ring default.
           helm upgrade --install fishers-web "$CHARTS/fishers-web" \
             --namespace "$NS" \
             -f "$CHARTS/fishers-web/values.yaml" \
             -f "$CHARTS/fishers-web/values-$TARGET_ENV.yaml" \
+            -f /tmp/brand-values.yaml \
             --set image.repository='${{ steps.ring.outputs.ns }}/fishers-web' \
             --set image.tag="$IMAGE_TAG" \
             --set hostname='${{ steps.ring.outputs.hostname }}' \

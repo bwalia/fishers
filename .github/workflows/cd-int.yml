@@ -1,7 +1,12 @@
 name: CD — deploy int on merge to main
 
-# Continuous deployment for the int ring. Every merge to main lands on
-# https://int.fishers.cloud without anybody dispatching anything.
+# Continuous deployment for the int ring. Every merge to main lands on every
+# brand's int without anybody dispatching anything — https://int.fishers.cloud
+# and https://int.gullycricket.app today.
+#
+# A brand is a whole stack, not a skin: its own namespace, its own API, its own
+# database. The matrix at the bottom is what fans this out, and the brand files
+# in brands/ are what each deploy reads to know where it goes.
 #
 # The chain is edge -> build -> deploy, and the order is the point:
 #
@@ -73,13 +78,21 @@ jobs:
     secrets: inherit
 
   deploy:
-    name: Deploy int
+    name: Deploy ${{ matrix.brand }} int
     needs: [build, edge]
     # Ship whenever images built — edge is best-effort once the ring exists.
     if: always() && needs.build.result == 'success'
+    # One deploy per brand. Each is its own namespace, its own API and its own
+    # database, so they cannot interfere; fail-fast is off because one brand
+    # being unhappy is not a reason to leave the other on yesterday's build.
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: [fishers, gullycricket]
     uses: ./.github/workflows/deploy-fishers-k3s.yml
     with:
       target_env: int
+      brand: ${{ matrix.brand }}
       # The commit, not :latest — see the note above.
       image_tag: ${{ github.sha }}
       deploy_postgres: true

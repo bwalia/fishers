@@ -7,7 +7,7 @@ import { checkContrast, listBrands, loadBrand, BrandError } from "../src/brand.m
 import { webFiles } from "../src/targets/web.mjs";
 import { androidFiles } from "../src/targets/android.mjs";
 import { iosFiles } from "../src/targets/ios.mjs";
-import { helmValues } from "../src/helm.mjs";
+import { helmValues, hostFor, namespaceFor } from "../src/helm.mjs";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..");
 
@@ -228,16 +228,41 @@ test("the iOS xcconfig carries the bundle id that makes it its own listing", () 
   assert.match(xcconfig.contents, /PRODUCT_BUNDLE_IDENTIFIER = app\.gullycricket/);
 });
 
-test("helm values give each brand its own namespace and host", () => {
+test("the helm overlay carries the brand and its host", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
   const values = helmValues(brand, "int");
-  assert.match(values, /namespace: gullycricket-int/);
   assert.match(values, /hostname: int\.gullycricket\.app/);
   assert.match(values, /brand: gullycricket/);
 });
 
-test("prod gets more than one replica, because it is prod", () => {
+/**
+ * The overlay is only what differs by brand. Repeating the ring's own values
+ * is how two files drift until one ring is a version behind.
+ */
+test("the overlay does not repeat what the ring already decides", () => {
+  const values = helmValues(loadBrand(repoRoot, "fishers"), "prod");
+  for (const leaked of ["replicaCount", "image:", "resources:", "secretName"]) {
+    assert.ok(!values.includes(leaked), `${leaked} does not belong in the overlay`);
+  }
+});
+
+/**
+ * Fishers' namespace is what it has always been. If this changes, an existing
+ * deploy moves to a new namespace and leaves its database behind.
+ */
+test("fishers keeps the namespace it already has", () => {
   const brand = loadBrand(repoRoot, "fishers");
-  assert.match(helmValues(brand, "prod"), /replicaCount: 2/);
-  assert.match(helmValues(brand, "int"), /replicaCount: 1/);
+  assert.equal(namespaceFor(brand, "int"), "fishers-int");
+  assert.equal(namespaceFor(brand, "prod"), "fishers-prod");
+});
+
+test("a new brand gets its own namespace, which is what separates the data", () => {
+  const brand = loadBrand(repoRoot, "gullycricket");
+  assert.equal(namespaceFor(brand, "int"), "gullycricket-int");
+});
+
+test("an unknown ring is refused by name, not with undefined", () => {
+  const brand = loadBrand(repoRoot, "fishers");
+  assert.throws(() => hostFor(brand, "staging"), /has no "staging" ring/);
+  assert.throws(() => namespaceFor(brand, "staging"), /int, test, acc, prod/);
 });

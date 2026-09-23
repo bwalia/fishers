@@ -30,3 +30,42 @@ support queue.
 
 The mobile apps take the same file: Android as a product flavour, iOS as an
 xcconfig. Each brand is its own listing, its own bundle id and its own icon.
+
+## What a brand actually gets
+
+A brand is a whole stack, not a skin. Each has its own namespace, its own API,
+its own database and its own Play and App Store listing. Nothing is shared at
+runtime — a GullyCricket club is not in Fishers' database and never appears in
+its search.
+
+| | Fishers | GullyCricket |
+|---|---|---|
+| Web | int.fishers.cloud | int.gullycricket.app |
+| Namespace | `fishers-int` | `gullycricket-int` |
+| Android | `com.fishers.app` | `app.gullycricket` |
+| iOS | `com.fishers.app` | `app.gullycricket` |
+
+## Where it is read
+
+| What | Reads it as |
+|---|---|
+| Web | `brand.generated.ts` and `brand.generated.css`, written by `prebuild` |
+| Android | a product flavour, its resources generated per variant |
+| iOS | an xcconfig and `Brand.generated.swift`, selected by the scheme |
+| Helm | an overlay applied after the ring's own values |
+| CD | a matrix — one push to main deploys every brand |
+
+## Commands
+
+```bash
+node tools/brand/index.mjs list                    # which brands exist
+node tools/brand/index.mjs check                   # every brand readable?
+node tools/brand/index.mjs check gullycricket      # just this one
+node tools/brand/index.mjs generate fishers        # all targets
+node tools/brand/index.mjs generate fishers --web  # just the web
+node tools/brand/index.mjs host gullycricket prod  # www.gullycricket.app
+node tools/brand/index.mjs namespace fishers int   # fishers-int
+```
+
+`cd web && BRAND=gullycricket npm run dev` runs the dashboard as GullyCricket.
+`./gradlew assembleGullycricketDebug` builds its app.

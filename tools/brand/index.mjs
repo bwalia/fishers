@@ -5,7 +5,9 @@
  *   brand check [<id>]            every pair readable? writes nothing
  *   brand generate <id> [targets] write the generated files
  *   brand list                    which brands this repo has
- *   brand helm <id> <ring>        print a Helm values file
+ *   brand helm <id> <ring>        print the brand's Helm overlay
+ *   brand host <id> <ring>        print where that ring answers
+ *   brand namespace <id> <ring>   print the namespace it lives in
  *
  * Targets default to every platform: --web --android --ios.
  *
@@ -20,7 +22,7 @@ import { BrandError, checkContrast, listBrands, loadBrand } from "./src/brand.mj
 import { webFiles } from "./src/targets/web.mjs";
 import { androidFiles } from "./src/targets/android.mjs";
 import { iosFiles } from "./src/targets/ios.mjs";
-import { helmValues } from "./src/helm.mjs";
+import { helmValues, hostFor, namespaceFor } from "./src/helm.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -103,21 +105,30 @@ function main(argv) {
     return 0;
   }
 
-  if (command === "helm") {
+  // Three one-liners the deploy workflow asks for. Kept here rather than
+  // duplicated as shell, because the brand file is the one place that knows.
+  const LOOKUPS = {
+    helm: (brand, ring) => helmValues(brand, ring),
+    host: (brand, ring) => `${hostFor(brand, ring)}\n`,
+    namespace: (brand, ring) => `${namespaceFor(brand, ring)}\n`,
+  };
+
+  if (LOOKUPS[command]) {
     const [id, ring] = rest;
-    if (!id || !ring) throw new BrandError("Try: brand helm gullycricket int");
-    const brand = loadBrand(repoRoot, id);
-    if (!brand.rings[ring]) {
-      throw new BrandError(
-        `${brand.name} has no "${ring}" ring. It has: ${Object.keys(brand.rings).join(", ")}`,
-      );
+    if (!id || !ring) {
+      throw new BrandError(`Try: brand ${command} gullycricket int`);
     }
-    process.stdout.write(helmValues(brand, ring));
+    const brand = loadBrand(repoRoot, id);
+    try {
+      process.stdout.write(LOOKUPS[command](brand, ring));
+    } catch (e) {
+      throw new BrandError(e.message);
+    }
     return 0;
   }
 
   throw new BrandError(
-    `No command called "${command}". There is: check, generate, list, helm`,
+    `No command called "${command}". There is: check, generate, list, helm, host, namespace`,
   );
 }
 
