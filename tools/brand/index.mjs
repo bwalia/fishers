@@ -8,6 +8,9 @@
  *   brand helm <id> <ring>        print the brand's Helm overlay
  *   brand host <id> <ring>        print where that ring answers
  *   brand namespace <id> <ring>   print the namespace it lives in
+ *   brand hosts <id> <ring>       every hostname that ring answers on
+ *   brand dns-hosts <id> <ring>   the ones that get a CNAME (not the apex)
+ *   brand zone <id>               the Cloudflare zone
  *
  * Targets default to every platform: --web --android --ios.
  *
@@ -22,7 +25,14 @@ import { BrandError, checkContrast, listBrands, loadBrand } from "./src/brand.mj
 import { webFiles } from "./src/targets/web.mjs";
 import { androidFiles } from "./src/targets/android.mjs";
 import { iosFiles } from "./src/targets/ios.mjs";
-import { helmValues, hostFor, namespaceFor } from "./src/helm.mjs";
+import {
+  dnsHostsFor,
+  edgeHostsFor,
+  helmValues,
+  hostFor,
+  namespaceFor,
+  zoneFor,
+} from "./src/helm.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -111,7 +121,17 @@ function main(argv) {
     helm: (brand, ring) => helmValues(brand, ring),
     host: (brand, ring) => `${hostFor(brand, ring)}\n`,
     namespace: (brand, ring) => `${namespaceFor(brand, ring)}\n`,
+    hosts: (brand, ring) => `${edgeHostsFor(brand, ring).join(" ")}\n`,
+    "dns-hosts": (brand, ring) => `${dnsHostsFor(brand, ring).join(" ")}\n`,
   };
+
+  // The zone belongs to the brand, not to a ring.
+  if (command === "zone") {
+    const [id] = rest;
+    if (!id) throw new BrandError("Try: brand zone gullycricket");
+    process.stdout.write(`${zoneFor(loadBrand(repoRoot, id))}\n`);
+    return 0;
+  }
 
   if (LOOKUPS[command]) {
     const [id, ring] = rest;
@@ -128,7 +148,7 @@ function main(argv) {
   }
 
   throw new BrandError(
-    `No command called "${command}". There is: check, generate, list, helm, host, namespace`,
+    `No command called "${command}". There is: check, generate, list, helm, host, namespace, hosts, dns-hosts, zone`,
   );
 }
 

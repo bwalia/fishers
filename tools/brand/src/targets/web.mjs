@@ -8,14 +8,18 @@ import { join } from "node:path";
  * literal. Neither is committed — generated code in the repo drifts from the
  * source it came from.
  */
-export function webFiles(brand, repoRoot) {
+export function webFiles(brand, repoRoot, outDir) {
+  // `outDir` is the dashboard's own root. The container build passes it,
+  // because there the tool lives outside the app and would otherwise resolve
+  // a repo root that does not contain it.
+  const web = outDir ?? join(repoRoot, "web");
   return [
     {
-      path: join(repoRoot, "web", "src", "app", "brand.generated.css"),
+      path: join(web, "src", "app", "brand.generated.css"),
       contents: css(brand),
     },
     {
-      path: join(repoRoot, "web", "src", "brand.generated.ts"),
+      path: join(web, "src", "brand.generated.ts"),
       contents: typescript(brand),
     },
   ];

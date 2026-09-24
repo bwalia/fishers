@@ -10,6 +10,11 @@ store:
   name: wslvault-backend
 
 # kv/<vaultPrefix>/<env>/config
+#
+# The brand, set by the deploy. It defaults to fishers so an install by hand
+# still works, but every brand must have its own: sharing a path means sharing
+# a JWT_SECRET, and a token minted by one brand would then authenticate on
+# another. Separate databases are not separation if the keys are shared.
 vaultPrefix: fishers
 
 # How often ESO re-reads the vault. The deploy also forces a sync before it

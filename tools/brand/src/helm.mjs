@@ -54,3 +54,27 @@ export function namespaceFor(brand, ring) {
   hostFor(brand, ring); // rejects an unknown ring with a readable message
   return `${brand.id}-${ring}`;
 }
+
+/**
+ * Every hostname a ring answers on, for DNS and the edge vhost.
+ *
+ * Prod carries the apex as well as `www`, because somebody typing the domain
+ * without it has to arrive somewhere. The apex is an A record at the zone
+ * root: a CNAME cannot coexist with one, so Cloudflare refuses the upsert and
+ * takes the whole deploy down with it. It needs the vhost for its own
+ * certificate and nothing else — which is why [dnsHostsFor] leaves it out.
+ */
+export function edgeHostsFor(brand, ring) {
+  const host = hostFor(brand, ring);
+  return ring === "prod" ? [host, brand.domain] : [host];
+}
+
+/** The hosts that get a CNAME — everything but the apex. */
+export function dnsHostsFor(brand, ring) {
+  return edgeHostsFor(brand, ring).filter((h) => h !== brand.domain);
+}
+
+/** The Cloudflare zone a brand's records live in. */
+export function zoneFor(brand) {
+  return brand.domain;
+}

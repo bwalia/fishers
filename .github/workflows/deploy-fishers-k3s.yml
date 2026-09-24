@@ -292,16 +292,24 @@ jobs:
             echo "::notice::no registry credentials — assuming the images are public or the secret already exists."
           fi
 
+      # The vault path carries the brand.
+      #
+      # Without it every brand reads kv/fishers/<ring>/config — the same
+      # JWT_SECRET, so a token minted by one brand would authenticate on
+      # another; the same Stripe keys, so two brands' takings land in one
+      # account. Separate databases are not separation if the keys are shared.
       - name: Sync secrets from the vault
         env:
           NS: ${{ steps.ring.outputs.namespace }}
+          BRAND: ${{ steps.ring.outputs.brand }}
         run: |
           set -euo pipefail
-          VAULT_PATH="kv/fishers/$TARGET_ENV/config"
+          VAULT_PATH="kv/$BRAND/$TARGET_ENV/config"
           helm upgrade --install fishers-secrets "$CHARTS/fishers-secrets" \
             --namespace "$NS" \
             -f "$CHARTS/fishers-secrets/values.yaml" \
-            --set env="$TARGET_ENV"
+            --set env="$TARGET_ENV" \
+            --set vaultPrefix="$BRAND"
 
           # Force a fresh read. ESO otherwise waits out its refresh interval,
           # so a value changed in the vault a minute ago would roll out as the
@@ -434,7 +442,7 @@ jobs:
             -f "$CHARTS/fishers-web/values.yaml" \
             -f "$CHARTS/fishers-web/values-$TARGET_ENV.yaml" \
             -f /tmp/brand-values.yaml \
-            --set image.repository='${{ steps.ring.outputs.ns }}/fishers-web' \
+            --set image.repository='${{ steps.ring.outputs.ns }}/${{ steps.ring.outputs.brand }}-web' \
             --set image.tag="$IMAGE_TAG" \
             --set hostname='${{ steps.ring.outputs.hostname }}' \
             --set rolloutId='${{ github.run_id }}-${{ github.run_attempt }}' \

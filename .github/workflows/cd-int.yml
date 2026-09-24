@@ -61,11 +61,20 @@ jobs:
   # vhost already exists (www/int currently answer 200 while edge login 401s).
   # soft_fail is an input on the reusable workflow — continue-on-error is not
   # legal on a caller job that uses: another workflow.
+  # Per brand, like the deploy. A brand whose DNS and vhost were never
+  # registered deploys green and answers nobody: the edge has no idea what to
+  # do with the Host header, so it serves the fallback vhost's self-signed
+  # certificate, which reads as a broken app rather than as missing config.
   edge:
-    name: DNS and edge vhost
+    name: DNS and edge vhost — ${{ matrix.brand }}
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: [fishers, gullycricket]
     uses: ./.github/workflows/register-edge-vhost.yml
     with:
       ENV: int
+      brand: ${{ matrix.brand }}
       soft_fail: true
     secrets: inherit
 
@@ -75,6 +84,10 @@ jobs:
     with:
       ref: ${{ github.sha }}
       image_tag: latest
+      # Every brand the matrix below deploys. The dashboard is built per brand
+      # because the brand is baked into the bundle; the API is not, because it
+      # is the same code pointed at a different database.
+      brands: fishers gullycricket
     secrets: inherit
 
   deploy:

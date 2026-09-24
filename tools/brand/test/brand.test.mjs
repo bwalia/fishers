@@ -7,7 +7,14 @@ import { checkContrast, listBrands, loadBrand, BrandError } from "../src/brand.m
 import { webFiles } from "../src/targets/web.mjs";
 import { androidFiles } from "../src/targets/android.mjs";
 import { iosFiles } from "../src/targets/ios.mjs";
-import { helmValues, hostFor, namespaceFor } from "../src/helm.mjs";
+import {
+  dnsHostsFor,
+  edgeHostsFor,
+  helmValues,
+  hostFor,
+  namespaceFor,
+  zoneFor,
+} from "../src/helm.mjs";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..");
 
@@ -265,4 +272,47 @@ test("an unknown ring is refused by name, not with undefined", () => {
   const brand = loadBrand(repoRoot, "fishers");
   assert.throws(() => hostFor(brand, "staging"), /has no "staging" ring/);
   assert.throws(() => namespaceFor(brand, "staging"), /int, test, acc, prod/);
+});
+
+// ---- the edge ----
+
+test("a ring's hosts come from the brand, and prod carries the apex", () => {
+  const fishers = loadBrand(repoRoot, "fishers");
+  assert.deepEqual(edgeHostsFor(fishers, "int"), ["int.fishers.cloud"]);
+  assert.deepEqual(edgeHostsFor(fishers, "prod"), ["www.fishers.cloud", "fishers.cloud"]);
+});
+
+/**
+ * The apex is an A record at the zone root. A CNAME cannot coexist with one,
+ * so Cloudflare refuses the upsert and takes the whole deploy with it — the
+ * apex needs the vhost, for its own certificate, and nothing else.
+ */
+test("the apex is left out of the CNAMEs", () => {
+  const fishers = loadBrand(repoRoot, "fishers");
+  assert.deepEqual(dnsHostsFor(fishers, "prod"), ["www.fishers.cloud"]);
+  assert.ok(!dnsHostsFor(fishers, "prod").includes("fishers.cloud"));
+});
+
+test("a second brand registers in its own zone, not somebody else's", () => {
+  const gully = loadBrand(repoRoot, "gullycricket");
+  assert.equal(zoneFor(gully), "gullycricket.app");
+  assert.deepEqual(edgeHostsFor(gully, "int"), ["int.gullycricket.app"]);
+  assert.deepEqual(
+    edgeHostsFor(gully, "prod"),
+    ["www.gullycricket.app", "gullycricket.app"],
+  );
+});
+
+test("no brand's hosts stray into another brand's zone", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    for (const ring of ["int", "test", "acc", "prod"]) {
+      for (const host of edgeHostsFor(brand, ring)) {
+        assert.ok(
+          host === brand.domain || host.endsWith(`.${brand.domain}`),
+          `${id} ${ring} registers ${host}, which is not in ${brand.domain}`,
+        );
+      }
+    }
+  }
 });
