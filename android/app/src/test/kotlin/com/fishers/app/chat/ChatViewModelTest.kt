@@ -27,6 +27,12 @@ import java.io.IOException
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
 
+    // `runTest` builds its own TestCoroutineScheduler unless it is handed
+    // one, and a bare StandardTestDispatcher() builds a second. Work launched
+    // on viewModelScope then sits on the dispatcher's scheduler while
+    // advanceUntilIdle() drains runTest's, so the assertions run before the
+    // view model has done anything — sometimes. It passed on every machine
+    // here and failed in CI, which is the worst way to find out.
     private val dispatcher = StandardTestDispatcher()
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
@@ -45,7 +51,7 @@ class ChatViewModelTest {
     // ---- the list ----
 
     @Test
-    fun `threads are newest first, whatever order they arrived in`() = runTest {
+    fun `threads are newest first, whatever order they arrived in`() = runTest(dispatcher.scheduler) {
         val model = ChatListViewModel(object : FakeFishersApi() {
             override suspend fun conversations() = listOf(
                 conversation("old", "2026-09-01T10:00:00Z"),
@@ -66,7 +72,7 @@ class ChatViewModelTest {
      * is still in flight is a lie the app tells confidently.
      */
     @Test
-    fun `an empty list is not claimed until the first load has answered`() = runTest {
+    fun `an empty list is not claimed until the first load has answered`() = runTest(dispatcher.scheduler) {
         val model = ChatListViewModel(object : FakeFishersApi() {
             override suspend fun conversations() = emptyList<ConversationSummary>()
         })
@@ -81,7 +87,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `a failed load says why and stops claiming to be loading`() = runTest {
+    fun `a failed load says why and stops claiming to be loading`() = runTest(dispatcher.scheduler) {
         val model = ChatListViewModel(object : FakeFishersApi() {
             override suspend fun conversations(): List<ConversationSummary> =
                 throw IOException("no route to host")
@@ -98,7 +104,7 @@ class ChatViewModelTest {
     // ---- a thread ----
 
     @Test
-    fun `opening a thread marks it read`() = runTest {
+    fun `opening a thread marks it read`() = runTest(dispatcher.scheduler) {
         var markedRead: String? = null
         val model = ChatThreadViewModel(object : FakeFishersApi() {
             override suspend fun messages(id: String) = listOf(message("1"))
@@ -118,7 +124,7 @@ class ChatViewModelTest {
      * of somebody who is trying to read a message.
      */
     @Test
-    fun `failing to mark it read does not spoil the thread`() = runTest {
+    fun `failing to mark it read does not spoil the thread`() = runTest(dispatcher.scheduler) {
         val model = ChatThreadViewModel(object : FakeFishersApi() {
             override suspend fun messages(id: String) = listOf(message("1"))
             override suspend fun markRead(id: String, body: MarkReadRequest) =
@@ -138,7 +144,7 @@ class ChatViewModelTest {
      * somebody needs to know whether the other captain actually got it.
      */
     @Test
-    fun `a message that failed to send is not left on screen as though it had`() = runTest {
+    fun `a message that failed to send is not left on screen as though it had`() = runTest(dispatcher.scheduler) {
         val model = ChatThreadViewModel(object : FakeFishersApi() {
             override suspend fun messages(id: String) = listOf(message("1"))
             override suspend fun markRead(id: String, body: MarkReadRequest) = Unit
@@ -157,7 +163,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `a sent message appears once the server has it`() = runTest {
+    fun `a sent message appears once the server has it`() = runTest(dispatcher.scheduler) {
         val model = ChatThreadViewModel(object : FakeFishersApi() {
             override suspend fun messages(id: String) = listOf(message("1"))
             override suspend fun markRead(id: String, body: MarkReadRequest) = Unit
@@ -175,7 +181,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `an empty message is not sent at all`() = runTest {
+    fun `an empty message is not sent at all`() = runTest(dispatcher.scheduler) {
         val model = ChatThreadViewModel(object : FakeFishersApi() {
             override suspend fun messages(id: String) = emptyList<ChatMessage>()
             override suspend fun markRead(id: String, body: MarkReadRequest) = Unit

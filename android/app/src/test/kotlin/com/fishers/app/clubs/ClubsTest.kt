@@ -19,6 +19,12 @@ import java.io.IOException
 @OptIn(ExperimentalCoroutinesApi::class)
 class ClubsTest {
 
+    // `runTest` builds its own TestCoroutineScheduler unless it is handed
+    // one, and a bare StandardTestDispatcher() builds a second. Work launched
+    // on viewModelScope then sits on the dispatcher's scheduler while
+    // advanceUntilIdle() drains runTest's, so the assertions run before the
+    // view model has done anything — sometimes. It passed on every machine
+    // here and failed in CI, which is the worst way to find out.
     private val dispatcher = StandardTestDispatcher()
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
@@ -35,7 +41,7 @@ class ClubsTest {
     )
 
     @Test
-    fun `clubs are listed alphabetically, ignoring case`() = runTest {
+    fun `clubs are listed alphabetically, ignoring case`() = runTest(dispatcher.scheduler) {
         val model = ClubsViewModel(object : FakeFishersApi() {
             override suspend fun myClubs() = listOf(
                 Club("1", "wickham CC"),
@@ -58,7 +64,7 @@ class ClubsTest {
      * runs the club, then whoever captains, then everybody else.
      */
     @Test
-    fun `the roster puts the people you would ask at the top`() = runTest {
+    fun `the roster puts the people you would ask at the top`() = runTest(dispatcher.scheduler) {
         val model = ClubDetailViewModel(object : FakeFishersApi() {
             override suspend fun clubMembers(id: String) = listOf(
                 member("1", "Zoe Adams"),
@@ -84,7 +90,7 @@ class ClubsTest {
      * listed apart rather than among the people who are actually available.
      */
     @Test
-    fun `people who never answered are kept out of the count`() = runTest {
+    fun `people who never answered are kept out of the count`() = runTest(dispatcher.scheduler) {
         val model = ClubDetailViewModel(object : FakeFishersApi() {
             override suspend fun clubMembers(id: String) = listOf(
                 member("1", "Ravi Patel"),
@@ -106,7 +112,7 @@ class ClubsTest {
      * Losing the teams must not empty it.
      */
     @Test
-    fun `the roster survives the teams call failing`() = runTest {
+    fun `the roster survives the teams call failing`() = runTest(dispatcher.scheduler) {
         val model = ClubDetailViewModel(object : FakeFishersApi() {
             override suspend fun clubMembers(id: String) = listOf(member("1", "Ravi Patel"))
             override suspend fun clubTeams(id: String): List<Team> = throw IOException("down")
@@ -121,7 +127,7 @@ class ClubsTest {
     }
 
     @Test
-    fun `a roster that will not load says why`() = runTest {
+    fun `a roster that will not load says why`() = runTest(dispatcher.scheduler) {
         val model = ClubDetailViewModel(object : FakeFishersApi() {
             override suspend fun clubMembers(id: String): List<ClubMemberDetail> =
                 throw IOException("offline")

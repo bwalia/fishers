@@ -24,6 +24,12 @@ import java.time.Instant
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeTest {
 
+    // `runTest` builds its own TestCoroutineScheduler unless it is handed
+    // one, and a bare StandardTestDispatcher() builds a second. Work launched
+    // on viewModelScope then sits on the dispatcher's scheduler while
+    // advanceUntilIdle() drains runTest's, so the assertions run before the
+    // view model has done anything — sometimes. It passed on every machine
+    // here and failed in CI, which is the worst way to find out.
     private val dispatcher = StandardTestDispatcher()
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
@@ -40,7 +46,7 @@ class HomeTest {
     )
 
     @Test
-    fun `next up is the soonest fixture that is still on`() = runTest {
+    fun `next up is the soonest fixture that is still on`() = runTest(dispatcher.scheduler) {
         val model = HomeViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures() = listOf(
                 event("later", "2026-10-01T12:00:00Z"),
@@ -60,7 +66,7 @@ class HomeTest {
     }
 
     @Test
-    fun `unread counts are added up across every thread`() = runTest {
+    fun `unread counts are added up across every thread`() = runTest(dispatcher.scheduler) {
         val model = HomeViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures() = emptyList<FishersEvent>()
             override suspend fun conversations() = listOf(chat(2), chat(0), chat(5))
@@ -79,7 +85,7 @@ class HomeTest {
      * chat service is unhappy is worse than one that is a tile short.
      */
     @Test
-    fun `one endpoint failing costs its own tile and nothing else`() = runTest {
+    fun `one endpoint failing costs its own tile and nothing else`() = runTest(dispatcher.scheduler) {
         val model = HomeViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures() = listOf(event("next", "2026-09-26T12:00:00Z"))
             override suspend fun conversations(): List<ConversationSummary> =
@@ -98,7 +104,7 @@ class HomeTest {
 
     /** Everything failing is worth saying, because the screen is then empty. */
     @Test
-    fun `everything failing does say so`() = runTest {
+    fun `everything failing does say so`() = runTest(dispatcher.scheduler) {
         val model = HomeViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures(): List<FishersEvent> = throw IOException("down")
             override suspend fun conversations(): List<ConversationSummary> =

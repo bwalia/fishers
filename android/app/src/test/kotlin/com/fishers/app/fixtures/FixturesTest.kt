@@ -22,6 +22,12 @@ import java.time.ZoneId
 @OptIn(ExperimentalCoroutinesApi::class)
 class FixturesTest {
 
+    // `runTest` builds its own TestCoroutineScheduler unless it is handed
+    // one, and a bare StandardTestDispatcher() builds a second. Work launched
+    // on viewModelScope then sits on the dispatcher's scheduler while
+    // advanceUntilIdle() drains runTest's, so the assertions run before the
+    // view model has done anything — sometimes. It passed on every machine
+    // here and failed in CI, which is the worst way to find out.
     private val dispatcher = StandardTestDispatcher()
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
@@ -42,7 +48,7 @@ class FixturesTest {
     // ---- what goes where ----
 
     @Test
-    fun `coming up is soonest first, played is most recent first`() = runTest {
+    fun `coming up is soonest first, played is most recent first`() = runTest(dispatcher.scheduler) {
         val model = FixturesViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures() = listOf(
                 event("far", "2026-10-30T12:00:00Z"),
@@ -70,7 +76,7 @@ class FixturesTest {
      * see it at all — a hidden fixture is a side that does not turn up.
      */
     @Test
-    fun `a fixture with an unreadable date is shown rather than dropped`() = runTest {
+    fun `a fixture with an unreadable date is shown rather than dropped`() = runTest(dispatcher.scheduler) {
         val model = FixturesViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures() = listOf(event("odd", "whenever"))
         })
@@ -96,7 +102,7 @@ class FixturesTest {
      * list to keep up.
      */
     @Test
-    fun `an answer shows immediately`() = runTest {
+    fun `an answer shows immediately`() = runTest(dispatcher.scheduler) {
         val model = FixturesViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures() = listOf(event("1", "2026-09-24T12:00:00Z"))
             override suspend fun rsvp(id: String, body: RsvpRequest) = Unit
@@ -120,7 +126,7 @@ class FixturesTest {
      * a side around somebody who is not coming.
      */
     @Test
-    fun `an answer the server refused is taken back off the screen`() = runTest {
+    fun `an answer the server refused is taken back off the screen`() = runTest(dispatcher.scheduler) {
         val model = FixturesViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures() =
                 listOf(event("1", "2026-09-24T12:00:00Z", myRsvp = RsvpStatus.Maybe))
@@ -142,7 +148,7 @@ class FixturesTest {
     }
 
     @Test
-    fun `only one answer is in flight at a time`() = runTest {
+    fun `only one answer is in flight at a time`() = runTest(dispatcher.scheduler) {
         var calls = 0
         val model = FixturesViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures() = listOf(
@@ -162,7 +168,7 @@ class FixturesTest {
     }
 
     @Test
-    fun `a failed load says why rather than looking empty`() = runTest {
+    fun `a failed load says why rather than looking empty`() = runTest(dispatcher.scheduler) {
         val model = FixturesViewModel(object : FakeFishersApi() {
             override suspend fun myFixtures(): List<FishersEvent> = throw IOException("down")
         })
