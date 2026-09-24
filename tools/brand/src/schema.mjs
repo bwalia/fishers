@@ -66,8 +66,10 @@ export function validate(brand, source) {
     }
   }
 
-  if (typeof brand?.support?.email !== "string") {
-    problems.push(`${where("support.email")} is missing`);
+  for (const key of ["email", "sslEmail"]) {
+    if (typeof brand?.support?.[key] !== "string") {
+      problems.push(`${where(`support.${key}`)} is missing`);
+    }
   }
 
   for (const key of SOURCE_COLOURS) {

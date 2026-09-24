@@ -20,7 +20,11 @@ rings:
   prod: www.fishers.cloud
 
 support:
+  # Where a person writes to.
   email: hello@fishers.cloud
+  # Where Let's Encrypt writes to about expiring certificates. A different
+  # thing from the address above, and not somewhere a customer should land.
+  sslEmail: admin@fishers.cloud
 
 # The four the club chose. Lovely, and all light — none of them carries white
 # text, which is why the ramp exists.

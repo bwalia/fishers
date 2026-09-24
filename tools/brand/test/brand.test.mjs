@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkContrast, listBrands, loadBrand, BrandError } from "../src/brand.mjs";
 import { webAssets, webFiles } from "../src/targets/web.mjs";
 import { androidFiles } from "../src/targets/android.mjs";
 import { iosFiles } from "../src/targets/ios.mjs";
+import { wslproxyFiles } from "../src/targets/wslproxy.mjs";
 import {
   dnsHostsFor,
   edgeHostsFor,
@@ -32,6 +33,7 @@ rings:
   prod: www.example.test
 support:
   email: hello@example.test
+  sslEmail: admin@example.test
 source:
   primary: "#8fa28a"
   primaryPale: "#c7d3c0"
@@ -385,4 +387,46 @@ test("the chrome colours reach the typescript", () => {
   const [, ts] = webFiles(gully, "/tmp/x");
   assert.match(ts.contents, /"themeLight": "#fdf7f2"/);
   assert.match(ts.contents, /"themeDark": "#1a1210"/);
+});
+
+// ---- the edge vhost specs ----
+
+/**
+ * Fishers' specs are live and working. The generator has to reproduce them
+ * exactly, or adopting it silently rewrites a working edge — which is the kind
+ * of change that is only noticed when a certificate stops renewing.
+ */
+test("the generator reproduces the committed fishers specs byte for byte", () => {
+  const brand = loadBrand(repoRoot, "fishers");
+  for (const file of wslproxyFiles(brand, repoRoot)) {
+    const committed = readFileSync(file.path, "utf8");
+    assert.equal(
+      JSON.stringify(JSON.parse(file.contents), null, 2),
+      JSON.stringify(JSON.parse(committed), null, 2),
+      `${file.path} would be rewritten`,
+    );
+  }
+});
+
+test("every hostname a brand answers on gets a spec", () => {
+  const gully = loadBrand(repoRoot, "gullycricket");
+  const paths = wslproxyFiles(gully, "/repo").map((f) => f.path);
+  for (const host of ["int.gullycricket.app", "www.gullycricket.app", "gullycricket.app"]) {
+    assert.ok(
+      paths.some((p) => p.endsWith(`host-${host}.json`)),
+      `${host} has no vhost spec`,
+    );
+  }
+});
+
+/** Let's Encrypt writes about expiring certificates; a customer must not land there. */
+test("the certificate address is not the support address", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    assert.notEqual(
+      brand.support.sslEmail,
+      brand.support.email,
+      `${id} points certificate mail at its support address`,
+    );
+  }
 });
