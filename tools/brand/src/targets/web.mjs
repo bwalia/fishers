@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -8,21 +9,50 @@ import { join } from "node:path";
  * literal. Neither is committed — generated code in the repo drifts from the
  * source it came from.
  */
-export function webFiles(brand, repoRoot) {
+/**
+ * The files a brand has to supply itself.
+ *
+ * Missing ones are an error rather than a fallback. A fallback here means
+ * shipping another brand's mark, which is worse than a build that stops and
+ * says which file to add.
+ */
+const ASSETS = ["icon-192.png", "badge.png"];
+
+export function webAssets(brand, repoRoot, outDir) {
+  const from = join(repoRoot, "brands", brand.id);
+  const to = outDir ? join(outDir, "public") : join(repoRoot, "web", "public");
+  const missing = ASSETS.filter((name) => !existsSync(join(from, name)));
+  if (missing.length) {
+    throw new Error(
+      `${brand.name} has no ${missing.join(", ")}. Put them in brands/${brand.id}/ — ` +
+        `a build cannot fall back to another brand's mark.`,
+    );
+  }
+  return ASSETS.map((name) => ({
+    path: join(to, name),
+    contents: readFileSync(join(from, name)),
+  }));
+}
+
+export function webFiles(brand, repoRoot, outDir) {
+  // `outDir` is the dashboard's own root. The container build passes it,
+  // because there the tool lives outside the app and would otherwise resolve
+  // a repo root that does not contain it.
+  const web = outDir ?? join(repoRoot, "web");
   return [
     {
-      path: join(repoRoot, "web", "src", "app", "brand.generated.css"),
+      path: join(web, "src", "app", "brand.generated.css"),
       contents: css(brand),
     },
     {
-      path: join(repoRoot, "web", "src", "brand.generated.ts"),
+      path: join(web, "src", "brand.generated.ts"),
       contents: typescript(brand),
     },
   ];
 }
 
 function css(brand) {
-  const { ramp, source, name, id } = brand;
+  const { ramp, source, dark, id } = brand;
   return `/* Generated from brands/${id}.yaml. Do not edit.
  *
  * The source colours are what the brand looks like; the ramp is what carries
@@ -54,6 +84,22 @@ function css(brand) {
   --ink-900: ${ramp.ink900};
   --ink-700: ${ramp.ink700};
   --ink-500: ${ramp.ink500};
+
+  /* Dark, mixed from the same hue — the two themes are the same room at
+     different times of day, not a grey inversion. globals.css points its dark
+     block at these. */
+  --brand-dark-bg: ${dark.bg};
+  --brand-dark-surface: ${dark.surface};
+  --brand-dark-surface-2: ${dark.surface2};
+  --brand-dark-surface-3: ${dark.surface3};
+  --brand-dark-fg: ${dark.fg};
+  --brand-dark-fg-muted: ${dark.fgMuted};
+  --brand-dark-fg-subtle: ${dark.fgSubtle};
+  --brand-dark-border: ${dark.border};
+  --brand-dark-border-strong: ${dark.borderStrong};
+  --brand-dark-on-primary: ${dark.onPrimary};
+  --brand-dark-raised: ${dark.raised};
+  --brand-dark-accent-pale: ${dark.accentPale};
 }
 `;
 }
@@ -67,6 +113,10 @@ function typescript(brand) {
     description: brand.description,
     domain: brand.domain,
     supportEmail: brand.support.email,
+    // The browser chrome is painted from metadata rather than from CSS, so
+    // these two have to be here as well as in the stylesheet.
+    themeLight: brand.source.surface,
+    themeDark: brand.dark.bg,
   };
   return `/* Generated from brands/${brand.id}.yaml. Do not edit. */
 

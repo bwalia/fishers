@@ -10,7 +10,8 @@
     "brand": "node ../tools/brand/ensure-installed.mjs generate ${BRAND:-fishers} --web",
     "brand:check": "node ../tools/brand/ensure-installed.mjs check",
     "prebuild": "npm run brand",
-    "predev": "npm run brand"
+    "predev": "npm run brand",
+    "build:next": "next build"
   },
   "dependencies": {
     "next": "^15.5.2",

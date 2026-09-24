@@ -25,6 +25,12 @@ const RAMP_COLOURS = [
   "ink900", "ink700", "ink500",
 ];
 
+const DARK_COLOURS = [
+  "bg", "surface", "surface2", "surface3",
+  "fg", "fgMuted", "fgSubtle",
+  "border", "borderStrong", "onPrimary", "raised", "accentPale",
+];
+
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 export class BrandError extends Error {}
@@ -70,6 +76,9 @@ export function validate(brand, source) {
   for (const key of RAMP_COLOURS) {
     problems.push(...colourProblem(brand?.ramp?.[key], where(`ramp.${key}`)));
   }
+  for (const key of DARK_COLOURS) {
+    problems.push(...colourProblem(brand?.dark?.[key], where(`dark.${key}`)));
+  }
 
   for (const key of ["bundleId", "displayName"]) {
     if (typeof brand?.mobile?.[key] !== "string") {
@@ -97,4 +106,4 @@ function colourProblem(value, path) {
   return [];
 }
 
-export { RINGS, SOURCE_COLOURS, RAMP_COLOURS };
+export { RINGS, SOURCE_COLOURS, RAMP_COLOURS, DARK_COLOURS };

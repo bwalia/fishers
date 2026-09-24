@@ -4,10 +4,17 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkContrast, listBrands, loadBrand, BrandError } from "../src/brand.mjs";
-import { webFiles } from "../src/targets/web.mjs";
+import { webAssets, webFiles } from "../src/targets/web.mjs";
 import { androidFiles } from "../src/targets/android.mjs";
 import { iosFiles } from "../src/targets/ios.mjs";
-import { helmValues, hostFor, namespaceFor } from "../src/helm.mjs";
+import {
+  dnsHostsFor,
+  edgeHostsFor,
+  helmValues,
+  hostFor,
+  namespaceFor,
+  zoneFor,
+} from "../src/helm.mjs";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..");
 
@@ -44,6 +51,19 @@ ramp:
   ink900: "#202a21"
   ink700: "#374337"
   ink500: "#4e5c4d"
+dark:
+  bg: "#111712"
+  surface: "#171d17"
+  surface2: "#1c231c"
+  surface3: "#242c24"
+  fg: "#f3f6f0"
+  fgMuted: "#c8d2c6"
+  fgSubtle: "#a7b4a5"
+  border: "#303a30"
+  borderStrong: "#475547"
+  onPrimary: "#14210f"
+  raised: "#1d251d"
+  accentPale: "#2e2717"
 mobile:
   bundleId: test.example.app
   displayName: Test Brand
@@ -129,7 +149,9 @@ test("every missing field is reported at once, not one per run", () => {
       assert.fail("should have refused");
     } catch (e) {
       assert.ok(e instanceof BrandError);
-      for (const expected of ["name", "domain", "rings.prod", "source.primary", "mobile.bundleId"]) {
+      for (const expected of [
+        "name", "domain", "rings.prod", "source.primary", "dark.bg", "mobile.bundleId",
+      ]) {
         assert.match(e.message, new RegExp(expected.replace(".", "\\.")));
       }
     }
@@ -173,11 +195,22 @@ test("the web CSS carries the ramp, not the source colours, for text", () => {
   assert.match(css.contents, /Do not edit/);
 });
 
-test("the web constants carry no colour, because CSS owns that", () => {
+/**
+ * The stylesheet owns the palette. The only colours here are the two the
+ * browser chrome is painted from, which come from metadata rather than CSS —
+ * anything else has leaked, and a palette in two places drifts.
+ */
+test("the web constants carry only the two chrome colours", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
   const [, ts] = webFiles(brand, "/tmp/x");
   assert.match(ts.contents, /"name": "GullyCricket"/);
-  assert.ok(!/#[0-9a-f]{6}/.test(ts.contents), "a colour leaked into the constants");
+
+  const colours = ts.contents.match(/#[0-9a-f]{6}/g) ?? [];
+  assert.deepEqual(
+    colours.sort(),
+    [brand.dark.bg, brand.source.surface].sort(),
+    "a colour other than the chrome pair leaked into the constants",
+  );
 });
 
 test("android resources are written under the flavour's own directory", () => {
@@ -265,4 +298,91 @@ test("an unknown ring is refused by name, not with undefined", () => {
   const brand = loadBrand(repoRoot, "fishers");
   assert.throws(() => hostFor(brand, "staging"), /has no "staging" ring/);
   assert.throws(() => namespaceFor(brand, "staging"), /int, test, acc, prod/);
+});
+
+// ---- the edge ----
+
+test("a ring's hosts come from the brand, and prod carries the apex", () => {
+  const fishers = loadBrand(repoRoot, "fishers");
+  assert.deepEqual(edgeHostsFor(fishers, "int"), ["int.fishers.cloud"]);
+  assert.deepEqual(edgeHostsFor(fishers, "prod"), ["www.fishers.cloud", "fishers.cloud"]);
+});
+
+/**
+ * The apex is an A record at the zone root. A CNAME cannot coexist with one,
+ * so Cloudflare refuses the upsert and takes the whole deploy with it — the
+ * apex needs the vhost, for its own certificate, and nothing else.
+ */
+test("the apex is left out of the CNAMEs", () => {
+  const fishers = loadBrand(repoRoot, "fishers");
+  assert.deepEqual(dnsHostsFor(fishers, "prod"), ["www.fishers.cloud"]);
+  assert.ok(!dnsHostsFor(fishers, "prod").includes("fishers.cloud"));
+});
+
+test("a second brand registers in its own zone, not somebody else's", () => {
+  const gully = loadBrand(repoRoot, "gullycricket");
+  assert.equal(zoneFor(gully), "gullycricket.app");
+  assert.deepEqual(edgeHostsFor(gully, "int"), ["int.gullycricket.app"]);
+  assert.deepEqual(
+    edgeHostsFor(gully, "prod"),
+    ["www.gullycricket.app", "gullycricket.app"],
+  );
+});
+
+test("no brand's hosts stray into another brand's zone", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    for (const ring of ["int", "test", "acc", "prod"]) {
+      for (const host of edgeHostsFor(brand, ring)) {
+        assert.ok(
+          host === brand.domain || host.endsWith(`.${brand.domain}`),
+          `${id} ${ring} registers ${host}, which is not in ${brand.domain}`,
+        );
+      }
+    }
+  }
+});
+
+// ---- assets ----
+
+/**
+ * A brand without its own mark is not ready, and a fallback here would mean
+ * shipping somebody else's logo under a different name.
+ */
+test("a brand without its own icons is refused, by name", () => {
+  const brand = { ...loadBrand(repoRoot, "fishers"), id: "no-such-brand" };
+  assert.throws(
+    () => webAssets(brand, repoRoot),
+    /icon-192\.png.*brands\/no-such-brand/s,
+  );
+});
+
+test("every brand in this repo supplies its own icons", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    const files = webAssets(brand, repoRoot);
+    assert.equal(files.length, 2, `${id} is missing an asset`);
+    for (const f of files) {
+      assert.ok(f.contents.length > 0, `${id}: ${f.path} is empty`);
+    }
+  }
+});
+
+test("no two brands ship the same icon", () => {
+  const seen = new Map();
+  for (const id of listBrands(repoRoot)) {
+    const [icon] = webAssets(loadBrand(repoRoot, id), repoRoot);
+    const key = icon.contents.toString("base64");
+    const owner = seen.get(key);
+    assert.ok(!owner, `${id} ships ${owner}'s icon`);
+    seen.set(key, id);
+  }
+});
+
+/** The browser chrome is painted from metadata, not from the stylesheet. */
+test("the chrome colours reach the typescript", () => {
+  const gully = loadBrand(repoRoot, "gullycricket");
+  const [, ts] = webFiles(gully, "/tmp/x");
+  assert.match(ts.contents, /"themeLight": "#fdf7f2"/);
+  assert.match(ts.contents, /"themeDark": "#1a1210"/);
 });

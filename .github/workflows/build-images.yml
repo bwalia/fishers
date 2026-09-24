@@ -15,6 +15,15 @@ on:
         description: "Git ref to build"
         type: string
         required: true
+      brands:
+        description: >-
+          Space-separated brands to build the dashboard for. The API is not
+          built per brand: it is the same code, and each brand's deployment
+          points it at its own database. The dashboard is, because the brand is
+          baked into the bundle.
+        type: string
+        required: false
+        default: fishers
       image_tag:
         description: "Tag to push"
         type: string
@@ -113,7 +122,7 @@ jobs:
           echo "host=$HOST"      >> "$GITHUB_OUTPUT"
           echo "user=$USER"      >> "$GITHUB_OUTPUT"
           echo "api=$NS/fishers-api" >> "$GITHUB_OUTPUT"
-          echo "web=$NS/fishers-web" >> "$GITHUB_OUTPUT"
+          echo "ns=$NS"              >> "$GITHUB_OUTPUT"
           echo "::add-mask::$PASS"
           echo "pass=$PASS"      >> "$GITHUB_OUTPUT"
 
@@ -139,23 +148,42 @@ jobs:
           cache-from: type=gha,scope=fishers-api
           cache-to: type=gha,scope=fishers-api,mode=max
 
-      - name: Build and push fishers-web
-        uses: docker/build-push-action@v6
-        with:
-          context: ./web
-          file: ./web/Dockerfile
-          push: true
-          tags: |
-            ${{ steps.reg.outputs.web }}:${{ inputs.image_tag || 'latest' }}
-            ${{ steps.reg.outputs.web }}:${{ steps.commit.outputs.sha }}
-          cache-from: type=gha,scope=fishers-web
-          cache-to: type=gha,scope=fishers-web,mode=max
+      # One dashboard image per brand, each named for its brand. The brand is
+      # baked into the bundle, so a single image cannot serve two — and a
+      # deploy that pulled the wrong one would look right until somebody read
+      # the logo.
+      #
+      # The context is the repo root, not web/: the brand lives in brands/ and
+      # is turned into code by tools/brand, and neither is inside web/.
+      - name: Build and push each brand's dashboard
+        env:
+          BRANDS: ${{ inputs.brands || 'fishers' }}
+          NS: ${{ steps.reg.outputs.ns }}
+          TAG: ${{ inputs.image_tag || 'latest' }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          for brand in $BRANDS; do
+            echo "::group::$brand"
+            docker buildx build \
+              --file ./web/Dockerfile \
+              --build-arg "BRAND=$brand" \
+              --tag "$NS/$brand-web:$TAG" \
+              --tag "$NS/$brand-web:$SHA" \
+              --cache-from "type=gha,scope=$brand-web" \
+              --cache-to "type=gha,scope=$brand-web,mode=max" \
+              --push \
+              .
+            echo "::endgroup::"
+          done
 
       - name: Summary
         run: |
           {
             echo "### Images pushed"
             echo "- \`${{ steps.reg.outputs.api }}:${{ inputs.image_tag || 'latest' }}\`"
-            echo "- \`${{ steps.reg.outputs.web }}:${{ inputs.image_tag || 'latest' }}\`"
+            for brand in ${{ inputs.brands || 'fishers' }}; do
+              echo "- \`${{ steps.reg.outputs.ns }}/$brand-web:${{ inputs.image_tag || 'latest' }}\`"
+            done
             echo "- also tagged \`${{ steps.commit.outputs.sha }}\`, the commit \`${{ inputs.ref }}\` resolved to"
           } >> "$GITHUB_STEP_SUMMARY"

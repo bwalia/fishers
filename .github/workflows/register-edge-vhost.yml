@@ -24,6 +24,19 @@ on:
         description: "Ring to register (or `all`)"
         type: string
         required: true
+      brand:
+        description: "Which brand in brands/"
+        type: string
+        required: false
+        default: fishers
+      brand:
+        description: >-
+          Which brand in brands/. Its domain is the Cloudflare zone and its
+          rings are the hostnames — a brand deployed without its own edge
+          registered is reachable by nobody.
+        type: string
+        required: false
+        default: fishers
       # Caller soft-fail: broken WSLPROXY_* must not block helm when the vhost
       # already exists. continue-on-error is illegal on a `uses:` caller job, so
       # the flag lives here on the real job instead.
@@ -54,38 +67,56 @@ on:
 
 env:
   CNAME_TARGET: lon1.pop0.uk
-  ZONE: fishers.cloud
+  BRAND: ${{ inputs.brand || 'fishers' }}
 
 permissions:
   contents: read
 
 jobs:
   register:
-    name: Register ${{ inputs.ENV }}
+    name: Register ${{ inputs.brand || 'fishers' }} ${{ inputs.ENV }}
     runs-on: ubuntu-latest
     continue-on-error: ${{ inputs.soft_fail == true }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Brand tool
+        run: npm ci --omit=dev --prefix tools/brand
+
+      # The brand file knows its zone and what each ring answers on. A case
+      # statement here would be a second place to add every brand to, and the
+      # one people forget — a ring registered for the wrong domain is a deploy
+      # that goes green and answers nobody.
       - name: Resolve hosts
         id: hosts
         run: |
           set -euo pipefail
-          case "${{ inputs.ENV }}" in
-            int)  HOSTS="int.fishers.cloud" ;;
-            test) HOSTS="test.fishers.cloud" ;;
-            acc)  HOSTS="acc.fishers.cloud" ;;
-            prod) HOSTS="www.fishers.cloud fishers.cloud" ;;
-            all)  HOSTS="int.fishers.cloud test.fishers.cloud acc.fishers.cloud www.fishers.cloud fishers.cloud" ;;
-            *) echo "::error::unknown ring '${{ inputs.ENV }}'"; exit 1 ;;
-          esac
-          # The bare domain is an A record at the zone apex, pointed at the edge
-          # already. A CNAME cannot coexist with it, so Cloudflare would refuse
-          # the upsert below and take the whole deploy down with it — the apex
-          # needs the vhost (for its own certificate) and nothing else.
-          DNS_HOSTS=$(echo "$HOSTS" | tr ' ' '\n' | grep -vx 'fishers.cloud' | tr '\n' ' ')
-          echo "hosts=$HOSTS" >> "$GITHUB_OUTPUT"
-          echo "dns_hosts=$DNS_HOSTS" >> "$GITHUB_OUTPUT"
+          ZONE=$(node tools/brand/index.mjs zone "$BRAND")
+
+          if [ "${{ inputs.ENV }}" = all ]; then
+            HOSTS=""
+            DNS_HOSTS=""
+            for ring in int test acc prod; do
+              HOSTS="$HOSTS $(node tools/brand/index.mjs hosts "$BRAND" "$ring")"
+              DNS_HOSTS="$DNS_HOSTS $(node tools/brand/index.mjs dns-hosts "$BRAND" "$ring")"
+            done
+          else
+            HOSTS=$(node tools/brand/index.mjs hosts "$BRAND" "${{ inputs.ENV }}")
+            # The apex is an A record at the zone root. A CNAME cannot coexist
+            # with one, so Cloudflare refuses the upsert and takes the whole
+            # deploy down with it — the apex needs the vhost, for its own
+            # certificate, and nothing else. `dns-hosts` is `hosts` without it.
+            DNS_HOSTS=$(node tools/brand/index.mjs dns-hosts "$BRAND" "${{ inputs.ENV }}")
+          fi
+
+          HOSTS=$(echo "$HOSTS" | xargs)
+          DNS_HOSTS=$(echo "$DNS_HOSTS" | xargs)
+
+          echo "zone=$ZONE"            >> "$GITHUB_OUTPUT"
+          echo "hosts=$HOSTS"          >> "$GITHUB_OUTPUT"
+          echo "dns_hosts=$DNS_HOSTS"  >> "$GITHUB_OUTPUT"
+          echo "Brand:              $BRAND"
+          echo "Zone:               $ZONE"
           echo "Registering vhosts: $HOSTS"
           echo "Registering DNS:    ${DNS_HOSTS:-none}"
 
@@ -93,6 +124,7 @@ jobs:
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           HOSTS: ${{ steps.hosts.outputs.dns_hosts }}
+          ZONE: ${{ steps.hosts.outputs.zone }}
         run: |
           set -euo pipefail
           # Soft-skip without a token: ExternalDNS normally owns these records,
