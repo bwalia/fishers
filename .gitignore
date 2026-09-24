@@ -68,4 +68,9 @@ android/app/src/fishers/
 android/app/src/gullycricket/
 android/app/build/generated/brandRes/
 ios/Fishers/Brand/Generated/
+# The system tint, which SwiftUI reaches for without being asked. It lives in
+# the asset catalogue because Xcode compiles it from there, not next to the
+# generated Swift — but it is generated all the same, so committing it would
+# mean a brand switch showed up as a diff.
+ios/Fishers/Resources/Assets.xcassets/AccentColor.colorset/
 tools/brand/node_modules/

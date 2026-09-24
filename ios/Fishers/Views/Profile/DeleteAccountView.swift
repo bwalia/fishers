@@ -55,7 +55,7 @@ struct DeleteAccountView: View {
         .navigationTitle("Delete account")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
-            "Delete your Fishers account?",
+            "Delete your \(Brand.name) account?",
             isPresented: $confirming,
             titleVisibility: .visible
         ) {

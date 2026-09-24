@@ -265,6 +265,38 @@ test("the iOS xcconfig carries the bundle id that makes it its own listing", () 
   assert.match(xcconfig.contents, /PRODUCT_BUNDLE_IDENTIFIER = app\.gullycricket/);
 });
 
+/**
+ * SwiftUI reaches for AccentColor without being asked, so a brand that did not
+ * write one would be its own colour everywhere it named one and Fishers' sage
+ * everywhere it did not — the hardest kind of wrong to see in a screenshot.
+ */
+test("the iOS accent colour is the brand's, in both appearances", () => {
+  const files = iosFiles(loadBrand(repoRoot, "gullycricket"), "/repo");
+  const accent = files.find((f) => f.path.endsWith("AccentColor.colorset/Contents.json"));
+  assert.ok(accent, "no AccentColor was generated");
+  const { colors } = JSON.parse(accent.contents);
+  const [light, dark] = colors;
+  // #a54f18 — GullyCricket's primary600, the step that carries white text.
+  assert.equal(light.color.components.red, (0xa5 / 255).toFixed(3));
+  assert.equal(dark.appearances[0].value, "dark");
+  assert.notDeepEqual(light.color.components, dark.color.components);
+});
+
+/**
+ * The generated Swift is the whole palette, not a sample of it: a colour the
+ * app cannot get from Brand is a colour somebody writes as a hex literal, and
+ * a hex literal is where the last brand stayed.
+ */
+test("the generated Swift carries every ramp and dark colour", () => {
+  const [, swift] = iosFiles(loadBrand(repoRoot, "gullycricket"), "/repo");
+  for (const name of ["primary600", "primary900", "accent700", "ink500"]) {
+    assert.match(swift.contents, new RegExp(`static let ${name} = Color\\(hex:`));
+  }
+  for (const name of ["bg", "surface2", "fgMuted", "borderStrong"]) {
+    assert.match(swift.contents, new RegExp(`static let ${name} = Color\\(hex:`));
+  }
+});
+
 test("the helm overlay carries the brand and its host", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
   const values = helmValues(brand, "int");

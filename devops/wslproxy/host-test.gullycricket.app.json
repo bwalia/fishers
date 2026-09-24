@@ -8,7 +8,7 @@
   "ssl_force_https": true,
   "ssl_auto_renew": true,
   "ssl_staging": false,
-  "ssl_email": "hello@gullycricket.app",
+  "ssl_email": "admin@gullycricket.app",
   "listens": [
     {
       "listen": "80"

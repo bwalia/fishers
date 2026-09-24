@@ -10,7 +10,7 @@ struct FishersBrandHeader: View {
 
     var style: Style = .inline
     var showsTagline: Bool = false
-    var tagline: String = "Clubs, calendars, and match day — organised."
+    var tagline: String = Brand.tagline
 
     /// Continuous corner radius ≈ iOS icon mask proportion.
     private var iconCorner: CGFloat { logoSize * 0.2237 }
@@ -29,7 +29,7 @@ struct FishersBrandHeader: View {
                 VStack(spacing: FishersTheme.space2) {
                     appIcon
                         .shadow(color: .black.opacity(0.18), radius: 20, y: 10)
-                    Text("Fishers")
+                    Text(Brand.name)
                         .font(FishersTheme.brand)
                         .tracking(0.8)
                         .foregroundStyle(.primary)
@@ -48,13 +48,13 @@ struct FishersBrandHeader: View {
             case .inline:
                 HStack(spacing: 12) {
                     appIcon
-                    Text("Fishers")
+                    Text(Brand.name)
                         .font(FishersTheme.brandInline)
                         .tracking(0.4)
                         .foregroundStyle(.primary)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Fishers")
+                .accessibilityLabel(Brand.name)
             }
         }
     }

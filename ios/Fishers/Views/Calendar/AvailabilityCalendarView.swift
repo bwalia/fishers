@@ -251,7 +251,7 @@ struct CalendarPane: View {
     private func markColour(_ answer: FixtureAnswer?, onColour: Bool) -> Color {
         switch answer {
         case .going: return onColour ? .white : FishersTheme.available
-        case .maybe: return FishersTheme.gold
+        case .maybe: return FishersTheme.accent400
         case .notGoing: return onColour ? .black.opacity(0.5) : FishersTheme.unavailable
         case nil: return onColour ? .white.opacity(0.6) : .secondary
         }

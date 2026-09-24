@@ -487,7 +487,7 @@ struct QuickMatchSheet: View {
                 } header: {
                     Text("The opposition")
                 } footer: {
-                    Text(opponent.map { "\($0.clubName) are on Fishers — their captain can name their own eleven." }
+                    Text(opponent.map { "\($0.clubName) are on \(Brand.name) — their captain can name their own eleven." }
                          ?? "Find them by their code or name, or just type who turned up. Works offline if you type the name.")
                 }
 

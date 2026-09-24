@@ -35,7 +35,7 @@ struct CareerStatsView: View {
                 Label("No \(discipline.rawValue) figures yet",
                       systemImage: discipline == .batting ? "figure.cricket" : "circle.dotted")
             } description: {
-                Text("These are worked out from matches scored on Fishers. Play one — or ask your scorer to record it here — and it shows up the same evening.")
+                Text("These are worked out from matches scored on \(Brand.name). Play one — or ask your scorer to record it here — and it shows up the same evening.")
             }
         } else {
             Section {

@@ -1,16 +1,20 @@
 import SwiftUI
 import UIKit
 
-/// Fishers visual language — sage, cream and gold, on Apple's type system.
+/// The app's visual language, on Apple's type system.
 ///
-/// The four colours the club chose are the source: sage #8FA28A, pale sage
-/// #C7D3C0, cream #F7F4ED, gold #C8A96B. They are all light, so none of them
-/// carries white text — sage on white is 2.7:1. The ramp below darkens each
-/// towards a deep bottle green until it does. These are the same hex values
-/// the dashboard uses, so a club's phone and its laptop are the same product.
+/// Every colour comes from `Brand.generated.swift`, written from
+/// `brands/<id>.yaml` — the same numbers the web's CSS gets, so a club's phone
+/// and its laptop are the same product. Nothing here is a hex literal for a
+/// brand colour, on purpose: a hardcoded palette still compiles and still
+/// renders, which is exactly how this file stayed Fishers' sage inside a
+/// GullyCricket build for as long as it did.
 ///
-/// Dark is not a grey inversion: the surfaces are mixed from the same sage
-/// hue, so the two appearances are the same room at different times of day.
+/// The four source colours are all light by design, so none of them carries
+/// white text — the ramp darkens each until it does, and `brand:check` fails
+/// the build rather than shipping a button nobody can read. Dark is not a grey
+/// inversion: those surfaces are mixed from the brand's own hue, so the two
+/// appearances are the same room at different times of day.
 ///
 /// Type stays Apple's: SF Rounded for the wordmark, New York for fixture
 /// titles, SF Text for everything else, all at Dynamic Type sizes.
@@ -18,39 +22,41 @@ enum FishersTheme {
 
     // MARK: The ramp
 
-    /// The four, as given.
-    static let sage = Color(hex: 0x8FA28A)
-    static let sagePale = Color(hex: 0xC7D3C0)
-    static let creamPaper = Color(hex: 0xF7F4ED)
-    static let gold = Color(hex: 0xC8A96B)
+    /// The four the brand chose, as given.
+    static let primary400 = Brand.Source.primary
+    static let primaryPale = Brand.Source.primaryPale
+    static let paper = Brand.Source.surface
+    static let accent400 = Brand.Source.accent
 
     /// Darkened until they carry text.
-    static let sage500 = Color(hex: 0x798C76)
-    static let sage600 = Color(hex: 0x667964)   // + white 4.68:1
-    static let sage700 = Color(hex: 0x556754)
-    static let sage800 = Color(hex: 0x445645)
-    static let sage900 = Color(hex: 0x2C3A2D)
+    static let primary500 = Brand.Ramp.primary500
+    static let primary600 = Brand.Ramp.primary600
+    static let primary700 = Brand.Ramp.primary700
+    static let primary800 = Brand.Ramp.primary800
+    static let primary900 = Brand.Ramp.primary900
 
-    static let gold600 = Color(hex: 0x927947)
-    static let gold700 = Color(hex: 0x7E673A)   // + white 5.40:1
+    static let accent600 = Brand.Ramp.accent600
+    static let accent700 = Brand.Ramp.accent700
 
+    /// Not the brand's. A cricket ball is red whoever ships the app, and so is
+    /// an error, so these stay put where the palette above moves.
     static let red600 = Color(hex: 0xB3402F)
     static let red500 = Color(hex: 0xC8533F)
 
     // MARK: Semantic
 
-    /// Tints every control. Dark needs a *lighter* sage, not a darker one —
+    /// Tints every control. Dark needs a *lighter* primary, not a darker one —
     /// the same swap the dashboard makes.
     static let accent = Color("AccentColor")
 
-    static let pitch = Color(light: sage600, dark: sage)
+    static let pitch = Color(light: primary600, dark: primary400)
 
     /// Availability has to stay legible as three states, so these are pulled
-    /// towards the palette rather than replaced by it: sage for yes, gold for
+    /// towards the palette rather than replaced by it: primary for yes, accent for
     /// maybe, the ball's red for no. Never the only signal — every use pairs
     /// with a label or an SF Symbol.
-    static let available = Color(light: sage600, dark: sagePale)
-    static let maybe = Color(light: gold700, dark: gold)
+    static let available = Color(light: primary600, dark: primaryPale)
+    static let maybe = Color(light: accent700, dark: accent400)
     static let unavailable = Color(light: red600, dark: red500)
 
     /// The seam on a cricket ball.
@@ -68,11 +74,17 @@ enum FishersTheme {
 
     /// The page, and the cards on it. Grouped-background semantics, but in the
     /// club's cream rather than iOS grey.
-    static let mist = Color(light: creamPaper, dark: Color(hex: 0x111712))
-    static let cream = Color(light: .white, dark: Color(hex: 0x171D17))
+    static let mist = Color(light: paper, dark: Brand.Dark.bg)
+    static let cream = Color(light: .white, dark: Brand.Dark.surface)
     /// One step raised from a card — chips, wells, table stripes.
-    static let raised = Color(light: Color(hex: 0xF1EFE6), dark: Color(hex: 0x1C231C))
-    static let hairline = Color(light: Color(hex: 0xE0DED1), dark: Color(hex: 0x2A332A))
+    ///
+    /// These two light greys are the only colours here the brand file cannot
+    /// answer for: it carries a `dark:` block but no light surfaces beyond the
+    /// paper itself. They are a shade off against a warm-cream brand and
+    /// nowhere near wrong. Give `brands/<id>.yaml` a `light:` block when one
+    /// of them starts to show.
+    static let raised = Color(light: Color(hex: 0xF1EFE6), dark: Brand.Dark.surface2)
+    static let hairline = Color(light: Color(hex: 0xE0DED1), dark: Brand.Dark.border)
 
     // MARK: Type — semantic Dynamic Type + deliberate SF designs
 

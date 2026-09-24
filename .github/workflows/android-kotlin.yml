@@ -71,6 +71,13 @@ jobs:
         working-directory: tools/brand
         run: node index.mjs check
 
+      # Generated resources the app never reads still build, and a hardcoded
+      # name still renders, so neither fails — the flavour just ships as the
+      # wrong brand. This is the check that notices.
+      - name: The app reads the brand rather than naming it
+        working-directory: .
+        run: python3 scripts/check-brand-literals.py
+
       - name: Unit tests
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}

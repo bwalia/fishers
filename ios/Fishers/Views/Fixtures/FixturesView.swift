@@ -347,7 +347,7 @@ struct FixtureRow: View {
                                     .foregroundStyle(FishersTheme.maybe)
                             }
                             if let price = fixture.ticketPriceCents {
-                                tag("Tickets £\(price / 100)", FishersTheme.gold700)
+                                tag("Tickets £\(price / 100)", FishersTheme.accent700)
                             }
                         }
                     }
@@ -441,8 +441,8 @@ struct ScheduleMatchSheet: View {
                     Text("The opposition")
                 } footer: {
                     Text(opponent != nil
-                         ? "\(opponent!.clubName) are on Fishers — their players get asked too."
-                         : "A club on Fishers gets asked as well. Otherwise only your side is.")
+                         ? "\(opponent!.clubName) are on \(Brand.name) — their players get asked too."
+                         : "A club on \(Brand.name) gets asked as well. Otherwise only your side is.")
                 }
 
                 Section("When") {

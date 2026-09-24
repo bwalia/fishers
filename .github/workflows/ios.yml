@@ -39,6 +39,13 @@ jobs:
         env:
           BRAND: ${{ inputs.brand || 'fishers' }}
 
+      # A generated palette the app never reads still compiles, and a hardcoded
+      # name still renders, so neither shows up as a failure — the app just
+      # ships as the wrong brand. This is the check that notices.
+      - name: The app reads the brand rather than naming it
+        working-directory: .
+        run: python3 scripts/check-brand-literals.py
+
       - name: Generate Xcode project
         run: xcodegen generate
 

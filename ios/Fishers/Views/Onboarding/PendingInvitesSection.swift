@@ -50,7 +50,7 @@ struct PendingInvitesSection: View {
                         .font(FishersTheme.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
-                        .background(FishersTheme.gold.opacity(0.25), in: Capsule())
+                        .background(FishersTheme.accent400.opacity(0.25), in: Capsule())
                 }
             } footer: {
                 if let error {

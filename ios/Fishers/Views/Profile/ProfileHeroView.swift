@@ -61,8 +61,8 @@ struct ProfileHeroView: View {
                     Text(position)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 4)
-                        .background(FishersTheme.gold.opacity(0.25), in: Capsule())
-                        .overlay(Capsule().strokeBorder(FishersTheme.gold.opacity(0.55)))
+                        .background(FishersTheme.accent400.opacity(0.25), in: Capsule())
+                        .overlay(Capsule().strokeBorder(FishersTheme.accent400.opacity(0.55)))
                         .foregroundStyle(.white)
                 }
             }
@@ -73,13 +73,13 @@ struct ProfileHeroView: View {
             if let error {
                 Text(error)
                     .font(FishersTheme.footnote)
-                    .foregroundStyle(FishersTheme.sagePale)
+                    .foregroundStyle(FishersTheme.primaryPale)
             }
         }
         .padding(FishersTheme.space3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [FishersTheme.sage900, FishersTheme.sage700],
+            LinearGradient(colors: [FishersTheme.primary900, FishersTheme.primary700],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
         )
         .onChange(of: picked) { _, item in
@@ -91,17 +91,17 @@ struct ProfileHeroView: View {
     private var photo: some View {
         AvatarView(name: user.name, initials: user.initials,
                    urlString: user.avatarUrl, size: 96)
-            .overlay(Circle().strokeBorder(FishersTheme.gold, lineWidth: 3))
+            .overlay(Circle().strokeBorder(FishersTheme.accent400, lineWidth: 3))
             .overlay(alignment: .bottomTrailing) {
                 PhotosPicker(selection: $picked, matching: .images, photoLibrary: .shared()) {
                     ZStack {
-                        Circle().fill(FishersTheme.gold)
+                        Circle().fill(FishersTheme.accent400)
                         if uploading {
-                            ProgressView().tint(FishersTheme.sage900)
+                            ProgressView().tint(FishersTheme.primary900)
                         } else {
                             Image(systemName: "camera.fill")
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(FishersTheme.sage900)
+                                .foregroundStyle(FishersTheme.primary900)
                         }
                     }
                     .frame(width: 30, height: 30)
