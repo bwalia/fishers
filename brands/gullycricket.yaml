@@ -15,6 +15,13 @@ rings:
   acc: acc.gullycricket.app
   prod: www.gullycricket.app
 
+# No Kong yet: the gateway is deployed per brand from workflow-examples/
+# fishers-kongapi and GullyCricket has not had that run. Until it does, the
+# ingress sends /api, /swagger-ui and /health straight at fishers-api, which
+# authenticates every request itself — what the gateway adds on top is rate
+# limiting, not authentication.
+gateway: []
+
 support:
   # Where a person writes to.
   email: hello@gullycricket.app

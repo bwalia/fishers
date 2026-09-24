@@ -19,6 +19,15 @@ rings:
   acc: acc.fishers.cloud
   prod: www.fishers.cloud
 
+# Rings with a Kong gateway in front of the API.
+#
+# The gateway is the brand's own — kong-<brand>-<ring>-kong-proxy, in the
+# brand's own namespace — and it is deployed from workflow-examples/
+# fishers-kongapi, not from this repo. Listing a ring here without having run
+# that deploy leaves the ingress naming a Service that does not exist, and
+# Traefik answers 404 on every path that names it rather than saying so.
+gateway: [int]
+
 support:
   # Where a person writes to.
   email: hello@fishers.cloud

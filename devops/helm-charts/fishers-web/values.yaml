@@ -59,10 +59,15 @@ apiInternalBase: http://fishers-api:8080
 # <env>` — because it also creates the proxy alias in this namespace. An Ingress
 # backend has to name a Service in its own namespace, and Kong's own Service
 # lives in `kong`.
+#
+# Off here, and turned on per brand and ring by `gateway:` in
+# `brands/<brand>.yaml`, because only that file knows both — the gateway is
+# the brand's own Service in the brand's own namespace.
 kong:
   enabled: false
-  # Defaults to kong-fishers-<env>-kong-proxy, which is what that deploy calls
-  # the alias. Set it only if a ring names its gateway something else.
+  # Defaults to kong-<brand>-<env>-kong-proxy, which is what that deploy calls
+  # the alias. Set it only if a ring names its gateway something else — and
+  # never to another brand's, which is a Service that exists and would work.
   serviceName: ""
   servicePort: 80
 

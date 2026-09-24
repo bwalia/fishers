@@ -3,11 +3,10 @@ env: int
 hostname: int.fishers.cloud
 replicaCount: 1
 
-# Kong is in front of the API on int: this is where the gateway is proven before
-# any ring that matters runs on it. Deployed from workflow-examples/fishers-kongapi,
-# which also makes the kong-fishers-int-kong-proxy alias in this namespace.
-kong:
-  enabled: true
+# Whether Kong stands in front of the API is a per-brand fact, not a per-ring
+# one — the gateway's Service lives in the brand's own namespace. It is set in
+# `brands/<brand>.yaml` under `gateway:`, which the deploy applies after this
+# file. Add the ring there, having deployed that brand's Kong first.
 
 image:
   repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-web
