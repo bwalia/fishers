@@ -34,11 +34,16 @@ COPY domain/Cargo.toml      domain/
 COPY jobs/Cargo.toml        jobs/
 COPY notifications/Cargo.toml notifications/
 COPY payments/Cargo.toml    payments/
-RUN mkdir -p agent/src api/src db/src domain/src jobs/src notifications/src payments/src \
+# ffi is the phones' copy of the cricket engine and nothing here links it, but
+# cargo reads every workspace member's manifest before it builds any of them —
+# so a missing one fails the whole build with "failed to load manifest for
+# workspace member". Its stub costs nothing and its absence costs the image.
+COPY ffi/Cargo.toml         ffi/
+RUN mkdir -p agent/src api/src db/src domain/src ffi/src jobs/src notifications/src payments/src \
     && echo 'fn main() {}' > api/src/main.rs \
-    && for c in agent db domain jobs notifications payments; do echo '' > "$c/src/lib.rs"; done \
+    && for c in agent db domain ffi jobs notifications payments; do echo '' > "$c/src/lib.rs"; done \
     && cargo build --release -p fishers-api \
-    && rm -rf agent/src api/src db/src domain/src jobs/src notifications/src payments/src
+    && rm -rf agent/src api/src db/src domain/src ffi/src jobs/src notifications/src payments/src
 
 COPY . .
 # Touch the real entrypoints so cargo does not trust the stub's fingerprint.
