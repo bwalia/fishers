@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkContrast, listBrands, loadBrand, BrandError } from "../src/brand.mjs";
+import { validate } from "../src/schema.mjs";
 import { webAssets, webFiles } from "../src/targets/web.mjs";
 import { androidFiles } from "../src/targets/android.mjs";
 import { iosFiles } from "../src/targets/ios.mjs";
@@ -31,6 +32,7 @@ rings:
   test: test.example.test
   acc: acc.example.test
   prod: www.example.test
+gateway: []
 support:
   email: hello@example.test
   sslEmail: admin@example.test
@@ -268,6 +270,31 @@ test("the helm overlay carries the brand and its host", () => {
   const values = helmValues(brand, "int");
   assert.match(values, /hostname: int\.gullycricket\.app/);
   assert.match(values, /brand: gullycricket/);
+});
+
+/**
+ * A gateway belongs to one brand: its Service lives in that brand's namespace.
+ * A ring without one must say so, because naming a Service that is not there
+ * does not fail the deploy — Traefik drops the paths and answers 404, which is
+ * how GullyCricket's int came up with no /api, /swagger-ui or /health.
+ */
+test("the overlay turns Kong off for a brand with no gateway of its own", () => {
+  assert.match(helmValues(loadBrand(repoRoot, "gullycricket"), "int"), /enabled: false/);
+  assert.match(helmValues(loadBrand(repoRoot, "fishers"), "int"), /enabled: true/);
+  // Fishers has it on int and nowhere else. A ring that quietly gained one
+  // would send every browser call to the API through a gateway nobody sized.
+  for (const ring of ["test", "acc", "prod"]) {
+    assert.match(
+      helmValues(loadBrand(repoRoot, "fishers"), ring),
+      /enabled: false/,
+      `fishers ${ring} has no gateway deployed`,
+    );
+  }
+});
+
+test("a gateway on a ring that does not exist is rejected, not deployed", () => {
+  const brand = { ...loadBrand(repoRoot, "fishers"), gateway: ["stagng"] };
+  assert.throws(() => validate(brand, "brands/x.yaml"), /not a ring/);
 });
 
 /**

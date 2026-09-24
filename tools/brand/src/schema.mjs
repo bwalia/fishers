@@ -66,6 +66,25 @@ export function validate(brand, source) {
     }
   }
 
+  // A typo here is silent in the worst way: the ring deploys, the ingress
+  // names a gateway Service that does not exist, and Traefik drops the paths
+  // that name it and answers 404 instead of erroring.
+  if (!Array.isArray(brand?.gateway)) {
+    problems.push(
+      `${where("gateway")} is missing — list the rings with a Kong in front of ` +
+        `the API, or \`gateway: []\` for a brand that has none yet`,
+    );
+  } else {
+    for (const ring of brand.gateway) {
+      if (!RINGS.includes(ring)) {
+        problems.push(
+          `${where("gateway")} has "${ring}", which is not a ring. ` +
+            `Rings are: ${RINGS.join(", ")}`,
+        );
+      }
+    }
+  }
+
   for (const key of ["email", "sslEmail"]) {
     if (typeof brand?.support?.[key] !== "string") {
       problems.push(`${where(`support.${key}`)} is missing`);

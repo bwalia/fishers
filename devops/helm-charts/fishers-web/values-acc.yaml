@@ -3,10 +3,10 @@ env: acc
 hostname: acc.fishers.cloud
 replicaCount: 2
 
-# Kong stays out of the path here until int has run on it long enough to trust.
-# Turning it on is this one word — deploy Kong for the ring first.
-kong:
-  enabled: false
+# Whether Kong stands in front of the API is a per-brand fact, not a per-ring
+# one — the gateway's Service lives in the brand's own namespace. It is set in
+# `brands/<brand>.yaml` under `gateway:`, which the deploy applies after this
+# file. Add the ring there, having deployed that brand's Kong first.
 
 image:
   repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-web

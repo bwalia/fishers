@@ -2,9 +2,17 @@
  * The Helm values that differ by brand, and nothing else.
  *
  * Deliberately an overlay rather than a whole file. The ring's own values —
- * image, resources, replica count, whether Kong is in front — are the same
- * decisions whichever brand is being deployed, and duplicating them per brand
- * is how two files drift until one ring is a version behind.
+ * image, resources, replica count — are the same decisions whichever brand is
+ * being deployed, and duplicating them per brand is how two files drift until
+ * one ring is a version behind.
+ *
+ * Whether Kong is in front is not one of those. It reads like a ring-wide
+ * decision and it is not: the gateway's Service lives in the brand's own
+ * namespace and is deployed per brand, so only the brand file knows both the
+ * ring and whether that ring's gateway exists. Treating it as ring-wide is
+ * what sent GullyCricket's /api, /swagger-ui and /health at Fishers' proxy,
+ * which does not exist in its namespace — Traefik dropped all three and
+ * answered 404.
  *
  * Helm applies `-f` in order, so this goes last:
  *
@@ -20,6 +28,7 @@ export function helmValues(brand, ring) {
   // Only what the chart actually reads. A value nobody consumes is worse than
   // no value: the TLS secret is named from the chart and isolated by the
   // namespace already, so setting it here would look like it mattered.
+  const gateway = brand.gateway.includes(ring);
   return `# ${ring} — generated from brands/${brand.id}.yaml by tools/brand. Do not edit.
 #
 # Only what differs by brand. The ring's own values file carries everything
@@ -29,6 +38,16 @@ export function helmValues(brand, ring) {
 
 brand: ${brand.id}
 hostname: ${host}
+
+# ${
+    gateway
+      ? `This ring has its own gateway: kong-${brand.id}-${ring}-kong-proxy.`
+      : `No gateway on this ring, so /api, /swagger-ui and /health go straight
+# at fishers-api. Naming one that is not deployed is not a louder failure than
+# this — it is a quieter one, because Traefik drops the paths and 404s.`
+  }
+kong:
+  enabled: ${gateway}
 `;
 }
 

@@ -11,11 +11,10 @@ ingress:
   redirectHosts:
     - fishers.cloud
 
-# Kong stays out of the path in production until test and acc have run on it.
-# Turning it on is this one word — deploy Kong for the ring first, and expect
-# every browser call to the API to start going through it.
-kong:
-  enabled: false
+# Whether Kong stands in front of the API is a per-brand fact, not a per-ring
+# one — the gateway's Service lives in the brand's own namespace. It is set in
+# `brands/<brand>.yaml` under `gateway:`, which the deploy applies after this
+# file. Add the ring there, having deployed that brand's Kong first.
 
 image:
   repository: int-spectoncr.diytaxreturn.co.uk/fishers/fishers-web
