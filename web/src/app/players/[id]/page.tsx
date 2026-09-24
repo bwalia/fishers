@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { num, type PlayerSeasonStats } from "@/lib/stats";
 import { Avatar } from "@/components/Avatar";
+import { Umpiring } from "@/components/Umpiring";
 import { Icon } from "@/components/Icon";
 import { MessageButton } from "@/components/MessageButton";
 import { useRequireAuth } from "@/lib/require-auth";
@@ -208,6 +209,10 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
                 ))}
               </ul>
             )}
+          </div>
+
+          <div className="panel">
+            <Umpiring userId={player.id} name={player.name} />
           </div>
 
           <div className="panel">

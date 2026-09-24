@@ -6,7 +6,7 @@ struct FollowedScorecardView: View {
     @State var match: CricketMatchDTO
 
     var body: some View {
-        CricketScorecardView(state: match.state, dls: match.dls)
+        CricketScorecardView(state: match.state, dls: match.dls, matchId: match.id)
             .overlay(alignment: .top) { MomentsBanner(state: match.state) }
             .task {
                 for await event in LiveStream.shared.events() {
@@ -30,6 +30,10 @@ struct CricketScorecardView: View {
     let state: MatchState
     /// Supplied by the API when it has computed it; otherwise worked out here.
     var dls: DlsPar?
+    /// Set when this card belongs to a real match rather than a scorer's
+    /// in-progress state, which is what lets the finished card ask about the
+    /// umpiring. The live scorer's own view passes nil: the match is not over.
+    var matchId: UUID?
 
     @State private var tab: Tab = .card
     @State private var wheelBatter: UUID?
@@ -42,9 +46,10 @@ struct CricketScorecardView: View {
         var id: String { rawValue }
     }
 
-    init(state: MatchState, dls: DlsPar? = nil) {
+    init(state: MatchState, dls: DlsPar? = nil, matchId: UUID? = nil) {
         self.state = state
         self.dls = dls ?? state.dlsPar
+        self.matchId = matchId
     }
 
     var body: some View {
@@ -284,6 +289,12 @@ struct CricketScorecardView: View {
                     Text("No scoring yet.")
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            // Only once it is over. Rating the umpire at the drinks break is
+            // not a review of the afternoon.
+            if let matchId, state.status.isFinished {
+                RateUmpiresView(matchId: matchId)
             }
         }
         .listStyle(.insetGrouped)

@@ -17,6 +17,8 @@ import {
   type SportProfile,
 } from "@/lib/api";
 import { economy, num, type MeStats, type PlayerSeasonStats } from "@/lib/stats";
+import { Umpiring } from "@/components/Umpiring";
+import { PendingUmpireReviews } from "@/components/RateUmpires";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
 import { ShareProfile } from "@/components/ShareProfile";
@@ -24,7 +26,7 @@ import { ProfileStrength } from "@/components/ProfileStrength";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
 
-type Tab = "overview" | "batting" | "bowling";
+type Tab = "overview" | "batting" | "bowling" | "umpiring";
 
 /// A player's own page — the face, the numbers, the details.
 ///
@@ -76,7 +78,13 @@ export default function ProfilePage() {
       <ProfileHero me={me} seasons={seasons} tab={tab} onTab={setTab} onSaved={load} />
 
       {tab === "overview" && <Overview me={me} stats={stats} onSaved={load} />}
-      {tab !== "overview" && (
+      {tab === "umpiring" && (
+        <>
+          <PendingUmpireReviews />
+          <Umpiring />
+        </>
+      )}
+      {(tab === "batting" || tab === "bowling") && (
         <CareerStats seasons={seasons} discipline={tab} name={me.name} />
       )}
     </main>
@@ -128,7 +136,7 @@ function ProfileHero({
         </div>
       </div>
       <nav className="pro-tabs" aria-label="Profile sections">
-        {(["overview", "batting", "bowling"] as Tab[]).map((t) => (
+        {(["overview", "batting", "bowling", "umpiring"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -136,7 +144,13 @@ function ProfileHero({
             aria-current={tab === t ? "page" : undefined}
             onClick={() => onTab(t)}
           >
-            {t === "overview" ? "Overview" : t === "batting" ? "Batting" : "Bowling"}
+            {t === "overview"
+              ? "Overview"
+              : t === "batting"
+                ? "Batting"
+                : t === "bowling"
+                  ? "Bowling"
+                  : "Umpiring"}
           </button>
         ))}
       </nav>

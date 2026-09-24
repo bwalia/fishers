@@ -6558,3 +6558,100 @@ main .panel[id] { scroll-margin-top: 80px; }
   .opt-cards-wide { grid-template-columns: 1fr; }
   .form-summary { flex-direction: column; gap: var(--s2); }
 }
+
+/* ---------- Umpiring ----------
+ *
+ * A record for the job nobody used to get credit for. Laid out like the rest
+ * of a profile: figures first because "eleven matches" is the fact somebody
+ * came for, then the spread, then what people said.
+ */
+.ump { display: grid; gap: var(--s3); }
+
+.ump-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s2); flex-wrap: wrap;
+}
+.ump-head h2 { display: flex; align-items: center; gap: .5rem; margin: 0; }
+
+.ump-figures { display: flex; gap: var(--s3); flex-wrap: wrap; }
+.ump-figure {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--s2) var(--s3);
+  display: grid; gap: .15rem; min-width: 10rem; flex: 1 1 10rem;
+}
+/* Tabular figures so a count does not shift the label under it as it grows. */
+.ump-figure strong { font-size: 1.75rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+
+.ump-note { margin: 0; color: var(--fg-muted); }
+
+.stars { display: inline-flex; gap: .1rem; vertical-align: -.15em; }
+.stars svg { fill: var(--border); }
+.stars svg.on { fill: var(--accent); }
+
+.ump-breakdown { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+.ump-breakdown li { display: grid; grid-template-columns: 1.25rem 1fr 2.5rem; align-items: center; gap: .5rem; }
+.ump-bd-n { font-variant-numeric: tabular-nums; text-align: right; }
+.ump-bd-bar { background: var(--border); border-radius: 999px; height: .5rem; overflow: hidden; }
+.ump-bd-bar i { display: block; height: 100%; background: var(--accent); }
+.ump-bd-c { font-variant-numeric: tabular-nums; }
+
+.ump-reviews { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.ump-review {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--s2); display: grid; gap: .35rem;
+}
+.ump-review-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.ump-review p { margin: 0; }
+.ump-blank { margin: 0; }
+
+.ump-willing { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+
+/* A checkbox that reads as a switch. The input stays a real checkbox — it is
+ * what a keyboard and a screen reader already know how to work. */
+.switch { display: inline-flex; align-items: center; gap: .55rem; cursor: pointer; }
+.switch input {
+  appearance: none; width: 2.6rem; height: 1.5rem; border-radius: 999px;
+  background: var(--border); position: relative; cursor: pointer;
+  transition: background 160ms ease-out;
+}
+.switch input::after {
+  content: ""; position: absolute; top: .18rem; left: .18rem;
+  width: 1.14rem; height: 1.14rem; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .3);
+  transition: transform 160ms ease-out;
+}
+.switch input:checked { background: var(--primary); }
+.switch input:checked::after { transform: translateX(1.1rem); }
+.switch input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.ump-note-edit { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.ump-note-edit label { color: var(--fg-muted); }
+
+.ump-rate { display: grid; gap: var(--s2); }
+.ump-rate h2 { display: flex; align-items: center; gap: .5rem; margin: 0; }
+.ump-rate-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }
+.ump-rate-one {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--s2); display: grid; gap: var(--s2);
+}
+.ump-rate-who { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+.ump-picker { border: 0; margin: 0; padding: 0; display: flex; align-items: center; gap: .15rem; }
+/* 44px targets: this is tapped on a phone at the boundary, one-handed. */
+.ump-picker button {
+  background: none; border: 0; padding: .5rem; cursor: pointer;
+  min-width: 44px; min-height: 44px; display: grid; place-items: center;
+}
+.ump-picker button svg { fill: var(--border); transition: fill 120ms ease-out; }
+.ump-picker button.on svg { fill: var(--accent); }
+.ump-picker button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; border-radius: var(--radius); }
+.ump-picker-n { margin-left: .5rem; font-variant-numeric: tabular-nums; }
+
+.ump-rate-one textarea { width: 100%; }
+.ump-rate-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .switch input, .switch input::after, .ump-picker button svg { transition: none; }
+}
+
+.ump-rate-match { margin: 0 0 .5rem; font-weight: 600; }

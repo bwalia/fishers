@@ -7,6 +7,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 
 /**
@@ -85,6 +86,41 @@ interface FishersApi {
 
     @PATCH("me")
     suspend fun setRoleIntent(@Body body: RoleIntentPatch): PublicUser
+
+    // ---- Umpiring ----
+
+    @GET("me/umpiring")
+    suspend fun myUmpiring(): com.fishers.app.umpire.UmpireProfile
+
+    @GET("users/{id}/umpiring")
+    suspend fun umpiringOf(@Path("id") userId: String): com.fishers.app.umpire.UmpireProfile
+
+    @PATCH("me/umpiring")
+    suspend fun setUmpiring(
+        @Body body: com.fishers.app.umpire.UmpiringPatch,
+    ): com.fishers.app.umpire.UmpireProfile
+
+    @GET("me/umpiring/pending")
+    suspend fun pendingUmpireReviews(): List<com.fishers.app.umpire.PendingUmpireReview>
+
+    @GET("cricket/matches/{id}/umpires")
+    suspend fun matchUmpires(@Path("id") matchId: String): List<com.fishers.app.umpire.MatchUmpire>
+
+    @PUT("cricket/matches/{id}/umpires/{userId}/review")
+    suspend fun reviewUmpire(
+        @Path("id") matchId: String,
+        @Path("userId") umpireId: String,
+        @Body body: com.fishers.app.umpire.UmpireReviewBody,
+    ): com.fishers.app.umpire.UmpireReview
+
+    @DELETE("cricket/matches/{id}/umpires/{userId}/review")
+    suspend fun withdrawUmpireReview(
+        @Path("id") matchId: String,
+        @Path("userId") umpireId: String,
+    )
+
+    @GET("clubs/{id}/umpires")
+    suspend fun clubUmpires(@Path("id") clubId: String): List<com.fishers.app.umpire.AvailableUmpire>
 
     // ---- chat ----
 

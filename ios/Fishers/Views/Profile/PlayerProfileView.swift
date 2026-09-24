@@ -69,6 +69,8 @@ struct PlayerProfileView: View {
                 }
             }
 
+            UmpiringView(userId: userId, name: player?.name ?? knownName)
+
             if let clubs = player?.sharedClubs, !clubs.isEmpty {
                 Section("You both play for") {
                     ForEach(clubs, id: \.self) { Text($0) }
