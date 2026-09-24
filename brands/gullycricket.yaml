@@ -1,8 +1,8 @@
 # India. Same product, same code, its own stack — own namespace, own API, own
 # database. Nothing is shared with Fishers at runtime.
 id: gullycricket
-name: GullyCricket
-legalName: GullyCricket
+name: Gully Cricket
+legalName: Gully Cricket
 tagline: The club app for gully cricket
 description: >-
   Fixtures, availability, live scoring and the numbers afterwards — for every
@@ -70,9 +70,12 @@ dark:
   accentPale: "#17302a"
 
 assets:
-  icon: brands/gullycricket/icon-192.png
+  # The drawings everything else is rendered from. `npm run brand:icons`
+  # turns them into the PNGs each platform wants.
+  mark: brands/gullycricket/mark.svg
+  icon: brands/gullycricket/icon.svg
   badge: brands/gullycricket/badge.png
 
 mobile:
   bundleId: app.gullycricket
-  displayName: GullyCricket
+  displayName: Gully Cricket

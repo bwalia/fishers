@@ -291,6 +291,9 @@ val brandTasks = listOf("fishers", "gullycricket").associateWith { brandId ->
             )
         }
         inputs.file(rootProject.file("../brands/$brandId.yaml"))
+        // The launcher icons come from here too, so a redrawn logo has to
+        // invalidate this task — the yaml alone would not have changed.
+        inputs.dir(rootProject.file("../brands/$brandId"))
     }
 }
 

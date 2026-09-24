@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The app icon: a wicket chalked on a dark wall, and the tape ball that is
+     about to be bowled at it.
+
+     Full-bleed and high contrast, because this is read at 40px on a home
+     screen beside thirty others. The mark's own version is drawn for light
+     pages and would disappear here. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Gully Cricket">
+  <defs>
+    <!-- Light falling down the wall, rather than a highlight sitting on it. -->
+    <linearGradient id="wall" x1="0" y1="0" x2=".45" y2="1">
+      <stop offset="0" stop-color="#27664f"/>
+      <stop offset="1" stop-color="#173f33"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" fill="url(#wall)"/>
+
+  <!-- Three stumps, chalked: not quite parallel, not quite the same height,
+       because nobody draws them straight. No bails — chalk never has any. -->
+  <g fill="none" stroke="#fdf7f2" stroke-width="3.3" stroke-linecap="round">
+    <path d="M12.6 10.8 12.1 33.8"/>
+    <path d="M21 10.2 21 34"/>
+    <path d="M29.4 10.8 29.9 33.8"/>
+  </g>
+
+  <!-- The crease, scuffed into the ground under the whole thing. -->
+  <path d="M5.5 39.4c10-1.8 27-1.8 37 0" fill="none" stroke="#fdf7f2" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+
+  <!-- The tape ball, clear of the stumps so three of them still read at 16px.
+       A tennis ball in electrical tape: the thing gully cricket is played with. -->
+  <circle cx="37.4" cy="26.6" r="7.1" fill="#e8752a"/>
+  <g fill="none" stroke="#8f4414" stroke-width="1.6" stroke-linecap="round" opacity=".8">
+    <path d="M32 22.6a7.1 7.1 0 0 1 9.8 1.4"/>
+    <path d="M33.3 31.9a7.1 7.1 0 0 0 9.7-6.4"/>
+  </g>
+</svg>

@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -28,7 +29,57 @@ export function iosFiles(brand, repoRoot, outDir) {
       path: join(assets, "AccentColor.colorset", "Contents.json"),
       contents: accentColorSet(brand),
     },
+    ...artwork(brand, repoRoot, assets),
   ];
+}
+
+/**
+ * The home-screen icon and the two images the brand header draws.
+ *
+ * Rendered from the brand's own `icon.svg` and `mark.svg` by
+ * `npm --prefix tools/brand run icons`, which commits the PNGs. The catalogue
+ * used to hold Fishers' artwork under Fishers' names, so every other brand
+ * installed with Fishers' icon on the home screen and Fishers' ball in its
+ * header — with the right name underneath, which made it look deliberate.
+ */
+const ARTWORK = [
+  ["icon-1024.png", "AppIcon.appiconset", "icon.png"],
+  ["icon-512.png", "BrandLogo.imageset", "logo.png"],
+  ["mark-512.png", "BrandMark.imageset", "mark.png"],
+];
+
+function artwork(brand, repoRoot, assets) {
+  const from = join(repoRoot, "brands", brand.id);
+  const missing = ARTWORK.map(([n]) => n).filter((n) => !existsSync(join(from, n)));
+  if (missing.length) {
+    throw new Error(
+      `${brand.name} has no ${missing.join(", ")}. Run \`npm --prefix tools/brand run icons\` ` +
+        `to render them from brands/${brand.id}/icon.svg and mark.svg — a build ` +
+        `cannot fall back to another brand's mark.`,
+    );
+  }
+  return ARTWORK.flatMap(([source, set, name]) => [
+    { path: join(assets, set, name), contents: readFileSync(join(from, source)) },
+    { path: join(assets, set, "Contents.json"), contents: imageSet(name, set) },
+  ]);
+}
+
+/** A single-scale set: one PNG, sized for the largest thing that draws it. */
+function imageSet(name, set) {
+  const icon = set.startsWith("AppIcon");
+  return JSON.stringify(
+    {
+      images: [
+        icon
+          ? { filename: name, idiom: "universal", platform: "ios", size: "1024x1024" }
+          : { filename: name, idiom: "universal", scale: "1x" },
+        ...(icon ? [] : [{ idiom: "universal", scale: "2x" }, { idiom: "universal", scale: "3x" }]),
+      ],
+      info: { author: "tools/brand", version: 1 },
+    },
+    null,
+    2,
+  ) + "\n";
 }
 
 /** `#667964` as the 0–1 sRGB components an asset catalogue wants. */

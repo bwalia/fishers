@@ -60,6 +60,7 @@ ios/.xcodegen-stamp
 web/src/brand.generated.ts
 web/src/app/brand.generated.css
 web/public/icon-192.png
+web/public/mark.svg
 web/public/badge.png
 # Older layout: the brand's resources used to be written into a flavour source
 # set, before they moved to the variant API. Ignored so a stale copy from a
@@ -73,4 +74,8 @@ ios/Fishers/Brand/Generated/
 # generated Swift — but it is generated all the same, so committing it would
 # mean a brand switch showed up as a diff.
 ios/Fishers/Resources/Assets.xcassets/AccentColor.colorset/
+# Likewise the artwork: rendered from the brand's own icon.svg and mark.svg.
+ios/Fishers/Resources/Assets.xcassets/AppIcon.appiconset/
+ios/Fishers/Resources/Assets.xcassets/BrandLogo.imageset/
+ios/Fishers/Resources/Assets.xcassets/BrandMark.imageset/
 tools/brand/node_modules/
