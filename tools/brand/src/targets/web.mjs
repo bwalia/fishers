@@ -26,7 +26,7 @@ export function webFiles(brand, repoRoot, outDir) {
 }
 
 function css(brand) {
-  const { ramp, source, name, id } = brand;
+  const { ramp, source, dark, id } = brand;
   return `/* Generated from brands/${id}.yaml. Do not edit.
  *
  * The source colours are what the brand looks like; the ramp is what carries
@@ -58,6 +58,22 @@ function css(brand) {
   --ink-900: ${ramp.ink900};
   --ink-700: ${ramp.ink700};
   --ink-500: ${ramp.ink500};
+
+  /* Dark, mixed from the same hue — the two themes are the same room at
+     different times of day, not a grey inversion. globals.css points its dark
+     block at these. */
+  --brand-dark-bg: ${dark.bg};
+  --brand-dark-surface: ${dark.surface};
+  --brand-dark-surface-2: ${dark.surface2};
+  --brand-dark-surface-3: ${dark.surface3};
+  --brand-dark-fg: ${dark.fg};
+  --brand-dark-fg-muted: ${dark.fgMuted};
+  --brand-dark-fg-subtle: ${dark.fgSubtle};
+  --brand-dark-border: ${dark.border};
+  --brand-dark-border-strong: ${dark.borderStrong};
+  --brand-dark-on-primary: ${dark.onPrimary};
+  --brand-dark-raised: ${dark.raised};
+  --brand-dark-accent-pale: ${dark.accentPale};
 }
 `;
 }

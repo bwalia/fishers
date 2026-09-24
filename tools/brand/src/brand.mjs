@@ -59,7 +59,7 @@ export function loadBrand(repoRoot, id) {
  * those is a list people learn to ignore.
  */
 export function contrastPairs(brand) {
-  const { ramp, source } = brand;
+  const { ramp, source, dark } = brand;
   return [
     { what: "white on a primary button", fg: "#ffffff", bg: ramp.primary600 },
     { what: "white on a primary button, hovered", fg: "#ffffff", bg: ramp.primary700 },
@@ -70,6 +70,17 @@ export function contrastPairs(brand) {
     { what: "muted text on a card", fg: ramp.ink500, bg: "#ffffff" },
     { what: "body text on a raised card", fg: ramp.ink900, bg: source.primaryPale },
     { what: "a heading on the page", fg: ramp.primary900, bg: source.surface },
+
+    // Dark. Light text on a dark ground optically thins out, so these are
+    // lifted for presence rather than to the threshold — but the threshold is
+    // what can be checked, and a brand that only tested its light theme ships
+    // half a readable app.
+    { what: "body text, dark", fg: dark.fg, bg: dark.bg },
+    { what: "body text on a dark panel", fg: dark.fg, bg: dark.surface },
+    { what: "muted text on a dark panel", fg: dark.fgMuted, bg: dark.surface },
+    { what: "subtle text on a dark panel", fg: dark.fgSubtle, bg: dark.surface },
+    { what: "a dark raised card", fg: dark.fg, bg: dark.raised },
+    { what: "text on a primary button, dark", fg: dark.onPrimary, bg: ramp.primary400 },
   ];
 }
 

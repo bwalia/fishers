@@ -42,6 +42,22 @@ ramp:
   ink700: "#3d2c22"
   ink500: "#5a4336"
 
+# Mixed from the same orange-brown the light theme uses, not from Fishers'
+# green. The text greys are lifted the same way and checked the same way.
+dark:
+  bg: "#1a1210"
+  surface: "#221815"
+  surface2: "#2b1e19"
+  surface3: "#37271f"
+  fg: "#f8f1ec"
+  fgMuted: "#e0cdc0"
+  fgSubtle: "#c2a693"
+  border: "#46332a"
+  borderStrong: "#63483a"
+  onPrimary: "#2a1409"
+  raised: "#2e211b"
+  accentPale: "#17302a"
+
 assets:
   icon: brands/gullycricket/icon-192.png
   badge: brands/gullycricket/badge.png

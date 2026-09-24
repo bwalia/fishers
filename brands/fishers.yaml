@@ -47,6 +47,24 @@ ramp:
   ink700: "#374337"
   ink500: "#4e5c4d"
 
+# Dark is not a grey inversion: the surfaces are mixed from the same hue as the
+# light theme, so the two are the same room at different times of day. The text
+# greys are lifted above the threshold rather than to it — light text on a dark
+# ground optically thins out, and a desaturated grey at small sizes loses to it.
+dark:
+  bg: "#111712"
+  surface: "#171d17"
+  surface2: "#1c231c"
+  surface3: "#242c24"
+  fg: "#f3f6f0"
+  fgMuted: "#c8d2c6"
+  fgSubtle: "#a7b4a5"
+  border: "#303a30"
+  borderStrong: "#475547"
+  onPrimary: "#14210f"
+  raised: "#1d251d"
+  accentPale: "#2e2717"
+
 assets:
   icon: brands/fishers/icon-192.png
   badge: brands/fishers/badge.png

@@ -51,6 +51,19 @@ ramp:
   ink900: "#202a21"
   ink700: "#374337"
   ink500: "#4e5c4d"
+dark:
+  bg: "#111712"
+  surface: "#171d17"
+  surface2: "#1c231c"
+  surface3: "#242c24"
+  fg: "#f3f6f0"
+  fgMuted: "#c8d2c6"
+  fgSubtle: "#a7b4a5"
+  border: "#303a30"
+  borderStrong: "#475547"
+  onPrimary: "#14210f"
+  raised: "#1d251d"
+  accentPale: "#2e2717"
 mobile:
   bundleId: test.example.app
   displayName: Test Brand
@@ -136,7 +149,9 @@ test("every missing field is reported at once, not one per run", () => {
       assert.fail("should have refused");
     } catch (e) {
       assert.ok(e instanceof BrandError);
-      for (const expected of ["name", "domain", "rings.prod", "source.primary", "mobile.bundleId"]) {
+      for (const expected of [
+        "name", "domain", "rings.prod", "source.primary", "dark.bg", "mobile.bundleId",
+      ]) {
         assert.match(e.message, new RegExp(expected.replace(".", "\\.")));
       }
     }
