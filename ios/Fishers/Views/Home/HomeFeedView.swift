@@ -53,7 +53,7 @@ struct HomeFeedView: View {
                         .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                         .listRowBackground(Color.clear)
                     } header: {
-                        Text("How will you use Fishers?")
+                        Text("How will you use \(Brand.name)?")
                     } footer: {
                         Text("We'll show you exactly what to do next. You can switch later.")
                     }

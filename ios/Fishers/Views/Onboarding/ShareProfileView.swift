@@ -18,7 +18,7 @@ struct ShareProfileView: View {
     static func sharedKey(_ userId: UUID) -> String { "fishers:profile-shared:\(userId.uuidString)" }
 
     private func message(_ url: URL) -> String {
-        "Hi — I'd like to play for the club. Here's my Fishers player profile, you can invite me from it: \(url.absoluteString)"
+        "Hi — I'd like to play for the club. Here's my \(Brand.name) player profile, you can invite me from it: \(url.absoluteString)"
     }
 
     var body: some View {

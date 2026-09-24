@@ -9,7 +9,10 @@ enum OfflineCache {
     private static var directory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        let dir = base.appendingPathComponent("Fishers", isDirectory: true)
+        // Named from the brand, so two of these apps on one device are
+        // obviously two caches. Renaming it orphans an old directory once, in
+        // Application Support, holding nothing but a cache.
+        let dir = base.appendingPathComponent(Brand.name, isDirectory: true)
             .appendingPathComponent(folderName, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir

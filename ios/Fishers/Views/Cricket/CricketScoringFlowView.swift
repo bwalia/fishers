@@ -153,7 +153,7 @@ struct CricketScoringFlowView: View {
                             Text(awayName.isEmpty ? "Opposition" : awayName)
                                 .foregroundStyle(awayName.isEmpty ? .secondary : .primary)
                             if opponent != nil {
-                                Label("On Fishers", systemImage: "checkmark.seal.fill")
+                                Label("On \(Brand.name)", systemImage: "checkmark.seal.fill")
                                     .font(.caption2)
                                     .foregroundStyle(FishersTheme.available)
                             }
@@ -942,7 +942,7 @@ private struct OfficialsEditor: View {
             } header: {
                 Text("Umpires (\(umpires.count))")
             } footer: {
-                Text("An umpire who is a Fishers member can pick up the scoring, even without a club role.")
+                Text("An umpire who is a \(Brand.name) member can pick up the scoring, even without a club role.")
             }
 
             Section("Scorers (\(scorers.count))") {

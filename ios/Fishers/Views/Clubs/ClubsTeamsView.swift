@@ -291,7 +291,7 @@ struct ClubRowView: View {
                         .textCase(.uppercase)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(FishersTheme.gold.opacity(0.22), in: Capsule())
+                        .background(FishersTheme.accent400.opacity(0.22), in: Capsule())
                         .foregroundStyle(FishersTheme.maybe)
                 }
                 Label(row.isPublic ? "Anyone can find it" : "Invite only",
@@ -342,8 +342,8 @@ struct ClubCrest: View {
     private var colour: Color {
         let tone = Int(id.uuidString.suffix(2), radix: 16).map { $0 % 3 } ?? 0
         switch tone {
-        case 1: return FishersTheme.gold600
-        case 2: return FishersTheme.sage900
+        case 1: return FishersTheme.accent600
+        case 2: return FishersTheme.primary900
         default: return FishersTheme.pitch
         }
     }
@@ -393,7 +393,7 @@ struct NewClubSheet: View {
                 Section {
                     HStack(spacing: 12) {
                         ClubCrest(name: name.isEmpty ? "Your club" : name, id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, size: 48)
-                        TextField("Fishers CC", text: $name)
+                        TextField("\(Brand.name) CC", text: $name)
                             .font(FishersTheme.headline)
                             .textInputAutocapitalization(.words)
                     }

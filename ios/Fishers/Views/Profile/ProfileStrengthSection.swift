@@ -42,7 +42,7 @@ struct ProfileStrengthSection: View {
                             Task {
                                 reminder = await ProfileReminder.requestAndSchedule(for: user)
                                     ? "We'll remind you tomorrow evening."
-                                    : "Turn on notifications for Fishers in Settings to get a reminder."
+                                    : "Turn on notifications for \(Brand.name) in Settings to get a reminder."
                             }
                         } label: {
                             Text("Remind me later")

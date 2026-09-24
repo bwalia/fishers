@@ -215,7 +215,7 @@ private struct RosterList: View {
                         }
                     }
                 } footer: {
-                    Text("An invite link works for somebody with no Fishers account. It joins them to the club once they sign up, and can only be used once.")
+                    Text("An invite link works for somebody with no \(Brand.name) account. It joins them to the club once they sign up, and can only be used once.")
                 }
                 Section {
                     TextField("Paste the link they sent you", text: $pastedLink)
@@ -228,7 +228,7 @@ private struct RosterList: View {
                             Label("Open their profile", systemImage: "person.crop.rectangle")
                         }
                     } else if !pastedLink.isEmpty {
-                        Text("That isn't a Fishers profile link — it looks like …/p/ followed by letters and numbers.")
+                        Text("That isn't a \(Brand.name) profile link — it looks like …/p/ followed by letters and numbers.")
                             .font(FishersTheme.footnote)
                             .foregroundStyle(FishersTheme.unavailable)
                     }

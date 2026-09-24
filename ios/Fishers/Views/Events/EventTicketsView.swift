@@ -138,7 +138,7 @@ struct EventTicketsView: View {
                             .swipeActions(edge: .trailing) {
                                 if canManage && ticket.status == "reserved" {
                                     Button("Cash") { markPaid(ticket, "cash") }.tint(FishersTheme.pitch)
-                                    Button("Transfer") { markPaid(ticket, "transfer") }.tint(FishersTheme.gold700)
+                                    Button("Transfer") { markPaid(ticket, "transfer") }.tint(FishersTheme.accent700)
                                 }
                             }
                         }

@@ -139,14 +139,14 @@ enum AppConfig {
             throw APIConfigError.invalidURL
         }
         UserDefaults.standard.set(url.absoluteString, forKey: apiDefaultsKey)
-        NSLog("[Fishers] API base URL → %@ (from settings)", url.absoluteString)
+        NSLog("[\(Brand.id)] API base URL → %@ (from settings)", url.absoluteString)
         return url
     }
 
     /// Remove the Settings / UserDefaults override so Info.plist + fallback apply.
     static func clearAPIBaseURLOverride() {
         UserDefaults.standard.removeObject(forKey: apiDefaultsKey)
-        NSLog("[Fishers] API base URL override cleared → %@", apiBaseURL.absoluteString)
+        NSLog("[\(Brand.id)] API base URL override cleared → %@", apiBaseURL.absoluteString)
     }
 
     /// Shown when a build cannot reach its API, so the person holding the phone

@@ -40,7 +40,7 @@ struct ManOfTheMatchCard: View {
         .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(FishersTheme.gold.opacity(0.35), lineWidth: 1)
+                .strokeBorder(FishersTheme.accent400.opacity(0.35), lineWidth: 1)
         )
         .task { await store.load() }
     }
@@ -48,7 +48,7 @@ struct ManOfTheMatchCard: View {
     private var header: some View {
         HStack(spacing: 8) {
             Image(systemName: "star.circle.fill")
-                .foregroundStyle(FishersTheme.gold)
+                .foregroundStyle(FishersTheme.accent400)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Man of the match")
                     .font(.subheadline.weight(.semibold))
@@ -144,7 +144,7 @@ struct ManOfTheMatchCard: View {
         if let winner = view.winner {
             HStack(spacing: 8) {
                 Image(systemName: "trophy.fill")
-                    .foregroundStyle(FishersTheme.gold)
+                    .foregroundStyle(FishersTheme.accent400)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(winner.displayName)
                         .font(.headline)
@@ -254,7 +254,7 @@ private struct CandidateRow: View {
                     // mistaken for each other.
                     Image(systemName: "pencil.circle.fill")
                         .font(.caption2)
-                        .foregroundStyle(FishersTheme.gold)
+                        .foregroundStyle(FishersTheme.accent400)
                         .accessibilityLabel("The scorer's pick")
                 }
                 Spacer()

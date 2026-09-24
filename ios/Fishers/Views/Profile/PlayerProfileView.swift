@@ -45,7 +45,7 @@ struct PlayerProfileView: View {
                         "Nothing scored yet",
                         systemImage: "figure.cricket",
                         description: Text(
-                            "\(firstName)'s figures appear here once they play a match somebody scored on Fishers."
+                            "\(firstName)'s figures appear here once they play a match somebody scored on \(Brand.name)."
                         )
                     )
                 }
@@ -96,7 +96,7 @@ struct PlayerProfileView: View {
 
         return HStack(spacing: FishersTheme.space2) {
             AvatarView(name: name, urlString: player?.avatarUrl, size: 76)
-                .overlay(Circle().strokeBorder(FishersTheme.gold, lineWidth: 2))
+                .overlay(Circle().strokeBorder(FishersTheme.accent400, lineWidth: 2))
             VStack(alignment: .leading, spacing: 0) {
                 if !first.isEmpty {
                     Text(first)
@@ -113,7 +113,7 @@ struct PlayerProfileView: View {
                         .font(FishersTheme.footnote)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 3)
-                        .background(FishersTheme.gold.opacity(0.25), in: Capsule())
+                        .background(FishersTheme.accent400.opacity(0.25), in: Capsule())
                         .foregroundStyle(.white)
                         .padding(.top, 4)
                 }
@@ -123,7 +123,7 @@ struct PlayerProfileView: View {
         .padding(FishersTheme.space3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [FishersTheme.sage900, FishersTheme.sage700],
+            LinearGradient(colors: [FishersTheme.primary900, FishersTheme.primary700],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
         )
     }

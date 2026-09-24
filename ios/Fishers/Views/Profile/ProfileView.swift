@@ -74,7 +74,7 @@ struct ProfileView: View {
             .sheet(isPresented: $isEditing) {
                 ProfileEditView(user: session.user)
             }
-            .confirmationDialog("Sign out of Fishers?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            .confirmationDialog("Sign out of \(Brand.name)?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) { session.signOut() }
                 Button("Cancel", role: .cancel) {}
             } message: {
