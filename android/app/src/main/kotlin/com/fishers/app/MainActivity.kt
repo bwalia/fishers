@@ -17,6 +17,8 @@ import com.fishers.app.chat.ChatThreadViewModel
 import com.fishers.app.clubs.ClubDetailViewModel
 import com.fishers.app.clubs.ClubsViewModel
 import com.fishers.app.fixtures.FixturesViewModel
+import com.fishers.app.umpire.PendingUmpireReviewsViewModel
+import com.fishers.app.umpire.UmpireViewModel
 import com.fishers.app.home.HomeViewModel
 import com.fishers.app.session.SessionViewModel
 import com.fishers.app.theme.FishersTheme
@@ -46,6 +48,10 @@ class MainActivity : ComponentActivity() {
                         clubs = remember { ClubsViewModel(app.network.api) },
                         clubDetailFor = { id -> ClubDetailViewModel(app.network.api, id) },
                         home = remember { HomeViewModel(app.network.api) },
+                        umpiring = remember { UmpireViewModel(app.network.api) },
+                        pendingReviews = remember {
+                            PendingUmpireReviewsViewModel(app.network.api)
+                        },
                         modifier = Modifier.padding(inner),
                     )
                 }

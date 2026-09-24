@@ -1321,3 +1321,72 @@ struct PaymentIntentDTO: Codable {
         case amountCents = "amount_cents"
     }
 }
+
+// MARK: - Umpiring
+
+extension FishersAPI {
+    static func myUmpiring() async throws -> UmpireProfile {
+        try await NetworkService.shared.request("GET", path: "/me/umpiring")
+    }
+
+    static func umpiring(of userId: UUID) async throws -> UmpireProfile {
+        try await NetworkService.shared.request("GET", path: "/users/\(userId.uuidString)/umpiring")
+    }
+
+    /// Both fields are "leave it alone" when nil, which is what a PATCH of one
+    /// of them means. Clearing the note is `.some(nil)`, which the API reads as
+    /// an explicit null rather than an omission.
+    static func setUmpiring(umpires: Bool? = nil, note: String?? = nil) async throws -> UmpireProfile {
+        struct Body: Encodable {
+            let umpires: Bool?
+            let note: String??
+
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: Keys.self)
+                if let umpires { try c.encode(umpires, forKey: .umpires) }
+                // encodeIfPresent would drop the inner nil and the note would
+                // never clear. This is the one case where encoding an explicit
+                // null is the point.
+                if let note { try c.encode(note, forKey: .note) }
+            }
+            enum Keys: String, CodingKey { case umpires, note }
+        }
+        return try await NetworkService.shared.request(
+            "PATCH", path: "/me/umpiring", body: Body(umpires: umpires, note: note)
+        )
+    }
+
+    static func pendingUmpireReviews() async throws -> [PendingUmpireReview] {
+        try await NetworkService.shared.request("GET", path: "/me/umpiring/pending")
+    }
+
+    static func matchUmpires(matchId: UUID) async throws -> [MatchUmpire] {
+        try await NetworkService.shared.request(
+            "GET", path: "/cricket/matches/\(matchId.uuidString)/umpires"
+        )
+    }
+
+    static func reviewUmpire(
+        matchId: UUID, umpireId: UUID, rating: Int, comment: String?
+    ) async throws -> UmpireReview {
+        struct Body: Encodable { let rating: Int; let comment: String? }
+        return try await NetworkService.shared.request(
+            "PUT",
+            path: "/cricket/matches/\(matchId.uuidString)/umpires/\(umpireId.uuidString)/review",
+            body: Body(rating: rating, comment: comment)
+        )
+    }
+
+    static func withdrawUmpireReview(matchId: UUID, umpireId: UUID) async throws {
+        try await NetworkService.shared.requestVoid(
+            "DELETE",
+            path: "/cricket/matches/\(matchId.uuidString)/umpires/\(umpireId.uuidString)/review"
+        )
+    }
+
+    static func clubUmpires(clubId: UUID) async throws -> [AvailableUmpire] {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/umpires"
+        )
+    }
+}

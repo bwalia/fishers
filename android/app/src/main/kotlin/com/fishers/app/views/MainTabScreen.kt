@@ -4,6 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.fishers.app.umpire.UmpireViewModel
+import com.fishers.app.views.umpire.UmpiringCard
+import com.fishers.app.umpire.PendingUmpireReviewsViewModel
+import com.fishers.app.views.umpire.PendingUmpireReviewsCard
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.DateRange
@@ -65,6 +71,8 @@ fun MainTabScreen(
     clubs: ClubsViewModel,
     clubDetailFor: (String) -> ClubDetailViewModel,
     home: HomeViewModel,
+    umpiring: UmpireViewModel,
+    pendingReviews: PendingUmpireReviewsViewModel,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
@@ -97,8 +105,11 @@ fun MainTabScreen(
                 .fillMaxSize()
                 .padding(inner)
                 // Chats fills the pane; the placeholders are centred in it.
-                .padding(if (tab == Tab.Profile) 24.dp else 0.dp),
-            verticalArrangement = if (tab == Tab.Profile) Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
+                .padding(if (tab == Tab.Profile) 24.dp else 0.dp)
+                // Profile is a scrolling page now that the umpiring record is
+                // on it, and a record grows with every review.
+                .then(if (tab == Tab.Profile) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+            verticalArrangement = if (tab == Tab.Profile) Arrangement.spacedBy(12.dp)
             else Arrangement.Top,
             horizontalAlignment = if (tab == Tab.Profile) Alignment.CenterHorizontally
             else Alignment.Start,
@@ -140,6 +151,25 @@ fun MainTabScreen(
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     user?.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+
+                    val pendingState by pendingReviews.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(Unit) { pendingReviews.load() }
+                    PendingUmpireReviewsCard(
+                        state = pendingState,
+                        onReview = { matchId, umpireId, rating, comment ->
+                            pendingReviews.review(matchId, umpireId, rating, comment)
+                            umpiring.load()
+                        },
+                    )
+
+                    val umpState by umpiring.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(Unit) { umpiring.load() }
+                    UmpiringCard(
+                        state = umpState,
+                        isMine = true,
+                        onWilling = umpiring::setWilling,
+                    )
+
                     TextButton(onClick = onSignOut) { Text("Sign out") }
                 }
 

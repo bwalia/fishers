@@ -21,6 +21,7 @@ mod rbac;
 pub mod stats;
 /// Tournament generation is namespaced: `tournament::round_robin` etc.
 pub mod tournament;
+pub mod umpire;
 /// Selection ranking is namespaced: `selection::rank` / `selection::suggest`.
 pub mod selection;
 /// Reliability scoring is namespaced: `reliability::score(counts)`.
@@ -51,6 +52,7 @@ pub use rbac::*;
 pub use stats::*;
 pub use selection::*;
 pub use tournament::*;
+pub use umpire::*;
 pub use reliability::{ReliabilityBand, ReliabilityCounts, ReliabilityScore};
 pub use user::*;
 pub use venue_hire::*;

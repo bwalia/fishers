@@ -15,7 +15,7 @@ struct ProfileView: View {
     @State private var stats: MeStatsResponse?
 
     enum Tab: String, CaseIterable, Identifiable {
-        case overview, batting, bowling
+        case overview, batting, bowling, umpiring
         var id: String { rawValue }
         var title: String { rawValue.capitalized }
     }
@@ -59,6 +59,9 @@ struct ProfileView: View {
                         CareerStatsView(seasons: stats?.seasons ?? [], discipline: .batting)
                     case .bowling:
                         CareerStatsView(seasons: stats?.seasons ?? [], discipline: .bowling)
+                    case .umpiring:
+                        PendingUmpireReviewsView()
+                        UmpiringView()
                     }
                 }
             }

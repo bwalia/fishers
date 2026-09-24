@@ -21,6 +21,13 @@ import com.fishers.app.net.PublicUser
 import com.fishers.app.net.RefreshRequest
 import com.fishers.app.net.RoleIntentPatch
 import com.fishers.app.net.SignupRequest
+import com.fishers.app.umpire.AvailableUmpire
+import com.fishers.app.umpire.MatchUmpire
+import com.fishers.app.umpire.PendingUmpireReview
+import com.fishers.app.umpire.UmpireProfile
+import com.fishers.app.umpire.UmpireReview
+import com.fishers.app.umpire.UmpireReviewBody
+import com.fishers.app.umpire.UmpiringPatch
 
 /**
  * One fake for every test, with each call refusing by default.
@@ -53,6 +60,34 @@ open class FakeFishersApi : FishersApi {
 
     override suspend fun postScoringEvents(matchId: String, body: EventsBatch): CricketMatch =
         error("postScoringEvents not expected")
+
+    // ---- umpiring ----
+    override suspend fun myUmpiring(): UmpireProfile = error("myUmpiring not expected")
+    override suspend fun umpiringOf(userId: String): UmpireProfile =
+        error("umpiringOf not expected")
+
+    override suspend fun setUmpiring(body: UmpiringPatch): UmpireProfile =
+        error("setUmpiring not expected")
+
+    override suspend fun pendingUmpireReviews(): List<PendingUmpireReview> =
+        error("pendingUmpireReviews not expected")
+
+    override suspend fun matchUmpires(matchId: String): List<MatchUmpire> =
+        error("matchUmpires not expected")
+
+    override suspend fun reviewUmpire(
+        matchId: String,
+        umpireId: String,
+        body: UmpireReviewBody,
+    ): UmpireReview = error("reviewUmpire not expected")
+
+    // `Unit`, spelled out: `error()` is `Nothing`, which infers as the return
+    // type and then refuses to override a method that returns `Unit`.
+    override suspend fun withdrawUmpireReview(matchId: String, umpireId: String): Unit =
+        error("withdrawUmpireReview not expected")
+
+    override suspend fun clubUmpires(clubId: String): List<AvailableUmpire> =
+        error("clubUmpires not expected")
 
     // ---- clubs ----
     override suspend fun myClubs(): List<Club> = error("myClubs not expected")

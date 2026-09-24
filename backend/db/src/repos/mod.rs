@@ -14,6 +14,7 @@ pub mod scoreboard_shares;
 pub mod selection;
 pub mod stats;
 pub mod tournament;
+pub mod umpire;
 pub mod users;
 pub mod verification;
 pub mod venue_hire;

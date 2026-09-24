@@ -8,6 +8,7 @@ import { randomUUID } from "@/lib/uuid";
 import { subscribeLive } from "@/lib/live";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
+import { RateUmpires } from "@/components/RateUmpires";
 import { Icon } from "@/components/Icon";
 import { PeoplePicker, type PeopleTab, type Person as PickPerson } from "@/components/PeoplePicker";
 import { PersonPicker, type Person } from "@/components/PersonPicker";
@@ -1123,6 +1124,10 @@ function Stages({
               note="It needs a super over. Whoever is scoring starts it; this page follows."
             />
           ))}
+
+        {/* Not while a super over is still to come: the afternoon is not over,
+            and the umpires have the hardest six balls of it left. */}
+        {!needsSuperOver && <RateUmpires matchId={match.id} />}
       </>
     );
   }
