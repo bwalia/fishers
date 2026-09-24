@@ -12,7 +12,7 @@
  *   brand dns-hosts <id> <ring>   the ones that get a CNAME (not the apex)
  *   brand zone <id>               the Cloudflare zone
  *
- * Targets default to every platform: --web --android --ios.
+ * Targets default to every platform: --web --android --ios --wslproxy.
  *
  * Nothing it writes is committed. Generated code that lives in the repo drifts
  * from the source it came from, which is the failure this exists to avoid.
@@ -25,6 +25,7 @@ import { BrandError, checkContrast, listBrands, loadBrand } from "./src/brand.mj
 import { webAssets, webFiles } from "./src/targets/web.mjs";
 import { androidFiles } from "./src/targets/android.mjs";
 import { iosFiles } from "./src/targets/ios.mjs";
+import { wslproxyFiles } from "./src/targets/wslproxy.mjs";
 import {
   dnsHostsFor,
   edgeHostsFor,
@@ -41,6 +42,7 @@ const TARGETS = {
   web: (brand, root, out) => [...webFiles(brand, root, out), ...webAssets(brand, root, out)],
   android: androidFiles,
   ios: iosFiles,
+  wslproxy: wslproxyFiles,
 };
 
 function reportContrast(brand) {

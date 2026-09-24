@@ -83,6 +83,14 @@ jobs:
       - name: Brand tool
         run: npm ci --omit=dev --prefix tools/brand
 
+      # The vhost specs, one per hostname this brand answers on. Generated
+      # rather than committed per brand: they were a file per host, which is
+      # the kind of list a brand gets added to three-quarters of — the DNS goes
+      # up, the vhost does not, and the edge serves the fallback's self-signed
+      # certificate on a domain that looks live.
+      - name: Vhost specs
+        run: node tools/brand/index.mjs generate "$BRAND" --wslproxy
+
       # The brand file knows its zone and what each ring answers on. A case
       # statement here would be a second place to add every brand to, and the
       # one people forget — a ring registered for the wrong domain is a deploy

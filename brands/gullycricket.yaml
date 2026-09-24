@@ -16,7 +16,11 @@ rings:
   prod: www.gullycricket.app
 
 support:
+  # Where a person writes to.
   email: hello@gullycricket.app
+  # Where Let's Encrypt writes to about expiring certificates. A different
+  # thing from the address above, and not somewhere a customer should land.
+  sslEmail: admin@gullycricket.app
 
 # Tape-ball orange against deep pitch green. Chosen the same way Fishers'
 # were: the sources are what the brand looks like, the ramp is what carries
