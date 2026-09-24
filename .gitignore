@@ -59,6 +59,8 @@ ios/.xcodegen-stamp
 # in the repo drifts from the source it came from, and the brand is the source.
 web/src/brand.generated.ts
 web/src/app/brand.generated.css
+web/public/icon-192.png
+web/public/badge.png
 # Older layout: the brand's resources used to be written into a flavour source
 # set, before they moved to the variant API. Ignored so a stale copy from a
 # checkout that predates that cannot shadow the generated ones.

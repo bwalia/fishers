@@ -20,9 +20,8 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata = {
-  title: `${brand.name} — The club app for grassroots sport`,
-  description:
-    "Fixtures, availability, team selection, live scoring, chat, fees and season stats for your club — cricket first, multi-sport ready.",
+  title: `${brand.name} — ${brand.tagline}`,
+  description: brand.description,
 };
 
 export const viewport = {
@@ -30,9 +29,12 @@ export const viewport = {
   initialScale: 1,
   // The browser chrome follows the theme, so a dark phone does not frame a
   // cream page in a light bar.
+  // From the brand: the chrome is painted from metadata rather than from the
+  // stylesheet, so a literal here would frame another brand's page in Fishers'
+  // cream.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f4ed" },
-    { media: "(prefers-color-scheme: dark)", color: "#111712" },
+    { media: "(prefers-color-scheme: light)", color: brand.themeLight },
+    { media: "(prefers-color-scheme: dark)", color: brand.themeDark },
   ],
 };
 

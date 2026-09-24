@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -8,6 +9,31 @@ import { join } from "node:path";
  * literal. Neither is committed — generated code in the repo drifts from the
  * source it came from.
  */
+/**
+ * The files a brand has to supply itself.
+ *
+ * Missing ones are an error rather than a fallback. A fallback here means
+ * shipping another brand's mark, which is worse than a build that stops and
+ * says which file to add.
+ */
+const ASSETS = ["icon-192.png", "badge.png"];
+
+export function webAssets(brand, repoRoot, outDir) {
+  const from = join(repoRoot, "brands", brand.id);
+  const to = outDir ? join(outDir, "public") : join(repoRoot, "web", "public");
+  const missing = ASSETS.filter((name) => !existsSync(join(from, name)));
+  if (missing.length) {
+    throw new Error(
+      `${brand.name} has no ${missing.join(", ")}. Put them in brands/${brand.id}/ — ` +
+        `a build cannot fall back to another brand's mark.`,
+    );
+  }
+  return ASSETS.map((name) => ({
+    path: join(to, name),
+    contents: readFileSync(join(from, name)),
+  }));
+}
+
 export function webFiles(brand, repoRoot, outDir) {
   // `outDir` is the dashboard's own root. The container build passes it,
   // because there the tool lives outside the app and would otherwise resolve
@@ -87,6 +113,10 @@ function typescript(brand) {
     description: brand.description,
     domain: brand.domain,
     supportEmail: brand.support.email,
+    // The browser chrome is painted from metadata rather than from CSS, so
+    // these two have to be here as well as in the stylesheet.
+    themeLight: brand.source.surface,
+    themeDark: brand.dark.bg,
   };
   return `/* Generated from brands/${brand.id}.yaml. Do not edit. */
 

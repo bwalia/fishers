@@ -22,7 +22,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrandError, checkContrast, listBrands, loadBrand } from "./src/brand.mjs";
-import { webFiles } from "./src/targets/web.mjs";
+import { webAssets, webFiles } from "./src/targets/web.mjs";
 import { androidFiles } from "./src/targets/android.mjs";
 import { iosFiles } from "./src/targets/ios.mjs";
 import {
@@ -37,7 +37,11 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
 
-const TARGETS = { web: webFiles, android: androidFiles, ios: iosFiles };
+const TARGETS = {
+  web: (brand, root, out) => [...webFiles(brand, root, out), ...webAssets(brand, root, out)],
+  android: androidFiles,
+  ios: iosFiles,
+};
 
 function reportContrast(brand) {
   const { results, failed, threshold } = checkContrast(brand);
@@ -64,7 +68,8 @@ function write(files) {
   for (const { path, contents } of files) {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, contents);
-    console.log(`  wrote ${path.replace(`${repoRoot}/`, "")}`);
+    const size = Buffer.isBuffer(contents) ? ` (${contents.length} bytes)` : "";
+    console.log(`  wrote ${path.replace(`${repoRoot}/`, "")}${size}`);
   }
 }
 

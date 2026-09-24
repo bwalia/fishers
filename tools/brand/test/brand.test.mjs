@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkContrast, listBrands, loadBrand, BrandError } from "../src/brand.mjs";
-import { webFiles } from "../src/targets/web.mjs";
+import { webAssets, webFiles } from "../src/targets/web.mjs";
 import { androidFiles } from "../src/targets/android.mjs";
 import { iosFiles } from "../src/targets/ios.mjs";
 import {
@@ -195,11 +195,22 @@ test("the web CSS carries the ramp, not the source colours, for text", () => {
   assert.match(css.contents, /Do not edit/);
 });
 
-test("the web constants carry no colour, because CSS owns that", () => {
+/**
+ * The stylesheet owns the palette. The only colours here are the two the
+ * browser chrome is painted from, which come from metadata rather than CSS —
+ * anything else has leaked, and a palette in two places drifts.
+ */
+test("the web constants carry only the two chrome colours", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
   const [, ts] = webFiles(brand, "/tmp/x");
   assert.match(ts.contents, /"name": "GullyCricket"/);
-  assert.ok(!/#[0-9a-f]{6}/.test(ts.contents), "a colour leaked into the constants");
+
+  const colours = ts.contents.match(/#[0-9a-f]{6}/g) ?? [];
+  assert.deepEqual(
+    colours.sort(),
+    [brand.dark.bg, brand.source.surface].sort(),
+    "a colour other than the chrome pair leaked into the constants",
+  );
 });
 
 test("android resources are written under the flavour's own directory", () => {
@@ -330,4 +341,48 @@ test("no brand's hosts stray into another brand's zone", () => {
       }
     }
   }
+});
+
+// ---- assets ----
+
+/**
+ * A brand without its own mark is not ready, and a fallback here would mean
+ * shipping somebody else's logo under a different name.
+ */
+test("a brand without its own icons is refused, by name", () => {
+  const brand = { ...loadBrand(repoRoot, "fishers"), id: "no-such-brand" };
+  assert.throws(
+    () => webAssets(brand, repoRoot),
+    /icon-192\.png.*brands\/no-such-brand/s,
+  );
+});
+
+test("every brand in this repo supplies its own icons", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    const files = webAssets(brand, repoRoot);
+    assert.equal(files.length, 2, `${id} is missing an asset`);
+    for (const f of files) {
+      assert.ok(f.contents.length > 0, `${id}: ${f.path} is empty`);
+    }
+  }
+});
+
+test("no two brands ship the same icon", () => {
+  const seen = new Map();
+  for (const id of listBrands(repoRoot)) {
+    const [icon] = webAssets(loadBrand(repoRoot, id), repoRoot);
+    const key = icon.contents.toString("base64");
+    const owner = seen.get(key);
+    assert.ok(!owner, `${id} ships ${owner}'s icon`);
+    seen.set(key, id);
+  }
+});
+
+/** The browser chrome is painted from metadata, not from the stylesheet. */
+test("the chrome colours reach the typescript", () => {
+  const gully = loadBrand(repoRoot, "gullycricket");
+  const [, ts] = webFiles(gully, "/tmp/x");
+  assert.match(ts.contents, /"themeLight": "#fdf7f2"/);
+  assert.match(ts.contents, /"themeDark": "#1a1210"/);
 });

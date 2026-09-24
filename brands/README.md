@@ -25,7 +25,9 @@ support queue.
 
 1. Copy `fishers.yaml`, change the name, domain and the four source colours.
 2. Run `npm run brand:check -- <id>` and darken the ramp until it passes.
-3. Drop the logo and icons in `brands/<id>/`.
+3. Put the icons in `brands/<id>/`: `icon-192.png` and `badge.png`. They are
+   required — a build refuses rather than falling back, because a fallback
+   means shipping somebody else's mark under a different name.
 4. Add `devops/helm-charts/fishers-web/values-<id>-<ring>.yaml`.
 
 The mobile apps take the same file: Android as a product flavour, iOS as an
@@ -54,6 +56,18 @@ its search.
 | iOS | an xcconfig and `Brand.generated.swift`, selected by the scheme |
 | Helm | an overlay applied after the ring's own values |
 | CD | a matrix — one push to main deploys every brand |
+
+## What a brand supplies
+
+| File | Size | Used for |
+|---|---|---|
+| `brands/<id>.yaml` | — | name, domain, rings, palette, bundle id |
+| `brands/<id>/icon-192.png` | 192×192 | the app icon and the web manifest |
+| `brands/<id>/badge.png` | 96×96 | the notification badge |
+
+GullyCricket's icons are **provisional** — a ring and a letter in its own
+colour, generated so the pipeline could be proven end to end. They are not a
+logo and should be replaced before anybody sees them.
 
 ## Commands
 
