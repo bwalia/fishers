@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { brand } from "@/brand.generated";
 
 export const metadata: Metadata = {
-  title: "Privacy — Fishers",
-  description: "What Fishers records about you, why, and how to have it deleted.",
+  title: `Privacy — ${brand.name}`,
+  description: `What ${brand.name} records about you, why, and how to have it deleted.`,
 };
 
 /// The policy App Store Connect asks for a link to, and the one the app links
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
 ///
 /// TODO before submitting: replace CONTROLLER and CONTACT below with the legal
 /// entity that actually runs this and an address somebody answers.
-const CONTROLLER = "[the operator of Fishers]";
+const CONTROLLER = `[the operator of ${brand.name}]`;
 const CONTACT = "[privacy@your-domain]";
 
 export default function PrivacyPage() {
@@ -21,7 +22,7 @@ export default function PrivacyPage() {
       <section className="hero">
         <h1>Privacy</h1>
         <p>
-          Fishers is a club app: it keeps the things a club needs to put a side out
+          {brand.name} is a club app: it keeps the things a club needs to put a side out
           on a Saturday. This is all of it, in plain terms.
         </p>
         <p className="muted">Last updated 17 September 2026.</p>
@@ -122,7 +123,7 @@ export default function PrivacyPage() {
         </p>
 
         <p className="muted" style={{ marginTop: 24 }}>
-          <Link href="/">Back to Fishers</Link>
+          <Link href="/">Back to {brand.name}</Link>
         </p>
       </div>
     </main>

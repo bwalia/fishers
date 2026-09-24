@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { Icon, type IconName } from "@/components/Icon";
+import { brand } from "@/brand.generated";
 
 /// Signed-out `/`: brand, what Fishers does, and how a club gets going.
 /// Everything named here is a screen that exists in the app.
@@ -12,7 +13,7 @@ export function Landing() {
           <div className="lp-hero-copy">
             <p className="lp-brand">
               <BrandMark size={40} />
-              <span>Fishers</span>
+              <span>{brand.name}</span>
             </p>
             <h1>Run the club. Score the match.</h1>
             <p className="lp-lead">
@@ -43,7 +44,7 @@ export function Landing() {
         <p className="lp-kicker">Built for club sport</p>
         <h2 id="lp-sports">Cricket first. Room for the rest of the club.</h2>
         <p className="lp-sub">
-          Fishers is strongest on cricket — live ball-by-ball scoring and a shareable
+          {brand.name} is strongest on cricket — live ball-by-ball scoring and a shareable
           board — and the same club shell covers football, badminton, padel and the
           sessions you already run every week.
         </p>
@@ -130,7 +131,7 @@ function Scoreboard() {
     <div
       className="lp-visual"
       role="img"
-      aria-label="Example of a live match scoreboard in Fishers"
+      aria-label={`Example of a live match scoreboard in ${brand.name}`}
     >
       <div className="lp-board" aria-hidden="true">
         <div className="lp-board-head">
@@ -138,7 +139,7 @@ function Scoreboard() {
           <span>T20 · Sunday League</span>
         </div>
         <div className="lp-board-team done">
-          <span>Fishers CC</span>
+          <span>{brand.name} CC</span>
           <strong>168/6</strong>
           <em>20 ov</em>
         </div>

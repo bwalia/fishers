@@ -1,6 +1,11 @@
 # Defaults shared by every environment; per-ring differences live in
 # values-<env>.yaml.
 env: int
+# Which brand this release is. Supplied by the deploy from brands/<id>.yaml;
+# the image is already built for it, so this is here to label what is running
+# rather than to change it — a runtime brand switch is how a whole region gets
+# served the wrong logo after one bad value.
+brand: fishers
 # The public host for this ring. Empty is refused — it is the ingress rule.
 hostname: ""
 replicaCount: 1

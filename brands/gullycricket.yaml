@@ -1,0 +1,51 @@
+# India. Same product, same code, its own stack — own namespace, own API, own
+# database. Nothing is shared with Fishers at runtime.
+id: gullycricket
+name: GullyCricket
+legalName: GullyCricket
+tagline: The club app for gully cricket
+description: >-
+  Fixtures, availability, live scoring and the numbers afterwards — for every
+  side that plays where it can find a pitch.
+
+domain: gullycricket.app
+rings:
+  int: int.gullycricket.app
+  test: test.gullycricket.app
+  acc: acc.gullycricket.app
+  prod: www.gullycricket.app
+
+support:
+  email: hello@gullycricket.app
+
+# Tape-ball orange against deep pitch green. Chosen the same way Fishers'
+# were: the sources are what the brand looks like, the ramp is what carries
+# text, and `npm run brand:check` is what says whether it does.
+source:
+  primary: "#e8752a"
+  primaryPale: "#f7d2b8"
+  surface: "#fdf7f2"
+  accent: "#1b4d3e"
+
+ramp:
+  primary400: "#e8752a"
+  primary500: "#c55f1d"
+  primary600: "#a54f18"   # darkened until it carries white text
+  primary700: "#8a4114"
+  primary800: "#6d330f"
+  primary900: "#401e09"
+  accent400: "#2f7a63"
+  accent500: "#246052"
+  accent600: "#1b4d3e"
+  accent700: "#153c31"
+  ink900: "#241a14"
+  ink700: "#3d2c22"
+  ink500: "#5a4336"
+
+assets:
+  icon: brands/gullycricket/icon-192.png
+  badge: brands/gullycricket/badge.png
+
+mobile:
+  bundleId: app.gullycricket
+  displayName: GullyCricket

@@ -35,6 +35,7 @@ import {
 } from "@/components/TournamentRules";
 import { type OpponentIdentity } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
+import { brand } from "@/brand.generated";
 
 type Tab = "entrants" | "grid" | "fixtures" | "table" | "rules";
 
@@ -251,7 +252,7 @@ function Entrants({
                 <div className="pick-who">
                   <strong>{e.name}</strong>
                   <span className="pick-signals">
-                    {e.club_id && <span className="subtle">on Fishers</span>}
+                    {e.club_id && <span className="subtle">on {brand.name}</span>}
                     {e.contact_email && !e.club_id && (
                       <span className="subtle">{e.contact_email}</span>
                     )}
@@ -433,7 +434,7 @@ function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => 
         <label>
           Where to send it
           <span className="subtle">
-            {typed.trim()} is not on Fishers, so they answer by following a link.
+            {typed.trim()} is not on {brand.name}, so they answer by following a link.
           </span>
           <input
             type="email"

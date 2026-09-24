@@ -67,7 +67,21 @@ def inject_google_oauth_client_ids!
   UI.success("Injected Google OAuth client ids into project.yml for this build")
 end
 
+# The brand this build is, from brands/<id>.yaml. project.yml names
+# brand.xcconfig, which does not exist until this has run — and the brand
+# decides the bundle identifier, so a build without it would be signed as the
+# wrong app and uploaded to somebody else's listing.
+def generate_brand!
+  brand = ENV.fetch("BRAND", "fishers")
+  Dir.chdir("../..") do
+    sh("npm", "ci", "--omit=dev", "--prefix", "tools/brand")
+    sh("node", "tools/brand/index.mjs", "generate", brand, "--ios")
+  end
+  UI.success("Built as #{brand}")
+end
+
 def generate_xcode_project!
+  generate_brand!
   inject_google_oauth_client_ids!
   sh("xcodegen", "generate", "--spec", "../project.yml")
 end

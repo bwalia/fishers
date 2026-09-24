@@ -22,6 +22,7 @@ import { PendingInvites } from "@/components/PendingInvites";
 import { ShareProfile } from "@/components/ShareProfile";
 import { VerifyContact } from "@/components/VerifyContact";
 import { copyText } from "@/lib/clipboard";
+import { brand } from "@/brand.generated";
 
 /// `GET /me/clubs` returns each club with the role you hold in it.
 type Membership = Club & {
@@ -564,7 +565,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
             id="cc-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Fishers CC"
+            placeholder={`${brand.name} CC`}
             maxLength={160}
             autoComplete="off"
             aria-describedby="cc-name-help"

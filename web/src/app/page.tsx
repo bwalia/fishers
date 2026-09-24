@@ -22,6 +22,7 @@ import { RoleChooser } from "@/components/RoleChooser";
 import { PushPrompt } from "@/components/PushPrompt";
 import { ProfileStrength } from "@/components/ProfileStrength";
 import { overs, type MatchResponse } from "@/lib/cricket";
+import { brand } from "@/brand.generated";
 
 export default function HomePage() {
   const router = useRouter();
@@ -99,7 +100,7 @@ export default function HomePage() {
         <p>
           {clubs.length > 0
             ? "Your club at a glance — what's next, what's live, and what needs you."
-            : "Welcome to Fishers. A few quick steps and you're up and running."}
+            : `Welcome to ${brand.name}. A few quick steps and you're up and running.`}
         </p>
       </section>
 
@@ -110,7 +111,7 @@ export default function HomePage() {
 
       {loaded && !user.role_intent && clubs.length === 0 && (
         <section className="panel welcome" aria-labelledby="welcome-title">
-          <h2 id="welcome-title">How will you use Fishers?</h2>
+          <h2 id="welcome-title">How will you use {brand.name}?</h2>
           <p className="muted">
             We&apos;ll show you exactly what to do next. You can switch later.
           </p>

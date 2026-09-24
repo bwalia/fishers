@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Strings that are the same whatever the brand is.
+
+     `app_name`, `brand_name` and the rest live in each flavour's own
+     strings.xml, written from brands/<id>.yaml by tools/brand. -->
 <resources>
-    <string name="app_name">Fishers</string>
 </resources>

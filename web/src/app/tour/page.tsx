@@ -4,14 +4,15 @@ import { BrandMark } from "@/components/BrandMark";
 import { Icon } from "@/components/Icon";
 import { TourFilm } from "@/components/TourFilm";
 import { TOUR_CHAPTERS, TOUR_DURATION, TOUR_VIDEO_ID } from "./chapters";
+import { brand } from "@/brand.generated";
 
 export const metadata: Metadata = {
-  title: "Video tour — Fishers",
+  title: `Video tour — ${brand.name}`,
   description:
-    "Twenty minutes of Fishers on a phone: a player joining a club, availability, a captain " +
+    `Twenty minutes of ${brand.name} on a phone: a player joining a club, availability, a captain ` +
     "picking the side, a whole T20 scored ball by ball, and the rest of the cricket section.",
   openGraph: {
-    title: "Fishers — the video tour",
+    title: `${brand.name} — the video tour`,
     description:
       "A season on a phone: joining a club, availability, selection, a T20 scored ball by ball, " +
       "and everything the cricket section does.",
@@ -31,7 +32,7 @@ export default function TourPage() {
       <section className="tour-hero">
         <p className="lp-brand">
           <BrandMark size={36} />
-          <span>Fishers</span>
+          <span>{brand.name}</span>
         </p>
         <p className="lp-kicker">Video tour · {TOUR_DURATION}</p>
         <h1>A season on a phone, from sign-up to the last ball</h1>
@@ -60,7 +61,7 @@ export default function TourPage() {
         </div>
         <p className="lp-fine">
           {TOUR_CHAPTERS.length} chapters · every screen listed with its timestamp ·{" "}
-          <Link href="/">back to Fishers</Link>
+          <Link href="/">back to {brand.name}</Link>
         </p>
       </section>
 

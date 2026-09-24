@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { api, getAccessToken, readErr, type Club, type OpponentIdentity } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { brand } from "@/brand.generated";
 
 /// Where a club's or a team's code lands — the link printed under its QR on
 /// the club page, which an opposition captain is sent or scans at the ground.
@@ -49,7 +50,7 @@ export default function PlayPage({ params }: { params: Promise<{ token: string }
         </div>
       ) : (
         <div className="panel play-card">
-          <span className="tag grey">{who.kind === "team" ? `A team at ${who.club_name}` : "A club on Fishers"}</span>
+          <span className="tag grey">{who.kind === "team" ? `A team at ${who.club_name}` : `A club on ${brand.name}`}</span>
           <h1>{who.name}</h1>
           {ours ? (
             <>

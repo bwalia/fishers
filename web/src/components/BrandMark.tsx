@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { brand } from "@/brand.generated";
 
 /// The club's mark: a cricket ball, seam on.
 ///
@@ -32,7 +33,7 @@ export function BrandMark({
       viewBox="0 0 48 48"
       className={className}
       role="img"
-      aria-label="Fishers"
+      aria-label={`${brand.name}`}
       focusable="false"
     >
       <defs>

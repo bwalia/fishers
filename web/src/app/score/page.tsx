@@ -14,6 +14,7 @@ import { Icon } from "@/components/Icon";
 import { OppositionPicker } from "@/components/OppositionPicker";
 import { titleCase, type MatchResponse } from "@/lib/cricket";
 import { useRequireAuth } from "@/lib/require-auth";
+import { brand } from "@/brand.generated";
 
 /// A fixture and the match on it, as `GET /cricket/fixtures` returns them —
 /// one paged request rather than a fetch per row.
@@ -534,7 +535,7 @@ function MatchSetupSheet({
         </label>
         {opponent && !internal && (
           <p className="muted">
-            <Icon name="check" size={14} /> Matched to {opponent.club_name} in Fishers — their
+            <Icon name="check" size={14} /> Matched to {opponent.club_name} in {brand.name} — their
             captain can name their own eleven.
           </p>
         )}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api, readErr } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { brand } from "@/brand.generated";
 
 /// Remembered per device so the getting-started list can tick it off; the
 /// link itself works whether or not this is set.
@@ -20,7 +21,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
   const [error, setError] = useState<string | null>(null);
 
   const message = (url: string) =>
-    `Hi — I'd like to play for the club. Here's my Fishers player profile, you can invite me from it: ${url}`;
+    `Hi — I'd like to play for the club. Here's my ${brand.name} player profile, you can invite me from it: ${url}`;
 
   const shared = () => {
     try {
@@ -59,7 +60,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
   const nativeShare = async () => {
     if (!link) return;
     try {
-      await navigator.share({ title: "My Fishers profile", text: message(link), url: link });
+      await navigator.share({ title: `My ${brand.name} profile`, text: message(link), url: link });
       shared();
     } catch {
       /* dismissed the share sheet */
@@ -101,7 +102,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
         </a>
         <a
           className="btn"
-          href={`mailto:?subject=${encodeURIComponent("My Fishers player profile")}&body=${encodeURIComponent(message(link))}`}
+          href={`mailto:?subject=${encodeURIComponent(`My ${brand.name} player profile`)}&body=${encodeURIComponent(message(link))}`}
           onClick={shared}
         >
           <Icon name="mail" size={16} /> Email

@@ -13,6 +13,7 @@ import {
   type MatchConditions,
   type MatchState,
 } from "@/lib/cricket";
+import { brand } from "@/brand.generated";
 
 type PublicScoreboard = {
   match_id: string;
@@ -127,7 +128,7 @@ export default function LiveScoreboardPage({
       {board && <Moments state={board.state} nameOf={(id) => nameOf(board, id)} />}
       <header className="live-hero">
         <p className="tag">Live scoreboard</p>
-        <h1>Fishers</h1>
+        <h1>{brand.name}</h1>
         <p className="muted">
           Full match scoreboard — updates live, ball by ball. No sign-in required.
         </p>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { enablePush, pushState, type PushState } from "@/lib/push";
 import { Icon } from "@/components/Icon";
+import { brand } from "@/brand.generated";
 
 const DISMISSED = "fishers:push-prompt-dismissed";
 
@@ -46,7 +47,7 @@ export function PushPrompt({ context = "chats, invites and fixture news" }: { co
         <Icon name="inbox" size={20} />
       </span>
       <div className="push-prompt-text">
-        <strong>Get alerts when Fishers is closed</strong>
+        <strong>Get alerts when {brand.name} is closed</strong>
         <span className="muted">{`${context[0].toUpperCase()}${context.slice(1)} — straight to this device.`}</span>
       </div>
       <div className="push-prompt-actions">

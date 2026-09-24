@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiOrigin } from "@/lib/api";
+import { brand } from "@/brand.generated";
 
 export default function DocsPage() {
   // Resolved in the browser, so the links point at the host you are actually on.
@@ -15,7 +16,7 @@ export default function DocsPage() {
       <section className="hero">
         <h1>API documentation</h1>
         <p>
-          Interactive Swagger UI is served by the Fishers API. Open it in a new tab to try
+          Interactive Swagger UI is served by the {brand.name} API. Open it in a new tab to try
           endpoints with your JWT.
         </p>
       </section>

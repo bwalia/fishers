@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
+import { brand } from "@/brand.generated";
 
 /// "A player sent me their profile link." Paste it, and you land on their card
 /// with this club already chosen — pick the team there and send the invite.
@@ -19,7 +20,7 @@ export function AddByLink({ clubId }: { clubId: string }) {
     e.preventDefault();
     const token = /\/p\/([A-Za-z0-9]{16,64})/.exec(text)?.[1];
     if (!token) {
-      setError("That isn't a Fishers profile link — it looks like …/p/ followed by letters and numbers.");
+      setError(`That isn't a ${brand.name} profile link — it looks like …/p/ followed by letters and numbers.`);
       return;
     }
     router.push(`/p/${token}?club=${encodeURIComponent(clubId)}`);
