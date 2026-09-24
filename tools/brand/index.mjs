@@ -77,7 +77,16 @@ function main(argv) {
   const [command = "check", ...rest] = argv;
 
   if (command === "list") {
-    for (const id of listBrands(repoRoot)) console.log(id);
+    const ids = listBrands(repoRoot);
+    // --json for a GitHub Actions matrix, which wants a JSON array. One list,
+    // discovered from the directory, so adding a brand file is the whole of
+    // adding a brand — rather than a file plus four workflow edits, three of
+    // which somebody remembers.
+    if (rest.includes("--json")) {
+      console.log(JSON.stringify(ids));
+    } else {
+      for (const id of ids) console.log(id);
+    }
     return 0;
   }
 

@@ -25,11 +25,6 @@ on:
         type: string
         required: true
       brand:
-        description: "Which brand in brands/"
-        type: string
-        required: false
-        default: fishers
-      brand:
         description: >-
           Which brand in brands/. Its domain is the Cloudflare zone and its
           rings are the hostnames — a brand deployed without its own edge
@@ -54,6 +49,11 @@ on:
         required: true
         default: all
         options: [all, int, test, acc, prod]
+      brand:
+        description: "Which brand in brands/"
+        type: string
+        required: false
+        default: fishers
       DEPLOY_BRANCH:
         description: "Reserved — Ring Promoter passes this; ignored."
         type: string

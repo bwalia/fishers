@@ -1,6 +1,6 @@
 name: Cloudflare DNS reconcile
 
-# Belt-and-braces DNS reconciler for fishers.cloud.
+# Belt-and-braces DNS reconciler, for every brand's zone.
 #
 # The primary write path is ExternalDNS, which watches the ingress annotation
 # each ring's web chart sets. This is the safety net for when that does not
@@ -12,6 +12,10 @@ name: Cloudflare DNS reconcile
 # by suffix from live ingresses, which is what makes it catch the ingress that
 # forgot its annotation — a hard-coded list would only ever re-assert what
 # somebody already remembered to write down.
+#
+# The brands are discovered the same way, from brands/. One job per brand, each
+# reconciling its own zone against its own namespaces: a brand added to that
+# directory is reconciled from the next run, with nothing here to edit.
 #
 # Only ever writes CNAME. Never TXT: that is ExternalDNS's ownership registry,
 # and writing it here would have the two fighting over every record.
@@ -52,7 +56,7 @@ on:
         default: false
 
 env:
-  ZONE: fishers.cloud
+  # ZONE comes from each brand; see the matrix below.
   CNAME_TARGET: lon1.pop0.uk
 
 permissions:
@@ -63,9 +67,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  reconcile:
-    name: Reconcile ${{ inputs.ENV || 'all' }}
+  # The brand list, from brands/. One place, so adding a brand file is the
+  # whole of adding a brand.
+  brands:
+    name: Which brands
     runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          npm ci --omit=dev --prefix tools/brand
+          echo "list=$(node tools/brand/index.mjs list --json)" >> "$GITHUB_OUTPUT"
+  reconcile:
+    name: Reconcile ${{ matrix.brand }} ${{ inputs.ENV || 'all' }}
+    needs: brands
+    runs-on: ubuntu-latest
+    # One brand's DNS being unreconcilable is not a reason to leave another's
+    # rotting — they are separate zones on separate accounts' terms.
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: ${{ fromJSON(needs.brands.outputs.list) }}
+    env:
+      BRAND: ${{ matrix.brand }}
     steps:
       - uses: actions/checkout@v4
 
@@ -84,6 +110,10 @@ jobs:
         run: |
           set -euo pipefail
           RING="${{ inputs.ENV || 'all' }}"
+          npm ci --omit=dev --prefix tools/brand
+          ZONE=$(node tools/brand/index.mjs zone "$BRAND")
+          echo "zone=$ZONE" >> "$GITHUB_OUTPUT"
+          echo "brand $BRAND, zone $ZONE"
 
           # Prove the cluster is reachable before reading anything from it.
           # Without this an unreachable cluster and a cluster with nothing
@@ -98,10 +128,13 @@ jobs:
             # grep exits 1 when it matches nothing, which is the ordinary state
             # before the first ring is deployed — not a failure. `|| true` keeps
             # `set -e` out of it.
+            # This brand's namespaces only: <brand>-<ring>, which is how the
+            # deploy names them. grep exits 1 when it matches nothing, which is
+            # the ordinary state before a brand's first ring exists.
             NAMESPACES=$(kubectl get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
-              | grep -E '^fishers-(int|test|acc|prod)$' || true)
+              | grep -E "^${BRAND}-(int|test|acc|prod)$" || true)
           else
-            NAMESPACES="fishers-$RING"
+            NAMESPACES="$BRAND-$RING"
           fi
           echo "namespaces: $(echo $NAMESPACES | tr '\n' ' ')"
 
@@ -130,6 +163,7 @@ jobs:
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           HOSTS: ${{ steps.discover.outputs.hosts }}
+          ZONE: ${{ steps.discover.outputs.zone }}
           DRY_RUN: ${{ inputs.DRY_RUN }}
         run: |
           set -euo pipefail

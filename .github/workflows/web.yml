@@ -59,6 +59,12 @@ jobs:
         working-directory: tools/brand
         run: node index.mjs check
 
+      # PyYAML accepts a duplicate key and keeps the last one; GitHub rejects
+      # the file with "this run likely failed because of a workflow file
+      # issue" and no line number. That happened, so this checks it.
+      - name: Workflows are what GitHub will accept
+        run: python3 scripts/check-workflows.py
+
       - name: Lint
         run: npm run lint
 

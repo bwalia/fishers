@@ -56,6 +56,23 @@ permissions:
   packages: write
 
 jobs:
+  # The brand list, from brands/. One place, so adding a brand file is the
+  # whole of adding a brand — not a file plus four workflow edits, three of
+  # which somebody remembers.
+  brands:
+    name: Which brands
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+      space: ${{ steps.list.outputs.space }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          npm ci --omit=dev --prefix tools/brand
+          echo "list=$(node tools/brand/index.mjs list --json)" >> "$GITHUB_OUTPUT"
+          echo "space=$(node tools/brand/index.mjs list | tr '\n' ' ' | xargs)" >> "$GITHUB_OUTPUT"
+
   # DNS and the wslproxy vhost. Idempotent when credentials work. soft_fail so
   # a broken WSLPROXY_* secret cannot block shipping images to a ring whose
   # vhost already exists (www/int currently answer 200 while edge login 401s).
@@ -67,10 +84,11 @@ jobs:
   # certificate, which reads as a broken app rather than as missing config.
   edge:
     name: DNS and edge vhost — ${{ matrix.brand }}
+    needs: brands
     strategy:
       fail-fast: false
       matrix:
-        brand: [fishers, gullycricket]
+        brand: ${{ fromJSON(needs.brands.outputs.list) }}
     uses: ./.github/workflows/register-edge-vhost.yml
     with:
       ENV: int
@@ -80,6 +98,7 @@ jobs:
 
   build:
     name: Build images
+    needs: brands
     uses: ./.github/workflows/build-images.yml
     with:
       ref: ${{ github.sha }}
@@ -87,12 +106,12 @@ jobs:
       # Every brand the matrix below deploys. The dashboard is built per brand
       # because the brand is baked into the bundle; the API is not, because it
       # is the same code pointed at a different database.
-      brands: fishers gullycricket
+      brands: ${{ needs.brands.outputs.space }}
     secrets: inherit
 
   deploy:
     name: Deploy ${{ matrix.brand }} int
-    needs: [build, edge]
+    needs: [brands, build, edge]
     # Ship whenever images built — edge is best-effort once the ring exists.
     if: always() && needs.build.result == 'success'
     # One deploy per brand. Each is its own namespace, its own API and its own
@@ -101,7 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        brand: [fishers, gullycricket]
+        brand: ${{ fromJSON(needs.brands.outputs.list) }}
     uses: ./.github/workflows/deploy-fishers-k3s.yml
     with:
       target_env: int
