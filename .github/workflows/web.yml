@@ -63,6 +63,10 @@ jobs:
       # the file with "this run likely failed because of a workflow file
       # issue" and no line number. That happened, so this checks it.
       - name: Workflows are what GitHub will accept
+        # The job's working-directory is `web`, and this script is at the repo
+        # root — so without this it looked for `web/scripts/` and every run of
+        # this workflow failed on it.
+        working-directory: .
         run: python3 scripts/check-workflows.py
 
       - name: Lint

@@ -31,6 +31,12 @@ import java.io.IOException
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScoringTest {
 
+    // `runTest` builds its own TestCoroutineScheduler unless it is handed
+    // one, and a bare StandardTestDispatcher() builds a second. Work launched
+    // on viewModelScope then sits on the dispatcher's scheduler while
+    // advanceUntilIdle() drains runTest's, so the assertions run before the
+    // view model has done anything — sometimes. It passed on every machine
+    // here and failed in CI, which is the worst way to find out.
     private val dispatcher = StandardTestDispatcher()
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
@@ -96,7 +102,7 @@ class ScoringTest {
     // ---- the screen's state ----
 
     @Test
-    fun `a match loads, and a match with no innings has no scoreline`() = runTest {
+    fun `a match loads, and a match with no innings has no scoreline`() = runTest(dispatcher.scheduler) {
         val model = ScoringViewModel(object : FakeFishersApi() {
             override suspend fun cricketMatch(eventId: String) = match()
             override suspend fun scoringEvents(matchId: String) = prepared
@@ -119,7 +125,7 @@ class ScoringTest {
      * every ball after the first would have been swallowed without a word.
      */
     @Test
-    fun `each ball is numbered past the log, not from the scoreline`() = runTest {
+    fun `each ball is numbered past the log, not from the scoreline`() = runTest(dispatcher.scheduler) {
         val model = ScoringViewModel(object : FakeFishersApi() {
             override suspend fun cricketMatch(eventId: String) = match()
             override suspend fun scoringEvents(matchId: String) = prepared
@@ -137,7 +143,7 @@ class ScoringTest {
      * than drawing a score it made up from the last event it understood.
      */
     @Test
-    fun `a book that will not replay is reported, not guessed at`() = runTest {
+    fun `a book that will not replay is reported, not guessed at`() = runTest(dispatcher.scheduler) {
         val model = ScoringViewModel(object : FakeFishersApi() {
             override suspend fun cricketMatch(eventId: String) = match()
             override suspend fun scoringEvents(matchId: String) =
@@ -156,7 +162,7 @@ class ScoringTest {
      * at the moment they tap rather than four overs later.
      */
     @Test
-    fun `a ball the engine refuses is never sent`() = runTest {
+    fun `a ball the engine refuses is never sent`() = runTest(dispatcher.scheduler) {
         var posted = 0
         val model = ScoringViewModel(object : FakeFishersApi() {
             override suspend fun cricketMatch(eventId: String) = match()
@@ -188,7 +194,7 @@ class ScoringTest {
      * to know is that it has not gone up yet, not that it never happened.
      */
     @Test
-    fun `a legal event that could not be sent still says it has not gone up`() = runTest {
+    fun `a legal event that could not be sent still says it has not gone up`() = runTest(dispatcher.scheduler) {
         val model = ScoringViewModel(object : FakeFishersApi() {
             override suspend fun cricketMatch(eventId: String) = match()
             override suspend fun scoringEvents(matchId: String) = prepared

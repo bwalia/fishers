@@ -34,6 +34,12 @@ import retrofit2.Response
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionViewModelTest {
 
+    // `runTest` builds its own TestCoroutineScheduler unless it is handed
+    // one, and a bare StandardTestDispatcher() builds a second. Work launched
+    // on viewModelScope then sits on the dispatcher's scheduler while
+    // advanceUntilIdle() drains runTest's, so the assertions run before the
+    // view model has done anything — sometimes. It passed on every machine
+    // here and failed in CI, which is the worst way to find out.
     private val dispatcher = StandardTestDispatcher()
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
@@ -60,7 +66,7 @@ class SessionViewModelTest {
     // ---- bootstrap ----
 
     @Test
-    fun `with no stored token the app goes straight to the form`() = runTest {
+    fun `with no stored token the app goes straight to the form`() = runTest(dispatcher.scheduler) {
         val model = SessionViewModel(FakeFishersApi(), Session(FakeStore()))
 
         model.bootstrap()
@@ -77,7 +83,7 @@ class SessionViewModelTest {
      * reads as the app being broken rather than as being signed out.
      */
     @Test
-    fun `a token the server no longer honours signs them out cleanly`() = runTest {
+    fun `a token the server no longer honours signs them out cleanly`() = runTest(dispatcher.scheduler) {
         val store = FakeStore(
             mutableMapOf(TokenStore.ACCESS to "stale", TokenStore.REFRESH to "also-stale"),
         )
@@ -96,7 +102,7 @@ class SessionViewModelTest {
     }
 
     @Test
-    fun `a token the server honours restores the session without asking again`() = runTest {
+    fun `a token the server honours restores the session without asking again`() = runTest(dispatcher.scheduler) {
         val session = Session(FakeStore(mutableMapOf(TokenStore.ACCESS to "good")))
         val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun me() = alice
@@ -113,7 +119,7 @@ class SessionViewModelTest {
     // ---- signing in ----
 
     @Test
-    fun `signing in keeps the tokens and the user`() = runTest {
+    fun `signing in keeps the tokens and the user`() = runTest(dispatcher.scheduler) {
         val store = FakeStore()
         val session = Session(store)
         val model = SessionViewModel(object : FakeFishersApi() {
@@ -130,7 +136,7 @@ class SessionViewModelTest {
     }
 
     @Test
-    fun `the identifier is trimmed, because a keyboard adds a space`() = runTest {
+    fun `the identifier is trimmed, because a keyboard adds a space`() = runTest(dispatcher.scheduler) {
         var seen: String? = null
         val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun login(body: LoginRequest): AuthTokens {
@@ -146,7 +152,7 @@ class SessionViewModelTest {
     }
 
     @Test
-    fun `a refused sign-in says so and stores nothing`() = runTest {
+    fun `a refused sign-in says so and stores nothing`() = runTest(dispatcher.scheduler) {
         val store = FakeStore()
         val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun login(body: LoginRequest): AuthTokens = throw unauthorized()
@@ -164,7 +170,7 @@ class SessionViewModelTest {
     // ---- signing up ----
 
     @Test
-    fun `an identifier with an at sign is an email, and one without is a phone`() = runTest {
+    fun `an identifier with an at sign is an email, and one without is a phone`() = runTest(dispatcher.scheduler) {
         var asEmail: SignupRequest? = null
         var asPhone: SignupRequest? = null
         val api = object : FakeFishersApi() {
@@ -213,7 +219,7 @@ class SessionViewModelTest {
      * working account over something the app can ask again.
      */
     @Test
-    fun `a role that will not save does not undo the sign-up`() = runTest {
+    fun `a role that will not save does not undo the sign-up`() = runTest(dispatcher.scheduler) {
         val model = SessionViewModel(object : FakeFishersApi() {
             override suspend fun signup(body: SignupRequest) = tokens(alice)
             override suspend fun setRoleIntent(body: RoleIntentPatch): PublicUser =
@@ -231,7 +237,7 @@ class SessionViewModelTest {
     // ---- signing out ----
 
     @Test
-    fun `signing out takes the tokens with it`() = runTest {
+    fun `signing out takes the tokens with it`() = runTest(dispatcher.scheduler) {
         val store = FakeStore()
         val session = Session(store)
         session.set(Tokens("a", "r"))

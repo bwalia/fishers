@@ -19,6 +19,12 @@ import java.time.Instant
 @OptIn(ExperimentalCoroutinesApi::class)
 class MotmTest {
 
+    // `runTest` builds its own TestCoroutineScheduler unless it is handed
+    // one, and a bare StandardTestDispatcher() builds a second. Work launched
+    // on viewModelScope then sits on the dispatcher's scheduler while
+    // advanceUntilIdle() drains runTest's, so the assertions run before the
+    // view model has done anything — sometimes. It passed on every machine
+    // here and failed in CI, which is the worst way to find out.
     private val dispatcher = StandardTestDispatcher()
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
@@ -26,9 +32,22 @@ class MotmTest {
 
     private val now = Instant.parse("2026-09-23T12:00:00Z")
 
+    /**
+     * The default poll is open for a hundred years.
+     *
+     * `MotmViewModel.vote` asks `votingAllowed()` with no argument, which is
+     * the real clock — as it should be in an app, where the poll really does
+     * close at teatime. So a fixture pinned near `now` is a test that starts
+     * failing at a wall-clock time and never stops: this one closed at
+     * 18:00 on 23 September 2026 and both voting tests went red that evening
+     * and stayed red.
+     *
+     * The tests that are *about* closing pass their own `closesAt` and their
+     * own `now`, which is the only way to assert on it honestly.
+     */
     private fun poll(
         status: String = "open",
-        closesAt: String = "2026-09-23T18:00:00Z",
+        closesAt: String = "2126-09-23T18:00:00Z",
         canVote: Boolean = true,
         myVote: String? = null,
         tallyVisible: Boolean = false,
@@ -86,10 +105,26 @@ class MotmTest {
         assertEquals(listOf("Tom Hardy"), poll().away.map { it.displayName })
     }
 
+    /**
+     * The guard on the fixture above.
+     *
+     * Deliberately the real clock, with no `now` passed — which is what
+     * `MotmViewModel.vote` uses. If somebody pins `closesAt` near today again,
+     * this fails by name on the day it happens instead of two voting tests
+     * failing for a reason that reads like a coroutine problem.
+     */
+    @Test
+    fun `the default poll is still open in real time, or the voting tests rot`() {
+        assertTrue(
+            "closesAt has been pinned near today — the voting tests will start failing",
+            poll().votingAllowed(),
+        )
+    }
+
     // ---- voting ----
 
     @Test
-    fun `voting redraws from what the server said, not from what we hoped`() = runTest {
+    fun `voting redraws from what the server said, not from what we hoped`() = runTest(dispatcher.scheduler) {
         val model = MotmViewModel(object : FakeFishersApi() {
             override suspend fun motmPoll(id: String) = poll()
             override suspend fun castMotmVote(id: String, body: CastMotmVoteRequest) =
@@ -107,7 +142,7 @@ class MotmTest {
 
     /** Tapping who you already voted for takes it back, rather than casting twice. */
     @Test
-    fun `voting for the same player again withdraws it`() = runTest {
+    fun `voting for the same player again withdraws it`() = runTest(dispatcher.scheduler) {
         var withdrew = false
         val model = MotmViewModel(object : FakeFishersApi() {
             override suspend fun motmPoll(id: String) = poll(myVote = "u1", tallyVisible = true)
@@ -127,7 +162,7 @@ class MotmTest {
     }
 
     @Test
-    fun `a vote in a shut poll never reaches the server`() = runTest {
+    fun `a vote in a shut poll never reaches the server`() = runTest(dispatcher.scheduler) {
         val model = MotmViewModel(object : FakeFishersApi() {
             override suspend fun motmPoll(id: String) = poll(status = "closed")
             override suspend fun castMotmVote(id: String, body: CastMotmVoteRequest): MotmPollView =
