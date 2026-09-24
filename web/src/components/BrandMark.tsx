@@ -18,10 +18,10 @@ export function BrandMark({
   size?: number;
   className?: string;
 }) {
+  // A fixed-size static asset that is on screen before hydration. next/image
+  // would defer it and route it through the optimiser for no gain.
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- a fixed-size static
-    // asset that is on screen before hydration; next/image would defer it and
-    // route it through the optimiser for no gain.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src="/mark.svg"
       width={size}
