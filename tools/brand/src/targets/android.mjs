@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -14,10 +15,43 @@ export function androidFiles(brand, repoRoot, outDir) {
   const dir = outDir
     ? join(outDir, "values")
     : join(repoRoot, "android", "app", "src", brand.id, "res", "values");
+  const res = outDir ?? join(repoRoot, "android", "app", "src", brand.id, "res");
   return [
     { path: join(dir, "strings.xml"), contents: strings(brand) },
     { path: join(dir, "brand_colors.xml"), contents: colours(brand) },
+    ...launcher(brand, repoRoot, res),
   ];
+}
+
+/**
+ * The launcher icon, one PNG per density bucket.
+ *
+ * These used to live in `src/main`, which every flavour shares — so a brand
+ * installed with Fishers' icon on the home screen. They belong to the flavour,
+ * like its name and its colours.
+ */
+const DENSITIES = [
+  ["icon-48.png", "mipmap-mdpi"],
+  ["icon-72.png", "mipmap-hdpi"],
+  ["icon-96.png", "mipmap-xhdpi"],
+  ["icon-144.png", "mipmap-xxhdpi"],
+  ["icon-192.png", "mipmap-xxxhdpi"],
+];
+
+function launcher(brand, repoRoot, res) {
+  const from = join(repoRoot, "brands", brand.id);
+  const missing = DENSITIES.map(([n]) => n).filter((n) => !existsSync(join(from, n)));
+  if (missing.length) {
+    throw new Error(
+      `${brand.name} has no ${missing.join(", ")}. Run \`npm --prefix tools/brand run icons\` ` +
+        `to render them from brands/${brand.id}/icon.svg — a build cannot fall ` +
+        `back to another brand's mark.`,
+    );
+  }
+  return DENSITIES.map(([source, bucket]) => ({
+    path: join(res, bucket, "ic_launcher.png"),
+    contents: readFileSync(join(from, source)),
+  }));
 }
 
 function strings(brand) {

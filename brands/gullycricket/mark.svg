@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gully Cricket, for light surfaces: the page header, a share card, a
+     favicon on a white tab strip.
+
+     Same wicket as the app icon, but chalk is the wrong colour without the
+     wall behind it, so the stumps take the brand's deep green instead. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Gully Cricket">
+  <g fill="none" stroke="#1b4d3e" stroke-width="3.3" stroke-linecap="round">
+    <path d="M12.6 10.8 12.1 33.8"/>
+    <path d="M21 10.2 21 34"/>
+    <path d="M29.4 10.8 29.9 33.8"/>
+  </g>
+
+  <path d="M5.5 39.4c10-1.8 27-1.8 37 0" fill="none" stroke="#1b4d3e" stroke-width="2" stroke-linecap="round" opacity=".42"/>
+
+  <!-- The ball sits on its own pale ring so it stays separate from the stump
+       behind it when the whole mark is 16 pixels wide. -->
+  <circle cx="37.4" cy="26.6" r="8.3" fill="#fdf7f2"/>
+  <circle cx="37.4" cy="26.6" r="7.1" fill="#e8752a"/>
+  <g fill="none" stroke="#8f4414" stroke-width="1.6" stroke-linecap="round" opacity=".8">
+    <path d="M32 22.6a7.1 7.1 0 0 1 9.8 1.4"/>
+    <path d="M33.3 31.9a7.1 7.1 0 0 0 9.7-6.4"/>
+  </g>
+</svg>

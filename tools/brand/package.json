@@ -4,12 +4,20 @@
   "private": true,
   "type": "module",
   "description": "Turns a brand file into what each frontend needs to become that brand.",
-  "bin": { "brand": "./index.mjs" },
+  "bin": {
+    "brand": "./index.mjs"
+  },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "icons": "node icons.mjs"
   },
   "dependencies": {
     "yaml": "^2.6.1"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.5"
+  }
 }

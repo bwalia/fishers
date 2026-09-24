@@ -207,7 +207,7 @@ test("the web CSS carries the ramp, not the source colours, for text", () => {
 test("the web constants carry only the two chrome colours", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
   const [, ts] = webFiles(brand, "/tmp/x");
-  assert.match(ts.contents, /"name": "GullyCricket"/);
+  assert.match(ts.contents, /"name": "Gully Cricket"/);
 
   const colours = ts.contents.match(/#[0-9a-f]{6}/g) ?? [];
   assert.deepEqual(
@@ -219,9 +219,15 @@ test("the web constants carry only the two chrome colours", () => {
 
 test("android resources are written under the flavour's own directory", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
-  const files = androidFiles(brand, "/repo");
-  assert.ok(files.every((f) => f.path.includes("/src/gullycricket/res/values/")));
-  assert.match(files[0].contents, /<string name="app_name">GullyCricket<\/string>/);
+  const files = androidFiles(brand, repoRoot);
+  // Everything under the flavour's own res/ — values for the strings and
+  // colours, mipmap-* for the launcher icon.
+  assert.ok(files.every((f) => f.path.includes("/src/gullycricket/res/")));
+  assert.match(files[0].contents, /<string name="app_name">Gully Cricket<\/string>/);
+  assert.ok(
+    files.some((f) => f.path.endsWith("/mipmap-xxxhdpi/ic_launcher.png")),
+    "the flavour has no launcher icon of its own",
+  );
 });
 
 /**
@@ -231,7 +237,7 @@ test("android resources are written under the flavour's own directory", () => {
  */
 test("a brand name with xml characters in it cannot break the resources", () => {
   const brand = { ...loadBrand(repoRoot, "fishers"), name: "Tom & Jerry's <XI>" };
-  const [strings] = androidFiles(brand, "/repo");
+  const [strings] = androidFiles(brand, repoRoot);
 
   assert.match(strings.contents, /Tom &amp; Jerry&apos;s &lt;XI&gt;/);
   assert.ok(
@@ -244,7 +250,8 @@ test("a brand name with xml characters in it cannot break the resources", () => 
 /** Machine-written headers name the file they came from, never free text. */
 test("generated headers carry no brand name at all", () => {
   const brand = { ...loadBrand(repoRoot, "fishers"), name: "-- broken --" };
-  for (const file of androidFiles(brand, "/repo")) {
+  for (const file of androidFiles(brand, repoRoot)) {
+    if (Buffer.isBuffer(file.contents)) continue; // the icons, which say nothing
     const header = file.contents.split("\n").slice(0, 3).join("\n");
     assert.ok(!header.includes("broken"), `a name reached a header: ${header}`);
   }
@@ -261,7 +268,7 @@ test("an id with a doubled hyphen is refused, because XML comments forbid it", (
 
 test("the iOS xcconfig carries the bundle id that makes it its own listing", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
-  const [xcconfig] = iosFiles(brand, "/repo");
+  const [xcconfig] = iosFiles(brand, repoRoot);
   assert.match(xcconfig.contents, /PRODUCT_BUNDLE_IDENTIFIER = app\.gullycricket/);
 });
 
@@ -271,7 +278,7 @@ test("the iOS xcconfig carries the bundle id that makes it its own listing", () 
  * everywhere it did not — the hardest kind of wrong to see in a screenshot.
  */
 test("the iOS accent colour is the brand's, in both appearances", () => {
-  const files = iosFiles(loadBrand(repoRoot, "gullycricket"), "/repo");
+  const files = iosFiles(loadBrand(repoRoot, "gullycricket"), repoRoot);
   const accent = files.find((f) => f.path.endsWith("AccentColor.colorset/Contents.json"));
   assert.ok(accent, "no AccentColor was generated");
   const { colors } = JSON.parse(accent.contents);
@@ -288,7 +295,7 @@ test("the iOS accent colour is the brand's, in both appearances", () => {
  * a hex literal is where the last brand stayed.
  */
 test("the generated Swift carries every ramp and dark colour", () => {
-  const [, swift] = iosFiles(loadBrand(repoRoot, "gullycricket"), "/repo");
+  const [, swift] = iosFiles(loadBrand(repoRoot, "gullycricket"), repoRoot);
   for (const name of ["primary600", "primary900", "accent700", "ink500"]) {
     assert.match(swift.contents, new RegExp(`static let ${name} = Color\\(hex:`));
   }
@@ -422,7 +429,7 @@ test("every brand in this repo supplies its own icons", () => {
   for (const id of listBrands(repoRoot)) {
     const brand = loadBrand(repoRoot, id);
     const files = webAssets(brand, repoRoot);
-    assert.equal(files.length, 2, `${id} is missing an asset`);
+    assert.equal(files.length, 3, `${id} is missing an asset`);
     for (const f of files) {
       assert.ok(f.contents.length > 0, `${id}: ${f.path} is empty`);
     }

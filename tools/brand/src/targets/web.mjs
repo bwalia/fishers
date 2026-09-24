@@ -15,8 +15,12 @@ import { join } from "node:path";
  * Missing ones are an error rather than a fallback. A fallback here means
  * shipping another brand's mark, which is worse than a build that stops and
  * says which file to add.
+ *
+ * `mark.svg` is the drawing; the PNGs are rendered from it and its full-bleed
+ * twin by `npm --prefix tools/brand run icons`. The header takes the vector,
+ * because it is drawn at three sizes on the same page.
  */
-const ASSETS = ["icon-192.png", "badge.png"];
+const ASSETS = ["icon-192.png", "badge.png", "mark.svg"];
 
 export function webAssets(brand, repoRoot, outDir) {
   const from = join(repoRoot, "brands", brand.id);

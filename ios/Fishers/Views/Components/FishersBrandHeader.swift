@@ -60,7 +60,7 @@ struct FishersBrandHeader: View {
     }
 
     private var appIcon: some View {
-        Image("FishersLogo")
+        Image("BrandLogo")
             .resizable()
             .scaledToFit()
             .frame(width: logoSize, height: logoSize)
@@ -74,7 +74,7 @@ struct FishersMark: View {
     var size: CGFloat = 28
 
     var body: some View {
-        Image("FishersMark")
+        Image("BrandMark")
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
