@@ -1,7 +1,26 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+}
+
+/**
+ * The upload key, when there is one.
+ *
+ * `android/key.properties` is gitignored and written by the release workflow.
+ * Absent — a developer's machine — the release build falls back to the debug
+ * key below, so `assembleRelease` works for everyone. That fallback is safe
+ * because uploads only happen in the workflow, which writes this file or fails
+ * by name before Gradle runs.
+ *
+ * This used to be described in the docs and not implemented: the release build
+ * signed with the debug key whatever was written, and Play rejects those.
+ */
+val uploadKey = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -14,8 +33,13 @@ android {
         applicationId = "com.fishers.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // Overridden by the release workflow: -PappVersionCode is the run
+        // number, which only goes up. Play refuses a versionCode it has seen,
+        // and a counter kept in this file is a merge conflict that surfaces as
+        // a failed release. Named `app*` so neither can collide with a Gradle
+        // property of its own.
+        versionCode = (findProperty("appVersionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("appVersionName") as String?) ?: "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // The engine is built for these three, and JNA would otherwise bring a
@@ -57,6 +81,17 @@ android {
         }
     }
 
+    signingConfigs {
+        if (!uploadKey.isEmpty) {
+            create("upload") {
+                storeFile = rootProject.file(uploadKey.getProperty("storeFile"))
+                storePassword = uploadKey.getProperty("storePassword")
+                keyAlias = uploadKey.getProperty("keyAlias")
+                keyPassword = uploadKey.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // An emulator's own 127.0.0.1 is the emulator, so the address that
@@ -68,10 +103,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Falls back to the debug key so `assembleRelease` works on a
-            // machine with no keystore; the store upload lives in its own
-            // workflow, which always writes one first.
-            signingConfig = signingConfigs.getByName("debug")
+            // The upload key when key.properties is there, the debug key
+            // when it is not — so `assembleRelease` works on a machine with no
+            // keystore, and the workflow, which writes that file or fails,
+            // produces something Play will accept.
+            signingConfig = signingConfigs.findByName("upload")
+                ?: signingConfigs.getByName("debug")
         }
     }
 

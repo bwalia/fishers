@@ -1,0 +1,232 @@
+name: Android Release (Google Play)
+
+# Build, sign, and upload a brand's Android App Bundle.
+#
+# One app per brand in `brands/`: its own applicationId, its own Play listing,
+# its own upload keystore. A push to main releases every brand to `internal`; a
+# dispatch releases the one asked for, to the track asked for.
+#
+#   AUTO (merge to main) : push touching android/** or this workflow → internal
+#   DISPATCH             : pick brand and track (internal → production)
+#
+# Play's API cannot create an app. The first bundle for a brand is uploaded by
+# hand in the Play Console; after that this takes over. See
+# docs/ANDROID_RELEASE.md.
+#
+# Skip an automatic release with [skip release] or [skip android].
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android_release.yml"
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      brand:
+        description: "Which brand (id from brands/, e.g. fishers or gullycricket)"
+        required: false
+        default: fishers
+        type: string
+      track:
+        description: "Play track"
+        required: true
+        type: choice
+        default: internal
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      version:
+        description: "Marketing version override (blank = build.gradle.kts or the tag)"
+        required: false
+        default: ""
+
+concurrency:
+  group: fishers-android-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # A push releases every brand; a dispatch releases the one asked for. Read
+  # from `brands/`, so adding a brand is a file rather than a file plus an edit
+  # here that somebody forgets.
+  brands:
+    name: Which brands
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        env:
+          ONE: ${{ inputs.brand }}
+        run: |
+          set -euo pipefail
+          npm ci --omit=dev --prefix tools/brand
+          if [ -n "${ONE:-}" ]; then
+            # Loading it is the validation: an unknown id fails here, in
+            # seconds, rather than after a ten-minute NDK build.
+            node tools/brand/index.mjs mobile "$ONE" >/dev/null
+            printf 'list=["%s"]\n' "$ONE" >> "$GITHUB_OUTPUT"
+          else
+            echo "list=$(node tools/brand/index.mjs list --json)" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: brands
+    name: ${{ matrix.brand }} → ${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }}
+    if: >-
+      github.event_name != 'push'
+      || github.ref_type == 'tag'
+      || (
+        !contains(github.event.head_commit.message, '[skip release]')
+        && !contains(github.event.head_commit.message, '[skip android]')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: ${{ fromJSON(needs.brands.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The cricket engine is Rust, cross-compiled into the app. No fallback,
+      # for the same reason CI has none: an app with no scoring rules is worse
+      # than no app.
+      - name: Rust, with the Android targets
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          cargo install cargo-ndk --locked
+
+      - name: NDK
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r27
+
+      - name: Brand tool
+        working-directory: tools/brand
+        run: npm ci
+
+      # The applicationId decides which Play listing the bundle belongs to.
+      # Reading it from the brand file rather than the gradle flavour keeps one
+      # source of truth; the flavour is checked against it below.
+      - name: Which brand is this
+        env:
+          BRAND: ${{ matrix.brand }}
+        run: node tools/brand/index.mjs mobile "$BRAND" >> "$GITHUB_ENV"
+
+      # A keystore that is missing must stop the run by name. Without this the
+      # build falls back to the debug key — deliberate, so a release build works
+      # for everyone locally — and Play rejects it much later and much less
+      # legibly.
+      - name: The flavours match the brand files
+        run: python3 scripts/check-android-flavours.py
+
+      - name: Upload keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_B64 is not set. Play rejects a debug-signed bundle."
+            echo "See docs/ANDROID_RELEASE.md — Signing."
+            exit 1
+          fi
+          for name in KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "$(eval "printf '%s' \"\${$name:-}\"")" ]; then
+              echo "::error::ANDROID_$name is not set."
+              exit 1
+            fi
+          done
+          echo "$KEYSTORE_B64" | base64 -d > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Resolve version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"
+          elif [ -n "${INPUT_VERSION:-}" ]; then
+            v="$INPUT_VERSION"
+          else
+            v="$(awk -F'"' '/versionName *=/{print $2; exit}' android/app/build.gradle.kts)"
+          fi
+          echo "Version $v, build ${GITHUB_RUN_NUMBER}"
+          # versionCode is the run number, never a counter in a file: Play
+          # refuses a code it has seen, and a hand-maintained one is a merge
+          # conflict that surfaces as a failed release.
+          {
+            echo "VERSION_NAME=$v"
+            echo "VERSION_CODE=${GITHUB_RUN_NUMBER}"
+          } >> "$GITHUB_ENV"
+
+      - name: Build the bundle
+        working-directory: android
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          BRAND: ${{ matrix.brand }}
+        run: |
+          set -euo pipefail
+          # bundle<Flavour>Release, capitalised the way Gradle names variants.
+          flavour="$(printf '%s' "${BRAND:0:1}" | tr '[:lower:]' '[:upper:]')${BRAND:1}"
+          ./gradlew ":app:bundle${flavour}Release" --no-daemon \
+            -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE"
+          echo "AAB=android/app/build/outputs/bundle/${BRAND}Release/app-${BRAND}-release.aab" >> "$GITHUB_ENV"
+
+      - name: The bundle exists
+        run: |
+          set -euo pipefail
+          test -f "$AAB" || { echo "::error::No bundle at $AAB"; exit 1; }
+          ls -la "$AAB"
+
+      - name: Upload to Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.BRAND_APP_ID }}
+          releaseFiles: ${{ env.AAB }}
+          track: ${{ github.event_name == 'workflow_dispatch' && inputs.track || 'internal' }}
+          status: completed
+          # No mappingFile: AGP already puts R8's mapping inside the bundle,
+          # at BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map,
+          # and Play reads it from there. Uploading it again sends 30MB twice.
+
+      - name: Keep the bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.brand }}-aab
+          path: ${{ env.AAB }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Shred the signing material
+        if: always()
+        run: rm -f android/upload-keystore.jks android/key.properties
