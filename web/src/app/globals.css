@@ -6713,3 +6713,10 @@ main .panel[id] { scroll-margin-top: 80px; }
 .adm-feed { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
 .adm-feed li { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
 .adm-feed time { margin-left: auto; color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+
+/* A password, for accounts that sign in with Google and have none. */
+.pwd-form { display: grid; gap: .4rem; max-width: 26rem; }
+.pwd-form label { font-weight: 600; }
+.pwd-form label .muted { font-weight: 400; }
+.pwd-form button { justify-self: start; margin-top: .4rem; }
+.ok-note { color: var(--pitch-700); margin: .5rem 0 0; }

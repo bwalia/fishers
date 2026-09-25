@@ -35,12 +35,36 @@ Refusal is a **404**, not a 403. A 403 tells whoever is probing that the panel
 exists and that this account is not on the list. Neither fact is any use to
 them and both are worth something to an attacker.
 
+## Where the list lives
+
+WSLVault, at `kv/<brand>/<ring>/config`, beside `JWT_SECRET` and the rest. The
+chart passes that whole secret through with `envFrom`, so a key added in the
+vault needs no chart change and no rebuild:
+
+```bash
+printf 'you@example.com' | scripts/vault-set.sh fishers int PLATFORM_ADMIN_EMAILS
+```
+
+The value goes in on stdin so it never reaches a shell history or a process
+list. It is read-modify-write, so it adds to the ring's config rather than
+replacing it. Each brand and ring is a separate grant — separate vault paths,
+separate databases, separate deployments.
+
 ## Getting in the first time
 
-Email verification needs SMTP, and SMTP is off in most rings — which would
-leave the operator unable to confirm the address that lets them in. Break the
-circle from the database, which is a thing only somebody with cluster access
-can do, and cluster access is already more than this panel grants:
+**Sign in with Google, and there is nothing else to do.** Both paths that
+attach a Google account set `email_verified_at`: `create_google_user` writes it
+on a new account, and `link_google` fills it in on an existing one. Google has
+already proved the address, so the verification requirement is met the moment
+you sign in with it.
+
+That matters because email verification otherwise needs SMTP, and SMTP is off
+in most rings — which would leave the operator unable to confirm the very
+address that lets them in.
+
+If the address cannot use Google, break the circle from the database. Only
+somebody with cluster access can, and cluster access is already more than this
+panel grants:
 
 ```bash
 export KUBECONFIG=~/.kube/k3s1.yaml
@@ -49,14 +73,34 @@ kubectl exec -n <brand>-<ring> fishers-db-0 -c postgres -- \
   "UPDATE users SET email_verified_at = NOW() WHERE email = 'you@example.com'"
 ```
 
-Then add the address to `PLATFORM_ADMIN_EMAILS` in the ring's vault config and
-let the deploy roll. `/me` starts returning `platform_admin: true`, the
-**System** link appears in the More menu, and `/admin` answers.
+Either way, `/me` then returns `platform_admin: true`, the **System** link
+appears in the More menu, and `/admin` answers.
 
 If the link is missing, the cached copy of `/me` in the browser is stale —
 sign out and in. If the page says it could not load, the address is not on the
 list or is not verified; the two are deliberately indistinguishable from
 outside.
+
+## The password fallback
+
+An account made with Google has **no password at all**, and `link_google`
+clears any that an unverified account had — deliberately, so somebody who
+squatted on an address cannot keep a credential once the real owner arrives.
+The cost is that Google becomes the only way in, and on the day it is
+unreachable, or a client id is rotated wrongly, it is no way in at all.
+
+`POST /me/password` is the second way, and **Profile → Password** is where to
+do it:
+
+- where a password already exists, the current one has to be typed again — a
+  stolen session must not be enough to replace the credential that outlives
+  sessions;
+- where there is none, a live session is the proof;
+- either way every **other** session is revoked, so a token somebody else holds
+  does not quietly become a permanent one.
+
+Whoever the system view belongs to should set one. Everybody else can too; they
+just have less to lose by not.
 
 ## What it shows
 
