@@ -63,6 +63,11 @@ pub struct PublicUser {
     /// Attached by the API from attendance history; never accepted on input.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reliability: Option<ReliabilityScore>,
+    /// Whether this person may see the whole system. Attached by the API from
+    /// PLATFORM_ADMIN_EMAILS; `From<User>` always leaves it false, so a route
+    /// that forgets to set it denies rather than grants.
+    #[serde(default)]
+    pub platform_admin: bool,
 }
 
 impl From<User> for PublicUser {
@@ -89,6 +94,9 @@ impl From<User> for PublicUser {
             role_intent: u.role_intent,
             profile_strength,
             reliability: None,
+            // Never from the row. The API sets it on /me and nowhere else, so
+            // forgetting to set it denies rather than grants.
+            platform_admin: false,
         }
     }
 }
@@ -187,6 +195,22 @@ impl SignupRequest {
         };
         (clean(&self.email), clean(&self.phone))
     }
+}
+
+/// Set a password, or change the one there is.
+///
+/// An account made with Google or Apple has no password at all — the sign-in
+/// flow deliberately clears any that an unverified account had, so the person
+/// who really owns the address keeps control. That leaves them with exactly
+/// one way in, and no way in at all on the day Google is unreachable or the
+/// client id is rotated wrongly. This is the second way.
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct SetPasswordRequest {
+    /// Required when the account already has one. Absent is only accepted for
+    /// an account that has none, where a live session is the proof.
+    pub current: Option<String>,
+    #[validate(length(min = 8, max = 128))]
+    pub new_password: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
@@ -312,5 +336,42 @@ mod strength_tests {
         assert!(s.is_complete());
         assert!(s.missing.is_empty());
         assert_eq!(s.next_up, "");
+    }
+}
+
+#[cfg(test)]
+mod set_password_tests {
+    use super::SetPasswordRequest;
+    use validator::Validate;
+
+    fn req(current: Option<&str>, new_password: &str) -> SetPasswordRequest {
+        SetPasswordRequest {
+            current: current.map(str::to_string),
+            new_password: new_password.to_string(),
+        }
+    }
+
+    /// The same floor signup has. A fallback credential that may be weaker
+    /// than the primary one is not a fallback, it is the way in.
+    #[test]
+    fn a_short_password_is_refused() {
+        assert!(req(None, "short").validate().is_err());
+        assert!(req(None, "1234567").validate().is_err());
+        assert!(req(None, "12345678").validate().is_ok());
+    }
+
+    #[test]
+    fn an_absurdly_long_one_is_refused_too() {
+        assert!(req(None, &"a".repeat(129)).validate().is_err());
+        assert!(req(None, &"a".repeat(128)).validate().is_ok());
+    }
+
+    /// Absent is legal here and the handler decides what it means: proof of a
+    /// live session for an account with no password, and a refusal for one
+    /// that has.
+    #[test]
+    fn the_current_password_is_optional_at_this_layer() {
+        assert!(req(None, "a-good-enough-password").validate().is_ok());
+        assert!(req(Some("old"), "a-good-enough-password").validate().is_ok());
     }
 }

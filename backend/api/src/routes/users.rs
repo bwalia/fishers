@@ -5,7 +5,7 @@ use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::users as users_repo;
-use fishers_domain::{reliability, PublicUser, SportProfile, UpdateProfileRequest};
+use fishers_domain::{reliability, PublicUser, SportProfile, UpdateProfileRequest, SetPasswordRequest};
 use rand::distributions::{Alphanumeric, DistString};
 use serde::Serialize;
 use uuid::Uuid;
@@ -18,6 +18,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/me", get(me).patch(update_me))
+        .route("/me/password", post(set_password))
         .route("/me/delete", post(delete_me))
         .route("/me/avatar", post(upload_avatar))
         .route("/me/share-link", post(share_link))
@@ -114,11 +115,64 @@ async fn shared_card(
     }))
 }
 
+/// Set a password, or change it.
+///
+/// The fallback credential. An account made with Google or Apple has none, and
+/// `link_google` clears any an unverified account had — so "sign in with
+/// Google" is the only way in, and there is no way in at all on the day Google
+/// is unreachable or a client id is rotated wrongly. That is a bad position
+/// for anybody and a worse one for whoever the system view belongs to.
+///
+/// Where a password already exists it has to be typed again: a stolen session
+/// must not be enough to replace the credential that outlives sessions. Where
+/// there is none, a live session is the proof — and every other session is
+/// revoked either way, so a token somebody else holds does not become a
+/// permanent one.
+async fn set_password(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(body): Json<SetPasswordRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    body.validate()?;
+    let user = users_repo::find_by_id(&state.pool, auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("user not found"))?;
+
+    if let Some(existing) = user.password_hash.as_deref() {
+        let given = body.current.as_deref().unwrap_or_default();
+        let parsed = PasswordHash::new(existing)
+            .map_err(|_| ApiError::internal("stored password is unreadable"))?;
+        if argon2::Argon2::default()
+            .verify_password(given.as_bytes(), &parsed)
+            .is_err()
+        {
+            return Err(ApiError::unauthorized("that is not your current password"));
+        }
+    }
+
+    let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+    let hash = argon2::PasswordHasher::hash_password(
+        &argon2::Argon2::default(),
+        body.new_password.as_bytes(),
+        &salt,
+    )
+    .map_err(|_| ApiError::internal("password hash failed"))?
+    .to_string();
+
+    users_repo::set_password(&state.pool, auth.user_id, &hash, None).await?;
+    Ok(Json(serde_json::json!({ "set": true, "other_sessions_ended": true })))
+}
+
 async fn me(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<PublicUser>> {
     let user = users_repo::find_by_id(&state.pool, auth.user_id)
         .await?
         .ok_or_else(|| ApiError::not_found("user not found"))?;
-    Ok(Json(with_reliability(&state, user).await?))
+    let mut me = with_reliability(&state, user).await?;
+    // Only here. Every other route that hands back a PublicUser is describing
+    // somebody else, and whether they run the place is not a fact those
+    // callers should be able to read off a teammate's profile.
+    me.platform_admin = crate::rbac::is_platform_admin(&state, auth.user_id).await?;
+    Ok(Json(me))
 }
 
 async fn update_me(
