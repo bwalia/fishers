@@ -63,6 +63,11 @@ pub struct PublicUser {
     /// Attached by the API from attendance history; never accepted on input.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reliability: Option<ReliabilityScore>,
+    /// Whether this person may see the whole system. Attached by the API from
+    /// PLATFORM_ADMIN_EMAILS; `From<User>` always leaves it false, so a route
+    /// that forgets to set it denies rather than grants.
+    #[serde(default)]
+    pub platform_admin: bool,
 }
 
 impl From<User> for PublicUser {
@@ -89,6 +94,9 @@ impl From<User> for PublicUser {
             role_intent: u.role_intent,
             profile_strength,
             reliability: None,
+            // Never from the row. The API sets it on /me and nowhere else, so
+            // forgetting to set it denies rather than grants.
+            platform_admin: false,
         }
     }
 }

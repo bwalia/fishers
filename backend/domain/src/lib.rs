@@ -5,6 +5,7 @@ mod availability;
 mod chat;
 mod club;
 /// Cricket scoring — event-sourced match engine.
+pub mod admin;
 pub mod cricket;
 mod enums;
 mod event;
@@ -29,6 +30,7 @@ pub mod reliability;
 mod user;
 mod venue_hire;
 
+pub use admin::*;
 pub use agent::*;
 pub use availability::*;
 pub use chat::*;

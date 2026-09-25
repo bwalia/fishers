@@ -118,7 +118,12 @@ async fn me(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Pub
     let user = users_repo::find_by_id(&state.pool, auth.user_id)
         .await?
         .ok_or_else(|| ApiError::not_found("user not found"))?;
-    Ok(Json(with_reliability(&state, user).await?))
+    let mut me = with_reliability(&state, user).await?;
+    // Only here. Every other route that hands back a PublicUser is describing
+    // somebody else, and whether they run the place is not a fact those
+    // callers should be able to read off a teammate's profile.
+    me.platform_admin = crate::rbac::is_platform_admin(&state, auth.user_id).await?;
+    Ok(Json(me))
 }
 
 async fn update_me(

@@ -57,6 +57,9 @@ export type PublicUser = {
   role_intent?: RoleIntent | null;
   /// How much of the profile is filled in — the same count the iPhone app shows.
   profile_strength?: ProfileStrength;
+  /// Whether this person runs the service. Only `/me` sets it; the API never
+  /// reports it about anybody else, so it cannot be read off a teammate.
+  platform_admin?: boolean;
 };
 
 export type ProfileStrength = {
