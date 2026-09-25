@@ -141,6 +141,25 @@ function main(argv) {
     "dns-hosts": (brand, ring) => `${dnsHostsFor(brand, ring).join(" ")}\n`,
   };
 
+  /**
+   * The brand's identity on a phone, as shell the release workflows append
+   * straight to $GITHUB_ENV.
+   *
+   * Both values already exist in the generated xcconfig and strings.xml, but a
+   * workflow that greps generated output is a workflow that breaks when the
+   * output is reformatted. The brand file is the one place that knows.
+   */
+  if (command === "mobile") {
+    const [id] = rest;
+    if (!id) throw new BrandError("Try: brand mobile gullycricket");
+    const brand = loadBrand(repoRoot, id);
+    process.stdout.write(
+      `BRAND_APP_ID=${brand.mobile.bundleId}\n` +
+        `BRAND_NAME=${brand.mobile.displayName}\n`,
+    );
+    return 0;
+  }
+
   // The zone belongs to the brand, not to a ring.
   if (command === "zone") {
     const [id] = rest;
@@ -164,7 +183,7 @@ function main(argv) {
   }
 
   throw new BrandError(
-    `No command called "${command}". There is: check, generate, list, helm, host, namespace, hosts, dns-hosts, zone`,
+    `No command called "${command}". There is: check, generate, list, mobile, helm, host, namespace, hosts, dns-hosts, zone`,
   );
 }
 

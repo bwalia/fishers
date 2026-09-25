@@ -7,14 +7,22 @@
 
 default_platform(:ios)
 
-APP_ID = "com.fishers.app".freeze
+# Which brand this build is. `tools/brand mobile <id>` puts both of these in
+# the environment; the defaults keep a bare `fastlane ios beta` on a developer's
+# Mac doing what it has always done.
+#
+# Every use of APP_ID below goes through this one constant, so a brand is an
+# environment variable rather than thirteen edits.
+APP_ID = ENV.fetch("BRAND_APP_ID", "com.fishers.app").freeze
+BRAND_NAME = ENV.fetch("BRAND_NAME", "Fishers").freeze
 
-# Every main merge makes these emails internal testers on "Fishers Team" —
+# Every main merge makes these emails internal testers on "<Brand> Team" —
 # App Store Connect team members, so builds install with no Beta App Review.
 # Anyone who has not yet accepted the team invite is also kept on the external
-# group "Fishers", whose review is left to finish rather than cancelled.
+# group named after the brand, whose review is left to finish rather than
+# cancelled.
 # Override with TESTFLIGHT_GROUP / TESTFLIGHT_TESTERS (comma-separated).
-DEFAULT_TESTFLIGHT_GROUP = "Fishers".freeze
+DEFAULT_TESTFLIGHT_GROUP = BRAND_NAME
 DEFAULT_TESTFLIGHT_TESTERS = [
   "balindersinghwalia@icloud.com",
   "harchran001@gmail.com"
@@ -145,7 +153,11 @@ def testflight_tester_emails
   list.map(&:downcase).uniq
 end
 
-INTERNAL_TESTFLIGHT_GROUP = "Fishers Team".freeze
+INTERNAL_TESTFLIGHT_GROUP = "#{BRAND_NAME} Team".freeze
+# Fishers' public TestFlight link. A second brand has its own, which App Store
+# Connect only issues once its external group has passed Beta App Review — so
+# this stays a Fishers constant rather than pretending to be general. It is
+# used only where the Fishers invite email is composed.
 FISHERS_PUBLIC_LINK = "https://testflight.apple.com/join/YXCcSAPj".freeze
 
 # Apple's "build has completed processing" mail goes to the *developer* ASC
@@ -269,7 +281,7 @@ def asc_team_member_state!(app:, email:)
   local = email.split("@").first.to_s.gsub(/[^A-Za-z0-9]/, " ").strip
   Spaceship::ConnectAPI::UserInvitation.create(
     email: email,
-    first_name: (local.empty? ? "Fishers" : local)[0, 30],
+    first_name: (local.empty? ? BRAND_NAME : local)[0, 30],
     last_name: "Tester",
     roles: [ASC_TESTER_ROLE],
     provisioning_allowed: false,
