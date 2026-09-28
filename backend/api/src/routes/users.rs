@@ -202,7 +202,9 @@ const MAX_AVATAR_BYTES: usize = 2 * 1024 * 1024;
 
 /// What we are willing to serve back, checked against the bytes rather than
 /// the caller's word for it.
-fn sniff_image(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
+/// Shared with the shop's photo upload: two copies of the same magic
+/// numbers is one copy too many.
+pub(crate) fn sniff_image(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
     match bytes {
         [0xFF, 0xD8, 0xFF, ..] => Some(("image/jpeg", "jpg")),
         [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, ..] => Some(("image/png", "png")),

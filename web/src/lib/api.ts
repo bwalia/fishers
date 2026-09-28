@@ -220,6 +220,8 @@ export type EventRow = {
   status: string;
 };
 
+export type ProductCondition = "new" | "used";
+
 export type Product = {
   id: string;
   club_id: string;
@@ -228,7 +230,24 @@ export type Product = {
   price_cents: number;
   currency: string;
   category: string;
+  /// `null` is "on request" — made to order, or a tea urn that does not run
+  /// out. A second-hand item is almost always 1.
   stock?: number | null;
+  active?: boolean;
+  /// New or used. Absent for the things it does not apply to: a cup of tea is
+  /// neither.
+  condition?: ProductCondition | null;
+  /// "Light wear on the toe, no cracks." The sentence that decides whether
+  /// somebody drives an hour to look at it.
+  condition_note?: string | null;
+  /// Short Handle, Harrow, Youth Large — free text, because bat, pad and glove
+  /// sizes share no vocabulary.
+  size?: string | null;
+  brand?: string | null;
+  photos?: string[];
+  /// Whether it appears outside the club.
+  listed_publicly?: boolean;
+  collection_note?: string | null;
 };
 
 export function getAccessToken(): string | null {

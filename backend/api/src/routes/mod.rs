@@ -16,7 +16,7 @@ mod selection;
 mod stats;
 mod tournament;
 mod umpire;
-mod users;
+pub(crate) mod users;
 pub(crate) mod verification;
 mod venue_hire;
 

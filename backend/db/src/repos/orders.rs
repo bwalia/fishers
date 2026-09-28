@@ -1,7 +1,16 @@
 use fishers_domain::{
     CreateProductRequest, Order, OrderItem, OrderStatus, PlaceOrderRequest, Product,
+    UpdateProductRequest,
 };
 use sqlx::PgPool;
+
+/// Every column of a product. One list, because four queries returning three
+/// different shapes of the same row is how a field gets added in one place and
+/// missed in the others.
+const PRODUCT_COLS: &str = "id, club_id, name, description, price_cents, currency, category, \
+     stock, active, created_at, condition, condition_note, size, brand, photos, \
+     listed_publicly, collection_note";
+
 use uuid::Uuid;
 
 pub async fn create_product(
@@ -10,13 +19,15 @@ pub async fn create_product(
     req: &CreateProductRequest,
 ) -> Result<Product, sqlx::Error> {
     let currency = req.currency.clone().unwrap_or_else(|| "GBP".to_string());
-    sqlx::query_as::<_, Product>(
+    sqlx::query_as::<_, Product>(&format!(
         r#"
-        INSERT INTO products (club_id, name, description, price_cents, currency, category, stock)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, club_id, name, description, price_cents, currency, category, stock, active, created_at
-        "#,
-    )
+        INSERT INTO products (club_id, name, description, price_cents, currency, category, stock,
+                              condition, condition_note, size, brand, listed_publicly,
+                              collection_note)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING {PRODUCT_COLS}
+        "#
+    ))
     .bind(club_id)
     .bind(&req.name)
     .bind(&req.description)
@@ -24,17 +35,112 @@ pub async fn create_product(
     .bind(currency)
     .bind(req.category)
     .bind(req.stock)
+    .bind(req.condition)
+    .bind(&req.condition_note)
+    .bind(&req.size)
+    .bind(&req.brand)
+    .bind(req.listed_publicly.unwrap_or(false))
+    .bind(&req.collection_note)
     .fetch_one(pool)
     .await
 }
 
-pub async fn list_products(pool: &PgPool, club_id: Uuid) -> Result<Vec<Product>, sqlx::Error> {
-    sqlx::query_as::<_, Product>(
+/// Change a listing. Absent fields keep what is there.
+pub async fn update_product(
+    pool: &PgPool,
+    club_id: Uuid,
+    product_id: Uuid,
+    req: &UpdateProductRequest,
+) -> Result<Option<Product>, sqlx::Error> {
+    sqlx::query_as::<_, Product>(&format!(
         r#"
-        SELECT id, club_id, name, description, price_cents, currency, category, stock, active, created_at
+        UPDATE products SET
+            name            = COALESCE($3, name),
+            description     = COALESCE($4, description),
+            price_cents     = COALESCE($5, price_cents),
+            stock           = COALESCE($6, stock),
+            condition       = COALESCE($7, condition),
+            condition_note  = COALESCE($8, condition_note),
+            size            = COALESCE($9, size),
+            brand           = COALESCE($10, brand),
+            listed_publicly = COALESCE($11, listed_publicly),
+            collection_note = COALESCE($12, collection_note),
+            active          = COALESCE($13, active),
+            photos          = COALESCE($14, photos)
+         WHERE id = $1 AND club_id = $2
+        RETURNING {PRODUCT_COLS}
+        "#
+    ))
+    .bind(product_id)
+    .bind(club_id)
+    .bind(&req.name)
+    .bind(&req.description)
+    .bind(req.price_cents)
+    .bind(req.stock)
+    .bind(req.condition)
+    .bind(&req.condition_note)
+    .bind(&req.size)
+    .bind(&req.brand)
+    .bind(req.listed_publicly)
+    .bind(&req.collection_note)
+    .bind(req.active)
+    .bind(&req.photos)
+    .fetch_optional(pool)
+    .await
+}
+
+/// One product of a club, whatever state it is in.
+pub async fn get_product(
+    pool: &PgPool,
+    club_id: Uuid,
+    product_id: Uuid,
+) -> Result<Option<Product>, sqlx::Error> {
+    sqlx::query_as::<_, Product>(&format!(
+        "SELECT {PRODUCT_COLS} FROM products WHERE id = $1 AND club_id = $2"
+    ))
+    .bind(product_id)
+    .bind(club_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// What is for sale across every club.
+///
+/// The reason the shop exists at all now: a club with a spare set of pads, or
+/// one that makes its own bats, has thirty members and needs a bigger room.
+/// Only what a secretary has deliberately listed publicly, and only what is
+/// still in stock — a sold bat on the front page is worse than an empty one.
+pub async fn marketplace(
+    pool: &PgPool,
+    condition: Option<fishers_domain::ProductCondition>,
+    query: Option<&str>,
+    limit: i64,
+) -> Result<Vec<Product>, sqlx::Error> {
+    sqlx::query_as::<_, Product>(&format!(
+        r#"
+        SELECT {PRODUCT_COLS} FROM products
+         WHERE listed_publicly AND active
+           AND (stock IS NULL OR stock > 0)
+           AND ($1::product_condition IS NULL OR condition = $1)
+           AND ($2::text IS NULL OR name ILIKE $2 OR brand ILIKE $2 OR description ILIKE $2)
+         ORDER BY created_at DESC
+         LIMIT $3
+        "#
+    ))
+    .bind(condition)
+    .bind(query.map(|q| format!("%{q}%")))
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn list_products(pool: &PgPool, club_id: Uuid) -> Result<Vec<Product>, sqlx::Error> {
+    sqlx::query_as::<_, Product>(&format!(
+        r#"
+        SELECT {PRODUCT_COLS}
         FROM products WHERE club_id = $1 AND active = TRUE ORDER BY name
-        "#,
-    )
+        "#
+    ))
     .bind(club_id)
     .fetch_all(pool)
     .await
@@ -50,16 +156,32 @@ pub async fn place_order(
     let mut line_items: Vec<(Uuid, i32, i32)> = Vec::new();
 
     for item in &req.items {
-        let product = sqlx::query_as::<_, Product>(
+
+        // Take the stock in the same statement that reads the price, inside
+        // the order's transaction. Reading it first and writing it later is
+        // what let the same second-hand bat be sold to everybody who asked:
+        // stock was stored and never once checked or decremented.
+        //
+        // A NULL stock means "on request" — made to order, or a tea urn that
+        // does not run out — so it is left alone rather than driven negative.
+        let product = sqlx::query_as::<_, Product>(&format!(
             r#"
-            SELECT id, club_id, name, description, price_cents, currency, category, stock, active, created_at
-            FROM products WHERE id = $1 AND club_id = $2 AND active = TRUE
-            "#,
-        )
+            UPDATE products
+               SET stock = CASE WHEN stock IS NULL THEN NULL ELSE stock - $3 END
+             WHERE id = $1 AND club_id = $2 AND active = TRUE
+               AND (stock IS NULL OR stock >= $3)
+            RETURNING {PRODUCT_COLS}
+            "#
+        ))
         .bind(item.product_id)
         .bind(req.club_id)
+        .bind(item.quantity)
         .fetch_optional(&mut *tx)
         .await?
+        // No row means one of three things and the caller cannot tell them
+        // apart from here: no such product, it is no longer for sale, or
+        // somebody else got the last one first. The route turns this into a
+        // sentence.
         .ok_or(sqlx::Error::RowNotFound)?;
 
         total += product.price_cents * item.quantity;

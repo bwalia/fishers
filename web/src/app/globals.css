@@ -6788,3 +6788,87 @@ main .panel[id] { scroll-margin-top: 80px; }
 .adm-note { font-style: normal; font-weight: 400; color: var(--red-600); }
 .adm-search select { flex: 0 0 auto; }
 
+/* ---- The shop: kit for sale, from every club ----
+ *
+ * A club with a spare set of pads has thirty members; one that makes its own
+ * bats has nobody else to sell to. The listing is an advert with an honest
+ * word about what state the thing is in — money is settled in person.
+ */
+.shop-section { margin: var(--s5) 0 var(--s2); }
+
+.market { display: grid; gap: var(--s3); margin-bottom: var(--s4); }
+.market-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); flex-wrap: wrap; }
+.market-head h2 { margin: 0; }
+.market-filters { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+.market-filters input { flex: 1 1 14rem; }
+
+.market-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: var(--s3);
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+.market-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; display: flex; flex-direction: column; background: var(--surface);
+}
+/* Reserve the space before the picture loads: a grid that reflows as each
+   photo arrives is a grid somebody clicks the wrong thing in. */
+.market-photo {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  background: var(--surface-2); display: block;
+}
+.market-photo.empty {
+  display: grid; place-items: center; color: var(--fg-subtle);
+}
+.market-body { padding: var(--s2); display: grid; gap: .25rem; }
+.market-title { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.market-price { margin: 0; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.market-note { margin: .25rem 0 0; color: var(--fg-muted); font-size: .92rem; }
+.market-collect { display: flex; align-items: center; gap: .3rem; margin: .25rem 0 0; font-size: .85rem; }
+.market-foot { margin: 0; }
+
+/* ---- Selling ---- */
+.sell { display: grid; gap: var(--s4); }
+.sell-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+.sell-head h1 { margin: 0 0 .25rem; }
+.sell-head p { margin: 0; }
+
+.sell-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.sell-item {
+  display: grid; grid-template-columns: 72px 1fr auto; gap: var(--s2);
+  align-items: start; padding: var(--s2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.sell-item.sold { opacity: .6; }
+.sell-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-2); }
+.sell-thumb.empty { display: grid; place-items: center; color: var(--fg-subtle); }
+.sell-body { display: grid; gap: .2rem; min-width: 0; }
+.sell-title { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.sell-note { margin: .2rem 0 0; color: var(--fg-muted); font-size: .92rem; }
+.sell-actions { display: flex; flex-direction: column; gap: .4rem; align-items: stretch; }
+.sell-actions .btn { white-space: nowrap; }
+
+.sell-form { display: grid; gap: .5rem; max-width: 40rem; }
+.sell-form label { font-weight: 600; }
+.sell-form label .muted { font-weight: 400; }
+.sell-row { display: grid; gap: var(--s2); grid-template-columns: 1fr 1fr; }
+.sell-row > div { display: grid; gap: .3rem; }
+.sell-form-actions { display: flex; gap: .5rem; margin-top: .5rem; }
+
+/* One choice, two cards — the difference between last season's pads and a bat
+   the club made is the thing a buyer reads first. */
+.sell-condition { border: 0; margin: .5rem 0; padding: 0; display: grid; gap: .5rem; grid-template-columns: 1fr 1fr; }
+.sell-condition legend { font-weight: 600; padding: 0 0 .3rem; }
+.sell-condition label {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--s2); display: grid; gap: .15rem; cursor: pointer; font-weight: 400;
+}
+.sell-condition label.on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.sell-condition input { position: absolute; opacity: 0; width: 0; height: 0; }
+.sell-condition label:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .sell-item { grid-template-columns: 56px 1fr; }
+  .sell-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+  .sell-row, .sell-condition { grid-template-columns: 1fr; }
+}

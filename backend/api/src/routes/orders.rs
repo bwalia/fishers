@@ -1,22 +1,27 @@
-use axum::extract::{Path, State};
-use axum::routing::{get, post};
+use axum::extract::{Path, Query, State};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use fishers_db::repos::orders as orders_repo;
 use fishers_domain::{
-    CreateProductRequest, Order, Permission, PlaceOrderRequest, Product,
+    CreateProductRequest, Order, Permission, PlaceOrderRequest, Product, UpdateProductRequest,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::auth::AuthUser;
-use crate::error::ApiResult;
+use crate::error::{ApiError, ApiResult};
 use crate::rbac::{require_club_member, require_club_permission};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/clubs/{id}/products", get(list_products).post(create_product))
+        .route("/clubs/{id}/products/{product_id}", patch(update_product))
+        .route("/clubs/{id}/products/{product_id}/photo", post(upload_photo))
+        // Across every club, not one: a club with a spare set of pads needs a
+        // bigger room than its own membership.
+        .route("/marketplace", get(marketplace))
         .route("/orders", post(place_order))
         .route("/orders/mine", get(my_orders))
 }
@@ -33,6 +38,122 @@ async fn create_product(
         orders_repo::create_product(&state.pool, id, &body).await?,
     ))
 }
+
+/// Change a listing: drop the price, add the last photo, or take it off sale
+/// because somebody has collected it.
+async fn update_product(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((club_id, product_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<UpdateProductRequest>,
+) -> ApiResult<Json<Product>> {
+    body.validate()?;
+    require_club_permission(&state, club_id, auth.user_id, Permission::ManageClubOps).await?;
+    orders_repo::update_product(&state.pool, club_id, product_id, &body)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("no such product in this club"))
+}
+
+#[derive(Debug, Deserialize)]
+struct MarketQuery {
+    condition: Option<fishers_domain::ProductCondition>,
+    q: Option<String>,
+}
+
+/// Everything on sale, across every club.
+///
+/// Any signed-in player, not just members of the selling club — that is the
+/// point. Only what a secretary listed publicly, and only what is still in
+/// stock: a sold bat on the front page wastes somebody's evening.
+async fn marketplace(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Query(q): Query<MarketQuery>,
+) -> ApiResult<Json<Vec<Product>>> {
+    let term = q.q.as_deref().map(str::trim).filter(|t| !t.is_empty());
+    Ok(Json(
+        orders_repo::marketplace(&state.pool, q.condition, term, 100).await?,
+    ))
+}
+
+/// A photograph for a listing.
+///
+/// Nobody buys a second-hand bat they cannot see, and a club secretary
+/// photographing one in a clubhouse is not going to resize it first. Up to six
+/// per listing, appended in the order they arrive.
+async fn upload_photo(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((club_id, product_id)): Path<(Uuid, Uuid)>,
+    mut form: axum::extract::Multipart,
+) -> ApiResult<Json<Product>> {
+    require_club_permission(&state, club_id, auth.user_id, Permission::ManageClubOps).await?;
+    let storage = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| ApiError::bad_request("uploads are not configured on this server"))?;
+
+    let mut bytes: Option<Vec<u8>> = None;
+    while let Some(field) = form
+        .next_field()
+        .await
+        .map_err(|e| ApiError::bad_request(format!("could not read the upload: {e}")))?
+    {
+        if field.name() == Some("file") {
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| ApiError::bad_request(format!("could not read the file: {e}")))?;
+            if data.len() > MAX_PHOTO_BYTES {
+                return Err(ApiError::bad_request("that picture is over 5MB"));
+            }
+            bytes = Some(data.to_vec());
+            break;
+        }
+    }
+    let bytes = bytes.ok_or_else(|| ApiError::bad_request("no file was sent"))?;
+    let (content_type, ext) = crate::routes::users::sniff_image(&bytes)
+        .ok_or_else(|| ApiError::bad_request("that is not a JPEG, PNG or WebP"))?;
+
+    let product = orders_repo::get_product(&state.pool, club_id, product_id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("no such product in this club"))?;
+    if product.photos.len() >= MAX_PHOTOS {
+        return Err(ApiError::bad_request(
+            "that listing already has six photographs — remove one first",
+        ));
+    }
+
+    let key = format!("products/{product_id}/{}.{ext}", Uuid::new_v4());
+    storage
+        .put(&key, content_type, bytes)
+        .await
+        .map_err(|e| ApiError::internal(format!("could not store the picture: {e}")))?;
+
+    let mut photos = product.photos;
+    photos.push(storage.public_url(&key));
+    orders_repo::update_product(
+        &state.pool,
+        club_id,
+        product_id,
+        &UpdateProductRequest {
+            photos: Some(photos),
+            ..Default::default()
+        },
+    )
+    .await?
+    .map(Json)
+    .ok_or_else(|| ApiError::not_found("no such product in this club"))
+}
+
+/// Six is what a listing needs: the whole thing, the face, the toe, the grip,
+/// and two for whatever is wrong with it.
+const MAX_PHOTOS: usize = 6;
+/// Larger than an avatar: a phone photograph of a bat in a clubhouse is not
+/// going to be small, and asking a secretary to resize it is asking them not
+/// to bother.
+const MAX_PHOTO_BYTES: usize = 5 * 1024 * 1024;
 
 async fn list_products(
     State(state): State<AppState>,
@@ -57,7 +178,21 @@ async fn place_order(
     Json(body): Json<PlaceOrderRequest>,
 ) -> ApiResult<Json<OrderResponse>> {
     body.validate()?;
-    let (order, items) = orders_repo::place_order(&state.pool, auth.user_id, &body).await?;
+    if body.items.iter().any(|i| i.quantity < 1) {
+        return Err(ApiError::bad_request("a quantity has to be at least one"));
+    }
+    let (order, items) = orders_repo::place_order(&state.pool, auth.user_id, &body)
+        .await
+        .map_err(|e| match e {
+            // The repo cannot tell these apart without another query, and the
+            // buyer does not care which it was — they care that it is gone and
+            // that they did not do anything wrong. Losing the race for the last
+            // second-hand bat is the commonest of the three by far.
+            sqlx::Error::RowNotFound => ApiError::conflict(
+                "that is no longer available — somebody may have just taken the last one",
+            ),
+            other => other.into(),
+        })?;
     Ok(Json(OrderResponse { order, items }))
 }
 
