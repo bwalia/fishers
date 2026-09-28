@@ -56,23 +56,148 @@ export type AdminOverview = {
   }[];
 };
 
-export type AdminUser = {
+export type AdminUserRow = {
   id: string;
   name: string;
   email: string | null;
   phone: string | null;
   email_verified: boolean;
   phone_verified: boolean;
-  created_at: string;
-  deleted_at: string | null;
+  avatar_url: string | null;
+  primary_sport: string | null;
+  position_role: string | null;
+  skill_level: string | null;
   clubs: number;
-  active_sessions: number;
+  matches: number;
+  created_at: string;
+  /// Newest refresh token — near enough to "last signed in".
+  last_seen: string | null;
+  deleted_at: string | null;
 };
+
+export type AdminUserPage = {
+  rows: AdminUserRow[];
+  total: number;
+  page: number;
+  per_page: number;
+};
+
+export type AdminUserClub = {
+  club_id: string;
+  club_name: string;
+  role: string;
+  is_captain: boolean;
+  status: string;
+  joined_at: string | null;
+};
+
+export type AdminUserSeason = {
+  season_year: number;
+  sport: string;
+  club_name: string | null;
+  matches: number;
+  runs: number;
+  batting_innings: number;
+  not_outs: number;
+  balls_faced: number;
+  fours: number;
+  sixes: number;
+  /// Null for a season with no innings — not 0, which reads as a duck.
+  high_score: number | null;
+  wickets: number;
+  overs_bowled: number;
+  bowling_runs: number;
+  maidens: number;
+  catches: number;
+  stumpings: number;
+};
+
+export type AdminAvailability = {
+  invited: number;
+  said_yes: number;
+  said_no: number;
+  never_answered: number;
+  selected: number;
+  attended: number;
+};
+
+export type AdminUserDetail = {
+  user: AdminUserRow;
+  sport_profiles: unknown;
+  location: unknown;
+  role_intent: string | null;
+  profile_completed_at: string | null;
+  umpires: boolean;
+  umpire_note: string | null;
+  clubs: AdminUserClub[];
+  seasons: AdminUserSeason[];
+  availability: AdminAvailability;
+  umpired: number;
+  umpire_rating: number | null;
+  umpire_reviews: number;
+  achievements: number;
+  active_sessions: number;
+  push_devices: number;
+  has_password: boolean;
+  has_google: boolean;
+  has_apple: boolean;
+};
+
+export const adminUsers = (params: {
+  q?: string;
+  sort?: string;
+  page?: number;
+  per_page?: number;
+}) => {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set("q", params.q);
+  if (params.sort) qs.set("sort", params.sort);
+  if (params.page) qs.set("page", String(params.page));
+  if (params.per_page) qs.set("per_page", String(params.per_page));
+  return api<AdminUserPage>("GET", `/admin/users?${qs}`);
+};
+
+export const adminUser = (id: string) => api<AdminUserDetail>("GET", `/admin/users/${id}`);
+
+/// Career totals across every season on file. Averages are computed from the
+/// sums, never by averaging the seasons' own averages — which is a different
+/// and wrong number.
+export function career(seasons: AdminUserSeason[]) {
+  const t = seasons.reduce(
+    (a, s) => ({
+      matches: a.matches + s.matches,
+      runs: a.runs + s.runs,
+      innings: a.innings + s.batting_innings,
+      notOuts: a.notOuts + s.not_outs,
+      balls: a.balls + s.balls_faced,
+      fours: a.fours + s.fours,
+      sixes: a.sixes + s.sixes,
+      high: Math.max(a.high, s.high_score ?? 0),
+      wickets: a.wickets + s.wickets,
+      overs: a.overs + s.overs_bowled,
+      conceded: a.conceded + s.bowling_runs,
+      maidens: a.maidens + s.maidens,
+      catches: a.catches + s.catches,
+      stumpings: a.stumpings + s.stumpings,
+    }),
+    { matches: 0, runs: 0, innings: 0, notOuts: 0, balls: 0, fours: 0, sixes: 0, high: 0,
+      wickets: 0, overs: 0, conceded: 0, maidens: 0, catches: 0, stumpings: 0 },
+  );
+  const dismissals = t.innings - t.notOuts;
+  return {
+    ...t,
+    /// Undefined rather than 0 when they have never been out — an average of
+    /// zero reads as "terrible" when it means "not yet calculable".
+    average: dismissals > 0 ? t.runs / dismissals : null,
+    strikeRate: t.balls > 0 ? (t.runs / t.balls) * 100 : null,
+    bowlingAverage: t.wickets > 0 ? t.conceded / t.wickets : null,
+    economy: t.overs > 0 ? t.conceded / t.overs : null,
+  };
+}
+
 
 export const adminOverview = () => api<AdminOverview>("GET", "/admin/overview");
 
-export const adminFindUsers = (q: string) =>
-  api<AdminUser[]>("GET", `/admin/users?q=${encodeURIComponent(q)}`);
 
 /// "1.2 GB". Bytes are what Postgres reports and not what anybody reads.
 export function bytes(n: number): string {

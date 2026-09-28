@@ -6,12 +6,10 @@ import { Icon } from "@/components/Icon";
 import { readErr } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 import {
-  adminFindUsers,
   adminOverview,
   bytes,
   money,
   type AdminOverview,
-  type AdminUser,
   type Growth,
 } from "@/lib/admin";
 
@@ -157,7 +155,18 @@ export default function AdminPage() {
         </Panel>
       </div>
 
-      <FindSomebody />
+      <section className="panel">
+        <h2>
+          <Icon name="users" size={18} /> People
+        </h2>
+        <p className="muted">
+          Everybody who has registered, what they play, how many matches they have, and
+          everything held about any one of them.
+        </p>
+        <Link className="btn primary" href="/admin/users">
+          <Icon name="search" size={16} /> Open the people table
+        </Link>
+      </section>
 
       <section className="panel">
         <h2>
@@ -307,78 +316,5 @@ function Row({
         )}
       </b>
     </p>
-  );
-}
-
-/// Look somebody up, because most of what goes wrong arrives as "I cannot log
-/// in" from one person rather than as a number on a dashboard.
-function FindSomebody() {
-  const [q, setQ] = useState("");
-  const [results, setResults] = useState<AdminUser[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const search = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      setResults(await adminFindUsers(q));
-    } catch (err) {
-      setError(readErr(err, "Could not search"));
-      setResults(null);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <section className="panel">
-      <h2>
-        <Icon name="search" size={18} /> Find somebody
-      </h2>
-      <form className="adm-search" onSubmit={search}>
-        <label className="sr-only" htmlFor="adm-q">
-          Name, email or phone number
-        </label>
-        <input
-          id="adm-q"
-          value={q}
-          placeholder="Name, email or phone"
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <button className="btn primary" disabled={busy || q.trim().length < 2}>
-          {busy ? "Looking…" : "Search"}
-        </button>
-      </form>
-      {error && <p className="error">{error}</p>}
-      {results && results.length === 0 && <p className="muted">Nobody matches that.</p>}
-      {results && results.length > 0 && (
-        <ul className="adm-people">
-          {results.map((u) => (
-            <li key={u.id} className={u.deleted_at ? "gone" : ""}>
-              <div>
-                <strong>{u.name}</strong>
-                {u.deleted_at && <span className="tag">Deleted</span>}
-                <span className="muted">
-                  {u.email ?? "no email"}
-                  {u.email && !u.email_verified && " (unconfirmed)"}
-                  {u.phone ? ` · ${u.phone}` : ""}
-                  {u.phone && !u.phone_verified && " (unconfirmed)"}
-                </span>
-              </div>
-              <span className="muted adm-people-meta">
-                {u.clubs} {u.clubs === 1 ? "club" : "clubs"} · {u.active_sessions} signed in ·
-                joined {new Date(u.created_at).toLocaleDateString()}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="muted">
-        Shows contact details, which no other page does.{" "}
-        <Link href="/privacy">What we hold, and why</Link>.
-      </p>
-    </section>
   );
 }

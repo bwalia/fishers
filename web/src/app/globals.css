@@ -6720,3 +6720,30 @@ main .panel[id] { scroll-margin-top: 80px; }
 .pwd-form label .muted { font-weight: 400; }
 .pwd-form button { justify-self: start; margin-top: .4rem; }
 .ok-note { color: var(--pitch-700); margin: .5rem 0 0; }
+
+/* The people table. Wide by nature, so it scrolls sideways inside its own
+ * wrapper rather than pushing the page out. */
+.adm-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.adm-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.adm-table th, .adm-table td { padding: .55rem .7rem; text-align: left; vertical-align: top; }
+.adm-table thead th {
+  position: sticky; top: 0; background: var(--surface-2);
+  border-bottom: 1px solid var(--border); font-size: .85rem;
+}
+.adm-table tbody tr { border-top: 1px solid var(--border); }
+.adm-table tbody tr:hover { background: var(--surface-2); }
+.adm-table tbody th { font-weight: 600; }
+.adm-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.adm-table tr.gone { opacity: .6; }
+
+.adm-contact { display: block; }
+/* Never colour alone — an icon and the word, because this is what somebody
+ * scans for when a person says they cannot log in. */
+.adm-unconfirmed {
+  display: inline-flex; align-items: center; gap: .2rem;
+  color: var(--red-600); font-size: .8rem; margin-left: .35rem;
+}
+
+.adm-pager { display: flex; align-items: center; gap: var(--s3); justify-content: center; }
+.adm-note { font-style: normal; font-weight: 400; color: var(--red-600); }
+.adm-search select { flex: 0 0 auto; }

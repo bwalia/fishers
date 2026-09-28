@@ -12,7 +12,7 @@ use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use fishers_db::repos::admin as admin_repo;
-use fishers_domain::{AdminOverview, AdminUser};
+use fishers_domain::{AdminOverview, AdminUserDetail, AdminUserPage};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -38,36 +38,48 @@ async fn overview(
 
 #[derive(Debug, Deserialize)]
 struct Search {
+    /// Absent shows the whole table, which is the view somebody wants when
+    /// they are not looking for anybody in particular. One character is
+    /// rejected: it matches most of the table and is never what was meant.
     q: Option<String>,
+    sort: Option<String>,
+    page: Option<i64>,
+    per_page: Option<i64>,
 }
 
-/// Find somebody who has written in.
-///
-/// Two characters minimum: a one-character search matches most of the table
-/// and is never what anybody meant.
 async fn users(
     State(state): State<AppState>,
     auth: AuthUser,
     Query(search): Query<Search>,
-) -> ApiResult<Json<Vec<AdminUser>>> {
+) -> ApiResult<Json<AdminUserPage>> {
     require_platform_admin(&state, auth.user_id).await?;
     let query = search.q.unwrap_or_default();
     let query = query.trim();
-    if query.chars().count() < 2 {
+    if !query.is_empty() && query.chars().count() < 2 {
         return Err(ApiError::bad_request(
             "search for at least two characters — a name, an email or a number",
         ));
     }
-    Ok(Json(admin_repo::find_users(&state.pool, query, 50).await?))
+    Ok(Json(
+        admin_repo::users_page(
+            &state.pool,
+            (!query.is_empty()).then_some(query),
+            search.sort.as_deref().unwrap_or("newest"),
+            search.page.unwrap_or(1),
+            search.per_page.unwrap_or(50),
+        )
+        .await?,
+    ))
 }
 
+/// Everything held about one person, in one response.
 async fn user(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
-) -> ApiResult<Json<AdminUser>> {
+) -> ApiResult<Json<AdminUserDetail>> {
     require_platform_admin(&state, auth.user_id).await?;
-    admin_repo::find_user(&state.pool, id)
+    admin_repo::user_detail(&state.pool, id)
         .await?
         .map(Json)
         .ok_or_else(|| ApiError::not_found("no such person"))

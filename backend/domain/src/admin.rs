@@ -131,22 +131,120 @@ pub struct RecentEvent {
     pub club_name: Option<String>,
 }
 
-/// A person, as the operator needs to see them when they write in.
+/// One row of the people table.
 ///
-/// This is the one place in the API that hands over somebody's contact
-/// details without them being in a shared club, which is the whole point of an
-/// admin panel and the reason it is gated the way it is.
+/// The columns somebody scans down when they are looking for a person: who
+/// they are, whether they can be contacted, what they play, and whether they
+/// have actually used the thing.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct AdminUser {
+pub struct AdminUserRow {
     pub id: Uuid,
     pub name: String,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub email_verified: bool,
     pub phone_verified: bool,
-    pub created_at: DateTime<Utc>,
-    pub deleted_at: Option<DateTime<Utc>>,
+    pub avatar_url: Option<String>,
+    pub primary_sport: Option<String>,
+    pub position_role: Option<String>,
+    pub skill_level: Option<String>,
     pub clubs: i64,
-    /// Whether they can still sign in somewhere without a password.
+    /// Matches with a scorecard to their name, across every season.
+    pub matches: i64,
+    pub created_at: DateTime<Utc>,
+    /// The newest refresh token issued — near enough to "last signed in", and
+    /// the only thing recorded that answers it at all.
+    pub last_seen: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+/// A page of them, with enough to draw the pager.
+#[derive(Debug, Clone, Serialize)]
+pub struct AdminUserPage {
+    pub rows: Vec<AdminUserRow>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+/// A club this person belongs to, and what they are in it.
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct AdminUserClub {
+    pub club_id: Uuid,
+    pub club_name: String,
+    pub role: String,
+    pub is_captain: bool,
+    pub status: String,
+    pub joined_at: Option<DateTime<Utc>>,
+}
+
+/// One season's figures, as the scorers recorded them.
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct AdminUserSeason {
+    pub season_year: i32,
+    pub sport: String,
+    pub club_name: Option<String>,
+    pub matches: i32,
+    pub runs: i32,
+    pub batting_innings: i32,
+    pub not_outs: i32,
+    pub balls_faced: i32,
+    pub fours: i32,
+    pub sixes: i32,
+    /// Nullable in the table: a season with no innings has no highest score,
+    /// and 0 would read as "out for a duck every time".
+    pub high_score: Option<i32>,
+    pub wickets: i32,
+    pub overs_bowled: f64,
+    pub bowling_runs: i32,
+    pub maidens: i32,
+    pub catches: i32,
+    pub stumpings: i32,
+}
+
+/// Whether they turn up, from the invitations they have been sent.
+///
+/// The question a captain actually asks about somebody, and the one thing on
+/// this page that is about behaviour rather than record.
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct AdminAvailability {
+    pub invited: i64,
+    pub said_yes: i64,
+    pub said_no: i64,
+    pub never_answered: i64,
+    pub selected: i64,
+    pub attended: i64,
+}
+
+/// Everything held about one person, in one response.
+///
+/// Deliberately one request rather than six: the operator opened this because
+/// somebody wrote in, and a page that fills in over four seconds is a page
+/// they are still scrolling when the phone call ends.
+#[derive(Debug, Clone, Serialize)]
+pub struct AdminUserDetail {
+    pub user: AdminUserRow,
+    /// The profile as they filled it in — sports, positions, standards.
+    pub sport_profiles: serde_json::Value,
+    pub location: serde_json::Value,
+    pub role_intent: Option<String>,
+    pub profile_completed_at: Option<DateTime<Utc>>,
+    pub umpires: bool,
+    pub umpire_note: Option<String>,
+    pub clubs: Vec<AdminUserClub>,
+    pub seasons: Vec<AdminUserSeason>,
+    pub availability: AdminAvailability,
+    /// Matches stood as umpire, and what players made of it.
+    pub umpired: i64,
+    pub umpire_rating: Option<f64>,
+    pub umpire_reviews: i64,
+    pub achievements: i64,
     pub active_sessions: i64,
+    pub push_devices: i64,
+    /// How they sign in: password, Google, Apple. A person who cannot get in
+    /// is the commonest reason this page is open, and the answer is usually
+    /// here.
+    pub has_password: bool,
+    pub has_google: bool,
+    pub has_apple: bool,
 }
