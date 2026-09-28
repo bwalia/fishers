@@ -10,7 +10,7 @@ import {
   clubProducts,
   createListing,
   markSold,
-  price,
+  priceLine,
   updateListing,
 } from "@/lib/shop";
 
@@ -23,6 +23,25 @@ import {
 /// Money is settled in person. A listing is an advert and a reservation, not a
 /// checkout: there is no Stripe Connect here, so an online payment for another
 /// club's bat would land in the platform's account and leave us owing them.
+type Shelf = "on_sale" | "club_only" | "sold";
+
+/// Which shelf a listing is on, in the words a seller would use.
+function shelfOf(p: Product): Shelf {
+  if (p.active === false || p.stock === 0) return "sold";
+  return p.listed_publicly ? "on_sale" : "club_only";
+}
+
+const SHELVES: { key: Shelf; label: string; blurb: string }[] = [
+  { key: "on_sale", label: "On sale", blurb: "Anybody in the app can see these and ask for them." },
+  { key: "club_only", label: "Your club only", blurb: "Listed, but nobody outside your club can see them." },
+  { key: "sold", label: "Sold or taken down", blurb: "Off the marketplace. You can put one back on sale." },
+];
+
+/// Everything this club has for sale, and how to put something new up.
+///
+/// Written for a club secretary who is not necessarily comfortable with
+/// computers: the page says what will happen before it happens, every listing
+/// says plainly which shelf it is on, and no button is a dead end.
 export default function SellPage() {
   const authed = useRequireAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -30,6 +49,9 @@ export default function SellPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  /// The one just listed, so the page can say "that worked, now add photos"
+  /// rather than dropping somebody back on a list to find it themselves.
+  const [justListed, setJustListed] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authed) return;
@@ -59,17 +81,23 @@ export default function SellPage() {
     () => products.filter((p) => p.category === "equipment" || p.category === "merchandise"),
     [products],
   );
+  const shelves = useMemo(() => {
+    const out: Record<Shelf, Product[]> = { on_sale: [], club_only: [], sold: [] };
+    for (const p of kit) out[shelfOf(p)].push(p);
+    return out;
+  }, [kit]);
 
   if (!authed) return <main id="main" />;
+
+  const fresh = justListed ? kit.find((p) => p.id === justListed) : undefined;
 
   return (
     <main id="main" className="sell">
       <header className="sell-head">
         <div>
-          <h1>Sell kit</h1>
+          <h1>Your listings</h1>
           <p className="muted">
-            <Link href="/shop">← Shop</Link> · Last season&apos;s pads, or bats you made
-            yourself. Buyers arrange collection and pay you directly.
+            <Link href="/shop">← Shop</Link> · Kit your club is selling, new or second-hand.
           </p>
         </div>
         {clubs.length > 1 && (
@@ -86,36 +114,81 @@ export default function SellPage() {
 
       {error && <p className="error">{error}</p>}
 
+      {/* Said once, at the top, before anybody has to guess. Four steps, no
+          jargon, and it says plainly that no money moves through the app —
+          which is the question a cautious person asks first. */}
+      <section className="how">
+        <h2>How selling works</h2>
+        <ol>
+          <li><strong>Put it up.</strong> Say what it is, what state it is in, and what you want for it.</li>
+          <li><strong>Add photographs.</strong> Up to six. Nobody buys a bat they cannot see.</li>
+          <li><strong>Somebody asks for it.</strong> You get a message, and it comes off the marketplace so nobody else asks for the same one.</li>
+          <li><strong>They collect and pay you.</strong> Cash or transfer, directly to the club. No money goes through this app.</li>
+        </ol>
+      </section>
+
+      {fresh && (
+        <section className="panel done-panel">
+          <h2><Icon name="check" size={18} /> &ldquo;{fresh.name}&rdquo; is up</h2>
+          <p className="muted">
+            {(fresh.photos?.length ?? 0) === 0
+              ? "It has no photographs yet, and a listing without one is usually passed over. Add some below — it takes a moment."
+              : "It is on the marketplace and anybody in the app can ask for it."}
+          </p>
+          <div className="done-actions">
+            <Link className="btn" href={`/shop/item/${fresh.id}`}>See how buyers see it</Link>
+            <button className="btn" onClick={() => setJustListed(null)}>Done</button>
+          </div>
+        </section>
+      )}
+
       {!adding ? (
-        <button className="btn primary" onClick={() => setAdding(true)} disabled={!clubId}>
-          <Icon name="plus" size={16} /> List something
-        </button>
+        <div className="sell-cta">
+          <button className="btn primary" onClick={() => setAdding(true)} disabled={!clubId}>
+            <Icon name="plus" size={16} /> List something for sale
+          </button>
+          <span className="muted">Takes a minute. You can change or remove it afterwards.</span>
+        </div>
       ) : (
         <ListingForm
           clubId={clubId}
-          onDone={() => {
+          onDone={(created) => {
             setAdding(false);
+            setJustListed(created);
             load();
           }}
           onCancel={() => setAdding(false)}
         />
       )}
 
-      <section className="panel">
-        <h2>On sale now</h2>
-        {kit.length === 0 ? (
+      {kit.length === 0 ? (
+        <section className="panel">
+          <h2>Nothing up yet</h2>
           <p className="muted">
-            Nothing listed yet. A set of pads the club has replaced is worth more to somebody
-            else than it is in the cupboard.
+            A set of pads the club has replaced is worth more to somebody else than it is in the
+            cupboard. So is a bat you made.
           </p>
-        ) : (
-          <ul className="sell-list">
-            {kit.map((p) => (
-              <Listing key={p.id} clubId={clubId} product={p} onChanged={load} />
-            ))}
-          </ul>
-        )}
-      </section>
+        </section>
+      ) : (
+        SHELVES.map(({ key, label, blurb }) => {
+          const items = shelves[key];
+          if (items.length === 0) return null;
+          return (
+            <section className="panel" key={key}>
+              <div className="shelf-head">
+                <h2>{label}</h2>
+                <span className="tag grey">{items.length}</span>
+              </div>
+              <p className="muted">{blurb}</p>
+              <ul className="sell-list">
+                {items.map((p) => (
+                  <Listing key={p.id} clubId={clubId} product={p} onChanged={load} />
+                ))}
+              </ul>
+            </section>
+          );
+        })
+      )}
     </main>
   );
 }
@@ -131,6 +204,7 @@ function Listing({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -145,10 +219,11 @@ function Listing({
     }
   };
 
-  const sold = product.stock === 0;
+  const shelf = shelfOf(product);
+  const photos = product.photos?.length ?? 0;
 
   return (
-    <li className={`sell-item${sold ? " sold" : ""}`}>
+    <li className={`sell-item${shelf === "sold" ? " sold" : ""}`}>
       {product.photos?.[0] ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={product.photos[0]} alt="" className="sell-thumb" />
@@ -166,40 +241,137 @@ function Listing({
               {product.condition === "used" ? "Used" : "New"}
             </span>
           )}
-          {!product.listed_publicly && (
-            <span className="tag" title="Only your club can see this">Club only</span>
-          )}
         </div>
+
         <p className="muted">
-          {price(product.price_cents, product.currency)} · {availability(product)}
+          {priceLine(product)} · {availability(product)}
           {product.size && ` · ${product.size}`}
           {product.brand && ` · ${product.brand}`}
         </p>
-        {product.condition_note && <p className="sell-note">{product.condition_note}</p>}
+
+        {/* Says what is true of this one right now, in words rather than a
+            colour somebody has to learn. */}
+        <p className="sell-state">
+          {shelf === "sold" && "Off the marketplace. Nobody can ask for it."}
+          {shelf === "club_only" && "Only your own club can see this."}
+          {shelf === "on_sale" && photos === 0 && (
+            <span className="warn">
+              <Icon name="help" size={14} /> No photographs — most people scroll past a listing
+              without one.
+            </span>
+          )}
+          {shelf === "on_sale" && photos > 0 && `On the marketplace with ${photos} photograph${photos === 1 ? "" : "s"}.`}
+        </p>
+
         {error && <p className="error">{error}</p>}
-        <Photos clubId={clubId} product={product} onDone={onChanged} />
+        {shelf !== "sold" && <Photos clubId={clubId} product={product} onDone={onChanged} />}
+        {editing && (
+          <QuickEdit
+            clubId={clubId}
+            product={product}
+            onDone={() => {
+              setEditing(false);
+              onChanged();
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        )}
       </div>
 
       <div className="sell-actions">
-
-        {!sold && (
-          <button className="btn" disabled={busy} onClick={() => act(() => markSold(clubId, product.id))}>
-            Mark sold
+        <Link className="btn" href={`/shop/item/${product.id}`}>View</Link>
+        {!editing && shelf !== "sold" && (
+          <button className="btn" onClick={() => setEditing(true)} disabled={busy}>
+            Change price
           </button>
         )}
-        <button
-          className="btn"
-          disabled={busy}
-          onClick={() =>
-            act(() =>
-              updateListing(clubId, product.id, { listed_publicly: !product.listed_publicly }),
-            )
-          }
-        >
-          {product.listed_publicly ? "Hide from other clubs" : "Show to other clubs"}
-        </button>
+        {shelf === "sold" ? (
+          // Never a dead end: something marked sold by mistake, or returned,
+          // goes back up without being typed in again.
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() => act(() => updateListing(clubId, product.id, { active: true, stock: 1 }))}
+          >
+            Put back on sale
+          </button>
+        ) : (
+          <button className="btn" disabled={busy} onClick={() => act(() => markSold(clubId, product.id))}>
+            Mark as sold
+          </button>
+        )}
+        {shelf !== "sold" && (
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() =>
+              act(() => updateListing(clubId, product.id, { listed_publicly: !product.listed_publicly }))
+            }
+          >
+            {product.listed_publicly ? "Hide from other clubs" : "Show to other clubs"}
+          </button>
+        )}
       </div>
     </li>
+  );
+}
+
+/// Changing the price without retyping the listing — the commonest edit by
+/// far, and the one that turns a listing nobody wanted into one somebody does.
+function QuickEdit({
+  clubId,
+  product,
+  onDone,
+  onCancel,
+}: {
+  clubId: string;
+  product: Product;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [pounds, setPounds] = useState((product.price_cents / 100).toFixed(2));
+  const [negotiable, setNegotiable] = useState(!!product.negotiable);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Math.round(parseFloat(pounds) * 100);
+    if (!Number.isFinite(amount) || amount < 0) return setError("That is not a price");
+    setBusy(true);
+    setError(null);
+    try {
+      await updateListing(clubId, product.id, { price_cents: amount, negotiable });
+      onDone();
+    } catch (err) {
+      setError(readErr(err, "Could not change the price"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="quick-edit" onSubmit={save}>
+      <div className="field field-price">
+        <label htmlFor={`qe-${product.id}`}>New price</label>
+        <div className="input-prefix">
+          <span aria-hidden="true">£</span>
+          <input
+            id={`qe-${product.id}`}
+            inputMode="decimal"
+            value={pounds}
+            onChange={(e) => setPounds(e.target.value)}
+          />
+        </div>
+      </div>
+      <label className="switch">
+        <input type="checkbox" checked={negotiable} onChange={(e) => setNegotiable(e.target.checked)} />
+        <span>Open to offers</span>
+      </label>
+      <button className="btn primary" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+      <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+      {error && <p className="error">{error}</p>}
+    </form>
   );
 }
 
@@ -278,22 +450,35 @@ function Photos({
         </ul>
       )}
 
-      <label className={`btn${busy ? " busy" : ""}`}>
-        <Icon name="camera" size={16} />
-        {busy ?? (photos.length === 0 ? "Add photos" : `Add more (${room} left)`)}
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          className="sr-only"
-          disabled={busy !== null || room <= 0}
-          onChange={(e) => {
-            if (e.target.files?.length) add(e.target.files);
-            e.target.value = "";
-          }}
-        />
-      </label>
-      {room <= 0 && <small className="muted">Six is the most a listing can hold.</small>}
+      {/* A button that cannot be pressed is worse than no button: it reads as
+          a dead end. When the listing is full, say so instead. */}
+      {room > 0 ? (
+        <label className={`btn${busy ? " busy" : ""}`}>
+          <Icon name="camera" size={16} />
+          {busy ?? (photos.length === 0 ? "Add photographs" : `Add another (room for ${room})`)}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            className="sr-only"
+            disabled={busy !== null}
+            onChange={(e) => {
+              if (e.target.files?.length) add(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      ) : (
+        <small className="muted">
+          All six photographs added — that is the most a listing can hold. Remove one with the ×
+          if you want to swap it.
+        </small>
+      )}
+      {photos.length > 0 && room > 0 && (
+        <small className="muted">
+          You can pick several at once. The first one is what buyers see in the list.
+        </small>
+      )}
       {error && <p className="error">{error}</p>}
     </div>
   );
@@ -312,7 +497,9 @@ function ListingForm({
   onCancel,
 }: {
   clubId: string;
-  onDone: () => void;
+  /// Hands back the id, so the page can say "that one is up" and point at it
+  /// rather than leaving somebody to find it in a list.
+  onDone: (createdId: string) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
@@ -339,7 +526,7 @@ function ListingForm({
     setBusy(true);
     setError(null);
     try {
-      await createListing(clubId, {
+      const created = await createListing(clubId, {
         name: name.trim(),
         description: description.trim() || null,
         price_cents: amount,
@@ -353,7 +540,7 @@ function ListingForm({
         collection_note: collection.trim() || null,
         negotiable,
       });
-      onDone();
+      onDone(created.id);
     } catch (err) {
       setError(readErr(err, "Could not list that"));
     } finally {
@@ -499,6 +686,7 @@ function ListingForm({
             <input type="checkbox" checked={publicly} onChange={(e) => setPublicly(e.target.checked)} />
             <span>Show it to players at other clubs</span>
           </label>
+
         </section>
 
         {error && <p className="error">{error}</p>}
