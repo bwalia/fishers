@@ -549,3 +549,31 @@ pub async fn delete_account(pool: &PgPool, user_id: Uuid) -> Result<bool, sqlx::
     tx.commit().await?;
     Ok(done.rows_affected() == 1)
 }
+
+/// Set or replace the password, and end every other session.
+///
+/// Revoking the rest is the point of doing it in one transaction: a password
+/// added to an account somebody else had a stolen token for would otherwise
+/// hand them a credential that outlives the token they stole.
+pub async fn set_password(
+    pool: &PgPool,
+    user_id: Uuid,
+    hash: &str,
+    keep_token_id: Option<Uuid>,
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1")
+        .bind(user_id)
+        .bind(hash)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = NOW()
+          WHERE user_id = $1 AND revoked_at IS NULL AND ($2::uuid IS NULL OR id <> $2)",
+    )
+    .bind(user_id)
+    .bind(keep_token_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await
+}

@@ -42,6 +42,16 @@ pub struct AppState {
     /// Checks Sign in with Apple identity tokens; audience defaults to
     /// `com.fishers.app` when APPLE_CLIENT_ID is unset.
     pub apple: std::sync::Arc<crate::services::apple::AppleSignIn>,
+    /// PLATFORM_ADMIN_EMAILS: who may see the whole system rather than their
+    /// own clubs. Lower-cased at startup; matched against a **verified** email.
+    ///
+    /// An environment list rather than a column, on purpose. There is no
+    /// "make this person an admin" endpoint to get wrong, and somebody who
+    /// reaches the database cannot promote themselves by writing a row — the
+    /// list lives in the vault beside the signing keys. The cost is that
+    /// granting it is a deploy, which for a panel that shows every user's
+    /// email is the right way round.
+    pub platform_admins: std::collections::HashSet<String>,
 }
 
 impl AppState {
@@ -80,6 +90,12 @@ impl AppState {
             ),
             google: std::sync::Arc::new(crate::services::google::GoogleSignIn::from_env()),
             apple: std::sync::Arc::new(crate::services::apple::AppleSignIn::from_env()),
+            platform_admins: std::env::var("PLATFORM_ADMIN_EMAILS")
+                .unwrap_or_default()
+                .split(',')
+                .map(|email| email.trim().to_ascii_lowercase())
+                .filter(|email| !email.is_empty())
+                .collect(),
         }
     }
 

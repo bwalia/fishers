@@ -26,6 +26,11 @@ const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/profile", label: "Profile", icon: "book" },
 ];
 
+/// Only for whoever runs the service, and appended rather than inserted: it
+/// belongs in More, not in front of an everyday link. The page checks for
+/// itself — this only decides whether the link is drawn.
+const adminLink = { href: "/admin", label: "System", icon: "shield" as IconName };
+
 /// The row needs ~1034px. Below that the last of these went off the end — at
 /// 1366 Profile, at 1280 Clubs too, on an iPad half the bar — reachable only
 /// by a sideways scroll nobody knew was there. Under 1440 they move into More;
@@ -49,6 +54,12 @@ export function ShellNav() {
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
+  // The stored copy of /me carries the flag. Hiding the link is courtesy, not
+  // security: the endpoints check for themselves and answer 404 to anybody
+  // else, so a stale cached `true` shows a link that leads nowhere rather than
+  // a page that shows anything.
+  const shown = user?.platform_admin ? [...links, adminLink] : links;
+
   // A public board or a club's own page is not the app: somebody arrives
   // there from a search result or a shared link, and the club chrome would
   // only ask them to sign in to something they are not part of.
@@ -67,7 +78,7 @@ export function ShellNav() {
       </Link>
       {!landing && <>
       <nav className="nav" aria-label="Main">
-        {links.map((l, i) => {
+        {shown.map((l, i) => {
           const active = isActive(l.href);
           const cls = [active && "active", i >= PRIMARY && "nav-extra"].filter(Boolean).join(" ");
           return (
@@ -90,9 +101,9 @@ export function ShellNav() {
       <OverflowMenu
         label="More"
         showLabel
-        className={`nav-more${links.slice(PRIMARY).some((l) => isActive(l.href)) ? " active" : ""}`}
+        className={`nav-more${shown.slice(PRIMARY).some((l) => isActive(l.href)) ? " active" : ""}`}
       >
-        {links.slice(PRIMARY).map((l) => (
+        {shown.slice(PRIMARY).map((l) => (
           <Link
             key={l.href}
             href={l.href}

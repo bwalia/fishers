@@ -227,6 +227,8 @@ function Overview({
         <ProfileStrength user={me} onProfilePage />
         <Details me={me} onSaved={onSaved} />
 
+        <PasswordSection />
+
         <div className="panel" id="share">
           <h2>Send your profile to a club</h2>
           <p className="muted">
@@ -330,6 +332,79 @@ function Overview({
 /// create an account (App Store Review 5.1.1(v)), and it is the right thing to
 /// offer anyway. Two steps rather than one button: the action cannot be undone
 /// and a mis-tap should not end somebody's season.
+/// A password, for people who sign in with Google and have none.
+///
+/// "Sign in with Google" is one way in, and on the day Google is unreachable
+/// or a client id is rotated wrongly it is no way in at all. This is the
+/// second one. It is on everybody's profile rather than hidden behind an admin
+/// flag, because everybody has the same problem — whoever runs the service
+/// just has more to lose from it.
+function PasswordSection() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api("POST", "/me/password", {
+        // Absent rather than empty: the API only accepts a missing one for an
+        // account that has no password at all.
+        current: current || undefined,
+        new_password: next,
+      });
+      setDone(true);
+      setCurrent("");
+      setNext("");
+    } catch (err) {
+      setError(readErr(err, "Could not set that"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel" id="password">
+      <h2>Password</h2>
+      <p className="muted">
+        A second way in, for when Google is not an option. Setting one signs you out everywhere
+        else — if somebody else has a session, this ends it.
+      </p>
+      <form className="pwd-form" onSubmit={submit}>
+        <label htmlFor="pwd-current">
+          Current password <span className="muted">(leave blank if you have never set one)</span>
+        </label>
+        <input
+          id="pwd-current"
+          type="password"
+          autoComplete="current-password"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+        />
+        <label htmlFor="pwd-new">New password</label>
+        <input
+          id="pwd-new"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          required
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+        />
+        <button className="btn primary" disabled={busy || next.length < 8}>
+          {busy ? "Saving…" : "Set password"}
+        </button>
+      </form>
+      {done && <p className="ok-note">Set. Other sessions have been signed out.</p>}
+      {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
 function DeleteAccount() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
