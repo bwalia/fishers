@@ -36,6 +36,32 @@ pub struct Product {
     /// Whether the price is the price. Second-hand kit is haggled over, and a
     /// buyer who cannot tell either overpays or does not ask.
     pub negotiable: bool,
+    /// Who put it up. `None` for anything listed before products had an
+    /// author; an enquiry then goes to the club's officers instead.
+    pub listed_by: Option<Uuid>,
+    /// Whether to print the seller's own email and number on the listing.
+    pub show_contact: bool,
+}
+
+/// One listing as a buyer sees it, with whoever is selling it.
+///
+/// A separate type from `Product` on purpose. Contact details exist on this
+/// one and nowhere else, so the only way to serve somebody's telephone number
+/// is to have deliberately reached for the type that carries it — rather than
+/// adding two fields to `Product` and hoping every other endpoint remembers to
+/// blank them.
+#[derive(Debug, Clone, Serialize)]
+pub struct MarketListing {
+    #[serde(flatten)]
+    pub product: Product,
+    pub club_name: String,
+    /// Who to talk to. Present whether or not their details are shown — the
+    /// name is what a message thread is titled with.
+    pub seller_name: Option<String>,
+    /// Only when the seller asked for it. `None` otherwise, and the buyer is
+    /// pointed at the message thread instead.
+    pub seller_email: Option<String>,
+    pub seller_phone: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -81,6 +107,7 @@ pub struct CreateProductRequest {
     #[validate(length(max = 300))]
     pub collection_note: Option<String>,
     pub negotiable: Option<bool>,
+    pub show_contact: Option<bool>,
 }
 
 /// Changing a listing after it is up: the price comes down, the last photo
@@ -106,6 +133,7 @@ pub struct UpdateProductRequest {
     #[validate(length(max = 300))]
     pub collection_note: Option<String>,
     pub negotiable: Option<bool>,
+    pub show_contact: Option<bool>,
     /// Taking it off sale. Kept rather than deleted, so an order that already
     /// names it still reads.
     pub active: Option<bool>,

@@ -122,7 +122,8 @@ export default function SellPage() {
         <ol>
           <li><strong>Put it up.</strong> Say what it is, what state it is in, and what you want for it.</li>
           <li><strong>Add photographs.</strong> Up to six. Nobody buys a bat they cannot see.</li>
-          <li><strong>Somebody asks for it.</strong> You get a message, and it comes off the marketplace so nobody else asks for the same one.</li>
+          <li><strong>People ask about it.</strong> Questions and offers arrive in <Link href="/chat">Chats</Link>, one conversation per person, each named after the thing they are asking about.</li>
+          <li><strong>Somebody takes it.</strong> It comes off the marketplace so nobody else asks for the same one.</li>
           <li><strong>They collect and pay you.</strong> Cash or transfer, directly to the club. No money goes through this app.</li>
         </ol>
       </section>
@@ -309,6 +310,19 @@ function Listing({
             }
           >
             {product.listed_publicly ? "Hide from other clubs" : "Show to other clubs"}
+          </button>
+        )}
+        {shelf !== "sold" && (
+          // Changeable after the fact: somebody who put their number up and
+          // regretted it should not have to take the whole listing down.
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() =>
+              act(() => updateListing(clubId, product.id, { show_contact: !product.show_contact }))
+            }
+          >
+            {product.show_contact ? "Hide my phone and email" : "Show my phone and email"}
           </button>
         )}
       </div>
@@ -514,6 +528,7 @@ function ListingForm({
   const [note, setNote] = useState("");
   const [collection, setCollection] = useState("");
   const [publicly, setPublicly] = useState(true);
+  const [showContact, setShowContact] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -539,6 +554,7 @@ function ListingForm({
         listed_publicly: publicly,
         collection_note: collection.trim() || null,
         negotiable,
+        show_contact: showContact,
       });
       onDone(created.id);
     } catch (err) {
@@ -687,6 +703,20 @@ function ListingForm({
             <span>Show it to players at other clubs</span>
           </label>
 
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={showContact}
+              onChange={(e) => setShowContact(e.target.checked)}
+            />
+            <span>
+              Put my email and phone number on the listing
+              <small>
+                Off by default. Buyers can always message you here without it — tick this only if
+                you would rather they rang you.
+              </small>
+            </span>
+          </label>
         </section>
 
         {error && <p className="error">{error}</p>}

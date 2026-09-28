@@ -251,6 +251,21 @@ export type Product = {
   /// Whether the price is the price. Second-hand kit gets haggled over, and a
   /// buyer who cannot tell either overpays or does not ask.
   negotiable?: boolean;
+  /// Who put it up, so their own listings can be told apart from the club's.
+  listed_by?: string | null;
+  /// Whether they chose to publish their email and phone alongside it.
+  show_contact?: boolean;
+};
+
+/// A listing on its own page: the product, plus who is selling it.
+///
+/// The contact details arrive only when the seller ticked the box — the API
+/// leaves them out otherwise, so there is nothing here to forget to hide.
+export type MarketListing = Product & {
+  club_name: string;
+  seller_name?: string | null;
+  seller_email?: string | null;
+  seller_phone?: string | null;
 };
 
 export function getAccessToken(): string | null {

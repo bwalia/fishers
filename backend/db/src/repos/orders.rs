@@ -9,13 +9,14 @@ use sqlx::PgPool;
 /// missed in the others.
 const PRODUCT_COLS: &str = "id, club_id, name, description, price_cents, currency, category, \
      stock, active, created_at, condition, condition_note, size, brand, photos, \
-     listed_publicly, collection_note, negotiable";
+     listed_publicly, collection_note, negotiable, listed_by, show_contact";
 
 use uuid::Uuid;
 
 pub async fn create_product(
     pool: &PgPool,
     club_id: Uuid,
+    listed_by: Uuid,
     req: &CreateProductRequest,
 ) -> Result<Product, sqlx::Error> {
     let currency = req.currency.clone().unwrap_or_else(|| "GBP".to_string());
@@ -23,8 +24,8 @@ pub async fn create_product(
         r#"
         INSERT INTO products (club_id, name, description, price_cents, currency, category, stock,
                               condition, condition_note, size, brand, listed_publicly,
-                              collection_note, negotiable)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                              collection_note, negotiable, listed_by, show_contact)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING {PRODUCT_COLS}
         "#
     ))
@@ -42,6 +43,8 @@ pub async fn create_product(
     .bind(req.listed_publicly.unwrap_or(false))
     .bind(&req.collection_note)
     .bind(req.negotiable.unwrap_or(false))
+    .bind(listed_by)
+    .bind(req.show_contact.unwrap_or(false))
     .fetch_one(pool)
     .await
 }
@@ -68,7 +71,8 @@ pub async fn update_product(
             collection_note = COALESCE($12, collection_note),
             active          = COALESCE($13, active),
             photos          = COALESCE($14, photos),
-            negotiable      = COALESCE($15, negotiable)
+            negotiable      = COALESCE($15, negotiable),
+            show_contact    = COALESCE($16, show_contact)
          WHERE id = $1 AND club_id = $2
         RETURNING {PRODUCT_COLS}
         "#
@@ -88,6 +92,7 @@ pub async fn update_product(
     .bind(req.active)
     .bind(&req.photos)
     .bind(req.negotiable)
+    .bind(req.show_contact)
     .fetch_optional(pool)
     .await
 }
@@ -105,6 +110,76 @@ pub async fn get_product(
     .bind(club_id)
     .fetch_optional(pool)
     .await
+}
+
+/// One publicly listed item with whoever is selling it.
+///
+/// The contact columns are selected conditionally in SQL rather than fetched
+/// and filtered in Rust: a number that was never read cannot be logged, put in
+/// an error, or served by a later change that forgot why the filter was there.
+pub async fn public_listing(
+    pool: &PgPool,
+    id: Uuid,
+) -> Result<Option<fishers_domain::MarketListing>, sqlx::Error> {
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        club_name: String,
+        seller_name: Option<String>,
+        seller_email: Option<String>,
+        seller_phone: Option<String>,
+    }
+
+    let Some(product) = public_product(pool, id).await? else {
+        return Ok(None);
+    };
+
+    let row = sqlx::query_as::<_, Row>(
+        "SELECT c.name AS club_name,
+                u.name  AS seller_name,
+                CASE WHEN p.show_contact THEN u.email END AS seller_email,
+                CASE WHEN p.show_contact THEN u.phone END AS seller_phone
+           FROM products p
+           JOIN clubs c ON c.id = p.club_id
+           LEFT JOIN users u ON u.id = p.listed_by AND u.deleted_at IS NULL
+          WHERE p.id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(Some(fishers_domain::MarketListing {
+        product,
+        club_name: row.club_name,
+        seller_name: row.seller_name,
+        seller_email: row.seller_email,
+        seller_phone: row.seller_phone,
+    }))
+}
+
+/// Who an enquiry about a listing should reach.
+///
+/// Whoever put it up, and the club's officers when nothing did — everything
+/// listed before products had an author, and anything listed by somebody who
+/// has since left.
+pub async fn enquiry_recipients(pool: &PgPool, id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        "SELECT p.listed_by FROM products p
+          WHERE p.id = $1 AND p.listed_by IS NOT NULL
+            AND EXISTS (SELECT 1 FROM users u WHERE u.id = p.listed_by AND u.deleted_at IS NULL)
+          UNION
+         SELECT m.user_id FROM products p
+           JOIN club_members m ON m.club_id = p.club_id
+          WHERE p.id = $1 AND m.status = 'active'
+            AND m.role IN ('club_admin', 'super_admin')
+            AND NOT EXISTS (
+                SELECT 1 FROM products p2 JOIN users u ON u.id = p2.listed_by
+                 WHERE p2.id = $1 AND u.deleted_at IS NULL
+            )",
+    )
+    .bind(id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 
 /// One publicly listed item, for its own page.

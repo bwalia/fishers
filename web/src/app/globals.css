@@ -6663,6 +6663,11 @@ main .panel[id] { scroll-margin-top: 80px; }
 .switch input:checked { background: var(--primary); }
 .switch input:checked::after { transform: translateX(1.1rem); }
 .switch input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* A switch that explains itself: the pill sits with the first line rather than
+   drifting to the middle of a two-line label. */
+.switch input { flex: 0 0 auto; }
+.switch:has(small) { align-items: flex-start; }
+.switch small { display: block; color: var(--fg-muted); margin-top: .15rem; }
 
 .ump-note-edit { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .ump-note-edit label { color: var(--fg-muted); }
@@ -6888,6 +6893,17 @@ main .panel[id] { scroll-margin-top: 80px; }
 .item-done { display: flex; gap: .6rem; align-items: flex-start; padding: var(--s2);
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
 .item-done p { margin: .2rem 0 0; }
+
+/* Who you are buying from, and the two ways to reach them. Sits between the
+   description and the reserve button: read about it, ask about it, take it. */
+.item-seller {
+  display: grid; gap: .6rem; justify-items: start;
+  padding-top: var(--s2); border-top: 1px solid var(--border);
+}
+.item-seller-who { margin: 0; }
+.item-ask { display: inline-flex; align-items: center; gap: .45rem; }
+.item-contact { margin: 0; color: var(--fg-muted); }
+.item-contact a { color: var(--primary); }
 
 /* The whole card is the link, so the target is a card rather than a word. */
 .market-link { display: block; color: inherit; text-decoration: none; }

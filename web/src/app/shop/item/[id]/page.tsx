@@ -2,10 +2,11 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
-import { readErr, type Product } from "@/lib/api";
+import { readErr, type MarketListing } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
-import { availability, marketItem, priceLine, reserve } from "@/lib/shop";
+import { availability, enquire, marketItem, priceLine, reserve } from "@/lib/shop";
 
 /// One thing for sale, in full.
 ///
@@ -15,10 +16,12 @@ import { availability, marketItem, priceLine, reserve } from "@/lib/shop";
 export default function ItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const authed = useRequireAuth();
-  const [item, setItem] = useState<Product | null>(null);
+  const router = useRouter();
+  const [item, setItem] = useState<MarketListing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reserving, setReserving] = useState(false);
   const [reserved, setReserved] = useState(false);
+  const [asking, setAsking] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -60,6 +63,20 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
     }
   };
 
+  // Straight into the thread rather than a box on this page: the conversation
+  // carries on there, and both of them already know where their messages live.
+  const ask = async () => {
+    setAsking(true);
+    setError(null);
+    try {
+      const { conversation_id } = await enquire(item.id);
+      router.push(`/chat/${conversation_id}`);
+    } catch (err) {
+      setError(readErr(err, "Could not start that conversation"));
+      setAsking(false);
+    }
+  };
+
   return (
     <main id="main" className="item">
       <p className="muted">
@@ -90,6 +107,29 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
           </dl>
 
           {item.description && <p className="item-desc">{item.description}</p>}
+
+          <div className="item-seller">
+            <p className="item-seller-who">
+              Sold by <strong>{item.seller_name ?? item.club_name}</strong>
+              {item.seller_name && <span className="muted"> · {item.club_name}</span>}
+            </p>
+            <button className="btn item-ask" onClick={ask} disabled={asking}>
+              <Icon name="chat" size={16} />
+              {asking ? "Opening…" : item.negotiable ? "Message the seller or make an offer" : "Message the seller"}
+            </button>
+            {(item.seller_email || item.seller_phone) && (
+              <p className="item-contact">
+                Happy to be contacted directly:
+                {item.seller_phone && (
+                  <> <a href={`tel:${item.seller_phone}`}>{item.seller_phone}</a></>
+                )}
+                {item.seller_phone && item.seller_email && " ·"}
+                {item.seller_email && (
+                  <> <a href={`mailto:${item.seller_email}`}>{item.seller_email}</a></>
+                )}
+              </p>
+            )}
+          </div>
 
           {reserved ? (
             <div className="item-done">

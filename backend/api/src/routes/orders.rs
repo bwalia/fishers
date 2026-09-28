@@ -23,6 +23,7 @@ pub fn router() -> Router<AppState> {
         // bigger room than its own membership.
         .route("/marketplace", get(marketplace))
         .route("/marketplace/{id}", get(market_item))
+        .route("/marketplace/{id}/enquire", post(enquire))
         .route("/orders", post(place_order))
         .route("/orders/mine", get(my_orders))
 }
@@ -36,7 +37,7 @@ async fn create_product(
     body.validate()?;
     require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
     Ok(Json(
-        orders_repo::create_product(&state.pool, id, &body).await?,
+        orders_repo::create_product(&state.pool, id, auth.user_id, &body).await?,
     ))
 }
 
@@ -165,11 +166,61 @@ async fn market_item(
     State(state): State<AppState>,
     _auth: AuthUser,
     Path(id): Path<Uuid>,
-) -> ApiResult<Json<Product>> {
-    orders_repo::public_product(&state.pool, id)
+) -> ApiResult<Json<fishers_domain::MarketListing>> {
+    orders_repo::public_listing(&state.pool, id)
         .await?
         .map(Json)
         .ok_or_else(|| ApiError::not_found("that listing is not for sale"))
+}
+
+#[derive(Debug, Serialize)]
+struct EnquiryStarted {
+    conversation_id: Uuid,
+    /// False when this reopens a thread they already had, so the page can say
+    /// "carry on where you left off" rather than implying a new one.
+    started: bool,
+}
+
+/// Ask the seller about a listing.
+///
+/// The one place a stranger may open a conversation. Everywhere else a direct
+/// thread needs a shared club, which is right — the app is not for messaging
+/// people you do not play with. Here the listing is the introduction: somebody
+/// put a bat in front of the whole app, and being asked about it is what that
+/// means. The thread is tied to the listing, so the permission belongs to the
+/// listing rather than to the two people.
+///
+/// It only opens the thread. The offer itself is an ordinary chat message, so
+/// the buyer types it on the chat screen and it pushes like any other.
+async fn enquire(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<EnquiryStarted>> {
+    let listing = orders_repo::public_listing(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("that listing is not for sale"))?;
+
+    let seller = orders_repo::enquiry_recipients(&state.pool, id)
+        .await?
+        .into_iter()
+        .find(|r| *r != auth.user_id)
+        // Their own club's listing, or one whose club has lost its officers.
+        .ok_or_else(|| ApiError::bad_request("there is nobody to ask about this one"))?;
+
+    let (conversation, started) = fishers_db::repos::chat::enquiry_thread(
+        &state.pool,
+        id,
+        auth.user_id,
+        seller,
+        &format!("About: {}", listing.product.name),
+    )
+    .await?;
+
+    Ok(Json(EnquiryStarted {
+        conversation_id: conversation.id,
+        started,
+    }))
 }
 
 async fn list_products(

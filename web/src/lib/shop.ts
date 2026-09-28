@@ -7,7 +7,7 @@
 /// an online payment for another club's bat would land in the platform's own
 /// account.
 
-import { api, type Product, type ProductCondition } from "./api";
+import { api, type MarketListing, type Product, type ProductCondition } from "./api";
 
 export const marketplace = (params: { condition?: ProductCondition; q?: string } = {}) => {
   const qs = new URLSearchParams();
@@ -21,7 +21,18 @@ export const clubProducts = (clubId: string) =>
   api<Product[]>("GET", `/clubs/${clubId}/products`);
 
 /// One listing, in full — its own page, for anybody signed in.
-export const marketItem = (id: string) => api<Product>("GET", `/marketplace/${id}`);
+export const marketItem = (id: string) => api<MarketListing>("GET", `/marketplace/${id}`);
+
+/// Open a conversation with whoever is selling it.
+///
+/// The only way a message reaches somebody from another club: the listing is
+/// the introduction. Asking twice returns the same thread rather than a second
+/// one, so the button is safe to press again.
+export const enquire = (productId: string) =>
+  api<{ conversation_id: string; started: boolean }>(
+    "POST",
+    `/marketplace/${productId}/enquire`,
+  );
 
 /// Reserve it. No money changes hands here: the club is told, and the two of
 /// you settle it in person.
@@ -44,6 +55,7 @@ export type NewListing = {
   listed_publicly?: boolean;
   collection_note?: string | null;
   negotiable?: boolean;
+  show_contact?: boolean;
 };
 
 export const createListing = (clubId: string, body: NewListing) =>
