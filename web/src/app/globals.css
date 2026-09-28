@@ -4488,15 +4488,23 @@ a.bell-item:hover { background: var(--surface-2); }
   .role-option:hover { transform: none; }
 }
 
-/* ---- Top bar: everyday items always, the rest under More below 1440px ---- */
-.nav-more { display: none; }
-@media (min-width: 1024px) and (max-width: 1439px) {
-  .nav .nav-extra { display: none; }
-  .nav-more { display: block; }
-}
-/* In the bar it reads as one more nav item, not the round ⋯ of the score screen. */
-.nav-more .overflow-button {
+/* ---- Top bar ----
+ *
+ * Three everyday links, two named groups, and the account on the right. It
+ * used to be twelve flat links across the whole width: every destination
+ * shouting at the same volume, which is the same as none of them shouting.
+ *
+ * The groups are buttons that look like the links beside them on purpose —
+ * they sit at the same level of the hierarchy, and the chevron is what says
+ * one opens and the other navigates.
+ */
+.nav-groups { display: flex; align-items: center; gap: 2px; }
+
+.nav-group .overflow-button,
+.nav-you .overflow-button,
+.nav-admin {
   display: inline-flex;
+  align-items: center;
   gap: 6px;
   width: auto;
   height: auto;
@@ -4508,11 +4516,43 @@ a.bell-item:hover { background: var(--surface-2); }
   font-weight: 500;
   color: var(--fg-muted);
   background: none;
+  text-decoration: none;
+  white-space: nowrap;
 }
-.nav-more .overflow-button:hover { color: var(--fg); background: var(--surface-2); }
-.nav-more.active .overflow-button { color: var(--on-primary); background: var(--primary); }
-.nav-more .overflow-panel { min-width: 220px; }
-.nav-more .overflow-item[aria-current="page"] { color: var(--primary-ink); font-weight: 600; }
+.nav-group .overflow-button:hover,
+.nav-you .overflow-button:hover,
+.nav-admin:hover { color: var(--fg); background: var(--surface-2); }
+
+/* A group whose page you are on is marked the way the link would be, so the
+   bar answers "where am I" without opening anything. */
+.nav-group.active .overflow-button,
+.nav-you.active .overflow-button,
+.nav-admin.active { color: var(--on-primary); background: var(--primary); }
+
+.overflow-chevron { opacity: .6; margin-left: -2px; }
+.nav-group .overflow-panel,
+.nav-you .overflow-panel { min-width: 200px; }
+.nav-group .overflow-item[aria-current="page"],
+.nav-you .overflow-item[aria-current="page"] { color: var(--primary-ink); font-weight: 600; }
+
+/* Running the service is a different kind of thing from playing for a club,
+   so it sits after a rule rather than as the thirteenth tab. */
+.nav-admin {
+  margin-left: var(--s2);
+  padding-left: calc(var(--s3) + var(--s2));
+  border-left: 1px solid var(--border);
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+}
+
+/* Narrow: the labels go, the icons and the chevron stay. Three links and two
+   groups fit where twelve never did, so nothing has to be hidden. */
+@media (max-width: 860px) {
+  .nav-group .overflow-button span,
+  .nav-you .overflow-button span,
+  .nav-admin { font-size: 0; gap: 0; }
+  .nav-admin { padding-left: var(--s3); }
+  .nav-admin svg { font-size: 1rem; }
+}
 
 /* New messages below while you are reading further up: a way back down that
    does not drag you there uninvited. */
@@ -6747,3 +6787,4 @@ main .panel[id] { scroll-margin-top: 80px; }
 .adm-pager { display: flex; align-items: center; gap: var(--s3); justify-content: center; }
 .adm-note { font-style: normal; font-weight: 400; color: var(--red-600); }
 .adm-search select { flex: 0 0 auto; }
+

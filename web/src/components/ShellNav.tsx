@@ -12,30 +12,53 @@ import { ChatBadge } from "@/components/ChatBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { brand } from "@/brand.generated";
 
-const links: { href: string; label: string; icon: IconName }[] = [
+type NavLink = { href: string; label: string; icon: IconName };
+
+/// The bar, in the order somebody uses it.
+///
+/// Twelve flat links filled the whole width and said nothing about what
+/// belonged with what — every destination shouting at the same volume is the
+/// same as none of them shouting. These three stay in the bar because they are
+/// opened daily; Chats also carries the unread badge, and a badge inside a
+/// closed menu is a badge nobody sees.
+const primary: NavLink[] = [
   { href: "/", label: "Overview", icon: "home" },
   { href: "/events", label: "Fixtures", icon: "calendar" },
-  { href: "/hire", label: "Hire", icon: "pin" },
   { href: "/chat", label: "Chats", icon: "chat" },
-  { href: "/availability", label: "Availability", icon: "clock" },
-  { href: "/score", label: "Score", icon: "bat" },
-  { href: "/tournaments", label: "Tournaments", icon: "trophy" },
-  { href: "/stats", label: "Stats", icon: "chart" },
-  { href: "/shop", label: "Shop", icon: "shop" },
-  { href: "/clubs", label: "Clubs", icon: "users" },
-  { href: "/profile", label: "Profile", icon: "book" },
 ];
 
-/// Only for whoever runs the service, and appended rather than inserted: it
-/// belongs in More, not in front of an everyday link. The page checks for
-/// itself — this only decides whether the link is drawn.
-const adminLink = { href: "/admin", label: "System", icon: "shield" as IconName };
+/// The rest, in two groups somebody can name without being told.
+///
+/// "Play" is the things around a match — whether you can, scoring it, the
+/// competition it belongs to. "Club" is the club itself: who is in it, how it
+/// has done, its ground and its kit.
+const groups: { label: string; icon: IconName; links: NavLink[] }[] = [
+  {
+    label: "Play",
+    icon: "bat",
+    links: [
+      { href: "/availability", label: "Availability", icon: "clock" },
+      { href: "/score", label: "Score", icon: "bat" },
+      { href: "/tournaments", label: "Tournaments", icon: "trophy" },
+    ],
+  },
+  {
+    label: "Club",
+    icon: "users",
+    links: [
+      { href: "/clubs", label: "Clubs", icon: "users" },
+      { href: "/stats", label: "Stats", icon: "chart" },
+      { href: "/hire", label: "Hire", icon: "pin" },
+      { href: "/shop", label: "Shop", icon: "shop" },
+    ],
+  },
+];
 
-/// The row needs ~1034px. Below that the last of these went off the end — at
-/// 1366 Profile, at 1280 Clubs too, on an iPad half the bar — reachable only
-/// by a sideways scroll nobody knew was there. Under 1440 they move into More;
-/// the first five, the everyday ones, always stay in the bar.
-const PRIMARY = 5;
+/// Only for whoever runs the service, and set apart from the everyday links
+/// rather than queued behind them: it is a different kind of thing, not the
+/// thirteenth of the same kind. The page checks for itself — this only decides
+/// whether the link is drawn.
+const adminLink: NavLink = { href: "/admin", label: "System", icon: "shield" };
 
 export function ShellNav() {
   const pathname = usePathname();
@@ -58,7 +81,7 @@ export function ShellNav() {
   // security: the endpoints check for themselves and answer 404 to anybody
   // else, so a stale cached `true` shows a link that leads nowhere rather than
   // a page that shows anything.
-  const shown = user?.platform_admin ? [...links, adminLink] : links;
+  const isAdmin = !!user?.platform_admin;
 
   // A public board or a club's own page is not the app: somebody arrives
   // there from a search result or a shared link, and the club chrome would
@@ -78,44 +101,48 @@ export function ShellNav() {
       </Link>
       {!landing && <>
       <nav className="nav" aria-label="Main">
-        {shown.map((l, i) => {
-          const active = isActive(l.href);
-          const cls = [active && "active", i >= PRIMARY && "nav-extra"].filter(Boolean).join(" ");
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={cls || undefined}
-              aria-current={active ? "page" : undefined}
-            >
-              <Icon name={l.icon} size={16} />
-              {l.label}
-              {user && l.href === "/chat" && <ChatBadge />}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Outside .nav for the same reason as the bell below: .nav scrolls,
-          and a scrolling ancestor would clip the menu. */}
-      <OverflowMenu
-        label="More"
-        showLabel
-        className={`nav-more${shown.slice(PRIMARY).some((l) => isActive(l.href)) ? " active" : ""}`}
-      >
-        {shown.slice(PRIMARY).map((l) => (
+        {primary.map((l) => (
           <Link
             key={l.href}
             href={l.href}
-            role="menuitem"
-            className="overflow-item"
+            className={isActive(l.href) ? "active" : undefined}
             aria-current={isActive(l.href) ? "page" : undefined}
           >
             <Icon name={l.icon} size={16} />
             {l.label}
+            {user && l.href === "/chat" && <ChatBadge />}
           </Link>
         ))}
-      </OverflowMenu>
+      </nav>
+
+      {/* Outside .nav for the same reason as the bell below: .nav scrolls
+          sideways on a narrow screen, and a scrolling ancestor clips an
+          absolutely-positioned panel. */}
+      <div className="nav-groups">
+        {groups.map((group) => (
+          <OverflowMenu
+            key={group.label}
+            label={group.label}
+            icon={group.icon}
+            showLabel
+            chevron
+            className={`nav-group${group.links.some((l) => isActive(l.href)) ? " active" : ""}`}
+          >
+            {group.links.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                role="menuitem"
+                className="overflow-item"
+                aria-current={isActive(l.href) ? "page" : undefined}
+              >
+                <Icon name={l.icon} size={16} />
+                {l.label}
+              </Link>
+            ))}
+          </OverflowMenu>
+        ))}
+      </div>
       </>}
 
       {/* Outside the nav on purpose. `.nav` scrolls sideways on a narrow
@@ -123,20 +150,54 @@ export function ShellNav() {
           dropdown — the bell opened, and its panel was cut off where nobody
           could see it. Actions that own a popover live in their own group. */}
       <div className="nav-actions">
+        {/* Set apart by a rule, not queued behind the everyday links: running
+            the service is a different kind of thing from playing for a club. */}
+        {user && isAdmin && (
+          <Link
+            href={adminLink.href}
+            className={`nav-admin${isActive(adminLink.href) ? " active" : ""}`}
+            aria-current={isActive(adminLink.href) ? "page" : undefined}
+          >
+            <Icon name={adminLink.icon} size={16} />
+            {adminLink.label}
+          </Link>
+        )}
         <ThemeToggle />
         {user && <NotificationBell />}
         {user ? (
-          <button
-            type="button"
-            onClick={() => {
-              clearSession();
-              setUser(null);
-              router.push("/login");
-            }}
+          // Profile and Sign out together, on the right, which is where people
+          // look for both. It also puts the one destructive action out of the
+          // row of navigation, rather than one tab away from Clubs.
+          <OverflowMenu
+            label={user.name.split(" ")[0] || "You"}
+            icon="book"
+            showLabel
+            chevron
+            className={`nav-you${isActive("/profile") ? " active" : ""}`}
           >
-            <Icon name="signOut" size={16} />
-            Sign out
-          </button>
+            <Link
+              href="/profile"
+              role="menuitem"
+              className="overflow-item"
+              aria-current={isActive("/profile") ? "page" : undefined}
+            >
+              <Icon name="book" size={16} />
+              Profile
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              className="overflow-item"
+              onClick={() => {
+                clearSession();
+                setUser(null);
+                router.push("/login");
+              }}
+            >
+              <Icon name="signOut" size={16} />
+              Sign out
+            </button>
+          </OverflowMenu>
         ) : (
           <>
             <Link href="/login">
