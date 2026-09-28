@@ -78,6 +78,13 @@ jobs:
         working-directory: .
         run: python3 scripts/check-brand-literals.py
 
+      # The flavour's applicationId and the brand file's bundle id are typed
+      # out in two places. Disagreeing silently sends one brand's code to the
+      # other's Play listing.
+      - name: The flavours match the brand files
+        working-directory: .
+        run: python3 scripts/check-android-flavours.py
+
       - name: Unit tests
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}

@@ -13,8 +13,37 @@ pattern as [KubePilot](https://github.com/bwalia/kubepilot).
 
 Release CI runs on the self-hosted Mac Studio runner (`runs-on: self-hosted`).
 Signing material is loaded at build time from **GitHub Actions secrets** (if set)
-or from **WSLVault** at `https://vault.workstation.co.uk` path **`kv/fishers/ios`**,
-then wiped after each run. Fishers does **not** use `vault.diytaxreturn.co.uk`.
+or from **WSLVault** at `https://vault.workstation.co.uk` path
+**`kv/<brand>/ios`**, then wiped after each run. This repo does **not** use
+`vault.diytaxreturn.co.uk`.
+
+> **The GitHub-secrets path is single-brand.** `ASC_KEY_ID` and friends are one
+> set of repository secrets, and they win over Vault when present — so with two
+> brands they would sign both with Fishers' Apple account. Use Vault
+> (`kv/<brand>/ios`) for anything past the first brand, or the second brand's
+> builds will be rejected by App Store Connect as the wrong app.
+
+## One app per brand
+
+Every brand in `brands/` is its own App Store app: its own bundle id, its own
+listing, its own TestFlight group. They share one Xcode project and one scheme
+(`Fishers`) — the brand is configuration, not a target.
+
+| brand | bundle id |
+|---|---|
+| `fishers` | `com.fishers.app` |
+| `gullycricket` | `app.gullycricket` |
+
+`node tools/brand/index.mjs mobile <id>` prints it. That comes from
+`brands/<id>.yaml`, which is the source of truth rather than this table.
+
+A push to main releases **every** brand. A dispatch releases the one you ask
+for. The matrix runs one at a time: there is one Mac, one signing keychain and
+one Ruby bundle, and two brands building at once would fight over all three.
+
+> **Only Fishers has ever shipped.** GullyCricket has no App Store Connect app
+> and no `kv/gullycricket/ios` in Vault, so its first run will fail until both
+> exist. The pipeline is ready for it; Apple's side is not.
 
 ## Flow
 
@@ -23,7 +52,14 @@ Merge to main (ios/** changed)     or     push v1.2.3 tag     or     workflow_di
                  │                                  │                         │
                  └──────────────────┬───────────────┴─────────────────────────┘
                                     ▼
-                 Load ASC secrets (GitHub secrets or Vault)
+                    For each brand in brands/ (one at a time)
+                                    │
+                                    ▼
+      Generate the brand → brand.xcconfig, Brand.generated.swift, artwork
+      BRAND_APP_ID / BRAND_NAME into the environment for fastlane
+                                    │
+                                    ▼
+              Load ASC secrets (GitHub secrets or Vault kv/<brand>/ios)
                                     │
                                     ▼
               Resolve version (tag → input → ios/project.yml MARKETING_VERSION)
@@ -48,6 +84,20 @@ TestFlight does **not** need that: merges that touch `ios/` upload directly.
 
 Skip an auto TestFlight with `[skip release]` or `[skip ios]` in the commit
 message.
+
+### Why the generate step matters
+
+`project.yml` names `Fishers/Brand/Generated/brand.xcconfig`, which is
+gitignored and does not exist until the generator runs. On the self-hosted Mac
+that file survives between runs, so before this step existed the workflow
+signed whatever branding the **previous** build had left on disk. With two
+brands that is not a cosmetic bug: it is one brand's build uploaded to the
+other's listing, which App Store Connect accepts.
+
+The same step exports `BRAND_APP_ID`, which `fastlane/Appfile` and the
+`APP_ID` constant in `fastlane/Fastfile` both read. Every use of the bundle id
+in the Fastfile goes through that one constant, so a brand is an environment
+variable rather than thirteen edits.
 
 ## One-time setup
 
@@ -131,6 +181,8 @@ export APPLE_TEAM_ID=...
 ```
 
 Writes **`kv/fishers/ios`** (KV v2 mount `kv`, same family as `kv/fishers/<ring>/config`).
+For another brand, seed `kv/<brand>/ios` with that brand's own ASC key, issuer,
+team and certificate — the workflow reads `kv/${{ matrix.brand }}/ios`.
 See `ios/ci/ios.vault.env.example`.
 
 Do **not** point iOS CI at `vault.diytaxreturn.co.uk` / `acc-vault` — those are not used.
@@ -199,8 +251,11 @@ The Mac Studio runner needs:
 **TestFlight (manual):**
 
 1. Actions → **iOS Release (TestFlight & App Store)**
-2. Run workflow → target **testflight**
+2. Run workflow → **brand** (default `fishers`), target **testflight**
 3. Version blank = `MARKETING_VERSION` from `ios/project.yml`
+
+A brand id that is not in `brands/` fails in the first job, in seconds, rather
+than after the Mac has spent forty minutes discovering the same thing.
 
 **App Store (after QA):**
 
@@ -209,9 +264,16 @@ The Mac Studio runner needs:
 ## Local dry run (on the Mac Studio)
 
 ```bash
+# Which brand — this is what the workflow's first step does. Without it
+# fastlane signs whatever brand.xcconfig was left on disk by the last build.
+BRAND=fishers
+node tools/brand/index.mjs generate "$BRAND" --ios
+eval "$(node tools/brand/index.mjs mobile "$BRAND" | sed 's/^/export /')"
+
 cd ios
 export VAULT_ADDR=https://vault.workstation.co.uk
 export VAULT_TOKEN_FILE=$HOME/.secrets/wslvault/token.json
+export FISHERS_IOS_VAULT_PATH="kv/$BRAND/ios"
 eval "$(./ci/load-ios-vault-secrets.sh)"
 export BUILD_KEYCHAIN_PATH=$HOME/Library/Keychains/fishers-signing.keychain-db
 export BUILD_KEYCHAIN_PASSWORD=$(cat $HOME/.secrets/fishers/keychain-password)
@@ -233,7 +295,9 @@ bundle exec fastlane ios beta
 | `.github/workflows/ios_release.yml` | Signed release → TestFlight / App Store |
 | `.github/workflows/auto-tag.yml` | Patch tags on `main` |
 | `ios/fastlane/Fastfile` | Lanes: test, ci_build_number, prepare_signing, build_ipa, beta, release |
-| `ios/fastlane/Appfile` | Bundle id |
+| `ios/fastlane/Appfile` | Bundle id, from `BRAND_APP_ID` |
+| `brands/<id>.yaml` | The brand: bundle id, display name, palette |
+| `tools/brand/index.mjs` | `generate <id> --ios`, and `mobile <id>` for the env |
 | `ios/ci/load-ios-vault-secrets.sh` | Vault → env |
 | `ios/ci/ios.vault.env.example` | Secret field reference |
 | `ios/project.yml` | `MARKETING_VERSION` source of truth |

@@ -1,3 +1,5 @@
-app_identifier("com.fishers.app")
+# The brand being built. `tools/brand mobile <id>` sets BRAND_APP_ID; the
+# default keeps a bare fastlane run on a developer's Mac building Fishers.
+app_identifier(ENV.fetch("BRAND_APP_ID", "com.fishers.app"))
 
 # Team id is supplied at build time via APPLE_TEAM_ID from Vault.

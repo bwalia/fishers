@@ -304,6 +304,20 @@ test("the generated Swift carries every ramp and dark colour", () => {
   }
 });
 
+/**
+ * The release workflows append this straight to $GITHUB_ENV, and fastlane's
+ * Appfile and Fastfile read both. A change to the shape here is a change to
+ * which App Store listing a build is signed for.
+ */
+test("a brand's mobile identity is shell the workflows can append", () => {
+  const brand = loadBrand(repoRoot, "gullycricket");
+  assert.equal(brand.mobile.bundleId, "app.gullycricket");
+  // The display name is two words; the id, which is a namespace and a Gradle
+  // flavour, is one.
+  assert.equal(brand.mobile.displayName, "Gully Cricket");
+  assert.equal(brand.id, "gullycricket");
+});
+
 test("the helm overlay carries the brand and its host", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
   const values = helmValues(brand, "int");

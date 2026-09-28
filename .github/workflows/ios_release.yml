@@ -1,6 +1,10 @@
 name: iOS Release (TestFlight & App Store)
 
-# Build, sign, and upload the native Fishers iOS app with fastlane — same shape as KubePilot.
+# Build, sign, and upload a brand's native iOS app with fastlane.
+#
+# One app per brand in `brands/`: its own bundle id, its own App Store listing,
+# its own TestFlight group. A push to main releases every brand; a dispatch
+# releases the one asked for.
 #
 #   AUTO (merge to main) : push to main touching ios/** or this workflow
 #                          → fastlane ios beta → TestFlight (internal)
@@ -8,9 +12,9 @@ name: iOS Release (TestFlight & App Store)
 #   SECONDARY            : push a v*.*.* tag (e.g. from auto-tag.yml) → TestFlight
 #   APP STORE            : workflow_dispatch with target = app_store (after QA)
 #
-# Pipeline: ci_build_number → prepare_signing → build_ipa → beta
+# Pipeline: brand → ci_build_number → prepare_signing → build_ipa → beta
 # Runner: self-hosted Mac Studio. Secrets: GitHub Actions or WSLVault
-# kv/fishers/ios at https://vault.workstation.co.uk. See docs/IOS_RELEASE.md.
+# kv/<brand>/ios at https://vault.workstation.co.uk. See docs/IOS_RELEASE.md.
 # Skip auto release with [skip release] or [skip ios].
 
 on:
@@ -23,6 +27,11 @@ on:
       - "v*.*.*"
   workflow_dispatch:
     inputs:
+      brand:
+        description: "Which brand (id from brands/, e.g. fishers or gullycricket)"
+        required: false
+        default: fishers
+        type: string
       version:
         description: "Marketing version override (blank = ios/project.yml)"
         required: false
@@ -51,8 +60,34 @@ defaults:
     working-directory: ios
 
 jobs:
+  # A push releases every brand; a dispatch releases the one asked for. The
+  # list is read from `brands/`, so adding a brand is a file rather than a file
+  # plus an edit here that somebody forgets.
+  brands:
+    name: Which brands
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        env:
+          ONE: ${{ inputs.brand }}
+        run: |
+          set -euo pipefail
+          npm ci --omit=dev --prefix tools/brand
+          if [ -n "${ONE:-}" ]; then
+            # Loading it is the validation: an unknown id fails here, before a
+            # Mac has spent forty minutes discovering the same thing.
+            node tools/brand/index.mjs mobile "$ONE" >/dev/null
+            printf 'list=["%s"]\n' "$ONE" >> "$GITHUB_OUTPUT"
+          else
+            echo "list=$(node tools/brand/index.mjs list --json)" >> "$GITHUB_OUTPUT"
+          fi
+
   release:
-    name: Build & upload (${{ github.event_name == 'workflow_dispatch' && inputs.target || 'testflight' }})
+    needs: brands
+    name: ${{ matrix.brand }} → ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'testflight' }}
     if: >-
       github.event_name != 'push'
       || github.ref_type == 'tag'
@@ -62,11 +97,19 @@ jobs:
       )
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 90
+    strategy:
+      # One Mac, one signing keychain, one Ruby bundle. Two brands building at
+      # once would fight over all three.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        brand: ${{ fromJSON(needs.brands.outputs.list) }}
     env:
       # WSLVault only — never vault.diytaxreturn.co.uk.
       VAULT_ADDR: https://vault.workstation.co.uk
       VAULT_TOKEN_FILE: /Users/balinderwalia/.secrets/wslvault/token.json
-      FISHERS_IOS_VAULT_PATH: kv/fishers/ios
+      # Each brand signs with its own Apple account material.
+      FISHERS_IOS_VAULT_PATH: kv/${{ matrix.brand }}/ios
       LANG: en_US.UTF-8
       LC_ALL: en_US.UTF-8
     steps:
@@ -149,6 +192,23 @@ jobs:
       - name: Verify App Store Connect API key
         run: bundle exec ruby ./ci/verify-asc-api-key.rb
 
+      - name: Generate the brand
+        # Before XcodeGen, because project.yml names brand.xcconfig and it does
+        # not exist until this runs. Before fastlane, because the bundle id is
+        # what decides which App Store listing this build belongs to.
+        #
+        # Without this the workflow signed whatever branding happened to be on
+        # the runner's disk from the last build — which on a self-hosted Mac is
+        # the previous brand.
+        working-directory: .
+        env:
+          BRAND: ${{ matrix.brand }}
+        run: |
+          set -euo pipefail
+          npm ci --omit=dev --prefix tools/brand
+          node tools/brand/index.mjs generate "$BRAND" --ios
+          node tools/brand/index.mjs mobile "$BRAND" >> "$GITHUB_ENV"
+
       - name: Install XcodeGen
         if: >-
           github.event_name != 'workflow_dispatch'
@@ -197,17 +257,17 @@ jobs:
           BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: bundle exec fastlane ios build_ipa
 
-      - name: Upload to TestFlight (Fishers)
+      - name: Upload to TestFlight
         if: >-
           github.event_name == 'push'
           || (github.event_name == 'workflow_dispatch' && inputs.target == 'testflight')
         run: bundle exec fastlane ios beta
 
-      - name: Make latest build installable (Fishers + re-invite)
+      - name: Make latest build installable (and re-invite)
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'testflight_ready'
         run: bundle exec fastlane ios ready_testers
 
-      - name: Resend Fishers TestFlight invite emails
+      - name: Resend TestFlight invite emails
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'invite_testers'
         run: bundle exec fastlane ios invite_testers
 
@@ -219,7 +279,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: fishers-ios-ipa
+          name: ${{ matrix.brand }}-ios-ipa
+          # The scheme stays "Fishers" for every brand — one Xcode project,
+          # branded by configuration — so the IPA's name does not move.
           path: ios/build/Fishers.ipa
           if-no-files-found: warn
           retention-days: 14
