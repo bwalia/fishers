@@ -177,10 +177,11 @@ function Listing({
         </p>
         {product.condition_note && <p className="sell-note">{product.condition_note}</p>}
         {error && <p className="error">{error}</p>}
+        <Photos clubId={clubId} product={product} onDone={onChanged} />
       </div>
 
       <div className="sell-actions">
-        <PhotoButton clubId={clubId} product={product} onDone={onChanged} />
+
         {!sold && (
           <button className="btn" disabled={busy} onClick={() => act(() => markSold(clubId, product.id))}>
             Mark sold
@@ -202,8 +203,13 @@ function Listing({
   );
 }
 
-/// Photographs, up to six. A second-hand bat with no picture does not sell.
-function PhotoButton({
+/// Photographs — several at once, and a way to take one back off.
+///
+/// A secretary standing in a clubhouse photographs a bat from four angles and
+/// then wants all four up, not four trips through a file picker. Six is the
+/// ceiling: the whole thing, the face, the toe, the grip, and two for whatever
+/// is wrong with it.
+function Photos({
   clubId,
   product,
   onDone,
@@ -212,40 +218,88 @@ function PhotoButton({
   product: Product;
   onDone: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const count = product.photos?.length ?? 0;
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const photos = product.photos ?? [];
+  const room = MAX_PHOTOS - photos.length;
 
-  // `upload`, not `api`: api() sets Content-Type: application/json, and a
-  // multipart body needs the browser to set its own boundary. Sending JSON's
-  // header with a FormData body produces a request the server cannot parse.
-  const send = async (file: File) => {
-    setBusy(true);
+  const add = async (files: FileList) => {
+    // Sequential, not Promise.all: each upload reads the current photo list
+    // and appends to it, so firing six at once would have five of them
+    // appending to the same stale array and only one surviving.
+    const chosen = Array.from(files).slice(0, room);
+    setError(null);
+    for (const [i, file] of chosen.entries()) {
+      setBusy(`Adding ${i + 1} of ${chosen.length}…`);
+      try {
+        await upload<Product>(`/clubs/${clubId}/products/${product.id}/photo`, file);
+      } catch (err) {
+        setError(readErr(err, `Could not add ${file.name}`));
+        break;
+      }
+    }
+    setBusy(null);
+    onDone();
+  };
+
+  const remove = async (url: string) => {
+    setBusy("Removing…");
+    setError(null);
     try {
-      await upload<Product>(`/clubs/${clubId}/products/${product.id}/photo`, file);
+      await updateListing(clubId, product.id, { photos: photos.filter((p) => p !== url) });
       onDone();
+    } catch (err) {
+      setError(readErr(err, "Could not remove that photograph"));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   return (
-    <label className={`btn${busy ? " busy" : ""}`}>
-      <Icon name="camera" size={16} />
-      {busy ? "Adding…" : count === 0 ? "Add a photo" : `Photos (${count})`}
-      <input
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        className="sr-only"
-        disabled={busy || count >= 6}
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) send(f);
-          e.target.value = "";
-        }}
-      />
-    </label>
+    <div className="photos">
+      {photos.length > 0 && (
+        <ul className="photos-strip">
+          {photos.map((url, i) => (
+            <li key={url}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={`Photograph ${i + 1}`} />
+              {i === 0 && <span className="photos-first">Cover</span>}
+              <button
+                type="button"
+                className="photos-remove"
+                aria-label={`Remove photograph ${i + 1}`}
+                disabled={busy !== null}
+                onClick={() => remove(url)}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <label className={`btn${busy ? " busy" : ""}`}>
+        <Icon name="camera" size={16} />
+        {busy ?? (photos.length === 0 ? "Add photos" : `Add more (${room} left)`)}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="sr-only"
+          disabled={busy !== null || room <= 0}
+          onChange={(e) => {
+            if (e.target.files?.length) add(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      {room <= 0 && <small className="muted">Six is the most a listing can hold.</small>}
+      {error && <p className="error">{error}</p>}
+    </div>
   );
 }
+
+const MAX_PHOTOS = 6;
 
 const CONDITIONS: { value: ProductCondition; label: string; hint: string }[] = [
   { value: "used", label: "Used", hint: "The club has replaced it and this one still has life in it." },
@@ -262,8 +316,11 @@ function ListingForm({
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("equipment");
   const [condition, setCondition] = useState<ProductCondition>("used");
   const [pounds, setPounds] = useState("");
+  const [negotiable, setNegotiable] = useState(true);
   const [stock, setStock] = useState("1");
   const [size, setSize] = useState("");
   const [brand, setBrand] = useState("");
@@ -284,8 +341,9 @@ function ListingForm({
     try {
       await createListing(clubId, {
         name: name.trim(),
+        description: description.trim() || null,
         price_cents: amount,
-        category: "equipment",
+        category,
         stock: stock === "" ? null : Number(stock),
         condition,
         condition_note: note.trim() || null,
@@ -293,6 +351,7 @@ function ListingForm({
         brand: brand.trim() || null,
         listed_publicly: publicly,
         collection_note: collection.trim() || null,
+        negotiable,
       });
       onDone();
     } catch (err) {
@@ -303,119 +362,197 @@ function ListingForm({
   };
 
   return (
-    <form className="panel sell-form" onSubmit={submit}>
-      <h2>List something</h2>
+    <div className="listing">
+      <form className="listing-form" onSubmit={submit}>
+        <section className="listing-group">
+          <h2>What it is</h2>
 
-      <label htmlFor="sl-name">What is it</label>
-      <input
-        id="sl-name"
-        required
-        maxLength={160}
-        placeholder="Gray-Nicolls Predator bat"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-
-      <fieldset className="sell-condition">
-        <legend>Condition</legend>
-        {CONDITIONS.map((c) => (
-          <label key={c.value} className={condition === c.value ? "on" : undefined}>
+          <div className="field">
+            <label htmlFor="sl-name">Name</label>
             <input
-              type="radio"
-              name="condition"
-              value={c.value}
-              checked={condition === c.value}
-              onChange={() => setCondition(c.value)}
+              id="sl-name"
+              required
+              maxLength={160}
+              placeholder="Gray-Nicolls Predator bat"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
             />
-            <strong>{c.label}</strong>
-            <span className="muted">{c.hint}</span>
+          </div>
+
+          <div className="field">
+            <label htmlFor="sl-desc">Description</label>
+            <textarea
+              id="sl-desc"
+              rows={4}
+              placeholder="Kashmir willow, knocked in and used for one season by our 2nd XI. Good middle, no repairs. Replaced because we moved to English willow."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            <small>What it is, how it played, why you are selling it.</small>
+          </div>
+
+          <div className="field field-narrow">
+            <label htmlFor="sl-cat">Kind</label>
+            <select id="sl-cat" value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="equipment">Bats, balls &amp; kit</option>
+              <option value="merchandise">Shoes &amp; sportswear</option>
+            </select>
+            <small>Only kit is shown to other clubs.</small>
+          </div>
+        </section>
+
+        <section className="listing-group">
+          <h2>Condition and price</h2>
+
+          <fieldset className="choice">
+            <legend className="sr-only">Condition</legend>
+            {CONDITIONS.map((c) => (
+              <label key={c.value} className={condition === c.value ? "on" : undefined}>
+                <input
+                  type="radio"
+                  name="condition"
+                  value={c.value}
+                  checked={condition === c.value}
+                  onChange={() => setCondition(c.value)}
+                />
+                <strong>{c.label}</strong>
+                <span>{c.hint}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <div className="field-row">
+            <div className="field field-price">
+              <label htmlFor="sl-price">Price</label>
+              <div className="input-prefix">
+                <span aria-hidden="true">£</span>
+                <input
+                  id="sl-price"
+                  required
+                  inputMode="decimal"
+                  placeholder="45.00"
+                  value={pounds}
+                  onChange={(e) => setPounds(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="field field-qty">
+              <label htmlFor="sl-stock">How many</label>
+              <input
+                id="sl-stock"
+                inputMode="numeric"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+              />
+              <small>Blank means made to order.</small>
+            </div>
+            <label className="switch listing-switch">
+              <input
+                type="checkbox"
+                checked={negotiable}
+                onChange={(e) => setNegotiable(e.target.checked)}
+              />
+              <span>Open to offers</span>
+            </label>
+          </div>
+        </section>
+
+        <section className="listing-group">
+          <h2>The details that sell it</h2>
+
+          <div className="field-row">
+            <div className="field">
+              <label htmlFor="sl-size">Size</label>
+              <input id="sl-size" placeholder="Short Handle" value={size} onChange={(e) => setSize(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="sl-brand">Make</label>
+              <input id="sl-brand" placeholder="Gray-Nicolls" value={brand} onChange={(e) => setBrand(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="sl-note">What state is it in?</label>
+            <textarea
+              id="sl-note"
+              rows={2}
+              maxLength={500}
+              placeholder="Light wear on the toe, no cracks. Knocked in, used one season."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <small>Be honest — it saves somebody a wasted journey.</small>
+          </div>
+
+          <div className="field">
+            <label htmlFor="sl-collect">Collection</label>
+            <input
+              id="sl-collect"
+              maxLength={300}
+              placeholder="From the clubhouse any Tuesday evening"
+              value={collection}
+              onChange={(e) => setCollection(e.target.value)}
+            />
+          </div>
+
+          <label className="switch">
+            <input type="checkbox" checked={publicly} onChange={(e) => setPublicly(e.target.checked)} />
+            <span>Show it to players at other clubs</span>
           </label>
-        ))}
-      </fieldset>
+        </section>
 
-      <div className="sell-row">
-        <div>
-          <label htmlFor="sl-price">Price</label>
-          <input
-            id="sl-price"
-            required
-            inputMode="decimal"
-            placeholder="45.00"
-            value={pounds}
-            onChange={(e) => setPounds(e.target.value)}
-          />
+        {error && <p className="error">{error}</p>}
+
+        <div className="listing-actions">
+          <button className="btn primary" disabled={busy}>
+            {busy ? "Listing…" : "List it"}
+          </button>
+          <button type="button" className="btn" onClick={onCancel}>
+            Cancel
+          </button>
         </div>
-        <div>
-          <label htmlFor="sl-stock">How many</label>
-          <input
-            id="sl-stock"
-            inputMode="numeric"
-            value={stock}
-            onChange={(e) => setStock(e.target.value)}
-          />
-          <small className="muted">One, for a single second-hand item. Blank means made to order.</small>
+      </form>
+
+      {/* The space to the right was empty. A preview earns it: the seller sees
+          what a buyer sees, which is also the most persuasive argument for
+          filling in the description and adding a photograph. */}
+      <aside className="listing-preview" aria-label="How your listing will look">
+        <p className="listing-preview-label">How buyers will see it</p>
+        <div className="market-card">
+          <span className="market-photo empty" aria-hidden="true">
+            <Icon name="camera" size={22} />
+            <small>Add photos once it is listed</small>
+          </span>
+          <div className="market-body">
+            <div className="market-title">
+              <strong>{name.trim() || "Your listing"}</strong>
+              <span className={`tag ${condition === "used" ? "grey" : "gold"}`}>
+                {condition === "used" ? "Used" : "New"}
+              </span>
+            </div>
+            <p className="market-price">
+              {pounds ? `£${pounds}` : "£0.00"}
+              {negotiable && " or near offer"}
+            </p>
+            <p className="muted">
+              {stock === "" ? "On request" : stock === "1" && condition === "used" ? "One only" : `${stock || 0} available`}
+              {size && ` · ${size}`}
+              {brand && ` · ${brand}`}
+            </p>
+            {note.trim() && <p className="market-note">{note}</p>}
+            {collection.trim() && (
+              <p className="muted market-collect">
+                <Icon name="pin" size={13} /> {collection}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
-
-      <div className="sell-row">
-        <div>
-          <label htmlFor="sl-size">Size</label>
-          <input
-            id="sl-size"
-            placeholder="Short Handle"
-            value={size}
-            onChange={(e) => setSize(e.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="sl-brand">Make</label>
-          <input
-            id="sl-brand"
-            placeholder="Gray-Nicolls"
-            value={brand}
-            onChange={(e) => setBrand(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <label htmlFor="sl-note">
-        What state is it in? <span className="muted">Be honest — it saves a wasted journey.</span>
-      </label>
-      <textarea
-        id="sl-note"
-        rows={2}
-        maxLength={500}
-        placeholder="Light wear on the toe, no cracks. Knocked in, used one season."
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-      />
-
-      <label htmlFor="sl-collect">Collection</label>
-      <input
-        id="sl-collect"
-        maxLength={300}
-        placeholder="From the clubhouse any Tuesday evening"
-        value={collection}
-        onChange={(e) => setCollection(e.target.value)}
-      />
-
-      <label className="switch">
-        <input type="checkbox" checked={publicly} onChange={(e) => setPublicly(e.target.checked)} />
-        <span>Show it to players at other clubs</span>
-      </label>
-
-      {error && <p className="error">{error}</p>}
-      <div className="sell-form-actions">
-        <button className="btn primary" disabled={busy}>
-          {busy ? "Listing…" : "List it"}
-        </button>
-        <button type="button" className="btn" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-      <p className="muted">
-        You can add photographs once it is listed. Nobody buys a bat they cannot see.
-      </p>
-    </form>
+        {!publicly && (
+          <p className="muted listing-preview-note">
+            Only your own club will see this while &ldquo;show to other clubs&rdquo; is off.
+          </p>
+        )}
+      </aside>
+    </div>
   );
 }

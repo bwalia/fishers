@@ -29,9 +29,13 @@ pub struct Product {
     pub size: Option<String>,
     pub brand: Option<String>,
     pub photos: Vec<String>,
-    /// Whether it appears outside the club.
+    /// Whether it appears outside the club. Only kit ever does — the database
+    /// refuses a publicly listed cup of tea.
     pub listed_publicly: bool,
     pub collection_note: Option<String>,
+    /// Whether the price is the price. Second-hand kit is haggled over, and a
+    /// buyer who cannot tell either overpays or does not ask.
+    pub negotiable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -76,6 +80,7 @@ pub struct CreateProductRequest {
     pub listed_publicly: Option<bool>,
     #[validate(length(max = 300))]
     pub collection_note: Option<String>,
+    pub negotiable: Option<bool>,
 }
 
 /// Changing a listing after it is up: the price comes down, the last photo
@@ -100,6 +105,7 @@ pub struct UpdateProductRequest {
     pub listed_publicly: Option<bool>,
     #[validate(length(max = 300))]
     pub collection_note: Option<String>,
+    pub negotiable: Option<bool>,
     /// Taking it off sale. Kept rather than deleted, so an order that already
     /// names it still reads.
     pub active: Option<bool>,

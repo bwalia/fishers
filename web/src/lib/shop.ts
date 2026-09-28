@@ -20,6 +20,17 @@ export const marketplace = (params: { condition?: ProductCondition; q?: string }
 export const clubProducts = (clubId: string) =>
   api<Product[]>("GET", `/clubs/${clubId}/products`);
 
+/// One listing, in full — its own page, for anybody signed in.
+export const marketItem = (id: string) => api<Product>("GET", `/marketplace/${id}`);
+
+/// Reserve it. No money changes hands here: the club is told, and the two of
+/// you settle it in person.
+export const reserve = (clubId: string, productId: string) =>
+  api<{ order: { id: string } }>("POST", "/orders", {
+    club_id: clubId,
+    items: [{ product_id: productId, quantity: 1 }],
+  });
+
 export type NewListing = {
   name: string;
   description?: string | null;
@@ -32,6 +43,7 @@ export type NewListing = {
   brand?: string | null;
   listed_publicly?: boolean;
   collection_note?: string | null;
+  negotiable?: boolean;
 };
 
 export const createListing = (clubId: string, body: NewListing) =>
@@ -47,6 +59,13 @@ export const updateListing = (
 /// deleted, because an order that already names it still has to read.
 export const markSold = (clubId: string, productId: string) =>
   updateListing(clubId, productId, { active: false, stock: 0 });
+
+/// "£45.00", or "£45.00 or nearest offer" when the seller will haggle. The
+/// difference decides whether somebody asks at all.
+export function priceLine(p: Product): string {
+  const amount = price(p.price_cents, p.currency);
+  return p.negotiable ? `${amount} or near offer` : amount;
+}
 
 /// "£45.00", in the currency it was listed in.
 export function price(cents: number, currency: string): string {

@@ -22,6 +22,7 @@ pub fn router() -> Router<AppState> {
         // Across every club, not one: a club with a spare set of pads needs a
         // bigger room than its own membership.
         .route("/marketplace", get(marketplace))
+        .route("/marketplace/{id}", get(market_item))
         .route("/orders", post(place_order))
         .route("/orders/mine", get(my_orders))
 }
@@ -155,6 +156,22 @@ const MAX_PHOTOS: usize = 6;
 /// to bother.
 const MAX_PHOTO_BYTES: usize = 5 * 1024 * 1024;
 
+/// One listing, in full.
+///
+/// Any signed-in player, which is the point: somebody at another club has
+/// followed a link to a bat and wants the description, every photograph and
+/// whether the price moves.
+async fn market_item(
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Product>> {
+    orders_repo::public_product(&state.pool, id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("that listing is not for sale"))
+}
+
 async fn list_products(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -193,6 +210,48 @@ async fn place_order(
             ),
             other => other.into(),
         })?;
+    // Whoever can list a bat is whoever hears that somebody wants it. In the
+    // background and never fatal: an order that succeeded must not fail
+    // because a notification did not write.
+    let bus_state = state.clone();
+    let club_id = body.club_id;
+    let order_id = order.id;
+    let buyer = auth.user_id;
+    let lines = items.len();
+    tokio::spawn(async move {
+        let officers = match fishers_db::repos::clubs::officers(&bus_state.pool, club_id).await {
+            Ok(list) => list,
+            Err(e) => {
+                tracing::warn!(error = %e, "could not find who to tell about the reservation");
+                return;
+            }
+        };
+        let payload = serde_json::json!({
+            "order_id": order_id,
+            "club_id": club_id,
+            "buyer_id": buyer,
+            "items": lines,
+        });
+        for officer in officers {
+            // Not the buyer, when the buyer is the secretary listing their own
+            // club's kit to themselves — a notification about your own tap is
+            // noise.
+            if officer == buyer {
+                continue;
+            }
+            if let Err(e) = fishers_db::repos::notifications::record(
+                &bus_state.pool,
+                officer,
+                "shop_reserved",
+                &payload,
+            )
+            .await
+            {
+                tracing::warn!(error = %e, "could not record the reservation notification");
+            }
+        }
+    });
+
     Ok(Json(OrderResponse { order, items }))
 }
 

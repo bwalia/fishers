@@ -9,7 +9,7 @@ use sqlx::PgPool;
 /// missed in the others.
 const PRODUCT_COLS: &str = "id, club_id, name, description, price_cents, currency, category, \
      stock, active, created_at, condition, condition_note, size, brand, photos, \
-     listed_publicly, collection_note";
+     listed_publicly, collection_note, negotiable";
 
 use uuid::Uuid;
 
@@ -23,8 +23,8 @@ pub async fn create_product(
         r#"
         INSERT INTO products (club_id, name, description, price_cents, currency, category, stock,
                               condition, condition_note, size, brand, listed_publicly,
-                              collection_note)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                              collection_note, negotiable)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING {PRODUCT_COLS}
         "#
     ))
@@ -41,6 +41,7 @@ pub async fn create_product(
     .bind(&req.brand)
     .bind(req.listed_publicly.unwrap_or(false))
     .bind(&req.collection_note)
+    .bind(req.negotiable.unwrap_or(false))
     .fetch_one(pool)
     .await
 }
@@ -66,7 +67,8 @@ pub async fn update_product(
             listed_publicly = COALESCE($11, listed_publicly),
             collection_note = COALESCE($12, collection_note),
             active          = COALESCE($13, active),
-            photos          = COALESCE($14, photos)
+            photos          = COALESCE($14, photos),
+            negotiable      = COALESCE($15, negotiable)
          WHERE id = $1 AND club_id = $2
         RETURNING {PRODUCT_COLS}
         "#
@@ -85,6 +87,7 @@ pub async fn update_product(
     .bind(&req.collection_note)
     .bind(req.active)
     .bind(&req.photos)
+    .bind(req.negotiable)
     .fetch_optional(pool)
     .await
 }
@@ -100,6 +103,20 @@ pub async fn get_product(
     ))
     .bind(product_id)
     .bind(club_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// One publicly listed item, for its own page.
+///
+/// Separate from `get_product`, which is the club's own view of its shelf:
+/// this one is what anybody signed in may see, and it refuses anything the
+/// selling club has not put on the market.
+pub async fn public_product(pool: &PgPool, id: Uuid) -> Result<Option<Product>, sqlx::Error> {
+    sqlx::query_as::<_, Product>(&format!(
+        "SELECT {PRODUCT_COLS} FROM products WHERE id = $1 AND listed_publicly AND active"
+    ))
+    .bind(id)
     .fetch_optional(pool)
     .await
 }

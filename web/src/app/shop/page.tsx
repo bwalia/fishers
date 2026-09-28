@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
-import { availability, marketplace, price } from "@/lib/shop";
+import { availability, marketplace, priceLine } from "@/lib/shop";
 
 /// Statuses that still owe the club money. `draft` never reaches this screen
 /// but is listed for completeness against the server's enum.
@@ -378,6 +378,7 @@ function Marketplace() {
         <ul className="market-grid">
           {items.map((p) => (
             <li key={p.id} className="market-card">
+              <Link href={`/shop/item/${p.id}`} className="market-link">
               {p.photos?.[0] ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={p.photos[0]} alt="" className="market-photo" />
@@ -395,7 +396,7 @@ function Marketplace() {
                     </span>
                   )}
                 </div>
-                <p className="market-price">{price(p.price_cents, p.currency)}</p>
+                <p className="market-price">{priceLine(p)}</p>
                 <p className="muted">
                   {availability(p)}
                   {p.size && ` · ${p.size}`}
@@ -408,6 +409,7 @@ function Marketplace() {
                   </p>
                 )}
               </div>
+              </Link>
             </li>
           ))}
         </ul>

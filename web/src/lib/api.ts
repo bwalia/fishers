@@ -248,6 +248,9 @@ export type Product = {
   /// Whether it appears outside the club.
   listed_publicly?: boolean;
   collection_note?: string | null;
+  /// Whether the price is the price. Second-hand kit gets haggled over, and a
+  /// buyer who cannot tell either overpays or does not ask.
+  negotiable?: boolean;
 };
 
 export function getAccessToken(): string | null {
