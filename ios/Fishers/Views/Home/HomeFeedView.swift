@@ -136,6 +136,10 @@ struct HomeFeedView: View {
                     }
                 }
 
+                // The club's own matches come first and look different on
+                // purpose; this is the rest of the world's cricket.
+                WorldScoresSection()
+
                 if !clubContext.clubs.isEmpty {
                     Section {
                         ForEach(upcoming) { event in
