@@ -181,6 +181,27 @@ interface FishersApi {
         @Body body: com.fishers.app.shop.PlaceOrderRequest,
     ): com.fishers.app.shop.OrderResponse
 
+    // ---- scores from the wider game ----
+
+    /**
+     * Internationals and domestic cricket.
+     *
+     * Answered from our own database. The feed behind it allows a hundred
+     * requests a day for the whole deployment, so it is read by a background
+     * job and never by a phone — which is why this can be called as freely as
+     * any other endpoint.
+     */
+    @GET("cricket/world-scores")
+    suspend fun worldScores(): com.fishers.app.scores.WorldScores
+
+    /**
+     * One outside match in full. Costs the server a request for this one match,
+     * where the list costs one for every match being played anywhere — guarded
+     * there: a finished card is fetched once and never again.
+     */
+    @GET("cricket/world-scores/{id}")
+    suspend fun worldMatch(@Path("id") id: String): com.fishers.app.scores.WorldMatchDetailView
+
     // ---- clubs ----
 
     @GET("me/clubs")

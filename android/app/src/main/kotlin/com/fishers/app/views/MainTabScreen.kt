@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,6 +44,10 @@ import com.fishers.app.clubs.Club
 import com.fishers.app.clubs.ClubDetailViewModel
 import com.fishers.app.clubs.ClubsViewModel
 import com.fishers.app.home.HomeViewModel
+import com.fishers.app.scores.WorldMatchViewModel
+import com.fishers.app.scores.WorldScoresViewModel
+import com.fishers.app.views.scores.WorldMatchScreen
+import com.fishers.app.views.scores.WorldScoresScreen
 import com.fishers.app.views.home.HomeScreen
 import com.fishers.app.views.clubs.ClubDetailScreen
 import com.fishers.app.views.clubs.ClubsScreen
@@ -79,6 +84,8 @@ fun MainTabScreen(
     pendingReviews: PendingUmpireReviewsViewModel,
     market: MarketViewModel,
     listingFor: (String) -> ListingViewModel,
+    worldScores: WorldScoresViewModel,
+    worldMatchFor: (String) -> WorldMatchViewModel,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
@@ -91,6 +98,10 @@ fun MainTabScreen(
     // The shop is two screens deep off Home: the marketplace, then one listing.
     var shopOpen by rememberSaveable { mutableStateOf(false) }
     var openListing by rememberSaveable { mutableStateOf<String?>(null) }
+    // The world scores, one screen deep off Home.
+    var scoresOpen by rememberSaveable { mutableStateOf(false) }
+    // Which match's scorecard is open, if any.
+    var openWorldMatch by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -124,7 +135,26 @@ fun MainTabScreen(
             else Alignment.Start,
         ) {
             when (tab) {
-                Tab.Home -> if (shopOpen) {
+                Tab.Home -> if (scoresOpen) {
+                    BackHandler {
+                        if (openWorldMatch != null) openWorldMatch = null else scoresOpen = false
+                    }
+                    val match = openWorldMatch
+                    if (match == null) {
+                        val state by worldScores.state.collectAsStateWithLifecycle()
+                        // Polls our own API while the screen is open, which costs
+                        // a query and never one of the feed's daily allowance.
+                        LaunchedEffect(Unit) { worldScores.startPolling() }
+                        DisposableEffect(Unit) { onDispose { worldScores.stopPolling() } }
+                        WorldScoresScreen(state = state, onOpen = { openWorldMatch = it })
+                    } else {
+                        val model = remember(match) { worldMatchFor(match) }
+                        val state by model.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(match) { model.start() }
+                        DisposableEffect(match) { onDispose { model.stop() } }
+                        WorldMatchScreen(state = state, onOpenTab = model::openTab)
+                    }
+                } else if (shopOpen) {
                     ShopTab(
                         market = market,
                         listingFor = listingFor,
@@ -146,6 +176,7 @@ fun MainTabScreen(
                         name = user?.name,
                         state = state,
                         onOpenShop = { shopOpen = true },
+                        onOpenScores = { scoresOpen = true },
                     )
                 }
 

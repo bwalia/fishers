@@ -57,6 +57,12 @@ open class FakeFishersApi : FishersApi {
         search: String?,
     ): List<com.fishers.app.shop.Product> = error("marketplace not expected")
 
+    override suspend fun worldScores(): com.fishers.app.scores.WorldScores =
+        error("worldScores not expected")
+
+    override suspend fun worldMatch(id: String): com.fishers.app.scores.WorldMatchDetailView =
+        error("worldMatch not expected")
+
     override suspend fun marketItem(id: String): com.fishers.app.shop.MarketListing =
         error("marketItem not expected")
 
