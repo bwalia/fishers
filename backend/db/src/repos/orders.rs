@@ -120,6 +120,7 @@ pub async fn get_product(
 pub async fn public_listing(
     pool: &PgPool,
     id: Uuid,
+    viewer: Uuid,
 ) -> Result<Option<fishers_domain::MarketListing>, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct Row {
@@ -127,6 +128,8 @@ pub async fn public_listing(
         seller_name: Option<String>,
         seller_email: Option<String>,
         seller_phone: Option<String>,
+        mine: bool,
+        enquiries: i64,
     }
 
     let Some(product) = public_product(pool, id).await? else {
@@ -137,13 +140,27 @@ pub async fn public_listing(
         "SELECT c.name AS club_name,
                 u.name  AS seller_name,
                 CASE WHEN p.show_contact THEN u.email END AS seller_email,
-                CASE WHEN p.show_contact THEN u.phone END AS seller_phone
+                CASE WHEN p.show_contact THEN u.phone END AS seller_phone,
+                -- Theirs if they put it up, or if they are one of the people
+                -- who runs the shop it is in.
+                --
+                -- COALESCE because anything listed before products recorded an
+                -- author has listed_by NULL, and `NULL = $2 OR false` is NULL,
+                -- not false — which arrives in Rust as a bool that is neither.
+                (COALESCE(p.listed_by = $2, FALSE) OR EXISTS (
+                    SELECT 1 FROM club_members m
+                     WHERE m.club_id = p.club_id AND m.user_id = $2
+                       AND m.status = 'active'
+                       AND m.role IN ('club_admin', 'super_admin')
+                )) AS mine,
+                (SELECT COUNT(*) FROM conversations cv WHERE cv.product_id = p.id) AS enquiries
            FROM products p
            JOIN clubs c ON c.id = p.club_id
            LEFT JOIN users u ON u.id = p.listed_by AND u.deleted_at IS NULL
           WHERE p.id = $1",
     )
     .bind(id)
+    .bind(viewer)
     .fetch_one(pool)
     .await?;
 
@@ -153,7 +170,27 @@ pub async fn public_listing(
         seller_name: row.seller_name,
         seller_email: row.seller_email,
         seller_phone: row.seller_phone,
+        mine: row.mine,
+        // Withheld from buyers: how many rivals you have is the seller's
+        // information, not a lever to hurry somebody along with.
+        enquiries: row.mine.then_some(row.enquiries),
     }))
+}
+
+/// Whether any of these is something this person put up for sale themselves.
+pub async fn any_listed_by(
+    pool: &PgPool,
+    product_ids: &[Uuid],
+    user_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM products
+                         WHERE id = ANY($1) AND listed_by = $2)",
+    )
+    .bind(product_ids)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
 }
 
 /// Who an enquiry about a listing should reach.

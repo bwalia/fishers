@@ -266,6 +266,11 @@ export type MarketListing = Product & {
   seller_name?: string | null;
   seller_email?: string | null;
   seller_phone?: string | null;
+  /// Whether you are the one selling it. Decided by the API, not by comparing
+  /// ids here — a club's secretary is looking at their own listing too.
+  mine?: boolean;
+  /// How many people have asked about it. Only sent to the seller.
+  enquiries?: number | null;
 };
 
 export function getAccessToken(): string | null {

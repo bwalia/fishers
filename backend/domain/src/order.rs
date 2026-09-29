@@ -62,6 +62,17 @@ pub struct MarketListing {
     /// pointed at the message thread instead.
     pub seller_email: Option<String>,
     pub seller_phone: Option<String>,
+    /// Whether the person asking is the person selling.
+    ///
+    /// Answered here rather than by the page comparing ids, because "mine"
+    /// is not only "I posted it": a secretary who can manage the club's shop
+    /// is looking at their club's listing, not at something to buy. The API
+    /// knows that; the browser would have to be told, and told again every
+    /// time the rule changed.
+    pub mine: bool,
+    /// How many people have asked about it. Only filled in for the seller —
+    /// it is their listing's answer to "is this getting any interest".
+    pub enquiries: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

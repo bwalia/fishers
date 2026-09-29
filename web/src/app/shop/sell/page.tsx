@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { api, readErr, upload, type Club, type Product, type ProductCondition } from "@/lib/api";
@@ -52,6 +52,14 @@ export default function SellPage() {
   /// The one just listed, so the page can say "that worked, now add photos"
   /// rather than dropping somebody back on a list to find it themselves.
   const [justListed, setJustListed] = useState<string | null>(null);
+  // "Edit or mark as sold" on a listing's own page arrives here with ?item=,
+  // and should land on that listing rather than on a page of all of them.
+  // Read from the URL in an effect rather than useSearchParams, which would
+  // drag the whole page out of the static build for one optional string.
+  const [focus, setFocus] = useState<string | null>(null);
+  useEffect(() => {
+    setFocus(new URLSearchParams(window.location.search).get("item"));
+  }, []);
 
   useEffect(() => {
     if (!authed) return;
@@ -183,7 +191,13 @@ export default function SellPage() {
               <p className="muted">{blurb}</p>
               <ul className="sell-list">
                 {items.map((p) => (
-                  <Listing key={p.id} clubId={clubId} product={p} onChanged={load} />
+                  <Listing
+                    key={p.id}
+                    clubId={clubId}
+                    product={p}
+                    focused={p.id === focus}
+                    onChanged={load}
+                  />
                 ))}
               </ul>
             </section>
@@ -197,15 +211,25 @@ export default function SellPage() {
 function Listing({
   clubId,
   product,
+  focused,
   onChanged,
 }: {
   clubId: string;
   product: Product;
+  /// Arrived here from this listing's own page: open it and scroll to it.
+  focused?: boolean;
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const row = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    if (!focused) return;
+    setEditing(true);
+    row.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focused]);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -224,7 +248,7 @@ function Listing({
   const photos = product.photos?.length ?? 0;
 
   return (
-    <li className={`sell-item${shelf === "sold" ? " sold" : ""}`}>
+    <li ref={row} className={`sell-item${shelf === "sold" ? " sold" : ""}${focused ? " focused" : ""}`}>
       {product.photos?.[0] ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={product.photos[0]} alt="" className="sell-thumb" />

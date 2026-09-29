@@ -164,10 +164,10 @@ const MAX_PHOTO_BYTES: usize = 5 * 1024 * 1024;
 /// whether the price moves.
 async fn market_item(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<fishers_domain::MarketListing>> {
-    orders_repo::public_listing(&state.pool, id)
+    orders_repo::public_listing(&state.pool, id, auth.user_id)
         .await?
         .map(Json)
         .ok_or_else(|| ApiError::not_found("that listing is not for sale"))
@@ -197,7 +197,7 @@ async fn enquire(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<EnquiryStarted>> {
-    let listing = orders_repo::public_listing(&state.pool, id)
+    let listing = orders_repo::public_listing(&state.pool, id, auth.user_id)
         .await?
         .ok_or_else(|| ApiError::not_found("that listing is not for sale"))?;
 
@@ -248,6 +248,13 @@ async fn place_order(
     body.validate()?;
     if body.items.iter().any(|i| i.quantity < 1) {
         return Err(ApiError::bad_request("a quantity has to be at least one"));
+    }
+    // Reserving your own second-hand kit takes it off the marketplace and
+    // sends you a notification about yourself. Buying from your own club's
+    // shop is ordinary and stays allowed — this is only the thing you listed.
+    let ids: Vec<Uuid> = body.items.iter().map(|i| i.product_id).collect();
+    if orders_repo::any_listed_by(&state.pool, &ids, auth.user_id).await? {
+        return Err(ApiError::bad_request("that is your own listing"));
     }
     let (order, items) = orders_repo::place_order(&state.pool, auth.user_id, &body)
         .await

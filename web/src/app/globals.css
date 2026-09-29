@@ -4508,7 +4508,7 @@ a.bell-item:hover { background: var(--surface-2); }
   gap: 6px;
   width: auto;
   height: auto;
-  min-height: 40px;
+  min-height: 44px;
   padding: var(--s2) var(--s3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -6861,7 +6861,21 @@ main .panel[id] { scroll-margin-top: 80px; }
 
 /* ---- One listing, in full ---- */
 .item { display: grid; gap: var(--s3); }
-.item-cols { display: grid; gap: var(--s4); grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
+/* ---- One thing for sale ----
+ *
+ * A gallery and a buy box across the top, then the reading matter underneath,
+ * each part under a heading of its own. The earlier version put the price, the
+ * specification, an unlabelled paragraph and two buttons in one narrow column,
+ * which left a buyer to work out for themselves which sentence was the
+ * description and which was where to collect it.
+ */
+.item-crumbs {
+  display: flex; align-items: center; gap: .5rem;
+  color: var(--fg-muted); margin-bottom: var(--s3); flex-wrap: wrap;
+}
+.item-crumbs a { display: inline-flex; align-items: center; gap: .3rem; color: var(--primary-ink); }
+
+.item-cols { display: grid; gap: var(--s5); grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); align-items: start; }
 
 .item-shots { display: grid; gap: var(--s2); }
 /* A fixed ratio so the page does not jump as each photograph arrives. */
@@ -6869,41 +6883,145 @@ main .panel[id] { scroll-margin-top: 80px; }
   width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
   border-radius: var(--radius); background: var(--surface-2); display: block;
 }
-.item-shot.empty { display: grid; place-items: center; gap: .4rem; color: var(--fg-subtle); }
-.item-thumbs { display: flex; gap: .4rem; flex-wrap: wrap; }
-.item-thumbs button {
-  width: 64px; height: 64px; padding: 0; border-radius: var(--radius-sm);
-  border: 2px solid transparent; background: none; cursor: pointer; overflow: hidden;
+.item-shot.empty {
+  display: grid; place-items: center; gap: .4rem; color: var(--fg-subtle);
+  aspect-ratio: auto; min-height: 240px;
 }
+.item-thumbs { display: flex; gap: .45rem; flex-wrap: wrap; }
+.item-thumbs button {
+  width: 68px; height: 68px; padding: 0; border-radius: var(--radius-sm);
+  border: 2px solid var(--border); background: none; cursor: pointer; overflow: hidden;
+  transition: border-color 140ms ease-out, transform 140ms ease-out;
+}
+.item-thumbs button:hover { transform: translateY(-1px); }
 .item-thumbs button.on { border-color: var(--primary); }
 .item-thumbs button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .item-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-.item-facts { display: grid; gap: .6rem; }
-.item-title { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
-.item-title h1 { margin: 0; }
-.item-price { margin: 0; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-
-.item-spec { display: grid; grid-template-columns: auto 1fr; gap: .3rem var(--s3); margin: var(--s2) 0; }
-.item-spec dt { color: var(--fg-muted); }
-.item-spec dd { margin: 0; }
-.item-desc { white-space: pre-wrap; }
-.item-take { justify-self: start; }
-
-.item-done { display: flex; gap: .6rem; align-items: flex-start; padding: var(--s2);
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
-.item-done p { margin: .2rem 0 0; }
-
-/* Who you are buying from, and the two ways to reach them. Sits between the
-   description and the reserve button: read about it, ask about it, take it. */
-.item-seller {
-  display: grid; gap: .6rem; justify-items: start;
-  padding-top: var(--s2); border-top: 1px solid var(--border);
+/* The panel that answers "what is it, what does it cost, what do I do now".
+   Sticky on a wide screen so it stays put while the photographs scroll. */
+.item-buybox {
+  display: grid; gap: .7rem; align-content: start;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--s5); box-shadow: var(--shadow-1);
+  position: sticky; top: var(--s4);
 }
-.item-seller-who { margin: 0; }
-.item-ask { display: inline-flex; align-items: center; gap: .45rem; }
+/* Labels, not controls — deliberately not `.chip`, which is the 44px filter
+   button on the shop index and capitalises what it is given. */
+.item-tags { display: flex; gap: .4rem; flex-wrap: wrap; }
+.item-tag {
+  display: inline-flex; align-items: center; padding: .22rem .65rem;
+  border-radius: var(--radius-pill); border: 1px solid var(--border-strong);
+  background: var(--surface-2); color: var(--fg-muted);
+  font-size: .8rem; font-weight: 600;
+}
+/* Each says what it means in words as well — a colour on its own tells
+   somebody who cannot see the difference nothing at all. */
+.tag-new { background: var(--gold-100); border-color: var(--accent); color: var(--accent); }
+.tag-used { background: var(--pitch-50); border-color: var(--primary); color: var(--primary-ink); }
+.tag-offer { background: var(--surface); }
+
+.item-name { margin: 0; font-size: 1.75rem; line-height: 1.2; }
+.item-price {
+  margin: 0; font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+}
+.item-price-note { font-size: .9rem; font-weight: 500; color: var(--fg-muted); font-variant-numeric: normal; }
+
+.item-stock { margin: 0; display: flex; align-items: center; gap: .4rem; color: var(--primary-ink); }
+.item-stock.gone { color: var(--danger); }
+
+.item-actions { display: grid; gap: .6rem; margin-top: var(--s2); }
+.btn-lg { min-height: 48px; justify-content: center; display: inline-flex; align-items: center; gap: .45rem; font-size: 1rem; }
+.item-reassure {
+  margin: 0; display: flex; gap: .45rem; align-items: flex-start;
+  color: var(--fg-muted); font-size: .9rem;
+}
+.item-reassure svg { flex: 0 0 auto; margin-top: .15rem; }
+
+.item-done { display: flex; gap: .6rem; align-items: flex-start; padding: var(--s3);
+  border: 1px solid var(--primary); border-radius: var(--radius); background: var(--pitch-50); }
+.item-done p { margin: .2rem 0 var(--s2); }
+
+/* Who you are buying from. A name and a face-shaped initial, because "Lions
+   CC" alone does not tell you whether there is a person on the other end. */
+.item-seller {
+  display: grid; gap: .5rem; justify-items: start;
+  padding-top: var(--s3); border-top: 1px solid var(--border); margin-top: var(--s2);
+}
+.item-seller-who { margin: 0; display: flex; gap: .6rem; align-items: center; }
+.item-avatar {
+  width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
+  background: var(--primary); color: var(--on-primary);
+  display: grid; place-items: center; font-weight: 700;
+}
 .item-contact { margin: 0; color: var(--fg-muted); }
-.item-contact a { color: var(--primary); }
+.item-contact a { color: var(--primary-ink); }
+
+/* The seller's own view of it. */
+.item-owner { display: grid; gap: .7rem; }
+.item-owner-badge {
+  margin: 0; display: inline-flex; align-items: center; gap: .4rem; justify-self: start;
+  padding: .25rem .7rem; border-radius: var(--radius-pill);
+  background: var(--pitch-50); border: 1px solid var(--primary); color: var(--primary-ink);
+  font-weight: 600;
+}
+.item-owner .muted { margin: -.4rem 0 0; }
+.item-owner-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2);
+  margin: var(--s2) 0 0; text-align: center;
+}
+.item-owner-stats > div { background: var(--surface-2); border-radius: var(--radius-sm); padding: var(--s2); }
+.item-owner-stats dt { color: var(--fg-muted); font-size: .8rem; }
+.item-owner-stats dd { margin: .15rem 0 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.item-nudge {
+  margin: 0; padding: var(--s3); border-radius: var(--radius-sm);
+  background: var(--gold-100); border: 1px solid var(--accent); color: var(--fg);
+}
+
+/* The reading matter. Three or four short sections rather than one column of
+   undifferentiated text. */
+.item-detail {
+  margin-top: var(--s6); display: grid; gap: var(--s4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.item-block {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--s5);
+}
+.item-block h2 {
+  margin: 0 0 var(--s3); font-size: 1rem; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--fg-muted);
+}
+.item-block p:last-child { margin-bottom: 0; }
+/* Held to a comfortable measure — a description running the full width of a
+   desktop window is read twice as slowly. */
+.item-prose { white-space: pre-wrap; max-width: 62ch; margin: 0; }
+
+.item-spec { display: grid; gap: var(--s3); margin: 0; }
+.item-spec > div { display: grid; grid-template-columns: 9rem 1fr; gap: var(--s3); align-items: baseline; }
+.item-spec-wide > dd { max-width: 55ch; }
+.item-spec dt { color: var(--fg-muted); }
+.item-spec dd { margin: 0; font-weight: 500; }
+
+.item-place { margin: 0; display: flex; gap: .55rem; align-items: flex-start; }
+.item-place svg { flex: 0 0 auto; margin-top: .2rem; color: var(--primary); }
+
+.item-how ol { margin: 0; padding-left: 1.2rem; display: grid; gap: var(--s3); }
+.item-how li { max-width: 52ch; }
+
+@media (max-width: 860px) {
+  .item-cols { grid-template-columns: 1fr; gap: var(--s4); }
+  .item-detail { grid-template-columns: 1fr; }
+  /* Sticky is for a second column beside something. Stacked, it would pin the
+     buy box over the photographs somebody is trying to scroll. */
+  .item-buybox { position: static; padding: var(--s4); }
+  .item-name { font-size: 1.4rem; }
+  .item-price { font-size: 1.6rem; }
+  .item-block { padding: var(--s4); }
+  .item-spec > div { grid-template-columns: 1fr; gap: 0; }
+}
 
 /* The whole card is the link, so the target is a card rather than a word. */
 .market-link { display: block; color: inherit; text-decoration: none; }
@@ -6913,6 +7031,10 @@ main .panel[id] { scroll-margin-top: 80px; }
 @media (max-width: 860px) {
   .item-cols { grid-template-columns: 1fr; }
 }
+
+/* Arrived from the listing's own page: say which one, briefly, so it is
+   obvious the click landed where it meant to. */
+.sell-item.focused { outline: 2px solid var(--primary); outline-offset: 3px; }
 
 /* ---- Listing something for sale ----
  *
@@ -7114,7 +7236,7 @@ main .panel[id] { scroll-margin-top: 80px; }
 
 /* What is true of this one, in words rather than a colour to be learned. */
 .sell-state { margin: .1rem 0 0; color: var(--fg-subtle); font-size: .9rem; }
-.sell-state .warn { display: inline-flex; align-items: center; gap: .3rem; color: var(--red-600); }
+.sell-state .warn { display: inline-flex; align-items: center; gap: .3rem; color: var(--accent); }
 
 .quick-edit {
   display: flex; align-items: flex-end; gap: var(--s2); flex-wrap: wrap;
