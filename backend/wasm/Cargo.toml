@@ -1,0 +1,27 @@
+[package]
+name = "fishers-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# The same cricket engine the server scores with, for the browser.
+#
+# `backend/ffi` already carries it to the two phones through UniFFI. A browser
+# cannot load that, so this is the fourth caller of the *same* Rust rather than
+# a fourth implementation of the rules — which is the whole point: the web,
+# both phones and the API cannot come to different views of who won.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+fishers-cricket = { path = "../cricket" }
+serde_json = { workspace = true }
+wasm-bindgen = "0.2"
+
+# `uuid` and friends reach for the operating system's randomness, which a
+# browser does not have in that shape. This is the documented way to point them
+# at `crypto.getRandomValues` instead, and it applies only to the wasm build.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+uuid = { workspace = true, features = ["js"] }

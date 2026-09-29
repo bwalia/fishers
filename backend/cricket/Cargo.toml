@@ -1,0 +1,24 @@
+[package]
+name = "fishers-cricket"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# The cricket engine, on its own.
+#
+# It used to be a module of `fishers-domain`, which depends on sqlx so its row
+# types can derive `FromRow`. That is right for the domain and fatal here: the
+# engine is the one piece of this system that has to run in an iPhone, an
+# Android phone, the API *and* a browser, and a Postgres driver does not
+# compile to WebAssembly — rustls, ring, and a chain of host-only crates behind
+# them.
+#
+# So the rules live here, with nothing behind them but serde. Four callers,
+# one engine, no database.
+[dependencies]
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }

@@ -3,12 +3,14 @@ resolver = "2"
 members = [
     "agent",
     "api",
+    "cricket",
     "domain",
     "db",
     "ffi",
     "payments",
     "notifications",
     "jobs",
+    "wasm",
 ]
 default-members = ["api"]
 
