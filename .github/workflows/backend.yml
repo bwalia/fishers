@@ -4,10 +4,14 @@ on:
   push:
     paths:
       - "backend/**"
+      - "web/src/engine/**"
+      - "scripts/build-engine-wasm.sh"
       - ".github/workflows/backend.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "web/src/engine/**"
+      - "scripts/build-engine-wasm.sh"
       # Same list as push: an edit to this file should be checked by this file,
       # not discovered on main.
       - ".github/workflows/backend.yml"
@@ -53,6 +57,16 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # `web/src/engine/` is the cricket engine compiled to WebAssembly, and it
+      # is committed because the web CI job has node and nothing else. A
+      # committed artefact can quietly stop matching its source, and then the
+      # browser is scoring by last month's rules — so this regenerates it and
+      # fails on any difference. It lives here rather than in the web workflow
+      # because this is the job that already has cargo.
+      - name: The browser engine matches the Rust
+        working-directory: .
+        run: ./scripts/build-engine-wasm.sh --check
         continue-on-error: true
 
   migrations:

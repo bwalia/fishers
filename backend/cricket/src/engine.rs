@@ -3800,7 +3800,7 @@ mod tests {
 
     #[test]
     fn a_chase_has_a_par_score_from_the_first_ball() {
-        let table = crate::cricket::dls::ResourceTable::default();
+        let table = crate::dls::ResourceTable::default();
         let mut m = Fixture::new(20);
         for _ in 0..6 {
             m.runs(4);
@@ -3815,11 +3815,11 @@ mod tests {
                     super_over: false,
         });
 
-        let start = m.state.dls_par(&table, crate::cricket::dls::DEFAULT_G50).unwrap();
+        let start = m.state.dls_par(&table, crate::dls::DEFAULT_G50).unwrap();
         assert_eq!(start.par, 0, "nothing used, nothing to be level with");
 
         m.runs(2);
-        let after = m.state.dls_par(&table, crate::cricket::dls::DEFAULT_G50).unwrap();
+        let after = m.state.dls_par(&table, crate::dls::DEFAULT_G50).unwrap();
         assert!(after.par >= 0);
         assert_eq!(after.ahead_by, 2 - after.par);
         assert!(after.summary().contains("DLS par"));
@@ -3827,7 +3827,7 @@ mod tests {
 
     #[test]
     fn a_chase_cut_short_by_rain_needs_less() {
-        let table = crate::cricket::dls::ResourceTable::default();
+        let table = crate::dls::ResourceTable::default();
         let mut m = Fixture::new(20);
         for _ in 0..12 {
             m.runs(3);
@@ -3841,13 +3841,13 @@ mod tests {
             bowler_id: m.home[0].id,
                     super_over: false,
         });
-        let full = m.state.dls_par(&table, crate::cricket::dls::DEFAULT_G50).unwrap();
+        let full = m.state.dls_par(&table, crate::dls::DEFAULT_G50).unwrap();
 
         m.push(ScoringEventKind::OversRevised {
             innings_index: 1,
             overs: 10,
         });
-        let shortened = m.state.dls_par(&table, crate::cricket::dls::DEFAULT_G50).unwrap();
+        let shortened = m.state.dls_par(&table, crate::dls::DEFAULT_G50).unwrap();
         assert!(
             shortened.target < full.target,
             "ten overs should chase less than twenty: {} vs {}",

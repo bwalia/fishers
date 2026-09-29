@@ -20,7 +20,7 @@
 //! each platform keeps its own types for rendering, where a mistake is visible
 //! rather than silent.
 
-use fishers_domain::{MatchState, ScoringEvent};
+use fishers_cricket::{MatchState, ScoringEvent};
 
 uniffi::setup_scaffolding!();
 

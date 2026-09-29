@@ -6,7 +6,10 @@ mod chat;
 mod club;
 /// Cricket scoring — event-sourced match engine.
 pub mod admin;
-pub mod cricket;
+/// The engine is its own crate now: it has to compile for a browser, and this
+/// one depends on sqlx. Re-exported so `fishers_domain::cricket::…` still
+/// names it, which is how the rest of the workspace refers to it.
+pub use fishers_cricket as cricket;
 mod enums;
 mod event;
 mod invite;
@@ -68,16 +71,5 @@ pub use world_cricket::{phase_for, WorldMatch, WorldScores, PHASE_DONE, PHASE_LI
 // thing. The rest are reached through `world_cricket_detail::`.
 pub use world_cricket_detail::{dismissal_line, WorldMatchDetail, WorldMatchDetailView};
 
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum DomainError {
-    #[error("{0}")]
-    Validation(String),
-    #[error("{0}")]
-    NotFound(String),
-    #[error("{0}")]
-    Forbidden(String),
-    #[error("{0}")]
-    Conflict(String),
-}
+// Moved with the engine, which was its only user.
+pub use fishers_cricket::DomainError;

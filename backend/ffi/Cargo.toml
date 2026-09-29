@@ -15,7 +15,7 @@ name = "fishers_ffi"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
-fishers-domain = { path = "../domain" }
+fishers-cricket = { path = "../cricket" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 uniffi = { version = "0.28", features = ["cli"] }
