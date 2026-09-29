@@ -21,6 +21,7 @@ import { PendingInvites } from "@/components/PendingInvites";
 import { RoleChooser } from "@/components/RoleChooser";
 import { PushPrompt } from "@/components/PushPrompt";
 import { ProfileStrength } from "@/components/ProfileStrength";
+import { WorldScoresPanel } from "@/components/WorldScores";
 import { overs, type MatchResponse } from "@/lib/cricket";
 import { brand } from "@/brand.generated";
 
@@ -182,6 +183,10 @@ export default function HomePage() {
               })}
             </div>
           )}
+
+          {/* The club's own matches come first and are a different shape on
+              purpose; this is the rest of the world's cricket. */}
+          <WorldScoresPanel />
 
           <div className="panel">
             <div className="panel-head">

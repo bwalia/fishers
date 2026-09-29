@@ -39,6 +39,9 @@ const groups: { label: string; icon: IconName; links: NavLink[] }[] = [
     links: [
       { href: "/availability", label: "Availability", icon: "clock" },
       { href: "/score", label: "Score", icon: "bat" },
+      // "World scores" rather than "Scores": next to "Score" — which means
+      // score a match yourself — one letter is not enough of a difference.
+      { href: "/scores", label: "World scores", icon: "ball" },
       { href: "/tournaments", label: "Tournaments", icon: "trophy" },
     ],
   },
