@@ -11,9 +11,11 @@ import {
   type OrderResponse,
   type PaymentIntent,
   type Product,
+  type ProductCondition,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
+import { availability, marketplace, priceLine } from "@/lib/shop";
 
 /// Statuses that still owe the club money. `draft` never reaches this screen
 /// but is listed for completeness against the server's enum.
@@ -164,6 +166,10 @@ export default function ShopPage() {
 
       {error && <p className="error">{error}</p>}
 
+      <Marketplace />
+
+      <h2 className="shop-section">{clubs.find((c) => c.id === clubId)?.name ?? "Your club"}</h2>
+
       <div className="grid cards">
         {visible.map((p) => (
           <article key={p.id} className="panel">
@@ -291,5 +297,126 @@ function Stepper({
       <span className="num" aria-live="polite">{count}</span>
       <button type="button" onClick={() => onChange(count + 1)} aria-label="One more">+</button>
     </div>
+  );
+}
+
+/// Kit for sale, from every club.
+///
+/// The reason the shop is more than a tea urn: a club with a spare set of pads
+/// has thirty members, and a club that makes its own bats has nobody else to
+/// sell them to. Money is settled in person — this is an advert with a way to
+/// say "I want it", not a checkout.
+function Marketplace() {
+  const [items, setItems] = useState<Product[]>([]);
+  const [condition, setCondition] = useState<"" | ProductCondition>("");
+  const [q, setQ] = useState("");
+  const [applied, setApplied] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    marketplace({ condition: condition || undefined, q: applied || undefined })
+      // An empty marketplace is not an error, so this never shows one.
+      .then(setItems)
+      .catch(() => setItems([]))
+      .finally(() => setLoaded(true));
+  }, [condition, applied]);
+
+  if (loaded && items.length === 0 && !applied && !condition) {
+    return (
+      <section className="panel">
+        <h2>Kit for sale</h2>
+        <p className="muted">
+          Nothing listed yet. If your club has kit it has replaced,{" "}
+          <Link href="/shop/sell">put it up</Link> — it is worth more to somebody else than it
+          is in the cupboard.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="market">
+      <div className="market-head">
+        <h2>Kit for sale</h2>
+        <Link className="btn" href="/shop/sell">
+          <Icon name="plus" size={16} /> Sell kit
+        </Link>
+      </div>
+
+      <form
+        className="market-filters"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setApplied(q.trim());
+        }}
+      >
+        <label className="sr-only" htmlFor="mk-q">Search kit</label>
+        <input
+          id="mk-q"
+          value={q}
+          placeholder="Bat, pads, gloves…"
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <div className="chips" role="group" aria-label="Condition">
+          {([["", "All"], ["used", "Used"], ["new", "New"]] as const).map(([v, label]) => (
+            <button
+              key={label}
+              type="button"
+              className={condition === v ? "chip on" : "chip"}
+              aria-pressed={condition === v}
+              onClick={() => setCondition(v)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </form>
+
+      {items.length === 0 ? (
+        <p className="muted">Nothing matches that.</p>
+      ) : (
+        <ul className="market-grid">
+          {items.map((p) => (
+            <li key={p.id} className="market-card">
+              <Link href={`/shop/item/${p.id}`} className="market-link">
+              {p.photos?.[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.photos[0]} alt="" className="market-photo" />
+              ) : (
+                <span className="market-photo empty" aria-hidden="true">
+                  <Icon name="camera" size={22} />
+                </span>
+              )}
+              <div className="market-body">
+                <div className="market-title">
+                  <strong>{p.name}</strong>
+                  {p.condition && (
+                    <span className={`tag ${p.condition === "used" ? "grey" : "gold"}`}>
+                      {p.condition === "used" ? "Used" : "New"}
+                    </span>
+                  )}
+                </div>
+                <p className="market-price">{priceLine(p)}</p>
+                <p className="muted">
+                  {availability(p)}
+                  {p.size && ` · ${p.size}`}
+                  {p.brand && ` · ${p.brand}`}
+                </p>
+                {p.condition_note && <p className="market-note">{p.condition_note}</p>}
+                {p.collection_note && (
+                  <p className="muted market-collect">
+                    <Icon name="pin" size={13} /> {p.collection_note}
+                  </p>
+                )}
+              </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted market-foot">
+        Arrange collection and pay the club directly — nothing is taken online.
+      </p>
+    </section>
   );
 }

@@ -220,6 +220,8 @@ export type EventRow = {
   status: string;
 };
 
+export type ProductCondition = "new" | "used";
+
 export type Product = {
   id: string;
   club_id: string;
@@ -228,7 +230,47 @@ export type Product = {
   price_cents: number;
   currency: string;
   category: string;
+  /// `null` is "on request" — made to order, or a tea urn that does not run
+  /// out. A second-hand item is almost always 1.
   stock?: number | null;
+  active?: boolean;
+  /// New or used. Absent for the things it does not apply to: a cup of tea is
+  /// neither.
+  condition?: ProductCondition | null;
+  /// "Light wear on the toe, no cracks." The sentence that decides whether
+  /// somebody drives an hour to look at it.
+  condition_note?: string | null;
+  /// Short Handle, Harrow, Youth Large — free text, because bat, pad and glove
+  /// sizes share no vocabulary.
+  size?: string | null;
+  brand?: string | null;
+  photos?: string[];
+  /// Whether it appears outside the club.
+  listed_publicly?: boolean;
+  collection_note?: string | null;
+  /// Whether the price is the price. Second-hand kit gets haggled over, and a
+  /// buyer who cannot tell either overpays or does not ask.
+  negotiable?: boolean;
+  /// Who put it up, so their own listings can be told apart from the club's.
+  listed_by?: string | null;
+  /// Whether they chose to publish their email and phone alongside it.
+  show_contact?: boolean;
+};
+
+/// A listing on its own page: the product, plus who is selling it.
+///
+/// The contact details arrive only when the seller ticked the box — the API
+/// leaves them out otherwise, so there is nothing here to forget to hide.
+export type MarketListing = Product & {
+  club_name: string;
+  seller_name?: string | null;
+  seller_email?: string | null;
+  seller_phone?: string | null;
+  /// Whether you are the one selling it. Decided by the API, not by comparing
+  /// ids here — a club's secretary is looking at their own listing too.
+  mine?: boolean;
+  /// How many people have asked about it. Only sent to the seller.
+  enquiries?: number | null;
 };
 
 export function getAccessToken(): string | null {

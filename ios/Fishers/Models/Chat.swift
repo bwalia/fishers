@@ -1,7 +1,7 @@
 import Foundation
 
 /// A chat thread. Threads hang off a club, a team or a single fixture.
-struct ConversationSummary: Codable, Identifiable, Equatable {
+struct ConversationSummary: Codable, Identifiable, Hashable {
     let id: UUID
     let clubId: UUID?
     let teamId: UUID?

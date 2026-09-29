@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 
 /// The ⋯ menu: things that matter occasionally.
 ///
@@ -14,6 +14,8 @@ export function OverflowMenu({
   children,
   showLabel = false,
   className = "",
+  icon = "more",
+  chevron = false,
 }: {
   label?: string;
   children: React.ReactNode;
@@ -21,6 +23,12 @@ export function OverflowMenu({
   /// has words and an unlabelled "⋯" would be the one nobody finds.
   showLabel?: boolean;
   className?: string;
+  /// The group's own icon. A named group ("Play") leading with "⋯" says
+  /// "leftovers" when it means "these belong together".
+  icon?: IconName;
+  /// A chevron after the label, which is what says "this opens" rather than
+  /// "this navigates" — the two are otherwise identical in a row of links.
+  chevron?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -49,8 +57,9 @@ export function OverflowMenu({
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
       >
-        <Icon name="more" size={20} />
+        <Icon name={icon} size={icon === "more" ? 20 : 16} />
         {showLabel && <span>{label}</span>}
+        {chevron && <Icon name="chevronDown" size={14} className="overflow-chevron" />}
       </button>
       {open && (
         // Closes on any click inside: every item here either navigates or

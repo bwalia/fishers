@@ -977,3 +977,21 @@ pub async fn search_opponents(
     .fetch_all(pool)
     .await
 }
+
+/// Who runs a club — the people a reservation has to reach.
+///
+/// The same roles `ManageClubOps` grants, so whoever can list a bat is whoever
+/// hears that somebody wants it.
+pub async fn officers(pool: &PgPool, club_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        r#"
+        SELECT user_id FROM club_members
+        WHERE club_id = $1 AND status = 'active'
+          AND role IN ('club_admin', 'super_admin')
+        "#,
+    )
+    .bind(club_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}

@@ -105,6 +105,9 @@ const PATHS = {
     </>
   ),
   arrowLeft: <path d="M11 6l-6 6 6 6M5 12h14" />,
+  /// Says "this opens" rather than "this navigates" — the only thing
+  /// distinguishing a group from a link in a row of otherwise identical items.
+  chevronDown: <path d="M6 9.5l6 6 6-6" />,
   camera: (
     <>
       <path d="M3 8.5h3.5L8 6h8l1.5 2.5H21V19H3z" />

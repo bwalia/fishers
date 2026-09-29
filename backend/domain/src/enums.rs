@@ -124,6 +124,19 @@ pub enum OrderStatus {
     Cancelled,
 }
 
+/// What state a thing is in.
+///
+/// The whole point of the second-hand half: a club selling last season's pads
+/// and a club selling pads it made itself are offering different things, and
+/// the price alone does not say which is which.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "product_condition", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum ProductCondition {
+    New,
+    Used,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "product_category", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]

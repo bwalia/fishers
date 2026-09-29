@@ -13,7 +13,6 @@ struct FishersApp: App {
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
 
     @StateObject private var session = SessionStore()
-    @StateObject private var cart = CartStore()
     @StateObject private var clubContext = ClubContextStore()
 
     private let cricketContainer: ModelContainer = {
@@ -38,7 +37,6 @@ struct FishersApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(session)
-                .environmentObject(cart)
                 .environmentObject(clubContext)
                 .modelContainer(cricketContainer)
                 .tint(FishersTheme.accent)

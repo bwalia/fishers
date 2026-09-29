@@ -9,6 +9,7 @@ activityCompose = "1.9.3"
 composeBom = "2024.12.01"
 navigation = "2.8.5"
 serialization = "1.7.3"
+coil = "2.7.0"
 okhttp = "4.12.0"
 retrofit = "2.11.0"
 retrofitSerialization = "1.0.0"
@@ -45,6 +46,7 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "mockwebserver" }
 jna-aar = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }

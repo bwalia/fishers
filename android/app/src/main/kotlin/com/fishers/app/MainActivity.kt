@@ -21,6 +21,8 @@ import com.fishers.app.umpire.PendingUmpireReviewsViewModel
 import com.fishers.app.umpire.UmpireViewModel
 import com.fishers.app.home.HomeViewModel
 import com.fishers.app.session.SessionViewModel
+import com.fishers.app.shop.ListingViewModel
+import com.fishers.app.shop.MarketViewModel
 import com.fishers.app.theme.FishersTheme
 import com.fishers.app.views.RootScreen
 
@@ -52,6 +54,8 @@ class MainActivity : ComponentActivity() {
                         pendingReviews = remember {
                             PendingUmpireReviewsViewModel(app.network.api)
                         },
+                        market = remember { MarketViewModel(app.network.api) },
+                        listingFor = { id -> ListingViewModel(app.network.api, id) },
                         modifier = Modifier.padding(inner),
                     )
                 }

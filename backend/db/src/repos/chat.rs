@@ -227,13 +227,20 @@ pub async fn list_for_user(
         r#"
         SELECT c.id, c.club_id, c.team_id, c.event_id, c.kind,
                -- A one-to-one chat is called whoever is on the other end,
-               -- which is a different name for each of the two.
+               -- which is a different name for each of the two. A thread about
+               -- a listing keeps its own name and adds them: a seller with
+               -- three people after the same bat would otherwise see three
+               -- rows called the same thing, and a buyer would see a stranger's
+               -- name with no hint of what it was about.
                CASE WHEN c.kind = 'direct'
                          AND (SELECT COUNT(*) FROM conversation_members x
                               WHERE x.conversation_id = c.id) = 2
-                    THEN COALESCE((SELECT u.name FROM conversation_members x
-                                   JOIN users u ON u.id = x.user_id
-                                   WHERE x.conversation_id = c.id AND x.user_id <> $1), c.title)
+                    THEN COALESCE(
+                             CASE WHEN c.product_id IS NULL THEN '' ELSE c.title || ' · ' END
+                                 || (SELECT u.name FROM conversation_members x
+                                     JOIN users u ON u.id = x.user_id
+                                     WHERE x.conversation_id = c.id AND x.user_id <> $1),
+                             c.title)
                     ELSE c.title
                END AS title,
                c.updated_at,
@@ -390,4 +397,64 @@ pub async fn conversation_for_announcement(
     .fetch_optional(pool)
     .await?;
     Ok(row.map(|r| r.0))
+}
+
+/// The thread about one listing, between the person asking and the person
+/// selling — created once and reopened after that.
+///
+/// The general rule is that a direct thread needs a shared club, which is
+/// right: the app is not a place to message strangers. This is the one
+/// deliberate exception, and it is narrow. Somebody put a bat in front of the
+/// whole app; being asked about that bat is what they signed up for. The
+/// thread is tied to the listing, so the permission is about the listing
+/// rather than about the two people.
+pub async fn enquiry_thread(
+    pool: &PgPool,
+    product_id: Uuid,
+    buyer: Uuid,
+    seller: Uuid,
+    title: &str,
+) -> Result<(Conversation, bool), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    // One thread per buyer per listing. Asking twice continues the first
+    // conversation rather than starting one the seller will not see.
+    if let Some(existing) = sqlx::query_as::<_, Conversation>(&format!(
+        "SELECT {CONVERSATION_COLS} FROM conversations
+          WHERE product_id = $1 AND created_by = $2"
+    ))
+    .bind(product_id)
+    .bind(buyer)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        tx.commit().await?;
+        return Ok((existing, false));
+    }
+
+    let conversation = sqlx::query_as::<_, Conversation>(&format!(
+        "INSERT INTO conversations (kind, title, created_by, product_id)
+         VALUES ('direct', $1, $2, $3)
+         RETURNING {CONVERSATION_COLS}"
+    ))
+    .bind(title)
+    .bind(buyer)
+    .bind(product_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    for (user, role) in [(buyer, "owner"), (seller, "member")] {
+        sqlx::query(
+            "INSERT INTO conversation_members (conversation_id, user_id, role)
+             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+        )
+        .bind(conversation.id)
+        .bind(user)
+        .bind(role)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok((conversation, true))
 }

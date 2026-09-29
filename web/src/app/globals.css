@@ -4488,19 +4488,27 @@ a.bell-item:hover { background: var(--surface-2); }
   .role-option:hover { transform: none; }
 }
 
-/* ---- Top bar: everyday items always, the rest under More below 1440px ---- */
-.nav-more { display: none; }
-@media (min-width: 1024px) and (max-width: 1439px) {
-  .nav .nav-extra { display: none; }
-  .nav-more { display: block; }
-}
-/* In the bar it reads as one more nav item, not the round ⋯ of the score screen. */
-.nav-more .overflow-button {
+/* ---- Top bar ----
+ *
+ * Three everyday links, two named groups, and the account on the right. It
+ * used to be twelve flat links across the whole width: every destination
+ * shouting at the same volume, which is the same as none of them shouting.
+ *
+ * The groups are buttons that look like the links beside them on purpose —
+ * they sit at the same level of the hierarchy, and the chevron is what says
+ * one opens and the other navigates.
+ */
+.nav-groups { display: flex; align-items: center; gap: 2px; }
+
+.nav-group .overflow-button,
+.nav-you .overflow-button,
+.nav-admin {
   display: inline-flex;
+  align-items: center;
   gap: 6px;
   width: auto;
   height: auto;
-  min-height: 40px;
+  min-height: 44px;
   padding: var(--s2) var(--s3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -4508,11 +4516,43 @@ a.bell-item:hover { background: var(--surface-2); }
   font-weight: 500;
   color: var(--fg-muted);
   background: none;
+  text-decoration: none;
+  white-space: nowrap;
 }
-.nav-more .overflow-button:hover { color: var(--fg); background: var(--surface-2); }
-.nav-more.active .overflow-button { color: var(--on-primary); background: var(--primary); }
-.nav-more .overflow-panel { min-width: 220px; }
-.nav-more .overflow-item[aria-current="page"] { color: var(--primary-ink); font-weight: 600; }
+.nav-group .overflow-button:hover,
+.nav-you .overflow-button:hover,
+.nav-admin:hover { color: var(--fg); background: var(--surface-2); }
+
+/* A group whose page you are on is marked the way the link would be, so the
+   bar answers "where am I" without opening anything. */
+.nav-group.active .overflow-button,
+.nav-you.active .overflow-button,
+.nav-admin.active { color: var(--on-primary); background: var(--primary); }
+
+.overflow-chevron { opacity: .6; margin-left: -2px; }
+.nav-group .overflow-panel,
+.nav-you .overflow-panel { min-width: 200px; }
+.nav-group .overflow-item[aria-current="page"],
+.nav-you .overflow-item[aria-current="page"] { color: var(--primary-ink); font-weight: 600; }
+
+/* Running the service is a different kind of thing from playing for a club,
+   so it sits after a rule rather than as the thirteenth tab. */
+.nav-admin {
+  margin-left: var(--s2);
+  padding-left: calc(var(--s3) + var(--s2));
+  border-left: 1px solid var(--border);
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+}
+
+/* Narrow: the labels go, the icons and the chevron stay. Three links and two
+   groups fit where twelve never did, so nothing has to be hidden. */
+@media (max-width: 860px) {
+  .nav-group .overflow-button span,
+  .nav-you .overflow-button span,
+  .nav-admin { font-size: 0; gap: 0; }
+  .nav-admin { padding-left: var(--s3); }
+  .nav-admin svg { font-size: 1rem; }
+}
 
 /* New messages below while you are reading further up: a way back down that
    does not drag you there uninvited. */
@@ -6623,6 +6663,11 @@ main .panel[id] { scroll-margin-top: 80px; }
 .switch input:checked { background: var(--primary); }
 .switch input:checked::after { transform: translateX(1.1rem); }
 .switch input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* A switch that explains itself: the pill sits with the first line rather than
+   drifting to the middle of a two-line label. */
+.switch input { flex: 0 0 auto; }
+.switch:has(small) { align-items: flex-start; }
+.switch small { display: block; color: var(--fg-muted); margin-top: .15rem; }
 
 .ump-note-edit { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .ump-note-edit label { color: var(--fg-muted); }
@@ -6747,3 +6792,455 @@ main .panel[id] { scroll-margin-top: 80px; }
 .adm-pager { display: flex; align-items: center; gap: var(--s3); justify-content: center; }
 .adm-note { font-style: normal; font-weight: 400; color: var(--red-600); }
 .adm-search select { flex: 0 0 auto; }
+
+/* ---- The shop: kit for sale, from every club ----
+ *
+ * A club with a spare set of pads has thirty members; one that makes its own
+ * bats has nobody else to sell to. The listing is an advert with an honest
+ * word about what state the thing is in — money is settled in person.
+ */
+.shop-section { margin: var(--s5) 0 var(--s2); }
+
+.market { display: grid; gap: var(--s3); margin-bottom: var(--s4); }
+.market-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); flex-wrap: wrap; }
+.market-head h2 { margin: 0; }
+.market-filters { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+.market-filters input { flex: 1 1 14rem; }
+
+.market-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: var(--s3);
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+.market-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; display: flex; flex-direction: column; background: var(--surface);
+}
+/* Reserve the space before the picture loads: a grid that reflows as each
+   photo arrives is a grid somebody clicks the wrong thing in. */
+.market-photo {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  background: var(--surface-2); display: block;
+}
+.market-photo.empty {
+  display: grid; place-items: center; color: var(--fg-subtle);
+}
+.market-body { padding: var(--s2); display: grid; gap: .25rem; }
+.market-title { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.market-price { margin: 0; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.market-note { margin: .25rem 0 0; color: var(--fg-muted); font-size: .92rem; }
+.market-collect { display: flex; align-items: center; gap: .3rem; margin: .25rem 0 0; font-size: .85rem; }
+.market-foot { margin: 0; }
+
+/* ---- Selling ---- */
+.sell { display: grid; gap: var(--s4); }
+.sell-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+.sell-head h1 { margin: 0 0 .25rem; }
+.sell-head p { margin: 0; }
+
+.sell-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.sell-item {
+  display: grid; grid-template-columns: 72px 1fr auto; gap: var(--s2);
+  align-items: start; padding: var(--s2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.sell-item.sold { opacity: .6; }
+.sell-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-2); }
+.sell-thumb.empty { display: grid; place-items: center; color: var(--fg-subtle); }
+.sell-body { display: grid; gap: .2rem; min-width: 0; }
+.sell-title { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.sell-note { margin: .2rem 0 0; color: var(--fg-muted); font-size: .92rem; }
+.sell-actions { display: flex; flex-direction: column; gap: .4rem; align-items: stretch; }
+.sell-actions .btn { white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .sell-item { grid-template-columns: 56px 1fr; }
+  .sell-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+  .sell-row, .sell-condition { grid-template-columns: 1fr; }
+}
+
+/* ---- One listing, in full ---- */
+.item { display: grid; gap: var(--s3); }
+/* ---- One thing for sale ----
+ *
+ * A gallery and a buy box across the top, then the reading matter underneath,
+ * each part under a heading of its own. The earlier version put the price, the
+ * specification, an unlabelled paragraph and two buttons in one narrow column,
+ * which left a buyer to work out for themselves which sentence was the
+ * description and which was where to collect it.
+ */
+.item-crumbs {
+  display: flex; align-items: center; gap: .5rem;
+  color: var(--fg-muted); margin-bottom: var(--s3); flex-wrap: wrap;
+}
+.item-crumbs a { display: inline-flex; align-items: center; gap: .3rem; color: var(--primary-ink); }
+
+.item-cols { display: grid; gap: var(--s5); grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); align-items: start; }
+
+.item-shots { display: grid; gap: var(--s2); }
+/* A fixed ratio so the page does not jump as each photograph arrives. */
+.item-shot {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  border-radius: var(--radius); background: var(--surface-2); display: block;
+}
+.item-shot.empty {
+  display: grid; place-items: center; gap: .4rem; color: var(--fg-subtle);
+  aspect-ratio: auto; min-height: 240px;
+}
+.item-thumbs { display: flex; gap: .45rem; flex-wrap: wrap; }
+.item-thumbs button {
+  width: 68px; height: 68px; padding: 0; border-radius: var(--radius-sm);
+  border: 2px solid var(--border); background: none; cursor: pointer; overflow: hidden;
+  transition: border-color 140ms ease-out, transform 140ms ease-out;
+}
+.item-thumbs button:hover { transform: translateY(-1px); }
+.item-thumbs button.on { border-color: var(--primary); }
+.item-thumbs button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.item-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* The panel that answers "what is it, what does it cost, what do I do now".
+   Sticky on a wide screen so it stays put while the photographs scroll. */
+.item-buybox {
+  display: grid; gap: .7rem; align-content: start;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--s5); box-shadow: var(--shadow-1);
+  position: sticky; top: var(--s4);
+}
+/* Labels, not controls — deliberately not `.chip`, which is the 44px filter
+   button on the shop index and capitalises what it is given. */
+.item-tags { display: flex; gap: .4rem; flex-wrap: wrap; }
+.item-tag {
+  display: inline-flex; align-items: center; padding: .22rem .65rem;
+  border-radius: var(--radius-pill); border: 1px solid var(--border-strong);
+  background: var(--surface-2); color: var(--fg-muted);
+  font-size: .8rem; font-weight: 600;
+}
+/* Each says what it means in words as well — a colour on its own tells
+   somebody who cannot see the difference nothing at all. */
+.tag-new { background: var(--gold-100); border-color: var(--accent); color: var(--accent); }
+.tag-used { background: var(--pitch-50); border-color: var(--primary); color: var(--primary-ink); }
+.tag-offer { background: var(--surface); }
+
+.item-name { margin: 0; font-size: 1.75rem; line-height: 1.2; }
+.item-price {
+  margin: 0; font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+}
+.item-price-note { font-size: .9rem; font-weight: 500; color: var(--fg-muted); font-variant-numeric: normal; }
+
+.item-stock { margin: 0; display: flex; align-items: center; gap: .4rem; color: var(--primary-ink); }
+.item-stock.gone { color: var(--danger); }
+
+.item-actions { display: grid; gap: .6rem; margin-top: var(--s2); }
+.btn-lg { min-height: 48px; justify-content: center; display: inline-flex; align-items: center; gap: .45rem; font-size: 1rem; }
+.item-reassure {
+  margin: 0; display: flex; gap: .45rem; align-items: flex-start;
+  color: var(--fg-muted); font-size: .9rem;
+}
+.item-reassure svg { flex: 0 0 auto; margin-top: .15rem; }
+
+.item-done { display: flex; gap: .6rem; align-items: flex-start; padding: var(--s3);
+  border: 1px solid var(--primary); border-radius: var(--radius); background: var(--pitch-50); }
+.item-done p { margin: .2rem 0 var(--s2); }
+
+/* Who you are buying from. A name and a face-shaped initial, because "Lions
+   CC" alone does not tell you whether there is a person on the other end. */
+.item-seller {
+  display: grid; gap: .5rem; justify-items: start;
+  padding-top: var(--s3); border-top: 1px solid var(--border); margin-top: var(--s2);
+}
+.item-seller-who { margin: 0; display: flex; gap: .6rem; align-items: center; }
+.item-avatar {
+  width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
+  background: var(--primary); color: var(--on-primary);
+  display: grid; place-items: center; font-weight: 700;
+}
+.item-contact { margin: 0; color: var(--fg-muted); }
+.item-contact a { color: var(--primary-ink); }
+
+/* The seller's own view of it. */
+.item-owner { display: grid; gap: .7rem; }
+.item-owner-badge {
+  margin: 0; display: inline-flex; align-items: center; gap: .4rem; justify-self: start;
+  padding: .25rem .7rem; border-radius: var(--radius-pill);
+  background: var(--pitch-50); border: 1px solid var(--primary); color: var(--primary-ink);
+  font-weight: 600;
+}
+.item-owner .muted { margin: -.4rem 0 0; }
+.item-owner-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2);
+  margin: var(--s2) 0 0; text-align: center;
+}
+.item-owner-stats > div { background: var(--surface-2); border-radius: var(--radius-sm); padding: var(--s2); }
+.item-owner-stats dt { color: var(--fg-muted); font-size: .8rem; }
+.item-owner-stats dd { margin: .15rem 0 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.item-nudge {
+  margin: 0; padding: var(--s3); border-radius: var(--radius-sm);
+  background: var(--gold-100); border: 1px solid var(--accent); color: var(--fg);
+}
+
+/* The reading matter. Three or four short sections rather than one column of
+   undifferentiated text. */
+.item-detail {
+  margin-top: var(--s6); display: grid; gap: var(--s4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.item-block {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--s5);
+}
+.item-block h2 {
+  margin: 0 0 var(--s3); font-size: 1rem; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--fg-muted);
+}
+.item-block p:last-child { margin-bottom: 0; }
+/* Held to a comfortable measure — a description running the full width of a
+   desktop window is read twice as slowly. */
+.item-prose { white-space: pre-wrap; max-width: 62ch; margin: 0; }
+
+.item-spec { display: grid; gap: var(--s3); margin: 0; }
+.item-spec > div { display: grid; grid-template-columns: 9rem 1fr; gap: var(--s3); align-items: baseline; }
+.item-spec-wide > dd { max-width: 55ch; }
+.item-spec dt { color: var(--fg-muted); }
+.item-spec dd { margin: 0; font-weight: 500; }
+
+.item-place { margin: 0; display: flex; gap: .55rem; align-items: flex-start; }
+.item-place svg { flex: 0 0 auto; margin-top: .2rem; color: var(--primary); }
+
+.item-how ol { margin: 0; padding-left: 1.2rem; display: grid; gap: var(--s3); }
+.item-how li { max-width: 52ch; }
+
+@media (max-width: 860px) {
+  .item-cols { grid-template-columns: 1fr; gap: var(--s4); }
+  .item-detail { grid-template-columns: 1fr; }
+  /* Sticky is for a second column beside something. Stacked, it would pin the
+     buy box over the photographs somebody is trying to scroll. */
+  .item-buybox { position: static; padding: var(--s4); }
+  .item-name { font-size: 1.4rem; }
+  .item-price { font-size: 1.6rem; }
+  .item-block { padding: var(--s4); }
+  .item-spec > div { grid-template-columns: 1fr; gap: 0; }
+}
+
+/* The whole card is the link, so the target is a card rather than a word. */
+.market-link { display: block; color: inherit; text-decoration: none; }
+.market-link:hover .market-title strong { text-decoration: underline; }
+.market-card:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+@media (max-width: 860px) {
+  .item-cols { grid-template-columns: 1fr; }
+}
+
+/* Arrived from the listing's own page: say which one, briefly, so it is
+   obvious the click landed where it meant to. */
+.sell-item.focused { outline: 2px solid var(--primary); outline-offset: 3px; }
+
+/* ---- Listing something for sale ----
+ *
+ * Two columns, because one left-aligned column left half a wide screen empty
+ * and the answer is not to stretch the inputs: a text field wider than about
+ * 70 characters is harder to read, not easier to fill in.
+ *
+ * So the space earns its place. The right-hand column is the listing as a
+ * buyer will see it, updating as it is typed — which is also the most
+ * persuasive argument there is for writing a description and adding a photo.
+ */
+.listing {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  align-items: start;
+}
+
+.listing-form { display: grid; gap: var(--s4); min-width: 0; }
+
+/* Grouped rather than one long run of inputs: three short sections read as
+   three decisions, and a wall of fourteen fields reads as a chore. */
+.listing-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s3);
+  display: grid;
+  gap: var(--s3);
+}
+.listing-group h2 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: .01em;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+}
+
+.field { display: grid; gap: .35rem; min-width: 0; }
+.field label { font-weight: 600; }
+.field small { color: var(--fg-muted); }
+.field input, .field select, .field textarea { width: 100%; }
+.field textarea { resize: vertical; }
+/* Sized to its content: a dropdown of two options does not need the width of
+   a paragraph. */
+.field-narrow { max-width: 22rem; }
+
+/* Fields side by side where they belong together, wrapping when there is no
+   room rather than shrinking into unusable boxes. */
+.field-row {
+  display: flex;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.field-row > .field { flex: 1 1 12rem; }
+.field-price { flex: 0 0 10rem; }
+.field-qty { flex: 0 0 9rem; }
+.listing-switch { flex: 0 0 auto; align-self: center; padding-top: 1.4rem; }
+
+/* The currency lives in the box, so the number starts where a number should. */
+.input-prefix { display: flex; align-items: center; gap: .4rem;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding-left: .6rem; background: var(--surface); }
+.input-prefix:focus-within { outline: 2px solid var(--ring); outline-offset: 1px; }
+.input-prefix span { color: var(--fg-muted); }
+.input-prefix input { border: 0; background: none; padding-left: 0; }
+.input-prefix input:focus { outline: none; }
+
+/* Two cards, not two radio dots: the difference between last season's pads and
+   a bat the club made is the first thing a buyer reads, so it is worth the
+   room here. */
+.choice { border: 0; margin: 0; padding: 0; display: grid; gap: var(--s2); grid-template-columns: 1fr 1fr; }
+.choice label {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--s2); display: grid; gap: .15rem; cursor: pointer;
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.choice label span { color: var(--fg-muted); font-size: .9rem; }
+.choice label:hover { border-color: var(--fg-subtle); }
+.choice label.on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.choice input { position: absolute; opacity: 0; width: 0; height: 0; }
+.choice label:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.listing-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+/* Follows the form down, so it is still visible at the field that changes it. */
+.listing-preview { position: sticky; top: var(--s4); display: grid; gap: .5rem; }
+.listing-preview-label {
+  margin: 0; font-size: .8rem; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--fg-subtle);
+}
+.listing-preview .market-photo.empty { flex-direction: column; gap: .3rem; }
+.listing-preview .market-photo.empty small { font-size: .75rem; }
+.listing-preview-note { margin: 0; }
+
+@media (max-width: 960px) {
+  /* The preview goes first on a phone: it is the reassurance, and the form
+     below it is the work. */
+  .listing { grid-template-columns: 1fr; }
+  .listing-preview { position: static; order: -1; max-width: 22rem; }
+}
+@media (max-width: 560px) {
+  .choice { grid-template-columns: 1fr; }
+  .field-price, .field-qty { flex: 1 1 100%; }
+  .listing-switch { padding-top: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice label { transition: none; }
+}
+
+/* ---- The slideshow ----
+ *
+ * Arrows, arrow keys, a swipe and a count. A viewer that only answers a click
+ * on a thumbnail is one that half the people looking at a bat on a phone never
+ * work out.
+ */
+.shot-stage { position: relative; }
+.shot-stage .item-shot { margin: 0; }
+
+.shot-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px;              /* the minimum a thumb can hit */
+  display: grid; place-items: center;
+  border: 0; border-radius: 50%; cursor: pointer;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  color: var(--fg);
+  box-shadow: var(--shadow-1);
+}
+.shot-arrow:hover { background: var(--bg); }
+.shot-arrow:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.shot-arrow.prev { left: .6rem; }
+.shot-arrow.next { right: .6rem; }
+/* One arrow drawing, turned around — two mirror-image paths drift apart. */
+.shot-arrow.next svg { transform: rotate(180deg); }
+
+.shot-count {
+  position: absolute; right: .6rem; bottom: .6rem; margin: 0;
+  padding: .15rem .5rem; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  font-size: .8rem; font-variant-numeric: tabular-nums;
+}
+
+/* ---- Photographs on a listing being edited ---- */
+.photos { display: grid; gap: .5rem; margin-top: .5rem; }
+.photos-strip { list-style: none; margin: 0; padding: 0; display: flex; gap: .4rem; flex-wrap: wrap; }
+.photos-strip li { position: relative; width: 84px; height: 84px; }
+.photos-strip img {
+  width: 100%; height: 100%; object-fit: cover;
+  border-radius: var(--radius-sm); background: var(--surface-2); display: block;
+}
+/* The first photograph is the one the marketplace shows, which is worth
+   saying rather than leaving somebody to discover. */
+.photos-first {
+  position: absolute; left: 0; bottom: 0; right: 0;
+  font-size: .68rem; text-align: center; padding: .1rem 0;
+  background: color-mix(in srgb, var(--bg) 75%, transparent);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+.photos-remove {
+  position: absolute; top: -6px; right: -6px;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  cursor: pointer; line-height: 1; font-size: 15px;
+  display: grid; place-items: center; padding: 0;
+}
+.photos-remove:hover { background: var(--red-100); color: var(--red-600); }
+.photos-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.photos-remove:disabled { opacity: .5; cursor: default; }
+
+/* ---- Selling: the page a club secretary actually works in ----
+ *
+ * Written for somebody who is not comfortable with computers: it says what
+ * will happen before it happens, every listing says which shelf it is on in
+ * words, and no button is a dead end.
+ */
+
+/* It was full width — nearly two thousand pixels of green for one action.
+   A button should be the size of its label. */
+.sell-cta { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.sell-cta .btn { flex: 0 0 auto; }
+
+.how {
+  border: 1px solid var(--border); border-left: 3px solid var(--primary);
+  border-radius: var(--radius); padding: var(--s3); background: var(--surface);
+}
+.how h2 { margin: 0 0 var(--s2); font-size: 1rem; }
+.how ol { margin: 0; padding-left: 1.3rem; display: grid; gap: .4rem; }
+.how li { color: var(--fg-muted); }
+.how li strong { color: var(--fg); }
+
+.done-panel { border-left: 3px solid var(--primary); }
+.done-panel h2 { display: flex; align-items: center; gap: .5rem; margin: 0 0 .3rem; }
+.done-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: var(--s2); }
+
+.shelf-head { display: flex; align-items: center; gap: .5rem; }
+.shelf-head h2 { margin: 0; }
+
+/* What is true of this one, in words rather than a colour to be learned. */
+.sell-state { margin: .1rem 0 0; color: var(--fg-subtle); font-size: .9rem; }
+.sell-state .warn { display: inline-flex; align-items: center; gap: .3rem; color: var(--accent); }
+
+.quick-edit {
+  display: flex; align-items: flex-end; gap: var(--s2); flex-wrap: wrap;
+  margin-top: var(--s2); padding: var(--s2);
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2);
+}
+.quick-edit .switch { align-self: center; }

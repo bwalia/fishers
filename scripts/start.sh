@@ -442,10 +442,17 @@ API_ENV=(
   "DLS_G50=${DLS_G50:-245}"
   "FISHERS_AGENT_MODEL=${FISHERS_AGENT_MODEL:-claude-opus-5}"
   "OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}"
-  # Uploads go to the MinIO in docker-compose. The API writes to the container
-  # on the compose network; the browser fetches from the published port, which
-  # is a different address for the same bucket.
-  "S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}"
+  # Uploads go to the MinIO in docker-compose, and how the API reaches it
+  # depends on where the API itself is running.
+  #
+  # `minio` is a name on the compose network. With cargo present the API runs
+  # as a local binary on this Mac, which is not on that network, so the name
+  # does not resolve and every upload failed with "error sending request" —
+  # avatars and shop photographs alike. From here it has to be the published
+  # port. The containerised fallback keeps the compose name.
+  "S3_ENDPOINT=${S3_ENDPOINT:-$(command -v cargo >/dev/null 2>&1 \
+      && echo "http://localhost:${MINIO_PORT:-9002}" \
+      || echo http://minio:9000)}"
   "S3_BUCKET=${S3_BUCKET:-fishers}"
   "S3_ACCESS_KEY=${S3_ACCESS_KEY:-fishers}"
   "S3_SECRET_KEY=${S3_SECRET_KEY:-fishers-dev-secret}"
