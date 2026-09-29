@@ -1164,6 +1164,28 @@ enum FishersAPI {
         )
     }
 
+    // MARK: Scores from the wider game
+
+    /// Internationals and domestic cricket.
+    ///
+    /// Answered from our own database. The feed behind it allows a hundred
+    /// requests a day for the whole deployment, so it is read by a background
+    /// job and never by a phone — which is why this can be called as freely as
+    /// any other endpoint.
+    static func worldScores() async throws -> WorldScores {
+        try await NetworkService.shared.request("GET", path: "/cricket/world-scores")
+    }
+
+    /// One outside match in full.
+    ///
+    /// Costs the server a request for this one match, where the list costs one
+    /// for every match being played anywhere — so it is guarded there: a
+    /// finished card is fetched once and never again, and several people
+    /// opening the same match at once cost one request between them.
+    static func worldMatch(_ id: String) async throws -> WorldMatchDetailView {
+        try await NetworkService.shared.request("GET", path: "/cricket/world-scores/\(id)")
+    }
+
     // MARK: Cricket scoring
 
     /// `matchId` is chosen on the device, so a match started with no signal

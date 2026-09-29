@@ -34,6 +34,10 @@ fun HomeScreen(
     /// Kit for sale. Reached from here rather than from a sixth tab — a
     /// bottom bar stops being scannable past five.
     onOpenShop: () -> Unit = {},
+    /// Scores from the wider game. Same reasoning as the shop: reached from
+    /// here rather than from a tab, because a bottom bar stops being
+    /// scannable past five.
+    onOpenScores: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (state.isFirstLoad && state.isLoading) {
@@ -85,6 +89,15 @@ fun HomeScreen(
         Tile("Kit for sale", onClick = onOpenShop) {
             Text(
                 "Bats, pads and club kit that other clubs are selling, new and second-hand.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+
+        // Worded so it cannot be read as your own club's match: the fixtures
+        // above are yours, this is everybody else's.
+        Tile("Cricket scores", onClick = onOpenScores) {
+            Text(
+                "Live scores from internationals and domestic cricket around the world.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }

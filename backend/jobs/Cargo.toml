@@ -9,6 +9,8 @@ chrono = { workspace = true }
 fishers-db = { path = "../db" }
 fishers-domain = { path = "../domain" }
 fishers-notifications = { path = "../notifications" }
+reqwest = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }

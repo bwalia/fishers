@@ -1,5 +1,10 @@
 //! Background jobs: recurring event materialisation and reminders.
 
+/// Reading the outside cricket scores feed within its daily allowance.
+pub mod world_cricket;
+/// One outside match in full — fetching and parsing its scorecard.
+pub mod world_cricket_detail;
+
 use chrono::{Duration, Utc};
 use fishers_db::repos::selection as selection_repo;
 use fishers_notifications::{EmailService, PushService};

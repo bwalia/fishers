@@ -7244,3 +7244,453 @@ main .panel[id] { scroll-margin-top: 80px; }
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2);
 }
 .quick-edit .switch { align-self: center; }
+
+/* ---------- Scores from the wider game ---------- */
+
+/* Deliberately not the same shape as the club's own "In progress" panel. Two
+ * identical-looking live badges on one dashboard would say that your third XI
+ * and India are the same kind of thing. This reads as a scorecard — badge,
+ * side, runs — and the club's own reads as a row with a button. */
+
+.panel-note {
+  margin: calc(var(--s2) * -1) 0 var(--s3);
+  color: var(--fg-muted);
+  font-size: 0.88rem;
+}
+
+.score-list {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.score-card {
+  background: var(--surface-2);
+  /* Cards live in a stretched grid row, so they fill it. */
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  /* Long league and team names are the norm here ("Ahmad Shah Abdali 4-day
+   * Tournament"), and a grid child will not shrink below its content without
+   * this. Without it the card pushes the page sideways on a phone. */
+  min-width: 0;
+}
+
+/* A stripe rather than a filled badge: it marks the card as live without
+ * competing with the club's own live tag for the same shade of attention. */
+.score-card.is-live { border-left: 3px solid var(--live); }
+
+.score-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.score-league {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  /* One line: the competition is context, not the headline. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.score-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: var(--radius-pill);
+  padding: 2px var(--s2);
+  border: 1px solid var(--border-strong);
+  color: var(--fg-muted);
+  background: var(--surface);
+}
+/* The word is always there — "In play", "Tea", "Stumps". The colour and the
+ * dot are on top of the text, never instead of it. */
+.score-state.live { color: var(--live); border-color: var(--live); }
+.score-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.6s infinite;
+}
+
+.score-teams { display: grid; gap: 6px; }
+
+.score-team {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.score-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: var(--surface-3);
+}
+.score-badge.placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.64rem;
+  font-weight: 700;
+  /* `--fg-subtle` measured 4.47:1 against `--surface-3` — under the bar by
+     three hundredths, which is still under it. */
+  color: var(--fg-muted);
+}
+
+.score-team-name {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  font-size: 0.95rem;
+}
+/* The name is what gives way when there is not enough room. */
+.score-team-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.score-team.batting .score-team-label { font-weight: 700; }
+/* Says "batting" in words, so it survives both a screen reader and a
+ * colour-blind reader. */
+.score-batting {
+  flex: none;
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.score-runs {
+  text-align: right;
+  /* Scores are read down a column; proportional digits make them jitter. */
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.score-runs strong { font-size: 1.05rem; }
+.score-overs {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+}
+
+.score-report {
+  margin: 0;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.score-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 0.76rem;
+  color: var(--fg-subtle);
+}
+.score-chip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 1px var(--s2);
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+/* How old the scores are. Said plainly and always on screen: on the free feed
+ * they run minutes behind, and a stale score that does not admit it is worse
+ * than one that does. */
+.score-asof {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: var(--s3) 0 0;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+.score-asof svg { flex: none; }
+
+/* `--live` is `--red-600` in both themes: right on cream, and 2.53:1 against a
+ * dark surface, which is not a colour text can be written in. The dot keeps the
+ * brand red; the word is lifted until it can be read. The same mistake was made
+ * once already with the shop's warning text. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .score-card { background: var(--surface-2); }
+  :root:not([data-theme="light"]) .score-state { background: var(--surface-3); }
+  :root:not([data-theme="light"]) .score-badge { background: var(--surface-3); }
+  :root:not([data-theme="light"]) .score-state.live {
+    color: #ff9a8b;
+    border-color: #ff9a8b;
+  }
+  :root:not([data-theme="light"]) .score-card.is-live { border-left-color: #ff7a66; }
+}
+:root[data-theme="dark"] .score-card { background: var(--surface-2); }
+:root[data-theme="dark"] .score-state { background: var(--surface-3); }
+:root[data-theme="dark"] .score-badge { background: var(--surface-3); }
+:root[data-theme="dark"] .score-state.live { color: #ff9a8b; border-color: #ff9a8b; }
+:root[data-theme="dark"] .score-card.is-live { border-left-color: #ff7a66; }
+
+/* ---------- One match in full: the scorecard ---------- */
+
+.crumbs { margin: var(--s3) 0; font-size: 0.9rem; }
+
+/* The whole card is the tap target, not a "more" link in a corner — on a phone
+ * the card is what a thumb is already aiming at. */
+.score-link {
+  display: block;
+  /* Full height so every card in a row is the same height: the link is the
+     grid item, so without this the card sits at its content height inside a
+     stretched box and a row of cards comes out ragged. */
+  height: 100%;
+  color: inherit;
+}
+/* `a:hover` underlines globally, which here dragged a line under the league,
+ * both team names, the report and the format chip at once. A card is not a
+ * sentence; it does not get underlined. */
+.score-link,
+.score-link:hover,
+.score-link:focus { text-decoration: none; }
+
+.score-card.is-link {
+  height: 100%;
+  cursor: pointer;
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+/* The footer is pinned to the bottom, so cards with a report and cards without
+ * still line their bottom rows up with each other. */
+.score-card.is-link .score-meta { margin-top: auto; }
+
+/* Lift, deepen, and warm the border. Three small things together read as one
+ * deliberate motion; any one of them alone reads as a hover state nobody
+ * thought about. */
+.score-link:hover .score-card.is-link,
+.score-link:focus-visible .score-card.is-link {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+  box-shadow: var(--shadow-3);
+  transform: translateY(-3px);
+}
+/* The live stripe answers too, so a match in progress feels like the one worth
+ * opening. */
+.score-link:hover .score-card.is-live { border-left-color: var(--live); border-left-width: 4px; }
+
+.score-link:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; border-radius: var(--radius); }
+
+@media (prefers-reduced-motion: reduce) {
+  .score-card.is-link { transition: border-color var(--dur) var(--ease); }
+  .score-link:hover .score-card.is-link,
+  .score-link:focus-visible .score-card.is-link { transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .score-link:active .score-card.is-link { transform: translateY(-1px) scale(0.995); }
+}
+
+/* On the match page the card is the header, so it gets the full width rather
+ * than sitting in a grid column of its own. */
+.score-single { grid-template-columns: 1fr; }
+.score-venue { margin: 0 0 var(--s4); }
+
+/* `score-` prefixed because this app already has a `.crease` and a
+ * `.crease-role` for its own live scoring UI. Reusing those names put this
+ * block inside their three-column grid and laid three rows onto one line. */
+/* `score-` prefixed because this app already has a `.crease` and a
+ * `.crease-role` for its own live scoring UI. Reusing those names put this
+ * block inside their three-column grid and laid three rows onto one line. */
+.score-crease { display: grid; gap: var(--s4); }
+/* Batting and bowling side by side once there is room for them. */
+@media (min-width: 700px) {
+  .score-crease { grid-template-columns: 1fr 1fr; }
+}
+.score-crease-group { min-width: 0; }
+.score-crease-group > .card-sub { margin-top: 0; }
+.score-crease-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+.score-crease-row:last-child { border-bottom: 0; }
+.score-crease-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-crease-line { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.card-sub {
+  margin: var(--s4) 0 var(--s2);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.panel > .card-sub:first-of-type { margin-top: 0; }
+
+/* A scorecard is a table of numbers read down a column, so the columns are
+ * fixed and the digits are tabular. The name column is the one that gives. */
+.card-table { display: grid; font-variant-numeric: tabular-nums; }
+.card-head,
+.card-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.6rem 2.4rem 2.2rem 2.2rem 3rem;
+  gap: var(--s1);
+  align-items: baseline;
+  padding: 6px 0;
+}
+.card-head {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  border-bottom: 1px solid var(--border);
+}
+/* Direct children only. Without the `>` this also caught the dismissal line,
+ * which is a span following the name span *inside* the first cell — so every
+ * "c Kotian b Mulani" sat hard against the runs column instead of under the
+ * batter it belongs to. */
+.card-head > span + span,
+.card-row > span + span { text-align: right; }
+.card-row { border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+.card-row:last-child { border-bottom: 0; }
+/* Still in. Not colour alone — the row also carries "not out" in words. */
+.card-row.in .card-name { font-weight: 700; }
+
+.card-player { display: flex; flex-direction: column; min-width: 0; }
+.card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-out {
+  font-size: 0.74rem;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-extras { margin: var(--s2) 0 0; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+
+.card-fow {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A phone has no room for six columns. Which two go depends on the table, and
+ * getting that backwards is easy: batting is Batter R B 4s 6s SR, bowling is
+ * Bowler O M R W Econ — so dropping the same column numbers from both would
+ * take the boundaries off one and the wickets off the other.
+ *
+ * Batting loses fours and sixes. Bowling loses maidens and economy. Runs and
+ * wickets — the numbers anybody actually came for — stay on both. */
+@media (max-width: 560px) {
+  .card-head,
+  .card-row { grid-template-columns: minmax(0, 1fr) 2.6rem 2.4rem 3rem; }
+
+  /* Batting: hide 4s and 6s. */
+  .card-table:not(.bowling) .card-head span:nth-child(4),
+  .card-table:not(.bowling) .card-head span:nth-child(5),
+  .card-table:not(.bowling) .card-row span:nth-child(4),
+  .card-table:not(.bowling) .card-row span:nth-child(5) { display: none; }
+
+  /* Bowling: hide maidens and economy, keeping O, R and W. */
+  .card-table.bowling .card-head span:nth-child(3),
+  .card-table.bowling .card-head span:nth-child(6),
+  .card-table.bowling .card-row span:nth-child(3),
+  .card-table.bowling .card-row span:nth-child(6) { display: none; }
+
+}
+
+/* ---------- Innings as tabs, and a card that uses the width ---------- */
+
+/* A Test has four innings. Stacking them means scrolling past a hundred batting
+ * rows to reach the one you wanted, which is hunting rather than reading. */
+.innings-tabs {
+  display: flex;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+  /* On a phone four tabs do not fit. They scroll sideways *inside this strip*,
+   * which is a different thing from the page scrolling sideways. */
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.innings-tabs::-webkit-scrollbar { display: none; }
+
+.innings-tabs button {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  /* 44px is the tap target; the padding gets it there without the chip looking
+   * inflated. */
+  min-height: 44px;
+  padding: 6px var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--fg-muted);
+  cursor: pointer;
+  font: inherit;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+.innings-tabs button:hover { border-color: var(--border-strong); }
+.innings-tabs button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* The open innings is filled, not merely tinted — with four chips in a row a
+ * tint is not a strong enough answer to "which one am I reading". */
+.innings-tabs button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.innings-tab-team { font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.innings-tab-score {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.innings-total {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Batting is the tall column and bowling is the short one, so they sit side by
+ * side rather than one under the other. A scorecard in a single narrow column
+ * leaves half a desktop empty, which is the thing every score site does and
+ * nobody likes. */
+.innings-grid { display: grid; gap: var(--s4); }
+@media (min-width: 900px) {
+  .innings-grid { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; }
+}
+.innings-bat, .innings-side { min-width: 0; }
+.innings-bat > .card-sub:first-child,
+.innings-side > .card-sub:first-child { margin-top: 0; }

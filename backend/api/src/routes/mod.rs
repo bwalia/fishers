@@ -19,6 +19,7 @@ mod umpire;
 pub(crate) mod users;
 pub(crate) mod verification;
 mod venue_hire;
+mod world_cricket;
 
 use axum::http::StatusCode;
 use axum::routing::get;
@@ -62,6 +63,7 @@ fn api_v1() -> Router<AppState> {
         .merge(notifications::router())
         .merge(verification::router())
         .merge(venue_hire::router())
+        .merge(world_cricket::router())
 }
 
 /// Liveness says the process answers; readiness says it can serve a request.

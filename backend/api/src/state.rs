@@ -52,6 +52,15 @@ pub struct AppState {
     /// granting it is a deploy, which for a panel that shows every user's
     /// email is the right way round.
     pub platform_admins: std::collections::HashSet<String>,
+    /// CRICKET_FEED_KEY: whether scores from the wider game are being read at
+    /// all. Off in int and test on purpose — the feed's free allowance is a
+    /// hundred requests a day for a whole deployment, and a ring nobody is
+    /// watching must not spend prod's.
+    pub world_scores: bool,
+    /// The outside scores feed. The list is polled in the background, but a
+    /// scorecard is fetched when somebody opens that one match — so the API
+    /// needs the same client, and claims from the same daily allowance.
+    pub feed: fishers_jobs::world_cricket::Feed,
 }
 
 impl AppState {
@@ -96,6 +105,9 @@ impl AppState {
                 .map(|email| email.trim().to_ascii_lowercase())
                 .filter(|email| !email.is_empty())
                 .collect(),
+            world_scores: std::env::var("CRICKET_FEED_KEY")
+                .is_ok_and(|key| !key.trim().is_empty()),
+            feed: fishers_jobs::world_cricket::Feed::from_env(),
         }
     }
 

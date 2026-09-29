@@ -22,6 +22,8 @@ import com.fishers.app.umpire.UmpireViewModel
 import com.fishers.app.home.HomeViewModel
 import com.fishers.app.session.SessionViewModel
 import com.fishers.app.shop.ListingViewModel
+import com.fishers.app.scores.WorldMatchViewModel
+import com.fishers.app.scores.WorldScoresViewModel
 import com.fishers.app.shop.MarketViewModel
 import com.fishers.app.theme.FishersTheme
 import com.fishers.app.views.RootScreen
@@ -55,6 +57,8 @@ class MainActivity : ComponentActivity() {
                             PendingUmpireReviewsViewModel(app.network.api)
                         },
                         market = remember { MarketViewModel(app.network.api) },
+                        worldScores = remember { WorldScoresViewModel(app.network.api) },
+                        worldMatchFor = { id -> WorldMatchViewModel(app.network.api, id) },
                         listingFor = { id -> ListingViewModel(app.network.api, id) },
                         modifier = Modifier.padding(inner),
                     )
