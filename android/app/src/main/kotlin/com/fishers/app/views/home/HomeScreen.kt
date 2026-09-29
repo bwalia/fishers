@@ -1,5 +1,6 @@
 package com.fishers.app.views.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,9 @@ import com.fishers.app.theme.FishersTheme
 fun HomeScreen(
     name: String?,
     state: HomeState,
+    /// Kit for sale. Reached from here rather than from a sixth tab — a
+    /// bottom bar stops being scannable past five.
+    onOpenShop: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (state.isFirstLoad && state.isLoading) {
@@ -77,12 +81,27 @@ fun HomeScreen(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
+
+        Tile("Kit for sale", onClick = onOpenShop) {
+            Text(
+                "Bats, pads and club kit that other clubs are selling, new and second-hand.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }
 
 @Composable
-private fun Tile(title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+private fun Tile(
+    title: String,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 title,

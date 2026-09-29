@@ -264,16 +264,140 @@ struct Product: Codable, Identifiable, Hashable {
     var priceCents: Int
     var currency: String
     var category: String
+    /// `nil` is "on request" — made to order, or a tea urn that does not run
+    /// out. A second-hand item is almost always 1.
+    var stock: Int?
+    /// "new" or "used". Absent for the things it does not apply to: a cup of
+    /// tea is neither.
+    var condition: String?
+    /// "Light wear on the toe, no cracks." The sentence that decides whether
+    /// somebody drives an hour to look at it.
+    var conditionNote: String?
+    /// Short Handle, Harrow, Youth Large — free text, because bat, pad and
+    /// glove sizes share no vocabulary.
+    var size: String?
+    var brand: String?
+    var photos: [String]?
+    /// Whether it appears outside the club.
+    var listedPublicly: Bool?
+    var collectionNote: String?
+    /// Whether the price is the price. Second-hand kit gets haggled over, and
+    /// a buyer who cannot tell either overpays or does not ask.
+    var negotiable: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, currency, category
+        case id, name, description, currency, category, stock, condition, size, brand, photos
         case clubId = "club_id"
         case priceCents = "price_cents"
+        case conditionNote = "condition_note"
+        case listedPublicly = "listed_publicly"
+        case collectionNote = "collection_note"
+        case negotiable
     }
 
     var priceLabel: String {
         let amount = Double(priceCents) / 100.0
-        return String(format: "£%.2f", amount)
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = currency
+        return f.string(from: NSNumber(value: amount)) ?? String(format: "£%.2f", amount)
+    }
+
+    /// "£45.00", or "£45.00 or near offer" when the seller will haggle. The
+    /// difference decides whether somebody asks at all.
+    var priceLine: String {
+        negotiable == true ? "\(priceLabel) or near offer" : priceLabel
+    }
+
+    var isSold: Bool { stock == 0 }
+
+    var availability: String {
+        guard let stock else { return "On request" }
+        if stock == 0 { return "Sold" }
+        if stock == 1 && condition == "used" { return "One only" }
+        return "\(stock) available"
+    }
+
+    var conditionLabel: String? {
+        switch condition {
+        case "used": return "Second-hand"
+        case "new": return "Brand new"
+        default: return nil
+        }
+    }
+
+    var categoryLabel: String {
+        switch category {
+        case "equipment": return "Equipment"
+        case "merchandise": return "Merchandise"
+        default: return category.capitalized
+        }
+    }
+}
+
+/// One listing as its own page shows it: the product, plus who is selling it
+/// and whether that is you.
+///
+/// `mine` is answered by the server rather than by comparing ids here, because
+/// "mine" is not only "I posted it" — a secretary who runs the club's shop is
+/// looking at their own listing too, and that rule belongs where the
+/// permissions already live.
+struct MarketListing: Codable, Identifiable, Hashable {
+    var product: Product
+    var clubName: String
+    var sellerName: String?
+    /// Only when the seller asked for their details to be shown. `nil`
+    /// otherwise, and the buyer is pointed at the message thread instead.
+    var sellerEmail: String?
+    var sellerPhone: String?
+    var mine: Bool
+    /// How many people have asked about it. Only sent to the seller.
+    var enquiries: Int?
+
+    var id: UUID { product.id }
+
+    /// The listing's own fields are flattened into the same object server-side,
+    /// so the product decodes from the very same container.
+    enum CodingKeys: String, CodingKey {
+        case mine, enquiries
+        case clubName = "club_name"
+        case sellerName = "seller_name"
+        case sellerEmail = "seller_email"
+        case sellerPhone = "seller_phone"
+    }
+
+    init(from decoder: Decoder) throws {
+        product = try Product(from: decoder)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        clubName = try c.decode(String.self, forKey: .clubName)
+        sellerName = try c.decodeIfPresent(String.self, forKey: .sellerName)
+        sellerEmail = try c.decodeIfPresent(String.self, forKey: .sellerEmail)
+        sellerPhone = try c.decodeIfPresent(String.self, forKey: .sellerPhone)
+        mine = try c.decodeIfPresent(Bool.self, forKey: .mine) ?? false
+        enquiries = try c.decodeIfPresent(Int.self, forKey: .enquiries)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try product.encode(to: encoder)
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(clubName, forKey: .clubName)
+        try c.encodeIfPresent(sellerName, forKey: .sellerName)
+        try c.encodeIfPresent(sellerEmail, forKey: .sellerEmail)
+        try c.encodeIfPresent(sellerPhone, forKey: .sellerPhone)
+        try c.encode(mine, forKey: .mine)
+        try c.encodeIfPresent(enquiries, forKey: .enquiries)
+    }
+}
+
+/// The answer to asking about a listing: which thread to open, and whether it
+/// is a new one or the one they already had.
+struct EnquiryStarted: Codable {
+    let conversationId: UUID
+    let started: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case started
+        case conversationId = "conversation_id"
     }
 }
 

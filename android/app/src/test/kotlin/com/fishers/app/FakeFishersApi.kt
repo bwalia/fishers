@@ -51,6 +51,22 @@ open class FakeFishersApi : FishersApi {
     override suspend fun setRoleIntent(body: RoleIntentPatch): PublicUser =
         error("setRoleIntent not expected")
 
+    // ---- the shop ----
+    override suspend fun marketplace(
+        condition: String?,
+        search: String?,
+    ): List<com.fishers.app.shop.Product> = error("marketplace not expected")
+
+    override suspend fun marketItem(id: String): com.fishers.app.shop.MarketListing =
+        error("marketItem not expected")
+
+    override suspend fun enquire(id: String): com.fishers.app.shop.EnquiryStarted =
+        error("enquire not expected")
+
+    override suspend fun placeOrder(
+        body: com.fishers.app.shop.PlaceOrderRequest,
+    ): com.fishers.app.shop.OrderResponse = error("placeOrder not expected")
+
     // ---- cricket ----
     override suspend fun cricketMatch(eventId: String): CricketMatch =
         error("cricketMatch not expected")

@@ -9,6 +9,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * The server's own shapes, from `backend/domain/src/user.rs`. Named as the wire
@@ -151,6 +152,34 @@ interface FishersApi {
         @Path("id") matchId: String,
         @Body body: com.fishers.app.cricket.EventsBatch,
     ): com.fishers.app.cricket.CricketMatch
+
+    // ---- the shop ----
+
+    /**
+     * What is for sale across every club, not just one. A club with a spare set
+     * of pads needs a bigger room than its own membership.
+     */
+    @GET("marketplace")
+    suspend fun marketplace(
+        @Query("condition") condition: String? = null,
+        @Query("q") search: String? = null,
+    ): List<com.fishers.app.shop.Product>
+
+    @GET("marketplace/{id}")
+    suspend fun marketItem(@Path("id") id: String): com.fishers.app.shop.MarketListing
+
+    /**
+     * Open a conversation with whoever is selling it. Asking twice returns the
+     * same thread rather than a second one, so the button is safe to press again.
+     */
+    @POST("marketplace/{id}/enquire")
+    suspend fun enquire(@Path("id") id: String): com.fishers.app.shop.EnquiryStarted
+
+    /** Reserving it. No money changes hands — the seller is told, and that is all. */
+    @POST("orders")
+    suspend fun placeOrder(
+        @Body body: com.fishers.app.shop.PlaceOrderRequest,
+    ): com.fishers.app.shop.OrderResponse
 
     // ---- clubs ----
 

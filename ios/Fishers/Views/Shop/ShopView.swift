@@ -1,138 +1,156 @@
 import SwiftUI
 
+/// Kit for sale, across every club.
+///
+/// A club with a spare set of pads needs a bigger room than its own
+/// membership, so this is the whole app's marketplace rather than one club's
+/// shelf. Money is settled in person — a listing is an advert and a
+/// reservation, not a checkout.
 struct ShopView: View {
-    @EnvironmentObject private var cart: CartStore
-    @EnvironmentObject private var clubContext: ClubContextStore
-    @State private var products: [Product] = []
-    @State private var showCheckout = false
+    @State private var listings: [Product] = []
+    @State private var search = ""
+    @State private var condition: String?
+    @State private var loading = true
+    @State private var error: String?
+    /// The pending search. Held so the next keystroke can cancel it — without
+    /// that, waiting 350ms per keystroke is still one request per letter, only
+    /// later.
+    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
         List {
-            if clubContext.clubs.isEmpty {
-                Text("Join a club to see its shop.")
-                    .foregroundStyle(.secondary)
-            } else {
-                Picker("Club", selection: Binding(
-                    get: { clubContext.activeClubId },
-                    set: { if let id = $0 { clubContext.select(id) } }
-                )) {
-                    ForEach(clubContext.clubs) { club in
-                        Text(club.name).tag(Optional(club.id))
-                    }
+            Section {
+                Picker("Condition", selection: $condition) {
+                    Text("Everything").tag(String?.none)
+                    Text("Second-hand").tag(String?.some("used"))
+                    Text("Brand new").tag(String?.some("new"))
                 }
-                .onChange(of: clubContext.activeClubId) { _, _ in
-                    Task { await loadProducts() }
-                }
+                .pickerStyle(.segmented)
+                .listRowSeparator(.hidden)
+            }
 
-                ForEach(products) { product in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(product.name).font(.headline)
-                            Text(product.category.capitalized)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text(product.priceLabel)
-                        Button {
-                            if let clubId = clubContext.activeClubId {
-                                cart.add(product, clubId: clubId)
-                            }
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(.tint)
-                                .frame(minWidth: 44, minHeight: 44)
-                        }
-                        .buttonStyle(.borderless)
+            if let error {
+                Text(error).foregroundStyle(FishersTheme.red600)
+            } else if loading {
+                ProgressView().frame(maxWidth: .infinity)
+            } else if listings.isEmpty {
+                emptyState
+            } else {
+                ForEach(listings) { product in
+                    NavigationLink {
+                        ListingDetailView(productId: product.id)
+                    } label: {
+                        ListingRow(product: product)
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
-            .fishersList()
-        .navigationTitle("Shop")
+        .fishersList()
+        .searchable(text: $search, prompt: "Bats, pads, a club shirt")
+        .navigationTitle("Kit for sale")
         .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showCheckout = true
-                } label: {
-                    Label("Cart (\(cart.lines.count))", systemImage: "cart")
-                }
-                .disabled(cart.lines.isEmpty)
+        .refreshable { await load() }
+        .task { await load() }
+        .onChange(of: condition) { _, _ in Task { await load() } }
+        // Searching on every keystroke would be a request per letter. Waiting
+        // until they stop typing is one request per search.
+        .onChange(of: search) { _, _ in
+            searchTask?.cancel()
+            searchTask = Task {
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+                await load()
             }
-        }
-        .sheet(isPresented: $showCheckout) {
-            CheckoutView()
-        }
-        .task {
-            if clubContext.clubs.isEmpty {
-                await clubContext.bootstrap()
-            }
-            await loadProducts()
         }
     }
 
-    private func loadProducts() async {
-        guard let clubId = clubContext.activeClubId else { products = []; return }
-        products = (try? await FishersAPI.products(clubId: clubId)) ?? []
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "bag")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+            Text(search.isEmpty ? "Nothing is for sale yet." : "Nothing matched that.")
+                .font(.headline)
+            Text(
+                search.isEmpty
+                    ? "When a club lists a bat or a spare set of pads, it turns up here."
+                    : "Try a shorter search, or look through everything."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .listRowSeparator(.hidden)
+    }
+
+    private func load() async {
+        let wanted = search
+        loading = listings.isEmpty
+        do {
+            let found = try await FishersAPI.marketplace(condition: condition, search: search)
+            // A slower earlier search must not overwrite a later one.
+            guard wanted == search else { return }
+            listings = found
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+        loading = false
     }
 }
 
-struct CheckoutView: View {
-    @EnvironmentObject private var cart: CartStore
-    @Environment(\.dismiss) private var dismiss
-    @State private var message: String?
+/// One line in the list: the photograph if there is one, what it is, and what
+/// it costs. Enough to decide whether to open it.
+private struct ListingRow: View {
+    let product: Product
 
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(cart.lines) { line in
-                    HStack {
-                        Text(line.product.name)
-                        Spacer()
-                        Text("×\(line.quantity)")
-                        Text(line.product.priceLabel)
-                    }
-                }
-                Section {
-                    HStack {
-                        Text("Total")
-                        Spacer()
-                        Text(String(format: "£%.2f", Double(cart.totalCents) / 100))
-                            .bold()
-                    }
-                }
-                if let message {
-                    Text(message).font(.footnote)
-                }
+        HStack(spacing: 12) {
+            thumbnail
+            VStack(alignment: .leading, spacing: 3) {
+                Text(product.name)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(product.priceLine)
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                Text(
+                    [product.conditionLabel, product.brand, product.size]
+                        .compactMap { $0 }
+                        .joined(separator: " · ")
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
-            .navigationTitle("Checkout")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Place order") {
-                        Task { await place() }
-                    }
-                }
+            Spacer(minLength: 0)
+            if product.isSold {
+                Text("Sold")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
         }
+        .padding(.vertical, 4)
     }
 
-    private func place() async {
-        guard let clubId = cart.clubId else { return }
-        do {
-            let order = try await FishersAPI.placeOrder(
-                clubId: clubId,
-                eventId: nil,
-                items: cart.lines.map { ($0.product.id, $0.quantity) }
-            )
-            message = "Order \(order.id.uuidString.prefix(8)) placed"
-            cart.clear()
-        } catch {
-            message = error.localizedDescription
+    @ViewBuilder private var thumbnail: some View {
+        let side: CGFloat = 60
+        if let first = product.photos?.first, let url = URL(string: first) {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Color.secondary.opacity(0.1)
+            }
+            .frame(width: side, height: side)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.secondary.opacity(0.1))
+                .frame(width: side, height: side)
+                .overlay(Image(systemName: "camera").foregroundStyle(.secondary))
         }
     }
 }

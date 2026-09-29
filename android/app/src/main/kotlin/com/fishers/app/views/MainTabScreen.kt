@@ -53,6 +53,10 @@ import com.fishers.app.chat.ConversationSummary
 import com.fishers.app.net.PublicUser
 import com.fishers.app.views.chat.ChatListScreen
 import com.fishers.app.views.chat.ChatThreadScreen
+import com.fishers.app.shop.ListingViewModel
+import com.fishers.app.shop.MarketViewModel
+import com.fishers.app.views.shop.ListingScreen
+import com.fishers.app.views.shop.MarketplaceScreen
 
 /**
  * The five top-level destinations, in the order `MainTabView.swift` has them.
@@ -73,6 +77,8 @@ fun MainTabScreen(
     home: HomeViewModel,
     umpiring: UmpireViewModel,
     pendingReviews: PendingUmpireReviewsViewModel,
+    market: MarketViewModel,
+    listingFor: (String) -> ListingViewModel,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
@@ -82,6 +88,9 @@ fun MainTabScreen(
     var openTitle by rememberSaveable { mutableStateOf("") }
     var openClub by rememberSaveable { mutableStateOf<String?>(null) }
     var openClubName by rememberSaveable { mutableStateOf("") }
+    // The shop is two screens deep off Home: the marketplace, then one listing.
+    var shopOpen by rememberSaveable { mutableStateOf(false) }
+    var openListing by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -115,10 +124,29 @@ fun MainTabScreen(
             else Alignment.Start,
         ) {
             when (tab) {
-                Tab.Home -> {
+                Tab.Home -> if (shopOpen) {
+                    ShopTab(
+                        market = market,
+                        listingFor = listingFor,
+                        openListing = openListing,
+                        onOpen = { openListing = it },
+                        onBack = { if (openListing != null) openListing = null else shopOpen = false },
+                        onOpenThread = { id, title ->
+                            openListing = null
+                            shopOpen = false
+                            openThread = id
+                            openTitle = title
+                            tab = Tab.Chats
+                        },
+                    )
+                } else {
                     val state by home.state.collectAsStateWithLifecycle()
                     LaunchedEffect(Unit) { home.load() }
-                    HomeScreen(name = user?.name, state = state)
+                    HomeScreen(
+                        name = user?.name,
+                        state = state,
+                        onOpenShop = { shopOpen = true },
+                    )
                 }
 
                 Tab.Clubs -> ClubsTab(
@@ -183,6 +211,49 @@ fun MainTabScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Kit for sale, or one listing. Back steps out one screen at a time.
+ *
+ * Asking the seller about something hands off to the Chats tab rather than
+ * opening a thread inside the shop: the conversation carries on there, and both
+ * people already know where their messages live.
+ */
+@Composable
+private fun ShopTab(
+    market: MarketViewModel,
+    listingFor: (String) -> ListingViewModel,
+    openListing: String?,
+    onOpen: (String) -> Unit,
+    onBack: () -> Unit,
+    onOpenThread: (String, String) -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    if (openListing == null) {
+        val state by market.state.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { market.load() }
+        MarketplaceScreen(
+            state = state,
+            onSearch = market::search,
+            onFilter = market::filter,
+            onOpen = { onOpen(it.id) },
+        )
+    } else {
+        val model = remember(openListing) { listingFor(openListing) }
+        val state by model.state.collectAsStateWithLifecycle()
+        LaunchedEffect(openListing) { model.load() }
+        // Set once the enquiry has opened a thread; navigating clears it so
+        // coming back does not re-open the same conversation.
+        LaunchedEffect(state.openConversation) {
+            state.openConversation?.let { conversation ->
+                val title = state.listing?.let { "About: ${it.name}" } ?: "About this listing"
+                model.conversationOpened()
+                onOpenThread(conversation, title)
+            }
+        }
+        ListingScreen(state = state, onReserve = model::reserve, onAsk = model::ask)
     }
 }
 

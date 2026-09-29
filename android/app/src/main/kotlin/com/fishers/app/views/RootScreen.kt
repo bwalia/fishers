@@ -40,6 +40,8 @@ fun RootScreen(
     home: com.fishers.app.home.HomeViewModel,
     umpiring: com.fishers.app.umpire.UmpireViewModel,
     pendingReviews: com.fishers.app.umpire.PendingUmpireReviewsViewModel,
+    market: com.fishers.app.shop.MarketViewModel,
+    listingFor: (String) -> com.fishers.app.shop.ListingViewModel,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -80,6 +82,8 @@ fun RootScreen(
                 home = home,
                 umpiring = umpiring,
                 pendingReviews = pendingReviews,
+                market = market,
+                listingFor = listingFor,
             )
         }
     }

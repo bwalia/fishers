@@ -1100,6 +1100,39 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/clubs/\(clubId.uuidString)/products")
     }
 
+    /// What is for sale across every club, not just this one.
+    ///
+    /// A club with a spare set of pads needs a bigger room than its own
+    /// membership, so this is the whole app's marketplace.
+    static func marketplace(condition: String? = nil, search: String? = nil) async throws -> [Product] {
+        var items: [URLQueryItem] = []
+        if let condition { items.append(URLQueryItem(name: "condition", value: condition)) }
+        if let search, !search.isEmpty { items.append(URLQueryItem(name: "q", value: search)) }
+        var path = "/marketplace"
+        if !items.isEmpty {
+            var comps = URLComponents()
+            comps.queryItems = items
+            path += "?\(comps.percentEncodedQuery ?? "")"
+        }
+        return try await NetworkService.shared.request("GET", path: path)
+    }
+
+    /// One listing, in full, as the person asking for it is allowed to see it.
+    static func marketItem(_ id: UUID) async throws -> MarketListing {
+        try await NetworkService.shared.request("GET", path: "/marketplace/\(id.uuidString)")
+    }
+
+    /// Open a conversation with whoever is selling it.
+    ///
+    /// The one place a stranger may start a thread: everywhere else a direct
+    /// conversation needs a shared club. Asking twice returns the same thread
+    /// rather than a second one, so the button is safe to press again.
+    static func enquire(about productId: UUID) async throws -> EnquiryStarted {
+        try await NetworkService.shared.request(
+            "POST", path: "/marketplace/\(productId.uuidString)/enquire"
+        )
+    }
+
     static func placeOrder(clubId: UUID, eventId: UUID?, items: [(UUID, Int)]) async throws -> Order {
         struct Item: Encodable { let product_id: UUID; let quantity: Int }
         struct Body: Encodable {

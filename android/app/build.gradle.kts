@@ -171,6 +171,10 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+    // Photographs on a listing. Hand-rolling this would mean writing the
+    // downsampling too, and a phone-camera photograph decoded at full size is
+    // how an image list runs out of memory.
+    implementation(libs.coil.compose)
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
 
