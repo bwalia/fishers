@@ -71,6 +71,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: list
+        # This workflow defaults every `run:` to `ios/`, which is right for the
+        # build on the Mac and wrong for this job: it reads `brands/` and
+        # `tools/brand`, both of which are at the root. From inside `ios/` npm
+        # finds no package.json above it and reports the lockfile as missing,
+        # which it is not — it is at the root, where this was never looking.
+        working-directory: .
         env:
           ONE: ${{ inputs.brand }}
         run: |
