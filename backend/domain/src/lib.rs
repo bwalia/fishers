@@ -29,6 +29,10 @@ pub mod selection;
 pub mod reliability;
 mod user;
 mod venue_hire;
+/// Live scores from an outside feed, as opposed to matches scored in this app.
+pub mod world_cricket;
+/// One outside match in full — the scorecard.
+pub mod world_cricket_detail;
 
 pub use admin::*;
 pub use agent::*;
@@ -58,6 +62,11 @@ pub use umpire::*;
 pub use reliability::{ReliabilityBand, ReliabilityCounts, ReliabilityScore};
 pub use user::*;
 pub use venue_hire::*;
+pub use world_cricket::{phase_for, WorldMatch, WorldScores, PHASE_DONE, PHASE_LIVE, PHASE_PENDING};
+// Only the three that do not collide with our own scoring types — this
+// crate already has a `FallOfWicket`, and an outside feed's is a different
+// thing. The rest are reached through `world_cricket_detail::`.
+pub use world_cricket_detail::{dismissal_line, WorldMatchDetail, WorldMatchDetailView};
 
 use thiserror::Error;
 

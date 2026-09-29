@@ -1100,6 +1100,8 @@ dependencies = [
  "fishers-db",
  "fishers-domain",
  "fishers-notifications",
+ "reqwest",
+ "serde",
  "serde_json",
  "sqlx",
  "tokio",

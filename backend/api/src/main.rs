@@ -61,6 +61,9 @@ async fn main() -> anyhow::Result<()> {
     let push = fishers_notifications::PushService::from_env();
     let email = fishers_notifications::EmailService::from_env();
     fishers_jobs::spawn_scheduler(pool.clone(), push.clone(), email);
+    // Scores from the wider game, read on a budget of its own. Silent without
+    // CRICKET_FEED_KEY, which is how int and test stay out of prod's allowance.
+    fishers_jobs::world_cricket::spawn(pool.clone());
 
     let state = AppState::new(pool, jwt_secret, push);
     services::motm::spawn_sweeper(state.clone());

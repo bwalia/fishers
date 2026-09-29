@@ -19,3 +19,4 @@ pub mod umpire;
 pub mod users;
 pub mod verification;
 pub mod venue_hire;
+pub mod world_cricket;
