@@ -1,9 +1,14 @@
 name: Register kubepilot demo edge
 
 # Applies demo.kubepilot.org Cloudflare CNAME + wslproxy vhost/rule using this
-# repo's existing edge secrets. Specs are read from bwalia/kubepilot
-# deploy/wslproxy (app source of truth). Companion POP files live in
-# bwalia/wslproxy data/servers|rules/prod.
+# repo's existing edge secrets.
+#
+# Specs (keep in sync with bwalia/kubepilot deploy/wslproxy/):
+#   devops/wslproxy/host-demo.kubepilot.org.json
+#   devops/wslproxy/rule-kubepilot-demo-default.json
+#
+# Companion POP files: bwalia/wslproxy data/servers|rules/prod (Deploy Virtual
+# Servers → lon1).
 
 on:
   workflow_dispatch:
@@ -13,8 +18,12 @@ on:
         type: boolean
         required: false
         default: false
-  # Re-assert hourly so accidental CF/edge deletes heal (same idea as
-  # cloudflare-dns-reconcile for fishers.cloud).
+  push:
+    branches: [main]
+    paths:
+      - "devops/wslproxy/host-demo.kubepilot.org.json"
+      - "devops/wslproxy/rule-kubepilot-demo-default.json"
+      - ".github/workflows/register-kubepilot-demo-edge.yml"
   schedule:
     - cron: "23 * * * *"
 
@@ -22,7 +31,6 @@ env:
   ZONE: kubepilot.org
   CNAME_TARGET: lon1.pop0.uk
   DEMO_HOST: demo.kubepilot.org
-  KUBEPILOT_REF: master
 
 permissions:
   contents: read
@@ -36,13 +44,7 @@ jobs:
     name: Register demo.kubepilot.org
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout kubepilot edge specs
-        uses: actions/checkout@v4
-        with:
-          repository: bwalia/kubepilot
-          ref: ${{ env.KUBEPILOT_REF }}
-          path: kubepilot
-          token: ${{ secrets.RP_GITHUB_TOKEN || github.token }}
+      - uses: actions/checkout@v4
 
       - name: Ensure Cloudflare CNAME (DNS-only)
         env:
@@ -57,9 +59,22 @@ jobs:
             echo "DRY_RUN: would upsert CNAME ${DEMO_HOST} -> ${CNAME_TARGET}"
             exit 0
           fi
-          cd kubepilot
-          chmod +x scripts/upsert-demo-cname.sh
-          ./scripts/upsert-demo-cname.sh
+          api="https://api.cloudflare.com/client/v4"
+          auth=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json")
+          zone_id=$(curl -fsS "${auth[@]}" "$api/zones?name=${ZONE}" | jq -r '.result[0].id // empty')
+          [ -n "$zone_id" ] || { echo "::error::zone ${ZONE} not visible to token"; exit 1; }
+          rec_id=$(curl -fsS "${auth[@]}" \
+            "$api/zones/$zone_id/dns_records?type=CNAME&name=${DEMO_HOST}" \
+            | jq -r '.result[0].id // empty')
+          body=$(jq -nc --arg name "$DEMO_HOST" --arg content "$CNAME_TARGET" \
+            '{type:"CNAME",name:$name,content:$content,ttl:1,proxied:false}')
+          if [ -n "$rec_id" ]; then
+            curl -fsS "${auth[@]}" -X PUT "$api/zones/$zone_id/dns_records/$rec_id" --data "$body" >/dev/null
+            echo "updated CNAME ${DEMO_HOST} -> ${CNAME_TARGET}"
+          else
+            curl -fsS "${auth[@]}" -X POST "$api/zones/$zone_id/dns_records" --data "$body" >/dev/null
+            echo "created CNAME ${DEMO_HOST} -> ${CNAME_TARGET}"
+          fi
 
       - name: Import wslproxy rule + vhost
         env:
@@ -72,9 +87,12 @@ jobs:
           if [ -z "${WSLPROXY_USER:-}" ] || [ -z "${WSLPROXY_PASSWORD:-}" ] || [ -z "${WSLPROXY_GATEWAY_URL:-}" ]; then
             echo "::error::WSLPROXY_* secrets missing."; exit 1
           fi
-          HOST_SPEC="kubepilot/deploy/wslproxy/host-${DEMO_HOST}.json"
-          RULE_SPEC="kubepilot/deploy/wslproxy/rule-kubepilot-demo-default.json"
-          [ -f "$HOST_SPEC" ] && [ -f "$RULE_SPEC" ]
+          HOST_SPEC="devops/wslproxy/host-${DEMO_HOST}.json"
+          RULE_SPEC="devops/wslproxy/rule-kubepilot-demo-default.json"
+          [ -f "$HOST_SPEC" ] || { echo "::error::missing $HOST_SPEC"; exit 1; }
+          [ -f "$RULE_SPEC" ] || { echo "::error::missing $RULE_SPEC"; exit 1; }
+          spec_host=$(jq -r '.server_name' "$HOST_SPEC")
+          [ "$spec_host" = "$DEMO_HOST" ] || { echo "::error::server_name mismatch"; exit 1; }
 
           if [ "${DRY_RUN}" = "true" ]; then
             echo "DRY_RUN: would import $(jq -r .id "$RULE_SPEC") + $(jq -r .id "$HOST_SPEC")"
