@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
+import { OfflineReady } from "@/components/OfflineReady";
 import { ShellNav } from "@/components/ShellNav";
 import { MobileNav } from "@/components/MobileNav";
 import { LiveAlerts } from "@/components/LiveAlerts";
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <a className="skip-link" href="#main">Skip to main content</a>
+        <OfflineReady />
         <ShellNav />
         <div className="shell">{children}</div>
         <MobileNav />

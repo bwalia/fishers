@@ -46,6 +46,14 @@ import {
   inningsScore,
 } from "@/lib/cricket";
 import { brand } from "@/brand.generated";
+import { apply as engineApply } from "@/lib/engine";
+import {
+  clear as clearOutbox,
+  load as loadOutbox,
+  save as saveOutbox,
+  syncLabel,
+  type SyncState,
+} from "@/lib/outbox";
 
 /// The device the book is held on. The API ties the scoring lock to it, so it
 /// has to survive a refresh or the scorer loses their own claim.
@@ -82,6 +90,11 @@ export default function ScorerPage({
   /// between the loading render and the loaded one, and React blanks the page.
   const [handingOver, setHandingOver] = useState(false);
   const [busy, setBusy] = useState(false);
+  /// Balls the server has not acknowledged, oldest first. A ref rather than
+  /// state: `send` reads and writes it within one tap, and a re-render in the
+  /// middle of that would number the next ball from a stale queue.
+  const queued = useRef<Record<string, unknown>[]>([]);
+  const [sync, setSync] = useState<SyncState>("saved");
 
   const load = useCallback(async () => {
     try {
@@ -89,12 +102,78 @@ export default function ScorerPage({
       // Never step backwards. A refetch started before the scorer's latest
       // ball can land after it; an older state would briefly undo that ball
       // on screen. Equal is accepted — a handover changes the match without
-      // adding a ball.
+      // adding a ball. Balls waiting in the queue are ahead of anything the
+      // server can send, so the same rule keeps them on screen.
       setMatch((cur) => (cur && next.last_seq < cur.last_seq ? cur : next));
+      if (queued.current.length === 0) {
+        setSync("saved");
+        setError(null);
+        saveOutbox({
+          matchId,
+          match: next,
+          pending: [],
+          lastSeq: next.last_seq,
+          deviceId: deviceId(),
+          updatedAt: Date.now(),
+        });
+      }
     } catch (err) {
+      // Offline is not a failure to load — it is a match that carries on from
+      // what this device already holds. The error is only worth showing when
+      // there is nothing to show instead.
+      const kept = await loadOutbox(matchId);
+      if (kept) {
+        queued.current = kept.pending as Record<string, unknown>[];
+        setMatch((cur) => cur ?? (kept.match as MatchResponse));
+        setSync(kept.pending.length > 0 ? "offline" : "saved");
+        return;
+      }
       setError(err instanceof Error ? err.message : "Could not load the match");
     }
   }, [matchId]);
+
+  /// Push whatever is queued. Everything goes in one batch: the API takes up
+  /// to 500 events and applies a batch it has already seen as nothing, so a
+  /// retry after a half-failure cannot double-count a ball.
+  const flush = useCallback(async () => {
+    if (queued.current.length === 0) return;
+    setSync("syncing");
+    try {
+      const next = await api<MatchResponse>(
+        "POST",
+        `/cricket/matches/${matchId}/events`,
+        { device_id: deviceId(), events: queued.current },
+      );
+      queued.current = [];
+      setMatch(next);
+      setSync("saved");
+      setError(null);
+      await clearOutbox(matchId);
+    } catch (err) {
+      setSync("offline");
+      // Only worth saying out loud when the server refused on its own terms;
+      // a dropped network is what the chip is for.
+      if (navigator.onLine) {
+        setError(err instanceof Error ? err.message : "The API rejected that");
+      }
+    }
+  }, [matchId]);
+
+  // Coming back to signal is the moment the queue empties. `online` is not
+  // wholly reliable — a captive portal fires it while nothing yet resolves —
+  // so a slow interval backs it up while anything is still waiting.
+  useEffect(() => {
+    if (!authed) return;
+    const onOnline = () => { flush(); };
+    window.addEventListener("online", onOnline);
+    const timer = window.setInterval(() => {
+      if (queued.current.length > 0) flush();
+    }, 20_000);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.clearInterval(timer);
+    };
+  }, [authed, flush]);
 
   useEffect(() => {
     if (!authed) return;
@@ -127,7 +206,9 @@ export default function ScorerPage({
       setBusy(true);
       setError(null);
       const at = new Date().toISOString();
-      let seq = match.state.last_seq;
+      // `match` already carries anything queued, because a queued ball was
+      // applied to it on screen.
+      let seq = match.last_seq;
       const events: Record<string, unknown>[] = [];
 
       // The log is the only lasting record: the server seeds the team names
@@ -147,25 +228,52 @@ export default function ScorerPage({
           at,
         });
       }
-      // The engine demands the next seq exactly; it is the server's count,
-      // never a local one.
+      // The engine demands the next seq exactly. It counts from the last ball
+      // this device has applied, not from the last the server acknowledged —
+      // otherwise a second ball tapped with no signal would reuse the first
+      // one's number and the batch would be refused on reconnect.
       events.push({ client_event_id: randomUUID(), seq: ++seq, kind, at });
 
+      // The Laws first, here, before anything is sent or queued. This is the
+      // same Rust the server replays with, compiled to WebAssembly, so a ball
+      // it accepts is a ball the server will accept — and a ball it refuses is
+      // refused at the moment of the tap, in the engine's own words, rather
+      // than an hour later when the network comes back and takes the whole
+      // over with it.
+      let applied: MatchResponse;
       try {
-        const next = await api<MatchResponse>(
-          "POST",
-          `/cricket/matches/${matchId}/events`,
-          { device_id: deviceId(), events }
-        );
-        setMatch(next);
+        let state: unknown = match.state;
+        for (const event of events) state = await engineApply(state, event);
+        applied = {
+          ...match,
+          state: state as MatchResponse["state"],
+          last_seq: seq,
+        };
       } catch (err) {
-        setError(err instanceof Error ? err.message : "The API rejected that");
-      } finally {
+        setError(err instanceof Error ? err.message : "The Laws do not allow that");
         sending.current = false;
         setBusy(false);
+        return;
       }
+
+      // On screen immediately, and on disk before the network is asked for
+      // anything: a scorer who loses signal mid-over keeps the over.
+      setMatch(applied);
+      queued.current = [...queued.current, ...events];
+      await saveOutbox({
+        matchId,
+        match: applied,
+        pending: queued.current,
+        lastSeq: seq,
+        deviceId: deviceId(),
+        updatedAt: Date.now(),
+      });
+
+      sending.current = false;
+      setBusy(false);
+      await flush();
     },
-    [match, matchId]
+    [match, matchId, flush]
   );
 
   const claim = async (force: boolean) => {
@@ -275,6 +383,20 @@ export default function ScorerPage({
       {isSetup && st.toss_winner && <TossResult st={st} />}
 
       {isSetup && match.can_score && <Umpires match={match} onChanged={setMatch} />}
+
+      {/* Where the scorer's work is. It says nothing while everything is
+          saved and the network is doing its job — a chip that is always there
+          is a chip nobody reads. */}
+      {sync !== "saved" && (
+        <p className={`sync-chip ${sync}`} role="status" aria-live="polite">
+          {syncLabel(sync, queued.current.length)}
+          {sync === "offline" && (
+            <span className="sync-note">
+              They will go up on their own when there is signal. It is safe to close the page.
+            </span>
+          )}
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
 

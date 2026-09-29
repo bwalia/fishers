@@ -7694,3 +7694,32 @@ main .panel[id] { scroll-margin-top: 80px; }
 .innings-bat, .innings-side { min-width: 0; }
 .innings-bat > .card-sub:first-child,
 .innings-side > .card-sub:first-child { margin-top: 0; }
+
+/* ---------- The scorer's work, and whether it has gone up ---------- */
+
+/* Shown only when there is something to say. A chip that is always on screen
+ * is a chip nobody reads, and the one state worth interrupting for — balls
+ * sitting on this device — is the one people need to trust. */
+.sync-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s1) var(--s2);
+  margin: var(--s3) 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.sync-chip.syncing { color: var(--fg-muted); }
+/* Not an error: nothing is wrong and nothing is lost. The accent says "pay
+ * attention" without saying "something has gone wrong", which is what red
+ * would say to a scorer who is mid-over. */
+.sync-chip.offline {
+  border-color: var(--accent);
+  background: var(--accent-pale, var(--surface-2));
+  color: var(--accent);
+}
+.sync-note { font-weight: 400; font-size: 0.82rem; color: var(--fg-muted); }

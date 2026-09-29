@@ -1,10 +1,108 @@
-/* Service worker for browser push.
+/* Service worker: browser push, and the offline shell.
  *
- * Deliberately tiny and does nothing else. A service worker intercepts every
- * request the page makes for as long as it is registered, so anything clever
- * added here — caching, offline shells — outlives the deploy that removed it
- * and is very hard to take back. This one only listens for pushes.
+ * It was deliberately tiny for a long time, and the warning that sat here was
+ * right: a service worker intercepts every request for as long as it is
+ * registered, so caching added carelessly outlives the deploy that removed it.
+ * It is here now because a scorer at a ground with no signal could not open the
+ * app at all — the browser showed its own offline page and the match was gone.
+ *
+ * So the caching below is written to be taken back. Every cache name carries
+ * SHELL_VERSION; `activate` deletes every cache that is not the current one, so
+ * shipping a new version evicts the old one on the next load. Bumping the
+ * version to a name nothing writes to would empty the lot.
+ *
+ * Two rules keep it honest:
+ *
+ *   - Nothing under /api is ever cached. Those responses are authenticated and
+ *     mutable, and a stale one is a lie about somebody's match.
+ *   - Navigations go to the network first and fall back to the cache, so an
+ *     online reader always gets the current page and never a stale one.
+ *
+ * What a scorer actually needs offline — the match and the balls they have
+ * tapped — is not here. That is in IndexedDB (`src/lib/outbox.ts`), where it
+ * can be reasoned about, not in an HTTP cache.
  */
+
+const SHELL_VERSION = "v1";
+const SHELL_CACHE = `fishers-shell-${SHELL_VERSION}`;
+/* The page served when a navigation fails and nothing better is cached. */
+const OFFLINE_FALLBACK = "/";
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(SHELL_CACHE);
+      // Only the entry point. Everything else is cached as it is fetched:
+      // Next's asset names carry content hashes, so a precache list written
+      // here would be wrong the moment anything is rebuilt.
+      await cache.add(new Request(OFFLINE_FALLBACK, { cache: "reload" })).catch(() => {});
+      await self.skipWaiting();
+    })(),
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const names = await caches.keys();
+      await Promise.all(
+        names.filter((n) => n.startsWith("fishers-shell-") && n !== SHELL_CACHE)
+             .map((n) => caches.delete(n)),
+      );
+      await self.clients.claim();
+    })(),
+  );
+});
+
+/* Assets Next fingerprints, so a cached copy can never be the wrong one. */
+function isImmutable(url) {
+  return url.pathname.startsWith("/_next/static/")
+    || url.pathname.endsWith(".woff2")
+    || url.pathname.endsWith(".wasm");
+}
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  // Authenticated and mutable: a stale one is a lie about somebody's match.
+  if (url.pathname.startsWith("/api/")) return;
+
+  if (isImmutable(url)) {
+    event.respondWith(
+      (async () => {
+        const hit = await caches.match(request);
+        if (hit) return hit;
+        const response = await fetch(request);
+        if (response.ok) (await caches.open(SHELL_CACHE)).put(request, response.clone());
+        return response;
+      })(),
+    );
+    return;
+  }
+
+  // Everything else — pages, the manifest, icons — is network-first, so an
+  // online reader is never shown yesterday's page.
+  event.respondWith(
+    (async () => {
+      try {
+        const response = await fetch(request);
+        if (response.ok) (await caches.open(SHELL_CACHE)).put(request, response.clone());
+        return response;
+      } catch (err) {
+        const hit = await caches.match(request);
+        if (hit) return hit;
+        if (request.mode === "navigate") {
+          const shell = await caches.match(OFFLINE_FALLBACK);
+          if (shell) return shell;
+        }
+        throw err;
+      }
+    })(),
+  );
+});
 
 self.addEventListener("push", (event) => {
   if (!event.data) return;
