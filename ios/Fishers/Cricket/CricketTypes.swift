@@ -925,20 +925,29 @@ struct BowlerStats: Codable, Equatable, Identifiable {
     var currentOverRuns: UInt16
     var wides: UInt16
     var noBalls: UInt16
+    /// Wickets taken on consecutive deliveries. Two means the next legitimate
+    /// ball is a hat-trick ball; three is the hat-trick. Mirrors
+    /// `wickets_in_a_row` in `backend/cricket/src/types.rs`.
+    var wicketsInARow: UInt8
 
     var id: UUID { playerId }
+
+    /// On two, so the next legitimate delivery is the hat-trick ball.
+    var onAHatTrick: Bool { wicketsInARow == 2 }
 
     enum CodingKeys: String, CodingKey {
         case playerId = "player_id"
         case balls, runs, wickets, maidens, wides
         case currentOverRuns = "current_over_runs"
         case noBalls = "no_balls"
+        case wicketsInARow = "wickets_in_a_row"
     }
 
     init(playerId: UUID) {
         self.playerId = playerId
         balls = 0; runs = 0; wickets = 0; maidens = 0
         currentOverRuns = 0; wides = 0; noBalls = 0
+        wicketsInARow = 0
     }
 
     init(from decoder: Decoder) throws {
@@ -951,6 +960,9 @@ struct BowlerStats: Codable, Equatable, Identifiable {
         currentOverRuns = try c.decodeIfPresent(UInt16.self, forKey: .currentOverRuns) ?? 0
         wides = try c.decodeIfPresent(UInt16.self, forKey: .wides) ?? 0
         noBalls = try c.decodeIfPresent(UInt16.self, forKey: .noBalls) ?? 0
+        // Absent from every match scored before hat-tricks were counted, and
+        // those matches are still on people's phones.
+        wicketsInARow = try c.decodeIfPresent(UInt8.self, forKey: .wicketsInARow) ?? 0
     }
 
     var oversDisplay: String { "\(balls / 6).\(balls % 6)" }
@@ -1312,6 +1324,21 @@ struct InningsState: Codable, Equatable {
             throw CricketEngineError.validation("batter not in innings")
         }
         return i
+    }
+
+    /// Keep a bowler's consecutive-wicket count up to date for one delivery.
+    /// Mirrors `note_wicket_streak` in `backend/cricket/src/engine.rs`, and the
+    /// two conventions it encodes: only a wicket credited to the bowler counts,
+    /// and an extra is not one of the three — so a wide does not end a
+    /// hat-trick chance, and a stumping off one can complete it.
+    mutating func noteWicketStreak(_ bowler: UUID?, credited: Bool, legal: Bool) throws {
+        guard let bid = bowler else { return }
+        let boi = try bowlerIndex(bid)
+        if credited {
+            bowlers[boi].wicketsInARow += 1
+        } else if legal {
+            bowlers[boi].wicketsInARow = 0
+        }
     }
 
     mutating func bowlerIndex(_ id: UUID) throws -> Int {

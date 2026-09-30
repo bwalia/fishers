@@ -441,6 +441,7 @@ extension MatchState {
         innings[idx].bowlers[boi].runs += UInt16(runs)
         innings[idx].bowlers[boi].currentOverRuns += UInt16(runs)
         if isLegal { innings[idx].bowlers[boi].balls += 1 }
+        try innings[idx].noteWicketStreak(bowler, credited: false, legal: isLegal)
 
         let label = six ? "6" : (four ? "4" : (shortRuns > 0 ? "\(runs)s" : "\(runs)"))
         let over = innings[idx].legalBalls / 6
@@ -540,6 +541,10 @@ extension MatchState {
         case .noBall: innings[idx].bowlers[boi].noBalls += 1
         default: break
         }
+        // `legal` is false for a wide, a no ball and a penalty, so none of them
+        // ends a hat-trick chance; a bye and a leg bye are legitimate
+        // deliveries and do.
+        try innings[idx].noteWicketStreak(bowler, credited: false, legal: legal)
 
         let label: String
         switch kind {
@@ -645,6 +650,10 @@ extension MatchState {
         if kind.creditsBowler, let bid = bowler {
             let boi = try innings[idx].bowlerIndex(bid)
             innings[idx].bowlers[boi].wickets += 1
+        }
+        // Retiring is not a delivery, so it leaves a streak untouched.
+        if kind.usesABall {
+            try innings[idx].noteWicketStreak(bowler, credited: kind.creditsBowler, legal: isLegal)
         }
 
         if countsAWicket {
