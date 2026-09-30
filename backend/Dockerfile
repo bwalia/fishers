@@ -34,16 +34,25 @@ COPY domain/Cargo.toml      domain/
 COPY jobs/Cargo.toml        jobs/
 COPY notifications/Cargo.toml notifications/
 COPY payments/Cargo.toml    payments/
-# ffi is the phones' copy of the cricket engine and nothing here links it, but
-# cargo reads every workspace member's manifest before it builds any of them —
-# so a missing one fails the whole build with "failed to load manifest for
-# workspace member". Its stub costs nothing and its absence costs the image.
+# cricket is the engine — the API's rules live in it. ffi and wasm carry the
+# same engine to the phones and to the browser and nothing here links either,
+# but cargo reads every workspace member's manifest before it builds any of
+# them, so a missing one fails the whole build with "failed to load manifest
+# for workspace member". Their stubs cost nothing and their absence costs the
+# image; that is exactly how this broke when the engine became its own crate.
+COPY cricket/Cargo.toml     cricket/
 COPY ffi/Cargo.toml         ffi/
-RUN mkdir -p agent/src api/src db/src domain/src ffi/src jobs/src notifications/src payments/src \
+COPY wasm/Cargo.toml        wasm/
+# The stubs are derived from the manifests copied above rather than named
+# again. Adding a workspace member is then one COPY line, not a COPY line and
+# two more lists to keep in step with it.
+RUN for dir in */; do \
+        [ -f "$dir/Cargo.toml" ] || continue; \
+        mkdir -p "$dir/src" && : > "$dir/src/lib.rs"; \
+    done \
     && echo 'fn main() {}' > api/src/main.rs \
-    && for c in agent db domain ffi jobs notifications payments; do echo '' > "$c/src/lib.rs"; done \
     && cargo build --release -p fishers-api \
-    && rm -rf agent/src api/src db/src domain/src ffi/src jobs/src notifications/src payments/src
+    && for dir in */; do rm -rf "$dir/src"; done
 
 COPY . .
 # Touch the real entrypoints so cargo does not trust the stub's fingerprint.
