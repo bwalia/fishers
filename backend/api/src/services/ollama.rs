@@ -25,6 +25,30 @@ Reply with the line only: no preamble, no quotation marks, no emoji, no bullet p
 Use only the facts given — never invent runs, wickets, players or fielders. \
 When a direction is given, name that fielding position and no other.";
 
+/// The same brief, plus a translation — and the English kept alongside it.
+///
+/// The English is not a courtesy: `contradicts` below is what stops a small
+/// model putting a wicket that never fell onto a live scoreboard, and it works
+/// by reading English words. Asking for the line straight in Punjabi would
+/// silently switch that check off, which is the one thing not worth trading
+/// for a translation. So the model writes English, the English is checked, and
+/// only a line that passed is shown — in the reader's language.
+///
+/// A model that cannot translate leaves `translated` empty, and the English
+/// stands. A wrong translation of a correct line is a bad sentence; a
+/// fabricated wicket is a wrong scoreboard, and only one of those is allowed.
+const SYSTEM_BILINGUAL: &str = "You are a cricket commentator on live radio. \
+Given the facts of one delivery, write ONE line of commentary of 8 to 20 words, \
+present tense, in a natural broadcast voice. \
+Use only the facts given — never invent runs, wickets, players or fielders. \
+When a direction is given, name that fielding position and no other. \
+Reply with JSON only, exactly {\"en\": \"...\", \"translated\": \"...\"}: \
+\"en\" is that line in English, and \"translated\" is the same line in the \
+language named in the prompt, as a commentator on that language's broadcast \
+would say it — not a word-for-word rendering of the English. \
+Keep player names as they are written. \
+If you cannot write the other language, set \"translated\" to an empty string.";
+
 #[derive(Clone)]
 pub struct Ollama {
     url: String,
@@ -36,6 +60,16 @@ pub struct Ollama {
 struct GenerateResponse {
     #[serde(default)]
     response: String,
+}
+
+/// The bilingual answer. Both fields default, so a model that sent only one of
+/// them is handled rather than dropped.
+#[derive(Deserialize, Default)]
+struct Bilingual {
+    #[serde(default)]
+    en: String,
+    #[serde(default)]
+    translated: String,
 }
 
 impl Ollama {
@@ -67,14 +101,36 @@ impl Ollama {
     /// cheerfully invent a wicket, and a scoreboard that announces wickets
     /// that did not fall is worse than one with no colour at all — so the
     /// answer is checked against the ball and dropped if it disagrees.
-    pub async fn commentate(&self, facts: &str, ball: BallFacts) -> Option<String> {
-        let body = serde_json::json!({
-            "model": self.model,
-            "system": SYSTEM,
-            "prompt": facts,
-            "stream": false,
-            "options": { "temperature": 0.8, "num_predict": 80 },
-        });
+    /// `language` is the language to say it in, as a name the model will
+    /// recognise ("Punjabi"), or `None` for English — which needs no
+    /// translation step and whose guard is therefore exact.
+    pub async fn commentate(
+        &self,
+        facts: &str,
+        ball: BallFacts,
+        language: Option<&str>,
+    ) -> Option<String> {
+        let body = match language {
+            None => serde_json::json!({
+                "model": self.model,
+                "system": SYSTEM,
+                "prompt": facts,
+                "stream": false,
+                "options": { "temperature": 0.8, "num_predict": 80 },
+            }),
+            Some(name) => serde_json::json!({
+                "model": self.model,
+                "system": SYSTEM_BILINGUAL,
+                "prompt": format!("{facts}\n\nThe other language is {name}."),
+                "stream": false,
+                // Ollama's JSON mode, so the answer parses rather than arriving
+                // wrapped in an explanation of itself.
+                "format": "json",
+                // Room for two lines, and one of them in a script that costs
+                // more tokens per word than English does.
+                "options": { "temperature": 0.8, "num_predict": 220 },
+            }),
+        };
 
         let response = match self
             .http
@@ -100,13 +156,43 @@ impl Ollama {
                 return None;
             }
         };
-        let line = clean(&payload.response)?;
-        if contradicts(&line, ball) {
-            warn!("ollama contradicted the ball, dropping its line: {line}");
-            return None;
+        match language {
+            None => {
+                let line = clean(&payload.response)?;
+                if contradicts(&line, ball) {
+                    warn!("ollama contradicted the ball, dropping its line: {line}");
+                    return None;
+                }
+                Some(line)
+            }
+            Some(name) => {
+                let pair: Bilingual = serde_json::from_str(payload.response.trim())
+                    .inspect_err(|e| warn!("ollama sent unparseable JSON for {name}: {e}"))
+                    .ok()?;
+                pick(&pair, ball)
+            }
         }
-        Some(line)
     }
+}
+
+/// Which of a bilingual pair to show.
+///
+/// The English is what gets checked, because `contradicts` reads English. A
+/// line that fails takes its translation down with it: they are the same claim
+/// in two languages, so if one is a lie so is the other, and a Punjabi reader
+/// is owed the same correct scoreboard as an English one.
+///
+/// A translation that came back empty — the model was asked to do that rather
+/// than guess — or that arrived as a paragraph leaves the checked English
+/// standing. An English line on a Punjabi page is a gap; a wicket that did not
+/// fall is a wrong scoreboard.
+fn pick(pair: &Bilingual, ball: BallFacts) -> Option<String> {
+    let english = clean(&pair.en)?;
+    if contradicts(&english, ball) {
+        warn!("ollama contradicted the ball, dropping its line: {english}");
+        return None;
+    }
+    Some(clean(&pair.translated).unwrap_or(english))
 }
 
 /// What the ball actually was, for checking the model against.
@@ -188,7 +274,7 @@ fn clean(raw: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{clean, contradicts, BallFacts};
+    use super::{clean, contradicts, pick, BallFacts, Bilingual};
 
     const FOUR: BallFacts = BallFacts { is_wicket: false, runs: 4, is_legal: true };
     const DOT: BallFacts = BallFacts { is_wicket: false, runs: 0, is_legal: true };
@@ -254,5 +340,50 @@ mod tests {
     fn refuses_an_essay_and_an_empty_answer() {
         assert!(clean("").is_none());
         assert!(clean(&"word ".repeat(200)).is_none());
+    }
+
+    fn pair(en: &str, translated: &str) -> Bilingual {
+        Bilingual { en: en.into(), translated: translated.into() }
+    }
+
+    /// The point of generating English alongside the translation: the check
+    /// still runs, and a fabricated wicket is dropped in every language.
+    #[test]
+    fn a_translation_of_a_line_that_lied_is_dropped_too() {
+        let lie = pair(
+            "Lords edges a short delivery, caught at point for the wicket.",
+            "ਲੌਰਡਜ਼ ਦਾ ਕਿਨਾਰਾ ਲੱਗਿਆ, ਪੌਇੰਟ 'ਤੇ ਕੈਚ।",
+        );
+        assert!(
+            pick(&lie, FOUR).is_none(),
+            "the English claimed a wicket off a four, so neither line may be shown"
+        );
+    }
+
+    #[test]
+    fn a_good_pair_shows_the_translation() {
+        let good = pair(
+            "Driven sweetly through the covers for four.",
+            "ਕਵਰ ਵੱਲ ਸ਼ਾਨਦਾਰ ਡਰਾਈਵ — ਚੌਕਾ।",
+        );
+        assert_eq!(pick(&good, FOUR).as_deref(), Some("ਕਵਰ ਵੱਲ ਸ਼ਾਨਦਾਰ ਡਰਾਈਵ — ਚੌਕਾ।"));
+    }
+
+    /// A model that cannot write the language was told to say so. The English
+    /// it did write is correct and checked, so it stands.
+    #[test]
+    fn an_empty_translation_falls_back_to_the_checked_english() {
+        let only_english = pair("Driven through the covers for four.", "");
+        assert_eq!(
+            pick(&only_english, FOUR).as_deref(),
+            Some("Driven through the covers for four.")
+        );
+    }
+
+    /// Nothing usable at all is nothing shown — the written line already on
+    /// the page is correct and stays.
+    #[test]
+    fn an_empty_pair_is_no_line() {
+        assert!(pick(&pair("", ""), FOUR).is_none());
     }
 }
