@@ -10,9 +10,15 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { OverflowMenu } from "@/components/OverflowMenu";
 import { ChatBadge } from "@/components/ChatBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguagePicker } from "@/components/LanguagePicker";
+import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
 import { brand } from "@/brand.generated";
 
-type NavLink = { href: string; label: string; icon: IconName };
+/// `label` is a dictionary key, not words. The bar is built once at module
+/// scope but read in whatever language the viewer chose, so the words cannot
+/// be baked in here — they are looked up at render.
+type NavLink = { href: string; label: Key; icon: IconName };
 
 /// The bar, in the order somebody uses it.
 ///
@@ -22,9 +28,9 @@ type NavLink = { href: string; label: string; icon: IconName };
 /// opened daily; Chats also carries the unread badge, and a badge inside a
 /// closed menu is a badge nobody sees.
 const primary: NavLink[] = [
-  { href: "/", label: "Overview", icon: "home" },
-  { href: "/events", label: "Fixtures", icon: "calendar" },
-  { href: "/chat", label: "Chats", icon: "chat" },
+  { href: "/", label: "nav.overview", icon: "home" },
+  { href: "/events", label: "nav.fixtures", icon: "calendar" },
+  { href: "/chat", label: "nav.chats", icon: "chat" },
 ];
 
 /// The rest, in two groups somebody can name without being told.
@@ -32,27 +38,27 @@ const primary: NavLink[] = [
 /// "Play" is the things around a match — whether you can, scoring it, the
 /// competition it belongs to. "Club" is the club itself: who is in it, how it
 /// has done, its ground and its kit.
-const groups: { label: string; icon: IconName; links: NavLink[] }[] = [
+const groups: { label: Key; icon: IconName; links: NavLink[] }[] = [
   {
-    label: "Play",
+    label: "nav.play",
     icon: "bat",
     links: [
-      { href: "/availability", label: "Availability", icon: "clock" },
-      { href: "/score", label: "Score", icon: "bat" },
+      { href: "/availability", label: "nav.availability", icon: "clock" },
+      { href: "/score", label: "nav.score", icon: "bat" },
       // "World scores" rather than "Scores": next to "Score" — which means
       // score a match yourself — one letter is not enough of a difference.
-      { href: "/scores", label: "World scores", icon: "ball" },
-      { href: "/tournaments", label: "Tournaments", icon: "trophy" },
+      { href: "/scores", label: "nav.world_scores", icon: "ball" },
+      { href: "/tournaments", label: "nav.tournaments", icon: "trophy" },
     ],
   },
   {
-    label: "Club",
+    label: "nav.club",
     icon: "users",
     links: [
-      { href: "/clubs", label: "Clubs", icon: "users" },
-      { href: "/stats", label: "Stats", icon: "chart" },
-      { href: "/hire", label: "Hire", icon: "pin" },
-      { href: "/shop", label: "Shop", icon: "shop" },
+      { href: "/clubs", label: "nav.clubs", icon: "users" },
+      { href: "/stats", label: "nav.stats", icon: "chart" },
+      { href: "/hire", label: "nav.hire", icon: "pin" },
+      { href: "/shop", label: "nav.shop", icon: "shop" },
     ],
   },
 ];
@@ -61,9 +67,10 @@ const groups: { label: string; icon: IconName; links: NavLink[] }[] = [
 /// rather than queued behind them: it is a different kind of thing, not the
 /// thirteenth of the same kind. The page checks for itself — this only decides
 /// whether the link is drawn.
-const adminLink: NavLink = { href: "/admin", label: "System", icon: "shield" };
+const adminLink: NavLink = { href: "/admin", label: "nav.system", icon: "shield" };
 
 export function ShellNav() {
+  const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -103,7 +110,7 @@ export function ShellNav() {
         {brand.name}
       </Link>
       {!landing && <>
-      <nav className="nav" aria-label="Main">
+      <nav className="nav" aria-label={t("nav.main")}>
         {primary.map((l) => (
           <Link
             key={l.href}
@@ -112,7 +119,7 @@ export function ShellNav() {
             aria-current={isActive(l.href) ? "page" : undefined}
           >
             <Icon name={l.icon} size={16} />
-            {l.label}
+            {t(l.label)}
             {user && l.href === "/chat" && <ChatBadge />}
           </Link>
         ))}
@@ -125,7 +132,7 @@ export function ShellNav() {
         {groups.map((group) => (
           <OverflowMenu
             key={group.label}
-            label={group.label}
+            label={t(group.label)}
             icon={group.icon}
             showLabel
             chevron
@@ -140,7 +147,7 @@ export function ShellNav() {
                 aria-current={isActive(l.href) ? "page" : undefined}
               >
                 <Icon name={l.icon} size={16} />
-                {l.label}
+                {t(l.label)}
               </Link>
             ))}
           </OverflowMenu>
@@ -162,9 +169,10 @@ export function ShellNav() {
             aria-current={isActive(adminLink.href) ? "page" : undefined}
           >
             <Icon name={adminLink.icon} size={16} />
-            {adminLink.label}
+            {t(adminLink.label)}
           </Link>
         )}
+        <LanguagePicker />
         <ThemeToggle />
         {user && <NotificationBell />}
         {user ? (
@@ -172,7 +180,7 @@ export function ShellNav() {
           // look for both. It also puts the one destructive action out of the
           // row of navigation, rather than one tab away from Clubs.
           <OverflowMenu
-            label={user.name.split(" ")[0] || "You"}
+            label={user.name.split(" ")[0] || t("nav.you")}
             icon="book"
             showLabel
             chevron
@@ -185,7 +193,7 @@ export function ShellNav() {
               aria-current={isActive("/profile") ? "page" : undefined}
             >
               <Icon name="book" size={16} />
-              Profile
+              {t("nav.profile")}
             </Link>
             <button
               type="button"
@@ -198,17 +206,17 @@ export function ShellNav() {
               }}
             >
               <Icon name="signOut" size={16} />
-              Sign out
+              {t("nav.sign_out")}
             </button>
           </OverflowMenu>
         ) : (
           <>
             <Link href="/login">
               <Icon name="signIn" size={16} />
-              Sign in
+              {t("nav.sign_in")}
             </Link>
             <Link href="/register" className="active">
-              Join
+              {t("nav.join")}
             </Link>
           </>
         )}

@@ -159,6 +159,15 @@ const PATHS = {
       <path d="m9 12 2 2 4-4" />
     </>
   ),
+  /* A globe: the mark for language everywhere, and not a flag — a flag picks
+     a country to stand for a language, which is a fight nobody needs. */
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c-3 3-3 15 0 18 3-3 3-15 0-18Z" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;
