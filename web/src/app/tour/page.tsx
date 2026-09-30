@@ -5,6 +5,7 @@ import { Icon } from "@/components/Icon";
 import { TourFilm } from "@/components/TourFilm";
 import { TOUR_CHAPTERS, TOUR_DURATION, TOUR_VIDEO_ID } from "./chapters";
 import { brand } from "@/brand.generated";
+import { getT } from "@/lib/i18n/server";
 
 export const metadata: Metadata = {
   title: `Video tour — ${brand.name}`,
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: `${brand.name} — the video tour`,
     description:
-      "A season on a phone: joining a club, availability, selection, a T20 scored ball by ball, " +
+      "le.a_season_on_a_phone_joining_a_club_ava" +
       "and everything the cricket section does.",
     type: "video.other",
     images: [`https://i.ytimg.com/vi/${TOUR_VIDEO_ID}/maxresdefault.jpg`],
@@ -26,7 +27,8 @@ export const metadata: Metadata = {
 ///
 /// Static on purpose: this is the page a club chairman opens on a phone signal
 /// in a car park, so it asks nothing of the API.
-export default function TourPage() {
+export default async function TourPage() {
+  const t = await getT();
   return (
     <main id="main" className="tour">
       <section className="tour-hero">
@@ -35,12 +37,9 @@ export default function TourPage() {
           <span>{brand.name}</span>
         </p>
         <p className="lp-kicker">Video tour · {TOUR_DURATION}</p>
-        <h1>A season on a phone, from sign-up to the last ball</h1>
+        <h1>{t("rest.a_season_on_a_phone_from_sign_up_to_th")}</h1>
         <p className="lp-lead">
-          One run through the app as a club actually uses it: a player joining, the
-          Saturday availability, a captain picking the side, a whole twenty-over match
-          scored ball by ball, and everything else the cricket section does. Five
-          chapters — start wherever you like.
+          {t("rest.one_run_through_the_app_as_a_club_actu")}
         </p>
         <div className="lp-actions">
           <a
@@ -48,7 +47,7 @@ export default function TourPage() {
             href="/fishers-video-tour-contents.pdf"
             download
           >
-            <Icon name="download" size={18} /> Contents as a PDF
+            <Icon name="download" size={18} /> {t("rest.contents_as_a_pdf")}
           </a>
           <a
             className="btn lp-btn"
@@ -56,7 +55,7 @@ export default function TourPage() {
             target="_blank"
             rel="noreferrer"
           >
-            Watch on YouTube
+            {t("rest.watch_on_youtube")}
           </a>
         </div>
         <p className="lp-fine">
@@ -68,14 +67,13 @@ export default function TourPage() {
       <TourFilm />
 
       <section className="tour-cta">
-        <h2>Run your own club on it</h2>
+        <h2>{t("rest.run_your_own_club_on_it")}</h2>
         <p className="muted">
-          Everything in the film is in the app today. A club takes about a minute to
-          start, and players join from a link.
+          {t("rest.everything_in_the_film_is_in_the_app_t")}
         </p>
         <div className="lp-actions">
           <Link className="btn primary lp-btn" href="/register?as=secretary">
-            <Icon name="plus" size={18} /> Start your club
+            <Icon name="plus" size={18} /> {t("rest.start_your_club")}
           </Link>
           <Link className="btn lp-btn" href="/register?as=player">
             I play for a club

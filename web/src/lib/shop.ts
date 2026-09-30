@@ -92,7 +92,7 @@ export function price(cents: number, currency: string): string {
 /// stock" reads like a warehouse; "on request" is for things made to order.
 export function availability(p: Product): string {
   if (p.stock == null) return "On request";
-  if (p.stock === 0) return "Sold";
+  if (p.stock === 0) return "le.sold";
   if (p.stock === 1 && p.condition === "used") return "One only";
   return `${p.stock} available`;
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errCode, readErr, type Invite } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { subscribeLive } from "@/lib/live";
+import { useT } from "@/lib/i18n/provider";
 
 /// Invitations waiting for you.
 ///
@@ -22,6 +23,7 @@ export function PendingInvites({
   /// an invite has come back.
   onCount?: (n: number) => void;
 }) {
+  const t = useT();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +57,8 @@ export function PendingInvites({
       // The fix is on this same page, in the getting-started guide.
       setError(
         errCode(err) === "unverified"
-          ? "Confirm your email or phone number first — the code is in the getting-started steps below."
-          : readErr(err, "Could not accept that invitation")
+          ? t("le.confirm_your_email_or_phone_number_fir")
+          : readErr(err, t("le.could_not_accept_that_invitation"))
       );
     } finally {
       setBusy(null);
@@ -66,11 +68,11 @@ export function PendingInvites({
   return (
     <div className="panel invites" id="pending-invites">
       <div className="panel-head">
-        <h2>Waiting for you</h2>
+        <h2>{t("rest.waiting_for_you")}</h2>
         <span className="tag gold">{invites.length}</span>
       </div>
       <p className="muted">
-        {invites.length === 1 ? "Somebody has" : "People have"} invited you. Accepting puts
+        {invites.length === 1 ? t("le.somebody_has") : t("le.people_have")} invited you. Accepting puts
         you straight in.
       </p>
       <ul className="pick-list">
@@ -99,7 +101,7 @@ export function PendingInvites({
                 disabled={busy !== null}
                 onClick={() => accept(invite)}
               >
-                {busy === invite.id ? "Joining…" : "Accept"}
+                {busy === invite.id ? "Joining…" : t("le.accept")}
               </button>
             </div>
           </li>

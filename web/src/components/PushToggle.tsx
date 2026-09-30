@@ -11,6 +11,7 @@ import {
 } from "@/lib/push";
 import { Icon } from "@/components/Icon";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 /// Turning browser notifications on.
 ///
@@ -20,6 +21,7 @@ import { brand } from "@/brand.generated";
 /// fastest way to get blocked for good, and a denied permission cannot be
 /// asked for again.
 export function PushToggle() {
+  const t = useT();
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function PushToggle() {
     try {
       setState(state === "on" ? await disablePush() : await enablePush());
     } catch (err) {
-      setError(readErr(err, "Could not change that"));
+      setError(readErr(err, t("le.could_not_change_that")));
       refresh();
     } finally {
       setBusy(false);
@@ -72,7 +74,7 @@ export function PushToggle() {
     <div className="panel push-toggle">
       <div>
         <h2>
-          <Icon name="inbox" size={18} /> Notifications on this device
+          <Icon name="inbox" size={18} /> {t("rest.notifications_on_this_device")}
         </h2>
         {state === "denied" ? (
           <p className="muted">
@@ -82,13 +84,11 @@ export function PushToggle() {
           </p>
         ) : state === "on" ? (
           <p className="muted">
-            On. You will hear about squads, fixtures and match fees even when this tab is
-            closed.
+            {t("rest.on_you_will_hear_about_squads_fixtures")}
           </p>
         ) : (
           <p className="muted">
-            Off. Turn them on to hear when you are picked, when a fixture moves, and when
-            somebody needs an answer — without keeping this open.
+            {t("rest.off_turn_them_on_to_hear_when_you_are")}
           </p>
         )}
         {error && <p className="error">{error}</p>}
@@ -101,7 +101,7 @@ export function PushToggle() {
           disabled={busy}
           onClick={toggle}
         >
-          {busy ? "…" : state === "on" ? "Turn off" : "Turn on"}
+          {busy ? "…" : state === "on" ? t("le.turn_off") : t("le.turn_on")}
         </button>
       )}
     </div>

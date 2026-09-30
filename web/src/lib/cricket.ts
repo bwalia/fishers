@@ -3,6 +3,14 @@
 /// The engine lives in the API (`backend/domain/src/cricket`). Nothing here
 /// decides anything about a game — the browser posts events and renders the
 /// state the server replies with, so the web can never disagree with the app.
+///
+/// Anything that produces words takes a `t`. It is required rather than
+/// defaulted to English: a default is a silent way to ship an English
+/// scorecard inside a Punjabi page, and making it required turns the compiler
+/// into the list of places still to do.
+
+import type { Key } from "@/lib/i18n/en";
+import type { T } from "@/lib/i18n";
 
 export type Shot = {
   angle: number;
@@ -51,6 +59,10 @@ export type Bowler = {
   runs: number;
   wickets: number;
   maidens: number;
+  /// Wickets on consecutive deliveries. Two means the next legitimate ball is
+  /// a hat-trick ball; three is the hat-trick. Counted by the engine, which is
+  /// the only thing that knows whose wicket each one was.
+  wickets_in_a_row?: number;
 };
 
 export type Innings = {
@@ -282,82 +294,110 @@ export function overs(balls: number) {
   return `${Math.floor(balls / 6)}.${balls % 6}`;
 }
 
-/// The eight sectors of a wagon wheel, mirrored for a left-hander — the same
-/// function the app and the API use.
-export function regionFor(angle: number, batsLeft: boolean) {
+/// The eight sectors, in bearing order from straight down the ground. The
+/// boundaries between them are the API's and the app's too, so this list and
+/// the 45-degree steps below are one fact written once.
+const REGION_KEYS = [
+  "region.long_on",
+  "region.mid_wicket",
+  "region.square_leg",
+  "region.fine_leg",
+  "region.third_man",
+  "region.point",
+  "region.cover",
+  "region.long_off",
+] as const satisfies readonly Key[];
+
+/// Which sector a bearing falls in, mirrored for a left-hander.
+///
+/// Returns the key rather than a name, so the caller decides what language to
+/// say it in — and so the sector maths stays in one place instead of being
+/// duplicated by anything that needs the untranslated form.
+export function regionKeyFor(angle: number, batsLeft: boolean): Key {
   const raw = ((angle % 360) + 360) % 360;
   const a = batsLeft ? (360 - raw) % 360 : raw;
-  if (a <= 44) return "long on";
-  if (a <= 89) return "mid-wicket";
-  if (a <= 134) return "square leg";
-  if (a <= 179) return "fine leg";
-  if (a <= 224) return "third man";
-  if (a <= 269) return "point";
-  if (a <= 314) return "cover";
-  return "long off";
+  // Eight equal 45-degree sectors; `min` catches a == 360 exactly.
+  return REGION_KEYS[Math.min(7, Math.floor(a / 45))];
 }
 
-export const SHOT_VERBS: Record<string, string> = {
-  drive: "driven",
-  cut: "cut",
-  pull: "pulled",
-  hook: "hooked",
-  sweep: "swept",
-  reverse_sweep: "reverse-swept",
-  glance: "glanced",
-  flick: "flicked",
-  loft: "lofted",
-  defence: "defended",
-  edge: "edged",
-  leave: "left alone",
-  other: "worked away",
-};
+/// The sector's name, in the reader's language.
+export function regionFor(angle: number, batsLeft: boolean, t: T): string {
+  return t(regionKeyFor(angle, batsLeft));
+}
 
-export function outcomeOf(ball: Delivery) {
-  if (ball.is_wicket) return ball.runs > 0 ? `OUT (${ball.runs} run)` : "OUT";
+/// The verb commentary uses for a stroke, in the reader's language.
+export function shotVerb(kind: string, t: T): string {
+  const key = `verb.${kind}` as Key;
+  return t(key);
+}
+
+export function outcomeOf(ball: Delivery, t: T): string {
+  if (ball.is_wicket) {
+    return ball.runs > 0 ? t("outcome.out_with_runs", { runs: ball.runs }) : t("outcome.out");
+  }
   if (!ball.is_legal) {
-    if (ball.label.startsWith("wd")) return ball.runs > 1 ? `wide, ${ball.runs} runs` : "wide";
-    if (ball.label.startsWith("nb")) return ball.runs > 1 ? `no ball, ${ball.runs} runs` : "no ball";
-    if (ball.label.endsWith("p")) return `${ball.runs} penalty runs`;
+    if (ball.label.startsWith("wd")) {
+      return ball.runs > 1 ? t("outcome.wide_runs", { runs: ball.runs }) : t("outcome.wide");
+    }
+    if (ball.label.startsWith("nb")) {
+      return ball.runs > 1 ? t("outcome.no_ball_runs", { runs: ball.runs }) : t("outcome.no_ball");
+    }
+    if (ball.label.endsWith("p")) return t("outcome.penalty", { runs: ball.runs });
+    // A label the engine wrote that nothing above recognised. Left as it
+    // stands rather than guessed at — a scorer's own shorthand is better than
+    // a wrong translation of it.
     return ball.label;
   }
-  if (ball.label.endsWith("lb")) return `${ball.runs} leg byes`;
-  if (ball.label.endsWith("b")) return `${ball.runs} byes`;
-  if (ball.runs === 0) return "no run";
-  if (ball.runs === 4) return "FOUR";
-  if (ball.runs === 6) return "SIX";
-  return `${ball.runs} run${ball.runs === 1 ? "" : "s"}`;
+  if (ball.label.endsWith("lb")) return t("outcome.leg_byes", { runs: ball.runs });
+  if (ball.label.endsWith("b")) return t("outcome.byes", { runs: ball.runs });
+  if (ball.runs === 0) return t("outcome.dot");
+  if (ball.runs === 4) return t("outcome.four");
+  if (ball.runs === 6) return t("outcome.six");
+  return t("outcome.runs", { runs: ball.runs, count: ball.runs });
 }
 
 /// The same line the app writes, generated from the same log.
+///
+/// Built from pieces handed to a template per language rather than
+/// concatenated here, because where the pieces go is a fact about the
+/// language — see `ball.with_shot` in the dictionaries.
 export function commentaryFor(
   ball: Delivery,
   nameOf: (id?: string | null) => string,
-  leftHanders: string[] = []
-) {
+  leftHanders: string[] = [],
+  t: T
+): string {
   const bowler = ball.bowler_id ? nameOf(ball.bowler_id) : null;
   const batter = ball.batter_id ? nameOf(ball.batter_id) : null;
-  const parts: string[] = [];
-  if (bowler && batter) parts.push(`${bowler} to ${batter},`);
-  else if (batter) parts.push(`${batter},`);
-  parts.push(outcomeOf(ball));
-  if (ball.shot) {
-    const left = leftHanders.includes((ball.batter_id || "").toLowerCase());
-    const region = regionFor(ball.shot.angle, left);
-    const verb = SHOT_VERBS[ball.shot.kind] || "played";
-    if (ball.shot.kind === "leave" || ball.shot.kind === "defence") {
-      parts.push(`— ${verb}`);
-    } else {
-      const preposition =
-        region === "long on" || region === "long off"
-          ? "down the ground to"
-          : region === "fine leg" || region === "third man"
-            ? "down to"
-            : "through";
-      parts.push(`— ${verb} ${preposition} ${region}`);
-    }
-  }
-  return parts.join(" ");
+  const who =
+    bowler && batter
+      ? t("ball.bowler_to_batter", { bowler, batter })
+      : batter
+        ? t("ball.batter_only", { batter })
+        : "";
+  const outcome = outcomeOf(ball, t);
+
+  if (!ball.shot) return t("ball.without_shot", { who, outcome }).trim();
+
+  const left = leftHanders.includes((ball.batter_id || "").toLowerCase());
+  const regionKey = regionKeyFor(ball.shot.angle, left);
+  const region = t(regionKey);
+  const verb = shotVerb(ball.shot.kind, t);
+
+  // Which phrasing the stroke gets. Chosen from the *key*, not the
+  // translated name, so it keeps working in every language — comparing
+  // against "long on" would silently fall through to "through" the moment
+  // the page was not in English.
+  const phrase =
+    ball.shot.kind === "leave" || ball.shot.kind === "defence"
+      ? t("shot.phrase.plain", { verb, region })
+      : regionKey === "region.long_on" || regionKey === "region.long_off"
+        ? t("shot.phrase.down_ground", { verb, region })
+        : regionKey === "region.fine_leg" || regionKey === "region.third_man"
+          ? t("shot.phrase.down_to", { verb, region })
+          : t("shot.phrase.through", { verb, region });
+
+  return t("ball.with_shot", { who, outcome, shot: phrase }).trim();
 }
 
 
@@ -382,12 +422,17 @@ export function requiredRate(
 }
 
 /// "c Smith b Jones", "lbw b Jones", "not out" — read the way a scorebook reads.
+///
+/// The abbreviations stay Latin in every language: "c" and "b" are what a
+/// scorebook prints worldwide, and a scorer reading a Punjabi page still
+/// expects to recognise their own card.
 export function howOut(
   b: Batter,
   nameOf: (id?: string | null) => string,
-  substitutes: string[] = []
+  substitutes: string[] = [],
+  t: T
 ): string {
-  if (!b.out) return b.retired_hurt ? "retired hurt" : "not out";
+  if (!b.out) return b.retired_hurt ? t("out.retired_hurt") : t("out.not_out");
   const bowler = b.bowler_id ? nameOf(b.bowler_id) : null;
   // A substitute is named as one: "c sub (Patel) b Jones" is not the same
   // claim as "c Patel b Jones", and the card has always said so.
@@ -398,30 +443,30 @@ export function howOut(
     : null;
   switch (b.dismissal) {
     case "bowled":
-      return bowler ? `b ${bowler}` : "bowled";
+      return bowler ? `b ${bowler}` : t("out.bowled");
     case "caught":
       if (fielder && bowler) return fielder === bowler ? `c & b ${bowler}` : `c ${fielder} b ${bowler}`;
-      return bowler ? `c & b ${bowler}` : "caught";
+      return bowler ? `c & b ${bowler}` : t("out.caught");
     case "lbw":
-      return bowler ? `lbw b ${bowler}` : "lbw";
+      return bowler ? `lbw b ${bowler}` : t("out.lbw");
     case "run_out":
-      return fielder ? `run out (${fielder})` : "run out";
+      return fielder ? `${t("out.run_out")} (${fielder})` : t("out.run_out");
     case "stumped":
-      return fielder && bowler ? `st ${fielder} b ${bowler}` : "stumped";
+      return fielder && bowler ? `st ${fielder} b ${bowler}` : t("out.stumped");
     case "hit_wicket":
-      return bowler ? `hit wicket b ${bowler}` : "hit wicket";
+      return bowler ? `${t("out.hit_wicket")} b ${bowler}` : t("out.hit_wicket");
     case "retired":
-      return "retired out";
+      return t("out.retired");
     case "retired_hurt":
-      return "retired hurt";
+      return t("out.retired_hurt");
     case "obstructing_the_field":
-      return "obstructing the field";
+      return t("out.obstructing_the_field");
     case "hit_the_ball_twice":
-      return "hit the ball twice";
+      return t("out.hit_the_ball_twice");
     case "timed_out":
-      return "timed out";
+      return t("out.timed_out");
     default:
-      return "out";
+      return t("out.other");
   }
 }
 

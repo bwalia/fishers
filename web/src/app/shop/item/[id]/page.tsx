@@ -7,10 +7,12 @@ import { Icon } from "@/components/Icon";
 import { readErr, type MarketListing } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 import { availability, enquire, marketItem, price, reserve } from "@/lib/shop";
+import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
 
-const CATEGORY: Record<string, string> = {
-  equipment: "Equipment",
-  merchandise: "Merchandise",
+const CATEGORY: Record<string, Key> = {
+  equipment: "lc.equipment",
+  merchandise: "lc.merchandise",
 };
 
 /// One thing for sale, in full.
@@ -25,6 +27,7 @@ const CATEGORY: Record<string, string> = {
 /// seller" on their own advert is the app telling them it does not know who
 /// they are, so they get their own view: how it is doing, and how to change it.
 export default function ItemPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const router = useRouter();
@@ -39,9 +42,9 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
       setItem(await marketItem(id));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "That listing is not available"));
+      setError(readErr(err, t("lc.that_listing_is_not_available")));
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (authed) load();
@@ -79,7 +82,7 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
       setReserved(true);
       load();
     } catch (err) {
-      setError(readErr(err, "Could not reserve that"));
+      setError(readErr(err, t("lc.could_not_reserve_that")));
     } finally {
       setReserving(false);
     }
@@ -94,19 +97,19 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
       const { conversation_id } = await enquire(item.id);
       router.push(`/chat/${conversation_id}`);
     } catch (err) {
-      setError(readErr(err, "Could not start that conversation"));
+      setError(readErr(err, t("lc.could_not_start_that_conversation")));
       setAsking(false);
     }
   };
 
   return (
     <main id="main" className="item">
-      <nav className="item-crumbs" aria-label="Breadcrumb">
+      <nav className="item-crumbs" aria-label={t("sh.breadcrumb")}>
         <Link href="/shop">
-          <Icon name="arrowLeft" size={14} /> Kit for sale
+          <Icon name="arrowLeft" size={14} /> {t("sh.kit_for_sale")}
         </Link>
         <span aria-hidden="true">/</span>
-        <span>{CATEGORY[item.category] ?? item.category}</span>
+        <span>{t(CATEGORY[item.category])}</span>
       </nav>
 
       <div className="item-cols">
@@ -116,25 +119,25 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
 
         <div className="item-buybox">
           <div className="item-tags">
-            <span className="item-tag">{CATEGORY[item.category] ?? item.category}</span>
+            <span className="item-tag">{t(CATEGORY[item.category])}</span>
             {item.condition && (
               <span className={`item-tag ${item.condition === "used" ? "tag-used" : "tag-new"}`}>
-                {item.condition === "used" ? "Second-hand" : "Brand new"}
+                {item.condition === "used" ? t("lc.second_hand") : t("lc.brand_new")}
               </span>
             )}
-            {item.negotiable && !sold && <span className="item-tag tag-offer">Open to offers</span>}
+            {item.negotiable && !sold && <span className="item-tag tag-offer">{t("sh.open_to_offers")}</span>}
           </div>
 
           <h1 className="item-name">{item.name}</h1>
 
           <p className="item-price">
             {price(item.price_cents, item.currency)}
-            {item.negotiable && <span className="item-price-note">or near offer</span>}
+            {item.negotiable && <span className="item-price-note">{t("sh.or_near_offer")}</span>}
           </p>
 
           <p className={`item-stock ${sold ? "gone" : ""}`}>
             <Icon name={sold ? "clock" : "check"} size={15} />
-            {sold ? "Sold — no longer available" : availability(item)}
+            {sold ? t("lc.sold_no_longer_available") : availability(item)}
           </p>
 
           {mine ? (
@@ -170,43 +173,43 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
             <p className="item-prose">{item.description}</p>
           ) : (
             <p className="muted">
-              No description was written. {mine ? "Adding one helps it sell." : "Ask the seller if you need to know more."}
+              No description was written. {mine ? t("lc.adding_one_helps_it_sell") : t("lc.ask_the_seller_if_you_need_to_know_mor")}
             </p>
           )}
         </section>
 
         <section className="item-block">
-          <h2>Details</h2>
+          <h2>{t("sh.details")}</h2>
           <dl className="item-spec">
             <div>
-              <dt>Category</dt>
-              <dd>{CATEGORY[item.category] ?? item.category}</dd>
+              <dt>{t("sh.category")}</dt>
+              <dd>{t(CATEGORY[item.category])}</dd>
             </div>
             {item.condition && (
               <div>
-                <dt>Condition</dt>
-                <dd>{item.condition === "used" ? "Second-hand" : "Brand new"}</dd>
+                <dt>{t("sh.condition")}</dt>
+                <dd>{item.condition === "used" ? t("lc.second_hand") : t("lc.brand_new")}</dd>
               </div>
             )}
             {item.brand && (
               <div>
-                <dt>Make</dt>
+                <dt>{t("sh.make")}</dt>
                 <dd>{item.brand}</dd>
               </div>
             )}
             {item.size && (
               <div>
-                <dt>Size</dt>
+                <dt>{t("sh.size")}</dt>
                 <dd>{item.size}</dd>
               </div>
             )}
             <div>
-              <dt>How many</dt>
+              <dt>{t("sh.how_many")}</dt>
               <dd>{availability(item)}</dd>
             </div>
             {item.condition_note && (
               <div className="item-spec-wide">
-                <dt>Wear and damage</dt>
+                <dt>{t("sh.wear_and_damage")}</dt>
                 <dd>{item.condition_note}</dd>
               </div>
             )}
@@ -214,32 +217,30 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
         </section>
 
         <section className="item-block">
-          <h2>Where to collect it</h2>
+          <h2>{t("sh.where_to_collect_it")}</h2>
           <p className="item-place">
             <Icon name="pin" size={16} />
             <span>
               <strong>{item.club_name}</strong>
               <br />
-              {item.collection_note ?? "The seller has not said where yet — ask them before you travel."}
+              {item.collection_note ?? t("lc.the_seller_has_not_said_where_yet_ask")}
             </span>
           </p>
         </section>
 
         {!mine && (
           <section className="item-block item-how">
-            <h2>How buying works</h2>
+            <h2>{t("sh.how_buying_works")}</h2>
             <ol>
               <li>
-                <strong>Ask anything you need to.</strong> Messages go to the seller here in the
-                app. {item.negotiable && "The price is open to offers, so say what you would pay."}
+                <strong>{t("sh.ask_anything_you_need_to")}</strong> {t("fin.messages_go_to_seller")}
+                app. {item.negotiable && t("lc.the_price_is_open_to_offers_so_say_wha")}
               </li>
               <li>
-                <strong>Reserve it.</strong> That holds it for you and tells the club — it does not
-                charge you anything.
+                <strong>{t("sh.reserve_it")}</strong> {t("sh.that_holds_it_for_you_and_tells_the_cl")}
               </li>
               <li>
-                <strong>Collect and pay in person.</strong> Cash or transfer, directly to the
-                seller. No money goes through this app.
+                <strong>{t("sh.collect_and_pay_in_person")}</strong> {t("sh.cash_or_transfer_directly_to_the_selle")}
               </li>
             </ol>
           </section>
@@ -267,17 +268,17 @@ function BuyerPanel({
   onTake: () => void;
   onAsk: () => void;
 }) {
+  const t = useT();
   if (reserved)
     return (
       <div className="item-done" role="status">
         <Icon name="check" size={18} />
         <div>
-          <strong>Reserved for you.</strong>
+          <strong>{t("sh.reserved_for_you")}</strong>
           <p className="muted">
-            The seller has been told. Arrange collection with them and pay them directly — nothing
-            has been taken online.
+            {t("sh.the_seller_has_been_told_arrange_colle")}
           </p>
-          <Link className="btn" href="/shop">Keep looking</Link>
+          <Link className="btn" href="/shop">{t("sh.keep_looking")}</Link>
         </div>
       </div>
     );
@@ -285,11 +286,11 @@ function BuyerPanel({
   return (
     <div className="item-actions">
       <button className="btn primary btn-lg" onClick={onTake} disabled={reserving || sold}>
-        {sold ? "Already gone" : reserving ? "Reserving…" : "Reserve it"}
+        {sold ? t("lc.already_gone") : reserving ? t("lc.reserving") : t("lc.reserve_it")}
       </button>
       <button className="btn btn-lg" onClick={onAsk} disabled={asking}>
         <Icon name="chat" size={16} />
-        {asking ? "Opening…" : item.negotiable ? "Make an offer" : "Ask a question"}
+        {asking ? t("lc.opening") : item.negotiable ? t("lc.make_an_offer") : t("lc.ask_a_question")}
       </button>
 
       <p className="item-reassure">
@@ -304,7 +305,7 @@ function BuyerPanel({
             {(item.seller_name ?? item.club_name).trim().charAt(0).toUpperCase()}
           </span>
           <span>
-            <span className="muted">Sold by</span>
+            <span className="muted">{t("sh.sold_by")}</span>
             <br />
             <strong>{item.seller_name ?? item.club_name}</strong>
             {item.seller_name && <span className="muted"> · {item.club_name}</span>}
@@ -335,39 +336,40 @@ function BuyerPanel({
 
 /// The same listing, to the person selling it.
 ///
-/// Not "Message the seller" and not "Reserve it" — they are the seller, and
+/// Not t("lc.message_the_seller") and not t("lc.reserve_it") — they are the seller, and
 /// reserving your own kit takes it off the marketplace and then notifies you
 /// about yourself. What they actually want to know is whether it is getting
 /// any interest, and how to change it.
 function OwnerPanel({ item }: { item: MarketListing }) {
+  const t = useT();
   const asked = item.enquiries ?? 0;
   const photos = item.photos?.length ?? 0;
 
   return (
     <div className="item-owner">
       <p className="item-owner-badge">
-        <Icon name="check" size={15} /> This is your listing
+        <Icon name="check" size={15} /> {t("sh.this_is_your_listing")}
       </p>
-      <p className="muted">This is exactly how buyers see it.</p>
+      <p className="muted">{t("sh.this_is_exactly_how_buyers_see_it")}</p>
 
       <dl className="item-owner-stats">
         <div>
-          <dt>People asking</dt>
+          <dt>{t("sh.people_asking")}</dt>
           <dd>{asked}</dd>
         </div>
         <div>
-          <dt>Photographs</dt>
+          <dt>{t("sh.photographs")}</dt>
           <dd>{photos}</dd>
         </div>
         <div>
-          <dt>Visible to</dt>
-          <dd>{item.listed_publicly ? "Every club" : "Your club only"}</dd>
+          <dt>{t("sh.visible_to")}</dt>
+          <dd>{item.listed_publicly ? t("lc.every_club") : t("lc.your_club_only")}</dd>
         </div>
       </dl>
 
       <div className="item-actions">
         <Link className="btn primary btn-lg" href={`/shop/sell?item=${item.id}`}>
-          Edit or mark as sold
+          {t("sh.edit_or_mark_as_sold")}
         </Link>
         {asked > 0 ? (
           <Link className="btn btn-lg" href="/chat">
@@ -377,15 +379,14 @@ function OwnerPanel({ item }: { item: MarketListing }) {
         ) : (
           <p className="item-reassure">
             <Icon name="chat" size={14} />
-            Nobody has asked about it yet. Questions arrive in Chats.
+            {t("sh.nobody_has_asked_about_it_yet_question")}
           </p>
         )}
       </div>
 
       {photos === 0 && (
         <p className="item-nudge">
-          It has no photographs. A listing without one is usually scrolled past — adding a couple is
-          the single thing most likely to sell it.
+          {t("sh.it_has_no_photographs_a_listing_withou")}
         </p>
       )}
     </div>
@@ -398,6 +399,7 @@ function OwnerPanel({ item }: { item: MarketListing }) {
 /// to a click on a thumbnail is one that half the people looking at a bat on a
 /// phone never work out.
 function Slideshow({ photos, title }: { photos: string[]; title: string }) {
+  const t = useT();
   const [at, setAt] = useState(0);
   const touch = useRef<number | null>(null);
 
@@ -425,7 +427,7 @@ function Slideshow({ photos, title }: { photos: string[]; title: string }) {
       <div className="item-shots">
         <div className="item-shot empty">
           <Icon name="camera" size={32} />
-          <span className="muted">No photograph</span>
+          <span className="muted">{t("sh.no_photograph")}</span>
         </div>
       </div>
     );
@@ -451,10 +453,10 @@ function Slideshow({ photos, title }: { photos: string[]; title: string }) {
 
         {photos.length > 1 && (
           <>
-            <button type="button" className="shot-arrow prev" aria-label="Previous photograph" onClick={() => go(-1)}>
+            <button type="button" className="shot-arrow prev" aria-label={t("sh.previous_photograph")} onClick={() => go(-1)}>
               <Icon name="arrowLeft" size={20} />
             </button>
-            <button type="button" className="shot-arrow next" aria-label="Next photograph" onClick={() => go(1)}>
+            <button type="button" className="shot-arrow next" aria-label={t("sh.next_photograph")} onClick={() => go(1)}>
               <Icon name="arrowLeft" size={20} />
             </button>
             {/* Announced, because the picture changing is invisible to a
@@ -467,7 +469,7 @@ function Slideshow({ photos, title }: { photos: string[]; title: string }) {
       </div>
 
       {photos.length > 1 && (
-        <div className="item-thumbs" role="group" aria-label="Photographs">
+        <div className="item-thumbs" role="group" aria-label={t("sh.photographs")}>
           {photos.map((src, i) => (
             <button
               key={src}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useT } from "@/lib/i18n/provider";
 
 export type Person = { id: string; name: string; note?: string };
 export type PeopleTab = {
@@ -21,7 +22,7 @@ export function PeoplePicker({
   chosen,
   onChoose,
   searchFrom = 8,
-  empty = "Nobody to choose from yet.",
+  empty = "le.nobody_to_choose_from_yet",
   keepTabs = false,
   openOn,
 }: {
@@ -42,6 +43,7 @@ export function PeoplePicker({
   /// on a list with names in it rather than an explanation.
   openOn?: string;
 }) {
+  const t = useT();
   const shown = keepTabs ? tabs : tabs.filter((t) => t.people.length > 0);
   // Open on the tab the caller expects, else the first one with somebody in it.
   const [active, setActive] = useState(() => {
@@ -65,7 +67,7 @@ export function PeoplePicker({
   return (
     <div className="people-picker">
       {(shown.length > 1 || keepTabs) && (
-        <div className="people-tabs" role="tablist" aria-label="Which team">
+        <div className="people-tabs" role="tablist" aria-label={t("rest.which_team")}>
           {shown.map((t, i) => (
             <button
               key={t.label}

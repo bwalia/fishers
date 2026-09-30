@@ -16,6 +16,7 @@ import {
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 /// Picking a side.
 ///
@@ -24,6 +25,7 @@ import { useRequireAuth } from "@/lib/require-auth";
 /// carries both answers and the count of games they have missed out on, and
 /// the pool is ordered by who most deserves the next look.
 export default function SelectionPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [board, setBoard] = useState<SelectionBoard | null>(null);
@@ -46,11 +48,11 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
       setReserves(new Set(next.candidates.filter((c) => c.state === "reserve").map((c) => c.user_id)));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load the selection board"));
+      setError(readErr(err, t("ld.could_not_load_the_selection_board")));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -118,7 +120,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
           announcement: announcement.trim() || null,
           announce,
         }),
-      announce ? "Squad announced — everybody picked has been told." : "Saved as a draft."
+      announce ? t("ld.squad_announced_everybody_picked_has_b") : t("ld.saved_as_a_draft")
     );
 
   const suggest = async (from: "suggest" | "agent") => {
@@ -133,7 +135,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
       setReserves(new Set(out.reserves.map((r) => r.user_id)));
       if (out.announcement) setAnnouncement(out.announcement);
     } catch (err) {
-      setError(readErr(err, "Could not work out a squad"));
+      setError(readErr(err, t("ld.could_not_work_out_a_squad")));
     } finally {
       setBusy(null);
     }
@@ -169,9 +171,9 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
       {mine && inSquad(mine.state) && !mine.is_confirmed && (
         <div className="panel claim-panel">
           <div>
-            <h2>You are in this side</h2>
+            <h2>{t("ev.you_are_in_this_side")}</h2>
             <p className="muted">
-              {STATE_LABEL[mine.state]}. Say whether you are playing so your captain knows
+              {t(STATE_LABEL[mine.state])}. Say whether you are playing so your captain knows
               before the deadline.
             </p>
           </div>
@@ -180,7 +182,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
               className="btn primary lg"
               type="button"
               disabled={busy !== null}
-              onClick={() => act("confirm", () => api("POST", `/events/${id}/selection/respond`, { confirming: true }), "You are in.")}
+              onClick={() => act("confirm", () => api("POST", `/events/${id}/selection/respond`, { confirming: true }), t("ld.you_are_in"))}
             >
               I&apos;m playing
             </button>
@@ -188,7 +190,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
               className="btn"
               type="button"
               disabled={busy !== null}
-              onClick={() => act("decline", () => api("POST", `/events/${id}/selection/respond`, { confirming: false }), "Told them you cannot play.")}
+              onClick={() => act("decline", () => api("POST", `/events/${id}/selection/respond`, { confirming: false }), t("ld.told_them_you_cannot_play"))}
             >
               I can&apos;t
             </button>
@@ -200,14 +202,13 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
         <div className="pro-main">
           <div className="panel">
             <div className="panel-head">
-              <h2>The pool</h2>
+              <h2>{t("ev.the_pool")}</h2>
               <span className={short > 0 ? "tag gold" : "tag"}>
-                {short > 0 ? `${short} more to pick` : "Side is full"}
+                {short > 0 ? `${short} more to pick` : t("ld.side_is_full")}
               </span>
             </div>
             <p className="muted">
-              Ordered by who most deserves the next look: who said yes, then who is free,
-              then whoever has been left out most often.
+              {t("ev.ordered_by_who_most_deserves_the_next")}
             </p>
 
             <ul className="pick-list">
@@ -226,14 +227,14 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
           </div>
 
           <div className="panel">
-            <h2>Tell them</h2>
+            <h2>{t("ev.tell_them")}</h2>
             <label>
-              What goes in the thread
+              {t("ev.what_goes_in_the_thread")}
               <textarea
                 rows={3}
                 value={announcement}
                 onChange={(e) => setAnnouncement(e.target.value)}
-                placeholder="Meet at the ground for 1pm, whites and a packed lunch."
+                placeholder={t("ev.meet_at_the_ground_for_1pm_whites_and")}
               />
             </label>
             <div className="field-row" style={{ marginTop: "var(--s4)" }}>
@@ -243,7 +244,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
                 disabled={busy !== null || picked.size === 0}
                 onClick={() => save(true)}
               >
-                {busy === "announce" ? "Announcing…" : "Announce the squad"}
+                {busy === "announce" ? t("ld.announcing") : t("ld.announce_the_squad")}
               </button>
               <button
                 className="btn"
@@ -251,7 +252,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
                 disabled={busy !== null}
                 onClick={() => save(false)}
               >
-                {busy === "save" ? "Saving…" : "Save as a draft"}
+                {busy === "save" ? "Saving…" : t("ld.save_as_a_draft")}
               </button>
             </div>
           </div>
@@ -259,18 +260,18 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
 
         <aside className="pro-rail">
           <div className="panel">
-            <h2>Pick it for me</h2>
+            <h2>{t("ev.pick_it_for_me")}</h2>
             <p className="muted">
-              Both give you a squad to edit, never one that goes out on its own.
+              {t("ev.both_give_you_a_squad_to_edit_never_on")}
             </p>
             <div className="field-row">
               <button className="btn" type="button" disabled={busy !== null}
                       onClick={() => suggest("suggest")}>
-                <Icon name="chart" size={16} /> {busy === "suggest" ? "Working…" : "From the numbers"}
+                <Icon name="chart" size={16} /> {busy === "suggest" ? "Working…" : t("ld.from_the_numbers")}
               </button>
               <button className="btn" type="button" disabled={busy !== null}
                       onClick={() => suggest("agent")}>
-                <Icon name="sparkle" size={16} /> {busy === "agent" ? "Thinking…" : "Ask the assistant"}
+                <Icon name="sparkle" size={16} /> {busy === "agent" ? t("ld.thinking") : t("ld.ask_the_assistant")}
               </button>
             </div>
 
@@ -287,17 +288,17 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
                   </p>
                 )}
                 <p className="muted">
-                  Loaded into the list — change what you like before announcing it.
+                  {t("ev.loaded_into_the_list_change_what_you_l")}
                 </p>
               </div>
             )}
           </div>
 
           <div className="panel">
-            <h2>What the side needs</h2>
+            <h2>{t("ev.what_the_side_needs")}</h2>
             <dl className="pro-about">
-              <div><dt>Playing</dt><dd className="num">{board.requirements.size}</dd></div>
-              <div><dt>Reserves</dt><dd className="num">{board.requirements.reserves}</dd></div>
+              <div><dt>{t("ev.playing")}</dt><dd className="num">{board.requirements.size}</dd></div>
+              <div><dt>{t("ev.reserves")}</dt><dd className="num">{board.requirements.reserves}</dd></div>
               {board.requirements.position_quotas.map((q) => (
                 <div key={q.position}>
                   <dt>{q.position}</dt><dd className="num">at least {q.minimum}</dd>
@@ -307,7 +308,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
           </div>
 
           <div className="panel">
-            <h2>Nobody replying?</h2>
+            <h2>{t("ev.nobody_replying")}</h2>
             <p className="muted">
               Reserves move up automatically {board.confirm_lead_hours} hours before the
               start. You can do it now instead.
@@ -316,9 +317,9 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
               className="btn"
               type="button"
               disabled={busy !== null}
-              onClick={() => act("promote", () => api("POST", `/events/${id}/selection/promote`, {}), "Reserves moved up.")}
+              onClick={() => act("promote", () => api("POST", `/events/${id}/selection/promote`, {}), t("ld.reserves_moved_up"))}
             >
-              {busy === "promote" ? "Moving…" : "Move the reserves up"}
+              {busy === "promote" ? t("ld.moving") : t("ld.move_the_reserves_up")}
             </button>
           </div>
 
@@ -346,6 +347,7 @@ function PickRow({
   onPick: () => void;
   onReserve: () => void;
 }) {
+  const t = useT();
   const c = candidate;
   return (
     <li className={picked ? "picked" : reserve ? "reserve" : undefined}>
@@ -359,17 +361,17 @@ function PickRow({
         <span className="pick-signals">
           {c.rsvp && c.rsvp !== "invited" && (
             <span className={`tag ${c.rsvp === "going" ? "" : c.rsvp === "not_going" ? "danger" : "grey"}`}>
-              {RSVP_LABEL[c.rsvp]}
+              {t(RSVP_LABEL[c.rsvp])}
             </span>
           )}
           {/* The calendar is the weaker signal, so it only shows when they
               have not answered the fixture itself. */}
           {(!c.rsvp || c.rsvp === "invited") && c.availability && (
-            <span className="tag grey">{AVAILABILITY_LABEL[c.availability]}</span>
+            <span className="tag grey">{t(AVAILABILITY_LABEL[c.availability])}</span>
           )}
           {c.position && <span className="subtle">{c.position}</span>}
           {c.games_missed_out > 0 && (
-            <span className="subtle" title="Available but left out, last 60 days">
+            <span className="subtle" title={t("ev.available_but_left_out_last_60_days")}>
               left out ×{c.games_missed_out}
             </span>
           )}
@@ -383,7 +385,7 @@ function PickRow({
           aria-pressed={picked}
           onClick={onPick}
         >
-          Pick
+          {t("ev.pick")}
         </button>
         <button
           type="button"
@@ -391,7 +393,7 @@ function PickRow({
           aria-pressed={reserve}
           onClick={onReserve}
         >
-          Reserve
+          {t("ev.reserve")}
         </button>
       </div>
     </li>

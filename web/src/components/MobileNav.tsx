@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/Icon";
 import { ChatBadge } from "@/components/ChatBadge";
 import { getStoredUser } from "@/lib/api";
+import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
 
 /// The four places somebody goes on a phone, and everything else behind More.
 ///
@@ -14,26 +16,29 @@ import { getStoredUser } from "@/lib/api";
 /// them. A bottom bar is what a thumb reaches and what every other app on the
 /// phone does, and four plus More is the shape Apple and Material both
 /// recommend.
-const PRIMARY: { href: string; label: string; icon: IconName }[] = [
-  { href: "/", label: "Home", icon: "home" },
-  { href: "/events", label: "Fixtures", icon: "calendar" },
-  { href: "/score", label: "Score", icon: "bat" },
-  { href: "/chat", label: "Chats", icon: "chat" },
+// `label` is a dictionary key: the bar is built once, read in whichever
+// language the viewer chose.
+const PRIMARY: { href: string; label: Key; icon: IconName }[] = [
+  { href: "/", label: "nav.home", icon: "home" },
+  { href: "/events", label: "nav.fixtures", icon: "calendar" },
+  { href: "/score", label: "nav.score", icon: "bat" },
+  { href: "/chat", label: "nav.chats", icon: "chat" },
 ];
 
 /// Everything the bottom bar has no room for. Ordered by how often a club
 /// actually opens them, not alphabetically.
-const MORE: { href: string; label: string; icon: IconName }[] = [
-  { href: "/availability", label: "Availability", icon: "clock" },
-  { href: "/clubs", label: "Clubs", icon: "users" },
-  { href: "/profile", label: "Profile", icon: "book" },
-  { href: "/notifications", label: "Notifications", icon: "inbox" },
-  { href: "/stats", label: "Stats", icon: "chart" },
-  { href: "/tournaments", label: "Tournaments", icon: "trophy" },
-  { href: "/shop", label: "Shop", icon: "shop" },
+const MORE: { href: string; label: Key; icon: IconName }[] = [
+  { href: "/availability", label: "nav.availability", icon: "clock" },
+  { href: "/clubs", label: "nav.clubs", icon: "users" },
+  { href: "/profile", label: "nav.profile", icon: "book" },
+  { href: "/notifications", label: "nav.notifications", icon: "inbox" },
+  { href: "/stats", label: "nav.stats", icon: "chart" },
+  { href: "/tournaments", label: "nav.tournaments", icon: "trophy" },
+  { href: "/shop", label: "nav.shop", icon: "shop" },
 ];
 
 export function MobileNav() {
+  const t = useT();
   const pathname = usePathname();
   const [more, setMore] = useState(false);
   // Signed-out visitors on the landing page get the page, not the app's tabs.
@@ -58,7 +63,7 @@ export function MobileNav() {
   return (
     <>
       {more && (
-        <div className="more-sheet" role="dialog" aria-label="More">
+        <div className="more-sheet" role="dialog" aria-label={t("nav.more")}>
           <div className="more-grid">
             {MORE.map((m) => (
               <Link
@@ -67,14 +72,14 @@ export function MobileNav() {
                 className={active(m.href) ? "more-item on" : "more-item"}
               >
                 <Icon name={m.icon} size={22} />
-                {m.label}
+                {t(m.label)}
               </Link>
             ))}
           </div>
         </div>
       )}
       {/* Sits above the sheet so the same button closes it. */}
-      <nav className="tabbar" aria-label="Main">
+      <nav className="tabbar" aria-label={t("nav.main")}>
         {PRIMARY.map((l) => (
           <Link
             key={l.href}
@@ -83,7 +88,7 @@ export function MobileNav() {
             aria-current={active(l.href) ? "page" : undefined}
           >
             <Icon name={l.icon} size={22} />
-            {l.label}
+            {t(l.label)}
             {l.href === "/chat" && <ChatBadge />}
           </Link>
         ))}
@@ -94,7 +99,7 @@ export function MobileNav() {
           onClick={() => setMore((o) => !o)}
         >
           <Icon name="more" size={22} />
-          More
+          {t("nav.more")}
         </button>
       </nav>
     </>

@@ -10,6 +10,7 @@ import {
   type UmpireProfile,
 } from "@/lib/umpire";
 import { readErr } from "@/lib/api";
+import { useT } from "@/lib/i18n/provider";
 
 /// Somebody's umpiring record.
 ///
@@ -22,6 +23,7 @@ import { readErr } from "@/lib/api";
 /// the same record; the difference is whether the switch is a switch or a
 /// sentence.
 export function Umpiring({ userId, name }: { userId?: string; name?: string }) {
+  const t = useT();
   const mine = !userId;
   const [profile, setProfile] = useState<UmpireProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,11 +33,11 @@ export function Umpiring({ userId, name }: { userId?: string; name?: string }) {
     try {
       setProfile(mine ? await myUmpiring() : await umpiringOf(userId!));
     } catch (err) {
-      setError(readErr(err, "Could not load the umpiring record"));
+      setError(readErr(err, t("le.could_not_load_the_umpiring_record")));
     } finally {
       setLoading(false);
     }
-  }, [mine, userId]);
+  }, [mine, userId, t]);
 
   useEffect(() => {
     load();
@@ -49,12 +51,12 @@ export function Umpiring({ userId, name }: { userId?: string; name?: string }) {
     <section className="ump" aria-labelledby="ump-h">
       <div className="ump-head">
         <h2 id="ump-h">
-          <Icon name="shield" size={20} /> Umpiring
+          <Icon name="shield" size={20} /> {t("sr.umpiring")}
         </h2>
         {mine ? (
           <WillingSwitch profile={profile} onSaved={setProfile} />
         ) : (
-          profile.umpires && <span className="tag">Will stand</span>
+          profile.umpires && <span className="tag">{t("sr.will_stand")}</span>
         )}
       </div>
 
@@ -88,9 +90,9 @@ export function Umpiring({ userId, name }: { userId?: string; name?: string }) {
         <p className="muted ump-blank">
           {profile.matches === 0
             ? mine
-              ? "You have not umpired a match here yet. Ask your captain to name you as umpire and it starts counting."
-              : `${name ?? "They"} have not umpired a match here yet.`
-            : "No reviews yet — the players in the next match can leave one afterwards."}
+              ? t("le.you_have_not_umpired_a_match_here_yet")
+              : `${name ?? t("le.they")} have not umpired a match here yet.`
+            : t("le.no_reviews_yet_the_players_in_the_next")}
         </p>
       )}
     </section>
@@ -149,6 +151,7 @@ function WillingSwitch({
   profile: UmpireProfile;
   onSaved: (p: UmpireProfile) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState(profile.note ?? "");
@@ -176,7 +179,7 @@ function WillingSwitch({
           disabled={busy}
           onChange={(e) => save({ umpires: e.target.checked })}
         />
-        <span>I umpire</span>
+        <span>{t("sr.i_umpire")}</span>
       </label>
       {profile.umpires &&
         (editing ? (
@@ -187,12 +190,12 @@ function WillingSwitch({
               save({ note: note.trim() || null });
             }}
           >
-            <label htmlFor="ump-note">Anything a captain should know</label>
+            <label htmlFor="ump-note">{t("sr.anything_a_captain_should_know")}</label>
             <input
               id="ump-note"
               value={note}
               maxLength={200}
-              placeholder="Level 1 ECB · club matches only"
+              placeholder={t("sr.level_1_ecb_club_matches_only")}
               onChange={(e) => setNote(e.target.value)}
             />
             <button className="btn primary" disabled={busy}>
@@ -204,7 +207,7 @@ function WillingSwitch({
           </form>
         ) : (
           <button type="button" className="btn" onClick={() => setEditing(true)}>
-            {profile.note ? "Edit note" : "Add a note"}
+            {profile.note ? t("le.edit_note") : t("le.add_a_note")}
           </button>
         ))}
       {error && <p className="error">{error}</p>}

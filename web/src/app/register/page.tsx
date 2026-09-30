@@ -7,10 +7,12 @@ import { api, saveSession, saveUser, type AuthTokens, type PublicUser, type Role
 import { AuthPitch } from "@/components/AuthPitch";
 import { RoleChooser } from "@/components/RoleChooser";
 import { GoogleButton } from "@/components/GoogleButton";
+import { useT } from "@/lib/i18n/provider";
 
 type Method = "email" | "phone";
 
 export default function RegisterPage() {
+  const t = useT();
   const router = useRouter();
   const [method, setMethod] = useState<Method>("email");
   const [name, setName] = useState("");
@@ -76,9 +78,9 @@ export default function RegisterPage() {
       // are worth passing on rather than flattening.
       const message = err instanceof Error ? err.message : "";
       try {
-        setError(JSON.parse(message).error ?? "Could not create the account.");
+        setError(JSON.parse(message).error ?? t("le.could_not_create_the_account"));
       } catch {
-        setError(message || "Could not create the account.");
+        setError(message || t("le.could_not_create_the_account"));
       }
     } finally {
       setBusy(false);
@@ -90,8 +92,8 @@ export default function RegisterPage() {
       <AuthPitch />
 
       <div className="auth-card">
-        <h2>Create an account</h2>
-        <p>With Google, an email address or a mobile number — whichever you actually use.</p>
+        <h2>{t("rest.create_an_account")}</h2>
+        <p>{t("rest.with_google_an_email_address_or_a_mobi")}</p>
 
         {/* Asked first, so it applies however they sign up — Google included. */}
         <fieldset className="auth-role">
@@ -101,7 +103,7 @@ export default function RegisterPage() {
 
         <GoogleButton mode="signup" role={role} onSignedIn={goNext} />
 
-        <div className="tabs" role="tablist" aria-label="Register with">
+        <div className="tabs" role="tablist" aria-label={t("rest.register_with")}>
           {(["email", "phone"] as const).map((m) => (
             <button
               key={m}
@@ -119,12 +121,12 @@ export default function RegisterPage() {
         <form className="auth-form" onSubmit={onSubmit}>
 
           <label>
-            Your name
+            {t("rest.your_name")}
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
-              placeholder="As it goes on a team sheet"
+              placeholder={t("rest.as_it_goes_on_a_team_sheet")}
               required
             />
           </label>
@@ -137,20 +139,20 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                placeholder="you@club.test"
+                placeholder={t("rest.you_club_test")}
                 required
               />
             </label>
           ) : (
             <label>
-              Mobile number
+              {t("rest.mobile_number")}
               <input
                 type="tel"
                 inputMode="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 autoComplete="tel"
-                placeholder="+44 7700 900123"
+                placeholder={t("rest.44_7700_900123")}
                 required
               />
             </label>
@@ -171,30 +173,29 @@ export default function RegisterPage() {
                 type="button"
                 className="btn ghost sm"
                 onClick={() => setShow((v) => !v)}
-                aria-label={show ? "Hide password" : "Show password"}
+                aria-label={show ? t("le.hide_password") : t("le.show_password")}
               >
-                {show ? "Hide" : "Show"}
+                {show ? "Hide" : t("le.show")}
               </button>
             </span>
-            {tooShort && <span className="subtle">At least eight characters.</span>}
+            {tooShort && <span className="subtle">{t("rest.at_least_eight_characters")}</span>}
           </label>
 
           {error && <p className="error">{error}</p>}
 
           <button className="btn primary" type="submit" disabled={busy || tooShort}>
-            {busy ? "Creating…" : "Create account"}
+            {busy ? "Creating…" : t("le.create_account")}
           </button>
         </form>
 
         {method === "phone" && (
           <p className="auth-hint">
-            Your number is how you sign in. Include the country code — we may confirm it with a
-            WhatsApp code.
+            {t("rest.your_number_is_how_you_sign_in_include")}
           </p>
         )}
 
         <p className="auth-alt">
-          Already have an account? <Link href="/login">Sign in</Link>
+          {t("rest.already_have_an_account")} <Link href="/login">Sign in</Link>
         </p>
       </div>
     </main>

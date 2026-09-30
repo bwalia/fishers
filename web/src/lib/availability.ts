@@ -1,3 +1,4 @@
+import type { Key } from "@/lib/i18n/en";
 /// Your calendar (`backend/domain/src/availability.rs`).
 ///
 /// A standing signal, not an answer to a fixture: "I'm generally around on
@@ -17,10 +18,10 @@ export type Availability = {
   recurrence_rule: string | null;
 };
 
-export const AVAILABILITY_LABEL: Record<AvailabilityStatus, string> = {
-  available: "Available",
-  maybe: "Maybe",
-  unavailable: "Not available",
+export const AVAILABILITY_LABEL: Record<AvailabilityStatus, Key> = {
+  available: "av.available",
+  maybe: "ev.maybe",
+  unavailable: "av.not_available",
 };
 
 /// `YYYY-MM-DD` for a local date.
@@ -56,4 +57,5 @@ export function weekdaysIn(month: Date, weekday: number): Date[] {
     .filter((d): d is Date => d !== null && (d.getDay() + 6) % 7 === weekday);
 }
 
-export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+/// Dictionary keys — a weekday strip reads in the viewer's language.
+export const WEEKDAYS: Key[] = ["day.mon", "day.tue", "day.wed", "day.thu", "day.fri", "day.sat", "day.sun"];

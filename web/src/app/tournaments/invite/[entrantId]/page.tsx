@@ -18,6 +18,7 @@ import {
   type MatchConditions,
 } from "@/lib/tournament";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 /// Answering an invitation into somebody else's tournament.
 ///
@@ -67,6 +68,7 @@ type View = {
 };
 
 export default function InvitePage({ params }: { params: Promise<{ entrantId: string }> }) {
+  const t = useT();
   const { entrantId } = use(params);
   const authed = useRequireAuth();
   const [view, setView] = useState<View | null>(null);
@@ -88,11 +90,11 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
       setView(await api<View>("GET", `/entrants/${entrantId}/invitation`));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not open that invitation"));
+      setError(readErr(err, t("le.could_not_open_that_invitation")));
     } finally {
       setLoading(false);
     }
-  }, [entrantId]);
+  }, [entrantId, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -106,7 +108,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
       await api("POST", `/entrants/${entrantId}/respond`, { status });
       await load();
     } catch (err) {
-      setError(readErr(err, "Could not send that answer"));
+      setError(readErr(err, t("le.could_not_send_that_answer")));
     } finally {
       setBusy(null);
     }
@@ -135,9 +137,9 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
           {dates && <span className="tag grey">{dates}</span>}
           {view.confirmed && <span className="tag">You&apos;re in</span>}
           {view.owes_entry_fee && i.status === "accepted" && (
-            <span className="tag gold">Entry fee outstanding</span>
+            <span className="tag gold">{t("tn.entry_fee_outstanding")}</span>
           )}
-          {declined && <span className="tag grey">Declined</span>}
+          {declined && <span className="tag grey">{t("tn.declined")}</span>}
         </div>
         {i.description && <p>{i.description}</p>}
       </section>
@@ -149,11 +151,11 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
         <div className="pro-main">
           {/* What you are agreeing to, before you agree to it. */}
           <div className="panel">
-            <h2>{view.confirmed ? "What you have entered" : "What you would be entering"}</h2>
+            <h2>{view.confirmed ? t("le.what_you_have_entered") : t("le.what_you_would_be_entering")}</h2>
             <dl className="pro-about">
-              <div><dt>Players a side</dt><dd className="num">{i.players_per_side}</dd></div>
+              <div><dt>{t("tn.players_a_side")}</dt><dd className="num">{i.players_per_side}</dd></div>
               <div>
-                <dt>Guest players</dt>
+                <dt>{t("tn.guest_players")}</dt>
                 <dd>
                   {i.guest_players_allowed === 0
                     ? "None — every player must be a club member"
@@ -161,32 +163,32 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
                 </dd>
               </div>
               {i.age_group !== "open" && (
-                <div><dt>Age group</dt><dd>{AGE_LABEL[i.age_group] ?? i.age_group}</dd></div>
+                <div><dt>{t("tn.age_group")}</dt><dd>{t(AGE_LABEL[i.age_group])}</dd></div>
               )}
               {i.gender !== "open" && (
-                <div><dt>Who it is for</dt><dd>{GENDER_LABEL[i.gender] ?? i.gender}</dd></div>
+                <div><dt>{t("tn.who_it_is_for")}</dt><dd>{t(GENDER_LABEL[i.gender])}</dd></div>
               )}
               {i.venue_name && <div><dt>Ground</dt><dd>{i.venue_name}</dd></div>}
               {i.conditions && (
                 <>
                   <div><dt>Overs</dt><dd className="num">{i.conditions.overs_limit}</dd></div>
                   <div>
-                    <dt>Most per bowler</dt>
+                    <dt>{t("tn.most_per_bowler")}</dt>
                     <dd className="num">
                       {i.conditions.overs_per_bowler === 0 ? "No limit" : i.conditions.overs_per_bowler}
                     </dd>
                   </div>
-                  <div><dt>Ball</dt><dd>{BALL_LABEL[i.conditions.ball] ?? i.conditions.ball}</dd></div>
+                  <div><dt>Ball</dt><dd>{t(BALL_LABEL[i.conditions.ball])}</dd></div>
                   <div>
-                    <dt>Ground type</dt>
-                    <dd>{GROUND_LABEL[i.conditions.ground] ?? i.conditions.ground}</dd>
+                    <dt>{t("tn.ground_type")}</dt>
+                    <dd>{t(GROUND_LABEL[i.conditions.ground])}</dd>
                   </div>
                 </>
               )}
             </dl>
             {i.rules_notes && (
               <>
-                <h3 style={{ marginTop: "var(--s4)" }}>Anything else</h3>
+                <h3 style={{ marginTop: "var(--s4)" }}>{t("tn.anything_else")}</h3>
                 <p style={{ whiteSpace: "pre-wrap" }}>{i.rules_notes}</p>
               </>
             )}
@@ -195,7 +197,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
           {/* Step one: answer. */}
           {!answered && (
             <div className="panel">
-              <h2>Are you entering?</h2>
+              <h2>{t("tn.are_you_entering")}</h2>
               <p className="muted">
                 {fee > 0
                   ? `${i.host_club_name} cannot make the draw until every side has said. There is an entry fee of ${money(fee)} — you pay it after you accept, and your place is confirmed once it clears.`
@@ -203,8 +205,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
               </p>
               {!view.can_answer && (
                 <p className="notice">
-                  Your club secretary or captain answers this one. They have the
-                  same invitation.
+                  {t("tn.your_club_secretary_or_captain_answers")}
                 </p>
               )}
               {view.can_answer && (
@@ -234,11 +235,11 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
           {view.owes_entry_fee && i.status === "accepted" && (
             <div className="panel">
               <div className="panel-head">
-                <h2>Entry fee</h2>
+                <h2>{t("tn.entry_fee")}</h2>
                 <span className="tag gold">{money(fee)}</span>
               </div>
               <p className="muted">
-                You have accepted, but <strong>{i.entrant_name} is not in the draw
+                {t("tn.you_have_accepted_but")} <strong>{i.entrant_name} is not in the draw
                 until the entry fee is settled</strong> — {i.host_club_name} builds
                 the fixtures from the sides that have paid.
               </p>
@@ -257,7 +258,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
                       }
                     }}
                   >
-                    {paying ? "Taking you to Stripe…" : `Pay ${money(fee)} by card`}
+                    {paying ? t("le.taking_you_to_stripe") : `Pay ${money(fee)} by card`}
                   </button>
                 </div>
               )}
@@ -277,7 +278,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
                 {i.entrant_name} is entered in {i.block_name}.
                 {i.entry_paid_at
                   ? ` The entry fee is settled${i.entry_payment_method ? ` (${i.entry_payment_method})` : ""}.`
-                  : " There is nothing to pay."}{" "}
+                  : t("fin.nothing_to_pay")}{" "}
                 {i.host_club_name} will send the fixtures once the draw is made.
               </p>
             </div>
@@ -285,7 +286,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
 
           {declined && (
             <div className="panel">
-              <h2>You said no</h2>
+              <h2>{t("tn.you_said_no")}</h2>
               <p className="muted">
                 {i.host_club_name} has been told, which is what lets them find
                 somebody else. If that was a mistake, ask them to invite you again.
@@ -295,7 +296,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
 
           {withdrawn && (
             <div className="panel">
-              <h2>Withdrawn</h2>
+              <h2>{t("tn.withdrawn")}</h2>
               <p className="muted">{i.entrant_name} has pulled out of this one.</p>
             </div>
           )}
@@ -303,16 +304,16 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
 
         <aside className="pro-rail">
           <div className="panel">
-            <h2>The tournament</h2>
+            <h2>{t("tn.the_tournament")}</h2>
             <dl className="pro-figures">
-              <div><dt>Run by</dt><dd>{i.host_club_name}</dd></div>
+              <div><dt>{t("tn.run_by")}</dt><dd>{i.host_club_name}</dd></div>
               {dates && <div><dt>When</dt><dd>{dates}</dd></div>}
               {i.max_entrants != null && (
-                <div><dt>Sides</dt><dd className="num">{i.max_entrants}</dd></div>
+                <div><dt>{t("tn.sides")}</dt><dd className="num">{i.max_entrants}</dd></div>
               )}
               <div>
-                <dt>To enter</dt>
-                <dd className="num">{fee > 0 ? money(fee) : "Free"}</dd>
+                <dt>{t("tn.to_enter")}</dt>
+                <dd className="num">{fee > 0 ? money(fee) : t("le.free")}</dd>
               </div>
             </dl>
             {i.entry_deadline && (
@@ -328,7 +329,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
           </div>
           <p className="muted">
             <Link href="/tournaments">
-              <Icon name="arrowLeft" size={12} /> All tournaments
+              <Icon name="arrowLeft" size={12} /> {t("tn.all_tournaments")}
             </Link>
           </p>
         </aside>

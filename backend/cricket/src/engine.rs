@@ -681,6 +681,7 @@ impl MatchState {
                 bowl.balls += 1;
             }
         }
+        inn.note_wicket_streak(Some(bowler), false, is_legal)?;
 
         let label = if six {
             "6".into()
@@ -821,6 +822,10 @@ impl MatchState {
                 _ => {}
             }
         }
+        // `legal` is false for a wide, a no ball and a penalty, so none of
+        // them ends a hat-trick opportunity; a bye and a leg bye are
+        // legitimate deliveries and do.
+        inn.note_wicket_streak(Some(bowler), false, legal)?;
 
         let label = match kind {
             ExtraKind::Wide if runs > 0 => format!("wd+{runs}"),
@@ -956,6 +961,10 @@ impl MatchState {
             if let Some(bid) = bowler {
                 inn.bowler_mut(bid)?.wickets += 1;
             }
+        }
+        // Retiring is not a delivery, so it leaves a streak untouched.
+        if kind.uses_a_ball() {
+            inn.note_wicket_streak(bowler, kind.credits_bowler(), is_legal)?;
         }
 
         if counts_a_wicket {
@@ -1273,6 +1282,37 @@ impl InningsState {
             .iter_mut()
             .find(|b| b.player_id == id)
             .ok_or_else(|| DomainError::Validation("batter not in innings".into()))
+    }
+
+    /// Keep the bowler's consecutive-wicket count up to date for one delivery.
+    ///
+    /// A hat-trick is three wickets in three consecutive deliveries by the same
+    /// bowler. Two details decide what "consecutive" means here, and both are
+    /// the conventional reading rather than a simplification:
+    ///
+    /// - Only a wicket credited to the bowler counts. A run out at the
+    ///   non-striker's end off their delivery is not theirs and breaks it.
+    /// - An extra is not one of the three. A bowler on two who sends down a
+    ///   wide is still on a hat-trick, and the hat-trick ball is the next
+    ///   legitimate delivery — so a wide does not reset. That also makes a
+    ///   stumping off a wide the bowler's third, which it is.
+    ///
+    /// ponytail: per innings, because that is where `BowlerStats` lives. A
+    /// hat-trick spanning two innings or two matches is real and rare, and
+    /// would need the streak carried on the player instead.
+    fn note_wicket_streak(
+        &mut self,
+        bowler: Option<Uuid>,
+        credited: bool,
+        legal: bool,
+    ) -> Result<()> {
+        let Some(bid) = bowler else { return Ok(()) };
+        if credited {
+            self.bowler_mut(bid)?.wickets_in_a_row += 1;
+        } else if legal {
+            self.bowler_mut(bid)?.wickets_in_a_row = 0;
+        }
+        Ok(())
     }
 
     fn bowler_mut(&mut self, id: Uuid) -> Result<&mut BowlerStats> {
@@ -2601,6 +2641,91 @@ mod tests {
     }
 
     // MARK: free hit, retired hurt, and dismissals on an extra
+
+    /// Three in three, and the four ways it is not three in three.
+    #[test]
+    fn a_hat_trick_is_three_consecutive_wickets_for_one_bowler() {
+        let mut f = Fixture::new(20);
+        let bowler = f.innings().bowler_id.unwrap();
+        let streak = |f: &Fixture, id: Uuid| {
+            f.innings()
+                .bowlers
+                .iter()
+                .find(|b| b.player_id == id)
+                .map(|b| b.wickets_in_a_row)
+                .unwrap_or(0)
+        };
+
+        // A wicket that is not the bowler's does not start a streak.
+        f.push(wicket(f.home[0].id, DismissalKind::RunOut, Some(f.home[2].id)));
+        assert_eq!(streak(&f, bowler), 0, "a run out is not the bowler's");
+
+        f.push(wicket(f.home[1].id, DismissalKind::Bowled, Some(f.home[3].id)));
+        assert_eq!(streak(&f, bowler), 1);
+        f.push(wicket(f.home[2].id, DismissalKind::Caught, Some(f.home[4].id)));
+        assert_eq!(streak(&f, bowler), 2);
+        assert!(
+            f.innings()
+                .bowlers
+                .iter()
+                .find(|b| b.player_id == bowler)
+                .unwrap()
+                .on_a_hat_trick(),
+            "on two, so the next legitimate ball is the hat-trick ball"
+        );
+
+        // A wide is not one of the three: they are still on a hat-trick.
+        f.push(ScoringEventKind::ExtrasRecorded {
+            kind: ExtraKind::Wide,
+            runs: 0,
+            boundary: false,
+            off_the_bat: false,
+            shot: None,
+        });
+        assert_eq!(streak(&f, bowler), 2, "a wide does not end the chance");
+
+        f.push(wicket(f.home[3].id, DismissalKind::Lbw, Some(f.home[5].id)));
+        assert_eq!(streak(&f, bowler), 3, "three in three");
+
+        // And a legitimate ball that takes nothing ends it.
+        f.runs(1);
+        assert_eq!(streak(&f, bowler), 0, "a legal delivery resets");
+    }
+
+    /// The other bowler's deliveries are not this bowler's, so a streak
+    /// survives the end of an over — which is how most hat-tricks happen.
+    #[test]
+    fn a_hat_trick_may_span_two_overs() {
+        let mut f = Fixture::new(20);
+        let bowler = f.innings().bowler_id.unwrap();
+        let streak = |f: &Fixture| {
+            f.innings()
+                .bowlers
+                .iter()
+                .find(|b| b.player_id == bowler)
+                .map(|b| b.wickets_in_a_row)
+                .unwrap_or(0)
+        };
+
+        // Five off the bat, then the last two balls of the over take wickets.
+        for _ in 0..4 {
+            f.runs(0);
+        }
+        f.push(wicket(f.home[0].id, DismissalKind::Bowled, Some(f.home[2].id)));
+        f.push(wicket(f.home[1].id, DismissalKind::Bowled, Some(f.home[3].id)));
+        assert_eq!(streak(&f), 2, "two, with the over now complete");
+
+        // The other end bowls a whole over. None of it is this bowler's.
+        for _ in 0..6 {
+            f.runs(1);
+        }
+        assert_eq!(streak(&f), 2, "someone else's over leaves the streak alone");
+
+        // Back to our end for the hat-trick ball.
+        f.push(ScoringEventKind::BowlerChanged { bowler_id: bowler });
+        f.push(wicket(f.home[2].id, DismissalKind::Caught, Some(f.home[4].id)));
+        assert_eq!(streak(&f), 3, "the hat-trick ball, two overs later");
+    }
 
     fn wicket(
         batter_id: Uuid,

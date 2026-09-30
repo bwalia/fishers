@@ -843,6 +843,27 @@ struct CommentaryRequest {
     /// Which ball to call. Defaults to the last one bowled.
     over: Option<u16>,
     ball_in_over: Option<u8>,
+    /// Which language to say it in, as a locale code. Absent or unknown means
+    /// English.
+    #[serde(default)]
+    lang: Option<String>,
+}
+
+/// The languages commentary can be asked for, by locale code.
+///
+/// An allowlist, and the reason is the prompt: the language name is
+/// interpolated into an instruction to a model, so a caller who could put
+/// their own string there could rewrite the brief — including the part of it
+/// that says not to invent wickets. The code selects a name, it never
+/// supplies one.
+///
+/// English returns `None` on purpose: it needs no translation step, and the
+/// single-language path is both cheaper and the one whose guard is exact.
+fn language_name(code: &str) -> Option<&'static str> {
+    match code.split(['-', '_']).next().unwrap_or("").to_ascii_lowercase().as_str() {
+        "pa" => Some("Punjabi"),
+        _ => None,
+    }
 }
 
 #[derive(Serialize)]
@@ -933,6 +954,7 @@ async fn commentary(
                 runs: ball.runs,
                 is_legal: ball.is_legal,
             },
+            body.lang.as_deref().and_then(language_name),
         )
         .await;
     Ok(Json(CommentaryResponse {

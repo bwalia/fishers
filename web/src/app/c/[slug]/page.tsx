@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import { apiV1 } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 type ClubPage = {
   club: {
@@ -39,6 +40,7 @@ type ClubPage = {
 /// not have to go and build one, so this is the site: who they are, the record
 /// they have played to, who is scoring the runs, and when they are next out.
 export default function PublicClubPage({ params }: { params: Promise<{ slug: string }> }) {
+  const t = useT();
   const { slug } = use(params);
   const [page, setPage] = useState<ClubPage | null>(null);
   const [missing, setMissing] = useState(false);
@@ -57,8 +59,8 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
     return (
       <main className="club-site">
         <div className="club-empty">
-          <h1>No club here</h1>
-          <p>That address does not belong to a club, or its page is not published.</p>
+          <h1>{t("rest.no_club_here")}</h1>
+          <p>{t("rest.that_address_does_not_belong_to_a_club")}</p>
         </div>
       </main>
     );
@@ -104,13 +106,13 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
             <div><dt>Played</dt><dd className="num">{record.played}</dd></div>
             <div><dt>Won</dt><dd className="num">{record.won}</dd></div>
             <div><dt>Lost</dt><dd className="num">{record.lost}</dd></div>
-            <div><dt>Drawn</dt><dd className="num">{record.drawn}</dd></div>
+            <div><dt>{t("rest.drawn")}</dt><dd className="num">{record.drawn}</dd></div>
           </dl>
         </section>
       )}
 
       {page.icon_player && (
-        <section className="club-icon" aria-label="Icon player">
+        <section className="club-icon" aria-label={t("rest.icon_player")}>
           <Avatar
             name={page.icon_player.name}
             url={page.icon_player.avatar_url}
@@ -118,7 +120,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
             className="club-icon-face"
           />
           <div>
-            <p className="club-eyebrow">Icon player</p>
+            <p className="club-eyebrow">{t("rest.icon_player")}</p>
             <h2>{page.icon_player.name}</h2>
             {page.icon_player.position && (
               <p className="club-icon-role">{page.icon_player.position}</p>
@@ -129,7 +131,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
 
       {club.about && (
         <section className="club-about prose">
-          <h2>About the club</h2>
+          <h2>{t("rest.about_the_club")}</h2>
           {club.about.split("\n").filter(Boolean).map((line, i) => (
             <p key={i}>{line}</p>
           ))}
@@ -138,7 +140,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
 
       {(page.top_batters.length > 0 || page.top_bowlers.length > 0) && (
         <section className="club-players">
-          <h2>Leading the way</h2>
+          <h2>{t("rest.leading_the_way")}</h2>
           <div className="player-cols">
             {page.top_batters.length > 0 && (
               <div>
@@ -172,7 +174,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
 
       {page.fixtures.length > 0 && (
         <section className="club-fixtures">
-          <h2>Next up</h2>
+          <h2>{t("rest.next_up")}</h2>
           <ul className="club-leaders">
             {page.fixtures.map((f, i) => (
               <li key={i}>
@@ -191,17 +193,17 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
       )}
 
       <section className="club-join">
-        <h2>Fancy a game?</h2>
-        <p>New players are welcome. Get in touch and come down.</p>
+        <h2>{t("rest.fancy_a_game")}</h2>
+        <p>{t("rest.new_players_are_welcome_get_in_touch_a")}</p>
         <div className="club-join-actions">
           {club.contact_email && (
             <a className="btn primary lg" href={`mailto:${club.contact_email}`}>
-              Email the club
+              {t("rest.email_the_club")}
             </a>
           )}
           {club.website && (
             <a className="btn" href={club.website} rel="noreferrer noopener" target="_blank">
-              Their website
+              {t("rest.their_website")}
             </a>
           )}
         </div>

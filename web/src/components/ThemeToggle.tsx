@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/provider";
 
 type Choice = "system" | "light" | "dark";
 
@@ -11,6 +12,7 @@ type Choice = "system" | "light" | "dark";
 /// a device set to dark actually gives you light, which a media query alone
 /// cannot do.
 export function ThemeToggle() {
+  const t = useT();
   const [choice, setChoice] = useState<Choice>("system");
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export function ThemeToggle() {
   // Cycles rather than opening a menu: it is one control in a crowded bar, and
   // the label says where the next tap lands.
   const next: Choice = choice === "system" ? "light" : choice === "light" ? "dark" : "system";
-  const label = { system: "Match my device", light: "Light", dark: "Dark" }[choice];
+  const label = { system: t("le.match_my_device"), light: t("le.light"), dark: t("le.dark") }[choice];
 
   return (
     <button

@@ -13,10 +13,12 @@ import {
 } from "@/lib/stats";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 const SEASONS = [2026, 2025, 2024];
 
 export default function StatsPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubId, setClubId] = useState("");
@@ -72,7 +74,7 @@ export default function StatsPage() {
       await api("POST", `/clubs/${clubId}/stats/sync`);
       await loadBoard();
     } catch (err) {
-      setNote(err instanceof Error ? err.message : "Sync failed");
+      setNote(err instanceof Error ? err.message : t("le.sync_failed"));
     } finally {
       setSyncing(false);
     }
@@ -113,7 +115,7 @@ export default function StatsPage() {
           </label>
           <button className="btn ghost" type="button" onClick={sync} disabled={!clubId || syncing}>
             <Icon name="clock" size={16} />
-            {syncing ? "Syncing…" : "Sync Play-Cricket"}
+            {syncing ? t("le.syncing") : t("le.sync_play_cricket")}
           </button>
         </div>
       )}
@@ -123,18 +125,18 @@ export default function StatsPage() {
       {club && (
         <>
           <div className="grid" style={{ marginBottom: "var(--s4)" }}>
-            <Stat label="Played" value={club.matches_played} />
+            <Stat label={t("sh.played")} value={club.matches_played} />
             <Stat label="Won" value={club.wins} tone="primary" />
-            <Stat label="Lost" value={club.losses} />
+            <Stat label={t("sh.lost")} value={club.losses} />
             <Stat
-              label="Win rate"
+              label={t("sh.win_rate")}
               value={winRate(club) === null ? "—" : `${num(winRate(club), 0)}%`}
               sub={`${club.draws} drawn · ${club.no_results} no result`}
               tone="accent"
             />
-            <Stat label="Runs for" value={club.runs_for} sub={`${club.runs_against} against`} />
+            <Stat label={t("sh.runs_for")} value={club.runs_for} sub={`${club.runs_against} against`} />
             <Stat
-              label="Wickets taken"
+              label={t("sh.wickets_taken")}
               value={club.wickets_taken}
               sub={`${club.wickets_lost} lost`}
             />
@@ -154,8 +156,8 @@ export default function StatsPage() {
       {mine && mine.seasons.length > 0 && (
         <div className="panel">
           <div className="panel-head">
-            <h2>Your record</h2>
-            <span className="tag grey">All seasons</span>
+            <h2>{t("sh.your_record")}</h2>
+            <span className="tag grey">{t("sh.all_seasons")}</span>
           </div>
           <div className="table-wrap">
             <table className="table">
@@ -169,7 +171,7 @@ export default function StatsPage() {
                   <th className="n">SR</th>
                   <th className="n">Wkts</th>
                   <th className="n">Econ</th>
-                  <th className="n">Ct/St</th>
+                  <th className="n">{t("sh.ct_st")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -194,12 +196,12 @@ export default function StatsPage() {
 
       {mine && mine.achievements.length > 0 && (
         <div className="panel">
-          <h2>Achievements</h2>
+          <h2>{t("sh.achievements")}</h2>
           <div className="grid cards">
             {mine.achievements.map((a) => (
               <div className="stat accent" key={a.id}>
                 <div className="stat-label">
-                  <Icon name="trophy" size={14} /> Award
+                  <Icon name="trophy" size={14} /> {t("sh.award")}
                 </div>
                 <div style={{ fontWeight: 600, marginTop: "var(--s1)" }}>{a.title}</div>
                 {a.description && <div className="subtle">{a.description}</div>}
@@ -242,7 +244,8 @@ function Stat({
 }
 
 function PlayerName({ p }: { p: PlayerSeasonStats }) {
-  const name = p.player_name || "Unknown player";
+  const t = useT();
+  const name = p.player_name || t("le.unknown_player");
   return p.play_cricket_profile_url ? (
     <a href={p.play_cricket_profile_url} target="_blank" rel="noreferrer">{name}</a>
   ) : (
@@ -251,6 +254,7 @@ function PlayerName({ p }: { p: PlayerSeasonStats }) {
 }
 
 function BattingBoard({ players }: { players: PlayerSeasonStats[] }) {
+  const t = useT();
   return (
     <div className="panel">
       <div className="panel-head">
@@ -266,7 +270,7 @@ function BattingBoard({ players }: { players: PlayerSeasonStats[] }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Player</th>
+                <th>{t("sh.player")}</th>
                 <th className="n">M</th>
                 <th className="n">Inns</th>
                 <th className="n">NO</th>
@@ -302,6 +306,7 @@ function BattingBoard({ players }: { players: PlayerSeasonStats[] }) {
 }
 
 function BowlingBoard({ players }: { players: PlayerSeasonStats[] }) {
+  const t = useT();
   return (
     <div className="panel">
       <div className="panel-head">
@@ -317,7 +322,7 @@ function BowlingBoard({ players }: { players: PlayerSeasonStats[] }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Player</th>
+                <th>{t("sh.player")}</th>
                 <th className="n">M</th>
                 <th className="n">Overs</th>
                 <th className="n">Mdns</th>

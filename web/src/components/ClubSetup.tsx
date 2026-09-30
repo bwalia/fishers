@@ -5,6 +5,7 @@ import { Icon, type IconName } from "@/components/Icon";
 import { Spotlight } from "@/components/Spotlight";
 import type { ClubMemberRow, Team, Venue } from "@/lib/api";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 type Step = {
   key: string;
@@ -39,6 +40,7 @@ export function ClubSetup({
   venues: Venue[];
   welcome: boolean;
 }) {
+  const t = useT();
   const hiddenKey = `fishers:club-setup:${clubId}:hidden`;
   // Hidden until storage is read, so a hidden checklist never flashes up.
   const [hidden, setHidden] = useState(true);
@@ -61,49 +63,49 @@ export function ClubSetup({
   const steps: Step[] = [
     {
       key: "players",
-      title: "Add your players",
-      body: "By email or mobile number, or from a profile link a player sends you.",
+      title: t("ld.add_your_players"),
+      body: t("ld.by_email_or_mobile_number_or_from_a_pr"),
       done: members.length > 1,
       cta: "Add players",
       icon: "users",
       target: "add-players",
       tour: {
-        title: "Add your first players",
-        body: `Type a player's email or mobile number. Already on ${brand.name}? Press Add. Not yet? Press Invite instead and send them the link.`,
+        title: t("ld.add_your_first_players"),
+        body: t("fin.type_email_or_mobile", { brand: brand.name }),
       },
     },
     {
       key: "team",
       title: "Add a team",
-      body: "A 1st XI, a Sunday side, the juniors — each keeps its own squad.",
+      body: t("ld.a_1st_xi_a_sunday_side_the_juniors_eac"),
       done: teams.length > 0,
       cta: "Add a team",
       icon: "shield",
       target: "add-team",
-      tour: { title: "Name your first team", body: "Give it a name, pick the sport and press Create. You can add more any time." },
+      tour: { title: t("ld.name_your_first_team"), body: t("ld.give_it_a_name_pick_the_sport_and_pres") },
     },
     {
       key: "captain",
       title: "Name a captain",
-      body: "Captains pick the side and run the scorebook. Captain it yourself? Be Secretary & captain.",
+      body: t("ld.captains_pick_the_side_and_run_the_sco"),
       done: members.some((m) => m.role === "team_captain" || m.is_captain),
       cta: "Choose a captain",
       icon: "trophy",
       target: "members-table",
       tour: {
         title: "Pick your captain",
-        body: "Set a member's role to Captain here — or, if you captain the side yourself, set your own role to Secretary & captain.",
+        body: t("ld.set_a_member_s_role_to_captain_here_or"),
       },
     },
     {
       key: "ground",
-      title: "Add your ground",
-      body: "So every fixture says where to turn up.",
+      title: t("ld.add_your_ground"),
+      body: t("ld.so_every_fixture_says_where_to_turn_up"),
       done: venues.length > 0,
       cta: "Add a ground",
       icon: "pin",
       target: "grounds",
-      tour: { title: "Where do you play?", body: "Add your ground and it can be picked whenever a fixture is scheduled." },
+      tour: { title: t("ld.where_do_you_play"), body: t("ld.add_your_ground_and_it_can_be_picked_w") },
     },
   ];
 
@@ -137,7 +139,7 @@ export function ClubSetup({
     <>
       <dialog ref={dialog} className="cw" aria-labelledby="cw-title">
         <span className="cw-badge" aria-hidden="true"><Icon name="check" size={30} /></span>
-        <p className="gs-eyebrow">Club created</p>
+        <p className="gs-eyebrow">{t("rest.club_created")}</p>
         <h2 id="cw-title">{clubName} is ready</h2>
         <p className="muted">
           You&apos;re its secretary. Add your players and you can start a match straight away —
@@ -146,7 +148,7 @@ export function ClubSetup({
         <ol className="cw-steps">
           <li className="done">
             <span className="cw-num"><Icon name="check" size={14} /></span>
-            <strong>Create your club</strong>
+            <strong>{t("rest.create_your_club")}</strong>
           </li>
           <li className="current">
             <span className="cw-num">2</span>
@@ -158,7 +160,7 @@ export function ClubSetup({
           <li>
             <span className="cw-num">3</span>
             <div>
-              <strong>Start your first match</strong>
+              <strong>{t("rest.start_your_first_match")}</strong>
             </div>
           </li>
         </ol>
@@ -175,7 +177,7 @@ export function ClubSetup({
               setSpotKey(steps[0].key);
             }}
           >
-            <Icon name="users" size={16} /> Add players
+            <Icon name="users" size={16} /> {t("rest.add_players")}
           </button>
         </div>
       </dialog>
@@ -184,13 +186,13 @@ export function ClubSetup({
         <section className="panel cs" aria-labelledby="cs-title">
           <div className="gs-head">
             <div>
-              <p className="gs-eyebrow"><Icon name="sparkle" size={14} /> Club setup</p>
+              <p className="gs-eyebrow"><Icon name="sparkle" size={14} /> {t("rest.club_setup")}</p>
               <h2 id="cs-title">Get {clubName} ready for its first match</h2>
               <p className="muted">
                 {doneCount} of {total} done — {total - doneCount} to go.
               </p>
             </div>
-            <button className="btn ghost sm" type="button" onClick={hide}>Hide</button>
+            <button className="btn ghost sm" type="button" onClick={hide}>{t("rest.hide")}</button>
           </div>
           <div
             className="gs-progress"
@@ -198,7 +200,7 @@ export function ClubSetup({
             aria-valuenow={doneCount}
             aria-valuemin={0}
             aria-valuemax={total}
-            aria-label="Club setup progress"
+            aria-label={t("rest.club_setup_progress")}
           >
             <span style={{ width: `${Math.round((doneCount / total) * 100)}%` }} />
           </div>

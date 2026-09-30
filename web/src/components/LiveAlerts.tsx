@@ -13,6 +13,7 @@ import type { ChatMessage } from "@/lib/chat";
 import { threadTitle } from "@/lib/inbox";
 import { subscribeLive } from "@/lib/live";
 import { Icon, type IconName } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 type Alert = { id: string; icon: IconName; title: string; body?: string; href: string };
 
@@ -28,6 +29,7 @@ const SHOW_MS = 6000;
 /// service worker stays quiet while a Fishers tab is in front of you, so the
 /// two never say the same thing twice.
 export function LiveAlerts() {
+  const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -54,7 +56,7 @@ export function LiveAlerts() {
           add({
             id: `m:${m.id}`,
             icon: "chat",
-            title: `${m.sender_name ?? "The assistant"}${where ? ` · ${where}` : ""}`,
+            title: `${m.sender_name ?? t("le.the_assistant")}${where ? ` · ${where}` : ""}`,
             body: m.body,
             href: `/chat/${e.conversation_id}`,
           });
@@ -63,18 +65,18 @@ export function LiveAlerts() {
           const n = feed.items[0];
           // The same event fires when something is marked read elsewhere.
           if (!n || n.read_at) return;
-          const line = notificationLine(n);
+          const line = notificationLine(n, t);
           add({ id: `n:${n.id}`, icon: "inbox", title: line.title, href: line.href ?? "/notifications" });
         }
       } catch {
         /* an alert that could not be built is one nobody misses */
       }
     });
-  }, [signedIn]);
+  }, [signedIn, t]);
 
   if (alerts.length === 0) return null;
   return (
-    <div className="live-alerts" role="region" aria-label="Alerts">
+    <div className="live-alerts" role="region" aria-label={t("rest.alerts")}>
       {alerts.map((a) => (
         <AlertCard
           key={a.id}
@@ -91,6 +93,7 @@ export function LiveAlerts() {
 }
 
 function AlertCard({ alert, onOpen, onClose }: { alert: Alert; onOpen: () => void; onClose: () => void }) {
+  const t = useT();
   const [hover, setHover] = useState(false);
   // In a ref, so a new alert arriving (a new onClose from the parent) does not
   // restart every other alert's countdown.
@@ -119,7 +122,7 @@ function AlertCard({ alert, onOpen, onClose }: { alert: Alert; onOpen: () => voi
           {alert.body && <span>{alert.body}</span>}
         </span>
       </button>
-      <button type="button" className="live-alert-close" onClick={onClose} aria-label="Dismiss">
+      <button type="button" className="live-alert-close" onClick={onClose} aria-label={t("rest.dismiss")}>
         ×
       </button>
     </div>

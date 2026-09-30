@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useT } from "@/lib/i18n/provider";
 
 export type PickablePlayer = {
   id: string;
@@ -24,7 +25,7 @@ export function PlayerPicker({
   players,
   value,
   onChange,
-  placeholder = "Type a name",
+  placeholder = "le.type_a_name",
 }: {
   label: string;
   hint?: string;
@@ -33,6 +34,7 @@ export function PlayerPicker({
   onChange: (id: string) => void;
   placeholder?: string;
 }) {
+  const t = useT();
   const chosen = players.find((p) => p.id === value) ?? null;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -156,7 +158,7 @@ export function PlayerPicker({
               </button>
             </li>
           ))}
-          {matches.length === 0 && <li className="player-empty">Nobody by that name.</li>}
+          {matches.length === 0 && <li className="player-empty">{t("rest.nobody_by_that_name")}</li>}
         </ul>
       )}
     </div>

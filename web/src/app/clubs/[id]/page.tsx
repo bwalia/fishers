@@ -33,15 +33,17 @@ import { Avatar } from "@/components/Avatar";
 import { QrCard } from "@/components/QrCard";
 import { copyText } from "@/lib/clipboard";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 export default function ClubPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [club, setClub] = useState<Club | null>(null);
   const [members, setMembers] = useState<ClubMemberRow[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
-  // Set by the redirect from "Create club": the welcome shows once, and the
+  // Set by the redirect from t("lc.create_club"): the welcome shows once, and the
   // flag comes off the address so a refresh does not show it again.
   const [welcome, setWelcome] = useState(false);
   const [myRole, setMyRole] = useState<MyRole | null>(null);
@@ -68,11 +70,11 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       setVenues(v);
       setMyRole(role);
     } catch (err) {
-      setError(readErr(err, "Could not load the club"));
+      setError(readErr(err, t("lc.could_not_load_the_club")));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -117,7 +119,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
       <section className="hero">
         <p className="muted"><Link href="/clubs">← All clubs</Link></p>
         <h1>{club.name}</h1>
-        <p>{club.description || "No description yet."}</p>
+        <p>{club.description || t("lc.no_description_yet")}</p>
         <div className="hero-tags">
           {club.sport_types.map((s) => <span className="tag" key={s}>{s}</span>)}
           {myRole && (
@@ -134,11 +136,11 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
         (isSecretary || myRole?.permissions.includes("score_match")) && (
           <div className="panel instant-start">
             <div>
-              <h2>Start a match</h2>
-              <p className="muted">Name the opposition and start scoring — no fixture to set up first.</p>
+              <h2>{t("cl.start_a_match")}</h2>
+              <p className="muted">{t("cl.name_the_opposition_and_start_scoring")}</p>
             </div>
             <Link className="btn primary" href={`/score?new=1&club=${id}`}>
-              <Icon name="bat" size={16} /> Start a match
+              <Icon name="bat" size={16} /> {t("cl.start_a_match")}
             </Link>
           </div>
         )}
@@ -197,6 +199,7 @@ function Members({
   meId?: string;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -228,7 +231,7 @@ function Members({
       await api("PATCH", `/clubs/${clubId}/members/${userId}`, { role, captain: captain === "captain" });
       onChanged();
     } catch (err) {
-      setError(readErr(err, "Could not change that role"));
+      setError(readErr(err, t("lc.could_not_change_that_role")));
     } finally {
       setBusy(null);
     }
@@ -242,7 +245,7 @@ function Members({
       await api("DELETE", `/clubs/${clubId}/members/${userId}`);
       onChanged();
     } catch (err) {
-      setError(readErr(err, "Could not remove them"));
+      setError(readErr(err, t("lc.could_not_remove_them")));
     } finally {
       setBusy(null);
     }
@@ -251,7 +254,7 @@ function Members({
   return (
     <div className="panel" id="members">
       <div className="panel-head">
-        <h2>Members</h2>
+        <h2>{t("cl.members")}</h2>
         <span className="tag grey">{members.length}</span>
         {isSecretary && (
           <Link className="btn ghost sm" href={`/clubs/${clubId}/people`} style={{ marginLeft: "auto" }}>
@@ -260,7 +263,7 @@ function Members({
         )}
       </div>
       <p className="muted">
-        A role is what somebody is allowed to <em>run</em>, not whether they play.
+        {t("cl.a_role_is_what_somebody_is_allowed_to")} <em>{t("cl.run")}</em>, not whether they play.
         Everybody here is picked from for a side, the secretary included — and the
         levels stack, so a secretary already has a captain&rsquo;s powers. Captain your
         own side as well? Choose <strong>Secretary &amp; captain</strong>.
@@ -271,11 +274,11 @@ function Members({
 
       {members.length > 8 && (
         <label>
-          Find someone
+          {t("cl.find_someone")}
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Name, email or number"
+            placeholder={t("cl.name_email_or_number")}
           />
         </label>
       )}
@@ -286,9 +289,9 @@ function Members({
         <table className="table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Contact</th>
-              <th>Role</th>
+              <th>{t("cl.name")}</th>
+              <th>{t("cl.contact")}</th>
+              <th>{t("cl.role")}</th>
               {isSecretary && <th></th>}
             </tr>
           </thead>
@@ -304,7 +307,7 @@ function Members({
                       <Link className="person" href={`/players/${m.user_id}`}>
                         <Avatar name={m.name} url={m.avatar_url} size={30} />
                         {m.name}
-                        {m.user_id === meId && <span className="tag grey">you</span>}
+                        {m.user_id === meId && <span className="tag grey">{t("cl.you")}</span>}
                       </Link>
                       {m.user_id !== meId && <MessageButton userId={m.user_id} name={m.name} compact />}
                     </div>
@@ -323,8 +326,8 @@ function Members({
                         {ROLE_CHOICES.filter(
                           (r) => !lastSecretary || r.value.startsWith("club_admin")
                         ).map((r) => (
-                          <option key={r.value} value={r.value} title={r.can}>
-                            {r.label}
+                          <option key={r.value} value={r.value} title={t(r.can)}>
+                            {t(r.label)}
                           </option>
                         ))}
                       </select>
@@ -338,7 +341,7 @@ function Members({
                         className="btn ghost sm"
                         type="button"
                         disabled={busy === m.user_id || lastSecretary}
-                        title={lastSecretary ? "A club needs a secretary" : undefined}
+                        title={lastSecretary ? t("lc.a_club_needs_a_secretary") : undefined}
                         onClick={() => remove(m.user_id, m.name)}
                       >
                         Remove
@@ -350,7 +353,7 @@ function Members({
             })}
             {shown.length === 0 && (
               <tr>
-                <td colSpan={4} className="muted">Nobody matches that.</td>
+                <td colSpan={4} className="muted">{t("cl.nobody_matches_that")}</td>
               </tr>
             )}
           </tbody>
@@ -362,6 +365,7 @@ function Members({
 
 /// Two ways in, because most people a club wants are not signed up yet.
 function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void }) {
+  const t = useT();
   const [identifier, setIdentifier] = useState("");
   const [role, setRole] = useState("member");
   const [busy, setBusy] = useState(false);
@@ -378,10 +382,10 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
         role,
       });
       setIdentifier("");
-      setNote("Added.");
+      setNote(t("lc.added"));
       onAdded();
     } catch (err) {
-      setNote(readErr(err, "Could not add them"));
+      setNote(readErr(err, t("lc.could_not_add_them")));
     } finally {
       setBusy(false);
     }
@@ -399,7 +403,7 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
       setInvite(`${window.location.origin}/invite/${created.token}`);
       setNote(null);
     } catch (err) {
-      setNote(readErr(err, "Could not create the invite"));
+      setNote(readErr(err, t("lc.could_not_create_the_invite")));
     } finally {
       setBusy(false);
     }
@@ -409,18 +413,18 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
     <div className="add-member" id="add-players">
       <div className="field-row">
         <label>
-          Email or mobile number
+          {t("cl.email_or_mobile_number")}
           <input
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="them@club.test or 07700 900123"
+            placeholder={t("cl.them_club_test_or_07700_900123")}
           />
         </label>
         <label>
-          Role
+          {t("cl.role")}
           <select value={role} onChange={(e) => setRole(e.target.value)}>
             {CLUB_ROLES.map((r) => (
-              <option key={r.value} value={r.value}>{r.label}</option>
+              <option key={r.value} value={r.value}>{t(r.label)}</option>
             ))}
           </select>
         </label>
@@ -428,12 +432,11 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
           <Icon name="plus" size={16} /> Add
         </button>
         <button className="btn" type="button" disabled={!identifier.trim() || busy} onClick={sendInvite}>
-          Invite instead
+          {t("cl.invite_instead")}
         </button>
       </div>
       <p className="subtle">
-        Add works for somebody who already has an account. Invite makes a link for
-        anyone who does not.
+        {t("cl.add_works_for_somebody_who_already_has")}
       </p>
       {note && <p className="muted">{note}</p>}
       {invite && (
@@ -444,7 +447,7 @@ function AddMember({ clubId, onAdded }: { clubId: string; onAdded: () => void })
             type="button"
             onClick={() => void copyText(invite)}
           >
-            Copy
+            {t("cl.copy")}
           </button>
         </div>
       )}
@@ -463,6 +466,7 @@ function Teams({
   isSecretary: boolean;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [sport, setSport] = useState("cricket");
   const [busy, setBusy] = useState(false);
@@ -476,7 +480,7 @@ function Teams({
       setName("");
       onChanged();
     } catch (err) {
-      setError(readErr(err, "Could not create the team"));
+      setError(readErr(err, t("lc.could_not_create_the_team")));
     } finally {
       setBusy(false);
     }
@@ -485,30 +489,29 @@ function Teams({
   return (
     <div className="panel" id="teams">
       <div className="panel-head">
-        <h2>Teams</h2>
+        <h2>{t("cl.teams")}</h2>
         <span className="tag grey">{teams.length}</span>
       </div>
       {teams.length === 0 && (
         <p className="muted">
-          No teams yet. A club can run without them — teams are for a 1st XI and a 2nd XI
-          keeping separate squads.
+          {t("cl.no_teams_yet_a_club_can_run_without_th")}
         </p>
       )}
       {teams.map((t) => <TeamRow key={t.id} team={t} />)}
       {isSecretary && (
         <div className="field-row" id="add-team" style={{ marginTop: "var(--s3)" }}>
           <label>
-            New team
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="1st XI" />
+            {t("cl.new_team")}
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("cl.1st_xi")} />
           </label>
           <label>
-            Sport
+            {t("cl.sport")}
             <select value={sport} onChange={(e) => setSport(e.target.value)}>
               {SPORTS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
           <button className="btn" type="button" disabled={!name.trim() || busy} onClick={create}>
-            <Icon name="plus" size={16} /> Create
+            <Icon name="plus" size={16} /> {t("cl.create")}
           </button>
         </div>
       )}
@@ -522,6 +525,7 @@ function Teams({
 /// Collapsed by default: a club with four teams should not fetch four rosters
 /// to show a list of four names. Open one and it loads.
 function TeamRow({ team }: { team: Team }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [members, setMembers] = useState<TeamMemberRow[] | null>(null);
 
@@ -554,7 +558,7 @@ function TeamRow({ team }: { team: Team }) {
           <div className="skeleton" style={{ height: 48 }} />
         ) : members.length === 0 ? (
           <p className="muted">
-            Nobody in this team yet. A secretary or the team captain adds people.
+            {t("cl.nobody_in_this_team_yet_a_secretary_or")}
           </p>
         ) : (
           <ul className="pick-list">
@@ -597,6 +601,7 @@ function Venues({
   canEdit: boolean;
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
@@ -625,7 +630,7 @@ function Venues({
   return (
     <div className="panel" id="grounds">
       <div className="panel-head">
-        <h2>Grounds</h2>
+        <h2>{t("cl.grounds")}</h2>
         <span className="tag grey">{venues.length}</span>
       </div>
       {canEdit && (
@@ -636,8 +641,7 @@ function Venues({
 
       {venues.length === 0 ? (
         <p className="muted">
-          No grounds yet. Add the ones you play at and they can be picked when a fixture is
-          scheduled.
+          {t("cl.no_grounds_yet_add_the_ones_you_play_a")}
         </p>
       ) : (
         <ul className="pick-list">
@@ -660,7 +664,7 @@ function Venues({
                     target="_blank"
                     rel="noreferrer noopener"
                   >
-                    Map
+                    {t("cl.map")}
                   </a>
                 </div>
               )}
@@ -672,7 +676,7 @@ function Venues({
       {canEdit && !adding && (
         <button className="btn" type="button" onClick={() => setAdding(true)}
                 style={{ marginTop: "var(--s3)" }}>
-          <Icon name="plus" size={16} /> Add a ground
+          <Icon name="plus" size={16} /> {t("cl.add_a_ground")}
         </button>
       )}
 
@@ -680,14 +684,14 @@ function Venues({
         <>
           <div className="setup-fields">
             <label>
-              Name
+              {t("cl.name")}
               <input value={name} onChange={(e) => setName(e.target.value)}
-                     placeholder="Highbury Fields" maxLength={160} />
+                     placeholder={t("cl.highbury_fields")} maxLength={160} />
             </label>
             <label>
-              Address
+              {t("cl.address")}
               <input value={address} onChange={(e) => setAddress(e.target.value)}
-                     placeholder="Highbury Fields, London N5 1AR" />
+                     placeholder={t("cl.highbury_fields_london_n5_1ar")} />
             </label>
           </div>
           {error && <p className="error">{error}</p>}
@@ -711,6 +715,7 @@ function Venues({
 /// settings. Nothing here changes what a captain *can* do; it changes what
 /// happens when nobody does anything.
 function Settings({ clubId }: { clubId: string }) {
+  const t = useT();
   const [settings, setSettings] = useState<ClubSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -735,7 +740,7 @@ function Settings({ clubId }: { clubId: string }) {
       setSettings(await api<ClubSettings>("PATCH", `/clubs/${clubId}/settings`, settings));
       setSaved(true);
     } catch (err) {
-      setError(readErr(err, "Could not save those settings"));
+      setError(readErr(err, t("lc.could_not_save_those_settings")));
     } finally {
       setBusy(false);
     }
@@ -760,43 +765,43 @@ function Settings({ clubId }: { clubId: string }) {
 
   return (
     <div className="panel">
-      <h2>How the club runs itself</h2>
+      <h2>{t("cl.how_the_club_runs_itself")}</h2>
 
       <label>
-        Picking a side
+        {t("cl.picking_a_side")}
         <select
           value={settings.selection_autonomy}
           onChange={(e) => set({ selection_autonomy: e.target.value })}
         >
-          <option value="off">Captains do it — no help offered</option>
-          <option value="suggest">Offer a squad and wait for the captain</option>
-          <option value="auto_publish">Announce a squad without asking</option>
+          <option value="off">{t("cl.captains_do_it_no_help_offered")}</option>
+          <option value="suggest">{t("cl.offer_a_squad_and_wait_for_the_captain")}</option>
+          <option value="auto_publish">{t("cl.announce_a_squad_without_asking")}</option>
         </select>
         <span className="subtle">
           {settings.selection_autonomy === "auto_publish"
-            ? "Sides go out on their own. A captain can still change one afterwards."
+            ? t("lc.sides_go_out_on_their_own_a_captain_ca")
             : settings.selection_autonomy === "suggest"
-            ? "Nothing is announced until a captain says so."
-            : "Nothing is suggested at all."}
+            ? t("lc.nothing_is_announced_until_a_captain_s")
+            : t("lc.nothing_is_suggested_at_all")}
         </span>
       </label>
 
       <div className="setup-fields">
-        {hours("Ask for confirmation", "confirm_lead_hours",
+        {hours(t("lc.ask_for_confirmation"), "confirm_lead_hours",
                "hours before the start")}
-        {hours("Drop anyone who has not confirmed", "drop_lead_hours",
+        {hours(t("lc.drop_anyone_who_has_not_confirmed"), "drop_lead_hours",
                "hours before the start — reserves move up")}
-        {hours("Chase an unpaid fee after", "fee_chase_after_hours",
+        {hours(t("lc.chase_an_unpaid_fee_after"), "fee_chase_after_hours",
                "hours from the fixture")}
-        {hours("Stop chasing after", "fee_chase_max_reminders",
+        {hours(t("lc.stop_chasing_after"), "fee_chase_max_reminders",
                "reminders, so nobody is nagged forever")}
       </div>
 
       {error && <p className="error">{error}</p>}
-      {saved && !error && <p className="muted">Saved.</p>}
+      {saved && !error && <p className="muted">{t("cl.saved")}</p>}
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn primary" type="button" disabled={busy} onClick={save}>
-          {busy ? "Saving…" : "Save"}
+          {busy ? "Saving…" : t("lc.save")}
         </button>
       </div>
     </div>
@@ -810,6 +815,7 @@ function Settings({ clubId }: { clubId: string }) {
 /// sends reminders on its own — this is the button for doing it now, and it
 /// says how many have already gone so nobody gets nagged twice in a morning.
 function Fees({ clubId }: { clubId: string }) {
+  const t = useT();
   const [fees, setFees] = useState<OutstandingFees | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -834,10 +840,10 @@ function Fees({ clubId }: { clubId: string }) {
     setNote(null);
     try {
       await api("POST", `/clubs/${clubId}/fees/chase`, {});
-      setNote("Reminders sent.");
+      setNote(t("lc.reminders_sent"));
       await load();
     } catch (err) {
-      setError(readErr(err, "Could not send those reminders"));
+      setError(readErr(err, t("lc.could_not_send_those_reminders")));
     } finally {
       setBusy(false);
     }
@@ -846,14 +852,14 @@ function Fees({ clubId }: { clubId: string }) {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>Match fees owed</h2>
+        <h2>{t("cl.match_fees_owed")}</h2>
         <span className={fees.count > 0 ? "tag gold" : "tag"}>
           {money(fees.total_cents)}
         </span>
       </div>
 
       {fees.count === 0 ? (
-        <p className="muted">Everybody is square. Nothing outstanding.</p>
+        <p className="muted">{t("cl.everybody_is_square_nothing_outstandin")}</p>
       ) : (
         <>
           <p className="muted">
@@ -863,8 +869,8 @@ function Fees({ clubId }: { clubId: string }) {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Who</th><th>Fixture</th><th>When</th>
-                  <th className="n">Owes</th><th className="n">Chased</th>
+                  <th>Who</th><th>{t("cl.fixture")}</th><th>When</th>
+                  <th className="n">{t("cl.owes")}</th><th className="n">{t("cl.chased")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -893,7 +899,7 @@ function Fees({ clubId }: { clubId: string }) {
           {note && !error && <p className="muted">{note}</p>}
           <div className="field-row" style={{ marginTop: "var(--s4)" }}>
             <button className="btn primary" type="button" disabled={busy} onClick={chase}>
-              {busy ? "Sending…" : "Remind everybody now"}
+              {busy ? t("lc.sending") : t("lc.remind_everybody_now")}
             </button>
           </div>
         </>
@@ -912,6 +918,7 @@ function PublicPage({
   clubName: string;
   members: ClubMemberRow[];
 }) {
+  const t = useT();
   const [page, setPage] = useState<ClubPageSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -933,7 +940,7 @@ function PublicPage({
       setPage(await api<ClubPageSettings>("PATCH", `/clubs/${clubId}/page`, patch));
       setSaved(true);
     } catch (err) {
-      setError(readErr(err, "Could not save the page"));
+      setError(readErr(err, t("lc.could_not_save_the_page")));
     } finally {
       setBusy(false);
     }
@@ -949,10 +956,10 @@ function PublicPage({
   return (
     <div className="panel" id="public-page">
       <div className="panel-head">
-        <h2>Your public page</h2>
+        <h2>{t("cl.your_public_page")}</h2>
         {page.public_page && page.slug && (
           <a className="btn ghost sm" href={`/c/${page.slug}`} target="_blank" rel="noreferrer">
-            View it
+            {t("cl.view_it")}
           </a>
         )}
       </div>
@@ -963,7 +970,7 @@ function PublicPage({
 
       <div className="setup-fields">
         <label>
-          Web address
+          {t("cl.web_address")}
           <input
             value={address}
             onChange={(e) => set({ slug: e.target.value })}
@@ -976,11 +983,11 @@ function PublicPage({
           <input
             value={page.ground ?? ""}
             onChange={(e) => set({ ground: e.target.value })}
-            placeholder="Highbury Fields, London N5"
+            placeholder={t("cl.highbury_fields_london_n5")}
           />
         </label>
         <label>
-          Founded
+          {t("cl.founded")}
           <input
             type="number"
             inputMode="numeric"
@@ -988,16 +995,16 @@ function PublicPage({
             onChange={(e) =>
               set({ founded_year: e.target.value === "" ? null : Number(e.target.value) })
             }
-            placeholder="1974"
+            placeholder={t("cl.1974")}
           />
         </label>
         <label>
-          Email for new players
+          {t("cl.email_for_new_players")}
           <input
             type="email"
             value={page.contact_email ?? ""}
             onChange={(e) => set({ contact_email: e.target.value })}
-            placeholder="hello@yourclub.test"
+            placeholder={t("cl.hello_yourclub_test")}
           />
         </label>
       </div>
@@ -1009,26 +1016,26 @@ function PublicPage({
       />
 
       <label>
-        One line about the club
+        {t("cl.one_line_about_the_club")}
         <input
           value={page.tagline ?? ""}
           onChange={(e) => set({ tagline: e.target.value })}
-          placeholder="Sunday cricket in north London since 1974."
+          placeholder={t("cl.sunday_cricket_in_north_london_since_1")}
         />
       </label>
 
       <label>
-        The longer version
+        {t("cl.the_longer_version")}
         <textarea
           rows={4}
           value={page.about ?? ""}
           onChange={(e) => set({ about: e.target.value })}
-          placeholder="Who you are, where you play, who you are looking for."
+          placeholder={t("cl.who_you_are_where_you_play_who_you_are")}
         />
       </label>
 
       {error && <p className="error">{error}</p>}
-      {saved && !error && <p className="muted">Saved.</p>}
+      {saved && !error && <p className="muted">{t("cl.saved")}</p>}
 
       <div className="field-row">
         <button
@@ -1037,7 +1044,7 @@ function PublicPage({
           disabled={busy}
           onClick={() => save({ ...page, slug: address })}
         >
-          {busy ? "Saving…" : "Save"}
+          {busy ? "Saving…" : t("lc.save")}
         </button>
         <button
           className="btn"
@@ -1045,7 +1052,7 @@ function PublicPage({
           disabled={busy}
           onClick={() => save({ slug: address, public_page: !page.public_page })}
         >
-          {page.public_page ? "Take it offline" : "Publish it"}
+          {page.public_page ? t("lc.take_it_offline") : t("lc.publish_it")}
         </button>
         <span className={`tag ${page.public_page ? "" : "grey"}`}>
           {page.public_page ? "Live" : "Not published"}
@@ -1068,6 +1075,7 @@ function IconPlayerPicker({
   chosen: string | null;
   onPick: (id: string) => void;
 }) {
+  const t = useT();
   const [filter, setFilter] = useState("");
   const term = filter.trim().toLowerCase();
   const shown = term
@@ -1076,18 +1084,17 @@ function IconPlayerPicker({
 
   return (
     <fieldset className="icon-pick">
-      <legend>Your icon player</legend>
+      <legend>{t("cl.your_icon_player")}</legend>
       <p className="muted">
-        Their photo leads the public page. They upload it themselves from their profile —
-        anyone without one still shows, just as initials.
+        {t("cl.their_photo_leads_the_public_page_they")}
       </p>
       {members.length > 6 && (
         <input
           className="icon-pick-search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Search the squad"
-          aria-label="Search the squad"
+          placeholder={t("cl.search_the_squad")}
+          aria-label={t("cl.search_the_squad")}
         />
       )}
       <div className="icon-pick-grid">
@@ -1100,7 +1107,7 @@ function IconPlayerPicker({
           onClick={() => onPick(NO_ICON_PLAYER)}
         >
           <span className="icon-pick-face none">—</span>
-          <span className="icon-pick-name">Nobody for now</span>
+          <span className="icon-pick-name">{t("cl.nobody_for_now")}</span>
         </button>
         {shown.map((m) => (
           <button
@@ -1121,6 +1128,7 @@ function IconPlayerPicker({
 }
 
 function Codes({ clubId, teams }: { clubId: string; teams: Team[] }) {
+  const t = useT();
   const [codes, setCodes] = useState<QrCode[]>([]);
 
   useEffect(() => {
@@ -1145,8 +1153,8 @@ function Codes({ clubId, teams }: { clubId: string; teams: Team[] }) {
   if (codes.length === 0) return null;
   return (
     <div className="panel">
-      <h2>Codes</h2>
-      <p className="muted">Show these to an opposition captain so they can find you.</p>
+      <h2>{t("cl.codes")}</h2>
+      <p className="muted">{t("cl.show_these_to_an_opposition_captain_so")}</p>
       <div className="qr-grid">
         {codes.map((qr) => (
           <QrCard key={`${qr.kind}-${qr.id}`} qr={qr} />

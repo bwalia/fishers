@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { Icon } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 type ShareResponse = {
   token: string;
@@ -26,6 +27,7 @@ export function ShareScoreboardButton({
   postToChat?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   // Kept so the link survives a failed copy. Losing it meant minting another.
@@ -50,12 +52,12 @@ export function ShareScoreboardButton({
           // `url` to `text`, and the recipient's app then linkifies the two
           // together into one address that resolves to nothing.
           await navigator.share({ title, text: title, url: res.url });
-          setNote("Shared.");
+          setNote(t("le.shared"));
           return;
         } catch (err) {
           // User dismissed the sheet — fall through to clipboard.
           if (err instanceof DOMException && err.name === "AbortError") {
-            setNote("Share cancelled — link still copied.");
+            setNote(t("le.share_cancelled_link_still_copied"));
           }
         }
       }
@@ -64,11 +66,11 @@ export function ShareScoreboardButton({
       // is how this page is reached from a phone at the ground.
       setNote(
         (await copyText(res.url))
-          ? "Link copied — paste into WhatsApp, Mail, or Messages."
-          : "Link ready — copy it below and paste into WhatsApp, Mail, or Messages."
+          ? t("le.link_copied_paste_into_whatsapp_mail_o")
+          : t("le.link_ready_copy_it_below_and_paste_int")
       );
     } catch (err) {
-      setNote(err instanceof Error ? err.message : "Could not create a share link");
+      setNote(err instanceof Error ? err.message : t("le.could_not_create_a_share_link"));
     } finally {
       setBusy(false);
     }
@@ -78,11 +80,10 @@ export function ShareScoreboardButton({
     <div className={className ?? "share-scoreboard"}>
       <button type="button" className="btn primary lg" onClick={() => void share()} disabled={busy}>
         <Icon name="share" size={18} />
-        {busy ? "Preparing link…" : "Share full scoreboard"}
+        {busy ? t("le.preparing_link") : t("le.share_full_scoreboard")}
       </button>
       <p className="muted share-hint">
-        Creates a live link anyone can open (WhatsApp, email, Messages). No login needed for
-        them. The full scorecard updates live, ball by ball.
+        {t("rest.creates_a_live_link_anyone_can_open_wh")}
       </p>
       {note && <p className="tag">{note}</p>}
       {link && (
@@ -92,7 +93,7 @@ export function ShareScoreboardButton({
           value={link}
           readOnly
           onFocus={(e) => e.currentTarget.select()}
-          aria-label="Live scoreboard link"
+          aria-label={t("rest.live_scoreboard_link")}
         />
       )}
     </div>

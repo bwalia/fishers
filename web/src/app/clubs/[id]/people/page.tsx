@@ -23,6 +23,7 @@ import {
 } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 const ROLE_VALUES = CLUB_ROLES.map((r) => r.value) as readonly string[];
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -121,6 +122,7 @@ function check(rows: Draft[], members: ClubMemberRow[], invites: Invite[]): Draf
 }
 
 export default function ClubPeoplePage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
 
@@ -149,11 +151,11 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
       // Pending invites are best-effort: the page is still useful without them.
       setInvites(await api<Invite[]>("GET", "/invites/mine").catch(() => []));
     } catch (e) {
-      setErr(readErr(e, "Could not load this club."));
+      setErr(readErr(e, t("le.could_not_load_this_club")));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (authed) void load();
@@ -218,7 +220,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
       await api("PATCH", `/clubs/${id}/members/${userId}`, { role });
       setMembers((prev) => prev.map((m) => (m.user_id === userId ? { ...m, role } : m)));
     } catch (e) {
-      setErr(readErr(e, "Could not change that role."));
+      setErr(readErr(e, t("le.could_not_change_that_role")));
     }
   };
 
@@ -228,19 +230,19 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
       await api("DELETE", `/clubs/${id}/members/${userId}`);
       setMembers((prev) => prev.filter((m) => m.user_id !== userId));
     } catch (e) {
-      setErr(readErr(e, "Could not remove that member."));
+      setErr(readErr(e, t("le.could_not_remove_that_member")));
     }
   };
 
-  if (!authed || loading) return <main className="page"><p className="muted">Loading…</p></main>;
+  if (!authed || loading) return <main className="page"><p className="muted">{t("rest.loading")}</p></main>;
 
   if (myRole && !myRole.is_secretary) {
     return (
       <main className="page">
-        <h1>People</h1>
+        <h1>{t("rest.people")}</h1>
         <p className="muted">
           Only a club secretary can bulk-manage the roster.{" "}
-          <Link href={`/clubs/${id}`}>Back to the club</Link>.
+          <Link href={`/clubs/${id}`}>{t("rest.back_to_the_club")}</Link>.
         </p>
       </main>
     );
@@ -255,17 +257,17 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
       <p className="muted" style={{ marginBottom: 4 }}>
         <Link href={`/clubs/${id}`}>← {club?.name ?? "Club"}</Link>
       </p>
-      <h1>People</h1>
+      <h1>{t("rest.people")}</h1>
       <p className="muted">
         Paste a spreadsheet, import a CSV, or type. Same columns as{" "}
-        <code>scripts/register-from-csv.example.csv</code>, so a sheet that works here works there.
+        <code>{t("rest.scripts_register_from_csv_example_csv")}</code>, so a sheet that works here works there.
       </p>
 
       {err && <p className="error" role="alert">{err}</p>}
 
       <nav className="tabs" style={{ margin: "16px 0" }}>
         <button className={`btn ghost${tab === "import" ? " active" : ""}`} onClick={() => setTab("import")}>
-          Invite in bulk
+          {t("rest.invite_in_bulk")}
         </button>
         <button className={`btn ghost${tab === "members" ? " active" : ""}`} onClick={() => setTab("members")}>
           Members ({members.length})
@@ -276,7 +278,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
         <section>
           <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
             <label className="btn ghost">
-              Import CSV
+              {t("rest.import_csv")}
               <input
                 type="file"
                 accept=".csv,text/csv,text/plain"
@@ -285,7 +287,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
               />
             </label>
             <button className="btn ghost" onClick={() => setRows([blank(), blank(), blank()])}>
-              Clear
+              {t("rest.clear")}
             </button>
             <span className="muted">
               {ready.length} ready
@@ -300,7 +302,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                   <th style={{ width: 28 }} />
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Phone</th>
+                  <th>{t("rest.phone")}</th>
                   <th style={{ width: 150 }}>Role</th>
                   <th>Status</th>
                 </tr>
@@ -312,21 +314,21 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                     <td>
                       <input
                         value={row.name}
-                        placeholder="Ada Fielding"
+                        placeholder={t("rest.ada_fielding")}
                         onChange={(e) => setCell(row.key, "name", e.target.value)}
                       />
                     </td>
                     <td>
                       <input
                         value={row.email}
-                        placeholder="ada@example.com"
+                        placeholder={t("rest.ada_example_com")}
                         onChange={(e) => setCell(row.key, "email", e.target.value)}
                       />
                     </td>
                     <td>
                       <input
                         value={row.phone}
-                        placeholder="+447700900123"
+                        placeholder={t("rest.447700900123")}
                         onChange={(e) => setCell(row.key, "phone", e.target.value)}
                       />
                     </td>
@@ -336,7 +338,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                         onChange={(e) => setCell(row.key, "role", e.target.value)}
                       >
                         {CLUB_ROLES.map((r) => (
-                          <option key={r.value} value={r.value}>{r.label}</option>
+                          <option key={r.value} value={r.value}>{t(r.label)}</option>
                         ))}
                       </select>
                     </td>
@@ -375,7 +377,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                       className="btn ghost sm"
                       onClick={() => void copyText(`${location.origin}/invite/${i.token}`)}
                     >
-                      Copy link
+                      {t("rest.copy_link")}
                     </button>
                   </li>
                 ))}
@@ -391,7 +393,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                 <tr>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Phone</th>
+                  <th>{t("rest.phone")}</th>
                   <th style={{ width: 150 }}>Role</th>
                   <th style={{ width: 90 }} />
                 </tr>
@@ -408,7 +410,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                         onChange={(e) => void changeRole(m.user_id, e.target.value)}
                       >
                         {CLUB_ROLES.map((r) => (
-                          <option key={r.value} value={r.value}>{r.label}</option>
+                          <option key={r.value} value={r.value}>{t(r.label)}</option>
                         ))}
                       </select>
                     </td>

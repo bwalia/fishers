@@ -17,6 +17,7 @@ import {
 import { Icon } from "@/components/Icon";
 import { RoleChooser } from "@/components/RoleChooser";
 import { ShareProfile } from "@/components/ShareProfile";
+import { useT } from "@/lib/i18n/provider";
 
 /// The one screen between signing up and the dashboard: what you play, and a
 /// number your captain can reach you on. Both can be skipped.
@@ -25,6 +26,7 @@ import { ShareProfile } from "@/components/ShareProfile";
 /// quiet moment. The first minute is for getting somebody into a club and a
 /// match, not for filling in a form.
 export default function WelcomePage() {
+  const t = useT();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [role, setRole] = useState<RoleIntent | null>(null);
@@ -102,7 +104,7 @@ export default function WelcomePage() {
       <main id="main" className="qs">
         <section className="panel qs-card" aria-labelledby="qs-share-title">
           <span className="qs-badge" aria-hidden="true"><Icon name="send" size={26} /></span>
-          <h1 id="qs-share-title">You&apos;re in. Now get picked.</h1>
+          <h1 id="qs-share-title">{t("fin.youre_in_now_get_picked")}</h1>
           <p className="muted">
             Send your profile link to your club&apos;s secretary or captain — WhatsApp is fine. They add
             you in one tap, and your fixtures show up here.
@@ -110,7 +112,7 @@ export default function WelcomePage() {
           <ShareProfile userId={user.id} />
           <div className="qs-actions">
             <button className="btn primary" type="button" onClick={() => router.push("/")}>
-              Go to my dashboard
+              {t("rest.go_to_my_dashboard")}
             </button>
           </div>
         </section>
@@ -121,7 +123,7 @@ export default function WelcomePage() {
   return (
     <main id="main" className="qs">
       <section className="panel qs-card" aria-labelledby="qs-title">
-        <p className="gs-eyebrow"><Icon name="sparkle" size={14} /> Quick start</p>
+        <p className="gs-eyebrow"><Icon name="sparkle" size={14} /> {t("rest.quick_start")}</p>
         <h1 id="qs-title">Hi {first}</h1>
         <p className="muted">Two quick things and you&apos;re in. Everything else can wait until you have a minute.</p>
 
@@ -133,7 +135,7 @@ export default function WelcomePage() {
         )}
 
         <fieldset className="qs-question">
-          <legend>What do you play?</legend>
+          <legend>{t("rest.what_do_you_play")}</legend>
           <div className="chip-list" role="group">
             {SPORTS.map((sport) => {
               const on = sports.includes(sport);
@@ -152,23 +154,23 @@ export default function WelcomePage() {
           </div>
           {sports.length > 1 && (
             <p className="subtle">
-              <span className="qs-cap">{sports[0]}</span> is your main sport — the first one you picked.
+              <span className="qs-cap">{sports[0]}</span> {t("rest.is_your_main_sport_the_first_one_you_p")}
             </p>
           )}
         </fieldset>
 
         {asksPhone && (
           <label className="qs-question">
-            <span className="qs-legend">Your mobile number</span>
+            <span className="qs-legend">{t("rest.your_mobile_number")}</span>
             <input
               type="tel"
               inputMode="tel"
               autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+44 7700 900123"
+              placeholder={t("rest.44_7700_900123")}
             />
-            <span className="subtle">So your captain can reach you on match day. Only your clubs see it.</span>
+            <span className="subtle">{t("rest.so_your_captain_can_reach_you_on_match")}</span>
           </label>
         )}
 
@@ -176,7 +178,7 @@ export default function WelcomePage() {
 
         <div className="qs-actions">
           <button className="btn ghost" type="button" disabled={busy} onClick={() => save(false)}>
-            Skip for now
+            {t("rest.skip_for_now")}
           </button>
           <button
             className="btn primary"
@@ -184,7 +186,7 @@ export default function WelcomePage() {
             disabled={busy || sports.length === 0}
             onClick={() => save(true)}
           >
-            {busy ? "Saving…" : "Continue"}
+            {busy ? "Saving…" : t("le.continue")}
           </button>
         </div>
       </section>

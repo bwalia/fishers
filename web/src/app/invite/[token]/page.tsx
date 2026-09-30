@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getAccessToken, type Club, type Invite } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 type Stage = "checking" | "signed-out" | "joining" | "joined" | "failed";
 
 export default function InvitePage({ params }: { params: Promise<{ token: string }> }) {
+  const t = useT();
   const { token } = use(params);
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("checking");
@@ -33,14 +35,14 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
       } catch (err) {
         const raw = err instanceof Error ? err.message : "";
         try {
-          setError(JSON.parse(raw).error ?? "That invite could not be used.");
+          setError(JSON.parse(raw).error ?? t("le.that_invite_could_not_be_used"));
         } catch {
-          setError(raw || "That invite could not be used.");
+          setError(raw || t("le.that_invite_could_not_be_used"));
         }
         setStage("failed");
       }
     })();
-  }, [token]);
+  }, [token, t]);
 
   const next = encodeURIComponent(`/invite/${token}`);
 
@@ -51,20 +53,20 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
 
         {stage === "signed-out" && (
           <>
-            <h1>You have been invited</h1>
+            <h1>{t("rest.you_have_been_invited")}</h1>
             <p className="muted">
-              Sign in or create an account and you will join straight away.
+              {t("rest.sign_in_or_create_an_account_and_you_w")}
             </p>
             <div style={{ display: "flex", gap: "var(--s3)", flexWrap: "wrap" }}>
               <Link className="btn primary" href={`/login?next=${next}`}>Sign in</Link>
-              <Link className="btn" href={`/register?next=${next}`}>Create an account</Link>
+              <Link className="btn" href={`/register?next=${next}`}>{t("rest.create_an_account")}</Link>
             </div>
           </>
         )}
 
         {stage === "joining" && (
           <>
-            <h1>Joining…</h1>
+            <h1>{t("rest.joining")}</h1>
             <div className="skeleton" style={{ height: 48 }} />
           </>
         )}
@@ -78,17 +80,17 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
               type="button"
               onClick={() => router.push(club ? `/clubs/${club.id}` : "/clubs")}
             >
-              Open the club
+              {t("rest.open_the_club")}
             </button>
           </div>
         )}
 
         {stage === "failed" && (
           <>
-            <h1>That link did not work</h1>
+            <h1>{t("rest.that_link_did_not_work")}</h1>
             <p className="error">{error}</p>
             <p className="muted">
-              An invite can only be used once. Ask whoever sent it for a fresh one.
+              {t("rest.an_invite_can_only_be_used_once_ask_wh")}
             </p>
             <Link className="btn" href="/clubs">Your clubs</Link>
           </>

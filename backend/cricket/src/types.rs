@@ -672,6 +672,15 @@ pub struct BowlerStats {
     pub wides: u16,
     #[serde(default)]
     pub no_balls: u16,
+    /// Wickets this bowler has taken on consecutive deliveries. Two means the
+    /// next legitimate ball is a hat-trick ball; three is the hat-trick.
+    ///
+    /// Kept as it happens rather than worked out from the delivery log
+    /// afterwards, because the log does not say whose wicket each one was — a
+    /// run out at the non-striker's end looks exactly like a caught behind in
+    /// it, and only one of the two is the bowler's.
+    #[serde(default)]
+    pub wickets_in_a_row: u8,
 }
 
 impl BowlerStats {
@@ -685,7 +694,13 @@ impl BowlerStats {
             current_over_runs: 0,
             wides: 0,
             no_balls: 0,
+            wickets_in_a_row: 0,
         }
+    }
+
+    /// On two, so the next legitimate delivery is the hat-trick ball.
+    pub fn on_a_hat_trick(&self) -> bool {
+        self.wickets_in_a_row == 2
     }
 
     pub fn overs_display(&self) -> String {

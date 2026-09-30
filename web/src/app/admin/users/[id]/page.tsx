@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { readErr } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 import { adminUser, career, type AdminUserDetail } from "@/lib/admin";
+import { useT } from "@/lib/i18n/provider";
 
 /// Everything held about one person.
 ///
@@ -13,6 +14,7 @@ import { adminUser, career, type AdminUserDetail } from "@/lib/admin";
 /// because that is what they have written in about. The cricket is further
 /// down — interesting, rarely urgent.
 export default function AdminUserPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [d, setD] = useState<AdminUserDetail | null>(null);
@@ -23,9 +25,9 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
       setD(await adminUser(id));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load this person"));
+      setError(readErr(err, t("le.could_not_load_this_person")));
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (authed) load();
@@ -55,34 +57,34 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
             {u.deleted_at && ` · deleted ${new Date(u.deleted_at).toLocaleDateString()}`}
           </p>
         </div>
-        {u.deleted_at && <span className="tag warn">Deleted</span>}
+        {u.deleted_at && <span className="tag warn">{t("rest.deleted")}</span>}
       </header>
 
       {/* Getting in comes first: it is why somebody writes in. */}
       <section className="panel">
-        <h2><Icon name="lock" size={18} /> Getting in</h2>
+        <h2><Icon name="lock" size={18} /> {t("rest.getting_in")}</h2>
         <div className="adm-cols">
           <div>
             <Field label="Email" value={u.email ?? "—"} note={u.email && !u.email_verified ? "not confirmed" : undefined} />
-            <Field label="Phone" value={u.phone ?? "—"} note={u.phone && !u.phone_verified ? "not confirmed" : undefined} />
+            <Field label={t("rest.phone")} value={u.phone ?? "—"} note={u.phone && !u.phone_verified ? "not confirmed" : undefined} />
           </div>
           <div>
-            <Field label="Password set" value={d.has_password ? "yes" : "no"} />
-            <Field label="Google linked" value={d.has_google ? "yes" : "no"} />
-            <Field label="Apple linked" value={d.has_apple ? "yes" : "no"} />
+            <Field label={t("rest.password_set")} value={d.has_password ? "yes" : "no"} />
+            <Field label={t("rest.google_linked")} value={d.has_google ? "yes" : "no"} />
+            <Field label={t("rest.apple_linked")} value={d.has_apple ? "yes" : "no"} />
           </div>
           <div>
-            <Field label="Signed in now" value={String(u.clubs >= 0 ? d.active_sessions : 0)} />
-            <Field label="Devices on push" value={String(d.push_devices)} />
+            <Field label={t("rest.signed_in_now")} value={String(u.clubs >= 0 ? d.active_sessions : 0)} />
+            <Field label={t("rest.devices_on_push")} value={String(d.push_devices)} />
             <Field
-              label="Last seen"
+              label={t("rest.last_seen")}
               value={u.last_seen ? new Date(u.last_seen).toLocaleString() : "never"}
             />
           </div>
         </div>
         {!d.has_password && !d.has_google && !d.has_apple && (
           <p className="error">
-            No password and no linked account — this person has no way to sign in at all.
+            {t("rest.no_password_and_no_linked_account_this")}
           </p>
         )}
       </section>
@@ -91,23 +93,23 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
         <h2><Icon name="book" size={18} /> Profile</h2>
         <div className="adm-cols">
           <div>
-            <Field label="Primary sport" value={u.primary_sport ?? "—"} />
+            <Field label={t("rest.primary_sport")} value={u.primary_sport ?? "—"} />
             <Field label="Position" value={u.position_role ?? "—"} />
             <Field label="Standard" value={u.skill_level ?? "—"} />
           </div>
           <div>
-            <Field label="Came to" value={d.role_intent ?? "—"} />
+            <Field label={t("rest.came_to")} value={d.role_intent ?? "—"} />
             <Field
-              label="Profile finished"
+              label={t("rest.profile_finished")}
               value={d.profile_completed_at ? new Date(d.profile_completed_at).toLocaleDateString() : "not yet"}
             />
             <Field label="Honours" value={String(d.achievements)} />
           </div>
           <div>
             <Field label="Umpires" value={d.umpires ? "yes" : "no"} note={d.umpire_note ?? undefined} />
-            <Field label="Matches umpired" value={String(d.umpired)} />
+            <Field label={t("rest.matches_umpired")} value={String(d.umpired)} />
             <Field
-              label="Umpire rating"
+              label={t("rest.umpire_rating")}
               value={d.umpire_rating !== null ? `${d.umpire_rating.toFixed(1)} from ${d.umpire_reviews}` : "not rated"}
             />
           </div>
@@ -118,12 +120,12 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
       <section className="panel">
         <h2><Icon name="users" size={18} /> Clubs</h2>
         {d.clubs.length === 0 ? (
-          <p className="muted">Not in any club.</p>
+          <p className="muted">{t("rest.not_in_any_club")}</p>
         ) : (
           <div className="adm-table-wrap">
             <table className="adm-table">
               <thead>
-                <tr><th scope="col">Club</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Joined</th></tr>
+                <tr><th scope="col">Club</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">{t("rest.joined")}</th></tr>
               </thead>
               <tbody>
                 {d.clubs.map((club) => (
@@ -143,33 +145,33 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
       {/* Their own answer and what happened, side by side: somebody who always
           says yes and never turns up looks reliable until both are read. */}
       <section className="panel">
-        <h2><Icon name="clock" size={18} /> Turning up</h2>
+        <h2><Icon name="clock" size={18} /> {t("rest.turning_up")}</h2>
         {d.availability.invited === 0 ? (
-          <p className="muted">Never been asked to a fixture.</p>
+          <p className="muted">{t("rest.never_been_asked_to_a_fixture")}</p>
         ) : (
           <div className="adm-grid">
-            <Figure label="Asked" value={d.availability.invited} />
-            <Figure label="Said yes" value={d.availability.said_yes} of={answered} />
-            <Figure label="Said no" value={d.availability.said_no} of={answered} />
-            <Figure label="Never answered" value={d.availability.never_answered} of={d.availability.invited} />
-            <Figure label="Selected" value={d.availability.selected} />
-            <Figure label="Turned up" value={d.availability.attended} of={d.availability.selected} />
+            <Figure label={t("rest.asked")} value={d.availability.invited} />
+            <Figure label={t("rest.said_yes")} value={d.availability.said_yes} of={answered} />
+            <Figure label={t("rest.said_no")} value={d.availability.said_no} of={answered} />
+            <Figure label={t("rest.never_answered")} value={d.availability.never_answered} of={d.availability.invited} />
+            <Figure label={t("rest.selected")} value={d.availability.selected} />
+            <Figure label={t("rest.turned_up")} value={d.availability.attended} of={d.availability.selected} />
           </div>
         )}
       </section>
 
       <section className="panel">
-        <h2><Icon name="bat" size={18} /> Cricket</h2>
+        <h2><Icon name="bat" size={18} /> {t("rest.cricket")}</h2>
         {d.seasons.length === 0 ? (
-          <p className="muted">No scorecard has their name on it yet.</p>
+          <p className="muted">{t("rest.no_scorecard_has_their_name_on_it_yet")}</p>
         ) : (
           <>
             <div className="adm-grid">
               <Figure label="Matches" value={c.matches} />
               <Figure label="Runs" value={c.runs} />
               <Figure label="Average" text={c.average === null ? "—" : c.average.toFixed(2)} />
-              <Figure label="Strike rate" text={c.strikeRate === null ? "—" : c.strikeRate.toFixed(1)} />
-              <Figure label="High score" text={c.innings > 0 ? String(c.high) : "—"} />
+              <Figure label={t("rest.strike_rate")} text={c.strikeRate === null ? "—" : c.strikeRate.toFixed(1)} />
+              <Figure label={t("rest.high_score")} text={c.innings > 0 ? String(c.high) : "—"} />
               <Figure label="Wickets" value={c.wickets} />
               <Figure label="Economy" text={c.economy === null ? "—" : c.economy.toFixed(2)} />
               <Figure label="Catches" value={c.catches + c.stumpings} />
@@ -182,7 +184,7 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
                     <th scope="col" className="num">M</th><th scope="col" className="num">Runs</th>
                     <th scope="col" className="num">HS</th><th scope="col" className="num">4s</th>
                     <th scope="col" className="num">6s</th><th scope="col" className="num">Wkts</th>
-                    <th scope="col" className="num">Overs</th><th scope="col" className="num">Ct</th>
+                    <th scope="col" className="num">Overs</th><th scope="col" className="num">{t("rest.ct")}</th>
                   </tr>
                 </thead>
                 <tbody>

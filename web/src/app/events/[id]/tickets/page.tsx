@@ -12,6 +12,7 @@ import {
   useReturnedFromStripe,
 } from "@/components/PayDialog";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 /// A ticketed club event — the dinner, the quiz, presentation night.
 ///
@@ -19,6 +20,7 @@ import { useRequireAuth } from "@/lib/require-auth";
 /// own place and bring people, and — if you are running it — see the headcount
 /// and who still owes.
 export default function TicketsPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [booking, setBooking] = useState<TicketBooking | null>(null);
@@ -48,11 +50,11 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
       setBooking(await api<TicketBooking>("GET", `/events/${id}/tickets`));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load the tickets"));
+      setError(readErr(err, t("le.could_not_load_the_tickets")));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -95,13 +97,13 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
           <span className="tag">{summary.headcount} coming</span>
           {left != null && (
             <span className={left <= 0 ? "tag danger" : "tag grey"}>
-              {left <= 0 ? "Full" : `${left} places left`}
+              {left <= 0 ? t("le.full") : `${left} places left`}
             </span>
           )}
           {summary.ticket_price_cents != null && (
             <span className="tag gold">{money(summary.ticket_price_cents)} each</span>
           )}
-          {summary.tickets_public && <span className="tag grey">Open to all</span>}
+          {summary.tickets_public && <span className="tag grey">{t("ev.open_to_all")}</span>}
         </div>
       </section>
 
@@ -114,15 +116,15 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
           {mine ? (
             <div className="panel">
               <div className="panel-head">
-                <h2>You are booked</h2>
+                <h2>{t("ev.you_are_booked")}</h2>
                 <span className={`tag ${mine.status === "paid" ? "" : "grey"}`}>
                   {mine.status}
                 </span>
               </div>
               <dl className="pro-about">
-                <div><dt>Places</dt><dd className="num">{1 + mine.guests}</dd></div>
-                {mine.guest_names && <div><dt>Bringing</dt><dd>{mine.guest_names}</dd></div>}
-                <div><dt>To pay</dt><dd className="num">{money(mine.amount_cents, mine.currency)}</dd></div>
+                <div><dt>{t("ev.places")}</dt><dd className="num">{1 + mine.guests}</dd></div>
+                {mine.guest_names && <div><dt>{t("ev.bringing")}</dt><dd>{mine.guest_names}</dd></div>}
+                <div><dt>{t("ev.to_pay")}</dt><dd className="num">{money(mine.amount_cents, mine.currency)}</dd></div>
               </dl>
               <div className="field-row" style={{ marginTop: "var(--s4)" }}>
                 {mine.status !== "paid" && mine.amount_cents > 0 && cards && (
@@ -140,7 +142,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                     }}
                   >
                     {paying
-                      ? "Taking you to Stripe…"
+                      ? t("le.taking_you_to_stripe")
                       : `Pay ${money(mine.amount_cents, mine.currency)} by card`}
                   </button>
                 )}
@@ -149,24 +151,24 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                   // server has no Stripe keys, so the only way to pay is to
                   // hand the money over.
                   <span className="subtle">
-                    Pay your club directly — card payments are not switched on here.
+                    {t("ev.pay_your_club_directly_card_payments_a")}
                   </span>
                 )}
                 <button
                   className="btn"
                   type="button"
                   disabled={busy !== null}
-                  onClick={() => act("cancel", () => api("POST", `/tickets/${mine.id}/cancel`, {}), "Booking cancelled.")}
+                  onClick={() => act("cancel", () => api("POST", `/tickets/${mine.id}/cancel`, {}), t("le.booking_cancelled"))}
                 >
-                  {busy === "cancel" ? "Cancelling…" : "Cancel my place"}
+                  {busy === "cancel" ? t("le.cancelling") : t("le.cancel_my_place")}
                 </button>
               </div>
             </div>
           ) : (
             <div className="panel">
-              <h2>Book a place</h2>
+              <h2>{t("ev.book_a_place")}</h2>
               {left != null && left <= 0 ? (
-                <p className="muted">Sold out. Ask your secretary whether there is a list.</p>
+                <p className="muted">{t("ev.sold_out_ask_your_secretary_whether_th")}</p>
               ) : (
                 <>
                   {/* Only offered when the event actually allows guests —
@@ -174,7 +176,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                   {summary.guests_allowed > 0 && (
                     <div className="setup-fields">
                       <label>
-                        How many are you bringing
+                        {t("ev.how_many_are_you_bringing")}
                         <span className="subtle">up to {summary.guests_allowed}</span>
                         <input
                           type="number"
@@ -190,25 +192,25 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                       </label>
                       {guests > 0 && (
                         <label>
-                          Who
+                          {t("ev.who")}
                           <input
                             value={guestNames}
                             onChange={(e) => setGuestNames(e.target.value)}
-                            placeholder="Names, so the table plan works"
+                            placeholder={t("ev.names_so_the_table_plan_works")}
                           />
                         </label>
                       )}
                     </div>
                   )}
                   {summary.guests_allowed === 0 && (
-                    <p className="muted">Members only — no guests at this one.</p>
+                    <p className="muted">{t("ev.members_only_no_guests_at_this_one")}</p>
                   )}
                   <label>
-                    Anything the club should know
+                    {t("ev.anything_the_club_should_know")}
                     <input
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Two vegetarians, one gluten free"
+                      placeholder={t("ev.two_vegetarians_one_gluten_free")}
                     />
                   </label>
                   <div className="field-row" style={{ marginTop: "var(--s4)" }}>
@@ -229,7 +231,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                         )
                       }
                     >
-                      {busy === "book" ? "Booking…" : `Book ${1 + guests} ${guests ? "places" : "place"}`}
+                      {busy === "book" ? t("le.booking") : `Book ${1 + guests} ${guests ? "places" : "place"}`}
                     </button>
                   </div>
                 </>
@@ -240,23 +242,23 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
           {insider && (
             <div className="panel">
               <div className="panel-head">
-                <h2>Who is coming</h2>
+                <h2>{t("ev.who_is_coming")}</h2>
                 <span className="tag grey">{summary.bookings} bookings</span>
               </div>
               {tickets.length === 0 ? (
-                <p className="muted">Nobody yet. Be the first.</p>
+                <p className="muted">{t("ev.nobody_yet_be_the_first")}</p>
               ) : (
                 <ul className="pick-list">
-                  {tickets.map((t) => (
+                  {tickets.map((ticket) => (
                     <TicketRow
-                      key={t.id}
-                      ticket={t}
+                      key={ticket.id}
+                      ticket={ticket}
                       busy={busy !== null}
                       onPaid={(method) =>
                         act(
-                          t.id,
-                          () => api("POST", `/tickets/${t.id}/mark-paid`, { method }),
-                          `${t.name ?? "That booking"} marked paid.`
+                          ticket.id,
+                          () => api("POST", `/tickets/${ticket.id}/mark-paid`, { method }),
+                          `${ticket.name ?? t("le.that_booking")} marked paid.`
                         )
                       }
                     />
@@ -269,14 +271,14 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
 
         <aside className="pro-rail">
           <div className="panel">
-            <h2>The numbers</h2>
+            <h2>{t("ev.the_numbers")}</h2>
             <dl className="pro-figures">
-              <div><dt>Coming</dt><dd className="num">{summary.headcount}</dd></div>
+              <div><dt>{t("ev.coming")}</dt><dd className="num">{summary.headcount}</dd></div>
               {insider && (
                 <>
-                  <div><dt>Bookings</dt><dd className="num">{summary.bookings}</dd></div>
-                  <div><dt>Taken</dt><dd className="num">{money(summary.collected_cents)}</dd></div>
-                  <div><dt>Owed</dt><dd className="num">{money(summary.outstanding_cents)}</dd></div>
+                  <div><dt>{t("ev.bookings")}</dt><dd className="num">{summary.bookings}</dd></div>
+                  <div><dt>{t("ev.taken")}</dt><dd className="num">{money(summary.collected_cents)}</dd></div>
+                  <div><dt>{t("ev.owed")}</dt><dd className="num">{money(summary.outstanding_cents)}</dd></div>
                 </>
               )}
             </dl>
@@ -305,7 +307,8 @@ function TicketRow({
   busy: boolean;
   onPaid: (method: "cash" | "transfer") => void;
 }) {
-  const who = ticket.name ?? "A member";
+  const t = useT();
+  const who = ticket.name ?? t("le.a_member");
   return (
     <li className={ticket.status === "cancelled" ? "reserve" : undefined}>
       <Avatar name={who} size={32} />
@@ -328,11 +331,11 @@ function TicketRow({
           <>
             <button className="btn ghost sm" type="button" disabled={busy}
                     onClick={() => onPaid("cash")}>
-              Cash
+              {t("ev.cash")}
             </button>
             <button className="btn ghost sm" type="button" disabled={busy}
                     onClick={() => onPaid("transfer")}>
-              Transfer
+              {t("ev.transfer")}
             </button>
           </>
         )}

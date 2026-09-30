@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { brand } from "@/brand.generated";
+import { getT } from "@/lib/i18n/server";
 
 export const metadata: Metadata = {
   title: `Privacy — ${brand.name}`,
@@ -16,110 +17,99 @@ export const metadata: Metadata = {
 const CONTROLLER = `[the operator of ${brand.name}]`;
 const CONTACT = "[privacy@your-domain]";
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const t = await getT();
   return (
     <main id="main">
       <section className="hero">
-        <h1>Privacy</h1>
+        <h1>{t("rest.privacy")}</h1>
         <p>
           {brand.name} is a club app: it keeps the things a club needs to put a side out
           on a Saturday. This is all of it, in plain terms.
         </p>
-        <p className="muted">Last updated 17 September 2026.</p>
+        <p className="muted">{t("rest.last_updated_17_september_2026")}</p>
       </section>
 
       <div className="panel">
-        <h2>Who holds it</h2>
+        <h2>{t("rest.who_holds_it")}</h2>
         <p>
           {CONTROLLER} is the data controller. Questions, corrections and complaints
           go to <strong>{CONTACT}</strong>.
         </p>
 
-        <h2>What we record</h2>
+        <h2>{t("rest.what_we_record")}</h2>
         <ul>
           <li>
-            <strong>Who you are</strong> — name, email address, mobile number, and an
+            <strong>{t("rest.who_you_are")}</strong> — name, email address, mobile number, and an
             emergency contact if you give one. Your profile picture if you upload one.
           </li>
           <li>
-            <strong>What you play</strong> — sports, positions, self-rated standard,
+            <strong>{t("rest.what_you_play")}</strong> — sports, positions, self-rated standard,
             and the career figures you choose to enter.
           </li>
           <li>
-            <strong>Where you can get to</strong> — the area, postcode, travel radius
+            <strong>{t("rest.where_you_can_get_to")}</strong> — the area, postcode, travel radius
             and preferred days you enter, so a club can work out lifts and selection.
           </li>
           <li>
-            <strong>What you do in a club</strong> — memberships, fixtures, whether you
+            <strong>{t("rest.what_you_do_in_a_club")}</strong> — memberships, fixtures, whether you
             said you could play, whether you turned up, and ball-by-ball scoring for
             matches you take part in.
           </li>
           <li>
-            <strong>Messages</strong> you send in club chat.
+            <strong>{t("rest.messages")}</strong> {t("rest.you_send_in_club_chat")}
           </li>
           <li>
-            <strong>Payments</strong> — match fees and shop orders. Card details never
+            <strong>{t("rest.payments")}</strong> — match fees and shop orders. Card details never
             reach us; Stripe handles those and we keep only the record that you paid.
           </li>
           <li>
-            <strong>A device token</strong> if you turn notifications on, so we can
-            send them.
+            <strong>{t("rest.a_device_token")}</strong> {t("rest.if_you_turn_notifications_on_so_we_can")}
           </li>
         </ul>
 
         <h2>Why</h2>
         <p>
-          To run the club you joined: selecting sides, telling you about fixtures,
-          scoring matches, taking subs. We do not sell it, we do not advertise against
-          it, and we do not profile you for anything beyond the availability and
-          reliability figures your own club can already see.
+          {t("rest.to_run_the_club_you_joined_selecting_s")}
         </p>
 
-        <h2>Who else sees it</h2>
+        <h2>{t("rest.who_else_sees_it")}</h2>
         <ul>
-          <li><strong>Your club.</strong> Members and officials see what the app shows them.</li>
-          <li><strong>Stripe</strong>, for payments.</li>
-          <li><strong>Google</strong>, only if you choose to sign in with Google.</li>
+          <li><strong>{t("rest.your_club")}</strong> {t("rest.members_and_officials_see_what_the_app")}</li>
+          <li><strong>{t("rest.stripe")}</strong>, for payments.</li>
+          <li><strong>{t("rest.google")}</strong>, only if you choose to sign in with Google.</li>
           <li><strong>Apple and your browser&apos;s push service</strong>, to deliver notifications.</li>
-          <li>Our email and messaging providers, to send you codes and reminders.</li>
+          <li>{t("rest.our_email_and_messaging_providers_to_s")}</li>
         </ul>
         <p>
-          The assistant features run on a model we host ourselves. Your messages are
-          not sent to a third-party AI service.
+          {t("rest.the_assistant_features_run_on_a_model")}
         </p>
 
-        <h2>How long</h2>
+        <h2>{t("rest.how_long")}</h2>
         <p>
-          For as long as your account exists. Backups are kept for 14 days and roll off
-          on their own.
+          {t("rest.for_as_long_as_your_account_exists_bac")}
         </p>
 
-        <h2>Deleting your account</h2>
+        <h2>{t("rest.deleting_your_account")}</h2>
         <p>
           <strong>Profile → Delete account</strong>, in the app or on the web. It is
           immediate and cannot be undone.
         </p>
         <p>
-          Everything that identifies you goes: name, email, phone, password, picture,
-          location, your player profile, every signed-in session and every device
-          token. What stays is the scorecards and club history you were part of, under
-          a name that no longer points at anybody — those records belong to the other
-          players too, and a match that loses a batter stops adding up.
+          {t("rest.everything_that_identifies_you_goes_na")}
         </p>
 
-        <h2>Your rights</h2>
+        <h2>{t("rest.your_rights")}</h2>
         <p>
           Under UK GDPR you can ask for a copy of your data, ask us to correct it, ask
           us to delete it, or object to how we use it. Write to {CONTACT} and we will
           answer within a month. You can also complain to the ICO at{" "}
-          <a href="https://ico.org.uk" target="_blank" rel="noreferrer">ico.org.uk</a>.
+          <a href="https://ico.org.uk" target="_blank" rel="noreferrer">{t("rest.ico_org_uk")}</a>.
         </p>
 
-        <h2>Children</h2>
+        <h2>{t("rest.children")}</h2>
         <p>
-          Junior members are a normal part of a cricket club. Where a member is under
-          13, the club is expected to have the parent or guardian set the account up
-          and agree to this policy.
+          {t("rest.junior_members_are_a_normal_part_of_a")}
         </p>
 
         <p className="muted" style={{ marginTop: 24 }}>

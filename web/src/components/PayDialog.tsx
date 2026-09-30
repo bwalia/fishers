@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, apiV1, readErr } from "@/lib/api";
+import { useT } from "@/lib/i18n/provider";
 
 /// Sending somebody to Stripe to pay, and noticing when they come back.
 ///
@@ -48,7 +49,7 @@ export async function payAtStripe(openPath: string): Promise<string> {
     return_to: window.location.origin,
   });
   if (!out.checkout_url) {
-    return "Card payments are not switched on for this server.";
+    return "le.card_payments_are_not_switched_on_for";
   }
   window.location.assign(out.checkout_url);
   // The assignment is not instant; the caller keeps its spinner until the
@@ -111,12 +112,12 @@ export function useReturnedFromStripe({
 
 /// The line to show while the webhook catches up.
 export function PaymentReturn({ waiting, gaveUp }: { waiting: boolean; gaveUp: boolean }) {
-  if (waiting) return <p className="notice">Paid — waiting for it to clear.</p>;
+  const t = useT();
+  if (waiting) return <p className="notice">{t("rest.paid_waiting_for_it_to_clear")}</p>;
   if (gaveUp) {
     return (
       <p className="notice">
-        Your payment went through. It can take a moment to show here — refresh
-        in a minute rather than paying again.
+        {t("rest.your_payment_went_through_it_can_take")}
       </p>
     );
   }

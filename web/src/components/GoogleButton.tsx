@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, readErr, saveSession, saveUser, type AuthTokens, type PublicUser, type RoleIntent } from "@/lib/api";
+import { useT } from "@/lib/i18n/provider";
 
 type Config = { enabled: boolean; client_id: string | null };
 type Signed = AuthTokens & { created: boolean };
@@ -27,11 +28,11 @@ function loadGoogle(): Promise<Gsi> {
     s.onload = () => {
       const g = (window as unknown as { google?: Gsi }).google;
       if (g) resolve(g);
-      else reject(new Error("Google sign-in did not load"));
+      else reject(new Error("le.google_sign_in_did_not_load"));
     };
     s.onerror = () => {
       loading = null;
-      reject(new Error("Google sign-in did not load"));
+      reject(new Error("le.google_sign_in_did_not_load"));
     };
     document.head.appendChild(s);
   });
@@ -59,6 +60,7 @@ export function GoogleButton({
   role?: RoleIntent | null;
   onSignedIn: () => void;
 }) {
+  const t = useT();
   const box = useRef<HTMLDivElement>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +114,7 @@ export function GoogleButton({
               }
               done();
             } catch (err) {
-              setError(readErr(err, "Google sign-in did not work — try again"));
+              setError(readErr(err, t("le.google_sign_in_did_not_work_try_again")));
               setBusy(false);
             }
           },
@@ -128,21 +130,21 @@ export function GoogleButton({
         });
       })
       .catch(() => {
-        if (!gone) setError("Google sign-in could not load. Use your email instead, or try again.");
+        if (!gone) setError(t("le.google_sign_in_could_not_load_use_your"));
       });
     return () => {
       gone = true;
     };
-  }, [clientId, mode]);
+  }, [clientId, mode, t]);
 
   if (!clientId) return null;
   return (
     <div className="google-signin">
       <div ref={box} className="google-button" aria-busy={busy} />
-      {busy && <p className="subtle google-note" role="status">Signing you in…</p>}
+      {busy && <p className="subtle google-note" role="status">{t("rest.signing_you_in")}</p>}
       {error && <p className="error">{error}</p>}
       <div className="auth-or" aria-hidden="true">
-        <span>or with your email</span>
+        <span>{t("rest.or_with_your_email")}</span>
       </div>
     </div>
   );

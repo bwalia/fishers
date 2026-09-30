@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { roleLabel, type ClubMemberRow } from "@/lib/api";
+import { useT } from "@/lib/i18n/provider";
 
 export type Person = { id: string; name: string; note?: string };
 
@@ -17,7 +18,7 @@ export function PersonPicker({
   people,
   value,
   onChange,
-  placeholder = "Start typing a name",
+  placeholder = "le.start_typing_a_name",
   loading = false,
   emptyHint,
 }: {
@@ -29,6 +30,7 @@ export function PersonPicker({
   loading?: boolean;
   emptyHint?: string;
 }) {
+  const t = useT();
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -111,7 +113,7 @@ export function PersonPicker({
         aria-activedescendant={open && matches[active] ? `${listId}-${active}` : undefined}
         autoComplete="off"
         value={query}
-        placeholder={loading ? "Loading the squad…" : placeholder}
+        placeholder={loading ? t("le.loading_the_squad") : placeholder}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
         onChange={(e) => {
@@ -144,7 +146,7 @@ export function PersonPicker({
           ))}
           {matches.length === 0 && (
             <li className="person-empty">
-              Nobody in the squad matches. Leave it as typed to record them anyway.
+              {t("rest.nobody_in_the_squad_matches_leave_it_a")}
             </li>
           )}
         </ul>

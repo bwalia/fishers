@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { copyText } from "@/lib/clipboard";
 import { Icon } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 /// Recipients of a live link can pass it on again without signing in.
 export function ReshareLiveLink({
@@ -12,6 +13,7 @@ export function ReshareLiveLink({
   homeName: string;
   awayName: string;
 }) {
+  const t = useT();
   const [note, setNote] = useState<string | null>(null);
 
   const share = async () => {
@@ -25,11 +27,11 @@ export function ReshareLiveLink({
           // `url` to `text`, and the recipient's app then linkifies the two
           // together into one address that resolves to nothing.
           await navigator.share({ title, text: title, url });
-          setNote("Shared.");
+          setNote(t("le.shared"));
           return;
         } catch (err) {
           if (err instanceof DOMException && err.name === "AbortError") {
-            setNote("Share cancelled.");
+            setNote(t("le.share_cancelled"));
             return;
           }
         }
@@ -38,11 +40,11 @@ export function ReshareLiveLink({
       // link, so say that rather than failing on a page they are already on.
       setNote(
         (await copyText(url))
-          ? "Link copied — paste into WhatsApp, Mail, or Messages."
-          : "Copy this page's address from the address bar to share it."
+          ? t("le.link_copied_paste_into_whatsapp_mail_o")
+          : t("le.copy_this_page_s_address_from_the_addr")
       );
     } catch (err) {
-      setNote(err instanceof Error ? err.message : "Could not share");
+      setNote(err instanceof Error ? err.message : t("le.could_not_share"));
     }
   };
 
@@ -50,9 +52,9 @@ export function ReshareLiveLink({
     <div className="share-scoreboard">
       <button type="button" className="btn primary" onClick={() => void share()}>
         <Icon name="share" size={16} />
-        Share this scoreboard
+        {t("rest.share_this_scoreboard")}
       </button>
-      <p className="muted share-hint">Forward to WhatsApp, email, or Messages in one tap.</p>
+      <p className="muted share-hint">{t("rest.forward_to_whatsapp_email_or_messages")}</p>
       {note && <p className="tag">{note}</p>}
     </div>
   );

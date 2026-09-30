@@ -16,6 +16,7 @@ import { Icon, type IconName } from "@/components/Icon";
 import { ShareProfile, sharedKey } from "@/components/ShareProfile";
 import { Spotlight } from "@/components/Spotlight";
 import { VerifyContact } from "@/components/VerifyContact";
+import { useT } from "@/lib/i18n/provider";
 
 type Step = {
   key: string;
@@ -64,6 +65,7 @@ export function GettingStarted({
   invitesCount: number;
   onUserChange: (u: PublicUser) => void;
 }) {
+  const t = useT();
   const role: RoleIntent = user.role_intent ?? "player";
   const [verification, setVerification] = useState<VerificationStatus | null>(null);
   const [teams, setTeams] = useState<Team[] | null>(null);
@@ -106,7 +108,7 @@ export function GettingStarted({
           {
             key: "verify",
             title: `Confirm your ${verification!.email.available ? "email" : "phone number"}`,
-            body: "Proves it's really you. Clubs are only started, and invites only accepted, by confirmed accounts.",
+            body: t("lb.proves_it_s_really_you_clubs_are_only"),
             done: verified,
             inline: (
               <VerifyContact
@@ -119,8 +121,8 @@ export function GettingStarted({
               />
             ),
             tour: {
-              title: "First, confirm it's you",
-              body: "We've sent you a 6-digit code. Type it here — it takes a few seconds, and it keeps fake accounts out of your club.",
+              title: t("lb.first_confirm_it_s_you"),
+              body: t("lb.we_ve_sent_you_a_6_digit_code_type_it"),
             },
           },
         ]
@@ -132,49 +134,49 @@ export function GettingStarted({
         ...verify,
         {
           key: "club",
-          title: "Start your club",
-          body: "Its name and sport. You become the secretary — you run the teams, fixtures and who's in.",
+          title: t("rest.start_your_club"),
+          body: t("lb.its_name_and_sport_you_become_the_secr"),
           done: !!ownClub,
-          cta: { label: "Start your club", href: "/clubs?new=1", icon: "plus" },
+          cta: { label: t("rest.start_your_club"), href: "/clubs?new=1", icon: "plus" },
           tour: {
-            title: "Start your club here",
-            body: "Give it a name and pick the sport. You'll be its secretary — everything else hangs off the club.",
+            title: t("lb.start_your_club_here"),
+            body: t("lb.give_it_a_name_and_pick_the_sport_you"),
           },
         },
         {
           key: "team",
-          title: "Add your first team",
-          body: "A 1st XI, a Sunday side, the juniors — each team gets its own squad and fixtures.",
+          title: t("lb.add_your_first_team"),
+          body: t("lb.a_1st_xi_a_sunday_side_the_juniors_eac"),
           done: (teams?.length ?? 0) > 0,
-          cta: { label: "Add a team", href: `${clubPage}#teams`, icon: "users" },
-          tour: { title: "Now add a team", body: "Most clubs start with one — you can add more any time." },
+          cta: { label: t("lb.add_a_team"), href: `${clubPage}#teams`, icon: "users" },
+          tour: { title: t("lb.now_add_a_team"), body: t("lb.most_clubs_start_with_one_you_can_add") },
         },
         {
           key: "players",
-          title: "Invite your players",
-          body: "Send the invite link to your club's WhatsApp group, or add people by email or phone.",
+          title: t("lb.invite_your_players"),
+          body: t("lb.send_the_invite_link_to_your_club_s_wh"),
           done: (members?.length ?? 0) > 1,
-          cta: { label: "Invite players", href: `${clubPage}#members`, icon: "send" },
+          cta: { label: t("lb.invite_players"), href: `${clubPage}#members`, icon: "send" },
           tour: {
             title: "Bring your players in",
-            body: "An invite link in the club WhatsApp group is the quickest way. Players who sent you their profile link can be invited straight from it.",
+            body: t("lb.an_invite_link_in_the_club_whatsapp_gr"),
           },
         },
         {
           key: "captain",
-          title: "Name a captain",
-          body: "Give one member the captain role — or, if you captain the side yourself, make your own role Secretary & captain.",
+          title: t("lb.name_a_captain"),
+          body: t("lb.give_one_member_the_captain_role_or_if"),
           done: (members ?? []).some((m) => m.role === "team_captain" || m.is_captain),
-          cta: { label: "Choose a captain", href: `${clubPage}#members`, icon: "trophy" },
-          tour: { title: "Pick your captain", body: "Change a member's role to Captain. You can have one per team." },
+          cta: { label: t("lb.choose_a_captain"), href: `${clubPage}#members`, icon: "trophy" },
+          tour: { title: t("lb.pick_your_captain"), body: t("lb.change_a_member_s_role_to_captain_you") },
         },
         {
           key: "fixture",
-          title: "Schedule your first fixture",
-          body: "Who, where and when. Players mark themselves available and the captain picks the side.",
+          title: t("lb.schedule_your_first_fixture"),
+          body: t("lb.who_where_and_when_players_mark_themse"),
           done: eventsCount > 0,
           cta: { label: "Schedule a match", href: "/events?new=1", icon: "calendar" },
-          tour: { title: "Last one — your first fixture", body: "Once it's in, your players get asked if they can play." },
+          tour: { title: t("lb.last_one_your_first_fixture"), body: t("lb.once_it_s_in_your_players_get_asked_if") },
         },
       ];
     }
@@ -183,33 +185,33 @@ export function GettingStarted({
       ...verify,
       {
         key: "share",
-        title: "Send your profile to your club secretary",
-        body: "They open your link and invite you in. No need for them to type your details.",
+        title: t("lb.send_your_profile_to_your_club_secreta"),
+        body: t("lb.they_open_your_link_and_invite_you_in"),
         done: sharedOnce || invitesCount > 0 || clubs.length > 0,
         inline: <ShareProfile userId={user.id} onShared={() => setSharedOnce(true)} />,
         tour: {
-          title: "Send your profile to your secretary",
-          body: "Get your link and drop it in the club's WhatsApp group or message your secretary directly.",
+          title: t("lb.send_your_profile_to_your_secretary"),
+          body: t("lb.get_your_link_and_drop_it_in_the_club"),
         },
       },
       {
         key: "join",
-        title: "Accept your club's invite",
-        body: "It appears at the top of this page. Been sent an invite link or QR code? Open it and you're in.",
+        title: t("lb.accept_your_club_s_invite"),
+        body: t("lb.it_appears_at_the_top_of_this_page_bee"),
         done: clubs.length > 0,
         // Point at the invite itself once there is one; before that, at this
         // step — never at an empty space.
         target: invitesCount > 0 ? "pending-invites" : "gs-step-join",
         tour:
           invitesCount > 0
-            ? { title: "Your invite is here", body: "Check it's your club, then press Accept — you're straight in." }
+            ? { title: t("lb.your_invite_is_here"), body: t("lb.check_it_s_your_club_then_press_accept") }
             : {
-                title: "Watch for your invite",
-                body: "When your secretary invites you, it appears at the top of this page, ready to accept.",
+                title: t("lb.watch_for_your_invite"),
+                body: t("lb.when_your_secretary_invites_you_it_app"),
               },
       },
     ];
-  }, [role, canVerify, verification, verified, ownClub, teams, members, eventsCount, user, sharedOnce, invitesCount, clubs.length, onUserChange]);
+  }, [role, canVerify, verification, verified, ownClub, teams, members, eventsCount, user, sharedOnce, invitesCount, clubs.length, onUserChange, t]);
 
   const current = steps.find((s) => !s.done) ?? null;
   // Seen-once per step AND per thing it points at: when an invite arrives on
@@ -247,17 +249,17 @@ export function GettingStarted({
       <div className="gs-head">
         <div>
           <p className="gs-eyebrow">
-            <Icon name="sparkle" size={14} /> Getting started · {role === "secretary" ? "Club secretary" : "Player"}
+            <Icon name="sparkle" size={14} /> Getting started · {role === "secretary" ? t("lb.club_secretary") : "Player"}
           </p>
           <h2 id="gs-title">
-            {role === "secretary" ? "Let's set up your club" : "Let's get you into your club"}
+            {role === "secretary" ? t("lb.let_s_set_up_your_club") : t("lb.let_s_get_you_into_your_club")}
           </h2>
           <p className="muted">
             {doneCount} of {steps.length} done — {steps.length - doneCount} to go.
           </p>
         </div>
         <button className="btn ghost sm" type="button" onClick={() => setTourOpen(true)}>
-          <Icon name="help" size={16} /> Show me around
+          <Icon name="help" size={16} /> {"rest.show_me_around"}
         </button>
       </div>
 
@@ -267,7 +269,7 @@ export function GettingStarted({
         aria-valuenow={doneCount}
         aria-valuemin={0}
         aria-valuemax={steps.length}
-        aria-label="Setup progress"
+        aria-label={"rest.setup_progress"}
       >
         <span style={{ width: `${pct}%` }} />
       </div>
@@ -309,11 +311,11 @@ export function GettingStarted({
 
       {role === "secretary" ? (
         <p className="gs-switch subtle">
-          Here to play, not to run a club? <SwitchRole to="player" onUserChange={onUserChange} />
+          {"rest.here_to_play_not_to_run_a_club"} <SwitchRole to="player" onUserChange={onUserChange} />
         </p>
       ) : (
         <p className="gs-switch subtle">
-          Running a club instead? <SwitchRole to="secretary" onUserChange={onUserChange} />
+          {"rest.running_a_club_instead"} <SwitchRole to="secretary" onUserChange={onUserChange} />
         </p>
       )}
 

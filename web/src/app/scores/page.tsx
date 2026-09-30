@@ -14,8 +14,10 @@ import { Icon } from "@/components/Icon";
 import { ScoreCard } from "@/components/WorldScores";
 import { useRequireAuth } from "@/lib/require-auth";
 import { freshness, worldScores, type WorldScores } from "@/lib/scores";
+import { useT } from "@/lib/i18n/provider";
 
 export default function ScoresPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [scores, setScores] = useState<WorldScores | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,11 +28,11 @@ export default function ScoresPage() {
       setScores(await worldScores());
       setError(null);
     } catch {
-      setError("Could not load the scores. Try again in a moment.");
+      setError(t("le.could_not_load_the_scores_try_again_in"));
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -53,10 +55,10 @@ export default function ScoresPage() {
   return (
     <main id="main">
       <section className="hero">
-        <h1>Cricket scores</h1>
+        <h1>{t("sr.cricket_scores")}</h1>
         <p>
           Internationals and domestic competitions from around the world. Your own club&apos;s
-          matches are under <Link href="/score">Score a match</Link>.
+          matches are under <Link href="/score">{t("sr.score_a_match")}</Link>.
         </p>
       </section>
 
@@ -66,7 +68,7 @@ export default function ScoresPage() {
         <div className="empty">
           <Icon name="ball" size={28} />
           <p>World scores aren&apos;t switched on here.</p>
-          <p className="muted">They run on this ring only when a score feed is configured.</p>
+          <p className="muted">{t("sr.they_run_on_this_ring_only_when_a_scor")}</p>
         </div>
       )}
 
@@ -78,27 +80,27 @@ export default function ScoresPage() {
           </p>
 
           <Section
-            title="Being played now"
-            note="Matches in progress, including the intervals."
+            title={t("sr.being_played_now")}
+            note={t("le.matches_in_progress_including_the_inte")}
             matches={scores.live}
-            empty="Nothing is being played at the moment."
+            empty={t("le.nothing_is_being_played_at_the_moment")}
           />
           <Section
-            title="Coming up"
-            note="Due to start soon."
+            title={t("sr.coming_up")}
+            note={t("le.due_to_start_soon")}
             matches={scores.upcoming}
-            empty="No fixtures listed for the next few days."
+            empty={t("le.no_fixtures_listed_for_the_next_few_da")}
           />
           <Section
-            title="Recent results"
-            note="Matches that have finished."
+            title={t("sr.recent_results")}
+            note={t("le.matches_that_have_finished")}
             matches={scores.recent}
-            empty="No results yet."
+            empty={t("le.no_results_yet")}
           />
         </>
       )}
 
-      {!loaded && <div className="empty"><p className="muted">Loading scores…</p></div>}
+      {!loaded && <div className="empty"><p className="muted">{t("sr.loading_scores")}</p></div>}
     </main>
   );
 }

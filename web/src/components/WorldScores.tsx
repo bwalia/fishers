@@ -18,6 +18,7 @@ import {
   type WorldMatch,
   type WorldScores as Scores,
 } from "@/lib/scores";
+import { useT } from "@/lib/i18n/provider";
 
 /// One side of a match: badge, name, and what they have made.
 function TeamLine({
@@ -82,7 +83,7 @@ export function ScoreCard({ match, href }: { match: WorldMatch; href?: string })
         <span className="score-league" title={match.league_name}>
           {match.league_name}
         </span>
-        <span className={`score-state ${match.phase}`}>
+        <span className={`ws-state ${match.phase}`}>
           {live && <span className="score-dot" aria-hidden />}
           {match.state}
         </span>
@@ -133,6 +134,7 @@ export function ScoreCard({ match, href }: { match: WorldMatch; href?: string })
 /// Hidden entirely when the feed is off or has nothing — a dashboard is not
 /// improved by a panel explaining that it is empty.
 export function WorldScoresPanel() {
+  const t = useT();
   const [scores, setScores] = useState<Scores | null>(null);
 
   useEffect(() => {
@@ -167,13 +169,13 @@ export function WorldScoresPanel() {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>Around the world</h2>
+        <h2>{t("sr.around_the_world")}</h2>
         <Link href="/scores">All scores →</Link>
       </div>
       <p className="panel-note">
         {scores.live.length > 0
-          ? "Internationals and domestic cricket being played now."
-          : "No international or domestic cricket on right now. Coming up next:"}
+          ? t("le.internationals_and_domestic_cricket_be")
+          : t("le.no_international_or_domestic_cricket_o")}
       </p>
       <div className="score-list">
         {showing.slice(0, 3).map((m) => (

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, readErr } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 /// Remembered per device so the getting-started list can tick it off; the
 /// link itself works whether or not this is set.
@@ -15,13 +16,14 @@ export const sharedKey = (userId: string) => `fishers:profile-shared:${userId}`;
 /// WhatsApp group, so that goes first. The secretary sees a card with no
 /// contact details and sends an invite; the player still has to accept it.
 export function ShareProfile({ userId, onShared }: { userId: string; onShared?: () => void }) {
+  const t = useT();
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const message = (url: string) =>
-    `Hi — I'd like to play for the club. Here's my ${brand.name} player profile, you can invite me from it: ${url}`;
+    t("fin.share_profile_message", { brand: brand.name, url });
 
   const shared = () => {
     try {
@@ -39,7 +41,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
       const { token } = await api<{ token: string }>("POST", "/me/share-link");
       setLink(`${window.location.origin}/p/${token}`);
     } catch (err) {
-      setError(readErr(err, "Could not make your link"));
+      setError(readErr(err, t("le.could_not_make_your_link")));
     } finally {
       setBusy(false);
     }
@@ -53,7 +55,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
       setTimeout(() => setCopied(false), 2000);
       shared();
     } catch {
-      setError("Could not copy — select the link and copy it by hand.");
+      setError(t("le.could_not_copy_select_the_link_and_cop"));
     }
   };
 
@@ -71,7 +73,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
     return (
       <div className="share-profile">
         <button className="btn primary" type="button" onClick={getLink} disabled={busy}>
-          <Icon name="link" size={16} /> {busy ? "Making your link…" : "Get my profile link"}
+          <Icon name="link" size={16} /> {busy ? t("le.making_your_link") : t("le.get_my_profile_link")}
         </button>
         {error && <p className="error">{error}</p>}
       </div>
@@ -83,11 +85,11 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
     <div className="share-profile">
       <div className="share-link">
         <label className="sr-only" htmlFor="profile-link">
-          Your profile link
+          {t("rest.your_profile_link")}
         </label>
         <input id="profile-link" readOnly value={link} onFocus={(e) => e.target.select()} />
         <button className="btn" type="button" onClick={copy}>
-          <Icon name={copied ? "check" : "copy"} size={16} /> {copied ? "Copied" : "Copy"}
+          <Icon name={copied ? "check" : "copy"} size={16} /> {copied ? t("le.copied") : "Copy"}
         </button>
       </div>
       <div className="share-ways">
@@ -98,7 +100,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
           rel="noopener noreferrer"
           onClick={shared}
         >
-          <Icon name="chat" size={16} /> WhatsApp
+          <Icon name="chat" size={16} /> {t("rest.whatsapp")}
         </a>
         <a
           className="btn"
@@ -109,7 +111,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
         </a>
         {canNativeShare && (
           <button className="btn" type="button" onClick={nativeShare}>
-            <Icon name="share" size={16} /> More…
+            <Icon name="share" size={16} /> {t("rest.more")}
           </button>
         )}
       </div>

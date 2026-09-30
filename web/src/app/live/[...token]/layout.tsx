@@ -34,7 +34,7 @@ export async function generateMetadata({
   const token = /^[0-9a-f]*/i.exec((await params).token[0] ?? "")?.[0] ?? "";
   const fallback: Metadata = {
     title: `Live scoreboard — ${brand.name}`,
-    description: "Follow the full live cricket scoreboard. No sign-in required.",
+    description: "le.follow_the_full_live_cricket_scoreboar",
   };
   try {
     const res = await fetch(`${apiOrigin()}/api/v1/public/scoreboard/${token}`, {
@@ -45,7 +45,7 @@ export async function generateMetadata({
     const inn = board.state?.innings?.at(-1);
     const score = inn
       ? `${inn.runs}/${inn.wickets}`
-      : board.state?.margin || "Waiting for first ball";
+      : board.state?.margin || "le.waiting_for_first_ball";
     const title = `${board.home_name} vs ${board.away_name} — live on ${brand.name}`;
     const description = board.club_name
       ? `${score} · ${board.club_name}`

@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 /// "A player sent me their profile link." Paste it, and you land on their card
 /// with this club already chosen — pick the team there and send the invite.
@@ -12,6 +13,7 @@ import { brand } from "@/brand.generated";
 /// "Hi — here's my profile: https://…/p/abc…", and pulling the token out is
 /// kinder than asking them to trim it.
 export function AddByLink({ clubId }: { clubId: string }) {
+  const t = useT();
   const router = useRouter();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,7 @@ export function AddByLink({ clubId }: { clubId: string }) {
             setText(e.target.value);
             setError(null);
           }}
-          placeholder="Paste the link they sent you"
+          placeholder={t("rest.paste_the_link_they_sent_you")}
           autoComplete="off"
         />
         <button className="btn" type="submit" disabled={!text.trim()}>

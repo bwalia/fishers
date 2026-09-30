@@ -13,6 +13,7 @@ import {
 import { Icon } from "@/components/Icon";
 import { PushToggle } from "@/components/PushToggle";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 const PER_PAGE = 20;
 
@@ -23,6 +24,7 @@ const PER_PAGE = 20;
 /// browser so it can slice twenty out is the kind of thing that works until
 /// the day it does not.
 export default function NotificationsPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [feed, setFeed] = useState<NotificationPage | null>(null);
   const [page, setPage] = useState(1);
@@ -56,11 +58,11 @@ export default function NotificationsPage() {
       setFeed(await api<NotificationPage>("GET", `/notifications?${query}`));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load your notifications"));
+      setError(readErr(err, t("le.could_not_load_your_notifications")));
     } finally {
       setBusy(false);
     }
-  }, [page, kind, unreadOnly, term]);
+  }, [page, kind, unreadOnly, term, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -88,7 +90,7 @@ export default function NotificationsPage() {
     <main id="main">
       <section className="hero">
         <h1>Notifications</h1>
-        <p>Everything the club has told you, newest first.</p>
+        <p>{t("rest.everything_the_club_has_told_you_newes")}</p>
       </section>
 
       {error && <p className="error">{error}</p>}
@@ -100,7 +102,7 @@ export default function NotificationsPage() {
           <h2>
             {feed
               ? feed.total === 0
-                ? filtered ? "Nothing matches" : "Nothing yet"
+                ? filtered ? t("le.nothing_matches") : t("le.nothing_yet")
                 : `Showing ${from}–${to} of ${feed.total}`
               : "Loading…"}
           </h2>
@@ -113,14 +115,14 @@ export default function NotificationsPage() {
 
         <div className="setup-fields">
           <label>
-            Search
+            {t("rest.search")}
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="A fixture, a club, a name"
+              placeholder={t("rest.a_fixture_a_club_a_name")}
             />
             {search.length === 1 && (
-              <span className="subtle">Two characters or more.</span>
+              <span className="subtle">{t("rest.two_characters_or_more")}</span>
             )}
           </label>
           <label>
@@ -129,7 +131,7 @@ export default function NotificationsPage() {
               value={kind}
               onChange={(e) => { setKind(e.target.value); setPage(1); }}
             >
-              <option value="">Everything</option>
+              <option value="">{t("rest.everything")}</option>
               {/* Only the kinds this person has actually been sent, so the
                   filter never offers a choice that returns nothing. */}
               {(feed?.kinds ?? []).map((k) => (
@@ -145,7 +147,7 @@ export default function NotificationsPage() {
             checked={unreadOnly}
             onChange={(e) => { setUnreadOnly(e.target.checked); setPage(1); }}
           />
-          Unread only
+          {t("rest.unread_only")}
         </label>
 
         {!feed && <div className="skeleton" style={{ height: 240, marginTop: "var(--s4)" }} />}
@@ -155,8 +157,8 @@ export default function NotificationsPage() {
             <Icon name="inbox" size={28} />
             <p>
               {filtered
-                ? "Nothing matches that. Try a different filter."
-                : "Nothing yet. This fills up as your club gets going."}
+                ? t("le.nothing_matches_that_try_a_different_f")
+                : t("le.nothing_yet_this_fills_up_as_your_club")}
             </p>
           </div>
         )}
@@ -164,7 +166,7 @@ export default function NotificationsPage() {
         {feed && feed.items.length > 0 && (
           <ul className="note-list">
             {feed.items.map((n) => {
-              const line = notificationLine(n);
+              const line = notificationLine(n, t);
               const inner = (
                 <>
                   <span className="note-kind">{kindLabel(n.type)}</span>
@@ -198,7 +200,7 @@ export default function NotificationsPage() {
               disabled={busy || feed.page <= 1}
               onClick={() => setPage((p) => p - 1)}
             >
-              <Icon name="arrowLeft" size={16} /> Newer
+              <Icon name="arrowLeft" size={16} /> {t("rest.newer")}
             </button>
             <span className="subtle">
               Page {feed.page} of {Math.max(1, Math.ceil(feed.total / feed.per_page))}
@@ -209,7 +211,7 @@ export default function NotificationsPage() {
               disabled={busy || !feed.has_more}
               onClick={() => setPage((p) => p + 1)}
             >
-              Older <Icon name="arrowLeft" size={16} className="flip" />
+              {t("rest.older")} <Icon name="arrowLeft" size={16} className="flip" />
             </button>
           </div>
         )}

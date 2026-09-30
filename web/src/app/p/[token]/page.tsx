@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 type Place = { club: Club; role: MyRole; teams: Team[] };
 
@@ -25,6 +26,7 @@ type Place = { club: Club; role: MyRole; teams: Team[] };
 /// — sharing a link never puts anyone in a club or a team they did not agree
 /// to join.
 export default function SharedProfilePage({ params }: { params: Promise<{ token: string }> }) {
+  const t = useT();
   const { token } = use(params);
   const [card, setCard] = useState<SharedPlayerCard | null>(null);
   const [places, setPlaces] = useState<Place[] | null>(null);
@@ -70,10 +72,10 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
           setTeamId(wantTeam?.id ?? (canInviteToClub(wantClub) ? "" : wantClub.teams[0]?.id ?? ""));
         }
       } catch (err) {
-        setError(readErr(err, "That profile link did not open"));
+        setError(readErr(err, t("le.that_profile_link_did_not_open")));
       }
     })();
-  }, [token]);
+  }, [token, t]);
 
   const place = useMemo(() => places?.find((p) => p.club.id === clubId) ?? null, [places, clubId]);
   const team = place?.teams.find((t) => t.id === teamId) ?? null;
@@ -91,7 +93,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
       });
       setSent(team ? `${team.name} at ${place.club.name}` : place.club.name);
     } catch (err) {
-      setError(readErr(err, "Could not send the invite"));
+      setError(readErr(err, t("le.could_not_send_the_invite")));
     } finally {
       setBusy(false);
     }
@@ -125,7 +127,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
   return (
     <main id="main" className="shared-profile">
       <p className="subtle shared-kicker">
-        <Icon name="users" size={14} /> A player would like to join your club
+        <Icon name="users" size={14} /> {t("rest.a_player_would_like_to_join_your_club")}
       </p>
 
       <div className="panel player-card">
@@ -136,20 +138,20 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
             {[card.primary_sport, sport?.position, sport?.skill_level, card.area]
               .filter(Boolean)
               .map((x) => String(x).replaceAll("_", " "))
-              .join(" · ") || <span className="plain">Profile not filled in yet</span>}
+              .join(" · ") || <span className="plain">{t("rest.profile_not_filled_in_yet")}</span>}
           </p>
         </div>
       </div>
 
       {isMe ? (
         <div className="panel">
-          <h2>This is your own link</h2>
+          <h2>{t("rest.this_is_your_own_link")}</h2>
           <p className="muted">
             Send it to your club&apos;s secretary or captain. They add you from it, and you get a
             notification to approve.
           </p>
           <Link className="btn" href="/">
-            Back to your dashboard
+            {t("rest.back_to_your_dashboard")}
           </Link>
         </div>
       ) : sent ? (
@@ -158,13 +160,13 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
             <Icon name="check" size={22} />
           </span>
           <div>
-            <h2>Invite sent</h2>
+            <h2>{t("rest.invite_sent")}</h2>
             <p className="muted">
               {first} gets a notification to approve. The moment they do, they&apos;re in {sent} — and
               you&apos;ll be told.
             </p>
             <Link className="btn" href={`/clubs/${clubId}#members`}>
-              Go to your members
+              {t("rest.go_to_your_members")}
             </Link>
           </div>
         </div>
@@ -176,14 +178,14 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
             link will be waiting.
           </p>
           <Link className="btn primary" href="/clubs?new=1">
-            <Icon name="plus" size={16} /> Start your club
+            <Icon name="plus" size={16} /> {t("rest.start_your_club")}
           </Link>
         </div>
       ) : (
         <div className="panel">
           <h2>Add {first} to your club</h2>
           <p className="muted">
-            They get a notification to approve — nobody is added anywhere without saying yes.
+            {t("rest.they_get_a_notification_to_approve_nob")}
           </p>
 
           {places.length > 1 && (
@@ -208,7 +210,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
 
           {place && (place.teams.length > 0 || !canInviteToClub(place)) && (
             <fieldset className="chip-set add-to">
-              <legend>Add them to</legend>
+              <legend>{t("rest.add_them_to")}</legend>
               {canInviteToClub(place) && (
                 <button
                   type="button"
@@ -216,7 +218,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
                   aria-pressed={teamId === ""}
                   onClick={() => setTeamId("")}
                 >
-                  The club
+                  {t("rest.the_club")}
                 </button>
               )}
               {place.teams.map((t) => (
@@ -233,7 +235,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
             </fieldset>
           )}
           {place && !canInviteToClub(place) && place.teams.length === 0 && (
-            <p className="muted">This club has no teams yet — the secretary adds those first.</p>
+            <p className="muted">{t("rest.this_club_has_no_teams_yet_the_secreta")}</p>
           )}
 
           <button

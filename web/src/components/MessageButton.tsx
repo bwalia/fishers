@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { readErr } from "@/lib/api";
 import { messagePerson } from "@/lib/chat";
 import { Icon } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 /// Opens your chat with this person — the same one every time, started on the
 /// first tap.
 export function MessageButton({ userId, name, compact = false }: { userId: string; name: string; compact?: boolean }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export function MessageButton({ userId, name, compact = false }: { userId: strin
           try {
             router.push(`/chat/${await messagePerson(userId, name)}`);
           } catch (err) {
-            setError(readErr(err, "Could not open the chat"));
+            setError(readErr(err, t("le.could_not_open_the_chat")));
             setBusy(false);
           }
         }}

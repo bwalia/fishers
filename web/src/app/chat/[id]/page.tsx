@@ -19,6 +19,7 @@ import { Avatar } from "@/components/Avatar";
 import { ManOfTheMatch, motmPollId } from "@/components/ManOfTheMatch";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 /// A safety net, not the mechanism: new messages arrive over the live stream
 /// the moment they are posted. This only catches up if the stream is down.
@@ -31,6 +32,7 @@ const POLL_MS = 30_000;
 /// suggestion with its reasoning attached, and somebody with the authority
 /// accepts it or throws it away.
 export default function ChatThreadPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [thread, setThread] = useState<ConversationSummary | null>(null);
@@ -51,7 +53,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
     followingRef.current = v;
     setFollowingState(v);
   };
-  /// The newest message you have seen. "N new" counts the messages after it,
+  /// The newest message you have seen. t("ld.n_new") counts the messages after it,
   /// rather than counting updates: one refresh can bring five messages.
   const [seenAt, setSeenAt] = useState(0);
   const lastTop = useRef(0);
@@ -72,11 +74,11 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
       setProposals(pending.filter((p) => p.status === "pending"));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load this thread"));
+      setError(readErr(err, t("ld.could_not_load_this_thread")));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -147,7 +149,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
       setMessages((prev) => mergeMessages(prev, [sent]));
       setDraft("");
     } catch (err) {
-      setError(readErr(err, "That message did not send"));
+      setError(readErr(err, t("ld.that_message_did_not_send")));
     } finally {
       setSending(false);
     }
@@ -161,7 +163,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
       setProposals(out.proposals.filter((p) => p.status === "pending"));
       await load();
     } catch (err) {
-      setError(readErr(err, "The assistant could not read this thread"));
+      setError(readErr(err, t("ld.the_assistant_could_not_read_this_thre")));
     } finally {
       setThinking(false);
     }
@@ -175,7 +177,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
       await api("POST", `/agent/proposals/${proposal.id}/${apply ? "apply" : "dismiss"}`, {});
       await load();
     } catch (err) {
-      setError(readErr(err, "That did not go through"));
+      setError(readErr(err, t("ld.that_did_not_go_through")));
       setProposals((prev) => [...prev, proposal]);
     }
   };
@@ -188,12 +190,12 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
         <Link className="btn ghost sm" href="/chat">
           <Icon name="arrowLeft" size={14} /> Chats
         </Link>
-        <h1>{thread?.title ?? "Thread"}</h1>
+        <h1>{thread?.title ?? t("ld.thread")}</h1>
         {/* It works for a club, on the club's threads — and has no business
             reading a private chat. */}
         {thread && thread.kind !== "direct" && (
           <button className="btn ghost sm" type="button" disabled={thinking} onClick={analyse}>
-            <Icon name="sparkle" size={14} /> {thinking ? "Reading…" : "Ask the assistant"}
+            <Icon name="sparkle" size={14} /> {thinking ? t("ld.reading") : t("ld.ask_the_assistant")}
           </button>
         )}
       </header>
@@ -201,7 +203,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
       {error && <p className="error">{error}</p>}
 
       {proposals.length > 0 && (
-        <section className="proposals" aria-label="Suggestions from the assistant">
+        <section className="proposals" aria-label={t("rest.suggestions_from_the_assistant")}>
           {proposals.map((p) => (
             <article key={p.id} className="proposal">
               <header>
@@ -211,10 +213,10 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
               <p>{p.rationale}</p>
               <div className="field-row">
                 <button className="btn primary sm" type="button" onClick={() => decide(p, true)}>
-                  Do it
+                  {t("rest.do_it")}
                 </button>
                 <button className="btn ghost sm" type="button" onClick={() => decide(p, false)}>
-                  No thanks
+                  {t("rest.no_thanks")}
                 </button>
               </div>
             </article>
@@ -248,7 +250,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
         {!loading && messages.length === 0 && (
           <div className="empty">
             <Icon name="chat" size={28} />
-            <p>Nothing here yet. Say something.</p>
+            <p>{t("rest.nothing_here_yet_say_something")}</p>
           </div>
         )}
 
@@ -288,17 +290,17 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
             thread?.kind === "direct"
               ? `Message ${thread.title}`
               : thread?.kind === "team"
-                ? "Message the team"
+                ? t("ld.message_the_team")
                 : thread?.kind === "event"
-                  ? "Message everyone in this fixture"
-                  : "Message the club"
+                  ? t("ld.message_everyone_in_this_fixture")
+                  : t("ld.message_the_club")
           }
-          aria-label="Message"
+          aria-label={t("rest.message")}
           maxLength={4000}
         />
         <button className="btn primary" type="submit" disabled={sending || !draft.trim()}>
           <Icon name="send" size={16} />
-          <span className="sr-only">Send</span>
+          <span className="sr-only">{t("rest.send")}</span>
         </button>
       </form>
     </main>
@@ -306,6 +308,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
 }
 
 function Bubble({ message, mine }: { message: ChatMessage; mine: boolean }) {
+  const t = useT();
   // A note the app wrote itself — somebody joined, a squad went up. It is not
   // anybody's message, so it does not get a bubble or a face.
   if (message.kind === "system") {
@@ -313,7 +316,7 @@ function Bubble({ message, mine }: { message: ChatMessage; mine: boolean }) {
   }
 
   const fromAgent = message.kind === "agent" || !message.sender_id;
-  const who = fromAgent ? "Assistant" : message.sender_name ?? "Somebody";
+  const who = fromAgent ? t("ld.assistant") : message.sender_name ?? t("ld.somebody");
 
   return (
     <div className={`bubble-row${mine ? " mine" : ""}`}>

@@ -10,20 +10,22 @@ import {
   type HireableSpace,
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 const KIND_LABEL: Record<string, string> = {
   pitch: "Pitch",
-  square: "Square",
-  net_lane: "Net lane",
-  court: "Court",
-  hall: "Hall",
-  pavilion: "Pavilion",
+  square: "le.square",
+  net_lane: "le.net_lane",
+  court: "le.court",
+  hall: "le.hall",
+  pavilion: "le.pavilion",
   bar: "Bar",
-  room: "Room",
-  other: "Space",
+  room: "le.room",
+  other: "le.space",
 };
 
 export default function HireBrowsePage() {
+  const t = useT();
   const [rows, setRows] = useState<HireableSpace[] | null>(null);
   const [q, setQ] = useState("");
   const [sport, setSport] = useState("");
@@ -52,7 +54,7 @@ export default function HireBrowsePage() {
       setRows(list);
     } catch (e) {
       setRows([]);
-      setError(readErr(e, "Something went wrong"));
+      setError(readErr(e, t("le.something_went_wrong")));
     }
   }
 
@@ -60,7 +62,7 @@ export default function HireBrowsePage() {
     <main className="page">
       <header className="page-head">
         <h1>
-          <Icon name="pin" /> Venue hire
+          <Icon name="pin" /> {t("rest.venue_hire")}
         </h1>
         <p className="lede">
           Spaces clubs are offering for hire — pitches, nets, halls and
@@ -71,17 +73,17 @@ export default function HireBrowsePage() {
 
       <div className="toolbar" style={{ gap: 12, flexWrap: "wrap" }}>
         <label className="field" style={{ flex: "1 1 220px" }}>
-          <span>Search</span>
+          <span>{t("rest.search")}</span>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Club, venue or space"
+            placeholder={t("rest.club_venue_or_space")}
           />
         </label>
         <label className="field" style={{ flex: "0 1 180px" }}>
           <span>Sport</span>
           <select value={sport} onChange={(e) => setSport(e.target.value)}>
-            <option value="">Any</option>
+            <option value="">{t("rest.any")}</option>
             {SPORTS.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -94,7 +96,7 @@ export default function HireBrowsePage() {
       {error && <p className="error">{error}</p>}
 
       {rows === null ? (
-        <p className="muted">Loading…</p>
+        <p className="muted">{t("rest.loading")}</p>
       ) : rows.length === 0 ? (
         <p className="muted">
           No hireable spaces yet. Secretaries can mark a space as hireable from
@@ -118,7 +120,7 @@ export default function HireBrowsePage() {
                 <p>
                   {row.sports.length > 0
                     ? row.sports.join(", ")
-                    : "General hire"}
+                    : t("le.general_hire")}
                   {row.capacity != null ? ` · up to ${row.capacity}` : ""}
                   {row.requires_approval ? " · approval required" : " · instant"}
                 </p>
