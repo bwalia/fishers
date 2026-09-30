@@ -13,6 +13,7 @@ import {
   type MatchConditions,
   type MatchState,
 } from "@/lib/cricket";
+import { useT } from "@/lib/i18n/provider";
 import { brand } from "@/brand.generated";
 
 type PublicScoreboard = {
@@ -74,6 +75,7 @@ export default function LiveScoreboardPage({
       window.history.replaceState(null, "", `/live/${token}`);
     }
   }, [token, raw]);
+  const t = useT();
   const [board, setBoard] = useState<PublicScoreboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,11 +93,11 @@ export default function LiveScoreboardPage({
       setBoard(data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load scoreboard");
+      setError(e instanceof Error ? e.message : t("le.could_not_load_scoreboard"));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     void load();
@@ -127,20 +129,20 @@ export default function LiveScoreboardPage({
     <main id="main" className="shell live-board">
       {board && <Moments state={board.state} nameOf={(id) => nameOf(board, id)} />}
       <header className="live-hero">
-        <p className="tag">Live scoreboard</p>
+        <p className="tag">{t("sr.live_scoreboard")}</p>
         <h1>{brand.name}</h1>
         <p className="muted">
-          Full match scoreboard — updates live, ball by ball. No sign-in required.
+          {t("sr.full_match_scoreboard_updates_live_bal")}
         </p>
       </header>
 
-      {loading && !board && <p className="muted">Loading live score…</p>}
+      {loading && !board && <p className="muted">{t("sr.loading_live_score")}</p>}
       {error && !board && (
         <div className="panel">
-          <h2>Link unavailable</h2>
+          <h2>{t("sr.link_unavailable")}</h2>
           <p className="error">{error}</p>
           <p className="muted">
-            Ask the scorer to share a fresh scoreboard link.
+            {t("sr.ask_the_scorer_to_share_a_fresh_scoreb")}
           </p>
         </div>
       )}
@@ -153,7 +155,7 @@ export default function LiveScoreboardPage({
               {board.club_name && <span className="muted">{board.club_name}</span>}
             </div>
             <h2>
-              {board.home_name} <span className="muted">vs</span> {board.away_name}
+              {board.home_name} <span className="muted">{t("sr.vs")}</span> {board.away_name}
             </h2>
             {current ? (
               <p className="scoreline">
@@ -161,7 +163,7 @@ export default function LiveScoreboardPage({
                 <span className="muted">({overs(current.legal_balls)} ov)</span>
               </p>
             ) : (
-              <p className="scoreline muted">Waiting for first ball…</p>
+              <p className="scoreline muted">{t("sr.waiting_for_first_ball")}</p>
             )}
             {board.state.target != null && (
               <p className="muted">Target {board.state.target}</p>
@@ -196,15 +198,15 @@ export default function LiveScoreboardPage({
               <div className="live-pair">
                 <div>
                   <strong>{nameOf(board, current.striker_id)}</strong>
-                  <span className="muted"> striker</span>
+                  <span className="muted"> {t("sr.striker")}</span>
                 </div>
                 <div>
                   <strong>{nameOf(board, current.non_striker_id)}</strong>
-                  <span className="muted"> non-striker</span>
+                  <span className="muted"> {t("sr.non_striker")}</span>
                 </div>
                 <div>
                   <strong>{nameOf(board, current.bowler_id)}</strong>
-                  <span className="muted"> bowling</span>
+                  <span className="muted"> {t("sr.bowling_2")}</span>
                 </div>
               </div>
             )}
@@ -234,7 +236,7 @@ export default function LiveScoreboardPage({
                 wheel &amp; commentary
               </h2>
               {inn.free_hit && <p className="tag">Free hit</p>}
-              <h3>Wagon wheel</h3>
+              <h3>{t("sr.wagon_wheel")}</h3>
               <WagonWheel deliveries={inn.deliveries || []} />
 
               {(inn.deliveries || []).length > 0 && (
@@ -253,7 +255,8 @@ export default function LiveScoreboardPage({
                             {commentaryFor(
                               ball,
                               (id) => nameOf(board, id),
-                              board.state.left_handers || []
+                              board.state.left_handers || [],
+                              t
                             )}
                           </span>
                         </li>

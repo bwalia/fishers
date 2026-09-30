@@ -24,8 +24,10 @@ import { ProfileStrength } from "@/components/ProfileStrength";
 import { WorldScoresPanel } from "@/components/WorldScores";
 import { overs, type MatchResponse } from "@/lib/cricket";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 export default function HomePage() {
+  const t = useT();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -73,12 +75,12 @@ export default function HomePage() {
         );
         setLive(matches.filter((m): m is MatchResponse => !!m && m.state.status !== "complete"));
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load");
+        setError(err instanceof Error ? err.message : t("le.failed_to_load"));
       } finally {
         setLoaded(true);
       }
     }
-  }, [router]);
+  }, [router, t]);
 
   useEffect(() => {
     setUser(getStoredUser());
@@ -100,7 +102,7 @@ export default function HomePage() {
         <h1>{`${greeting()}, ${user.name.split(" ")[0]}`}</h1>
         <p>
           {clubs.length > 0
-            ? "Your club at a glance — what's next, what's live, and what needs you."
+            ? t("le.your_club_at_a_glance_what_s_next_what")
             : `Welcome to ${brand.name}. A few quick steps and you're up and running.`}
         </p>
       </section>
@@ -112,7 +114,7 @@ export default function HomePage() {
 
       {loaded && !user.role_intent && clubs.length === 0 && (
         <section className="panel welcome" aria-labelledby="welcome-title">
-          <h2 id="welcome-title">How will you use {brand.name}?</h2>
+          <h2 id="welcome-title">{t("fin.how_will_you_use", { brand: brand.name })}</h2>
           <p className="muted">
             We&apos;ll show you exactly what to do next. You can switch later.
           </p>
@@ -141,24 +143,24 @@ export default function HomePage() {
             <div className="stat primary">
               <div className="stat-label">Clubs</div>
               <div className="stat-value">{clubs.length}</div>
-              <div className="stat-sub">memberships</div>
+              <div className="stat-sub">{t("rest.memberships_2")}</div>
             </div>
             <div className="stat">
-              <div className="stat-label">Upcoming</div>
+              <div className="stat-label">{t("rest.upcoming")}</div>
               <div className="stat-value">{upcoming.length}</div>
-              <div className="stat-sub">fixtures ahead</div>
+              <div className="stat-sub">{t("rest.fixtures_ahead_2")}</div>
             </div>
             <div className="stat accent">
-              <div className="stat-label">In progress</div>
+              <div className="stat-label">{t("rest.in_progress")}</div>
               <div className="stat-value">{live.length}</div>
-              <div className="stat-sub">matches to score</div>
+              <div className="stat-sub">{t("rest.matches_to_score")}</div>
             </div>
           </div>
 
           {live.length > 0 && (
             <div className="panel">
               <div className="panel-head">
-                <h2>In progress</h2>
+                <h2>{t("rest.in_progress")}</h2>
                 <span className="tag live">Live</span>
               </div>
               {live.map((m) => {
@@ -176,7 +178,7 @@ export default function HomePage() {
                       </div>
                     </div>
                     <Link className="btn primary sm" href={`/score/${m.id}`}>
-                      {m.can_score ? "Resume scoring" : "Watch"}
+                      {m.can_score ? t("le.resume_scoring") : t("le.watch")}
                     </Link>
                   </div>
                 );
@@ -190,7 +192,7 @@ export default function HomePage() {
 
           <div className="panel">
             <div className="panel-head">
-              <h2>Next fixtures</h2>
+              <h2>{t("rest.next_fixtures")}</h2>
               <Link href="/events">All fixtures →</Link>
             </div>
             {upcoming.slice(0, 5).map((e) => (
@@ -210,15 +212,15 @@ export default function HomePage() {
             {upcoming.length === 0 && (
               <div className="empty">
                 <Icon name="calendar" size={28} />
-                <p>Nothing scheduled.</p>
+                <p>{t("rest.nothing_scheduled")}</p>
               </div>
             )}
           </div>
 
           <div className="grid cards">
-            <Quick href="/score" icon="bat" title="Score a match" body="Start a fixture or pick up one under way." />
-            <Quick href="/stats" icon="chart" title="Season stats" body="Batting, bowling and club results." />
-            <Quick href="/shop" icon="shop" title="Club shop" body="Kit, clubwear and hire." />
+            <Quick href="/score" icon="bat" title="Score a match" body={t("le.start_a_fixture_or_pick_up_one_under_w")} />
+            <Quick href="/stats" icon="chart" title="Season stats" body={t("le.batting_bowling_and_club_results")} />
+            <Quick href="/shop" icon="shop" title="Club shop" body={t("le.kit_clubwear_and_hire")} />
           </div>
         </>
       )}
@@ -248,5 +250,5 @@ function Quick({
 /// Morning, afternoon, evening — by the viewer's own clock.
 function greeting() {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return h < 12 ? "le.good_morning" : h < 18 ? "le.good_afternoon" : "le.good_evening";
 }

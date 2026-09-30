@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type OpponentIdentity } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { isSecureContextAvailable } from "@/lib/clipboard";
+import { useT } from "@/lib/i18n/provider";
 
 /// Three ways to name the other side, because a ground is not a laboratory:
 /// scan their code, paste the link they sent, or search for them by name. A
@@ -26,6 +27,7 @@ export function OppositionPicker({
   /// than by the page, so it meets the same rules as one typed or scanned.
   initialToken?: string;
 }) {
+  const t = useT();
   const [tab, setTab] = useState<"scan" | "code" | "search">("search");
   const [code, setCode] = useState("");
   const [query, setQuery] = useState("");
@@ -39,8 +41,8 @@ export function OppositionPicker({
   /// Whether this can be the opposition at all.
   const allowed = (r: OpponentIdentity) => !isOurs(r) || (r.kind === "team" && ownTeamsAllowed);
   const ownClubNote = ownTeamsAllowed
-    ? "That's your own club. To play within it, pick one of its teams."
-    : "That's your own club — a club can't play itself. It takes two teams to play each other.";
+    ? t("le.that_s_your_own_club_to_play_within_it")
+    : t("le.that_s_your_own_club_a_club_can_t_play");
 
   const resolve = async (token: string) => {
     setBusy(true);
@@ -55,7 +57,7 @@ export function OppositionPicker({
       onPick(identity, identity.name);
       setNote(`Matched ${identity.name}.`);
     } catch {
-      setNote("That code is not one of ours. Try searching by name.");
+      setNote(t("le.that_code_is_not_one_of_ours_try_searc"));
     } finally {
       setBusy(false);
     }
@@ -92,17 +94,17 @@ export function OppositionPicker({
 
   return (
     <div>
-      <div className="tabs" role="tablist" aria-label="Find the opposition">
-        {(["search", "scan", "code"] as const).map((t) => (
+      <div className="tabs" role="tablist" aria-label={t("rest.find_the_opposition")}>
+        {(["search", "scan", "code"] as const).map((each) => (
           <button
-            key={t}
+            key={each}
             role="tab"
-            aria-selected={tab === t}
-            className={`tab${tab === t ? " active" : ""}`}
+            aria-selected={tab === each}
+            className={`tab${tab === each ? " active" : ""}`}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => setTab(each)}
           >
-            {t === "search" ? "Search" : t === "scan" ? "Scan a code" : "Paste a link"}
+            {each === "search" ? t("rest.search") : each === "scan" ? t("le.scan_a_code") : t("le.paste_a_link")}
           </button>
         ))}
       </div>
@@ -110,11 +112,11 @@ export function OppositionPicker({
       {tab === "search" && (
         <>
           <label>
-            Club or team name
+            {t("rest.club_or_team_name")}
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Hemel, Watford…"
+              placeholder={t("rest.hemel_watford")}
             />
           </label>
           <ul className="plain-list" style={{ marginTop: "var(--s2)" }}>
@@ -141,9 +143,7 @@ export function OppositionPicker({
               // at all — and left no way forward.
               <li className="muted">
                 Nobody by that name you can search for. A club set to{" "}
-                <strong>invite only</strong> is kept out of search — ask them for
-                their club code or link and use the tabs above, or enter them by
-                name below.
+                <strong>{t("rest.invite_only")}</strong> {t("rest.is_kept_out_of_search_ask_them_for_the")}
               </li>
             )}
           </ul>
@@ -154,7 +154,7 @@ export function OppositionPicker({
               plain name below" with no field below it, so a club whose
               opponent was not a member could not schedule a match at all. */}
           <label style={{ marginTop: "var(--s3)" }}>
-            Or just their name
+            {t("rest.or_just_their_name")}
             <input
               value={plain}
               onChange={(e) => {
@@ -165,10 +165,10 @@ export function OppositionPicker({
                 onPick(null, e.target.value);
                 setNote(null);
               }}
-              placeholder="Hackney Wanderers"
+              placeholder={t("rest.hackney_wanderers")}
             />
             <span className="subtle">
-              They will not be asked who is available — only your side is.
+              {t("rest.they_will_not_be_asked_who_is_availabl")}
             </span>
           </label>
         </>
@@ -179,11 +179,11 @@ export function OppositionPicker({
       {tab === "code" && (
         <div className="field-row">
           <label>
-            Their code or link
+            {t("rest.their_code_or_link")}
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="https://…/play/abc123 or just the code"
+              placeholder={t("rest.https_play_abc123_or_just_the_code")}
             />
           </label>
           <button
@@ -192,7 +192,7 @@ export function OppositionPicker({
             disabled={!code.trim() || busy}
             onClick={() => resolve(code.trim())}
           >
-            {busy ? "Looking…" : "Match"}
+            {busy ? t("le.looking") : "Match"}
           </button>
         </div>
       )}
@@ -209,6 +209,7 @@ export function OppositionPicker({
 /// other two tabs already cover. So this offers the camera when it is there and
 /// says plainly when it is not.
 function QrScanner({ onScan }: { onScan: (token: string) => void }) {
+  const t = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [state, setState] = useState<
     "idle" | "running" | "unsupported" | "denied" | "insecure"
@@ -269,27 +270,25 @@ function QrScanner({ onScan }: { onScan: (token: string) => void }) {
   if (state === "insecure") {
     return (
       <p className="muted">
-        The camera needs an https address, so scanning is off over this LAN link. Paste
-        their link instead, or search by name.
+        {t("rest.the_camera_needs_an_https_address_so_s")}
       </p>
     );
   }
   if (state === "unsupported") {
     return (
       <p className="muted">
-        This browser cannot use the camera to read codes — Chrome and Edge can. Paste their
-        link instead, or search by name.
+        {t("rest.this_browser_cannot_use_the_camera_to")}
       </p>
     );
   }
   if (state === "denied") {
-    return <p className="muted">No camera access. Paste their link instead, or search by name.</p>;
+    return <p className="muted">{t("rest.no_camera_access_paste_their_link_inst")}</p>;
   }
   return (
     <div>
       {state === "idle" ? (
         <button className="btn" type="button" onClick={() => setState("running")}>
-          <Icon name="ball" size={16} /> Start the camera
+          <Icon name="ball" size={16} /> {t("rest.start_the_camera")}
         </button>
       ) : (
         <video ref={videoRef} className="qr-video" muted playsInline />

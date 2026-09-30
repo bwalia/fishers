@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 const KINDS = [
   "pitch",
@@ -37,6 +38,7 @@ const UNITS = [
 ] as const;
 
 export default function ClubHireManagePage() {
+  const t = useT();
   const authed = useRequireAuth();
   const params = useParams<{ id: string }>();
   const clubId = params.id;
@@ -68,9 +70,9 @@ export default function ClubHireManagePage() {
       setVenues(list);
       if (!venueId && list[0]) setVenueId(list[0].id);
     } catch (e) {
-      setError(readErr(e, "Something went wrong"));
+      setError(readErr(e, t("le.something_went_wrong")));
     }
-  }, [authed, clubId, venueId]);
+  }, [authed, clubId, venueId, t]);
 
   const loadSpaces = useCallback(async () => {
     if (!authed || !venueId) return;
@@ -78,9 +80,9 @@ export default function ClubHireManagePage() {
       const list = await api<VenueSpace[]>("GET", `/venues/${venueId}/spaces`);
       setSpaces(list);
     } catch (e) {
-      setError(readErr(e, "Could not load spaces"));
+      setError(readErr(e, t("le.could_not_load_spaces")));
     }
-  }, [authed, venueId]);
+  }, [authed, venueId, t]);
 
   const loadRates = useCallback(async () => {
     if (!authed || !selected) {
@@ -94,9 +96,9 @@ export default function ClubHireManagePage() {
       );
       setRates(list);
     } catch (e) {
-      setError(readErr(e, "Something went wrong"));
+      setError(readErr(e, t("le.something_went_wrong")));
     }
-  }, [authed, selected]);
+  }, [authed, selected, t]);
 
   useEffect(() => {
     void loadVenues();
@@ -128,7 +130,7 @@ export default function ClubHireManagePage() {
       await loadSpaces();
       setSelected(space);
     } catch (e) {
-      setError(readErr(e, "Something went wrong"));
+      setError(readErr(e, t("le.something_went_wrong")));
     } finally {
       setBusy(false);
     }
@@ -144,7 +146,7 @@ export default function ClubHireManagePage() {
       setSelected(updated);
       await loadSpaces();
     } catch (e) {
-      setError(readErr(e, "Something went wrong"));
+      setError(readErr(e, t("le.something_went_wrong")));
     } finally {
       setBusy(false);
     }
@@ -154,7 +156,7 @@ export default function ClubHireManagePage() {
     if (!selected) return;
     const amount = Math.round(Number(rateAmount) * 100);
     if (!Number.isFinite(amount) || amount < 0) {
-      setError("Enter a valid rate in pounds");
+      setError(t("le.enter_a_valid_rate_in_pounds"));
       return;
     }
     setBusy(true);
@@ -169,10 +171,10 @@ export default function ClubHireManagePage() {
           ? Math.round(Number(memberAmount) * 100)
           : null,
       });
-      setNote("Rate added");
+      setNote(t("le.rate_added"));
       await loadRates();
     } catch (e) {
-      setError(readErr(e, "Something went wrong"));
+      setError(readErr(e, t("le.something_went_wrong")));
     } finally {
       setBusy(false);
     }
@@ -187,7 +189,7 @@ export default function ClubHireManagePage() {
           <Link href={`/clubs/${clubId}`}>← Club</Link>
         </p>
         <h1>
-          <Icon name="pin" /> Hireable spaces
+          <Icon name="pin" /> {t("cl.hireable_spaces")}
         </h1>
         <p className="lede">
           Define spaces under a venue site, set rates, and mark them hireable so
@@ -201,13 +203,12 @@ export default function ClubHireManagePage() {
 
       {venues.length === 0 ? (
         <p className="muted">
-          Add a venue on the club page first — a ground or hall site — then come
-          back to define spaces inside it.
+          {t("cl.add_a_venue_on_the_club_page_first_a_g")}
         </p>
       ) : (
         <>
           <label className="field">
-            <span>Venue site</span>
+            <span>{t("cl.venue_site")}</span>
             <select
               value={venueId}
               onChange={(e) => {
@@ -224,18 +225,18 @@ export default function ClubHireManagePage() {
           </label>
 
           <section className="card" style={{ marginTop: 16 }}>
-            <h2>Add a space</h2>
+            <h2>{t("cl.add_a_space")}</h2>
             <div className="toolbar" style={{ flexWrap: "wrap", gap: 12 }}>
               <label className="field">
-                <span>Name</span>
+                <span>{t("cl.name")}</span>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Main pitch"
+                  placeholder={t("cl.main_pitch")}
                 />
               </label>
               <label className="field">
-                <span>Kind</span>
+                <span>{t("cl.kind")}</span>
                 <select value={kind} onChange={(e) => setKind(e.target.value)}>
                   {KINDS.map((k) => (
                     <option key={k} value={k}>
@@ -245,12 +246,12 @@ export default function ClubHireManagePage() {
                 </select>
               </label>
               <label className="field">
-                <span>Sport</span>
+                <span>{t("cl.sport")}</span>
                 <select
                   value={sport}
                   onChange={(e) => setSport(e.target.value)}
                 >
-                  <option value="">None (hall / pavilion)</option>
+                  <option value="">{t("cl.none_hall_pavilion")}</option>
                   {SPORTS.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -259,7 +260,7 @@ export default function ClubHireManagePage() {
                 </select>
               </label>
               <label className="field">
-                <span>Capacity</span>
+                <span>{t("cl.capacity")}</span>
                 <input
                   value={capacity}
                   onChange={(e) => setCapacity(e.target.value)}
@@ -273,7 +274,7 @@ export default function ClubHireManagePage() {
                   checked={hireable}
                   onChange={(e) => setHireable(e.target.checked)}
                 />
-                <span>List as hireable</span>
+                <span>{t("cl.list_as_hireable")}</span>
               </label>
               <button
                 className="btn"
@@ -281,15 +282,15 @@ export default function ClubHireManagePage() {
                 disabled={busy || !name.trim()}
                 onClick={() => void createSpace()}
               >
-                Add space
+                {t("cl.add_space")}
               </button>
             </div>
           </section>
 
           <section style={{ marginTop: 24 }}>
-            <h2>Spaces</h2>
+            <h2>{t("cl.spaces")}</h2>
             {spaces.length === 0 ? (
-              <p className="muted">None yet on this venue.</p>
+              <p className="muted">{t("cl.none_yet_on_this_venue")}</p>
             ) : (
               <ul className="card-list">
                 {spaces.map((s) => (
@@ -314,7 +315,7 @@ export default function ClubHireManagePage() {
                         <span className="pill">{s.kind.replace(/_/g, " ")}</span>
                       </h3>
                       <p className="muted">
-                        {s.is_hireable ? "Hireable" : "Not listed"} ·{" "}
+                        {s.is_hireable ? t("le.hireable") : t("le.not_listed")} ·{" "}
                         {s.sports.length ? s.sports.join(", ") : "general"}
                         {s.capacity != null ? ` · ${s.capacity}` : ""}
                       </p>
@@ -325,7 +326,7 @@ export default function ClubHireManagePage() {
                       disabled={busy}
                       onClick={() => void toggleHireable(s)}
                     >
-                      {s.is_hireable ? "Unlist" : "List"}
+                      {s.is_hireable ? t("le.unlist") : t("le.list")}
                     </button>
                   </li>
                 ))}
@@ -337,7 +338,7 @@ export default function ClubHireManagePage() {
             <section className="card" style={{ marginTop: 24 }}>
               <h2>Rates for {selected.name}</h2>
               {rates.length === 0 ? (
-                <p className="muted">No rates yet.</p>
+                <p className="muted">{t("cl.no_rates_yet")}</p>
               ) : (
                 <ul>
                   {rates.map((r) => (
@@ -354,14 +355,14 @@ export default function ClubHireManagePage() {
               )}
               <div className="toolbar" style={{ flexWrap: "wrap", gap: 12 }}>
                 <label className="field">
-                  <span>Label</span>
+                  <span>{t("cl.label")}</span>
                   <input
                     value={rateName}
                     onChange={(e) => setRateName(e.target.value)}
                   />
                 </label>
                 <label className="field">
-                  <span>Unit</span>
+                  <span>{t("cl.unit")}</span>
                   <select
                     value={rateUnit}
                     onChange={(e) => setRateUnit(e.target.value)}
@@ -395,7 +396,7 @@ export default function ClubHireManagePage() {
                   disabled={busy}
                   onClick={() => void addRate()}
                 >
-                  Add rate
+                  {t("cl.add_rate")}
                 </button>
               </div>
             </section>

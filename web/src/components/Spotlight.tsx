@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "@/lib/i18n/provider";
 
 type Box = { top: number; left: number; width: number; height: number };
 
@@ -33,6 +34,7 @@ export function Spotlight({
   /// Ends the whole tour, not just this step.
   onSkip: () => void;
 }) {
+  const t = useT();
   const [box, setBox] = useState<Box | null>(null);
   const [note, setNote] = useState({ w: 320, h: 170 });
   const noteRef = useRef<HTMLDivElement>(null);
@@ -131,7 +133,7 @@ export function Spotlight({
         <p id="spot-body">{body}</p>
         <div className="spot-actions">
           <button type="button" className="linkish" onClick={onSkip}>
-            Skip the tour
+            {t("rest.skip_the_tour")}
           </button>
           <button ref={primary} type="button" className="btn primary sm" onClick={onClose}>
             Got it

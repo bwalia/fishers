@@ -1,15 +1,18 @@
-import { brand } from "@/brand.generated";
+import type { Key } from "@/lib/i18n/en";
 
 // Generated from the film's own index by scripts/tour-page-data.py, so every timestamp
 // here is the video's arithmetic rather than a second copy of it that can drift.
 //
 //   ./scripts/cut-tour-video.sh && ./scripts/tour-page-data.py
 
-export type TourBeat = { at: number; stamp: string; text: string };
+/// `text` is a dictionary key, like the chapter titles.
+export type TourBeat = { at: number; stamp: string; text: Key };
 export type TourChapter = {
   number: number;
-  title: string;
-  subtitle: string;
+  /// Dictionary keys — the film's chapter list is built once and read in
+  /// whichever language the viewer chose.
+  title: Key;
+  subtitle: Key;
   at: number;
   stamp: string;
   beats: TourBeat[];
@@ -17,107 +20,107 @@ export type TourChapter = {
 
 export const TOUR_VIDEO_ID = "AzYtyFYpedM";
 export const TOUR_DURATION = "20:45";
-export const TOUR_FOOTER = "Recorded on the iOS Simulator against a seeded demo season. Invented clubs and invented players, not a real club's records.";
+export const TOUR_FOOTER = "lb.recorded_on_the_ios_simulator_against";
 
 export const TOUR_CHAPTERS: TourChapter[] = [
   {
     number: 1,
-    title: "A player joins a club",
-    subtitle: "Signing up, confirming, and being picked",
+    title: "lb.a_player_joins_a_club",
+    subtitle: "lb.signing_up_confirming_and_being_picked",
     at: 5,
     stamp: "0:05",
     beats: [
-      { at: 11, stamp: "0:11", text: `${brand.name} is club cricket on a phone: fixtures, availability, selection and the scorebook. This is a player opening it for the first time.` },
-      { at: 46, stamp: "0:46", text: "Signing up asks one thing first \u2014 whether you run a club or play for one. The app is a different shape for each." },
-      { at: 73, stamp: "1:13", text: "The quick start is a sport and a mobile number. Everything else about a player can wait until they have been picked once." },
-      { at: 85, stamp: "1:25", text: "New players are not searched for; they hand over a link. This one goes in the club's WhatsApp group, and the secretary invites them from it." },
-      { at: 98, stamp: "1:38", text: "Home before a club: the profile is part filled, and there is nothing in the diary yet." },
-      { at: 119, stamp: "1:59", text: "A club is somebody's real membership list, so an address gets confirmed before it can join one. The code arrives by email." },
-      { at: 143, stamp: "2:23", text: "The secretary sends the invite from that link, and it is waiting on Home \u2014 no code to type in, no email to go and find." },
-      { at: 156, stamp: "2:36", text: "Accepted, and the club's season is theirs: fixtures, the squad, the chat and the scores." },
-      { at: 164, stamp: "2:44", text: "The profile keeps a score of itself. What is missing is what a captain looks at when picking, so the app says which line to fill in next." },
-      { at: 178, stamp: "2:58", text: "A cricketer's profile: where they bat, what they bowl, the standard they play and how far they will travel." },
+      { at: 11, stamp: "0:11", text: "tour.opening" },
+      { at: 46, stamp: "0:46", text: "tour.signing_up_asks_one_thing_first_whethe" },
+      { at: 73, stamp: "1:13", text: "lb.the_quick_start_is_a_sport_and_a_mobil" },
+      { at: 85, stamp: "1:25", text: "lb.new_players_are_not_searched_for_they" },
+      { at: 98, stamp: "1:38", text: "lb.home_before_a_club_the_profile_is_part" },
+      { at: 119, stamp: "1:59", text: "lb.a_club_is_somebody_s_real_membership_l" },
+      { at: 143, stamp: "2:23", text: "tour.the_secretary_sends_the_invite_from_th" },
+      { at: 156, stamp: "2:36", text: "lb.accepted_and_the_club_s_season_is_thei" },
+      { at: 164, stamp: "2:44", text: "lb.the_profile_keeps_a_score_of_itself_wh" },
+      { at: 178, stamp: "2:58", text: "lb.a_cricketer_s_profile_where_they_bat_w" },
     ],
   },
   {
     number: 2,
-    title: "Can you play on Saturday?",
-    subtitle: "Availability, from both ends",
+    title: "lb.can_you_play_on_saturday",
+    subtitle: "lb.availability_from_both_ends",
     at: 187,
     stamp: "3:07",
     beats: [
-      { at: 197, stamp: "3:17", text: "The Fixtures tab is every fixture of every club you are in, each asking the one thing it needs: can you play?" },
-      { at: 208, stamp: "3:28", text: "Three taps \u2014 available, maybe, can't play. The answer is saved as it is tapped and the captain sees it immediately." },
-      { at: 220, stamp: "3:40", text: "It says what you said, and it can be changed until the side goes up." },
-      { at: 231, stamp: "3:51", text: "The calendar is the other way round: mark the Saturdays you are away and every fixture on them is answered at once." },
-      { at: 246, stamp: "4:06", text: "A weekend away marked once, rather than a message to the captain for each game." },
-      { at: 253, stamp: "4:13", text: "And the days you usually play, so the season starts from your own pattern rather than from nothing." },
-      { at: 271, stamp: "4:31", text: "Inside a fixture: where, when, the match fee, and who else has said yes." },
+      { at: 197, stamp: "3:17", text: "lb.the_fixtures_tab_is_every_fixture_of_e" },
+      { at: 208, stamp: "3:28", text: "tour.three_taps_available_maybe_can_t_play" },
+      { at: 220, stamp: "3:40", text: "lb.it_says_what_you_said_and_it_can_be_ch" },
+      { at: 231, stamp: "3:51", text: "lb.the_calendar_is_the_other_way_round_ma" },
+      { at: 246, stamp: "4:06", text: "lb.a_weekend_away_marked_once_rather_than" },
+      { at: 253, stamp: "4:13", text: "lb.and_the_days_you_usually_play_so_the_s" },
+      { at: 271, stamp: "4:31", text: "lb.inside_a_fixture_where_when_the_match" },
     ],
   },
   {
     number: 3,
-    title: "The captain picks the side",
-    subtitle: "Availability, reliability and who has sat out",
+    title: "ev.the_captain_picks_the_side",
+    subtitle: "lb.availability_reliability_and_who_has_s",
     at: 279,
     stamp: "4:39",
     beats: [
-      { at: 318, stamp: "5:18", text: "The captain's selection board for Saturday. Everyone who could play, in one list." },
-      { at: 328, stamp: "5:28", text: "Beside each name: what they said, what the calendar says, and how reliably they turn up when they are picked." },
-      { at: 340, stamp: "5:40", text: "The assistant can suggest a side from availability, reliability and who has been left out lately. The captain is the one who picks." },
-      { at: 354, stamp: "5:54", text: "Eleven picked and two down as reserves, in batting order." },
-      { at: 362, stamp: "6:02", text: "Publishing tells everybody at once." },
-      { at: 377, stamp: "6:17", text: "The squad lands in the club chat, where the rest of the week's arrangements already are." },
+      { at: 318, stamp: "5:18", text: "lb.the_captain_s_selection_board_for_satu" },
+      { at: 328, stamp: "5:28", text: "lb.beside_each_name_what_they_said_what_t" },
+      { at: 340, stamp: "5:40", text: "lb.the_assistant_can_suggest_a_side_from" },
+      { at: 354, stamp: "5:54", text: "lb.eleven_picked_and_two_down_as_reserves" },
+      { at: 362, stamp: "6:02", text: "lb.publishing_tells_everybody_at_once" },
+      { at: 377, stamp: "6:17", text: "lb.the_squad_lands_in_the_club_chat_where" },
     ],
   },
   {
     number: 4,
-    title: "A T20, ball by ball",
-    subtitle: "Twenty overs a side, scored on the phone",
+    title: "lb.a_t20_ball_by_ball",
+    subtitle: "lb.twenty_overs_a_side_scored_on_the_phon",
     at: 412,
     stamp: "6:52",
     beats: [
-      { at: 427, stamp: "7:07", text: "Tonight's fixture: a floodlit T20, twenty overs a side. The captain has the book." },
-      { at: 439, stamp: "7:19", text: "Before a ball: the terms both captains settle at the toss. Twenty overs, four an over each, a six-over powerplay, white ball." },
-      { at: 461, stamp: "7:41", text: "One captain proposes and the other agrees, each against their own name. There is no toss until both have." },
-      { at: 475, stamp: "7:55", text: "The toss, recorded before the team sheets, the way it happens." },
-      { at: 538, stamp: "8:58", text: "The team sheet is picked from the club's squad, in batting order, with the captain and the keeper marked." },
-      { at: 608, stamp: "10:08", text: "Openers and the bowler to start. From here the app is a scorebook." },
-      { at: 635, stamp: "10:35", text: "One tap a ball. The score, the two batters, the bowler's figures and this over so far." },
-      { at: 664, stamp: "11:04", text: "A boundary asks where it went. The field mirrors for a left-hander, so 'driven through cover' is right for both." },
-      { at: 673, stamp: "11:13", text: "The powerplay is on the screen while it lasts, with the overs left in it." },
-      { at: 700, stamp: "11:40", text: "Extras are the arithmetic the app does rather than the scorer: a wide they ran a single off is two runs, and both of them wides." },
-      { at: 742, stamp: "12:22", text: "A wicket takes the bowler's name, the fielder's, and who is in next." },
-      { at: 765, stamp: "12:45", text: "A no ball sets a free hit. While it stands, only a run out can get the batter, and the sheet offers nothing else." },
-      { at: 792, stamp: "13:12", text: "Nobody bowls two overs in a row and nobody bowls more than their four, so at the end of an over the app asks who is next \u2014 and says who cannot." },
-      { at: 837, stamp: "13:57", text: "Twenty overs bowled. The innings closes itself." },
-      { at: 852, stamp: "14:12", text: "The chase, with the target, the rate it needs and the Duckworth\u2013Lewis\u2013Stern par beside it in case the rain comes." },
-      { at: 921, stamp: "15:21", text: "Last over, and the arithmetic every fielding side is doing in its head." },
-      { at: 948, stamp: "15:48", text: "The result, from the log rather than from anyone's addition." },
-      { at: 960, stamp: "16:00", text: "Player of the match, and the game is finished." },
-      { at: 970, stamp: "16:10", text: "The full card: every batter, every bowler, the extras and the fall of wickets." },
+      { at: 427, stamp: "7:07", text: "lb.tonight_s_fixture_a_floodlit_t20_twent" },
+      { at: 439, stamp: "7:19", text: "lb.before_a_ball_the_terms_both_captains" },
+      { at: 461, stamp: "7:41", text: "lb.one_captain_proposes_and_the_other_agr" },
+      { at: 475, stamp: "7:55", text: "lb.the_toss_recorded_before_the_team_shee" },
+      { at: 538, stamp: "8:58", text: "lb.the_team_sheet_is_picked_from_the_club" },
+      { at: 608, stamp: "10:08", text: "lb.openers_and_the_bowler_to_start_from_h" },
+      { at: 635, stamp: "10:35", text: "lb.one_tap_a_ball_the_score_the_two_batte" },
+      { at: 664, stamp: "11:04", text: "lb.a_boundary_asks_where_it_went_the_fiel" },
+      { at: 673, stamp: "11:13", text: "lb.the_powerplay_is_on_the_screen_while_i" },
+      { at: 700, stamp: "11:40", text: "lb.extras_are_the_arithmetic_the_app_does" },
+      { at: 742, stamp: "12:22", text: "lb.a_wicket_takes_the_bowler_s_name_the_f" },
+      { at: 765, stamp: "12:45", text: "lb.a_no_ball_sets_a_free_hit_while_it_sta" },
+      { at: 792, stamp: "13:12", text: "tour.nobody_bowls_two_overs_in_a_row_and_no" },
+      { at: 837, stamp: "13:57", text: "lb.twenty_overs_bowled_the_innings_closes" },
+      { at: 852, stamp: "14:12", text: "tour.the_chase_with_the_target_the_rate_it" },
+      { at: 921, stamp: "15:21", text: "lb.last_over_and_the_arithmetic_every_fie" },
+      { at: 948, stamp: "15:48", text: "lb.the_result_from_the_log_rather_than_fr" },
+      { at: 960, stamp: "16:00", text: "lb.player_of_the_match_and_the_game_is_fi" },
+      { at: 970, stamp: "16:10", text: "lb.the_full_card_every_batter_every_bowle" },
     ],
   },
   {
     number: 5,
-    title: "The rest of the cricket",
-    subtitle: "The card, the wheel, the season and the book",
+    title: "lb.the_rest_of_the_cricket",
+    subtitle: "lb.the_card_the_wheel_the_season_and_the",
     at: 982,
     stamp: "16:22",
     beats: [
-      { at: 998, stamp: "16:38", text: "Every match the club has played or is playing, live and finished." },
-      { at: 1007, stamp: "16:47", text: "A finished league match from earlier in the season, with its own card kept the same way." },
-      { at: 1023, stamp: "17:03", text: "The wagon wheel is built from the same balls \u2014 every scoring shot, where it went and what the stroke was." },
-      { at: 1036, stamp: "17:16", text: "And a commentary, written from the log rather than typed by anybody: over, bowler, batter, what happened." },
-      { at: 1055, stamp: "17:35", text: "The 2nd XI are playing at the same time, scored on somebody else's phone. Everyone in the club sees it move." },
-      { at: 1095, stamp: "18:15", text: "What else the book can do: correct a ball three back, set the field, add penalty runs, cut the overs for rain, or hand the book to somebody else." },
-      { at: 1110, stamp: "18:30", text: "Scorers get it wrong three balls back, not just on the last one. Pick the ball and the innings winds back to it \u2014 recorded, not erased." },
-      { at: 1128, stamp: "18:48", text: "One person scores at a time. The book moves when they pass it on, and the trail keeps who had it when." },
-      { at: 1156, stamp: "19:16", text: "The club's season, folded up out of those cards: runs, wickets, catches \u2014 nobody types this in." },
-      { at: 1175, stamp: "19:35", text: "The club's public page \u2014 record, top players and next fixtures \u2014 for anyone who has heard of the club and has no account." },
-      { at: 1195, stamp: "19:55", text: "Every club and team has a QR code. At the toss the other captain scans it, and the scorecard knows who they are without anyone spelling a name." },
-      { at: 1219, stamp: "20:19", text: "A player's own figures, and the record they are building across seasons." },
-      { at: 1230, stamp: "20:30", text: "All of it lands back on Home: what is in progress, what is next, and what the club needs from you this week." },
+      { at: 998, stamp: "16:38", text: "lb.every_match_the_club_has_played_or_is" },
+      { at: 1007, stamp: "16:47", text: "lb.a_finished_league_match_from_earlier_i" },
+      { at: 1023, stamp: "17:03", text: "tour.the_wagon_wheel_is_built_from_the_same" },
+      { at: 1036, stamp: "17:16", text: "lb.and_a_commentary_written_from_the_log" },
+      { at: 1055, stamp: "17:35", text: "lb.the_2nd_xi_are_playing_at_the_same_tim" },
+      { at: 1095, stamp: "18:15", text: "lb.what_else_the_book_can_do_correct_a_ba" },
+      { at: 1110, stamp: "18:30", text: "tour.scorers_get_it_wrong_three_balls_back" },
+      { at: 1128, stamp: "18:48", text: "lb.one_person_scores_at_a_time_the_book_m" },
+      { at: 1156, stamp: "19:16", text: "tour.the_club_s_season_folded_up_out_of_tho" },
+      { at: 1175, stamp: "19:35", text: "tour.the_club_s_public_page_record_top_play" },
+      { at: 1195, stamp: "19:55", text: "lb.every_club_and_team_has_a_qr_code_at_t" },
+      { at: 1219, stamp: "20:19", text: "lb.a_player_s_own_figures_and_the_record" },
+      { at: 1230, stamp: "20:30", text: "lb.all_of_it_lands_back_on_home_what_is_i" },
     ],
   },
 ];

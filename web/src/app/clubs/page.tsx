@@ -23,6 +23,9 @@ import { ShareProfile } from "@/components/ShareProfile";
 import { VerifyContact } from "@/components/VerifyContact";
 import { copyText } from "@/lib/clipboard";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
+import type { IconName } from "@/components/Icon";
 
 /// `GET /me/clubs` returns each club with the role you hold in it.
 type Membership = Club & {
@@ -90,6 +93,7 @@ function apiPath(f: Filters) {
 }
 
 export default function ClubsPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const router = useRouter();
   const [me, setMe] = useState<PublicUser | null>(null);
@@ -137,11 +141,11 @@ export default function ClubsPage() {
       setResult(page);
       setError(null);
     } catch (err) {
-      if (mine === latest.current) setError(readErr(err, "Could not load your clubs"));
+      if (mine === latest.current) setError(readErr(err, t("lc.could_not_load_your_clubs")));
     } finally {
       if (mine === latest.current) setLoading(false);
     }
-  }, [filters, authed]);
+  }, [filters, authed, t]);
 
   useEffect(() => {
     if (ready && authed) load();
@@ -180,13 +184,13 @@ export default function ClubsPage() {
           <h1>{creating ? "Start a club" : "Clubs"}</h1>
           <p>
             {creating
-              ? "It takes a minute. You run the club, so you can invite players the moment it exists."
-              : "Your clubs, and what your role lets you do in each."}
+              ? t("lc.it_takes_a_minute_you_run_the_club_so")
+              : t("lc.your_clubs_and_what_your_role_lets_you")}
           </p>
         </div>
         {!error && !creating && (
           <button className="btn primary" type="button" onClick={() => setCreating(true)}>
-            <Icon name="plus" size={16} /> Start a club
+            <Icon name="plus" size={16} /> {t("cl.start_a_club")}
           </button>
         )}
       </section>
@@ -207,59 +211,59 @@ export default function ClubsPage() {
         <div className="cl-layout">
           <section className="panel cl-list" ref={listTop} aria-labelledby="cl-list-title">
             <div className="cl-list-head">
-              <h2 id="cl-list-title">Your clubs</h2>
+              <h2 id="cl-list-title">{t("cl.your_clubs")}</h2>
               <p className="subtle" aria-live="polite">
                 {result && total > 0
                   ? `Showing ${(result.page - 1) * PER_PAGE + 1}–${(result.page - 1) * PER_PAGE + result.items.length} of ${total}`
                   : result && filtered
-                    ? "No matches"
+                    ? t("lc.no_matches")
                     : ""}
               </p>
             </div>
 
-            <div className="cl-filters" role="search" aria-label="Filter your clubs">
+            <div className="cl-filters" role="search" aria-label={t("cl.filter_your_clubs")}>
               <label className="cl-filter-search">
-                <span className="sr-only">Search clubs</span>
+                <span className="sr-only">{t("cl.search_clubs")}</span>
                 <Icon name="search" size={16} />
                 <input
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name or description"
+                  placeholder={t("cl.search_by_name_or_description")}
                   maxLength={100}
                 />
               </label>
-              <select aria-label="Your role" value={filters.role} onChange={(e) => set({ role: e.target.value })}>
-                <option value="">All roles</option>
+              <select aria-label={t("cl.your_role")} value={filters.role} onChange={(e) => set({ role: e.target.value })}>
+                <option value="">{t("cl.all_roles")}</option>
                 {ROLE_FILTERS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
               </select>
-              <select aria-label="Sport" value={filters.sport} onChange={(e) => set({ sport: e.target.value })}>
-                <option value="">All sports</option>
+              <select aria-label={t("cl.sport")} value={filters.sport} onChange={(e) => set({ sport: e.target.value })}>
+                <option value="">{t("cl.all_sports")}</option>
                 {SPORTS.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
               </select>
-              <select aria-label="Public page" value={filters.published} onChange={(e) => set({ published: e.target.value })}>
-                <option value="">Any public page</option>
-                <option value="yes">Page published</option>
-                <option value="no">No public page</option>
+              <select aria-label={t("cl.public_page")} value={filters.published} onChange={(e) => set({ published: e.target.value })}>
+                <option value="">{t("cl.any_public_page")}</option>
+                <option value="yes">{t("cl.page_published")}</option>
+                <option value="no">{t("cl.no_public_page")}</option>
               </select>
-              <select aria-label="Sort by" value={filters.sort} onChange={(e) => set({ sort: e.target.value })}>
-                <option value="name">Name A–Z</option>
-                <option value="recent">Recently joined</option>
-                <option value="members">Most members</option>
+              <select aria-label={t("cl.sort_by")} value={filters.sort} onChange={(e) => set({ sort: e.target.value })}>
+                <option value="name">{t("cl.name_a_z")}</option>
+                <option value="recent">{t("cl.recently_joined")}</option>
+                <option value="members">{t("cl.most_members")}</option>
               </select>
               {filtered && (
                 <button className="btn ghost sm" type="button" onClick={clear}>
-                  Clear filters
+                  {t("cl.clear_filters")}
                 </button>
               )}
             </div>
 
             <div className="cl-cols" aria-hidden="true">
               <span>Club</span>
-              <span>Your role</span>
-              <span>Members</span>
-              <span>Teams</span>
-              <span>Public page</span>
+              <span>{t("cl.your_role")}</span>
+              <span>{t("cl.members")}</span>
+              <span>{t("cl.teams")}</span>
+              <span>{t("cl.public_page")}</span>
             </div>
 
             {!result ? (
@@ -273,13 +277,13 @@ export default function ClubsPage() {
             ) : (
               <div className="empty">
                 <Icon name="search" size={28} />
-                <p>No clubs match these filters.</p>
-                <button className="btn" type="button" onClick={clear}>Clear filters</button>
+                <p>{t("cl.no_clubs_match_these_filters")}</p>
+                <button className="btn" type="button" onClick={clear}>{t("cl.clear_filters")}</button>
               </div>
             )}
 
             {pages > 1 && result && (
-              <nav className="cl-pager" aria-label="Pages of clubs">
+              <nav className="cl-pager" aria-label={t("cl.pages_of_clubs")}>
                 <button className="btn sm" type="button" disabled={result.page <= 1 || loading} onClick={() => goToPage(result.page - 1)}>
                   <Icon name="arrowLeft" size={14} /> Previous
                 </button>
@@ -300,19 +304,19 @@ export default function ClubsPage() {
       {!creating && noClubs && (
         <section className="panel cl-empty" aria-labelledby="cl-empty-title">
           <span className="cl-empty-icon"><Icon name="users" size={28} /></span>
-          <h2 id="cl-empty-title">You&apos;re not in a club yet</h2>
-          <p className="muted">Start your own, or get invited into the one you play for.</p>
+          <h2 id="cl-empty-title">{t("fin.not_in_a_club_yet")}</h2>
+          <p className="muted">{t("cl.start_your_own_or_get_invited_into_the")}</p>
           <div className="cl-paths">
             <div className="cl-path">
-              <h3><Icon name="shield" size={18} /> I run a club</h3>
-              <p>Set it up in a minute. You become its secretary and can add players straight away.</p>
+              <h3><Icon name="shield" size={18} /> {t("cl.i_run_a_club")}</h3>
+              <p>{t("cl.set_it_up_in_a_minute_you_become_its_s")}</p>
               <button className="btn primary" type="button" onClick={() => setCreating(true)}>
-                <Icon name="plus" size={16} /> Start a club
+                <Icon name="plus" size={16} /> {t("cl.start_a_club")}
               </button>
             </div>
             <div className="cl-path">
-              <h3><Icon name="ball" size={18} /> I play for a club</h3>
-              <p>Send your profile link to the secretary. Their invite appears here to accept.</p>
+              <h3><Icon name="ball" size={18} /> {t("cl.i_play_for_a_club")}</h3>
+              <p>{t("cl.send_your_profile_link_to_the_secretar")}</p>
               {me && <ShareProfile userId={me.id} />}
             </div>
           </div>
@@ -325,6 +329,7 @@ export default function ClubsPage() {
 /// One club as a row. The name is the link, stretched over the whole row, so
 /// anywhere on it opens the club while the public-page button stays its own.
 function ClubRow({ club }: { club: Membership }) {
+  const t = useT();
   const secretary = club.role === "club_admin" || club.role === "super_admin";
   const open = club.visibility === "public";
   return (
@@ -336,7 +341,7 @@ function ClubRow({ club }: { club: Membership }) {
         </Link>
         <p className="cl-row-meta">
           <span>
-            <Icon name={open ? "users" : "lock"} size={12} /> {open ? "Anyone can find it" : "Invite only"}
+            <Icon name={open ? "users" : "lock"} size={12} /> {open ? t("lc.anyone_can_find_it") : t("lc.invite_only")}
           </span>
           <span className="cl-row-sports">{club.sport_types.join(" · ")}</span>
         </p>
@@ -360,14 +365,14 @@ function ClubRow({ club }: { club: Membership }) {
             rel="noreferrer"
             aria-label={`${club.name} public page (opens in a new tab)`}
           >
-            <Icon name="share" size={14} /> View page
+            <Icon name="share" size={14} /> {t("cl.view_page")}
           </a>
         ) : secretary ? (
           <Link className="btn ghost sm" href={`/clubs/${club.id}#public-page`} aria-label={`Set up ${club.name}'s public page`}>
-            <Icon name="plus" size={14} /> Set up
+            <Icon name="plus" size={14} /> {t("cl.set_up")}
           </Link>
         ) : (
-          <span className="subtle">Not published</span>
+          <span className="subtle">{t("cl.not_published")}</span>
         )}
       </span>
     </li>
@@ -377,6 +382,7 @@ function ClubRow({ club }: { club: Membership }) {
 /// Beside the list: your own profile link, your clubs' published pages, and
 /// how a club fits together — the things people otherwise go hunting for.
 function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPublished: () => void }) {
+  const t = useT();
   const [published, setPublished] = useState<Page<Membership> | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -396,15 +402,15 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
   };
 
   return (
-    <aside className="cl-side" aria-label="Profile, public pages and how clubs work">
+    <aside className="cl-side" aria-label={t("cl.profile_public_pages_and_how_clubs_wor")}>
       {me && (
         <section className="panel cl-side-card" aria-labelledby="cl-me">
-          <h2 id="cl-me" className="section-head">Your player profile</h2>
+          <h2 id="cl-me" className="section-head">{t("cl.your_player_profile")}</h2>
           <div className="cl-me">
             <Avatar name={me.name} url={me.avatar_url} size={44} />
             <div>
               <strong>{me.name}</strong>
-              <Link href="/profile">Edit profile</Link>
+              <Link href="/profile">{t("cl.edit_profile")}</Link>
             </div>
           </div>
           <p className="muted">
@@ -415,8 +421,8 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
       )}
 
       <section className="panel cl-side-card" aria-labelledby="cl-pages">
-        <h2 id="cl-pages" className="section-head">Club public pages</h2>
-        <p className="muted">A page anyone can open, no login: your record, top players and next fixtures.</p>
+        <h2 id="cl-pages" className="section-head">{t("cl.club_public_pages")}</h2>
+        <p className="muted">{t("cl.a_page_anyone_can_open_no_login_your_r")}</p>
         {published && published.total === 0 && (
           <p className="subtle">
             None of your clubs has published one yet. A secretary switches it on from the club&apos;s page.
@@ -436,7 +442,7 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
                     className="btn ghost sm icon-only"
                     type="button"
                     onClick={() => copy(c.public_slug!)}
-                    aria-label={`Copy the link to ${c.name}'s public page`}
+                    aria-label={t("fin.copy_link_to_page", { club: c.name })}
                   >
                     <Icon name={copied === c.public_slug ? "check" : "copy"} size={16} />
                   </button>
@@ -447,7 +453,7 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
                     rel="noreferrer"
                     aria-label={`View ${c.name}'s public page (opens in a new tab)`}
                   >
-                    View
+                    {t("cl.view")}
                   </a>
                 </span>
               </li>
@@ -462,14 +468,14 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
       </section>
 
       <section className="panel cl-side-card" aria-labelledby="cl-how">
-        <h2 id="cl-how" className="section-head">How clubs work</h2>
+        <h2 id="cl-how" className="section-head">{t("cl.how_clubs_work")}</h2>
         <ol className="guide-steps cc-steps">
           {HOW_CLUBS_WORK.map(([title, text], i) => (
             <li key={title}>
               <span className="guide-num">{i + 1}</span>
               <div>
-                <strong>{title}</strong>
-                <p>{text}</p>
+                <strong>{t(title)}</strong>
+                <p>{t(text)}</p>
               </div>
             </li>
           ))}
@@ -479,12 +485,14 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
   );
 }
 
-const HOW_CLUBS_WORK = [
-  ["A secretary runs the club", "Members and their roles, teams, grounds, fixtures and fees."],
-  ["Players join by invite", "Added by email or mobile, or from their profile link — then accepted on this page."],
-  ["Captains pick the side", "Everyone says whether they can play; the captain picks from who is available."],
-  ["Matches are scored live", "Ball by ball. Stats and the club's public page keep themselves up to date."],
-] as const;
+/// Dictionary keys — the list is built once at module scope and read in
+/// whichever language the visitor chose.
+const HOW_CLUBS_WORK: [Key, Key][] = [
+  ["lc.a_secretary_runs_the_club", "lc.members_and_their_roles_teams_grounds"],
+  ["lc.players_join_by_invite", "lc.added_by_email_or_mobile_or_from_their"],
+  ["lc.captains_pick_the_side", "lc.everyone_says_whether_they_can_play_th"],
+  ["lc.matches_are_scored_live", "lc.ball_by_ball_stats_and_the_club_s_publ"],
+];
 
 /// One of three crest colours, fixed per club, so a long list is not a wall of
 /// identical squares.
@@ -502,6 +510,7 @@ const initials = (name: string) =>
 /// Whoever creates the club is its first secretary, so this is also how a new
 /// account gets somewhere to add people to.
 function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (club: Club) => void }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [sports, setSports] = useState<string[]>(["cricket"]);
   const [description, setDescription] = useState("");
@@ -532,7 +541,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
       if (errCode(err) === "unverified") {
         setVerify(await api<VerificationStatus>("GET", "/me/verification").catch(() => null));
       }
-      setError(readErr(err, "Could not create the club"));
+      setError(readErr(err, t("lc.could_not_create_the_club")));
     } finally {
       setBusy(false);
     }
@@ -541,7 +550,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
   const trimmed = name.trim();
   // Said out loud rather than left as a greyed-out button nobody can explain.
   const missing =
-    trimmed.length < 2 ? "Give the club a name to continue." : sports.length === 0 ? "Pick at least one sport." : null;
+    trimmed.length < 2 ? t("lc.give_the_club_a_name_to_continue") : sports.length === 0 ? t("lc.pick_at_least_one_sport") : null;
 
   return (
     <div className="cc">
@@ -559,7 +568,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
       >
         <div className="cc-field">
           <label className="cc-label" htmlFor="cc-name">
-            <span className="cc-num" aria-hidden="true">1</span> Club name
+            <span className="cc-num" aria-hidden="true">1</span> {t("cl.club_name")}
           </label>
           <input
             id="cc-name"
@@ -571,12 +580,12 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
             aria-describedby="cc-name-help"
             autoFocus
           />
-          <p className="cc-help" id="cc-name-help">How your players and the clubs you play will see you.</p>
+          <p className="cc-help" id="cc-name-help">{t("cl.how_your_players_and_the_clubs_you_pla")}</p>
         </div>
 
         <fieldset className="cc-field">
           <legend className="cc-label">
-            <span className="cc-num" aria-hidden="true">2</span> Sports played
+            <span className="cc-num" aria-hidden="true">2</span> {t("cl.sports_played")}
           </legend>
           <div className="cc-chips">
             {SPORTS.map((s) => {
@@ -595,12 +604,12 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
               );
             })}
           </div>
-          <p className="cc-help">Pick every one you play — teams are set up per sport inside the club.</p>
+          <p className="cc-help">{t("cl.pick_every_one_you_play_teams_are_set")}</p>
         </fieldset>
 
         <fieldset className="cc-field">
           <legend className="cc-label">
-            <span className="cc-num" aria-hidden="true">3</span> Who can find it
+            <span className="cc-num" aria-hidden="true">3</span> {t("cl.who_can_find_it")}
           </legend>
           <div className="cc-options">
             {VISIBILITY.map((o) => {
@@ -616,8 +625,8 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
                   />
                   <span className="cc-option-icon"><Icon name={o.icon} size={18} /></span>
                   <span className="cc-option-body">
-                    <span className="cc-option-title">{o.title}</span>
-                    <span className="cc-option-text">{o.text}</span>
+                    <span className="cc-option-title">{t(o.title)}</span>
+                    <span className="cc-option-text">{t(o.text)}</span>
                   </span>
                   <span className="cc-option-tick"><Icon name="check" size={12} /></span>
                 </label>
@@ -628,18 +637,18 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
 
         <div className="cc-field">
           <label className="cc-label" htmlFor="cc-about">
-            <span className="cc-num" aria-hidden="true">4</span> Description
-            <span className="cc-optional">Optional</span>
+            <span className="cc-num" aria-hidden="true">4</span> {t("cl.description")}
+            <span className="cc-optional">{t("cl.optional")}</span>
           </label>
           <textarea
             id="cc-about"
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Sunday friendlies, Hemel Hempstead"
+            placeholder={t("cl.sunday_friendlies_hemel_hempstead")}
             aria-describedby="cc-about-help"
           />
-          <p className="cc-help" id="cc-about-help">Where and when you play. It shows on the club card.</p>
+          <p className="cc-help" id="cc-about-help">{t("cl.where_and_when_you_play_it_shows_on_th")}</p>
         </div>
 
       </form>
@@ -666,12 +675,12 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
         <div className="cc-actions">
           <p className="cc-hint" aria-live="polite">
             <Icon name={missing ? "help" : "shield"} size={16} />
-            {missing ?? "You become its secretary, so you can add members straight away."}
+            {missing ?? t("lc.you_become_its_secretary_so_you_can_ad")}
           </p>
           <div className="cc-buttons">
             <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
             <button className="btn primary" type="submit" form="cc-fields" disabled={busy || !!verify || !!missing}>
-              {busy ? "Creating…" : "Create club"}
+              {busy ? t("lc.creating") : t("lc.create_club")}
             </button>
           </div>
         </div>
@@ -680,35 +689,35 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
       <aside className="cc-aside">
         {/* A mirror of the form, so it is hidden from screen readers. */}
         <div className="panel cc-preview" aria-hidden="true">
-          <p className="section-head">Preview</p>
+          <p className="section-head">{t("cl.preview")}</p>
           <div className="cc-card">
             <div className="cc-card-top">
               <span className="cc-crest">{initials(trimmed) || <Icon name="users" size={22} />}</span>
               <div>
-                <p className={`cc-card-name${trimmed ? "" : " placeholder"}`}>{trimmed || "Your club"}</p>
+                <p className={`cc-card-name${trimmed ? "" : " placeholder"}`}>{trimmed || t("lc.your_club")}</p>
                 <p className="cc-card-meta">
                   <Icon name={visibility === "public" ? "users" : "lock"} size={12} />
-                  {VISIBILITY.find((o) => o.value === visibility)?.title}
+                  {(() => { const v = VISIBILITY.find((o) => o.value === visibility); return v ? t(v.title) : null; })()}
                 </p>
               </div>
             </div>
             <div className="cc-card-tags">
               {sports.map((s) => <span className="tag" key={s}>{s}</span>)}
-              <span className="tag gold">Secretary</span>
+              <span className="tag gold">{t("cl.secretary")}</span>
             </div>
             {description.trim() && <p className="cc-card-desc">{description.trim()}</p>}
           </div>
         </div>
 
         <div className="panel">
-          <h2 className="section-head">What happens next</h2>
+          <h2 className="section-head">{t("cl.what_happens_next")}</h2>
           <ol className="guide-steps cc-steps">
             {NEXT_STEPS.map(([title, text], i) => (
               <li key={title}>
                 <span className="guide-num">{i + 1}</span>
                 <div>
-                  <strong>{title}</strong>
-                  <p>{text}</p>
+                  <strong>{t(title)}</strong>
+                  <p>{t(text)}</p>
                 </div>
               </li>
             ))}
@@ -719,23 +728,24 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
   );
 }
 
-const VISIBILITY = [
+/// Dictionary keys: built once at module scope, read in the viewer's language.
+const VISIBILITY: { value: string; icon: IconName; title: Key; text: Key }[] = [
   {
     value: "invite_only",
     icon: "lock",
-    title: "Invite only",
-    text: "Kept out of search. Players join with your invite link or club code.",
+    title: "lc.invite_only",
+    text: "lc.kept_out_of_search_players_join_with_y",
   },
   {
     value: "public",
     icon: "users",
-    title: "Anyone can find it",
-    text: "Other clubs can find you by name when they arrange a match.",
+    title: "lc.anyone_can_find_it",
+    text: "lc.other_clubs_can_find_you_by_name_when",
   },
-] as const;
+];
 
-const NEXT_STEPS = [
-  ["Invite your players", "Share the club link or QR code from the club page."],
-  ["Schedule a fixture", "Players say whether they can play; the captain picks the side."],
-  ["Score it live", "Ball by ball — and hand the book over at the innings break."],
-] as const;
+const NEXT_STEPS: [Key, Key][] = [
+  ["lb.invite_your_players", "lc.share_the_club_link_or_qr_code_from_th"],
+  ["lc.schedule_a_fixture", "lc.players_say_whether_they_can_play_the"],
+  ["lc.score_it_live", "lc.ball_by_ball_and_hand_the_book_over_at"],
+];

@@ -16,6 +16,9 @@ import {
   standardOversPerBowler,
   type MatchConditions,
 } from "@/lib/tournament";
+import { useT } from "@/lib/i18n/provider";
+import type { T } from "@/lib/i18n";
+import type { Key } from "@/lib/i18n/en";
 
 /// The rules a tournament runs on, as one editable thing.
 ///
@@ -27,14 +30,16 @@ import {
 
 /// A recognised format, and the numbers that go with it.
 ///
-/// This is the form's answer to "I don't know what to put". Somebody who has
+/// This is the form's answer to "la.i_don_t_know_what_to_put". Somebody who has
 /// never set a tournament up picks *Twenty20* and gets twenty overs, four an
 /// over each, and a six-over powerplay — the real ones, not our guesses. Every
 /// number stays editable underneath.
 export type Format = {
   key: string;
-  name: string;
-  detail: string;
+  /// Dictionary keys: `FORMATS` is built once at module scope and read in
+  /// whichever language the viewer chose.
+  name: Key;
+  detail: Key;
   icon: IconName;
   overs: number;
   perBowler: number;
@@ -43,15 +48,15 @@ export type Format = {
 };
 
 export const FORMATS: Format[] = [
-  { key: "t20", name: "Twenty20", detail: "20 overs · 4 an over each · 6-over powerplay",
+  { key: "t20", name: "la.twenty20", detail: "tn.fmt_t20_detail",
     icon: "ball", overs: 20, perBowler: 4, powerplay: 6, side: 11 },
-  { key: "t10", name: "Ten10", detail: "10 overs · 2 an over each · 3-over powerplay",
+  { key: "t10", name: "la.ten10", detail: "tn.fmt_t10_detail",
     icon: "ball", overs: 10, perBowler: 2, powerplay: 3, side: 11 },
-  { key: "forty", name: "Forty over", detail: "40 overs · 8 an over each · club Sunday",
+  { key: "forty", name: "la.forty_over", detail: "tn.fmt_forty_detail",
     icon: "bat", overs: 40, perBowler: 8, powerplay: 0, side: 11 },
-  { key: "fifty", name: "Fifty over", detail: "50 overs · 10 an over each · 10-over powerplay",
+  { key: "fifty", name: "la.fifty_over", detail: "tn.fmt_fifty_detail",
     icon: "bat", overs: 50, perBowler: 10, powerplay: 10, side: 11 },
-  { key: "sixes", name: "Sixes", detail: "6 overs · six a side · a whole day of them",
+  { key: "sixes", name: "tn.fmt_sixes", detail: "tn.fmt_sixes_detail",
     icon: "trophy", overs: 6, perBowler: 2, powerplay: 0, side: 6 },
 ];
 
@@ -140,16 +145,20 @@ export function rulesPayload(r: Rules, conditions: MatchConditions) {
 }
 
 /// The tournament in one line, so it can be checked before it is created.
-export function rulesSummary(r: Rules): string {
+export function rulesSummary(r: Rules, t: T): string {
   const f = FORMATS.find((x) => x.key === formatOf(r));
   return [
-    r.maxEntrants.trim() ? `${r.maxEntrants} sides` : "no entry limit",
-    f ? f.name : `${r.overs} overs`,
-    `${r.playersPerSide} a side`,
-    BALL_LABEL[r.ball]?.toLowerCase(),
-    r.ageGroup !== "open" ? AGE_LABEL[r.ageGroup] : null,
-    r.gender !== "open" ? GENDER_LABEL[r.gender] : null,
-    r.guests > 0 ? `${r.guests} guest${r.guests === 1 ? "" : "s"} a side` : "club members only",
+    r.maxEntrants.trim()
+      ? t("tn.n_sides", { n: r.maxEntrants })
+      : t("tn.no_entry_limit"),
+    f ? t(f.name) : t("tn.n_overs", { n: r.overs }),
+    t("tn.n_a_side", { n: r.playersPerSide }),
+    t(BALL_LABEL[r.ball]).toLowerCase(),
+    r.ageGroup !== "open" ? t(AGE_LABEL[r.ageGroup]) : null,
+    r.gender !== "open" ? t(GENDER_LABEL[r.gender]) : null,
+    r.guests > 0
+      ? t("tn.n_guests_a_side", { n: r.guests, count: r.guests })
+      : t("tn.club_members_only"),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -177,8 +186,9 @@ export function TournamentRuleFields({
   onVenueAdded: (venue: Venue) => void;
   from?: number;
 }) {
+  const t = useT();
   const chosen = formatOf(rules);
-  // Closed to begin with: somebody who picked "Twenty20" has already answered
+  // Closed to begin with: somebody who picked "la.twenty20" has already answered
   // all of this, and showing five more boxes only invites them to doubt it.
   const [open, setOpen] = useState(chosen === "custom");
   const fee = pence(rules.entryFee);
@@ -188,7 +198,7 @@ export function TournamentRuleFields({
 
   return (
     <>
-      <Step n={from} title="The format" hint="Pick the one you are playing — the numbers fill in.">
+      <Step n={from} title={"tn.the_format"} hint={"la.pick_the_one_you_are_playing_the_numbe"}>
         <div className="opt-cards opt-cards-wide">
           {FORMATS.map((f) => (
             <label key={f.key} className={`opt-card${chosen === f.key ? " on" : ""}`}>
@@ -200,8 +210,8 @@ export function TournamentRuleFields({
               />
               <span className="opt-card-icon"><Icon name={f.icon} size={18} /></span>
               <span className="opt-card-body">
-                <span className="opt-card-title">{f.name}</span>
-                <span className="opt-card-text">{f.detail}</span>
+                <span className="opt-card-title">{t(f.name)}</span>
+                <span className="opt-card-text">{t(f.detail)}</span>
               </span>
               <span className="opt-card-tick"><Icon name="check" size={12} /></span>
             </label>
@@ -210,7 +220,7 @@ export function TournamentRuleFields({
             <span className="opt-card on" aria-hidden>
               <span className="opt-card-icon"><Icon name="more" size={18} /></span>
               <span className="opt-card-body">
-                <span className="opt-card-title">Your own</span>
+                <span className="opt-card-title">{"tn.your_own"}</span>
                 <span className="opt-card-text">
                   {rules.overs} overs · {rules.perBowler} an over each · {rules.playersPerSide} a side
                 </span>
@@ -226,13 +236,13 @@ export function TournamentRuleFields({
           onClick={() => setOpen(!open)}
         >
           <Icon name="arrowLeft" size={14} className="disclose-chev" />
-          {open ? "Hide the details" : "Change the details"}
+          {open ? "la.hide_the_details" : "la.change_the_details"}
         </button>
 
         {open && (
           <div className="setup-fields" style={{ marginTop: "var(--s3)" }}>
             <label>
-              Overs an innings
+              {"tn.overs_an_innings"}
               <input
                 type="number" min={1} max={100} value={rules.overs}
                 onChange={(e) => {
@@ -249,15 +259,15 @@ export function TournamentRuleFields({
               />
             </label>
             <label>
-              Most overs one bowler
+              {"tn.most_overs_one_bowler"}
               <input
                 type="number" min={1} max={rules.overs} value={rules.perBowler}
                 onChange={(e) => set({ perBowler: clamp(Number(e.target.value), 1, rules.overs, 1) })}
               />
-              <span className="subtle">Usually a fifth of the innings.</span>
+              <span className="subtle">{"tn.usually_a_fifth_of_the_innings"}</span>
             </label>
             <label>
-              Players a side
+              {"tn.players_a_side"}
               <input
                 type="number" min={2} max={15} value={rules.playersPerSide}
                 onChange={(e) => set({ playersPerSide: clamp(Number(e.target.value), 2, 15, 11) })}
@@ -269,29 +279,29 @@ export function TournamentRuleFields({
                 type="number" min={0} max={rules.overs} value={rules.powerplay}
                 onChange={(e) => set({ powerplay: clamp(Number(e.target.value), 0, rules.overs, 0) })}
               />
-              <span className="subtle">Zero for none.</span>
+              <span className="subtle">{"tn.zero_for_none"}</span>
             </label>
             <label>
               Ball
               <select value={rules.ball} onChange={(e) => set({ ball: e.target.value })}>
-                {BALLS.map((b) => <option key={b} value={b}>{BALL_LABEL[b]}</option>)}
+                {BALLS.map((b) => <option key={b} value={b}>{t(BALL_LABEL[b])}</option>)}
               </select>
-              <span className="subtle">White for limited overs, red for the longer game.</span>
+              <span className="subtle">{"tn.white_for_limited_overs_red_for_the_lo"}</span>
             </label>
             <label>
               Ground
               <select value={rules.ground} onChange={(e) => set({ ground: e.target.value })}>
-                {GROUNDS.map((g) => <option key={g} value={g}>{GROUND_LABEL[g]}</option>)}
+                {GROUNDS.map((g) => <option key={g} value={g}>{t(GROUND_LABEL[g])}</option>)}
               </select>
             </label>
           </div>
         )}
       </Step>
 
-      <Step n={from + 1} title="Entry" hint="Who can enter, by when, and what it costs them.">
+      <Step n={from + 1} title={"tn.entry"} hint={"la.who_can_enter_by_when_and_what_it_cost"}>
         <div className="setup-fields">
           <label>
-            How many sides
+            {"tn.how_many_sides"}
             <input
               type="number" min={2} value={rules.maxEntrants} placeholder="8"
               onChange={(e) => set({ maxEntrants: e.target.value })}
@@ -299,20 +309,20 @@ export function TournamentRuleFields({
             <span className="subtle">Leave empty for no limit.</span>
           </label>
           <label>
-            Entries close
+            {"tn.entries_close"}
             <input
               type="datetime-local" value={rules.entryDeadline}
               onChange={(e) => set({ entryDeadline: e.target.value })}
             />
-            <span className="subtle">After this nobody else can be asked in.</span>
+            <span className="subtle">{"tn.after_this_nobody_else_can_be_asked_in"}</span>
           </label>
           <label>
-            Entry fee per side
+            {"tn.entry_fee_per_side"}
             <input
-              inputMode="decimal" value={rules.entryFee} placeholder="50.00"
+              inputMode="decimal" value={rules.entryFee} placeholder={"tn.50_00"}
               onChange={(e) => set({ entryFee: e.target.value })}
             />
-            <span className="subtle">What a club pays to enter. Empty is free.</span>
+            <span className="subtle">{"tn.what_a_club_pays_to_enter_empty_is_fre"}</span>
           </label>
           <GroundField
             venues={venues}
@@ -326,43 +336,43 @@ export function TournamentRuleFields({
           />
         </div>
         {fee !== null && Number.isNaN(fee) && (
-          <p className="error">Give the entry fee as an amount, like 50.00.</p>
+          <p className="error">{"tn.give_the_entry_fee_as_an_amount_like_5"}</p>
         )}
       </Step>
 
-      <Step n={from + 2} title="Who may play" hint="The rule clubs argue about on the day.">
+      <Step n={from + 2} title={"tn.who_may_play"} hint={"la.the_rule_clubs_argue_about_on_the_day"}>
         <div className="setup-fields">
           <label>
-            Guest players allowed
+            {"tn.guest_players_allowed"}
             <input
               type="number" min={0} max={rules.playersPerSide} value={rules.guests}
               onChange={(e) => set({ guests: clamp(Number(e.target.value), 0, rules.playersPerSide, 0) })}
             />
             <span className="subtle">
               {rules.guests === 0
-                ? "Every player must be a member of the entering club."
+                ? "la.every_player_must_be_a_member_of_the_e"
                 : `A side may borrow up to ${rules.guests} from outside.`}
             </span>
           </label>
           <label>
-            Age group
+            {"tn.age_group"}
             <select value={rules.ageGroup} onChange={(e) => set({ ageGroup: e.target.value })}>
-              {AGE_GROUPS.map((a) => <option key={a} value={a}>{AGE_LABEL[a]}</option>)}
+              {AGE_GROUPS.map((a) => <option key={a} value={a}>{t(AGE_LABEL[a])}</option>)}
             </select>
           </label>
           <label>
-            Who it is for
+            {"tn.who_it_is_for"}
             <select value={rules.gender} onChange={(e) => set({ gender: e.target.value })}>
-              {GENDERS.map((g) => <option key={g} value={g}>{GENDER_LABEL[g]}</option>)}
+              {GENDERS.map((g) => <option key={g} value={g}>{t(GENDER_LABEL[g])}</option>)}
             </select>
           </label>
         </div>
         <label style={{ marginTop: "var(--s4)" }}>
-          Anything else in the rules
+          {"tn.anything_else_in_the_rules"}
           <textarea
             rows={2} value={rules.rulesNotes}
             onChange={(e) => set({ rulesNotes: e.target.value })}
-            placeholder="Ties settled on wickets lost, then boundaries. Last man bats with a runner."
+            placeholder={"tn.ties_settled_on_wickets_lost_then_boun"}
           />
         </label>
       </Step>
@@ -372,7 +382,7 @@ export function TournamentRuleFields({
 
 /// Pick a ground, or add one without leaving the form.
 ///
-/// "Add grounds on the club page" meant abandoning a half-filled tournament to
+/// "la.add_grounds_on_the_club_page" meant abandoning a half-filled tournament to
 /// go and do it, so most people picked *not decided* and never came back.
 function GroundField({
   venues,
@@ -409,7 +419,7 @@ function GroundField({
       // Adding a ground is `ManageClubOps`, which a team captain does not hold
       // even though they may be running the tournament. Say so rather than
       // leaving a button that quietly does nothing.
-      setError(readErr(err, "Could not add that ground"));
+      setError(readErr(err, "la.could_not_add_that_ground"));
     } finally {
       setBusy(false);
     }
@@ -419,21 +429,21 @@ function GroundField({
     return (
       <div className="ground-add">
         <label>
-          New ground
+          {"tn.new_ground"}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Wray Crescent"
+            placeholder={"tn.wray_crescent"}
             maxLength={160}
             autoFocus
           />
         </label>
         <label>
-          Where it is
+          {"tn.where_it_is"}
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="Optional — the address or the postcode"
+            placeholder={"tn.optional_the_address_or_the_postcode"}
           />
         </label>
         {error && <p className="error">{error}</p>}
@@ -444,7 +454,7 @@ function GroundField({
             disabled={busy || !name.trim() || !clubId}
             onClick={add}
           >
-            {busy ? "Adding…" : "Add it"}
+            {busy ? "la.adding" : "la.add_it"}
           </button>
           <button
             className="btn sm"
@@ -464,7 +474,7 @@ function GroundField({
 
   return (
     <label>
-      Main ground
+      {"tn.main_ground"}
       <select
         value={venueId}
         onChange={(e) => {
@@ -475,14 +485,14 @@ function GroundField({
           onPick(e.target.value);
         }}
       >
-        <option value="">Not decided</option>
+        <option value="">{"tn.not_decided"}</option>
         {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
         <option value="__new">+ Add a new ground…</option>
       </select>
       <span className="subtle">
         {venues.length === 0
-          ? "None saved yet — add one here."
-          : "Pitches are laid out later."}
+          ? "la.none_saved_yet_add_one_here"
+          : "la.pitches_are_laid_out_later"}
       </span>
     </label>
   );

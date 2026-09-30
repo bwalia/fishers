@@ -10,6 +10,7 @@ import {
   type TourChapter,
 } from "@/app/tour/chapters";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 /// The film, its chapters, and everything it says.
 ///
@@ -17,6 +18,7 @@ import { brand } from "@/brand.generated";
 /// opening YouTube in a new tab: somebody looking for "how does selection work"
 /// should be watching it two taps later, still on this page.
 export function TourFilm() {
+  const t = useT();
   const [start, setStart] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
 
@@ -57,7 +59,7 @@ export function TourFilm() {
               <Icon name="play" size={28} />
             </span>
             <span className="tour-poster-label">
-              Play the tour <span className="muted">· {TOUR_DURATION}</span>
+              {t("rest.play_the_tour")} <span className="muted">· {TOUR_DURATION}</span>
             </span>
           </button>
         )}
@@ -71,8 +73,8 @@ export function TourFilm() {
                 {String(chapter.number).padStart(2, "0")}
               </span>
               <span className="tour-chapter-copy">
-                <strong>{chapter.title}</strong>
-                <span className="muted">{chapter.subtitle}</span>
+                <strong>{t(chapter.title)}</strong>
+                <span className="muted">{t(chapter.subtitle)}</span>
               </span>
               <span className="tour-stamp">{chapter.stamp}</span>
             </button>
@@ -81,15 +83,14 @@ export function TourFilm() {
       </ol>
 
       <section className="tour-contents" aria-labelledby="tour-contents-heading">
-        <h2 id="tour-contents-heading">What is on screen, line by line</h2>
+        <h2 id="tour-contents-heading">{t("rest.what_is_on_screen_line_by_line")}</h2>
         <p className="muted">
-          Every screen in the film, at the second it appears. Tap a line to watch that
-          bit.
+          {t("rest.every_screen_in_the_film_at_the_second")}
         </p>
         {TOUR_CHAPTERS.map((chapter) => (
           <Chapter key={chapter.number} chapter={chapter} onPlay={play} />
         ))}
-        <p className="tour-fine">{TOUR_FOOTER}</p>
+        <p className="tour-fine">{t(TOUR_FOOTER)}</p>
       </section>
     </>
   );
@@ -102,19 +103,20 @@ function Chapter({
   chapter: TourChapter;
   onPlay: (seconds: number) => void;
 }) {
+  const t = useT();
   return (
     <div className="tour-contents-chapter">
       <h3>
         <span className="tour-stamp">{chapter.stamp}</span>
-        {chapter.number}. {chapter.title}
+        {chapter.number}. {t(chapter.title)}
       </h3>
-      <p className="muted tour-contents-sub">{chapter.subtitle}</p>
+      <p className="muted tour-contents-sub">{t(chapter.subtitle)}</p>
       <ul>
         {chapter.beats.map((beat) => (
           <li key={beat.at}>
             <button type="button" onClick={() => onPlay(beat.at)}>
               <span className="tour-stamp">{beat.stamp}</span>
-              <span>{beat.text}</span>
+              <span>{t(beat.text, { brand: brand.name })}</span>
             </button>
           </li>
         ))}

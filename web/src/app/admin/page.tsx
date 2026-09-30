@@ -12,6 +12,7 @@ import {
   type AdminOverview,
   type Growth,
 } from "@/lib/admin";
+import { useT } from "@/lib/i18n/provider";
 
 /// The whole system on one page.
 ///
@@ -20,6 +21,7 @@ import {
 /// the reassuring part and they go in the middle, because nobody opens this at
 /// eleven at night to admire the number of clubs.
 export default function AdminPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [data, setData] = useState<AdminOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,11 +35,11 @@ export default function AdminPage() {
     } catch (err) {
       // The API answers 404 rather than 403 to anybody not on the list, so
       // "not found" here means "not you" — say that rather than the literal.
-      setError(readErr(err, "Could not load the system view"));
+      setError(readErr(err, t("le.could_not_load_the_system_view")));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (authed) load();
@@ -59,8 +61,7 @@ export default function AdminPage() {
           <h1>System</h1>
           <p className="error">{error}</p>
           <p className="muted">
-            This page is for whoever runs the service. If that is you, your address has to be
-            in <code>PLATFORM_ADMIN_EMAILS</code> and confirmed.
+            {t("rest.this_page_is_for_whoever_runs_the_serv")} <code>PLATFORM_ADMIN_EMAILS</code> {t("rest.and_confirmed")}
           </p>
         </div>
       </main>
@@ -79,39 +80,39 @@ export default function AdminPage() {
           <p className="muted">
             Taken {new Date(data.taken_at).toLocaleString()} ·{" "}
             <button type="button" className="linkish" onClick={load} disabled={loading}>
-              {loading ? "Refreshing…" : "Refresh"}
+              {loading ? t("le.refreshing") : "Refresh"}
             </button>
           </p>
         </div>
         <span className={problems === 0 ? "tag" : "tag warn"}>
-          {problems === 0 ? "Nothing needs you" : `${problems} to look at`}
+          {problems === 0 ? t("le.nothing_needs_you") : `${problems} to look at`}
         </span>
       </header>
 
       <Health health={health} money={takings} />
 
-      <section className="adm-grid" aria-label="How big the system is">
-        <Figure label="People" value={people.users.total} growth={people.users} />
+      <section className="adm-grid" aria-label={t("rest.how_big_the_system_is")}>
+        <Figure label={t("rest.people")} value={people.users.total} growth={people.users} />
         <Figure label="Clubs" value={clubs.clubs.total} growth={clubs.clubs} />
         <Figure label="Matches" value={cricket.matches.total} growth={cricket.matches} />
-        <Figure label="Balls scored" value={cricket.scoring_events} />
+        <Figure label={t("rest.balls_scored")} value={cricket.scoring_events} />
       </section>
 
       <div className="adm-cols">
-        <Panel title="People" icon="users">
-          <Row label="Registered" value={people.users.total} />
-          <Row label="Email confirmed" value={people.email_verified} of={people.users.total} />
-          <Row label="Phone confirmed" value={people.phone_verified} of={people.users.total} />
-          <Row label="Signed in somewhere" value={people.active_sessions} />
-          <Row label="Devices taking push" value={people.push_devices} />
-          <Row label="Deleted accounts" value={people.deleted} muted />
+        <Panel title={t("rest.people")} icon="users">
+          <Row label={t("rest.registered")} value={people.users.total} />
+          <Row label={t("rest.email_confirmed")} value={people.email_verified} of={people.users.total} />
+          <Row label={t("rest.phone_confirmed")} value={people.phone_verified} of={people.users.total} />
+          <Row label={t("rest.signed_in_somewhere")} value={people.active_sessions} />
+          <Row label={t("rest.devices_taking_push")} value={people.push_devices} />
+          <Row label={t("rest.deleted_accounts")} value={people.deleted} muted />
         </Panel>
 
         <Panel title="Clubs" icon="shield">
           <Row label="Clubs" value={clubs.clubs.total} />
           <Row label="Teams" value={clubs.teams} />
-          <Row label="Memberships" value={clubs.memberships} />
-          <Row label="With nobody but the owner" value={clubs.empty} muted />
+          <Row label={t("rest.memberships")} value={clubs.memberships} />
+          <Row label={t("rest.with_nobody_but_the_owner")} value={clubs.empty} muted />
           {clubs.by_sport.length > 0 && (
             <div className="adm-chips">
               {clubs.by_sport.map((s) => (
@@ -123,9 +124,9 @@ export default function AdminPage() {
           )}
         </Panel>
 
-        <Panel title="Cricket" icon="bat">
-          <Row label="Fixtures ahead" value={cricket.fixtures_ahead} />
-          <Row label="Balls scored" value={cricket.scoring_events} />
+        <Panel title={t("rest.cricket")} icon="bat">
+          <Row label={t("rest.fixtures_ahead")} value={cricket.fixtures_ahead} />
+          <Row label={t("rest.balls_scored")} value={cricket.scoring_events} />
           {cricket.by_status.length > 0 && (
             <div className="adm-chips">
               {cricket.by_status.map((s) => (
@@ -137,9 +138,9 @@ export default function AdminPage() {
           )}
         </Panel>
 
-        <Panel title="Money" icon="shop">
+        <Panel title={t("rest.money")} icon="shop">
           {takings.taken.length === 0 ? (
-            <p className="muted">Nothing taken yet.</p>
+            <p className="muted">{t("rest.nothing_taken_yet")}</p>
           ) : (
             takings.taken.map((t) => (
               <Row
@@ -149,31 +150,30 @@ export default function AdminPage() {
               />
             ))
           )}
-          <Row label="Payments" value={takings.payments.total} />
-          <Row label="Failed this week" value={takings.failed_7d} bad={takings.failed_7d > 0} />
-          <Row label="Ordered, not paid" value={takings.unpaid_orders} />
+          <Row label={t("rest.payments")} value={takings.payments.total} />
+          <Row label={t("rest.failed_this_week")} value={takings.failed_7d} bad={takings.failed_7d > 0} />
+          <Row label={t("rest.ordered_not_paid")} value={takings.unpaid_orders} />
         </Panel>
       </div>
 
       <section className="panel">
         <h2>
-          <Icon name="users" size={18} /> People
+          <Icon name="users" size={18} /> {t("rest.people")}
         </h2>
         <p className="muted">
-          Everybody who has registered, what they play, how many matches they have, and
-          everything held about any one of them.
+          {t("rest.everybody_who_has_registered_what_they")}
         </p>
         <Link className="btn primary" href="/admin/users">
-          <Icon name="search" size={16} /> Open the people table
+          <Icon name="search" size={16} /> {t("rest.open_the_people_table")}
         </Link>
       </section>
 
       <section className="panel">
         <h2>
-          <Icon name="clock" size={18} /> What just happened
+          <Icon name="clock" size={18} /> {t("rest.what_just_happened")}
         </h2>
         {recent.length === 0 ? (
-          <p className="muted">Nothing recorded yet.</p>
+          <p className="muted">{t("rest.nothing_recorded_yet")}</p>
         ) : (
           <ul className="adm-feed">
             {recent.map((e) => (
@@ -209,15 +209,16 @@ function Health({
   health: AdminOverview["health"];
   money: AdminOverview["money"];
 }) {
+  const t = useT();
   const checks = [
     {
-      label: "Schema",
+      label: t("le.schema"),
       text: `migration ${health.migration}`,
       bad: health.migrations_failed > 0,
       badText: `${health.migrations_failed} migration failed — the API is running against a schema it does not expect`,
     },
     {
-      label: "Stripe webhooks",
+      label: t("le.stripe_webhooks"),
       text: "all processed",
       bad: health.webhooks_unprocessed > 0,
       badText: `${health.webhooks_unprocessed} received and not processed — payments may look unpaid`,
@@ -239,7 +240,7 @@ function Health({
   ];
 
   return (
-    <section className="panel adm-health" aria-label="What might be wrong">
+    <section className="panel adm-health" aria-label={t("rest.what_might_be_wrong")}>
       <ul>
         {checks.map((c) => (
           <li key={c.label} className={c.bad ? "bad" : "ok"}>

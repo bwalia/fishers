@@ -15,6 +15,8 @@ import { OppositionPicker } from "@/components/OppositionPicker";
 import { titleCase, type MatchResponse } from "@/lib/cricket";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
 
 /// A fixture and the match on it, as `GET /cricket/fixtures` returns them —
 /// one paged request rather than a fetch per row.
@@ -35,16 +37,17 @@ type Fixture = {
 
 type StateFilter = "" | "live" | "upcoming" | "finished";
 
-const STATE_TABS: { value: StateFilter; label: string }[] = [
-  { value: "", label: "All" },
-  { value: "live", label: "In progress" },
-  { value: "upcoming", label: "Not started" },
-  { value: "finished", label: "Finished" },
+const STATE_TABS: { value: StateFilter; label: Key }[] = [
+  { value: "", label: "cl.all" },
+  { value: "live", label: "rest.in_progress" },
+  { value: "upcoming", label: "sr.not_started" },
+  { value: "finished", label: "ld.finished" },
 ];
 
 const PER_PAGE = 20;
 
 export default function ScoreIndexPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const router = useRouter();
   const [page, setPage] = useState<Page<Fixture> | null>(null);
@@ -92,11 +95,11 @@ export default function ScoreIndexPage() {
       setPage(await api<Page<Fixture>>("GET", `/cricket/fixtures?${params}`));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load fixtures");
+      setError(err instanceof Error ? err.message : t("ld.failed_to_load_fixtures"));
     } finally {
       setLoading(false);
     }
-  }, [pageNo, stateFilter, search, newestFirst]);
+  }, [pageNo, stateFilter, search, newestFirst, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -146,7 +149,7 @@ export default function ScoreIndexPage() {
       });
       router.push(`/score/${match.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start the match");
+      setError(err instanceof Error ? err.message : t("ld.could_not_start_the_match"));
       setBusy(null);
     }
   };
@@ -154,30 +157,28 @@ export default function ScoreIndexPage() {
   return (
     <main id="main">
       <section className="hero">
-        <h1>Score a match</h1>
+        <h1>{t("sr.score_a_match")}</h1>
         <p>
-          Start a cricket fixture, or pick up one already under way. Setting up asks both
-          captains to agree the overs, ground and ball before the toss.
+          {t("sr.start_a_cricket_fixture_or_pick_up_one")}
         </p>
       </section>
 
       <div className="panel instant-start">
         <div>
-          <h2>Two sides, right now</h2>
+          <h2>{t("sr.two_sides_right_now")}</h2>
           <p className="muted">
-            No fixture needed — name the teams and start scoring. The fixture is
-            written for you.
+            {t("sr.no_fixture_needed_name_the_teams_and_s")}
           </p>
         </div>
         <button className="btn primary" type="button" onClick={() => setInstant(true)}>
-          <Icon name="plus" size={16} /> Start a match now
+          <Icon name="plus" size={16} /> {t("sr.start_a_match_now")}
         </button>
       </div>
 
       {error && <p className="error">{error}</p>}
 
       <div className="fixture-controls">
-        <div className="tabs" role="tablist" aria-label="Which fixtures">
+        <div className="tabs" role="tablist" aria-label={t("sr.which_fixtures")}>
           {STATE_TABS.map((tab) => (
             <button
               key={tab.value}
@@ -187,7 +188,7 @@ export default function ScoreIndexPage() {
               type="button"
               onClick={() => setStateFilter(tab.value)}
             >
-              {tab.label}
+              {t(tab.label)}
             </button>
           ))}
         </div>
@@ -196,15 +197,15 @@ export default function ScoreIndexPage() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search fixtures or teams"
-            aria-label="Search fixtures"
+            placeholder={t("sr.search_fixtures_or_teams")}
+            aria-label={t("sr.search_fixtures")}
           />
           <button
             className="btn sm"
             type="button"
             onClick={() => setNewestFirst((v) => !v)}
           >
-            {newestFirst ? "Newest first" : "Soonest first"}
+            {newestFirst ? t("ld.newest_first") : t("ld.soonest_first")}
           </button>
         </div>
       </div>
@@ -233,12 +234,12 @@ export default function ScoreIndexPage() {
                     {titleCase(f.match_status)}
                   </span>
                 ) : (
-                  <span className="tag grey">Not started</span>
+                  <span className="tag grey">{t("sr.not_started")}</span>
                 )}
                 {f.score && <span className="tag num">{f.score}</span>}
                 {f.result && <span className="tag gold">{f.result}</span>}
                 {f.has_scorer && f.match_status !== "complete" && (
-                  <span className="tag grey">Being scored</span>
+                  <span className="tag grey">{t("sr.being_scored")}</span>
                 )}
               </div>
             </div>
@@ -249,7 +250,7 @@ export default function ScoreIndexPage() {
                 type="button"
                 onClick={() => router.push(`/score/${f.match_id}`)}
               >
-                {f.match_status === "complete" ? "View scorecard" : "Open"}
+                {f.match_status === "complete" ? t("ld.view_scorecard") : "Open"}
               </button>
             ) : (
               <button
@@ -268,7 +269,7 @@ export default function ScoreIndexPage() {
                   })
                 }
               >
-                Set up match
+                {t("sr.set_up_match")}
               </button>
             )}
           </div>
@@ -277,7 +278,7 @@ export default function ScoreIndexPage() {
         {page && page.items.length === 0 && !loading && (
           <div className="empty">
             <Icon name="bat" size={28} />
-            <p>{search || stateFilter ? "Nothing matches that." : "No cricket fixtures yet."}</p>
+            <p>{search || stateFilter ? "Nothing matches that." : t("ld.no_cricket_fixtures_yet")}</p>
           </div>
         )}
 
@@ -294,7 +295,7 @@ export default function ScoreIndexPage() {
                 disabled={page.page <= 1 || loading}
                 onClick={() => setPageNo((n) => n - 1)}
               >
-                Previous
+                {t("sr.previous")}
               </button>
               <button
                 className="btn sm"
@@ -302,7 +303,7 @@ export default function ScoreIndexPage() {
                 disabled={!page.has_more || loading}
                 onClick={() => setPageNo((n) => n + 1)}
               >
-                Next
+                {t("sr.next")}
               </button>
             </div>
           </div>
@@ -344,10 +345,10 @@ type Setup = {
 /// Your side is chosen from the club's own teams rather than typed, and the
 /// opposition is found by their code or by name so the match records who they
 /// actually are — which is what lets their captain name their own eleven.
-const MATCH_KINDS = [
-  { value: "friendly", label: "Friendly" },
-  { value: "league_match", label: "League" },
-  { value: "social", label: "Social" },
+const MATCH_KINDS: { value: string; label: Key }[] = [
+  { value: "friendly", label: "ld.friendly" },
+  { value: "league_match", label: "ld.league" },
+  { value: "social", label: "ld.social" },
 ];
 
 function MatchSetupSheet({
@@ -368,6 +369,7 @@ function MatchSetupSheet({
   onClose: () => void;
   onStart: (setup: Setup) => void;
 }) {
+  const t = useT();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubId, setClubId] = useState(event?.club_id ?? preset ?? "");
   const [teams, setTeams] = useState<Team[]>([]);
@@ -419,26 +421,26 @@ function MatchSetupSheet({
   const sameSides = !internal
     ? null
     : !teams.some((t) => t.name === homeName)
-      ? "For a match between your teams, pick which team is your side."
+      ? t("ld.for_a_match_between_your_teams_pick_wh")
       : homeName.trim().toLowerCase() === awayName.trim().toLowerCase()
-        ? "Your side and the opposition are the same team — pick two different teams."
+        ? t("ld.your_side_and_the_opposition_are_the_s")
         : null;
 
   return (
     <div className="sheet-backdrop" role="presentation" onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Set up the match">
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={t("sr.set_up_the_match")}>
         <div className="sheet-head">
-          <h2>{event ? event.title : "New match"}</h2>
-          <button className="btn ghost sm" type="button" onClick={onClose}>Close</button>
+          <h2>{event ? event.title : t("ld.new_match")}</h2>
+          <button className="btn ghost sm" type="button" onClick={onClose}>{t("sr.close")}</button>
         </div>
 
         {!event && (
           <>
             {clubs.length > 1 && (
               <label>
-                Playing for
+                {t("sr.playing_for")}
                 <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
                   {clubs.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
@@ -446,7 +448,7 @@ function MatchSetupSheet({
                 </select>
               </label>
             )}
-            <h3 className="section-head">What sort of game</h3>
+            <h3 className="section-head">{t("sr.what_sort_of_game")}</h3>
             <div className="actions">
               {MATCH_KINDS.map((k) => (
                 <button
@@ -455,14 +457,14 @@ function MatchSetupSheet({
                   type="button"
                   onClick={() => setKind(k.value)}
                 >
-                  {k.label}
+                  {t(k.label)}
                 </button>
               ))}
             </div>
           </>
         )}
 
-        <h3 className="section-head">Your side</h3>
+        <h3 className="section-head">{t("sr.your_side")}</h3>
         <div className="actions">
           {clubName && (
             <button
@@ -485,16 +487,16 @@ function MatchSetupSheet({
           ))}
         </div>
         <label style={{ marginTop: "var(--s2)" }}>
-          Or name it yourself
+          {t("sr.or_name_it_yourself")}
           <input value={homeName} onChange={(e) => setHomeName(e.target.value)} />
         </label>
 
-        <h3 className="section-head">The opposition</h3>
+        <h3 className="section-head">{t("sr.the_opposition")}</h3>
         {/* Two of your own teams can play each other — a trial, the 1s
             against the 2s. Only then is your own club the opposition. */}
         {teams.length >= 2 && (
           <div className="internal-match">
-            <span className="subtle">Between your teams:</span>
+            <span className="subtle">{t("sr.between_your_teams")}</span>
             {teams
               .filter((t) => t.name !== homeName)
               .map((t) => (
@@ -530,7 +532,7 @@ function MatchSetupSheet({
               // Typing over a matched club means they are no longer that club.
               setOpponent(null);
             }}
-            placeholder="Whoever you are playing"
+            placeholder={t("sr.whoever_you_are_playing")}
           />
         </label>
         {opponent && !internal && (
@@ -554,7 +556,7 @@ function MatchSetupSheet({
             disabled={busy || !homeName.trim() || !awayName.trim() || !!sameSides}
             onClick={() => onStart({ homeName, awayName, opponent, clubId, kind })}
           >
-            {busy ? "Starting…" : "Start match"}
+            {busy ? "Starting…" : t("ld.start_match")}
           </button>
         </div>
       </div>

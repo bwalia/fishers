@@ -1,3 +1,5 @@
+import type { Key } from "@/lib/i18n/en";
+import type { T } from "@/lib/i18n";
 import { apiPort } from "./ports";
 
 /// Where the API lives, worked out at call time.
@@ -66,7 +68,7 @@ export type ProfileStrength = {
   percent: number;
   /// What is not filled in yet, most valuable first: "photo", "standard"…
   missing: string[];
-  /// "Add a photo, the standard you play at and your position".
+  /// "lb.add_a_photo_the_standard_you_play_at_a".
   next_up: string;
 };
 
@@ -145,27 +147,27 @@ export type PlayerLocation = {
 
 /// The standards a player picks from, in the words a club uses.
 export const SKILL_LEVELS = [
-  { value: "beginner", label: "Beginner" },
-  { value: "improver", label: "Improver" },
-  { value: "club", label: "Club standard" },
-  { value: "league", label: "League standard" },
-  { value: "county", label: "County / semi-pro" },
+  { value: "beginner", label: "lb.beginner" },
+  { value: "improver", label: "lb.improver" },
+  { value: "club", label: "lb.club_standard" },
+  { value: "league", label: "lb.league_standard" },
+  { value: "county", label: "lb.county_semi_pro" },
 ] as const;
 
 export function skillLabel(value?: string | null): string {
-  if (!value) return "Not said";
+  if (!value) return "lb.not_said";
   return SKILL_LEVELS.find((s) => s.value === value)?.label ?? value;
 }
 
 /// What each sport calls its positions. Adding a sport is a line here, not a
 /// migration — and an unknown sport still works, it just takes free text.
 export const SPORT_POSITIONS: Record<string, string[]> = {
-  cricket: ["Batter", "Bowler", "All-rounder", "Wicketkeeper"],
-  football: ["Goalkeeper", "Defender", "Midfielder", "Forward"],
-  badminton: ["Singles", "Doubles", "Mixed doubles"],
-  paddle: ["Right side", "Left side"],
-  pickleball: ["Singles", "Doubles"],
-  tennis: ["Singles", "Doubles"],
+  cricket: ["Batter", "Bowler", "lb.all_rounder", "Wicketkeeper"],
+  football: ["lb.goalkeeper", "lb.defender", "lb.midfielder", "lb.forward"],
+  badminton: ["lb.singles", "lb.doubles", "lb.mixed_doubles"],
+  paddle: ["lb.right_side", "lb.left_side"],
+  pickleball: ["lb.singles", "lb.doubles"],
+  tennis: ["lb.singles", "lb.doubles"],
   other: [],
 };
 
@@ -237,7 +239,7 @@ export type Product = {
   /// New or used. Absent for the things it does not apply to: a cup of tea is
   /// neither.
   condition?: ProductCondition | null;
-  /// "Light wear on the toe, no cracks." The sentence that decides whether
+  /// "lb.light_wear_on_the_toe_no_cracks" The sentence that decides whether
   /// somebody drives an hour to look at it.
   condition_note?: string | null;
   /// Short Handle, Harrow, Youth Large — free text, because bat, pad and glove
@@ -423,7 +425,7 @@ export async function api<T>(
     const token = await refreshSession();
     if (token) return api<T>(method, path, body, authorized, true, signal);
     sessionLost();
-    throw new Error("Your session has expired. Please sign in again.");
+    throw new Error("lb.your_session_has_expired_please_sign_i");
   }
 
   if (!res.ok) {
@@ -748,24 +750,32 @@ export type NotificationPage = {
 /// raw type with its underscores knocked out, so a new kind on the server
 /// shows up as readable-ish rather than blank.
 export const NOTIFICATION_KIND: Record<string, string> = {
-  invite: "Invitations",
-  selection_published: "Squads",
-  squad_promoted: "Squads",
-  selection_reconfirm: "Confirmations",
+  invite: "lb.invitations",
+  selection_published: "lb.squads",
+  squad_promoted: "lb.squads",
+  selection_reconfirm: "lb.confirmations",
   match_terms_proposed: "Match setup",
   match_terms_agreed: "Match setup",
-  match_book_handed_over: "Scoring",
+  match_book_handed_over: "lb.scoring",
   match_scheduled: "Fixtures",
   availability_request: "Availability",
-  fee_reminder: "Match fees",
-  scoreboard_shared: "Scoreboards",
+  fee_reminder: "lb.match_fees",
+  scoreboard_shared: "lb.scoreboards",
 };
 
 export function kindLabel(kind: string): string {
   return NOTIFICATION_KIND[kind] ?? kind.replaceAll("_", " ");
 }
 
-export function notificationLine(n: AppNotification): {
+/// One line for one notification, in the reader's language.
+///
+/// Every title is a template with named slots rather than a sentence built by
+/// joining fragments: "{home} v {away}" is two names either side of a word,
+/// and which side of it they go on is a fact about the language.
+export function notificationLine(
+  n: AppNotification,
+  t: T
+): {
   title: string;
   href?: string;
   /// Which fixture this is, when there are several against the same side.
@@ -790,66 +800,63 @@ export function notificationLine(n: AppNotification): {
         minute: "2-digit",
       })
     : undefined;
+  const sides = { home: p.home_name ?? t("lb.a_side"), away: p.away_name ?? t("note.another_side") };
+  const toMatch = p.match_id ? `/score/${p.match_id}` : undefined;
   switch (n.type) {
     case "match_terms_proposed":
-      return {
-        when,
-        title: `${p.home_name ?? "A side"} v ${p.away_name ?? "another"} — the other captain has proposed the terms. Tap to agree.`,
-        href: p.match_id ? `/score/${p.match_id}` : undefined,
-      };
+      return { when, title: t("note.terms_proposed", sides), href: toMatch };
     case "match_pick_your_xi":
-      return {
-        when,
-        title: `${p.home_name ?? "A side"} v ${p.away_name ?? "another"} — the toss is done. Pick your side.`,
-        href: p.match_id ? `/score/${p.match_id}` : undefined,
-      };
+      return { when, title: t("note.pick_your_xi", sides), href: toMatch };
     case "match_terms_agreed":
-      return {
-        when,
-        title: "Both captains have agreed the terms. You can do the toss.",
-        href: p.match_id ? `/score/${p.match_id}` : undefined,
-      };
+      return { when, title: t("lb.both_captains_have_agreed_the_terms_yo"), href: toMatch };
     case "match_book_handed_over":
-      return {
-        when,
-        title: `${p.home_name ?? "A side"} v ${p.away_name ?? "another"} — you have the book. You're scoring from the next ball.`,
-        href: p.match_id ? `/score/${p.match_id}` : undefined,
-      };
+      return { when, title: t("note.book_handed_over", sides), href: toMatch };
     case "fixture_scheduled":
       return {
         when,
-        title: `${(n.payload as { title?: string }).title ?? "A fixture"} — can you play?`,
+        title: t("note.fixture_scheduled", {
+          title: (n.payload as { title?: string }).title ?? t("lb.a_fixture"),
+        }),
         href: p.event_id ? `/events?fixture=${p.event_id}` : undefined,
       };
     case "player_responded":
       return {
         when,
-        title: `${(n.payload as { player?: string }).player ?? "A player"} answered for ${
-          (n.payload as { title?: string }).title ?? "a fixture"
-        }.`,
+        title: t("note.player_responded", {
+          player: (n.payload as { player?: string }).player ?? t("lb.a_player"),
+          title: (n.payload as { title?: string }).title ?? t("note.a_fixture_lower"),
+        }),
         href: p.event_id ? `/events?fixture=${p.event_id}` : undefined,
       };
     case "invite": {
       // The club (and team) by name, and who asked — an approval request that
       // says what is being approved.
       const i = n.payload as { club_name?: string; team_name?: string; event_title?: string; inviter?: string };
-      const from = i.inviter ? ` ${i.inviter} invited you.` : "";
+      const from = i.inviter ? t("note.invited_by", { who: i.inviter }) : "";
+      const club = i.club_name ?? t("lb.a_club");
       if (i.team_name)
-        return { title: `${i.club_name ?? "A club"} wants you in their ${i.team_name}.${from}`, href: "/" };
-      if (i.event_title) return { title: `You're invited: ${i.event_title}.${from}`, href: "/" };
-      return { title: `${i.club_name ?? "A club"} wants you in the club.${from}`, href: "/" };
+        return { title: t("note.invite_team", { club, team: i.team_name }) + from, href: "/" };
+      if (i.event_title)
+        return { title: t("note.invite_event", { title: i.event_title }) + from, href: "/" };
+      return { title: t("note.invite_club", { club }) + from, href: "/" };
     }
     case "profile_nudge": {
       const percent = (n.payload as { percent?: number }).percent;
       return {
-        title: `Finish your profile${percent != null ? ` — you're ${percent}% there` : ""}. Captains pick players they can see.`,
+        title:
+          percent != null
+            ? t("fin.finish_profile_pct", { percent })
+            : t("fin.finish_profile"),
         href: "/profile",
       };
     }
     case "invite_accepted": {
       const a = n.payload as { player?: string; team_name?: string; club_name?: string; event_title?: string; club_id?: string };
       return {
-        title: `${a.player ?? "A player"} accepted — they're in ${a.team_name ?? a.event_title ?? a.club_name ?? "the club"}.`,
+        title: t("note.invite_accepted", {
+          player: a.player ?? t("lb.a_player"),
+          where: a.team_name ?? a.event_title ?? a.club_name ?? t("note.the_club"),
+        }),
         href: a.club_id ? `/clubs/${a.club_id}#members` : undefined,
       };
     }
@@ -880,21 +887,21 @@ export type Invite = {
 /// club is a candidate for selection whatever their role, including the
 /// secretary — the roster is who plays, this is who runs it.
 export const CLUB_ROLES = [
-  { value: "member", label: "Member", can: "Plays, and answers for their own availability." },
+  { value: "member", label: "lb.member", can: "lb.plays_and_answers_for_their_own_availa" },
   {
     value: "team_vice_captain",
-    label: "Vice captain",
-    can: "Everything a member can, plus picking a side.",
+    label: "lb.vice_captain",
+    can: "lb.everything_a_member_can_plus_picking_a",
   },
   {
     value: "team_captain",
-    label: "Captain",
-    can: "Picks the side, agrees terms, and scores a match.",
+    label: "sc.captain",
+    can: "lb.picks_the_side_agrees_terms_and_scores",
   },
   {
     value: "club_admin",
-    label: "Secretary",
-    can: "Everything a captain can, plus the roster, fixtures and fees.",
+    label: "cl.secretary",
+    can: "lb.everything_a_captain_can_plus_the_rost",
   },
 ] as const;
 
@@ -907,17 +914,17 @@ export const isSecretaryRole = (role: string) => role === "club_admin" || role =
 /// `captain` is the membership's `is_captain`: a secretary who also captains
 /// reads as both, since in a small club that is one person.
 export function roleLabel(role: string, captain = false): string {
-  if (captain && isSecretaryRole(role)) return "Secretary & captain";
+  if (captain && isSecretaryRole(role)) return "lb.secretary_captain";
   return CLUB_ROLES.find((r) => r.value === role)?.label ?? role.replaceAll("_", " ");
 }
 
 /// The role picker's choices: the roles, plus a secretary who captains.
-export const ROLE_CHOICES = [
-  ...CLUB_ROLES.map((r) => ({ value: r.value as string, label: r.label as string, can: r.can as string })),
+export const ROLE_CHOICES: { value: string; label: Key; can: Key }[] = [
+  ...CLUB_ROLES.map((r) => ({ value: r.value as string, label: r.label as Key, can: r.can as Key })),
   {
     value: "club_admin+captain",
-    label: "Secretary & captain",
-    can: "A secretary who also captains the side — usual in a small club.",
+    label: "lb.secretary_captain",
+    can: "lb.a_secretary_who_also_captains_the_side",
   },
 ];
 

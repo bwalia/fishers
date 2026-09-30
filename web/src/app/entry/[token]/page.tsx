@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import { apiV1, readErr } from "@/lib/api";
+import { useT } from "@/lib/i18n/provider";
 
 /// Answering a tournament invitation without a Fishers account.
 ///
@@ -17,6 +18,7 @@ type Invitation = {
 };
 
 export default function EntryPage({ params }: { params: Promise<{ token: string }> }) {
+  const t = useT();
   const { token } = use(params);
   const [invite, setInvite] = useState<Invitation | null>(null);
   const [answered, setAnswered] = useState<string | null>(null);
@@ -33,11 +35,11 @@ export default function EntryPage({ params }: { params: Promise<{ token: string 
       setInvite(await r.json());
       setError(null);
     } catch {
-      setError("That invitation link is not valid, or it has already been answered.");
+      setError(t("le.that_invitation_link_is_not_valid_or_i"));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     load();
@@ -55,7 +57,7 @@ export default function EntryPage({ params }: { params: Promise<{ token: string 
       if (!r.ok) throw new Error(await r.text());
       setAnswered(status);
     } catch (err) {
-      setError(readErr(err, "Could not send that answer"));
+      setError(readErr(err, t("le.could_not_send_that_answer")));
     } finally {
       setBusy(null);
     }
@@ -72,7 +74,7 @@ export default function EntryPage({ params }: { params: Promise<{ token: string 
     return (
       <main id="main">
         <section className="hero">
-          <h1>{answered === "accepted" ? "You're in" : "Thanks for letting them know"}</h1>
+          <h1>{answered === "accepted" ? t("le.you_re_in") : t("le.thanks_for_letting_them_know")}</h1>
           <p>
             {answered === "accepted"
               ? `${invite?.host_club} has been told that ${invite?.side} is entering ${invite?.tournament}. They will send the fixtures once the draw is made.`
@@ -103,7 +105,7 @@ export default function EntryPage({ params }: { params: Promise<{ token: string 
       {error && <p className="error">{error}</p>}
 
       <div className="panel">
-        <h2>Are you coming?</h2>
+        <h2>{t("rest.are_you_coming")}</h2>
         <p className="muted">
           Answering here tells {invite.host_club} straight away. They can only
           make the draw once every side has said.
@@ -123,7 +125,7 @@ export default function EntryPage({ params }: { params: Promise<{ token: string 
             disabled={busy !== null}
             onClick={() => answer("declined")}
           >
-            {busy === "declined" ? "Sending…" : "No, we can't make it"}
+            {busy === "declined" ? "Sending…" : t("le.no_we_can_t_make_it")}
           </button>
         </div>
       </div>

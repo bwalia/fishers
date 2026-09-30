@@ -7,6 +7,7 @@ import { api, getStoredUser, readErr, type Club, type ClubMemberRow, type Team }
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/Sheet";
+import { useT } from "@/lib/i18n/provider";
 
 type Person = { id: string; name: string; avatar?: string | null; clubs: string[]; clubIds: string[] };
 
@@ -18,6 +19,7 @@ type Person = { id: string; name: string; avatar?: string | null; clubs: string[
 /// group. Only people you share a club with: a stranger cannot be messaged,
 /// and cannot message you.
 export function NewChat({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const router = useRouter();
   const [mode, setMode] = useState<"people" | "club">("people");
   const [clubs, setClubs] = useState<Club[] | null>(null);
@@ -59,19 +61,19 @@ export function NewChat({ onClose }: { onClose: () => void }) {
       onClose();
       router.push(`/chat/${chat.id}`);
     } catch (err) {
-      setError(readErr(err, "Could not start that chat"));
+      setError(readErr(err, t("le.could_not_start_that_chat")));
       setBusy(false);
     }
   };
 
   return (
     <Sheet title="New chat" onClose={onClose}>
-      <div className="people-tabs new-chat-modes" role="tablist" aria-label="Who is it with">
+      <div className="people-tabs new-chat-modes" role="tablist" aria-label={t("rest.who_is_it_with")}>
         <button type="button" role="tab" aria-selected={mode === "people"} className={mode === "people" ? "on" : undefined} onClick={() => setMode("people")}>
-          <Icon name="chat" size={14} /> People
+          <Icon name="chat" size={14} /> {t("rest.people")}
         </button>
         <button type="button" role="tab" aria-selected={mode === "club"} className={mode === "club" ? "on" : undefined} onClick={() => setMode("club")}>
-          <Icon name="users" size={14} /> Club or team
+          <Icon name="users" size={14} /> {t("rest.club_or_team")}
         </button>
       </div>
 
@@ -79,7 +81,7 @@ export function NewChat({ onClose }: { onClose: () => void }) {
       {clubs?.length === 0 && (
         <div className="new-chat-empty">
           <p className="muted">
-            You chat with the people in your clubs. Join one — or start yours — and they are all here.
+            {t("rest.you_chat_with_the_people_in_your_clubs")}
           </p>
           <Link className="btn primary" href="/clubs">
             <Icon name="users" size={16} /> Your clubs
@@ -106,6 +108,7 @@ function PickPeople({
   busy: boolean;
   onStart: (body: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [club, setClub] = useState("");
   const [term, setTerm] = useState("");
   const [chosen, setChosen] = useState<string[]>([]);
@@ -122,7 +125,7 @@ function PickPeople({
   const groupName = firsts.length <= 3 ? firsts.join(", ").replace(/, ([^,]*)$/, " & $1") : `${firsts.slice(0, 2).join(", ")} & ${firsts.length - 2} more`;
 
   if (people.length === 0) {
-    return <p className="muted new-chat-empty">Nobody else in your clubs yet. Add players first, and they appear here.</p>;
+    return <p className="muted new-chat-empty">{t("rest.nobody_else_in_your_clubs_yet_add_play")}</p>;
   }
 
   return (
@@ -132,8 +135,8 @@ function PickPeople({
         type="search"
         value={term}
         onChange={(e) => setTerm(e.target.value)}
-        placeholder="Search by name"
-        aria-label="Search by name"
+        placeholder={t("rest.search_by_name")}
+        aria-label={t("rest.search_by_name")}
       />
       {clubs.length > 1 && (
         <div className="chip-set new-chat-clubs" role="group" aria-label="Which club">
@@ -148,7 +151,7 @@ function PickPeople({
         </div>
       )}
 
-      <ul className="people-list new-chat-people" aria-label="People">
+      <ul className="people-list new-chat-people" aria-label={t("rest.people")}>
         {shown.map((p) => {
           const on = chosen.includes(p.id);
           return (
@@ -170,7 +173,7 @@ function PickPeople({
       <div className="new-chat-go">
         {picked.length > 1 && (
           <label>
-            Group name <span className="subtle">(optional)</span>
+            {t("rest.group_name")} <span className="subtle">(optional)</span>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder={groupName} maxLength={120} />
           </label>
         )}
@@ -190,10 +193,10 @@ function PickPeople({
           {busy
             ? "Opening…"
             : picked.length === 0
-              ? "Choose who to message"
+              ? t("le.choose_who_to_message")
               : picked.length === 1
                 ? `Message ${firsts[0]}`
-                : `Start a group of ${picked.length + 1}`}
+                : t("fin.start_a_group_of", { n: picked.length + 1 })}
         </button>
       </div>
     </>
@@ -209,6 +212,7 @@ function PickClub({
   busy: boolean;
   onStart: (body: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [clubId, setClubId] = useState(clubs[0].id);
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamId, setTeamId] = useState("");
@@ -244,8 +248,8 @@ function PickClub({
         ))}
       </fieldset>
       <label>
-        What is it about
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Sunday XI, kit orders, winter nets" maxLength={120} />
+        {t("rest.what_is_it_about")}
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("rest.sunday_xi_kit_orders_winter_nets")} maxLength={120} />
       </label>
       <button
         className="btn primary lg"
@@ -255,7 +259,7 @@ function PickClub({
           onStart(teamId ? { kind: "team", club_id: clubId, team_id: teamId, title: title.trim() } : { kind: "club", club_id: clubId, title: title.trim() })
         }
       >
-        <Icon name="plus" size={16} /> {busy ? "Starting…" : "Start the thread"}
+        <Icon name="plus" size={16} /> {busy ? "Starting…" : t("le.start_the_thread")}
       </button>
     </div>
   );

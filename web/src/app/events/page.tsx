@@ -17,6 +17,7 @@ import { OppositionPicker } from "@/components/OppositionPicker";
 import { Icon, type IconName } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 const SUBTYPE_ICON: Record<string, IconName> = {
   league_match: "trophy",
@@ -36,6 +37,7 @@ const GUIDE_KEY = "fishers:fixtures-guide-dismissed";
 /// Your answer is on the card and you can change it there. It is the same
 /// answer the availability calendar shows and the captain picks from.
 export default function EventsPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [fixtures, setFixtures] = useState<MyFixture[] | null>(null);
   const [past, setPast] = useState<MyFixture[] | null>(null);
@@ -70,9 +72,9 @@ export default function EventsPage() {
       setDays(Object.fromEntries(marked.map((a) => [a.date, a.status])));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load your fixtures"));
+      setError(readErr(err, t("ld.could_not_load_your_fixtures")));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -104,7 +106,7 @@ export default function EventsPage() {
       const list = await myFixtures(new Date(Date.now() - 120 * 864e5), new Date());
       setPast(list.reverse());
     } catch (err) {
-      setError(readErr(err, "Could not load past fixtures"));
+      setError(readErr(err, t("ld.could_not_load_past_fixtures")));
     }
   };
 
@@ -133,16 +135,16 @@ export default function EventsPage() {
       <section className="hero fixtures-hero">
         <div>
           <h1>Fixtures</h1>
-          <p>Every match your clubs play. Say whether you can play — your captain picks the side from the answers.</p>
+          <p>{t("ev.every_match_your_clubs_play_say_whethe")}</p>
         </div>
         <div className="fixtures-hero-actions">
           {schedulable.length > 0 && (
             <button className="btn primary" type="button" onClick={() => setScheduling(true)}>
-              <Icon name="plus" size={16} /> Schedule a match
+              <Icon name="plus" size={16} /> {t("ev.schedule_a_match")}
             </button>
           )}
           <Link className="btn" href="/availability">
-            <Icon name="calendar" size={16} /> Your calendar
+            <Icon name="calendar" size={16} /> {t("ev.your_calendar")}
           </Link>
         </div>
       </section>
@@ -163,32 +165,32 @@ export default function EventsPage() {
       {guide && fixtures !== null && (
         <section className="panel guide-card" aria-labelledby="fx-guide-title">
           <div className="guide-card-head">
-            <h2 id="fx-guide-title">How fixtures work</h2>
+            <h2 id="fx-guide-title">{t("ev.how_fixtures_work")}</h2>
             <button className="btn ghost sm" type="button" onClick={dismissGuide}>
-              Got it
+              {t("ev.got_it")}
             </button>
           </div>
           <ol className="guide-steps">
             <li>
               <span className="guide-num" aria-hidden>1</span>
               <div>
-                <strong>Answer each fixture</strong>
+                <strong>{t("ev.answer_each_fixture")}</strong>
                 <p>Available, Maybe or Can&rsquo;t play — right on the card. Change it any time.</p>
               </div>
             </li>
             <li>
               <span className="guide-num" aria-hidden>2</span>
               <div>
-                <strong>The captain picks the side</strong>
+                <strong>{t("ev.the_captain_picks_the_side")}</strong>
                 <p>From everyone&rsquo;s answers. You get told when you&rsquo;re in the squad.</p>
               </div>
             </li>
             <li>
               <span className="guide-num" aria-hidden>3</span>
               <div>
-                <strong>Keep your calendar</strong>
+                <strong>{t("ev.keep_your_calendar")}</strong>
                 <p>
-                  Mark your usual days on <Link href="/availability">your calendar</Link> — it shows every
+                  {t("ev.mark_your_usual_days_on")} <Link href="/availability">{t("ev.your_calendar_2")}</Link> — it shows every
                   fixture and what you said, two matches on one day included.
                 </p>
               </div>
@@ -198,7 +200,7 @@ export default function EventsPage() {
       )}
 
       {fixtures !== null && upcoming.length > 0 && (
-        <div className="fx-summary" role="group" aria-label="Your fixtures at a glance">
+        <div className="fx-summary" role="group" aria-label={t("ev.your_fixtures_at_a_glance")}>
           <button
             type="button"
             className={`fx-stat${view === "unanswered" ? " on" : ""}${unanswered.length ? " needs" : ""}`}
@@ -210,11 +212,11 @@ export default function EventsPage() {
           </button>
           <div className="fx-stat">
             <span className="fx-stat-num num">{playing.length}</span>
-            <span className="fx-stat-label">said available</span>
+            <span className="fx-stat-label">{t("ev.said_available")}</span>
           </div>
           <div className="fx-stat">
             <span className="fx-stat-num num">{upcoming.length}</span>
-            <span className="fx-stat-label">coming up</span>
+            <span className="fx-stat-label">{t("ev.coming_up")}</span>
           </div>
         </div>
       )}
@@ -223,8 +225,8 @@ export default function EventsPage() {
         <div className="people-tabs fx-views" role="tablist" aria-label="Which fixtures">
           {([
             ["upcoming", "Coming up"],
-            ["unanswered", "Needs my answer"],
-            ["past", "Past"],
+            ["unanswered", t("ld.needs_my_answer")],
+            ["past", t("ld.past")],
           ] as [View, string][]).map(([v, label]) => (
             <button
               key={v}
@@ -240,9 +242,9 @@ export default function EventsPage() {
           ))}
         </div>
         {clubs.length > 1 && (
-          <div className="chip-set fx-clubs" role="group" aria-label="Which club">
+          <div className="chip-set fx-clubs" role="group" aria-label={t("ev.which_club")}>
             <button type="button" className={`chip${club === "" ? " on" : ""}`} aria-pressed={club === ""} onClick={() => setClub("")}>
-              All clubs
+              {t("ev.all_clubs")}
             </button>
             {clubs.map(([id, name]) => (
               <button key={id} type="button" className={`chip${club === id ? " on" : ""}`} aria-pressed={club === id} onClick={() => setClub(id)}>
@@ -262,12 +264,12 @@ export default function EventsPage() {
           <Icon name={view === "unanswered" ? "check" : "calendar"} size={28} />
           <p>
             {view === "unanswered"
-              ? "You've answered every fixture. Nice."
+              ? t("ld.you_ve_answered_every_fixture_nice")
               : view === "past"
-                ? "No fixtures in the last four months."
+                ? t("ld.no_fixtures_in_the_last_four_months")
                 : schedulable.length > 0
-                  ? "Nothing in the diary yet. Schedule a match and everyone gets asked whether they can play."
-                  : "Nothing in the diary yet. When your club schedules a match, it appears here and you get asked."}
+                  ? t("ld.nothing_in_the_diary_yet_schedule_a_ma")
+                  : t("ld.nothing_in_the_diary_yet_when_your_clu")}
           </p>
         </div>
       )}
@@ -307,6 +309,7 @@ function FixtureCard({
   dayStatus?: AvailabilityStatus;
   onAnswered: (a: MyFixture["my_answer"]) => void;
 }) {
+  const t = useT();
   const hours = Math.round((Date.parse(f.end_at) - Date.parse(f.start_at)) / 3600e3);
   const state = f.my_answer ?? "none";
   return (
@@ -322,7 +325,7 @@ function FixtureCard({
             {f.event_subtype.replaceAll("_", " ")}
           </span>
           {f.status !== "scheduled" && <span className="tag gold">{f.status.replaceAll("_", " ")}</span>}
-          {!past && !f.my_answer && <span className="tag gold">Needs your answer</span>}
+          {!past && !f.my_answer && <span className="tag gold">{t("ev.needs_your_answer")}</span>}
         </div>
         <Link className="fx-title" href={`/events/${f.event_id}`}>
           {f.title}
@@ -349,12 +352,12 @@ function FixtureCard({
           </Link>
           {f.match_id && (
             <Link className="btn sm" href={`/score/${f.match_id}`}>
-              <Icon name="radio" size={14} /> {past ? "Scorecard" : "Score"}
+              <Icon name="radio" size={14} /> {past ? t("ld.scorecard") : "Score"}
             </Link>
           )}
           {f.ticket_price_cents != null && (
             <Link className="btn sm" href={`/events/${f.event_id}/tickets`}>
-              Tickets
+              {t("ev.tickets")}
             </Link>
           )}
         </div>
@@ -365,7 +368,7 @@ function FixtureCard({
         ) : (
           <>
             <span className={`fx-said is-${state}`}>{saidLabel(f.my_answer)}</span>
-            <FixtureAnswer eventId={f.event_id} answer={f.my_answer} onAnswered={onAnswered} label={`Can you play ${f.title}?`} />
+            <FixtureAnswer eventId={f.event_id} answer={f.my_answer} onAnswered={onAnswered} label={t("fin.can_you_play_fixture", { fixture: f.title })} />
           </>
         )}
       </div>
@@ -387,6 +390,7 @@ function ScheduleMatch({
   onClose: () => void;
   onScheduled: () => void;
 }) {
+  const t = useT();
   const [clubId, setClubId] = useState(clubs[0]?.id ?? "");
   const [opponent, setOpponent] = useState<OpponentIdentity | null>(null);
   const [oppositionName, setOppositionName] = useState("");
@@ -427,7 +431,7 @@ function ScheduleMatch({
       });
       onScheduled();
     } catch (err) {
-      setError(readErr(err, "Could not schedule that"));
+      setError(readErr(err, t("ld.could_not_schedule_that")));
     } finally {
       setBusy(false);
     }
@@ -446,7 +450,7 @@ function ScheduleMatch({
   return (
     <div className="panel setup-panel">
       <div className="panel-head">
-        <h2>Schedule a match</h2>
+        <h2>{t("ev.schedule_a_match")}</h2>
         <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
       </div>
 
@@ -461,17 +465,17 @@ function ScheduleMatch({
       </fieldset>
 
       <fieldset className="setup-group">
-        <legend>Where</legend>
+        <legend>{t("ev.where")}</legend>
         {venues.length === 0 ? (
           <p className="muted">
             No grounds saved for this club yet. Add them on the{" "}
-            <Link href={`/clubs/${clubId}`}>club page</Link> and they show up here.
+            <Link href={`/clubs/${clubId}`}>{t("ev.club_page")}</Link> {t("ev.and_they_show_up_here")}
           </p>
         ) : (
           <label>
             Ground
             <select value={venueId} onChange={(e) => setVenueId(e.target.value)}>
-              <option value="">Not decided yet</option>
+              <option value="">{t("ev.not_decided_yet")}</option>
               {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </label>
@@ -495,9 +499,9 @@ function ScheduleMatch({
       </fieldset>
 
       <fieldset className="setup-group">
-        <legend>When</legend>
+        <legend>{t("ev.when")}</legend>
         <label>
-          Date and time
+          {t("ev.date_and_time")}
           <input
             type="datetime-local"
             value={start}
@@ -520,7 +524,7 @@ function ScheduleMatch({
         disabled={busy || !!missing}
         onClick={submit}
       >
-        {busy ? "Scheduling…" : "Schedule and ask who is available"}
+        {busy ? t("ld.scheduling") : t("ld.schedule_and_ask_who_is_available")}
       </button>
       <p className="subtle">
         Everyone in {opponent ? "both clubs" : "your club"} is asked whether they can

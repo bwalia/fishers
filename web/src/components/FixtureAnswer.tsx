@@ -3,20 +3,22 @@
 import { useState } from "react";
 import { readErr } from "@/lib/api";
 import { ANSWERS, answerFixture, type Answer } from "@/lib/fixtures";
+import { useT } from "@/lib/i18n/provider";
 
-/// "Can you play?" — Available, Maybe or Can't play, showing what you said and
+/// t("le.can_you_play") — Available, Maybe or Can't play, showing what you said and
 /// letting you change it. Saved as you tap; put back if it does not save.
 export function FixtureAnswer({
   eventId,
   answer,
   onAnswered,
-  label = "Can you play?",
+  label = "le.can_you_play",
 }: {
   eventId: string;
   answer: Answer | null;
   onAnswered: (answer: Answer | null) => void;
   label?: string;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +32,7 @@ export function FixtureAnswer({
       await answerFixture(eventId, next);
     } catch (err) {
       onAnswered(before);
-      setError(readErr(err, "That did not save — try again"));
+      setError(readErr(err, t("le.that_did_not_save_try_again")));
     } finally {
       setBusy(false);
     }

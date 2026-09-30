@@ -10,6 +10,7 @@ import {
   withdrawReview,
   type MatchUmpire,
 } from "@/lib/umpire";
+import { useT } from "@/lib/i18n/provider";
 
 /// After the match: say how the umpiring went.
 ///
@@ -20,6 +21,7 @@ import {
 /// the common reason to come back is to change a three to a four, not to
 /// discover you have already voted.
 export function RateUmpires({ matchId }: { matchId: string }) {
+  const t = useT();
   const [umpires, setUmpires] = useState<MatchUmpire[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,9 +29,9 @@ export function RateUmpires({ matchId }: { matchId: string }) {
     try {
       setUmpires(await matchUmpires(matchId));
     } catch (err) {
-      setError(readErr(err, "Could not load the umpires"));
+      setError(readErr(err, t("le.could_not_load_the_umpires")));
     }
-  }, [matchId]);
+  }, [matchId, t]);
 
   useEffect(() => {
     load();
@@ -43,10 +45,10 @@ export function RateUmpires({ matchId }: { matchId: string }) {
   return (
     <section className="panel ump-rate" aria-labelledby="ump-rate-h">
       <h2 id="ump-rate-h">
-        <Icon name="shield" size={18} /> How was the umpiring?
+        <Icon name="shield" size={18} /> {t("sr.how_was_the_umpiring")}
       </h2>
       <p className="muted">
-        It goes on their profile, with your name on it. One review each — you can change it later.
+        {t("sr.it_goes_on_their_profile_with_your_nam")}
       </p>
       <ul className="ump-rate-list">
         {umpires.map((u) => (
@@ -68,6 +70,7 @@ function One({
   umpire: MatchUmpire;
   onDone: () => void;
 }) {
+  const t = useT();
   const [rating, setRating] = useState(umpire.my_rating ?? 0);
   const [comment, setComment] = useState(umpire.my_comment ?? "");
   const [busy, setBusy] = useState(false);
@@ -75,7 +78,7 @@ function One({
   const [saved, setSaved] = useState(false);
 
   const submit = async () => {
-    if (rating < 1) return setError("Pick one to five stars first");
+    if (rating < 1) return setError(t("le.pick_one_to_five_stars_first"));
     setBusy(true);
     setError(null);
     try {
@@ -99,7 +102,7 @@ function One({
       setSaved(false);
       onDone();
     } catch (err) {
-      setError(readErr(err, "Could not remove that"));
+      setError(readErr(err, t("le.could_not_remove_that")));
     } finally {
       setBusy(false);
     }
@@ -109,8 +112,8 @@ function One({
     <div className="ump-rate-one">
       <div className="ump-rate-who">
         <strong>{umpire.name}</strong>
-        {umpire.my_rating !== null && !saved && <span className="tag">Your review</span>}
-        {saved && <span className="tag live">Saved</span>}
+        {umpire.my_rating !== null && !saved && <span className="tag">{t("sr.your_review")}</span>}
+        {saved && <span className="tag live">{t("sr.saved")}</span>}
       </div>
 
       <fieldset className="ump-picker">
@@ -133,7 +136,7 @@ function One({
             </svg>
           </button>
         ))}
-        <span className="muted ump-picker-n">{rating > 0 ? `${rating} / 5` : "Not rated"}</span>
+        <span className="muted ump-picker-n">{rating > 0 ? `${rating} / 5` : t("le.not_rated")}</span>
       </fieldset>
 
       <label className="sr-only" htmlFor={`ump-c-${umpire.user_id}`}>
@@ -143,7 +146,7 @@ function One({
         id={`ump-c-${umpire.user_id}`}
         rows={2}
         maxLength={1000}
-        placeholder="Gave everything, explained the wides…"
+        placeholder={t("sr.gave_everything_explained_the_wides")}
         value={comment}
         disabled={busy}
         onChange={(e) => {
@@ -154,11 +157,11 @@ function One({
 
       <div className="ump-rate-actions">
         <button type="button" className="btn primary" onClick={submit} disabled={busy}>
-          {busy ? "Saving…" : umpire.my_rating !== null ? "Update" : "Submit"}
+          {busy ? "Saving…" : umpire.my_rating !== null ? t("le.update") : t("le.submit")}
         </button>
         {umpire.my_rating !== null && (
           <button type="button" className="btn" onClick={remove} disabled={busy}>
-            Remove
+            {t("sr.remove")}
           </button>
         )}
       </div>
@@ -173,6 +176,7 @@ function One({
 /// This is the one that finds everybody else — on their own profile, where
 /// they can clear three Sundays in a row.
 export function PendingUmpireReviews() {
+  const t = useT();
   const [pending, setPending] = useState<
     { match_id: string; match_title: string; umpires: MatchUmpire[] }[]
   >([]);
@@ -195,10 +199,10 @@ export function PendingUmpireReviews() {
   return (
     <section className="panel ump-rate" aria-labelledby="ump-pending-h">
       <h2 id="ump-pending-h">
-        <Icon name="shield" size={18} /> Waiting on you
+        <Icon name="shield" size={18} /> {t("sr.waiting_on_you")}
       </h2>
       <p className="muted">
-        You played in these. Say how the umpiring went — it goes on their profile.
+        {t("sr.you_played_in_these_say_how_the_umpiri")}
       </p>
       <ul className="ump-rate-list">
         {pending.map((match) => (

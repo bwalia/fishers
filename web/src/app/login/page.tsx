@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { api, saveSession, type AuthTokens } from "@/lib/api";
 import { AuthPitch } from "@/components/AuthPitch";
 import { GoogleButton } from "@/components/GoogleButton";
+import { useT } from "@/lib/i18n/provider";
 
 export default function LoginPage() {
+  const t = useT();
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -38,7 +40,7 @@ export default function LoginPage() {
     } catch {
       // Never say which half was wrong: that tells anyone guessing whether an
       // account exists.
-      setError("That email or number and password do not match.");
+      setError(t("le.that_email_or_number_and_password_do_n"));
     } finally {
       setBusy(false);
     }
@@ -50,7 +52,7 @@ export default function LoginPage() {
 
       <div className="auth-card">
         <h2>Sign in</h2>
-        <p>The same account as the iOS app.</p>
+        <p>{t("rest.the_same_account_as_the_ios_app")}</p>
 
         <GoogleButton mode="signin" onSignedIn={goNext} />
 
@@ -63,7 +65,7 @@ export default function LoginPage() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               autoComplete="username"
-              placeholder="you@club.test or 07700 900123"
+              placeholder={t("rest.you_club_test_or_07700_900123")}
               required
             />
           </label>
@@ -81,9 +83,9 @@ export default function LoginPage() {
                 type="button"
                 className="btn ghost sm"
                 onClick={() => setShow((v) => !v)}
-                aria-label={show ? "Hide password" : "Show password"}
+                aria-label={show ? t("le.hide_password") : t("le.show_password")}
               >
-                {show ? "Hide" : "Show"}
+                {show ? "Hide" : t("le.show")}
               </button>
             </span>
           </label>
@@ -91,12 +93,12 @@ export default function LoginPage() {
           {error && <p className="error">{error}</p>}
 
           <button className="btn primary" type="submit" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
+            {busy ? t("le.signing_in") : "Sign in"}
           </button>
         </form>
 
         <p className="auth-alt">
-          New here? <Link href="/register">Create an account</Link>
+          {t("rest.new_here")} <Link href="/register">{t("rest.create_an_account")}</Link>
         </p>
       </div>
     </main>

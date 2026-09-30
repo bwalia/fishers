@@ -93,7 +93,7 @@ export function ratingLabel(p: {
   rating_average: number | null;
   rating_count: number;
 }): string {
-  if (p.rating_average === null || p.rating_count === 0) return "No ratings yet";
+  if (p.rating_average === null || p.rating_count === 0) return "le.no_ratings_yet";
   return `${p.rating_average.toFixed(1)} from ${p.rating_count} ${
     p.rating_count === 1 ? "review" : "reviews"
   }`;

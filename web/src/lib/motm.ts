@@ -73,7 +73,7 @@ export function sideNames(poll: MotmPollView): { home: string; away: string } {
 
 export function closingLabel(closesAt: string): string {
   const remaining = Date.parse(closesAt) - Date.now();
-  if (remaining <= 0) return "Closing";
+  if (remaining <= 0) return "le.closing";
   if (remaining < 3_600_000) return `${Math.max(1, Math.round(remaining / 60_000))}m left`;
   if (remaining < 86_400_000) return `${Math.floor(remaining / 3_600_000)}h left`;
   return `${Math.floor(remaining / 86_400_000)}d left`;

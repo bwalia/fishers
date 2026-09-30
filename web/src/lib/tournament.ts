@@ -1,3 +1,4 @@
+import type { Key } from "@/lib/i18n/en";
 /// Running a tournament (`backend/domain/src/tournament.rs`).
 ///
 /// The order an organiser actually works in, which is the order the screen
@@ -75,20 +76,20 @@ export const GENDERS = ["open", "men", "women", "mixed"] as const;
 export const BALLS = ["red", "white", "pink", "tennis", "tape"] as const;
 export const GROUNDS = ["open", "boxed", "indoor"] as const;
 
-export const AGE_LABEL: Record<string, string> = {
-  open: "Open age",
-  u11: "Under 11", u13: "Under 13", u15: "Under 15", u17: "Under 17", u19: "Under 19",
-  veterans: "Veterans",
+export const AGE_LABEL: Record<string, Key> = {
+  open: "la.open_age",
+  u11: "la.under_11", u13: "la.under_13", u15: "la.under_15", u17: "la.under_17", u19: "la.under_19",
+  veterans: "la.veterans",
 };
-export const GENDER_LABEL: Record<string, string> = {
-  open: "Open", men: "Men", women: "Women", mixed: "Mixed",
+export const GENDER_LABEL: Record<string, Key> = {
+  open: "tn.gender_open", men: "tn.gender_men", women: "la.women", mixed: "la.mixed",
 };
-export const BALL_LABEL: Record<string, string> = {
-  red: "Red leather", white: "White leather", pink: "Pink leather",
-  tennis: "Tennis", tape: "Taped tennis",
+export const BALL_LABEL: Record<string, Key> = {
+  red: "la.red_leather", white: "la.white_leather", pink: "la.pink_leather",
+  tennis: "ball_type.tennis", tape: "la.taped_tennis",
 };
-export const GROUND_LABEL: Record<string, string> = {
-  open: "Open ground", boxed: "Caged / boxed", indoor: "Indoor",
+export const GROUND_LABEL: Record<string, Key> = {
+  open: "la.open_ground", boxed: "la.caged_boxed", indoor: "ground_type.indoor",
 };
 
 /// The usual allocation: a fifth of the innings each, rounded up — twenty overs
@@ -276,11 +277,11 @@ export type TicketBooking = {
 };
 
 export const FORMAT_LABEL: Record<TournamentFormat, string> = {
-  round_robin: "Everyone plays everyone",
-  groups_knockout: "Groups, then a knockout",
-  knockout: "Straight knockout",
-  ladder: "Ladder",
-  none: "No structure",
+  round_robin: "la.everyone_plays_everyone",
+  groups_knockout: "la.groups_then_a_knockout",
+  knockout: "la.straight_knockout",
+  ladder: "la.ladder",
+  none: "la.no_structure",
 };
 
 /// Points, then difference, then scored, then name — the same order the server

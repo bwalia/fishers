@@ -16,6 +16,7 @@ import { byDay, dayTitle, myFixtures, saidLabel, timeOf, type MyFixture } from "
 import { FixtureAnswer } from "@/components/FixtureAnswer";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 const STATUSES: AvailabilityStatus[] = ["available", "maybe", "unavailable"];
 const GUIDE_KEY = "fishers:availability-guide-dismissed";
@@ -29,6 +30,7 @@ const GUIDE_KEY = "fishers:availability-guide-dismissed";
 ///
 /// Tap a day to open it: set the day, and answer its fixtures, right there.
 export default function AvailabilityPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [month, setMonth] = useState(() => {
     const now = new Date();
@@ -69,11 +71,11 @@ export default function AvailabilityPage() {
       setChosen((prev) => (inMonth(prev) ? prev : list[0] ? dayKey(new Date(list[0].start_at)) : dayKey(first)));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load your calendar"));
+      setError(readErr(err, t("le.could_not_load_your_calendar")));
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, [month, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -99,7 +101,7 @@ export default function AvailabilityPage() {
         else delete next[key];
         return next;
       });
-      setError(readErr(err, "Could not save that day"));
+      setError(readErr(err, t("le.could_not_save_that_day")));
     } finally {
       setBusy(null);
     }
@@ -113,7 +115,7 @@ export default function AvailabilityPage() {
       const saved = await api<Availability[]>("POST", "/availability/bulk", { dates, status });
       setDays((prev) => ({ ...prev, ...Object.fromEntries(saved.map((a) => [a.date, a])) }));
     } catch (err) {
-      setError(readErr(err, "Could not set those days"));
+      setError(readErr(err, t("le.could_not_set_those_days")));
     } finally {
       setBusy(null);
     }
@@ -147,8 +149,8 @@ export default function AvailabilityPage() {
   return (
     <main id="main" className="avail">
       <section className="hero">
-        <h1>When you can play</h1>
-        <p>Your usual days, and every fixture with what you said to it. Your captain sees both when picking the side.</p>
+        <h1>{t("ev.when_you_can_play")}</h1>
+        <p>{t("ev.your_usual_days_and_every_fixture_with")}</p>
       </section>
 
       {error && <p className="error">{error}</p>}
@@ -156,9 +158,9 @@ export default function AvailabilityPage() {
       {guide && (
         <section className="panel guide-card" aria-labelledby="av-guide-title">
           <div className="guide-card-head">
-            <h2 id="av-guide-title">Reading your calendar</h2>
+            <h2 id="av-guide-title">{t("ev.reading_your_calendar")}</h2>
             <button className="btn ghost sm" type="button" onClick={dismissGuide}>
-              Got it
+              {t("ev.got_it")}
             </button>
           </div>
           <ol className="guide-steps">
@@ -166,24 +168,23 @@ export default function AvailabilityPage() {
               <span className="guide-num" aria-hidden>1</span>
               <div>
                 <strong>Tap a day, say if you&rsquo;re free</strong>
-                <p>The colour of the day is your general availability.</p>
+                <p>{t("ev.the_colour_of_the_day_is_your_general")}</p>
               </div>
             </li>
             <li>
               <span className="guide-num" aria-hidden>2</span>
               <div>
-                <strong>Fixtures sit on their day</strong>
+                <strong>{t("ev.fixtures_sit_on_their_day")}</strong>
                 <p>
-                  Each in the colour of your answer — two matches on one day are two marks, each answered on
-                  its own.
+                  {t("ev.each_in_the_colour_of_your_answer_two")}
                 </p>
               </div>
             </li>
             <li>
               <span className="guide-num" aria-hidden>3</span>
               <div>
-                <strong>Same every week?</strong>
-                <p>Set a whole weekday for the month at the bottom, then fix the odd day.</p>
+                <strong>{t("ev.same_every_week")}</strong>
+                <p>{t("ev.set_a_whole_weekday_for_the_month_at_t")}</p>
               </div>
             </li>
           </ol>
@@ -193,15 +194,15 @@ export default function AvailabilityPage() {
       <div className="avail-layout">
         <div className="panel avail-cal">
           <div className="cal-head">
-            <button className="btn ghost sm" type="button" onClick={() => step(-1)} aria-label="Previous month">
+            <button className="btn ghost sm" type="button" onClick={() => step(-1)} aria-label={t("ev.previous_month")}>
               <Icon name="arrowLeft" size={16} />
             </button>
             <h2>{month.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</h2>
             <div className="cal-head-end">
               <button className="btn ghost sm" type="button" onClick={toToday}>
-                Today
+                {t("ev.today")}
               </button>
-              <button className="btn ghost sm" type="button" onClick={() => step(1)} aria-label="Next month">
+              <button className="btn ghost sm" type="button" onClick={() => step(1)} aria-label={t("ev.next_month")}>
                 <Icon name="arrowLeft" size={16} className="flip" />
               </button>
             </div>
@@ -222,10 +223,10 @@ export default function AvailabilityPage() {
           {loading ? (
             <div className="skeleton" style={{ height: 320 }} />
           ) : (
-            <div className="cal-grid" role="grid" aria-label="Your availability and fixtures">
+            <div className="cal-grid" role="grid" aria-label={t("ev.your_availability_and_fixtures")}>
               {WEEKDAYS.map((d) => (
                 <span key={d} className="cal-weekday" role="columnheader">
-                  {d}
+                  {t(d)}
                 </span>
               ))}
               {cells.map((date, i) => {
@@ -248,7 +249,7 @@ export default function AvailabilityPage() {
                     ]
                       .filter(Boolean)
                       .join(" ")}
-                    aria-label={`${date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} — ${status ? AVAILABILITY_LABEL[status] : "not said"}${playing.map((f) => `; ${f.title} at ${timeOf(f.start_at)}: ${saidLabel(f.my_answer)}`).join("")}`}
+                    aria-label={`${date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} — ${status ? t(AVAILABILITY_LABEL[status]) : "not said"}${playing.map((f) => `; ${f.title} at ${timeOf(f.start_at)}: ${saidLabel(f.my_answer)}`).join("")}`}
                     onClick={() => setChosen(key)}
                   >
                     <span className="cal-num num">{date.getDate()}</span>
@@ -273,20 +274,20 @@ export default function AvailabilityPage() {
           <div className="cal-key">
             {STATUSES.map((s) => (
               <span key={s} className="cal-key-item">
-                <span className={`cal-swatch is-${s}`} aria-hidden /> {AVAILABILITY_LABEL[s]} day
+                <span className={`cal-swatch is-${s}`} aria-hidden /> {t(AVAILABILITY_LABEL[s])} day
               </span>
             ))}
             <span className="cal-key-item">
-              <span className="cal-fx is-going key" aria-hidden /> Fixture: you&rsquo;re available
+              <span className="cal-fx is-going key" aria-hidden /> {t("fin.fixture_youre_available")}
             </span>
             <span className="cal-key-item">
-              <span className="cal-fx is-maybe key" aria-hidden /> Maybe
+              <span className="cal-fx is-maybe key" aria-hidden /> {t("ev.maybe")}
             </span>
             <span className="cal-key-item">
               <span className="cal-fx is-not_going key" aria-hidden /> Can&rsquo;t play
             </span>
             <span className="cal-key-item">
-              <span className="cal-fx is-none key" aria-hidden /> Not answered
+              <span className="cal-fx is-none key" aria-hidden /> {t("ev.not_answered")}
             </span>
           </div>
         </div>
@@ -295,8 +296,8 @@ export default function AvailabilityPage() {
           <h2 id="avail-day-title">{dayTitle(chosen)}</h2>
 
           <div className="avail-day-block">
-            <p className="avail-label">Are you free this day?</p>
-            <div className="fx-seg" role="radiogroup" aria-label="Your availability this day">
+            <p className="avail-label">{t("ev.are_you_free_this_day")}</p>
+            <div className="fx-seg" role="radiogroup" aria-label={t("ev.your_availability_this_day")}>
               {STATUSES.map((s) => (
                 <button
                   key={s}
@@ -307,7 +308,7 @@ export default function AvailabilityPage() {
                   disabled={busy === chosen}
                   onClick={() => setDay(chosen, s)}
                 >
-                  {AVAILABILITY_LABEL[s]}
+                  {t(AVAILABILITY_LABEL[s])}
                 </button>
               ))}
             </div>
@@ -316,7 +317,7 @@ export default function AvailabilityPage() {
           <div className="avail-day-block">
             <p className="avail-label">
               {chosenFixtures.length === 0
-                ? "No fixtures this day"
+                ? t("le.no_fixtures_this_day")
                 : chosenFixtures.length === 1
                   ? "1 fixture"
                   : `${chosenFixtures.length} fixtures — answer each one`}
@@ -342,7 +343,7 @@ export default function AvailabilityPage() {
                       eventId={f.event_id}
                       answer={f.my_answer}
                       onAnswered={(a) => setAnswer(f.event_id, a)}
-                      label={`Can you play ${f.title}?`}
+                      label={t("fin.can_you_play_fixture", { fixture: f.title })}
                     />
                   )}
                 </li>
@@ -353,14 +354,14 @@ export default function AvailabilityPage() {
       </div>
 
       <div className="panel">
-        <h2>A whole month at once</h2>
+        <h2>{t("ev.a_whole_month_at_once")}</h2>
         <p className="muted">
           Most people are the same every week. Set every Sunday in {monthName}, then fix the odd one.
         </p>
         <div className="cal-bulk">
           {WEEKDAYS.map((label, weekday) => (
             <div key={label} className="cal-bulk-row">
-              <span className="cal-bulk-day">{label}</span>
+              <span className="cal-bulk-day">{t(label)}</span>
               {STATUSES.map((s) => (
                 <button
                   key={s}
@@ -369,7 +370,7 @@ export default function AvailabilityPage() {
                   disabled={busy === "bulk"}
                   onClick={() => setEvery(weekday, s)}
                 >
-                  {AVAILABILITY_LABEL[s]}
+                  {t(AVAILABILITY_LABEL[s])}
                 </button>
               ))}
             </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { enablePush, pushState, type PushState } from "@/lib/push";
 import { Icon } from "@/components/Icon";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 const DISMISSED = "fishers:push-prompt-dismissed";
 
@@ -16,6 +17,7 @@ const DISMISSED = "fishers:push-prompt-dismissed";
 /// button was pressed: an unrequested prompt is the fastest way to be blocked
 /// for good, and a denied permission cannot be asked for again.
 export function PushPrompt({ context = "chats, invites and fixture news" }: { context?: string }) {
+  const t = useT();
   const [state, setState] = useState<PushState | null>(null);
   const [hidden, setHidden] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -66,10 +68,10 @@ export function PushPrompt({ context = "chats, invites and fixture news" }: { co
             }
           }}
         >
-          {busy ? "Turning on…" : "Turn on"}
+          {busy ? t("le.turning_on") : t("le.turn_on")}
         </button>
         <button className="btn ghost sm" type="button" onClick={dismiss}>
-          Not now
+          {t("rest.not_now")}
         </button>
       </div>
     </div>

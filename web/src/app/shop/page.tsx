@@ -16,21 +16,24 @@ import {
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
 import { availability, marketplace, priceLine } from "@/lib/shop";
+import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
 
 /// Statuses that still owe the club money. `draft` never reaches this screen
 /// but is listed for completeness against the server's enum.
 const OWED = new Set(["draft", "placed"]);
 
-const CATEGORY_LABEL: Record<string, string> = {
-  equipment: "Kit & gear",
-  merchandise: "Shoes & sportswear",
-  kit_hire: "Hire",
-  food: "Match day",
-  drink: "Match day",
-  other: "Other",
+const CATEGORY_LABEL: Record<string, Key> = {
+  equipment: "lc.kit_gear",
+  merchandise: "lc.shoes_sportswear",
+  kit_hire: "sh.cat_hire",
+  food: "lc.match_day",
+  drink: "lc.match_day",
+  other: "sh.cat_other",
 };
 
 export default function ShopPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubId, setClubId] = useState<string>("");
@@ -54,10 +57,10 @@ export default function ShopPage() {
         // Somebody with no orders is not an error, so this never sets one.
         setOrders(await api<Order[]>("GET", "/orders/mine").catch(() => []));
       } catch (err) {
-        setError(readErr(err, "Failed to load clubs"));
+        setError(readErr(err, t("lc.failed_to_load_clubs")));
       }
     })();
-  }, [authed]);
+  }, [authed, t]);
 
   useEffect(() => {
     if (!clubId) return;
@@ -67,10 +70,10 @@ export default function ShopPage() {
         setProducts(p);
         setError(null);
       } catch (err) {
-        setError(readErr(err, "Failed to load products"));
+        setError(readErr(err, t("lc.failed_to_load_products")));
       }
     })();
-  }, [clubId]);
+  }, [clubId, t]);
 
   const visible = useMemo(() => {
     if (filter === "all") return products;
@@ -98,9 +101,9 @@ export default function ShopPage() {
       });
       setBasket({});
       setOrders((prev) => [placed.order, ...prev]);
-      setNote("Ordered. The club has it.");
+      setNote(t("lc.ordered_the_club_has_it"));
     } catch (err) {
-      setError(readErr(err, "Could not place that order"));
+      setError(readErr(err, t("lc.could_not_place_that_order")));
     } finally {
       setPlacing(false);
     }
@@ -110,7 +113,7 @@ export default function ShopPage() {
   ///
   /// Card capture is not wired up on either client yet — the API still returns
   /// a stub intent (`backend/payments/src/lib.rs`) — so this records that the
-  /// money is on its way and leaves the club to confirm it. Saying "Paid"
+  /// money is on its way and leaves the club to confirm it. Saying t("lc.paid")
   /// here would be a lie, and the club would be the one chasing it.
   const pay = async (o: Order) => {
     setError(null);
@@ -123,11 +126,11 @@ export default function ShopPage() {
       });
       setNote(
         intent.status === "succeeded"
-          ? "Paid — thank you."
-          : `Payment opened for ${money(intent.amount_cents, intent.currency)}. Your club confirms it once it clears; you can still settle up at the ground.`
+          ? t("lc.paid_thank_you")
+          : t("fin.payment_opened", { amount: money(intent.amount_cents, intent.currency) })
       );
     } catch (err) {
-      setError(readErr(err, "Could not start that payment"));
+      setError(readErr(err, t("lc.could_not_start_that_payment")));
     }
   };
 
@@ -136,8 +139,8 @@ export default function ShopPage() {
   return (
     <main id="main">
       <section className="hero">
-        <h1>Club shop</h1>
-        <p>Cricket bats, balls, pads, shoes, clubwear and hire — browse by club.</p>
+        <h1>{t("sh.club_shop")}</h1>
+        <p>{t("sh.cricket_bats_balls_pads_shoes_clubwear")}</p>
       </section>
 
       <div className="select-row">
@@ -158,8 +161,8 @@ export default function ShopPage() {
             <option value="equipment">Bats, balls &amp; kit</option>
             <option value="merchandise">Shoes &amp; sportswear</option>
             <option value="kit_hire">Hire</option>
-            <option value="food">Food</option>
-            <option value="drink">Drinks</option>
+            <option value="food">{t("sh.food")}</option>
+            <option value="drink">{t("sh.drinks")}</option>
           </select>
         </label>
       </div>
@@ -168,18 +171,18 @@ export default function ShopPage() {
 
       <Marketplace />
 
-      <h2 className="shop-section">{clubs.find((c) => c.id === clubId)?.name ?? "Your club"}</h2>
+      <h2 className="shop-section">{clubs.find((c) => c.id === clubId)?.name ?? t("lc.your_club")}</h2>
 
       <div className="grid cards">
         {visible.map((p) => (
           <article key={p.id} className="panel">
-            <div className="tag">{CATEGORY_LABEL[p.category] ?? p.category}</div>
+            <div className="tag">{t(CATEGORY_LABEL[p.category])}</div>
             <h2 style={{ marginTop: 8 }}>{p.name}</h2>
             {p.description && <p className="muted">{p.description}</p>}
             <div className="row" style={{ marginTop: 12 }}>
               <span className="price">{money(p.price_cents, p.currency)}</span>
               <span className="muted">
-                {p.stock == null ? "On request" : `${p.stock} in stock`}
+                {p.stock == null ? t("lc.on_request") : `${p.stock} in stock`}
               </span>
             </div>
             <Stepper
@@ -197,13 +200,13 @@ export default function ShopPage() {
       </div>
 
       {!error && visible.length === 0 && (
-        <p className="muted">No products in this category yet.</p>
+        <p className="muted">{t("sh.no_products_in_this_category_yet")}</p>
       )}
 
       {lines.length > 0 && (
         <div className="panel basket">
           <div className="panel-head">
-            <h2>Your basket</h2>
+            <h2>{t("sh.your_basket")}</h2>
             <span className="tag">{money(total, currency)}</span>
           </div>
           <ul className="basket-lines">
@@ -216,14 +219,14 @@ export default function ShopPage() {
           </ul>
           <div className="field-row" style={{ marginTop: "var(--s4)" }}>
             <button className="btn primary lg" type="button" disabled={placing} onClick={order}>
-              {placing ? "Placing…" : `Order ${money(total, currency)}`}
+              {placing ? t("lc.placing") : `Order ${money(total, currency)}`}
             </button>
             <button className="btn" type="button" onClick={() => setBasket({})}>
-              Empty it
+              {t("sh.empty_it")}
             </button>
           </div>
           <p className="muted">
-            The club sees the order straight away. You can pay now or at the ground.
+            {t("sh.the_club_sees_the_order_straight_away")}
           </p>
         </div>
       )}
@@ -232,11 +235,11 @@ export default function ShopPage() {
 
       {orders.length > 0 && (
         <div className="panel">
-          <h2>What you have ordered</h2>
+          <h2>{t("sh.what_you_have_ordered")}</h2>
           <div className="table-wrap">
             <table className="table">
               <thead>
-                <tr><th>When</th><th>Club</th><th className="n">Total</th><th>Status</th><th></th></tr>
+                <tr><th>When</th><th>Club</th><th className="n">Total</th><th>{t("sh.status")}</th><th></th></tr>
               </thead>
               <tbody>
                 {orders.map((o) => (
@@ -254,7 +257,7 @@ export default function ShopPage() {
                     <td className="n">
                       {OWED.has(o.status) && (
                         <button className="btn ghost sm" type="button" onClick={() => pay(o)}>
-                          Pay now
+                          {t("sh.pay_now")}
                         </button>
                       )}
                     </td>
@@ -264,7 +267,7 @@ export default function ShopPage() {
             </table>
           </div>
           <p className="muted">
-            Owe a match fee instead? Those are on the <Link href="/events">fixture</Link>.
+            {t("sh.owe_a_match_fee_instead_those_are_on_t")} <Link href="/events">{t("sh.fixture")}</Link>.
           </p>
         </div>
       )}
@@ -283,7 +286,8 @@ function Stepper({
   soldOut: boolean;
   onChange: (n: number) => void;
 }) {
-  if (soldOut) return <p className="muted">Sold out</p>;
+  const t = useT();
+  if (soldOut) return <p className="muted">{t("sh.sold_out")}</p>;
   if (count === 0) {
     return (
       <button className="btn sm" type="button" onClick={() => onChange(1)}>
@@ -293,9 +297,9 @@ function Stepper({
   }
   return (
     <div className="stepper">
-      <button type="button" onClick={() => onChange(count - 1)} aria-label="One fewer">−</button>
+      <button type="button" onClick={() => onChange(count - 1)} aria-label={t("sh.one_fewer")}>−</button>
       <span className="num" aria-live="polite">{count}</span>
-      <button type="button" onClick={() => onChange(count + 1)} aria-label="One more">+</button>
+      <button type="button" onClick={() => onChange(count + 1)} aria-label={t("sh.one_more")}>+</button>
     </div>
   );
 }
@@ -305,8 +309,9 @@ function Stepper({
 /// The reason the shop is more than a tea urn: a club with a spare set of pads
 /// has thirty members, and a club that makes its own bats has nobody else to
 /// sell them to. Money is settled in person — this is an advert with a way to
-/// say "I want it", not a checkout.
+/// say t("lc.i_want_it"), not a checkout.
 function Marketplace() {
+  const t = useT();
   const [items, setItems] = useState<Product[]>([]);
   const [condition, setCondition] = useState<"" | ProductCondition>("");
   const [q, setQ] = useState("");
@@ -324,10 +329,10 @@ function Marketplace() {
   if (loaded && items.length === 0 && !applied && !condition) {
     return (
       <section className="panel">
-        <h2>Kit for sale</h2>
+        <h2>{t("sh.kit_for_sale")}</h2>
         <p className="muted">
           Nothing listed yet. If your club has kit it has replaced,{" "}
-          <Link href="/shop/sell">put it up</Link> — it is worth more to somebody else than it
+          <Link href="/shop/sell">{t("sh.put_it_up")}</Link> — it is worth more to somebody else than it
           is in the cupboard.
         </p>
       </section>
@@ -337,9 +342,9 @@ function Marketplace() {
   return (
     <section className="market">
       <div className="market-head">
-        <h2>Kit for sale</h2>
+        <h2>{t("sh.kit_for_sale")}</h2>
         <Link className="btn" href="/shop/sell">
-          <Icon name="plus" size={16} /> Sell kit
+          <Icon name="plus" size={16} /> {t("sh.sell_kit")}
         </Link>
       </div>
 
@@ -350,15 +355,15 @@ function Marketplace() {
           setApplied(q.trim());
         }}
       >
-        <label className="sr-only" htmlFor="mk-q">Search kit</label>
+        <label className="sr-only" htmlFor="mk-q">{t("sh.search_kit")}</label>
         <input
           id="mk-q"
           value={q}
-          placeholder="Bat, pads, gloves…"
+          placeholder={t("sh.bat_pads_gloves")}
           onChange={(e) => setQ(e.target.value)}
         />
-        <div className="chips" role="group" aria-label="Condition">
-          {([["", "All"], ["used", "Used"], ["new", "New"]] as const).map(([v, label]) => (
+        <div className="chips" role="group" aria-label={t("sh.condition")}>
+          {([["", "All"], ["used", t("lc.used")], ["new", "New"]] as const).map(([v, label]) => (
             <button
               key={label}
               type="button"
@@ -373,7 +378,7 @@ function Marketplace() {
       </form>
 
       {items.length === 0 ? (
-        <p className="muted">Nothing matches that.</p>
+        <p className="muted">{t("sh.nothing_matches_that")}</p>
       ) : (
         <ul className="market-grid">
           {items.map((p) => (
@@ -392,7 +397,7 @@ function Marketplace() {
                   <strong>{p.name}</strong>
                   {p.condition && (
                     <span className={`tag ${p.condition === "used" ? "grey" : "gold"}`}>
-                      {p.condition === "used" ? "Used" : "New"}
+                      {p.condition === "used" ? t("lc.used") : "New"}
                     </span>
                   )}
                 </div>
@@ -415,7 +420,7 @@ function Marketplace() {
         </ul>
       )}
       <p className="muted market-foot">
-        Arrange collection and pay the club directly — nothing is taken online.
+        {t("sh.arrange_collection_and_pay_the_club_di")}
       </p>
     </section>
   );

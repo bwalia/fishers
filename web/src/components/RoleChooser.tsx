@@ -4,19 +4,20 @@ import { useState } from "react";
 import { api, readErr, saveUser, type PublicUser, type RoleIntent } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 const ROLES: { value: RoleIntent; icon: IconName; title: string; body: string }[] = [
   {
     value: "secretary",
     icon: "users",
     title: "I run a club",
-    body: "Secretary or organiser. You set up the club, its teams and fixtures, and bring the players in.",
+    body: "le.secretary_or_organiser_you_set_up_the",
   },
   {
     value: "player",
     icon: "bat",
     title: "I play for a club",
-    body: "Set up your player profile, send it to your club's secretary, and accept their invite.",
+    body: "le.set_up_your_player_profile_send_it_to",
   },
 ];
 
@@ -32,6 +33,7 @@ export function RoleChooser({
   value?: RoleIntent | null;
   compact?: boolean;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState<RoleIntent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +54,7 @@ export function RoleChooser({
 
   return (
     <div className={`role-chooser${compact ? " compact" : ""}`}>
-      <div className="role-options" role="radiogroup" aria-label={`How will you use ${brand.name}?`}>
+      <div className="role-options" role="radiogroup" aria-label={t("fin.how_will_you_use", { brand: brand.name })}>
         {ROLES.map((r) => {
           const selected = value === r.value;
           return (

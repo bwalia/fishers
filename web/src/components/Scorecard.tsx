@@ -11,6 +11,7 @@ import {
   type MatchState,
   inningsScore,
 } from "@/lib/cricket";
+import { useT } from "@/lib/i18n/provider";
 
 /// The full scorecard: one innings at a time, the way a scorebook reads.
 ///
@@ -24,6 +25,7 @@ export function Scorecard({
   st: MatchState;
   nameOf: (id?: string | null) => string;
 }) {
+  const t = useT();
   const [shown, setShown] = useState(0);
   if (st.innings.length === 0) return null;
   const index = Math.min(shown, st.innings.length - 1);
@@ -45,7 +47,7 @@ export function Scorecard({
   return (
     <div className="panel">
       {st.innings.length > 1 && (
-        <div className="innings-tabs" role="tablist" aria-label="Innings">
+        <div className="innings-tabs" role="tablist" aria-label={t("sr.innings")}>
           {st.innings.map((i, n) => (
             <button
               key={n}
@@ -69,12 +71,12 @@ export function Scorecard({
         <table className="table">
           <thead>
             <tr>
-              <th>Batter</th>
+              <th>{t("sr.batter")}</th>
               <th className="n">R</th>
               <th className="n">B</th>
               <th className="n">4s</th>
               <th className="n">6s</th>
-              <th className="n">SR</th>
+              <th className="n">{t("sr.sr")}</th>
             </tr>
           </thead>
           <tbody>
@@ -87,7 +89,7 @@ export function Scorecard({
                     {nameOf(b.player_id)}
                     {!b.out && atCrease.has(b.player_id) ? "\u00a0*" : ""}
                   </span>
-                  <span className="cell-sub">{howOut(b, nameOf, st.substitutes ?? [])}</span>
+                  <span className="cell-sub">{howOut(b, nameOf, st.substitutes ?? [], t)}</span>
                 </td>
                 <td className="n"><strong>{b.runs}</strong></td>
                 <td className="n">{b.balls}</td>
@@ -106,7 +108,7 @@ export function Scorecard({
             </tr>
             <tr>
               <td>
-                <span className="cell-name"><strong>Total</strong></span>
+                <span className="cell-name"><strong>{t("sr.total")}</strong></span>
                 <span className="cell-sub">
                   {overs(inn.legal_balls)} ov
                   {inn.legal_balls > 0 &&
@@ -126,7 +128,7 @@ export function Scorecard({
 
       {yetToBat.length > 0 && (
         <>
-          <h3 className="section-head">Yet to bat</h3>
+          <h3 className="section-head">{t("sr.yet_to_bat")}</h3>
           <ul className="chip-list">
             {yetToBat.map((id) => (
               <li key={id} className="tag">{nameOf(id)}</li>
@@ -135,7 +137,7 @@ export function Scorecard({
         </>
       )}
 
-      <h3 className="section-head">Bowling</h3>
+      <h3 className="section-head">{t("sr.bowling")}</h3>
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -145,7 +147,7 @@ export function Scorecard({
               <th className="n">M</th>
               <th className="n">R</th>
               <th className="n">W</th>
-              <th className="n">Econ</th>
+              <th className="n">{t("sr.econ")}</th>
             </tr>
           </thead>
           <tbody>
@@ -167,14 +169,14 @@ export function Scorecard({
 
       {(inn.fall?.length ?? 0) > 0 && (
         <>
-          <h3 className="section-head">Fall of wickets</h3>
+          <h3 className="section-head">{t("sr.fall_of_wickets")}</h3>
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Batter</th>
+                  <th>{t("sr.batter")}</th>
                   <th className="n">Score</th>
-                  <th className="n">Over</th>
+                  <th className="n">{t("sr.over")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -209,6 +211,7 @@ function Partnerships({
   inn: Innings;
   nameOf: (id?: string | null) => string;
 }) {
+  const t = useT();
   const stands = (inn.fall || []).map((f, i) => ({
     wicket: f.wickets,
     runs: f.partnership_runs,
@@ -234,7 +237,7 @@ function Partnerships({
 
   return (
     <>
-      <h3 className="section-head">Partnerships</h3>
+      <h3 className="section-head">{t("sr.partnerships")}</h3>
       <ul className="plain-list">
         {all.map((s) => (
           <li key={s.key} className="stand">

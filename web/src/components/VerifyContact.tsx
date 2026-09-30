@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { api, readErr, saveUser, type PublicUser, type VerificationStatus } from "@/lib/api";
 import { Icon } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 type Channel = "email" | "phone";
 
@@ -21,6 +22,7 @@ export function VerifyContact({
   /// Inside another card (a gated form): no heading of its own.
   compact?: boolean;
 }) {
+  const t = useT();
   const channels: Channel[] = (["email", "phone"] as const).filter((c) => status[c].available);
   const [channel, setChannel] = useState<Channel>(channels[0] ?? "email");
   const [code, setCode] = useState("");
@@ -54,7 +56,7 @@ export function VerifyContact({
       setCode("");
       input.current?.focus();
     } catch (err) {
-      const msg = readErr(err, "Could not send a code");
+      const msg = readErr(err, t("le.could_not_send_a_code"));
       // "you can ask for another in 42s" — show it as a countdown instead.
       const secs = Number(/in (\d+)s/.exec(msg)?.[1]);
       if (secs) setWait(secs);
@@ -72,7 +74,7 @@ export function VerifyContact({
       saveUser(user);
       onVerified(user);
     } catch (err) {
-      setError(readErr(err, "That code did not work"));
+      setError(readErr(err, t("le.that_code_did_not_work")));
       setCode("");
       input.current?.focus();
     } finally {
@@ -103,7 +105,7 @@ export function VerifyContact({
 
       <div className="verify-row">
         <label className="sr-only" htmlFor={`code-${channel}`}>
-          Verification code
+          {t("rest.verification_code")}
         </label>
         <input
           id={`code-${channel}`}
@@ -113,7 +115,7 @@ export function VerifyContact({
           autoComplete="one-time-code"
           pattern="[0-9]*"
           maxLength={6}
-          placeholder="••••••"
+          placeholder={t("rest.x")}
           value={code}
           onChange={(e) => {
             const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
@@ -123,7 +125,7 @@ export function VerifyContact({
           aria-invalid={error ? true : undefined}
         />
         <button className="btn primary" type="submit" disabled={code.length !== 6 || busy}>
-          {busy ? "Checking…" : "Confirm"}
+          {busy ? t("le.checking") : t("le.confirm")}
         </button>
       </div>
 
@@ -132,7 +134,7 @@ export function VerifyContact({
           <span>You can send a new code in {wait}s</span>
         ) : (
           <button type="button" className="linkish" onClick={send}>
-            Send a new code
+            {t("rest.send_a_new_code")}
           </button>
         )}
         {channels.length > 1 && (

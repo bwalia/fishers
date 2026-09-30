@@ -15,6 +15,7 @@ import {
   type MotmCandidate,
   type MotmPollView,
 } from "@/lib/motm";
+import { useT } from "@/lib/i18n/provider";
 
 /// The man-of-the-match vote, in the thread where it was announced.
 ///
@@ -23,6 +24,7 @@ import {
 /// they played or watched from the boundary. The running total stays hidden
 /// until you have voted, so nobody is nudged towards whoever is already ahead.
 export function ManOfTheMatch({ pollId }: { pollId: string }) {
+  const t = useT();
   const [poll, setPoll] = useState<MotmPollView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,9 +34,9 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
       setPoll(await getPoll(pollId));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load the vote"));
+      setError(readErr(err, t("le.could_not_load_the_vote")));
     }
-  }, [pollId]);
+  }, [pollId, t]);
 
   useEffect(() => {
     void load();
@@ -66,7 +68,7 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
           : await castVote(pollId, candidate.user_id)
       );
     } catch (err) {
-      setError(readErr(err, "Could not record that vote"));
+      setError(readErr(err, t("le.could_not_record_that_vote")));
     } finally {
       setBusy(false);
     }
@@ -85,8 +87,8 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
       // wrong one for a card every member is going to click once.
       setError(
         isForbidden(err)
-          ? "Only a captain or club secretary can close the vote."
-          : readErr(err, "Could not close the vote")
+          ? t("le.only_a_captain_or_club_secretary_can_c")
+          : readErr(err, t("le.could_not_close_the_vote"))
       );
     } finally {
       setBusy(false);
@@ -118,8 +120,8 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
                 {player.user_id === poll.scorer_award_user_id && (
                   // The scorer's own award, shown so the two are never
                   // mistaken for each other.
-                  <span className="tag grey" title="The scorer's pick">
-                    Scorer
+                  <span className="tag grey" title={t("sr.the_scorer_s_pick")}>
+                    {t("sr.scorer")}
                   </span>
                 )}
                 {poll.tally_visible && <span className="motm-count">{player.votes}</span>}
@@ -136,11 +138,11 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
       <header className="motm-top">
         <Icon name="trophy" size={16} />
         <div>
-          <h3>Man of the match</h3>
+          <h3>{t("sr.man_of_the_match")}</h3>
           <p className="subtle">{poll.title}</p>
         </div>
         <span className={`tag ${open ? "gold" : "grey"}`}>
-          {open ? closingLabel(poll.closes_at) : "Closed"}
+          {open ? closingLabel(poll.closes_at) : t("le.closed")}
         </span>
       </header>
 
@@ -148,10 +150,10 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
         <>
           <p className="subtle">
             {!poll.can_vote
-              ? "Only the two clubs who played can vote."
+              ? t("le.only_the_two_clubs_who_played_can_vote")
               : poll.my_vote
-                ? "Your vote is in. Pick another name to change it, or the same one to take it back."
-                : "Who was your man of the match? Pick a name — you can change it until voting closes."}
+                ? t("le.your_vote_is_in_pick_another_name_to_c")
+                : t("le.who_was_your_man_of_the_match_pick_a_n")}
           </p>
           <div className="motm-sheets">
             {sheet("home", names.home)}
@@ -160,13 +162,13 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
           <p className="subtle sm">
             {poll.tally_visible
               ? `${poll.total_votes} vote${poll.total_votes === 1 ? "" : "s"} so far.`
-              : "Votes are hidden until you have voted."}
+              : t("le.votes_are_hidden_until_you_have_voted")}
           </p>
           {/* Offered to everybody: most people get a 403, which is shown as
               the sentence the API sent rather than hidden behind a guess at
               their role. */}
           <button className="btn ghost sm" type="button" disabled={busy} onClick={() => void end()}>
-            Close the vote now
+            {t("sr.close_the_vote_now")}
           </button>
         </>
       ) : winner ? (
@@ -179,7 +181,7 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
           A tie: {tied.map((c) => c.display_name).join(", ")} finished level. A captain picks.
         </p>
       ) : (
-        <p className="subtle">Voting closed with nobody voted for.</p>
+        <p className="subtle">{t("sr.voting_closed_with_nobody_voted_for")}</p>
       )}
 
       {!open && poll.total_votes > 0 && (

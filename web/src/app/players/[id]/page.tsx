@@ -16,6 +16,7 @@ import { Icon } from "@/components/Icon";
 import { MessageButton } from "@/components/MessageButton";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 type Achievement = {
   id: string;
@@ -32,6 +33,7 @@ type Achievement = {
 /// details: the API does not send them, because being in the same club is not
 /// consent to hand over a phone number.
 export default function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [player, setPlayer] = useState<TeammateProfile | null>(null);
@@ -56,12 +58,12 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         setHonours(a);
         setError(null);
       } catch (err) {
-        setError(readErr(err, "Could not load this player"));
+        setError(readErr(err, t("le.could_not_load_this_player")));
       } finally {
         setLoading(false);
       }
     })();
-  }, [authed, id]);
+  }, [authed, id, t]);
 
   if (!authed) return <main id="main" />;
   if (error) return <main id="main"><p className="error">{error}</p></main>;
@@ -117,7 +119,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           {seasons.length === 0 ? (
             <div className="panel pro-blank">
               <Icon name="bat" size={32} />
-              <h2>Nothing scored yet</h2>
+              <h2>{t("cl.nothing_scored_yet")}</h2>
               <p className="muted">
                 {player.name.split(" ")[0]}&apos;s figures appear here once they play a
                 match somebody scored on {brand.name}.
@@ -126,28 +128,28 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           ) : (
             <>
               <div className="panel">
-                <h2>Career</h2>
+                <h2>{t("cl.career")}</h2>
                 <dl className="pro-strip">
-                  <div><dd className="num">{total((s) => s.matches)}</dd><dt>Matches</dt></div>
+                  <div><dd className="num">{total((s) => s.matches)}</dd><dt>{t("cl.matches")}</dt></div>
                   <div><dd className="num">{runs}</dd><dt>Runs</dt></div>
                   <div>
                     <dd className="num">{outs > 0 ? num(runs / outs) : "—"}</dd>
-                    <dt>Average</dt>
+                    <dt>{t("cl.average")}</dt>
                   </div>
-                  <div><dd className="num">{wickets}</dd><dt>Wickets</dt></div>
+                  <div><dd className="num">{wickets}</dd><dt>{t("cl.wickets")}</dt></div>
                 </dl>
               </div>
 
               <div className="panel pro-table">
-                <h2>Season by season</h2>
+                <h2>{t("cl.season_by_season")}</h2>
                 <div className="table-wrap">
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Season</th><th>Club</th>
+                        <th>{t("cl.season")}</th><th>Club</th>
                         <th className="n">M</th><th className="n">Runs</th>
-                        <th className="n">HS</th><th className="n">Avg</th>
-                        <th className="n">Wkts</th><th className="n">Econ</th>
+                        <th className="n">{t("cl.hs")}</th><th className="n">{t("cl.avg")}</th>
+                        <th className="n">{t("cl.wkts")}</th><th className="n">Econ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -176,16 +178,16 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         <aside className="pro-rail">
           {seasons.length > 0 && (
             <div className="panel">
-              <h2>With the ball</h2>
+              <h2>{t("cl.with_the_ball")}</h2>
               <dl className="pro-figures">
-                <div><dt>Wickets</dt><dd className="num">{wickets}</dd></div>
+                <div><dt>{t("cl.wickets")}</dt><dd className="num">{wickets}</dd></div>
                 <div><dt>Overs</dt><dd className="num">{num(overs, 1)}</dd></div>
                 <div>
-                  <dt>Average</dt>
+                  <dt>{t("cl.average")}</dt>
                   <dd className="num">{wickets ? num(bowlingRuns / wickets) : "—"}</dd>
                 </div>
                 <div>
-                  <dt>Economy</dt>
+                  <dt>{t("cl.economy")}</dt>
                   <dd className="num">{overs ? num(bowlingRuns / overs) : "—"}</dd>
                 </div>
               </dl>
@@ -193,9 +195,9 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           )}
 
           <div className="panel">
-            <h2>Honours</h2>
+            <h2>{t("cl.honours")}</h2>
             {honours.length === 0 ? (
-              <p className="muted">None yet.</p>
+              <p className="muted">{t("cl.none_yet")}</p>
             ) : (
               <ul className="pro-honours">
                 {honours.map((a) => (
@@ -216,14 +218,14 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           </div>
 
           <div className="panel">
-            <h2>You both play for</h2>
+            <h2>{t("cl.you_both_play_for")}</h2>
             <p className="muted">
               {player.shared_clubs.length > 0
                 ? player.shared_clubs.join(", ")
-                : "This is your own profile."}
+                : t("le.this_is_your_own_profile")}
             </p>
             <Link className="btn" href="/clubs">
-              <Icon name="users" size={16} /> Your clubs
+              <Icon name="users" size={16} /> {t("cl.your_clubs")}
             </Link>
           </div>
         </aside>

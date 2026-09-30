@@ -29,13 +29,13 @@ export type MyFixture = {
 };
 
 export const ANSWERS: { value: Answer; label: string; said: string }[] = [
-  { value: "going", label: "Available", said: "You're available" },
-  { value: "maybe", label: "Maybe", said: "You said maybe" },
-  { value: "not_going", label: "Can't play", said: "You can't play" },
+  { value: "going", label: "Available", said: "le.you_re_available" },
+  { value: "maybe", label: "Maybe", said: "le.you_said_maybe" },
+  { value: "not_going", label: "le.can_t_play", said: "le.you_can_t_play" },
 ];
 
 export function saidLabel(answer: Answer | null): string {
-  return ANSWERS.find((a) => a.value === answer)?.said ?? "Not answered yet";
+  return ANSWERS.find((a) => a.value === answer)?.said ?? "le.not_answered_yet";
 }
 
 export function myFixtures(from: Date, to: Date): Promise<MyFixture[]> {

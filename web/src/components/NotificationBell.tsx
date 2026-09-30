@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { subscribeLive } from "@/lib/live";
+import { useT } from "@/lib/i18n/provider";
 
 /// How many the panel shows. A dropdown is a glance, not an archive — the
 /// rest are a click away on /notifications, where they are paged.
@@ -23,6 +24,7 @@ type Feed = { unread: number; items: AppNotification[] };
 /// works — which makes this the difference between "the other captain was
 /// told" being true and being a hope.
 export function NotificationBell() {
+  const t = useT();
   const [feed, setFeed] = useState<Feed>({ unread: 0, items: [] });
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -97,14 +99,14 @@ export function NotificationBell() {
             <strong>Notifications</strong>
             {feed.unread > 0 && (
               <button className="btn ghost sm" type="button" onClick={markAllRead}>
-                Mark all read
+                {t("rest.mark_all_read")}
               </button>
             )}
           </div>
-          {feed.items.length === 0 && <p className="muted">Nothing waiting for you.</p>}
+          {feed.items.length === 0 && <p className="muted">{t("rest.nothing_waiting_for_you")}</p>}
           <ul className="bell-list">
             {feed.items.map((n) => {
-              const line = notificationLine(n);
+              const line = notificationLine(n, t);
               const body = (
                 <>
                   <span>{line.title}</span>
@@ -136,7 +138,7 @@ export function NotificationBell() {
             })}
           </ul>
           <Link className="bell-all" href="/notifications" onClick={() => setOpen(false)}>
-            View all notifications
+            {t("rest.view_all_notifications")}
           </Link>
         </div>
       )}

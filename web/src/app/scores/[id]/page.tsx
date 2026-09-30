@@ -25,10 +25,12 @@ import {
   type Innings,
   type WorldMatchDetailView,
 } from "@/lib/scores";
+import { useT } from "@/lib/i18n/provider";
 
 const num = (v?: number | null) => (v == null ? "—" : String(v));
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [view, setView] = useState<WorldMatchDetailView | null>(null);
@@ -51,11 +53,11 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       });
       setError(null);
     } catch {
-      setError("Could not load that match.");
+      setError(t("le.could_not_load_that_match"));
     } finally {
       setLoaded(true);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -84,7 +86,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       </nav>
 
       {error && <div className="notice">{error}</div>}
-      {!loaded && <div className="empty"><p className="muted">Loading the match…</p></div>}
+      {!loaded && <div className="empty"><p className="muted">{t("sr.loading_the_match")}</p></div>}
 
       {view && (
         <>
@@ -120,14 +122,14 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             (view.detail?.bowling_now?.length ?? 0) > 0) && (
             <section className="panel">
               <div className="panel-head"><h2>At the crease</h2></div>
-              <p className="panel-note">Who is in, and who is bowling at them, right now.</p>
+              <p className="panel-note">{t("sr.who_is_in_and_who_is_bowling_at_them_r")}</p>
               <div className="score-crease">
                 {/* Grouped under two headings rather than a label on every
                     row: the label repeated four times is four wasted lines on
                     a phone, and side by side it uses the width on a desktop. */}
                 {view.detail!.batting_now.length > 0 && (
                   <div className="score-crease-group">
-                    <h3 className="card-sub">Batting</h3>
+                    <h3 className="card-sub">{t("sr.batting")}</h3>
                     {view.detail!.batting_now.map((p) => (
                       <div className="score-crease-row" key={`bat-${p.name}`}>
                         <span className="score-crease-name">{p.name}</span>
@@ -138,7 +140,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 )}
                 {view.detail!.bowling_now.length > 0 && (
                   <div className="score-crease-group">
-                    <h3 className="card-sub">Bowling</h3>
+                    <h3 className="card-sub">{t("sr.bowling")}</h3>
                     {view.detail!.bowling_now.map((p) => (
                       <div className="score-crease-row" key={`bowl-${p.name}`}>
                         <span className="score-crease-name">{p.name}</span>
@@ -152,7 +154,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           )}
 
           {innings.length > 1 && (
-            <div className="innings-tabs" role="tablist" aria-label="Innings">
+            <div className="innings-tabs" role="tablist" aria-label={t("sr.innings")}>
               {innings.map((inn, i) => (
                 <button
                   key={`${inn.team_name}-${i}`}
@@ -183,10 +185,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           {loaded && !view.detail && (
             <div className="empty">
               <Icon name="ball" size={28} />
-              <p>No scorecard for this match yet.</p>
+              <p>{t("sr.no_scorecard_for_this_match_yet")}</p>
               <p className="muted">
-                Scorecards are fetched when somebody opens a match. If this one has not
-                started, there is nothing to show yet.
+                {t("sr.scorecards_are_fetched_when_somebody_o")}
               </p>
             </div>
           )}
@@ -194,8 +195,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           {loaded && view.detail && innings.length === 0 && (
             <div className="empty">
               <Icon name="ball" size={28} />
-              <p>Not a ball bowled yet.</p>
-              <p className="muted">The card will fill in once the match is under way.</p>
+              <p>{t("sr.not_a_ball_bowled_yet")}</p>
+              <p className="muted">{t("sr.the_card_will_fill_in_once_the_match_i")}</p>
             </div>
           )}
 
@@ -204,7 +205,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               <Icon name="clock" size={14} /> Scorecard updated {freshness(view.detail_as_of)}.
               {view.summary.phase === "done"
                 ? " This match has finished, so this is the final card."
-                : " It comes from a free feed and runs a few minutes behind play."}
+                : t("fin.free_feed_delay")}
             </p>
           )}
         </>
@@ -227,6 +228,7 @@ function InningsCard({
   labelled: boolean;
   title: string;
 }) {
+  const t = useT();
   const e = innings.extras;
   const extras = [
     e.byes ? `${e.byes}b` : null,
@@ -250,15 +252,15 @@ function InningsCard({
 
       <div className="innings-grid">
         <div className="innings-bat">
-          <h3 className="card-sub">Batting</h3>
+          <h3 className="card-sub">{t("sr.batting")}</h3>
           <div className="card-table" role="table" aria-label={`${title} batting`}>
             <div className="card-head" role="row">
-              <span role="columnheader">Batter</span>
+              <span role="columnheader">{t("sr.batter")}</span>
               <span role="columnheader">R</span>
               <span role="columnheader">B</span>
               <span role="columnheader">4s</span>
               <span role="columnheader">6s</span>
-              <span role="columnheader">SR</span>
+              <span role="columnheader">{t("sr.sr")}</span>
             </div>
             {innings.batting.map((b) => (
               <BatRow key={b.name} row={b} />
@@ -276,7 +278,7 @@ function InningsCard({
         <div className="innings-side">
           {innings.bowling.length > 0 && (
             <>
-              <h3 className="card-sub">Bowling</h3>
+              <h3 className="card-sub">{t("sr.bowling")}</h3>
               <div
                 className="card-table bowling"
                 role="table"
@@ -288,7 +290,7 @@ function InningsCard({
                   <span role="columnheader">M</span>
                   <span role="columnheader">R</span>
                   <span role="columnheader">W</span>
-                  <span role="columnheader">Econ</span>
+                  <span role="columnheader">{t("sr.econ")}</span>
                 </div>
                 {innings.bowling.map((b) => (
                   <BowlRow key={b.name} row={b} />
@@ -299,7 +301,7 @@ function InningsCard({
 
           {innings.fall_of_wickets.length > 0 && (
             <>
-              <h3 className="card-sub">Fall of wickets</h3>
+              <h3 className="card-sub">{t("sr.fall_of_wickets")}</h3>
               <p className="card-fow">
                 {innings.fall_of_wickets.map((f) => (
                   <span key={f.wicket}>

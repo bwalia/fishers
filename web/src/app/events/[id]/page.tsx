@@ -14,6 +14,8 @@ import { Icon } from "@/components/Icon";
 import { PeoplePicker, type PeopleTab } from "@/components/PeoplePicker";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
 
 /// Everyone the fixture knows about, and what they said.
 type Attendee = {
@@ -25,15 +27,16 @@ type Attendee = {
   paid: boolean;
 };
 
-const RSVP_LABEL: Record<string, string> = {
-  going: "Playing",
-  not_going: "Can't",
-  maybe: "Maybe",
-  invited: "Not answered",
+const RSVP_LABEL: Record<string, Key> = {
+  going: "ev.playing",
+  not_going: "ld.can_t",
+  maybe: "ev.maybe",
+  invited: "ev.not_answered",
 };
 
 /// One fixture: who is coming, who owes, and — if you run it — calling it off.
 export default function EventPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [event, setEvent] = useState<EventRow | null>(null);
@@ -53,11 +56,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       setAttendees(a);
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load this fixture"));
+      setError(readErr(err, t("ld.could_not_load_this_fixture")));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -115,7 +118,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         <div className="pro-main">
           <div className="panel">
             <div className="panel-head">
-              <h2>Are you playing?</h2>
+              <h2>{t("ev.are_you_playing")}</h2>
               {event.fee_amount_cents != null && (
                 <span className="tag gold">{money(event.fee_amount_cents)} match fee</span>
               )}
@@ -129,10 +132,10 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   disabled={busy !== null}
                   onClick={() =>
                     act(answer, () => api("POST", `/events/${id}/rsvp`, { status: answer }),
-                        `Told them: ${RSVP_LABEL[answer].toLowerCase()}.`)
+                        `Told them: ${t(RSVP_LABEL[answer]).toLowerCase()}.`)
                   }
                 >
-                  {RSVP_LABEL[answer]}
+                  {t(RSVP_LABEL[answer])}
                 </button>
               ))}
             </div>
@@ -140,13 +143,13 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
           <div className="panel">
             <div className="panel-head">
-              <h2>Who is coming</h2>
+              <h2>{t("ev.who_is_coming")}</h2>
               <Link className="btn ghost sm" href={`/events/${id}/selection`}>
-                Pick the squad
+                {t("ev.pick_the_squad")}
               </Link>
             </div>
             {attendees.length === 0 ? (
-              <p className="muted">Nobody asked yet. Invite people below.</p>
+              <p className="muted">{t("ev.nobody_asked_yet_invite_people_below")}</p>
             ) : (
               <ul className="pick-list">
                 {attendees.map((a) => (
@@ -156,7 +159,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                       <strong>{a.name}</strong>
                       <span className="pick-signals">
                         <span className={`tag ${a.status === "going" ? "" : a.status === "not_going" ? "danger" : "grey"}`}>
-                          {RSVP_LABEL[a.status] ?? a.status}
+                          {t(RSVP_LABEL[a.status])}
                         </span>
                         {a.availability && (
                           <span className="subtle">calendar says {a.availability}</span>
@@ -184,7 +187,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         <aside className="pro-rail">
           {event.fee_amount_cents != null && owing.length > 0 && (
             <div className="panel">
-              <h2>Still to pay</h2>
+              <h2>{t("ev.still_to_pay")}</h2>
               <p className="muted">
                 {owing.length} of the {count("going")} playing owe{" "}
                 {money(event.fee_amount_cents * owing.length)} between them.
@@ -199,9 +202,9 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               act(
                 "status",
                 () => api("POST", `/events/${id}/status`, { status, note: note || null }),
-                status === "cancelled" ? "Called off — everybody has been told."
-                  : status === "postponed" ? "Postponed — everybody has been told."
-                  : "Back on."
+                status === "cancelled" ? t("ld.called_off_everybody_has_been_told")
+                  : status === "postponed" ? t("ld.postponed_everybody_has_been_told")
+                  : t("ld.back_on")
               )
             }
           />
@@ -228,6 +231,7 @@ function Invite({
   asked: Attendee[];
   onInvited: () => void;
 }) {
+  const t = useT();
   const [members, setMembers] = useState<ClubMemberRow[]>([]);
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -238,13 +242,13 @@ function Invite({
     if (!open || members.length > 0) return;
     api<ClubMemberRow[]>("GET", `/clubs/${clubId}/members`)
       .then(setMembers)
-      .catch(() => setError("Only a captain or secretary can invite people."));
-  }, [open, members.length, clubId]);
+      .catch(() => setError(t("ld.only_a_captain_or_secretary_can_invite")));
+  }, [open, members.length, clubId, t]);
 
   const already = new Set(asked.map((a) => a.user_id));
   const tabs: PeopleTab[] = [
     {
-      label: "Not asked yet",
+      label: t("ld.not_asked_yet"),
       people: members
         .filter((m) => !already.has(m.user_id))
         .map((m) => ({ id: m.user_id, name: m.name, note: m.position_role ?? undefined })),
@@ -260,7 +264,7 @@ function Invite({
       setChosen(null);
       onInvited();
     } catch (err) {
-      setError(readErr(err, "Could not invite them"));
+      setError(readErr(err, t("ld.could_not_invite_them")));
     } finally {
       setBusy(false);
     }
@@ -269,27 +273,27 @@ function Invite({
   if (!open) {
     return (
       <button className="btn" type="button" onClick={() => setOpen(true)}>
-        <Icon name="plus" size={16} /> Ask somebody else
+        <Icon name="plus" size={16} /> {t("ev.ask_somebody_else")}
       </button>
     );
   }
 
   return (
     <div className="panel">
-      <h2>Ask somebody else</h2>
+      <h2>{t("ev.ask_somebody_else")}</h2>
       <PeoplePicker
         tabs={tabs}
         chosen={chosen}
         onChoose={setChosen}
-        empty="Everybody in the club has already been asked."
+        empty={t("ld.everybody_in_the_club_has_already_been")}
       />
       {error && <p className="error">{error}</p>}
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn primary" type="button" disabled={busy || !chosen} onClick={invite}>
-          {busy ? "Asking…" : "Ask them"}
+          {busy ? "Asking…" : t("ld.ask_them")}
         </button>
         <button className="btn" type="button" onClick={() => { setOpen(false); setChosen(null); }}>
-          Done
+          {t("ev.done")}
         </button>
       </div>
     </div>
@@ -309,41 +313,42 @@ function CallOff({
   busy: boolean;
   onDo: (status: string, note: string) => void;
 }) {
+  const t = useT();
   const [note, setNote] = useState("");
   const off = status === "cancelled" || status === "postponed";
 
   return (
     <div className="panel">
-      <h2>{off ? "This fixture is off" : "Call it off"}</h2>
+      <h2>{off ? t("ld.this_fixture_is_off") : t("ld.call_it_off")}</h2>
       {off ? (
         <>
           <p className="muted">It is marked {status}. Everybody asked has been told.</p>
           <button className="btn" type="button" disabled={busy}
                   onClick={() => onDo("scheduled", "")}>
-            Put it back on
+            {t("ev.put_it_back_on")}
           </button>
         </>
       ) : (
         <>
           <p className="muted">
-            Everybody who was asked gets told, so the reason is worth typing.
+            {t("ev.everybody_who_was_asked_gets_told_so_t")}
           </p>
           <label>
-            Why
+            {t("ev.why")}
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Ground unplayable after Friday's rain"
+              placeholder={t("ev.ground_unplayable_after_friday_s_rain")}
             />
           </label>
           <div className="field-row" style={{ marginTop: "var(--s4)" }}>
             <button className="btn" type="button" disabled={busy}
                     onClick={() => onDo("postponed", note)}>
-              Postpone
+              {t("ev.postpone")}
             </button>
             <button className="btn danger" type="button" disabled={busy}
                     onClick={() => onDo("cancelled", note)}>
-              Cancel it
+              {t("ev.cancel_it")}
             </button>
           </div>
         </>
@@ -358,6 +363,7 @@ function CallOff({
 /// nothing in the product set any of them, so the booking screen existed and
 /// no event could ever reach it.
 function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
+  const t = useT();
   const selling = event.ticket_price_cents != null;
   const [open, setOpen] = useState(selling);
   const [pounds, setPounds] = useState(
@@ -393,10 +399,10 @@ function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
         guests_allowed: guests,
         tickets_public: isPublic,
       });
-      setNote(selling ? "Ticket settings saved." : "Tickets are on sale.");
+      setNote(selling ? t("ld.ticket_settings_saved") : t("ld.tickets_are_on_sale"));
       onSaved();
     } catch (err) {
-      setError(readErr(err, "Could not save that"));
+      setError(readErr(err, t("ld.could_not_save_that")));
     } finally {
       setBusy(false);
     }
@@ -406,14 +412,13 @@ function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
     return (
       <div className="panel">
         <div className="panel-head">
-          <h2>Tickets</h2>
+          <h2>{t("ev.tickets")}</h2>
           <button className="btn ghost sm" type="button" onClick={() => setOpen(true)}>
-            Sell tickets
+            {t("ev.sell_tickets")}
           </button>
         </div>
         <p className="muted">
-          Not selling tickets to this one. Turn it on for a dinner, a finals day
-          or anything people pay to come to.
+          {t("ev.not_selling_tickets_to_this_one_turn_i")}
         </p>
       </div>
     );
@@ -422,38 +427,38 @@ function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>Tickets</h2>
+        <h2>{t("ev.tickets")}</h2>
         {selling && (
           <Link className="btn ghost sm" href={`/events/${event.id}/tickets`}>
-            See bookings
+            {t("ev.see_bookings")}
           </Link>
         )}
       </div>
 
       <div className="setup-fields">
         <label>
-          Price each
-          <span className="subtle">Zero for a free event you still want a headcount for.</span>
+          {t("ev.price_each")}
+          <span className="subtle">{t("ev.zero_for_a_free_event_you_still_want_a")}</span>
           <input
             inputMode="decimal"
             value={pounds}
             onChange={(e) => setPounds(e.target.value)}
-            placeholder="7.50"
+            placeholder={t("ev.7_50")}
           />
         </label>
         <label>
-          How many can come
-          <span className="subtle">Leave empty for no limit.</span>
+          {t("ev.how_many_can_come")}
+          <span className="subtle">{t("ev.leave_empty_for_no_limit")}</span>
           <input
             type="number"
             min={1}
             value={capacity}
             onChange={(e) => setCapacity(e.target.value)}
-            placeholder="80"
+            placeholder={t("ev.80")}
           />
         </label>
         <label>
-          Guests each member may bring
+          {t("ev.guests_each_member_may_bring")}
           <input
             type="number"
             min={0}
@@ -474,14 +479,14 @@ function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
           <strong>Anyone on {brand.name} can buy</strong>
           <span className="subtle">
             {isPublic
-              ? "Visiting clubs and their supporters can buy a ticket. They see the headcount and their own booking — never who else is coming."
-              : "Members of this club only. Leave this off for an AGM or a members' dinner."}
+              ? t("ld.visiting_clubs_and_their_supporters_ca")
+              : t("ld.members_of_this_club_only_leave_this_o")}
           </span>
         </span>
       </label>
 
       {pounds.trim() !== "" && !Number.isFinite(pence) && (
-        <p className="error">Give the price as an amount, like 7.50.</p>
+        <p className="error">{t("ev.give_the_price_as_an_amount_like_7_50")}</p>
       )}
       {tooMuch && <p className="error">That is over £1,000 — payments are refused above it.</p>}
       {error && <p className="error">{error}</p>}
@@ -489,7 +494,7 @@ function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
 
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn primary" type="button" disabled={busy || !priceOk} onClick={save}>
-          {busy ? "Saving…" : selling ? "Save" : "Put them on sale"}
+          {busy ? "Saving…" : selling ? "Save" : t("ld.put_them_on_sale")}
         </button>
         {!selling && (
           <button className="btn" type="button" onClick={() => setOpen(false)}>

@@ -2,6 +2,7 @@
 
 import type { QrCode } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
+import { useT } from "@/lib/i18n/provider";
 
 /// A club or team's code, as an opposition captain sees it at the ground.
 ///
@@ -9,6 +10,7 @@ import { copyText } from "@/lib/clipboard";
 /// a few lines — so this only has to show it, and the payload is printed
 /// underneath for anyone whose camera will not cooperate.
 export function QrCard({ qr }: { qr: QrCode }) {
+  const t = useT();
   return (
     <div className="qr-card">
       <div className="panel-head">
@@ -29,7 +31,7 @@ export function QrCard({ qr }: { qr: QrCode }) {
         type="button"
         onClick={() => void copyText(qr.payload)}
       >
-        Copy link
+        {t("rest.copy_link")}
       </button>
     </div>
   );

@@ -1,3 +1,4 @@
+import type { Key } from "@/lib/i18n/en";
 /// Club chat, as the API serves it (`backend/domain/src/chat.rs`).
 ///
 /// Every club already lives in a group chat somewhere; this is the one that
@@ -60,18 +61,18 @@ export type AgentAnalysis = {
   summary: string | null;
 };
 
-export const CONVERSATION_KIND: Record<string, string> = {
-  club: "Club",
-  team: "Team",
-  event: "Fixture",
-  direct: "Direct",
+export const CONVERSATION_KIND: Record<string, Key> = {
+  club: "nav.club",
+  team: "cl.team",
+  event: "cl.fixture",
+  direct: "le.direct",
 };
 
-export const PROPOSAL_KIND: Record<string, string> = {
-  availability: "Set availability",
-  rsvp: "Answer a fixture",
-  selection: "Change the squad",
-  fee: "Chase a fee",
+export const PROPOSAL_KIND: Record<string, Key> = {
+  availability: "le.set_availability",
+  rsvp: "le.answer_a_fixture",
+  selection: "le.change_the_squad",
+  fee: "le.chase_a_fee",
 };
 
 /// "14:32" today, "Tue 14:32" this week, "12 Sep" beyond it.
@@ -133,7 +134,7 @@ function dayLabel(iso: string): string {
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   if (at.toDateString() === today.toDateString()) return "Today";
-  if (at.toDateString() === yesterday.toDateString()) return "Yesterday";
+  if (at.toDateString() === yesterday.toDateString()) return "le.yesterday";
   return at.toLocaleDateString("en-GB", {
     weekday: "long", day: "numeric", month: "long",
   });

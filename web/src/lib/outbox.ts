@@ -100,8 +100,8 @@ export type SyncState = "saved" | "syncing" | "offline";
 
 export function syncLabel(state: SyncState, queued: number): string {
   if (state === "saved") return "Saved";
-  if (state === "syncing") return "Syncing…";
+  if (state === "syncing") return "le.syncing";
   return queued === 1
-    ? "Offline — 1 ball saved on this device"
+    ? "le.offline_1_ball_saved_on_this_device"
     : `Offline — ${queued} balls saved on this device`;
 }

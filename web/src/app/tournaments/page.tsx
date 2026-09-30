@@ -15,6 +15,7 @@ import {
 } from "@/components/TournamentRules";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
+import { useT } from "@/lib/i18n/provider";
 
 /// Blocks of fixtures: a tournament, a tour, a season.
 ///
@@ -22,6 +23,7 @@ import { useRequireAuth } from "@/lib/require-auth";
 /// a table. A one-off fixture needs none of that, which is why it is a separate
 /// idea rather than a flag on an event.
 export default function TournamentsPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [blocks, setBlocks] = useState<Record<string, FixtureBlock[]>>({});
@@ -54,11 +56,11 @@ export default function TournamentsPage() {
       setInvites(asked.flat());
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load your tournaments"));
+      setError(readErr(err, t("le.could_not_load_your_tournaments")));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -73,10 +75,10 @@ export default function TournamentsPage() {
     <main id="main">
       <section className="hero">
         <h1>Tournaments</h1>
-        <p>A block holds the sides, the pitches and times, the fixtures and the table.</p>
+        <p>{t("tn.a_block_holds_the_sides_the_pitches_an")}</p>
         {!error && (
           <button className="btn primary" type="button" onClick={() => setCreating(true)}>
-            <Icon name="plus" size={16} /> New tournament
+            <Icon name="plus" size={16} /> {t("tn.new_tournament")}
           </button>
         )}
       </section>
@@ -89,7 +91,7 @@ export default function TournamentsPage() {
       {!loading && !error && total === 0 && (
         <div className="panel empty">
           <Icon name="trophy" size={28} />
-          <p>Nothing running. Start one and add the sides.</p>
+          <p>{t("tn.nothing_running_start_one_and_add_the")}</p>
         </div>
       )}
 
@@ -137,10 +139,11 @@ export default function TournamentsPage() {
 /// the page and it says who asked — an invitation from a club you have never
 /// heard of is answered differently from one from your league rivals.
 function Invitations({ invites }: { invites: EntryInvitation[]; onAnswered: () => void }) {
+  const t = useT();
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>You have been asked</h2>
+        <h2>{t("tn.you_have_been_asked")}</h2>
         <span className="tag gold">{invites.length}</span>
       </div>
       <ul className="thread-list">
@@ -168,14 +171,14 @@ function Invitations({ invites }: { invites: EntryInvitation[]; onAnswered: () =
                 {i.entry_fee_cents ? (
                   <span className="tag grey">{money(i.entry_fee_cents)} to enter</span>
                 ) : null}
-                <span className="tag gold">Answer</span>
+                <span className="tag gold">{t("tn.answer")}</span>
               </span>
             </Link>
           </li>
         ))}
       </ul>
       <p className="subtle" style={{ marginTop: "var(--s3)" }}>
-        Open one to see what you would be entering, then accept or decline.
+        {t("tn.open_one_to_see_what_you_would_be_ente")}
       </p>
     </div>
   );
@@ -212,6 +215,7 @@ function NewBlock({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const t = useT();
   // The club list arrives after this form's first render, and useState reads its
   // argument only once — seeding from it left clubId "" for good while the select
   // happily showed the first club, so adding a ground posted to /clubs//venues.
@@ -266,7 +270,7 @@ function NewBlock({
       onCreated();
       onClose();
     } catch (err) {
-      setError(readErr(err, "Could not create that"));
+      setError(readErr(err, t("le.could_not_create_that")));
     } finally {
       setBusy(false);
     }
@@ -275,7 +279,7 @@ function NewBlock({
   return (
     <div className="panel setup-panel">
       <div className="panel-head">
-        <h2>New tournament</h2>
+        <h2>{t("tn.new_tournament")}</h2>
         <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
       </div>
 
@@ -290,49 +294,49 @@ function NewBlock({
             <select value={clubId} onChange={(e) => setPickedClub(e.target.value)}>
               {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <span className="subtle">Whoever is running it.</span>
+            <span className="subtle">{t("tn.whoever_is_running_it")}</span>
           </label>
           <label>
             Name
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Summer Sixes"
+              placeholder={t("tn.summer_sixes")}
               maxLength={120}
             />
-            <span className="subtle">What the clubs you invite will see.</span>
+            <span className="subtle">{t("tn.what_the_clubs_you_invite_will_see")}</span>
           </label>
           <label>
-            What is it
+            {t("tn.what_is_it")}
             <select value={kind} onChange={(e) => setKind(e.target.value)}>
-              <option value="tournament">Tournament</option>
-              <option value="tour">Tour</option>
+              <option value="tournament">{t("tn.tournament")}</option>
+              <option value="tour">{t("tn.tour")}</option>
               <option value="season">Season</option>
-              <option value="block">Block of fixtures</option>
+              <option value="block">{t("tn.block_of_fixtures")}</option>
             </select>
             <span className="subtle">
               {isTournament
-                ? "Carries entrants, a draw and a table."
-                : "Just holds fixtures — no entries or rules."}
+                ? t("le.carries_entrants_a_draw_and_a_table")
+                : t("le.just_holds_fixtures_no_entries_or_rule")}
             </span>
           </label>
           <label>
-            First day
+            {t("tn.first_day")}
             <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />
           </label>
           <label>
-            Last day
+            {t("tn.last_day")}
             <input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
-            <span className="subtle">Same as the first for a one-day event.</span>
+            <span className="subtle">{t("tn.same_as_the_first_for_a_one_day_event")}</span>
           </label>
         </div>
         <label style={{ marginTop: "var(--s4)" }}>
-          What to tell the clubs you invite
+          {t("tn.what_to_tell_the_clubs_you_invite")}
           <textarea
             rows={2}
             value={rules.description}
             onChange={(e) => set({ description: e.target.value })}
-            placeholder="Eight sides, two groups, finals in the afternoon. Teas included."
+            placeholder={t("tn.eight_sides_two_groups_finals_in_the_a")}
           />
         </label>
       </section>
@@ -354,8 +358,8 @@ function NewBlock({
         <div className="form-summary">
           <Icon name="check" size={16} />
           <span className="form-summary-body">
-            <span className="form-summary-title">What you are creating</span>
-            <span className="form-summary-text">{rulesSummary(rules)}</span>
+            <span className="form-summary-title">{t("tn.what_you_are_creating")}</span>
+            <span className="form-summary-text">{rulesSummary(rules, t)}</span>
           </span>
         </div>
       )}
@@ -363,13 +367,13 @@ function NewBlock({
       {error && <p className="error">{error}</p>}
       {!ready && !error && (
         <p className="subtle" style={{ marginTop: "var(--s3)" }}>
-          {!name.trim() ? "Give it a name to create it." : "Check the entry fee."}
+          {!name.trim() ? t("le.give_it_a_name_to_create_it") : t("le.check_the_entry_fee")}
         </p>
       )}
 
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn primary" type="button" disabled={busy || !ready} onClick={create}>
-          {busy ? "Creating…" : "Create it"}
+          {busy ? "Creating…" : t("le.create_it")}
         </button>
         <button className="btn" type="button" onClick={onClose}>Cancel</button>
       </div>

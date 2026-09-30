@@ -6,10 +6,11 @@ import { Icon } from "@/components/Icon";
 import { readErr } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 import { adminUsers, type AdminUserPage, type AdminUserRow } from "@/lib/admin";
+import { useT } from "@/lib/i18n/provider";
 
 const SORTS = [
-  { key: "newest", label: "Newest" },
-  { key: "oldest", label: "Oldest" },
+  { key: "newest", label: "le.newest" },
+  { key: "oldest", label: "le.oldest" },
   { key: "name", label: "Name" },
   { key: "matches", label: "Matches" },
   { key: "clubs", label: "Clubs" },
@@ -21,6 +22,7 @@ const SORTS = [
 /// No search term shows the whole table, because the commonest reason to open
 /// this is not looking for one person — it is wanting to see who is here.
 export default function AdminUsersPage() {
+  const t = useT();
   const authed = useRequireAuth();
   const [q, setQ] = useState("");
   const [applied, setApplied] = useState("");
@@ -36,11 +38,11 @@ export default function AdminUsersPage() {
       setData(await adminUsers({ q: applied || undefined, sort, page, per_page: 50 }));
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load the people"));
+      setError(readErr(err, t("le.could_not_load_the_people")));
     } finally {
       setLoading(false);
     }
-  }, [applied, sort, page]);
+  }, [applied, sort, page, t]);
 
   useEffect(() => {
     if (authed) load();
@@ -54,7 +56,7 @@ export default function AdminUsersPage() {
     <main id="main" className="adm">
       <header className="adm-head">
         <div>
-          <h1>People</h1>
+          <h1>{t("rest.people")}</h1>
           <p className="muted">
             <Link href="/admin">← System</Link>
             {data && ` · ${data.total.toLocaleString()} in total`}
@@ -70,14 +72,14 @@ export default function AdminUsersPage() {
           setApplied(q.trim());
         }}
       >
-        <label className="sr-only" htmlFor="adm-users-q">Name, email or phone</label>
+        <label className="sr-only" htmlFor="adm-users-q">{t("rest.name_email_or_phone")}</label>
         <input
           id="adm-users-q"
           value={q}
-          placeholder="Name, email or phone — blank for everybody"
+          placeholder={t("rest.name_email_or_phone_blank_for_everybod")}
           onChange={(e) => setQ(e.target.value)}
         />
-        <button className="btn primary">Search</button>
+        <button className="btn primary">{t("rest.search")}</button>
         {applied && (
           <button
             type="button"
@@ -88,7 +90,7 @@ export default function AdminUsersPage() {
               setPage(1);
             }}
           >
-            Clear
+            {t("rest.clear")}
           </button>
         )}
         <select
@@ -116,11 +118,11 @@ export default function AdminUsersPage() {
                 <tr>
                   <th scope="col">Name</th>
                   <th scope="col">Contact</th>
-                  <th scope="col">Plays</th>
+                  <th scope="col">{t("rest.plays")}</th>
                   <th scope="col" className="num">Clubs</th>
                   <th scope="col" className="num">Matches</th>
-                  <th scope="col">Joined</th>
-                  <th scope="col">Last seen</th>
+                  <th scope="col">{t("rest.joined")}</th>
+                  <th scope="col">{t("rest.last_seen")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -132,7 +134,7 @@ export default function AdminUsersPage() {
           {data.rows.length === 0 && <p className="muted">Nobody matches that.</p>}
 
           {pages > 1 && (
-            <nav className="adm-pager" aria-label="Pages">
+            <nav className="adm-pager" aria-label={t("rest.pages")}>
               <button className="btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                 Previous
               </button>
@@ -151,15 +153,16 @@ export default function AdminUsersPage() {
 }
 
 function Row({ u }: { u: AdminUserRow }) {
+  const t = useT();
   return (
     <tr className={u.deleted_at ? "gone" : undefined}>
       <th scope="row">
         <Link href={`/admin/users/${u.id}`}>{u.name}</Link>
-        {u.deleted_at && <span className="tag">Deleted</span>}
+        {u.deleted_at && <span className="tag">{t("rest.deleted")}</span>}
       </th>
       <td>
         <span className="adm-contact">
-          {u.email ?? <em className="muted">no email</em>}
+          {u.email ?? <em className="muted">{t("rest.no_email")}</em>}
           {u.email && !u.email_verified && <Unconfirmed />}
         </span>
         {u.phone && (
@@ -177,7 +180,7 @@ function Row({ u }: { u: AdminUserRow }) {
       <td className="num">{u.clubs}</td>
       <td className="num">{u.matches}</td>
       <td>{new Date(u.created_at).toLocaleDateString()}</td>
-      <td>{u.last_seen ? new Date(u.last_seen).toLocaleDateString() : <span className="muted">never</span>}</td>
+      <td>{u.last_seen ? new Date(u.last_seen).toLocaleDateString() : <span className="muted">{t("rest.never")}</span>}</td>
     </tr>
   );
 }
@@ -185,9 +188,10 @@ function Row({ u }: { u: AdminUserRow }) {
 /// Never colour alone: an icon and a word, because "unconfirmed" is the thing
 /// somebody is scanning for when a person says they cannot log in.
 function Unconfirmed() {
+  const t = useT();
   return (
-    <span className="adm-unconfirmed" title="Not confirmed">
-      <Icon name="help" size={13} /> unconfirmed
+    <span className="adm-unconfirmed" title={t("rest.not_confirmed")}>
+      <Icon name="help" size={13} /> {t("rest.unconfirmed")}
     </span>
   );
 }

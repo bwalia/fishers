@@ -36,6 +36,7 @@ import {
 import { type OpponentIdentity } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
+import { useT } from "@/lib/i18n/provider";
 
 type Tab = "entrants" | "grid" | "fixtures" | "table" | "rules";
 
@@ -46,6 +47,7 @@ type Tab = "entrants" | "grid" | "fixtures" | "table" | "rules";
 /// tab because they are done at different times — entrants in the week before,
 /// the grid the night before, fixtures on the morning, the table all day.
 export default function TournamentPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useT();
   const { id } = use(params);
   const authed = useRequireAuth();
   const [tab, setTab] = useState<Tab>("entrants");
@@ -73,11 +75,11 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       setBlock(b);
       setError(null);
     } catch (err) {
-      setError(readErr(err, "Could not load this tournament"));
+      setError(readErr(err, t("la.could_not_load_this_tournament")));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (!authed) return;
@@ -125,24 +127,24 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
         </div>
       </section>
 
-      <div className="people-tabs" role="tablist" aria-label="Tournament">
-        {(["entrants", "grid", "fixtures", "table", "rules"] as Tab[]).map((t) => (
+      <div className="people-tabs" role="tablist" aria-label={t("tn.tournament")}>
+        {(["entrants", "grid", "fixtures", "table", "rules"] as Tab[]).map((each) => (
           <button
-            key={t}
+            key={each}
             type="button"
             role="tab"
-            aria-selected={tab === t}
-            className={tab === t ? "on" : undefined}
-            onClick={() => setTab(t)}
+            aria-selected={tab === each}
+            className={tab === each ? "on" : undefined}
+            onClick={() => setTab(each)}
           >
             {
               {
-                entrants: "Who is in",
-                grid: "Pitches & times",
-                fixtures: "Fixtures",
-                table: "Table",
-                rules: "Rules",
-              }[t]
+                entrants: t("la.who_is_in"),
+                grid: t("la.pitches_times"),
+                fixtures: t("nav.fixtures"),
+                table: t("la.table"),
+                rules: t("la.rules"),
+              }[each]
             }
           </button>
         ))}
@@ -187,6 +189,7 @@ function Entrants({
   entryFee: number;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [names, setNames] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -201,7 +204,7 @@ function Entrants({
       if (said) setNote(said);
       onChanged();
     } catch (err) {
-      setError(readErr(err, "That did not work"));
+      setError(readErr(err, t("la.that_did_not_work")));
     } finally {
       setBusy(null);
     }
@@ -232,7 +235,7 @@ function Entrants({
     <>
       <div className="panel">
         <div className="panel-head">
-          <h2>The sides</h2>
+          <h2>{t("tn.the_sides")}</h2>
           {waiting.length > 0 && (
             <span className="tag gold">{waiting.length} yet to answer</span>
           )}
@@ -241,7 +244,7 @@ function Entrants({
           )}
         </div>
         {entrants.length === 0 ? (
-          <p className="muted">Nobody entered yet.</p>
+          <p className="muted">{t("tn.nobody_entered_yet")}</p>
         ) : (
           <ul className="pick-list">
             {entrants.map((e) => (
@@ -280,7 +283,7 @@ function Entrants({
                         )
                       }
                     >
-                      Withdraw
+                      {t("tn.withdraw")}
                     </button>
                   )}
                   {e.status === "accepted" && entryFee > 0 && !e.entry_paid_at && (
@@ -299,7 +302,7 @@ function Entrants({
                         )
                       }
                     >
-                      Mark paid
+                      {t("tn.mark_paid")}
                     </button>
                   )}
                   {(e.status === "declined" || e.status === "withdrawn") && e.club_id && (
@@ -318,7 +321,7 @@ function Entrants({
                         )
                       }
                     >
-                      Ask again
+                      {t("tn.ask_again")}
                     </button>
                   )}
                 </div>
@@ -331,8 +334,8 @@ function Entrants({
         {(waiting.length > 0 || owing.length > 0) && (
           <p className="subtle" style={{ marginTop: "var(--s3)" }}>
             {entryFee > 0
-              ? "A side is in the draw once it has accepted and settled the entry fee."
-              : "Only sides that have accepted go into the draw."}
+              ? t("la.a_side_is_in_the_draw_once_it_has_acce")
+              : t("la.only_sides_that_have_accepted_go_into")}
           </p>
         )}
       </div>
@@ -340,13 +343,12 @@ function Entrants({
       <InviteClub blockId={blockId} onInvited={onChanged} />
 
       <div className="panel">
-        <h2>Enter sides yourself</h2>
+        <h2>{t("tn.enter_sides_yourself")}</h2>
         <p className="subtle">
-          For a side you are entering on their behalf — they are in straight away
-          and are never asked.
+          {t("tn.for_a_side_you_are_entering_on_their_b")}
         </p>
         <label>
-          One per line
+          {t("tn.one_per_line")}
           <textarea
             rows={4}
             value={names}
@@ -357,7 +359,7 @@ function Entrants({
         <div className="field-row" style={{ marginTop: "var(--s4)" }}>
           <button className="btn" type="button" disabled={busy !== null || !names.trim()}
                   onClick={add}>
-            {busy === "add" ? "Entering…" : "Enter them"}
+            {busy === "add" ? t("la.entering") : t("la.enter_them")}
           </button>
         </div>
       </div>
@@ -377,6 +379,7 @@ function EntryTag({ status }: { status: EntryStatus }) {
 /// its own app, and one that is not gets a link by email. Either way they
 /// decide — an organiser cannot enter somebody else's club for them.
 function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => void }) {
+  const t = useT();
   const [picked, setPicked] = useState<OpponentIdentity | null>(null);
   const [typed, setTyped] = useState("");
   const [email, setEmail] = useState("");
@@ -410,7 +413,7 @@ function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => 
       setEmail("");
       onInvited();
     } catch (err) {
-      setError(readErr(err, "Could not send that invitation"));
+      setError(readErr(err, t("la.could_not_send_that_invitation")));
     } finally {
       setBusy(false);
     }
@@ -418,9 +421,9 @@ function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => 
 
   return (
     <div className="panel">
-      <h2>Invite a club</h2>
+      <h2>{t("tn.invite_a_club")}</h2>
       <p className="subtle">
-        They accept or decline themselves, and only then are they in the draw.
+        {t("tn.they_accept_or_decline_themselves_and")}
       </p>
 
       <OppositionPicker
@@ -432,7 +435,7 @@ function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => 
 
       {offPlatform && (
         <label>
-          Where to send it
+          {t("tn.where_to_send_it")}
           <span className="subtle">
             {typed.trim()} is not on {brand.name}, so they answer by following a link.
           </span>
@@ -442,7 +445,7 @@ function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => 
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="secretary@theirclub.example"
+            placeholder={t("tn.secretary_theirclub_example")}
           />
         </label>
       )}
@@ -453,13 +456,13 @@ function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => 
         // Shown because club email goes to a shared inbox somebody checks on
         // Sundays. Passing the link on by hand is often how this actually lands.
         <p className="subtle">
-          Their link, if you would rather send it yourself: <code>{link}</code>
+          {t("tn.their_link_if_you_would_rather_send_it")} <code>{link}</code>
         </p>
       )}
 
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn primary" type="button" disabled={busy || !ready} onClick={send}>
-          {busy ? "Asking…" : "Send the invitation"}
+          {busy ? t("la.asking") : t("la.send_the_invitation")}
         </button>
       </div>
     </div>
@@ -477,6 +480,7 @@ function Grid({
   slots: Slot[];
   onChanged: () => void;
 }) {
+  const t = useT();
   const [courts, setCourts] = useState("Pitch 1\nPitch 2");
   const [firstStart, setFirstStart] = useState("");
   const [minutes, setMinutes] = useState(45);
@@ -504,7 +508,7 @@ function Grid({
       setNote(`${out.created} slots laid out.`);
       onChanged();
     } catch (err) {
-      setError(readErr(err, "Could not lay out the grid"));
+      setError(readErr(err, t("la.could_not_lay_out_the_grid")));
     } finally {
       setBusy(false);
     }
@@ -513,18 +517,17 @@ function Grid({
   return (
     <>
       <div className="panel">
-        <h2>Lay out the day</h2>
+        <h2>{t("tn.lay_out_the_day")}</h2>
         <p className="muted">
-          One slot per pitch per round. Fixtures are dropped into these, so lay out more
-          than you think you need — spare slots cost nothing.
+          {t("tn.one_slot_per_pitch_per_round_fixtures")}
         </p>
         <label>
-          Pitches, one per line
+          {t("tn.pitches_one_per_line")}
           <textarea rows={3} value={courts} onChange={(e) => setCourts(e.target.value)} />
         </label>
         <div className="setup-fields">
           <label>
-            First game starts
+            {t("tn.first_game_starts")}
             <input
               type="datetime-local"
               value={firstStart}
@@ -532,46 +535,46 @@ function Grid({
             />
           </label>
           <label>
-            Each game (minutes)
+            {t("tn.each_game_minutes")}
             <input type="number" min={5} value={minutes}
                    onChange={(e) => setMinutes(Number(e.target.value))} />
           </label>
           <label>
-            Gap between (minutes)
+            {t("tn.gap_between_minutes")}
             <input type="number" min={0} value={gap}
                    onChange={(e) => setGap(Number(e.target.value))} />
           </label>
           <label>
-            Rounds
+            {t("tn.rounds")}
             <input type="number" min={1} value={rounds}
                    onChange={(e) => setRounds(Number(e.target.value))} />
           </label>
         </div>
         <label className="field-inline">
           <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
-          Replace the grid rather than adding to it
+          {t("tn.replace_the_grid_rather_than_adding_to")}
         </label>
         {error && <p className="error">{error}</p>}
         {note && !error && <p className="muted">{note}</p>}
         <div className="field-row" style={{ marginTop: "var(--s4)" }}>
           <button className="btn primary" type="button" disabled={busy || !firstStart}
                   onClick={generate}>
-            {busy ? "Laying out…" : "Lay out the grid"}
+            {busy ? t("la.laying_out") : t("la.lay_out_the_grid")}
           </button>
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-head">
-          <h2>Free slots</h2>
+          <h2>{t("tn.free_slots")}</h2>
           <span className="tag grey">{slots.length}</span>
         </div>
         {slots.length === 0 ? (
-          <p className="muted">None yet — or every one is taken by a fixture.</p>
+          <p className="muted">{t("tn.none_yet_or_every_one_is_taken_by_a_fi")}</p>
         ) : (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Pitch</th><th>Starts</th><th>Ends</th></tr></thead>
+              <thead><tr><th>{t("tn.pitch")}</th><th>{t("tn.starts")}</th><th>{t("tn.ends")}</th></tr></thead>
               <tbody>
                 {slots.map((s) => (
                   <tr key={s.id}>
@@ -604,6 +607,7 @@ function Fixtures({
   entrants: TournamentEntrant[];
   onChanged: () => void;
 }) {
+  const t = useT();
   const [scoring, setScoring] = useState<ScheduleRow | null>(null);
   const [format, setFormat] = useState<TournamentFormat>("round_robin");
   const [groups, setGroups] = useState(2);
@@ -625,7 +629,7 @@ function Fixtures({
       setPreview(out);
       if (commit) onChanged();
     } catch (err) {
-      setError(readErr(err, "Could not build the fixtures"));
+      setError(readErr(err, t("la.could_not_build_the_fixtures")));
     } finally {
       setBusy(null);
     }
@@ -634,7 +638,7 @@ function Fixtures({
   return (
     <>
       <div className="panel">
-        <h2>Build the fixtures</h2>
+        <h2>{t("tn.build_the_fixtures")}</h2>
         <p className="muted">
           A preview until you commit it. Nothing is written to anybody&apos;s calendar
           until you say so.
@@ -650,13 +654,13 @@ function Fixtures({
           </label>
           {format === "groups_knockout" && (
             <label>
-              How many groups
+              {t("tn.how_many_groups")}
               <input type="number" min={2} value={groups}
                      onChange={(e) => setGroups(Number(e.target.value))} />
             </label>
           )}
           <label>
-            Rest between games (minutes)
+            {t("tn.rest_between_games_minutes")}
             <input type="number" min={0} value={rest}
                    onChange={(e) => setRest(Number(e.target.value))} />
           </label>
@@ -664,7 +668,7 @@ function Fixtures({
         {error && <p className="error">{error}</p>}
         <div className="field-row" style={{ marginTop: "var(--s4)" }}>
           <button className="btn" type="button" disabled={busy !== null} onClick={() => run(false)}>
-            {busy === "preview" ? "Working…" : "Preview it"}
+            {busy === "preview" ? t("la.working") : t("la.preview_it")}
           </button>
           <button
             className="btn primary"
@@ -672,7 +676,7 @@ function Fixtures({
             disabled={busy !== null || !preview}
             onClick={() => run(true)}
           >
-            {busy === "commit" ? "Writing…" : "Commit these fixtures"}
+            {busy === "commit" ? t("la.writing") : t("la.commit_these_fixtures")}
           </button>
         </div>
 
@@ -699,18 +703,18 @@ function Fixtures({
 
       <div className="panel">
         <div className="panel-head">
-          <h2>The fixture list</h2>
+          <h2>{t("tn.the_fixture_list")}</h2>
           <span className="tag grey">{fixtures.length}</span>
         </div>
         {fixtures.length === 0 ? (
-          <p className="muted">Nothing committed yet.</p>
+          <p className="muted">{t("tn.nothing_committed_yet")}</p>
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>When</th><th>Pitch</th><th>Match</th>
-                  <th>Stage</th><th className="n">Result</th><th></th>
+                  <th>When</th><th>{t("tn.pitch")}</th><th>{t("tn.match")}</th>
+                  <th>{t("tn.stage")}</th><th className="n">Result</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -733,7 +737,7 @@ function Fixtures({
                         type="button"
                         onClick={() => setScoring(f)}
                       >
-                        {f.home_score != null ? "Change" : "Result"}
+                        {f.home_score != null ? t("la.change") : "Result"}
                       </button>
                     </td>
                   </tr>
@@ -772,6 +776,7 @@ function RecordResult({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const panel = useRef<HTMLDivElement>(null);
 
   // Below a full fixture list this opens off-screen, and the button looks
@@ -793,7 +798,7 @@ function RecordResult({
 
   const save = async () => {
     if (!home || !away) {
-      setError("This fixture is not between two known sides yet.");
+      setError(t("la.this_fixture_is_not_between_two_known"));
       return;
     }
     setBusy(true);
@@ -815,7 +820,7 @@ function RecordResult({
       });
       onSaved();
     } catch (err) {
-      setError(readErr(err, "Could not record that"));
+      setError(readErr(err, t("la.could_not_record_that")));
     } finally {
       setBusy(false);
     }
@@ -848,14 +853,14 @@ function RecordResult({
       </div>
       <label className="field-inline">
         <input type="checkbox" checked={washout} onChange={(e) => setWashout(e.target.checked)} />
-        Abandoned — no result
+        {t("tn.abandoned_no_result")}
       </label>
       <label>
-        Anything worth remembering
+        {t("tn.anything_worth_remembering")}
         <input
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
-          placeholder="Won off the last ball."
+          placeholder={t("tn.won_off_the_last_ball")}
         />
       </label>
       {error && <p className="error">{error}</p>}
@@ -866,7 +871,7 @@ function RecordResult({
           disabled={busy || (!washout && (homeScore === "" || awayScore === ""))}
           onClick={save}
         >
-          {busy ? "Recording…" : "Record it"}
+          {busy ? t("la.recording") : t("la.record_it")}
         </button>
         <button className="btn" type="button" onClick={onClose}>Cancel</button>
       </div>
@@ -885,11 +890,12 @@ function Table({
   rows: Standing[];
   onChanged: () => void;
 }) {
+  const t = useT();
   if (rows.length === 0) {
     return (
       <div className="panel empty">
         <Icon name="chart" size={28} />
-        <p>No results yet. The table fills in as games are recorded.</p>
+        <p>{t("tn.no_results_yet_the_table_fills_in_as_g")}</p>
       </div>
     );
   }
@@ -900,16 +906,16 @@ function Table({
     <>
       {grouped.map((group) => (
         <div className="panel" key={group.label ?? "all"}>
-          <h2>{group.label ? `Group ${group.label}` : "Table"}</h2>
+          <h2>{group.label ? `Group ${group.label}` : t("la.table")}</h2>
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Side</th>
+                  <th>{t("tn.side")}</th>
                   <th className="n">P</th><th className="n">W</th>
                   <th className="n">L</th><th className="n">D</th>
-                  <th className="n">NR</th><th className="n">Diff</th>
-                  <th className="n">Pts</th>
+                  <th className="n">{t("tn.nr")}</th><th className="n">{t("tn.diff")}</th>
+                  <th className="n">{t("tn.pts")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -952,6 +958,7 @@ function Knockout({
   groups: number;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [perGroup, setPerGroup] = useState(2);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -975,7 +982,7 @@ function Knockout({
       );
       if (commit) onChanged();
     } catch (err) {
-      setError(readErr(err, "Could not build the knockout"));
+      setError(readErr(err, t("la.could_not_build_the_knockout")));
     } finally {
       setBusy(null);
     }
@@ -983,7 +990,7 @@ function Knockout({
 
   return (
     <div className="panel">
-      <h2>Into the knockout</h2>
+      <h2>{t("tn.into_the_knockout")}</h2>
       <p className="muted">
         Takes the top of {groups === 1 ? "the table" : `each of the ${groups} groups`} as it
         stands now. Run it once the group games are done — running it early builds a bracket
@@ -1002,7 +1009,7 @@ function Knockout({
       {note && !error && <p className="muted">{note}</p>}
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn" type="button" disabled={busy !== null} onClick={() => run(false)}>
-          {busy === "preview" ? "Working…" : "Preview the bracket"}
+          {busy === "preview" ? t("la.working") : t("la.preview_the_bracket")}
         </button>
         <button
           className="btn primary"
@@ -1010,7 +1017,7 @@ function Knockout({
           disabled={busy !== null}
           onClick={() => run(true)}
         >
-          {busy === "commit" ? "Writing…" : "Build it"}
+          {busy === "commit" ? t("la.writing") : t("la.build_it")}
         </button>
       </div>
     </div>
@@ -1039,6 +1046,7 @@ function Rules({
   block: FixtureBlock | null;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
 
   if (!block) return <div className="skeleton" style={{ height: 240 }} />;
@@ -1063,75 +1071,73 @@ function Rules({
     <>
       <div className="panel">
         <div className="panel-head">
-          <h2>Entry</h2>
+          <h2>{t("tn.entry")}</h2>
           <button className="btn ghost sm" type="button" onClick={() => setEditing(true)}>
-            Change the rules
+            {t("tn.change_the_rules")}
           </button>
         </div>
         <dl className="pro-about">
           <div>
-            <dt>Sides</dt>
-            <dd>{block.max_entrants ? `Up to ${block.max_entrants}` : "No limit"}</dd>
+            <dt>{t("tn.sides")}</dt>
+            <dd>{block.max_entrants ? `Up to ${block.max_entrants}` : t("la.no_limit")}</dd>
           </div>
           <div>
-            <dt>Entries close</dt>
-            <dd>{block.entry_deadline ? when(block.entry_deadline) : "No deadline"}</dd>
+            <dt>{t("tn.entries_close")}</dt>
+            <dd>{block.entry_deadline ? when(block.entry_deadline) : t("la.no_deadline")}</dd>
           </div>
           <div>
-            <dt>Entry fee</dt>
-            <dd>{block.entry_fee_cents ? money(block.entry_fee_cents) : "Free to enter"}</dd>
+            <dt>{t("tn.entry_fee")}</dt>
+            <dd>{block.entry_fee_cents ? money(block.entry_fee_cents) : t("la.free_to_enter")}</dd>
           </div>
         </dl>
       </div>
 
       <div className="panel">
-        <h2>Who may play</h2>
+        <h2>{t("tn.who_may_play")}</h2>
         <dl className="pro-about">
-          <div><dt>Players a side</dt><dd className="num">{block.players_per_side}</dd></div>
+          <div><dt>{t("tn.players_a_side")}</dt><dd className="num">{block.players_per_side}</dd></div>
           <div>
-            <dt>Guest players</dt>
+            <dt>{t("tn.guest_players")}</dt>
             <dd>
               {block.guest_players_allowed === 0
-                ? "None — every player must be a club member"
+                ? t("la.none_every_player_must_be_a_club_membe")
                 : `Up to ${block.guest_players_allowed} from outside the club`}
             </dd>
           </div>
-          <div><dt>Age group</dt><dd>{AGE_LABEL[block.age_group] ?? block.age_group}</dd></div>
-          <div><dt>Who it is for</dt><dd>{GENDER_LABEL[block.gender] ?? block.gender}</dd></div>
+          <div><dt>{t("tn.age_group")}</dt><dd>{t(AGE_LABEL[block.age_group])}</dd></div>
+          <div><dt>{t("tn.who_it_is_for")}</dt><dd>{t(GENDER_LABEL[block.gender])}</dd></div>
         </dl>
       </div>
 
       <div className="panel">
-        <h2>Playing conditions</h2>
+        <h2>{t("tn.playing_conditions")}</h2>
         {c ? (
           <>
             <dl className="pro-about">
-              <div><dt>Overs an innings</dt><dd className="num">{c.overs_limit}</dd></div>
+              <div><dt>{t("tn.overs_an_innings")}</dt><dd className="num">{c.overs_limit}</dd></div>
               <div>
-                <dt>Most overs one bowler</dt>
-                <dd className="num">{c.overs_per_bowler === 0 ? "No limit" : c.overs_per_bowler}</dd>
+                <dt>{t("tn.most_overs_one_bowler")}</dt>
+                <dd className="num">{c.overs_per_bowler === 0 ? t("la.no_limit") : c.overs_per_bowler}</dd>
               </div>
-              <div><dt>Ball</dt><dd>{BALL_LABEL[c.ball] ?? c.ball}</dd></div>
-              <div><dt>Ground</dt><dd>{GROUND_LABEL[c.ground] ?? c.ground}</dd></div>
+              <div><dt>Ball</dt><dd>{t(BALL_LABEL[c.ball])}</dd></div>
+              <div><dt>Ground</dt><dd>{t(GROUND_LABEL[c.ground])}</dd></div>
               <div>
                 <dt>Powerplay</dt>
-                <dd>{c.powerplay_overs === 0 ? "None" : `${c.powerplay_overs} overs`}</dd>
+                <dd>{c.powerplay_overs === 0 ? t("la.none") : `${c.powerplay_overs} overs`}</dd>
               </div>
             </dl>
             <p className="subtle">
-              Every match in this tournament starts on these terms — the scorer
-              does not type them again.
+              {t("tn.every_match_in_this_tournament_starts")}
             </p>
           </>
         ) : (
           <p className="muted">
-            Not set. Each match is agreed between its two captains, as a one-off
-            fixture is.
+            {t("tn.not_set_each_match_is_agreed_between_i")}
           </p>
         )}
         {block.rules_notes && (
           <>
-            <h3 style={{ marginTop: "var(--s4)" }}>Anything else</h3>
+            <h3 style={{ marginTop: "var(--s4)" }}>{t("tn.anything_else")}</h3>
             <p style={{ whiteSpace: "pre-wrap" }}>{block.rules_notes}</p>
           </>
         )}
@@ -1151,6 +1157,7 @@ function RulesForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const existing = block.conditions ?? defaultConditions();
   // Seeded from what is already stored, so the same fields that created the
   // tournament are the ones that change it — one component, no drift.
@@ -1196,7 +1203,7 @@ function RulesForm({
       onSaved();
       onClose();
     } catch (err) {
-      setError(readErr(err, "Could not save the rules"));
+      setError(readErr(err, t("la.could_not_save_the_rules")));
     } finally {
       setBusy(false);
     }
@@ -1205,12 +1212,12 @@ function RulesForm({
   return (
     <div className="panel setup-panel">
       <div className="panel-head">
-        <h2>The rules</h2>
+        <h2>{t("tn.the_rules")}</h2>
         <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
       </div>
 
       <label>
-        What to tell the clubs you invite
+        {t("tn.what_to_tell_the_clubs_you_invite")}
         <textarea
           rows={2}
           value={rules.description}
@@ -1231,20 +1238,19 @@ function RulesForm({
       <div className="form-summary">
         <Icon name="check" size={16} />
         <span className="form-summary-body">
-          <span className="form-summary-title">What this tournament will be</span>
-          <span className="form-summary-text">{rulesSummary(rules)}</span>
+          <span className="form-summary-title">{t("tn.what_this_tournament_will_be")}</span>
+          <span className="form-summary-text">{rulesSummary(rules, t)}</span>
         </span>
       </div>
 
       <p className="subtle" style={{ marginTop: "var(--s3)" }}>
-        Changing these does not re-open matches already being scored — they keep
-        the terms they started under.
+        {t("tn.changing_these_does_not_re_open_matche")}
       </p>
 
       {error && <p className="error">{error}</p>}
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn primary" type="button" disabled={busy || !feeOk} onClick={save}>
-          {busy ? "Saving…" : "Save the rules"}
+          {busy ? t("la.saving") : t("la.save_the_rules")}
         </button>
         <button className="btn" type="button" onClick={onClose}>Cancel</button>
       </div>

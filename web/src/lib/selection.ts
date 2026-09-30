@@ -1,3 +1,4 @@
+import type { Key } from "@/lib/i18n/en";
 /// Picking a side (`backend/domain/src/selection.rs`).
 ///
 /// Two signals about whether somebody can play, and they mean different
@@ -84,27 +85,27 @@ export type SquadProposal = {
   published: boolean;
 };
 
-export const STATE_LABEL: Record<SelectionState, string> = {
-  pool: "In the pool",
-  selected: "Picked",
-  reserve: "Reserve",
-  not_selected: "Left out",
-  confirmed: "Confirmed",
-  declined: "Declined",
-  dropped: "Dropped",
+export const STATE_LABEL: Record<SelectionState, Key> = {
+  pool: "sel.in_the_pool",
+  selected: "sel.picked",
+  reserve: "ev.reserve",
+  not_selected: "sel.left_out",
+  confirmed: "sel.confirmed",
+  declined: "tn.declined",
+  dropped: "sel.dropped",
 };
 
-export const RSVP_LABEL: Record<RsvpStatus, string> = {
-  going: "Said yes",
-  not_going: "Said no",
-  maybe: "Maybe",
-  invited: "Not answered",
+export const RSVP_LABEL: Record<RsvpStatus, Key> = {
+  going: "rest.said_yes",
+  not_going: "rest.said_no",
+  maybe: "ev.maybe",
+  invited: "ev.not_answered",
 };
 
-export const AVAILABILITY_LABEL: Record<AvailabilityStatus, string> = {
-  available: "Free that day",
-  maybe: "Might be free",
-  unavailable: "Busy that day",
+export const AVAILABILITY_LABEL: Record<AvailabilityStatus, Key> = {
+  available: "sel.free_that_day",
+  maybe: "sel.might_be_free",
+  unavailable: "sel.busy_that_day",
 };
 
 /// In the XI or on the bench — everyone the captain has committed to.
