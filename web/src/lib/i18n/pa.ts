@@ -2124,4 +2124,9 @@ export const pa: Dict = {
 
   // Fixture answer label
   "fin.can_you_play_fixture": "ਕੀ ਤੁਸੀਂ {fixture} ਖੇਡ ਸਕਦੇ ਹੋ?",
+
+
+  // The dashboard greeting
+  "page.greeting": "{greeting}, {name}",
+  "page.welcome_new": "{brand} ਤੇ ਜੀ ਆਇਆਂ ਨੂੰ। ਕੁਝ ਛੋਟੇ ਕਦਮ ਅਤੇ ਤੁਸੀਂ ਤਿਆਰ ਹੋ।",
 };

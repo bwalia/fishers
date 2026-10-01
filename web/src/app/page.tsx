@@ -25,6 +25,7 @@ import { WorldScoresPanel } from "@/components/WorldScores";
 import { overs, type MatchResponse } from "@/lib/cricket";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
 
 export default function HomePage() {
   const t = useT();
@@ -99,11 +100,16 @@ export default function HomePage() {
   return (
     <main id="main">
       <section className="hero dash-hero">
-        <h1>{`${greeting()}, ${user.name.split(" ")[0]}`}</h1>
+        <h1>
+          {t("page.greeting", {
+            greeting: t(greeting()),
+            name: user.name.split(" ")[0],
+          })}
+        </h1>
         <p>
           {clubs.length > 0
             ? t("le.your_club_at_a_glance_what_s_next_what")
-            : `Welcome to ${brand.name}. A few quick steps and you're up and running.`}
+            : t("page.welcome_new", { brand: brand.name })}
         </p>
       </section>
 
@@ -248,7 +254,10 @@ function Quick({
 }
 
 /// Morning, afternoon, evening — by the viewer's own clock.
-function greeting() {
+///
+/// Safe to read the clock here because the dashboard only renders once the
+/// client has checked who is signed in; the server renders an empty main.
+function greeting(): Key {
   const h = new Date().getHours();
   return h < 12 ? "le.good_morning" : h < 18 ? "le.good_afternoon" : "le.good_evening";
 }

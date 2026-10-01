@@ -2137,6 +2137,11 @@ export const en = {
 
   // MARK: Fixture answer label
   "fin.can_you_play_fixture": "Can you play {fixture}?",
+
+
+  // MARK: The dashboard greeting
+  "page.greeting": "{greeting}, {name}",
+  "page.welcome_new": "Welcome to {brand}. A few quick steps and you're up and running.",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.
