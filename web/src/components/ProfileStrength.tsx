@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { PublicUser } from "@/lib/api";
+import { nextUp, type PublicUser } from "@/lib/api";
 import { enablePush, pushState, type PushState } from "@/lib/push";
 import { useT } from "@/lib/i18n/provider";
 
@@ -37,7 +37,7 @@ export function ProfileStrength({ user, onProfilePage = false }: { user: PublicU
       </div>
       <div className="strength-body">
         <h2 id="strength-title">{t("fin.profile_pct_complete", { percent: strength.percent })}</h2>
-        <p className="muted">{strength.next_up} so captains and clubs can see who they&apos;re picking.</p>
+        <p className="muted">{t("le.next_up_so_captains_can_see", { next: nextUp(strength.missing, t) })}</p>
         <div className="strength-actions">
           {!onProfilePage && (
             <Link className="btn primary sm" href="/profile">

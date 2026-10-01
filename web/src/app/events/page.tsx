@@ -190,8 +190,8 @@ export default function EventsPage() {
               <div>
                 <strong>{t("ev.keep_your_calendar")}</strong>
                 <p>
-                  {t("ev.mark_your_usual_days_on")} <Link href="/availability">{t("ev.your_calendar_2")}</Link> — it shows every
-                  fixture and what you said, two matches on one day included.
+                  {t("ev.mark_your_usual_days_on")} <Link href="/availability">{t("ev.your_calendar_2")}</Link>{" "}
+                  {t("ev.calendar_shows_every_fixture")}
                 </p>
               </div>
             </li>

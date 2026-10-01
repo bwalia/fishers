@@ -192,9 +192,8 @@ export default function ClubHireManagePage() {
           <Icon name="pin" /> {t("cl.hireable_spaces")}
         </h1>
         <p className="lede">
-          Define spaces under a venue site, set rates, and mark them hireable so
-          they appear on{" "}
-          <Link href="/hire">Hire</Link>. Bookings land in a later phase.
+          {t("cl.hire_lede")}{" "}
+          <Link href="/hire">{t("nav.hire")}</Link>{t("cl.bookings_later_phase")}
         </p>
       </header>
 
@@ -336,7 +335,7 @@ export default function ClubHireManagePage() {
 
           {selected && (
             <section className="card" style={{ marginTop: 24 }}>
-              <h2>Rates for {selected.name}</h2>
+              <h2>{t("cl.rates_for", { name: selected.name })}</h2>
               {rates.length === 0 ? (
                 <p className="muted">{t("cl.no_rates_yet")}</p>
               ) : (
@@ -383,7 +382,7 @@ export default function ClubHireManagePage() {
                   />
                 </label>
                 <label className="field">
-                  <span>£ member (optional)</span>
+                  <span>{t("cl.pound_member_optional")}</span>
                   <input
                     value={memberAmount}
                     onChange={(e) => setMemberAmount(e.target.value)}

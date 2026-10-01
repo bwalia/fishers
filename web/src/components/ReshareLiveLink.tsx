@@ -4,6 +4,7 @@ import { useState } from "react";
 import { copyText } from "@/lib/clipboard";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/lib/i18n/provider";
+import { readErr } from "@/lib/api";
 
 /// Recipients of a live link can pass it on again without signing in.
 export function ReshareLiveLink({
@@ -44,7 +45,7 @@ export function ReshareLiveLink({
           : t("le.copy_this_page_s_address_from_the_addr")
       );
     } catch (err) {
-      setNote(err instanceof Error ? err.message : t("le.could_not_share"));
+      setNote(readErr(err, t("le.could_not_share")));
     }
   };
 

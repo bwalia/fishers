@@ -117,7 +117,7 @@ function One({
       </div>
 
       <fieldset className="ump-picker">
-        <legend className="sr-only">Rate {umpire.name} from 1 to 5</legend>
+        <legend className="sr-only">{t("ump.rate_name_from_1_to_5", { name: umpire.name })}</legend>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}

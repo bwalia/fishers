@@ -8,8 +8,7 @@ import {
   type EventRow,
   type OpponentIdentity,
   type Page,
-  type Team,
-} from "@/lib/api";
+  type Team, readErr,} from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { OppositionPicker } from "@/components/OppositionPicker";
 import { titleCase, type MatchResponse } from "@/lib/cricket";
@@ -95,7 +94,7 @@ export default function ScoreIndexPage() {
       setPage(await api<Page<Fixture>>("GET", `/cricket/fixtures?${params}`));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("ld.failed_to_load_fixtures"));
+      setError(readErr(err, t("ld.failed_to_load_fixtures")));
     } finally {
       setLoading(false);
     }
@@ -149,7 +148,7 @@ export default function ScoreIndexPage() {
       });
       router.push(`/score/${match.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("ld.could_not_start_the_match"));
+      setError(readErr(err, t("ld.could_not_start_the_match")));
       setBusy(null);
     }
   };
@@ -543,7 +542,8 @@ function MatchSetupSheet({
         )}
         {internal && !sameSides && (
           <p className="muted">
-            <Icon name="check" size={14} /> A match between two {clubName} teams: {homeName} v {awayName}.
+            <Icon name="check" size={14} />{" "}
+            {t("ld.match_between_two_teams", { club: clubName, home: homeName, away: awayName })}
           </p>
         )}
         {sameSides && <p className="error">{sameSides}</p>}

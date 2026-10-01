@@ -58,7 +58,7 @@ export default function LoginPage() {
 
         <form className="auth-form" onSubmit={onSubmit}>
           <label>
-            Email or mobile number
+            {t("cl.email_or_mobile_number")}
             <input
               type="text"
               inputMode="email"

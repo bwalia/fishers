@@ -169,7 +169,7 @@ function Invitations({ invites }: { invites: EntryInvitation[]; onAnswered: () =
               </span>
               <span className="thread-badges">
                 {i.entry_fee_cents ? (
-                  <span className="tag grey">{money(i.entry_fee_cents)} to enter</span>
+                  <span className="tag grey">{t("tn.amount_to_enter", { amount: money(i.entry_fee_cents) })}</span>
                 ) : null}
                 <span className="tag gold">{t("tn.answer")}</span>
               </span>

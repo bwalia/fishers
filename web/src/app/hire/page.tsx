@@ -65,9 +65,7 @@ export default function HireBrowsePage() {
           <Icon name="pin" /> {t("rest.venue_hire")}
         </h1>
         <p className="lede">
-          Spaces clubs are offering for hire — pitches, nets, halls and
-          pavilions. Booking requests come in the next phase; this list is the
-          catalogue.
+          {t("rest.hire_lede")}
         </p>
       </header>
 
@@ -99,8 +97,7 @@ export default function HireBrowsePage() {
         <p className="muted">{t("rest.loading")}</p>
       ) : rows.length === 0 ? (
         <p className="muted">
-          No hireable spaces yet. Secretaries can mark a space as hireable from
-          their club&apos;s venues.
+          {t("rest.no_hireable_spaces_yet")}
         </p>
       ) : (
         <ul className="card-list">

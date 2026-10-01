@@ -124,8 +124,8 @@ export default function WelcomePage() {
     <main id="main" className="qs">
       <section className="panel qs-card" aria-labelledby="qs-title">
         <p className="gs-eyebrow"><Icon name="sparkle" size={14} /> {t("rest.quick_start")}</p>
-        <h1 id="qs-title">Hi {first}</h1>
-        <p className="muted">Two quick things and you&apos;re in. Everything else can wait until you have a minute.</p>
+        <h1 id="qs-title">{t("rest.hi_name", { name: first })}</h1>
+        <p className="muted">{t("rest.two_quick_things")}</p>
 
         {asksRole && (
           <fieldset className="qs-question">

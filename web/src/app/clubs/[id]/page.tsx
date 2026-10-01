@@ -117,7 +117,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
   return (
     <main id="main">
       <section className="hero">
-        <p className="muted"><Link href="/clubs">← All clubs</Link></p>
+        <p className="muted"><Link href="/clubs">{t("cl.all_clubs_back")}</Link></p>
         <h1>{club.name}</h1>
         <p>{club.description || t("lc.no_description_yet")}</p>
         <div className="hero-tags">
@@ -263,10 +263,11 @@ function Members({
         )}
       </div>
       <p className="muted">
-        {t("cl.a_role_is_what_somebody_is_allowed_to")} <em>{t("cl.run")}</em>, not whether they play.
-        Everybody here is picked from for a side, the secretary included — and the
-        levels stack, so a secretary already has a captain&rsquo;s powers. Captain your
-        own side as well? Choose <strong>{t("cl.secretary_and_captain")}</strong>.
+        {t("cl.role_explainer", {
+          allowed: t("cl.a_role_is_what_somebody_is_allowed_to"),
+          run: t("cl.run"),
+          both: t("cl.secretary_and_captain"),
+        })}
       </p>
 
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
@@ -976,10 +977,10 @@ function PublicPage({
             onChange={(e) => set({ slug: e.target.value })}
             placeholder={suggested}
           />
-          <span className="subtle">fishers.cloud/c/{address || suggested}</span>
+          <span className="subtle">{t("cl.public_url_preview", { slug: address || suggested })}</span>
         </label>
         <label>
-          Ground
+          {t("cl.ground")}
           <input
             value={page.ground ?? ""}
             onChange={(e) => set({ ground: e.target.value })}

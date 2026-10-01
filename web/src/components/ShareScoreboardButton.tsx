@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, readErr } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/lib/i18n/provider";
@@ -70,7 +70,7 @@ export function ShareScoreboardButton({
           : t("le.link_ready_copy_it_below_and_paste_int")
       );
     } catch (err) {
-      setNote(err instanceof Error ? err.message : t("le.could_not_create_a_share_link"));
+      setNote(readErr(err, t("le.could_not_create_a_share_link")));
     } finally {
       setBusy(false);
     }

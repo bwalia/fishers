@@ -239,9 +239,9 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
                 <span className="tag gold">{money(fee)}</span>
               </div>
               <p className="muted">
-                {t("tn.you_have_accepted_but")} <strong>{i.entrant_name} is not in the draw
-                until the entry fee is settled</strong> — {i.host_club_name} builds
-                the fixtures from the sides that have paid.
+                {t("tn.you_have_accepted_but")}{" "}
+                <strong>{t("tn.not_in_draw_until_fee", { name: i.entrant_name })}</strong>
+                {t("tn.host_builds_from_paid", { host: i.host_club_name })}
               </p>
               {view.can_answer && cards && (
                 <div className="field-row" style={{ marginTop: "var(--s4)" }}>
@@ -301,7 +301,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
           {withdrawn && (
             <div className="panel">
               <h2>{t("tn.withdrawn")}</h2>
-              <p className="muted">{i.entrant_name} has pulled out of this one.</p>
+              <p className="muted">{t("tn.has_pulled_out", { name: i.entrant_name })}</p>
             </div>
           )}
         </div>

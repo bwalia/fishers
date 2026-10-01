@@ -306,7 +306,7 @@ export function TournamentRuleFields({
               type="number" min={2} value={rules.maxEntrants} placeholder="8"
               onChange={(e) => set({ maxEntrants: e.target.value })}
             />
-            <span className="subtle">Leave empty for no limit.</span>
+            <span className="subtle">{t("tn.leave_empty_for_no_limit")}</span>
           </label>
           <label>
             {t("tn.entries_close")}
@@ -488,7 +488,7 @@ function GroundField({
       >
         <option value="">{t("tn.not_decided")}</option>
         {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-        <option value="__new">+ Add a new ground…</option>
+        <option value="__new">{t("tn.add_a_new_ground")}</option>
       </select>
       <span className="subtle">
         {venues.length === 0

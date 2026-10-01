@@ -99,7 +99,7 @@ export function VerifyContact({
       )}
       {compact && (
         <p className="muted verify-lede">
-          Enter the 6-digit code we {where} to <strong>{address}</strong>.
+          {t("le.enter_the_code_we_sent", { where })} <strong>{address}</strong>.
         </p>
       )}
 
@@ -131,7 +131,7 @@ export function VerifyContact({
 
       <p className="verify-foot subtle" id={`code-${channel}-help`}>
         {wait > 0 ? (
-          <span>You can send a new code in {wait}s</span>
+          <span>{t("le.send_new_code_in", { n: wait })}</span>
         ) : (
           <button type="button" className="linkish" onClick={send}>
             {t("rest.send_a_new_code")}

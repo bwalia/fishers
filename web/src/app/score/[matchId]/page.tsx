@@ -131,7 +131,7 @@ export default function ScorerPage({
         setSync(kept.pending.length > 0 ? "offline" : "saved");
         return;
       }
-      setError(err instanceof Error ? err.message : t("la.could_not_load_the_match"));
+      setError(readErr(err, t("la.could_not_load_the_match")));
     }
   }, [matchId, t]);
 
@@ -157,7 +157,7 @@ export default function ScorerPage({
       // Only worth saying out loud when the server refused on its own terms;
       // a dropped network is what the chip is for.
       if (navigator.onLine) {
-        setError(err instanceof Error ? err.message : t("la.the_api_rejected_that"));
+        setError(readErr(err, t("la.the_api_rejected_that")));
       }
     }
   }, [matchId, t]);
@@ -253,7 +253,7 @@ export default function ScorerPage({
           last_seq: seq,
         };
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("la.the_laws_do_not_allow_that"));
+        setError(readErr(err, t("la.the_laws_do_not_allow_that")));
         sending.current = false;
         setBusy(false);
         return;
@@ -290,7 +290,7 @@ export default function ScorerPage({
         })
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("la.could_not_claim_the_book"));
+      setError(readErr(err, t("la.could_not_claim_the_book")));
     } finally {
       setBusy(false);
     }
@@ -474,7 +474,7 @@ export default function ScorerPage({
       <Scorecard st={st} nameOf={nameOf} />
 
       <p className="muted" style={{ marginTop: "1rem" }}>
-        <Link href="/score">← All fixtures</Link>
+        <Link href="/score">{t("ev.all_fixtures_back")}</Link>
       </p>
     </main>
   );
@@ -1497,7 +1497,7 @@ function ProposePanel({
           <label>
             {t("sc.overs")} <input {...num("overs_limit")} />
             {(c.innings_per_side ?? 1) >= 2 && (
-              <span className="subtle">0 for no limit — played to the clock</span>
+              <span className="subtle">{t("la.zero_for_no_limit_clock")}</span>
             )}
           </label>
           <label>
@@ -1521,7 +1521,7 @@ function ProposePanel({
           <label>
             {t("sc.overs_per_bowler")}
             <input {...num("overs_per_bowler")} />
-            <span className="subtle">0 for no limit</span>
+            <span className="subtle">{t("la.zero_for_no_limit")}</span>
           </label>
           <label>{t("sc.powerplay_overs")} <input {...num("powerplay_overs")} /></label>
           <label>
@@ -1535,7 +1535,7 @@ function ProposePanel({
           <label>
             {t("sc.overs_per_hour")}
             <input {...num("target_overs_per_hour")} />
-            <span className="subtle">0 to not count it</span>
+            <span className="subtle">{t("la.zero_to_not_count_it")}</span>
           </label>
         </div>
       </fieldset>
@@ -1918,7 +1918,7 @@ function XiPanel({
     try {
       setSquad(await api<SquadResponse>("GET", `/cricket/matches/${matchId}/squad`));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("la.could_not_load_the_squads"));
+      setError(readErr(err, t("la.could_not_load_the_squads")));
     }
   }, [matchId, t]);
 
@@ -2891,11 +2891,11 @@ function LivePanel({
         {needsBowler && (
           <div className="panel" style={{ borderColor: "var(--accent)" }}>
             <div className="panel-head">
-              <h2>Over {currentOver} done — who bowls next?</h2>
-              <span className="tag gold">{lastOverRuns} off it</span>
+              <h2>{t("la.over_n_done_who_next", { n: currentOver })}</h2>
+              <span className="tag gold">{t("la.n_off_it", { n: lastOverRuns })}</span>
             </div>
             <p className="muted">
-              {nameOf(inn.last_over_bowler)} bowled it, and nobody bowls two in a row.
+              {t("la.bowled_it_nobody_two_in_a_row", { name: nameOf(inn.last_over_bowler) })}
             </p>
             <div className="actions bowler-options">
               {bowlingXi
@@ -3267,7 +3267,7 @@ function Following({
             {toBat.slice(0, 3).map((id) => <li key={id}>{nameOf(id)}</li>)}
           </ol>
           {toBat.length > 3 && (
-            <p className="subtle">and {toBat.length - 3} more on the scorecard</p>
+            <p className="subtle">{t("la.and_n_more_on_scorecard", { n: toBat.length - 3 })}</p>
           )}
         </div>
       )}
@@ -3358,8 +3358,8 @@ function WicketSheet({
         <label>
           {t("sc.who_is_out")}
           <select value={batter} onChange={(e) => setBatter(e.target.value)}>
-            <option value={striker}>{nameOf(striker)} (striker)</option>
-            <option value={nonStriker}>{nameOf(nonStriker)} (non-striker)</option>
+            <option value={striker}>{t("la.name_striker", { name: nameOf(striker) })}</option>
+            <option value={nonStriker}>{t("la.name_non_striker", { name: nameOf(nonStriker) })}</option>
           </select>
         </label>
         {DISMISSALS_WITH_FIELDER.includes(kind) && (
@@ -3374,7 +3374,7 @@ function WicketSheet({
         <label>
           {t("sc.next_in")}
           <select value={newBatter} onChange={(e) => setNewBatter(e.target.value)}>
-            <option value="">— innings ends —</option>
+            <option value="">{t("la.innings_ends_dash")}</option>
             {available.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
           </select>
         </label>

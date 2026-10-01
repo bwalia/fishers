@@ -84,7 +84,7 @@ export function NewChat({ onClose }: { onClose: () => void }) {
             {t("rest.you_chat_with_the_people_in_your_clubs")}
           </p>
           <Link className="btn primary" href="/clubs">
-            <Icon name="users" size={16} /> Your clubs
+            <Icon name="users" size={16} /> {t("rest.your_clubs")}
           </Link>
         </div>
       )}

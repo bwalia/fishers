@@ -331,9 +331,9 @@ function Marketplace() {
       <section className="panel">
         <h2>{t("sh.kit_for_sale")}</h2>
         <p className="muted">
-          Nothing listed yet. If your club has kit it has replaced,{" "}
-          <Link href="/shop/sell">{t("sh.put_it_up")}</Link> — it is worth more to somebody else than it
-          is in the cupboard.
+          {t("sh.nothing_listed_yet_if_club")}{" "}
+          <Link href="/shop/sell">{t("sh.put_it_up")}</Link>{" "}
+          {t("sh.worth_more_than_in_cupboard")}
         </p>
       </section>
     );

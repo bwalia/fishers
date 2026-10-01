@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { apiV1 } from "@/lib/api";
+import { apiV1, readErr } from "@/lib/api";
 import { watchScoreboard } from "@/lib/live";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
@@ -93,7 +93,7 @@ export default function LiveScoreboardPage({
       setBoard(data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("le.could_not_load_scoreboard"));
+      setError(readErr(e, t("le.could_not_load_scoreboard")));
     } finally {
       setLoading(false);
     }

@@ -249,7 +249,10 @@ export function GettingStarted({
       <div className="gs-head">
         <div>
           <p className="gs-eyebrow">
-            <Icon name="sparkle" size={14} /> Getting started · {role === "secretary" ? t("lb.club_secretary") : "Player"}
+            <Icon name="sparkle" size={14} />{" "}
+            {t("lb.getting_started_role", {
+              role: role === "secretary" ? t("lb.club_secretary") : t("lb.player"),
+            })}
           </p>
           <h2 id="gs-title">
             {role === "secretary" ? t("lb.let_s_set_up_your_club") : t("lb.let_s_get_you_into_your_club")}

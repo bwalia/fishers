@@ -103,10 +103,10 @@ export default function EntryPage({ params }: { params: Promise<{ token: string 
   return (
     <main id="main">
       <section className="hero">
-        <p className="club-eyebrow">{invite.host_club} has invited you</p>
+        <p className="club-eyebrow">{t("tn.host_has_invited_you", { host: invite.host_club })}</p>
         <h1>{invite.tournament}</h1>
         <div className="hero-tags">
-          <span className="tag">entering as {invite.side}</span>
+          <span className="tag">{t("tn.entering_as", { name: invite.side })}</span>
         </div>
       </section>
 

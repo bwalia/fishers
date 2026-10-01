@@ -271,7 +271,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
         <div ref={foot} />
         {unseen > 0 && (
           <button type="button" className="thread-new" onClick={jumpDown}>
-            {unseen} new message{unseen === 1 ? "" : "s"} <span aria-hidden="true">↓</span>
+            {t("cl.n_new_messages", { n: unseen, count: unseen })} <span aria-hidden="true">↓</span>
           </button>
         )}
       </div>

@@ -51,7 +51,7 @@ export default function ProfilePage() {
       // The nav reads the cached copy, so keep it honest after an edit.
       saveUser(user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("ld.could_not_load_your_profile"));
+      setError(readErr(err, t("ld.could_not_load_your_profile")));
     } finally {
       setLoading(false);
     }
@@ -379,7 +379,7 @@ function PasswordSection() {
       </p>
       <form className="pwd-form" onSubmit={submit}>
         <label htmlFor="pwd-current">
-          {t("cl.current_password")} <span className="muted">(leave blank if you have never set one)</span>
+          {t("cl.current_password")} <span className="muted">{t("cl.leave_blank_if_never_set")}</span>
         </label>
         <input
           id="pwd-current"
@@ -507,10 +507,9 @@ function CareerStats({
     return (
       <div className="panel pro-blank">
         <Icon name={discipline === "batting" ? "bat" : "ball"} size={32} />
-        <h2>No {discipline} figures yet</h2>
+        <h2>{discipline === "batting" ? t("cl.no_batting_figures_yet") : t("cl.no_bowling_figures_yet")}</h2>
         <p className="muted">
-          These are worked out from matches scored on {brand.name}. Play one — or ask your
-          scorer to record it here — and it shows up the same evening.
+          {t("cl.figures_from_matches_scored", { brand: brand.name })}
         </p>
         <Link className="btn primary" href="/matches">{t("cl.find_a_match")}</Link>
       </div>
@@ -873,7 +872,7 @@ function SportCard({
           <div><dt>{t("cl.standard")}</dt><dd>{skillLabel(profile.skill_level, t)}</dd></div>
           {profile.team_name && <div><dt>{t("cl.team")}</dt><dd>{profile.team_name}</dd></div>}
           {profile.years_playing != null && (
-            <div><dt>Playing for</dt><dd className="num">{profile.years_playing} years</dd></div>
+            <div><dt>{t("cl.playing_for")}</dt><dd className="num">{t("cl.n_years", { n: profile.years_playing })}</dd></div>
           )}
           {/* Whatever this sport measures, shown as it was stored. */}
           {Object.entries(profile.stats ?? {}).map(([k, v]) => (

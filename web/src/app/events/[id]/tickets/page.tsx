@@ -289,7 +289,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
             )}
           </div>
           <p className="muted">
-            <Link href="/events">← All fixtures</Link>
+            <Link href="/events">{t("ev.all_fixtures_back")}</Link>
           </p>
         </aside>
       </div>

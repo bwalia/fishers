@@ -82,7 +82,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   return (
     <main id="main">
       <nav className="crumbs">
-        <Link href="/scores">← All cricket scores</Link>
+        <Link href="/scores">{t("sr.all_cricket_scores_back")}</Link>
       </nav>
 
       {error && <div className="notice">{error}</div>}
@@ -121,7 +121,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           {((view.detail?.batting_now?.length ?? 0) > 0 ||
             (view.detail?.bowling_now?.length ?? 0) > 0) && (
             <section className="panel">
-              <div className="panel-head"><h2>At the crease</h2></div>
+              <div className="panel-head"><h2>{t("sr.at_the_crease")}</h2></div>
               <p className="panel-note">{t("sr.who_is_in_and_who_is_bowling_at_them_r")}</p>
               <div className="score-crease">
                 {/* Grouped under two headings rather than a label on every

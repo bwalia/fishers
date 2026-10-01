@@ -57,8 +57,7 @@ export default function ScoresPage() {
       <section className="hero">
         <h1>{t("sr.cricket_scores")}</h1>
         <p>
-          Internationals and domestic competitions from around the world. Your own club&apos;s
-          matches are under <Link href="/score">{t("sr.score_a_match")}</Link>.
+          {t("sr.world_scores_lede")} <Link href="/score">{t("sr.score_a_match")}</Link>.
         </p>
       </section>
 

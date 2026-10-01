@@ -113,17 +113,18 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
           <span className="tag">
             {/* "6 of 8 in" rather than "6 in": how many places are left is the
                 thing an organiser is counting. */}
-            {playing.length}
-            {block?.max_entrants ? ` of ${block.max_entrants}` : ""} in
+            {block?.max_entrants
+              ? t("tn.n_of_max_in", { n: playing.length, max: block.max_entrants })
+              : t("tn.n_in", { n: playing.length })}
           </span>
           {waiting.length > 0 && (
-            <span className="tag gold">{waiting.length} yet to answer</span>
+            <span className="tag gold">{t("tn.n_yet_to_answer", { n: waiting.length })}</span>
           )}
           {owing.length > 0 && (
-            <span className="tag danger">{owing.length} owe the entry fee</span>
+            <span className="tag danger">{t("tn.n_owe_the_entry_fee", { n: owing.length })}</span>
           )}
-          <span className="tag grey">{slots.length} free slots</span>
-          <span className="tag grey">{fixtures.length} fixtures</span>
+          <span className="tag grey">{t("tn.n_free_slots", { n: slots.length })}</span>
+          <span className="tag grey">{t("tn.n_fixtures", { n: fixtures.length })}</span>
         </div>
       </section>
 
@@ -169,7 +170,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
       {tab === "rules" && <Rules blockId={id} block={block} onChanged={load} />}
 
       <p className="muted" style={{ marginTop: "var(--s5)" }}>
-        <Link href="/tournaments">← All tournaments</Link>
+        <Link href="/tournaments">{t("tn.all_tournaments_back")}</Link>
       </p>
     </main>
   );
@@ -237,10 +238,10 @@ function Entrants({
         <div className="panel-head">
           <h2>{t("tn.the_sides")}</h2>
           {waiting.length > 0 && (
-            <span className="tag gold">{waiting.length} yet to answer</span>
+            <span className="tag gold">{t("tn.n_yet_to_answer", { n: waiting.length })}</span>
           )}
           {owing.length > 0 && (
-            <span className="tag danger">{owing.length} owe the entry fee</span>
+            <span className="tag danger">{t("tn.n_owe_the_entry_fee", { n: owing.length })}</span>
           )}
         </div>
         {entrants.length === 0 ? (

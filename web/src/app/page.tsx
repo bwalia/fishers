@@ -12,8 +12,7 @@ import {
   type Club,
   type EventRow,
   type Page,
-  type PublicUser,
-} from "@/lib/api";
+  type PublicUser, readErr,} from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { GettingStarted } from "@/components/GettingStarted";
 import { Landing } from "@/components/Landing";
@@ -76,7 +75,7 @@ export default function HomePage() {
         );
         setLive(matches.filter((m): m is MatchResponse => !!m && m.state.status !== "complete"));
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("le.failed_to_load"));
+        setError(readErr(err, t("le.failed_to_load")));
       } finally {
         setLoaded(true);
       }
@@ -122,7 +121,7 @@ export default function HomePage() {
         <section className="panel welcome" aria-labelledby="welcome-title">
           <h2 id="welcome-title">{t("fin.how_will_you_use", { brand: brand.name })}</h2>
           <p className="muted">
-            We&apos;ll show you exactly what to do next. You can switch later.
+            {t("rest.well_show_you_what_next")}
           </p>
           <RoleChooser onPicked={(u) => u && setUser(u)} />
         </section>
@@ -199,7 +198,7 @@ export default function HomePage() {
           <div className="panel">
             <div className="panel-head">
               <h2>{t("rest.next_fixtures")}</h2>
-              <Link href="/events">All fixtures →</Link>
+              <Link href="/events">{t("rest.all_fixtures_arrow")}</Link>
             </div>
             {upcoming.slice(0, 5).map((e) => (
               <div className="row" key={e.id}>

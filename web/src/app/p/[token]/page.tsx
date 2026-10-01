@@ -172,10 +172,9 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
         </div>
       ) : places.length === 0 ? (
         <div className="panel">
-          <h2>Start a club to add {first}</h2>
+          <h2>{t("rest.start_a_club_to_add", { name: first })}</h2>
           <p className="muted">
-            Players are added by a club&apos;s secretary or a team&apos;s captain. Start your club and this
-            link will be waiting.
+            {t("rest.players_added_by_secretary")}
           </p>
           <Link className="btn primary" href="/clubs?new=1">
             <Icon name="plus" size={16} /> {t("rest.start_your_club")}
@@ -183,7 +182,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
         </div>
       ) : (
         <div className="panel">
-          <h2>Add {first} to your club</h2>
+          <h2>{t("rest.add_name_to_your_club", { name: first })}</h2>
           <p className="muted">
             {t("rest.they_get_a_notification_to_approve_nob")}
           </p>

@@ -55,7 +55,7 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
     return (
       <main id="main" className="item">
         <p className="error">{error}</p>
-        <Link className="btn" href="/shop">← Back to the shop</Link>
+        <Link className="btn" href="/shop">{t("sh.back_to_the_shop")}</Link>
       </main>
     );
   if (!item)

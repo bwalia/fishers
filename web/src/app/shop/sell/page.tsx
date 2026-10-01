@@ -108,7 +108,7 @@ export default function SellPage() {
         <div>
           <h1>{t("sh.your_listings")}</h1>
           <p className="muted">
-            <Link href="/shop">← Shop</Link> · Kit your club is selling, new or second-hand.
+            <Link href="/shop">{t("sh.shop_back")}</Link>{t("sh.kit_your_club_is_selling")}
           </p>
         </div>
         {clubs.length > 1 && (

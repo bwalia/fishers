@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, type Club } from "@/lib/api";
+import { api, type Club, readErr } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import {
   economy,
@@ -38,7 +38,7 @@ export default function StatsPage() {
         setClubs(c);
         if (c[0]) setClubId(c[0].id);
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("sh.could_not_load_clubs"));
+        setError(readErr(err, t("sh.could_not_load_clubs")));
       }
       try {
         setMine(await api<MeStats>("GET", "/me/stats"));
@@ -74,7 +74,7 @@ export default function StatsPage() {
       await api("POST", `/clubs/${clubId}/stats/sync`);
       await loadBoard();
     } catch (err) {
-      setNote(err instanceof Error ? err.message : t("le.sync_failed"));
+      setNote(readErr(err, t("le.sync_failed")));
     } finally {
       setSyncing(false);
     }

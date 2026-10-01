@@ -298,7 +298,7 @@ export default function AvailabilityPage() {
               <span className="cal-fx is-maybe key" aria-hidden /> {t("ev.maybe")}
             </span>
             <span className="cal-key-item">
-              <span className="cal-fx is-not_going key" aria-hidden /> Can&rsquo;t play
+              <span className="cal-fx is-not_going key" aria-hidden /> {t("ev.cant_play")}
             </span>
             <span className="cal-key-item">
               <span className="cal-fx is-none key" aria-hidden /> {t("ev.not_answered")}
@@ -337,7 +337,7 @@ export default function AvailabilityPage() {
                   : t("ev.n_fixtures_answer_each", { n: chosenFixtures.length })}
             </p>
             {chosenStatus === "unavailable" && chosenFixtures.some((f) => f.my_answer === "going") && (
-              <p className="fx-warn">You&rsquo;ve marked the day not available, but said yes to a fixture on it.</p>
+              <p className="fx-warn">{t("ev.marked_day_off_but_said_yes")}</p>
             )}
             <ul className="avail-fixtures">
               {chosenFixtures.map((f) => (
@@ -370,7 +370,7 @@ export default function AvailabilityPage() {
       <div className="panel">
         <h2>{t("ev.a_whole_month_at_once")}</h2>
         <p className="muted">
-          Most people are the same every week. Set every Sunday in {monthName}, then fix the odd one.
+          {t("ev.most_people_same_every_week", { month: monthName })}
         </p>
         <div className="cal-bulk">
           {WEEKDAYS.map((label, weekday) => (

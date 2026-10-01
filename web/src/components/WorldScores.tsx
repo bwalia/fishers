@@ -170,7 +170,7 @@ export function WorldScoresPanel() {
     <div className="panel">
       <div className="panel-head">
         <h2>{t("sr.around_the_world")}</h2>
-        <Link href="/scores">All scores →</Link>
+        <Link href="/scores">{t("sr.all_scores_arrow")}</Link>
       </div>
       <p className="panel-note">
         {scores.live.length > 0

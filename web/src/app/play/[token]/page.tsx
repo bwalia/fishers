@@ -71,7 +71,7 @@ export default function PlayPage({ params }: { params: Promise<{ token: string }
                 {t("rest.start_a_match_against_them_and_their_c")}
               </p>
               <Link className="btn primary lg" href={`/score?against=${encodeURIComponent(token)}`}>
-                <Icon name="bat" size={16} /> Start a match against {who.name}
+                <Icon name="bat" size={16} /> {t("rest.start_a_match_against", { name: who.name })}
               </Link>
             </>
           )}

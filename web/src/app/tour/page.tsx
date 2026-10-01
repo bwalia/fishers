@@ -36,7 +36,7 @@ export default async function TourPage() {
           <BrandMark size={36} />
           <span>{brand.name}</span>
         </p>
-        <p className="lp-kicker">Video tour · {TOUR_DURATION}</p>
+        <p className="lp-kicker">{t("tour.video_tour_duration", { duration: TOUR_DURATION })}</p>
         <h1>{t("rest.a_season_on_a_phone_from_sign_up_to_th")}</h1>
         <p className="lp-lead">
           {t("rest.one_run_through_the_app_as_a_club_actu")}
@@ -59,8 +59,8 @@ export default async function TourPage() {
           </a>
         </div>
         <p className="lp-fine">
-          {TOUR_CHAPTERS.length} chapters · every screen listed with its timestamp ·{" "}
-          <Link href="/">back to {brand.name}</Link>
+          {t("tour.chapters_fine_print", { n: TOUR_CHAPTERS.length })}{" "}
+          <Link href="/">{t("tour.back_to_brand", { brand: brand.name })}</Link>
         </p>
       </section>
 
@@ -76,7 +76,7 @@ export default async function TourPage() {
             <Icon name="plus" size={18} /> {t("rest.start_your_club")}
           </Link>
           <Link className="btn lp-btn" href="/register?as=player">
-            I play for a club
+            {t("le.i_play_for_a_club")}
           </Link>
         </div>
       </section>

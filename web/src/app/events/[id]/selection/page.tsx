@@ -301,7 +301,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
               <div><dt>{t("ev.reserves")}</dt><dd className="num">{board.requirements.reserves}</dd></div>
               {board.requirements.position_quotas.map((q) => (
                 <div key={q.position}>
-                  <dt>{q.position}</dt><dd className="num">at least {q.minimum}</dd>
+                  <dt>{q.position}</dt><dd className="num">{t("ev.at_least_n", { n: q.minimum })}</dd>
                 </div>
               ))}
             </dl>
@@ -324,7 +324,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
           </div>
 
           <p className="muted">
-            <Link href="/events">← All fixtures</Link>
+            <Link href="/events">{t("ev.all_fixtures_back")}</Link>
           </p>
         </aside>
       </div>

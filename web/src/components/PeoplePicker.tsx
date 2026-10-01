@@ -118,10 +118,10 @@ export function PeoplePicker({
       </ul>
 
       {tab && tab.people.length === 0 && (
-        <p className="muted people-empty">{tab.emptyText ?? `Nobody in ${tab.label}.`}</p>
+        <p className="muted people-empty">{tab.emptyText ?? t("le.nobody_in_tab", { where: tab.label })}</p>
       )}
       {tab && tab.people.length > 0 && people.length === 0 && (
-        <p className="muted">Nobody by that name in {tab.label}.</p>
+        <p className="muted">{t("le.nobody_by_that_name_in", { where: tab.label })}</p>
       )}
     </div>
   );

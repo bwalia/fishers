@@ -69,9 +69,23 @@ export type ProfileStrength = {
   percent: number;
   /// What is not filled in yet, most valuable first: "photo", "standard"…
   missing: string[];
-  /// "lb.add_a_photo_the_standard_you_play_at_a".
+  /// The same list as an English sentence, composed on the server. Unusable in
+  /// any other language, so `nextUp` below builds the sentence from `missing`
+  /// instead and nothing reads this.
   next_up: string;
 };
+
+/// "Add a photo, the standard you play at and your position" — in the reader's
+/// language, from the tokens the API sends rather than the sentence it wrote.
+///
+/// The server takes the top three; so does this, for the same reason: a list of
+/// ten things to do reads as a wall rather than a next step.
+export function nextUp(missing: string[], t: T): string {
+  const words = missing.slice(0, 3).map((key) => t(`str.${key}` as AnyKey));
+  if (words.length === 0) return "";
+  if (words.length === 1) return t("str.add_one", { one: words[0] });
+  return t("str.add_list", { rest: words.slice(0, -1).join(", "), last: words[words.length - 1] });
+}
 
 /// Past the quick start: anyone with a sport on file, on any device; anyone
 /// who skipped it, in this browser.
@@ -482,6 +496,10 @@ export function errCode(err: unknown): string | undefined {
 
 export function readErr(err: unknown, fallback: string): string {
   const raw = err instanceof Error ? err.message : "";
+  // `fetch` rejects with its own untranslated wording when the network is the
+  // problem — "Failed to fetch", "Load failed", "NetworkError…" depending on
+  // the browser. There is no server message behind it, so say so ourselves.
+  if (err instanceof TypeError) return clientT()("le.network_unreachable");
   try {
     return JSON.parse(raw).error ?? fallback;
   } catch {

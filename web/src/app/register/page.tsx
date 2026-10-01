@@ -195,7 +195,7 @@ export default function RegisterPage() {
         )}
 
         <p className="auth-alt">
-          {t("rest.already_have_an_account")} <Link href="/login">Sign in</Link>
+          {t("rest.already_have_an_account")} <Link href="/login">{t("rest.sign_in")}</Link>
         </p>
       </div>
     </main>

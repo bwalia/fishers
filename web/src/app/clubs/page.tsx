@@ -418,7 +418,7 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
             </div>
           </div>
           <p className="muted">
-            Send this link to a club&apos;s secretary and they can invite you straight from it.
+            {t("cl.send_this_link_to_a_secretary")}
           </p>
           <ShareProfile userId={me.id} />
         </section>
@@ -660,7 +660,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
         {verify ? (
           <div className="verify-gate">
             <p className="verify-gate-title">
-              <Icon name="shield" size={16} /> One thing first — confirm it&apos;s you
+              <Icon name="shield" size={16} /> {t("cl.one_thing_first_confirm")}
             </p>
             <VerifyContact
               status={verify}
