@@ -107,6 +107,9 @@ config:
   # defaults to `api-key`.
   ollamaApiKeySecret: ""
   ollamaApiKeySecretKey: "api-key"
+  # Seconds to wait for a line. Empty keeps the built-in 15; a slow host needs
+  # more, though a line that arrives after the next ball is already stale.
+  ollamaTimeoutSecs: ""
 
 podSecurityContext:
   runAsNonRoot: true

@@ -86,6 +86,10 @@ spec:
             - name: OLLAMA_MODEL
               value: {{ $.Values.config.ollamaModel | quote }}
             {{- end }}
+            {{- with .Values.config.ollamaTimeoutSecs }}
+            - name: OLLAMA_TIMEOUT_SECS
+              value: {{ . | quote }}
+            {{- end }}
             {{- if .Values.config.ollamaApiKeySecret }}
             # A published Ollama is normally behind a gateway that wants a key;
             # a secret rather than a value, because that is what it is.

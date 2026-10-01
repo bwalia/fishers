@@ -12,7 +12,8 @@
 
 use std::time::Duration;
 
-use serde::Deserialize;
+use jsonwebtoken::{encode, EncodingKey, Header};
+use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 const DEFAULT_MODEL: &str = "llama3.1:8b";
@@ -53,12 +54,14 @@ If you cannot write the other language, set \"translated\" to an empty string.";
 pub struct Ollama {
     url: String,
     model: String,
-    /// Sent as `Authorization: Bearer`, when the endpoint wants one.
+    /// The passphrase a request is signed with, when the endpoint wants one.
     ///
-    /// A bare Ollama does not, but one published on a hostname usually sits
-    /// behind something that does — and a gateway answering 403 looks from
-    /// here exactly like a model with nothing to say, which is a bad way to
-    /// spend an afternoon.
+    /// Not sent as itself: it is the HMAC key for a short-lived JWT, minted per
+    /// request and put in `x-api-key`. A bare Ollama on localhost wants
+    /// nothing, but one published on a hostname normally sits behind a gateway
+    /// that does — and such a gateway answering 403 looks from here exactly
+    /// like a model with nothing to say, which is a bad way to spend an
+    /// afternoon.
     api_key: Option<String>,
     http: reqwest::Client,
 }
@@ -79,6 +82,17 @@ struct Bilingual {
     translated: String,
 }
 
+/// The claims the gateway's JWT check wants. It verifies the signature and,
+/// because they are present, the lifetime — so nothing here identifies a user.
+/// The token says only "this request came from something holding the
+/// passphrase", which is all the gateway is asking.
+#[derive(Serialize)]
+struct GatewayClaims<'a> {
+    sub: &'a str,
+    iat: u64,
+    exp: u64,
+}
+
 impl Ollama {
     /// `None` when OLLAMA_URL is unset — commentary then stays as written.
     pub fn from_env() -> Option<Self> {
@@ -96,7 +110,19 @@ impl Ollama {
                 // dropped the request. Long enough for a model that has to
                 // load first, short enough not to hold a connection open
                 // through the rest of the over.
-                .timeout(Duration::from_secs(15))
+                //
+                // Configurable because the right number is a property of the
+                // host, not of this code: a 3B model on a machine with a GPU
+                // answers in a second, and an 8B one on a shared box can take
+                // the better part of a minute. Fifteen is the default it has
+                // always had.
+                .timeout(Duration::from_secs(
+                    std::env::var("OLLAMA_TIMEOUT_SECS")
+                        .ok()
+                        .and_then(|v| v.trim().parse().ok())
+                        .filter(|secs| *secs > 0)
+                        .unwrap_or(15),
+                ))
                 .build()
                 .ok()?,
         })
@@ -104,6 +130,26 @@ impl Ollama {
 
     pub fn model(&self) -> &str {
         &self.model
+    }
+
+    /// A short-lived HS256 token for the gateway in front of the model.
+    ///
+    /// `x-api-key` rather than `Authorization`, and the gateway accepts the
+    /// value bare or `Bearer`-prefixed; bare is what it documents. The
+    /// lifetime only has to outlast one request, and the client gives up on
+    /// those after fifteen seconds.
+    fn gateway_token(passphrase: &str) -> Option<String> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()?
+            .as_secs();
+        encode(
+            &Header::default(),
+            &GatewayClaims { sub: "fishers-api", iat: now, exp: now + 120 },
+            &EncodingKey::from_secret(passphrase.as_bytes()),
+        )
+        .inspect_err(|e| warn!("could not sign the ollama gateway token: {e}"))
+        .ok()
     }
 
     /// One line for one ball, or `None` if the model could not oblige.
@@ -145,7 +191,16 @@ impl Ollama {
 
         let mut request = self.http.post(format!("{}/api/generate", self.url));
         if let Some(key) = &self.api_key {
-            request = request.bearer_auth(key);
+            // Minted per request rather than cached: an HMAC over three short
+            // claims costs less than the bookkeeping to keep one fresh, and a
+            // token that cannot outlive the call it was made for is one fewer
+            // thing to leak.
+            match Self::gateway_token(key) {
+                Some(token) => request = request.header("x-api-key", token),
+                None => {
+                    warn!("could not sign the gateway token; sending the request unauthenticated");
+                }
+            }
         }
         let response = match request.json(&body).send().await {
             Ok(r) => r,
@@ -164,9 +219,13 @@ impl Ollama {
                 || status == reqwest::StatusCode::FORBIDDEN
             {
                 warn!(
-                    "ollama returned {status} — the endpoint wants credentials and \
+                    "ollama returned {status} — the gateway rejected the request and \
                      OLLAMA_API_KEY is {}",
-                    if self.api_key.is_some() { "set, so it may be wrong" } else { "unset" }
+                    if self.api_key.is_some() {
+                        "set, so the passphrase may be wrong"
+                    } else {
+                        "unset, so nothing was signed"
+                    }
                 );
             } else {
                 warn!("ollama returned {status}");
@@ -298,7 +357,7 @@ fn clean(raw: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{clean, contradicts, pick, BallFacts, Bilingual};
+    use super::{clean, contradicts, pick, BallFacts, Bilingual, Ollama};
 
     const FOUR: BallFacts = BallFacts { is_wicket: false, runs: 4, is_legal: true };
     const DOT: BallFacts = BallFacts { is_wicket: false, runs: 0, is_legal: true };
@@ -409,5 +468,42 @@ mod tests {
     #[test]
     fn an_empty_pair_is_no_line() {
         assert!(pick(&pair("", ""), FOUR).is_none());
+    }
+
+    /// The gateway verifies the signature with the same passphrase and, since
+    /// the token carries them, the lifetime. Verifying it here the way the
+    /// gateway does is the only check that the thing we send is the thing it
+    /// will accept — the alternative is finding out from a 403 in a log.
+    #[test]
+    fn the_gateway_token_verifies_with_the_passphrase() {
+        use jsonwebtoken::{decode, DecodingKey, Validation};
+
+        let token = Ollama::gateway_token("a-passphrase").expect("signs");
+        let claims = decode::<serde_json::Value>(
+            &token,
+            &DecodingKey::from_secret(b"a-passphrase"),
+            &Validation::default(),
+        )
+        .expect("the gateway can verify it");
+
+        assert_eq!(claims.claims["sub"], "fishers-api");
+        let iat = claims.claims["iat"].as_u64().unwrap();
+        let exp = claims.claims["exp"].as_u64().unwrap();
+        // Long enough to outlast a request the client gives up on at 15s,
+        // short enough that a leaked one is worth little.
+        assert_eq!(exp - iat, 120);
+    }
+
+    #[test]
+    fn a_token_signed_with_another_passphrase_is_refused() {
+        use jsonwebtoken::{decode, DecodingKey, Validation};
+
+        let token = Ollama::gateway_token("the-right-one").expect("signs");
+        assert!(decode::<serde_json::Value>(
+            &token,
+            &DecodingKey::from_secret(b"the-wrong-one"),
+            &Validation::default(),
+        )
+        .is_err());
     }
 }
