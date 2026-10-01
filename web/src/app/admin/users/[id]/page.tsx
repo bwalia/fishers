@@ -52,9 +52,10 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
         <div>
           <h1>{u.name}</h1>
           <p className="muted">
-            <Link href="/admin/users">← People</Link> · joined{" "}
-            {new Date(u.created_at).toLocaleDateString()}
-            {u.deleted_at && ` · deleted ${new Date(u.deleted_at).toLocaleDateString()}`}
+            <Link href="/admin/users">{t("rest.people_back")}</Link> ·{" "}
+            {t("rest.joined_on", { date: new Date(u.created_at).toLocaleDateString() })}
+            {u.deleted_at &&
+              t("rest.deleted_on", { date: new Date(u.deleted_at).toLocaleDateString() })}
           </p>
         </div>
         {u.deleted_at && <span className="tag warn">{t("rest.deleted")}</span>}
@@ -65,20 +66,20 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
         <h2><Icon name="lock" size={18} /> {t("rest.getting_in")}</h2>
         <div className="adm-cols">
           <div>
-            <Field label="Email" value={u.email ?? "—"} note={u.email && !u.email_verified ? "not confirmed" : undefined} />
-            <Field label={t("rest.phone")} value={u.phone ?? "—"} note={u.phone && !u.phone_verified ? "not confirmed" : undefined} />
+            <Field label={t("rest.email")} value={u.email ?? "—"} note={u.email && !u.email_verified ? t("rest.not_confirmed_note") : undefined} />
+            <Field label={t("rest.phone")} value={u.phone ?? "—"} note={u.phone && !u.phone_verified ? t("rest.not_confirmed_note") : undefined} />
           </div>
           <div>
-            <Field label={t("rest.password_set")} value={d.has_password ? "yes" : "no"} />
-            <Field label={t("rest.google_linked")} value={d.has_google ? "yes" : "no"} />
-            <Field label={t("rest.apple_linked")} value={d.has_apple ? "yes" : "no"} />
+            <Field label={t("rest.password_set")} value={d.has_password ? t("rest.yes") : t("rest.no")} />
+            <Field label={t("rest.google_linked")} value={d.has_google ? t("rest.yes") : t("rest.no")} />
+            <Field label={t("rest.apple_linked")} value={d.has_apple ? t("rest.yes") : t("rest.no")} />
           </div>
           <div>
             <Field label={t("rest.signed_in_now")} value={String(u.clubs >= 0 ? d.active_sessions : 0)} />
             <Field label={t("rest.devices_on_push")} value={String(d.push_devices)} />
             <Field
               label={t("rest.last_seen")}
-              value={u.last_seen ? new Date(u.last_seen).toLocaleString() : "never"}
+              value={u.last_seen ? new Date(u.last_seen).toLocaleString() : t("rest.never_lower")}
             />
           </div>
         </div>
@@ -90,27 +91,27 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
       </section>
 
       <section className="panel">
-        <h2><Icon name="book" size={18} /> Profile</h2>
+        <h2><Icon name="book" size={18} /> {t("rest.profile")}</h2>
         <div className="adm-cols">
           <div>
             <Field label={t("rest.primary_sport")} value={u.primary_sport ?? "—"} />
-            <Field label="Position" value={u.position_role ?? "—"} />
-            <Field label="Standard" value={u.skill_level ?? "—"} />
+            <Field label={t("rest.position")} value={u.position_role ?? "—"} />
+            <Field label={t("rest.standard")} value={u.skill_level ?? "—"} />
           </div>
           <div>
             <Field label={t("rest.came_to")} value={d.role_intent ?? "—"} />
             <Field
               label={t("rest.profile_finished")}
-              value={d.profile_completed_at ? new Date(d.profile_completed_at).toLocaleDateString() : "not yet"}
+              value={d.profile_completed_at ? new Date(d.profile_completed_at).toLocaleDateString() : t("rest.not_yet")}
             />
-            <Field label="Honours" value={String(d.achievements)} />
+            <Field label={t("rest.honours")} value={String(d.achievements)} />
           </div>
           <div>
-            <Field label="Umpires" value={d.umpires ? "yes" : "no"} note={d.umpire_note ?? undefined} />
+            <Field label={t("rest.umpires_label")} value={d.umpires ? t("rest.yes") : t("rest.no")} note={d.umpire_note ?? undefined} />
             <Field label={t("rest.matches_umpired")} value={String(d.umpired)} />
             <Field
               label={t("rest.umpire_rating")}
-              value={d.umpire_rating !== null ? `${d.umpire_rating.toFixed(1)} from ${d.umpire_reviews}` : "not rated"}
+              value={d.umpire_rating !== null ? t("rest.rating_from_n", { avg: d.umpire_rating.toFixed(1), n: d.umpire_reviews }) : t("rest.not_rated")}
             />
           </div>
         </div>
@@ -118,20 +119,20 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
       </section>
 
       <section className="panel">
-        <h2><Icon name="users" size={18} /> Clubs</h2>
+        <h2><Icon name="users" size={18} /> {t("rest.clubs")}</h2>
         {d.clubs.length === 0 ? (
           <p className="muted">{t("rest.not_in_any_club")}</p>
         ) : (
           <div className="adm-table-wrap">
             <table className="adm-table">
               <thead>
-                <tr><th scope="col">Club</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">{t("rest.joined")}</th></tr>
+                <tr><th scope="col">{t("rest.club")}</th><th scope="col">{t("rest.role")}</th><th scope="col">{t("rest.status")}</th><th scope="col">{t("rest.joined")}</th></tr>
               </thead>
               <tbody>
                 {d.clubs.map((club) => (
                   <tr key={club.club_id}>
                     <th scope="row">{club.club_name}</th>
-                    <td>{club.role}{club.is_captain && " · captain"}</td>
+                    <td>{club.role}{club.is_captain && t("rest.and_captain")}</td>
                     <td>{club.status}</td>
                     <td>{club.joined_at ? new Date(club.joined_at).toLocaleDateString() : "—"}</td>
                   </tr>
@@ -167,24 +168,24 @@ export default function AdminUserPage({ params }: { params: Promise<{ id: string
         ) : (
           <>
             <div className="adm-grid">
-              <Figure label="Matches" value={c.matches} />
-              <Figure label="Runs" value={c.runs} />
-              <Figure label="Average" text={c.average === null ? "—" : c.average.toFixed(2)} />
+              <Figure label={t("rest.matches")} value={c.matches} />
+              <Figure label={t("rest.runs")} value={c.runs} />
+              <Figure label={t("rest.average")} text={c.average === null ? "—" : c.average.toFixed(2)} />
               <Figure label={t("rest.strike_rate")} text={c.strikeRate === null ? "—" : c.strikeRate.toFixed(1)} />
               <Figure label={t("rest.high_score")} text={c.innings > 0 ? String(c.high) : "—"} />
-              <Figure label="Wickets" value={c.wickets} />
-              <Figure label="Economy" text={c.economy === null ? "—" : c.economy.toFixed(2)} />
-              <Figure label="Catches" value={c.catches + c.stumpings} />
+              <Figure label={t("rest.wickets")} value={c.wickets} />
+              <Figure label={t("rest.economy")} text={c.economy === null ? "—" : c.economy.toFixed(2)} />
+              <Figure label={t("rest.catches")} value={c.catches + c.stumpings} />
             </div>
             <div className="adm-table-wrap">
               <table className="adm-table">
                 <thead>
                   <tr>
-                    <th scope="col">Season</th><th scope="col">Club</th>
-                    <th scope="col" className="num">M</th><th scope="col" className="num">Runs</th>
-                    <th scope="col" className="num">HS</th><th scope="col" className="num">4s</th>
-                    <th scope="col" className="num">6s</th><th scope="col" className="num">Wkts</th>
-                    <th scope="col" className="num">Overs</th><th scope="col" className="num">{t("rest.ct")}</th>
+                    <th scope="col">{t("sh.season")}</th><th scope="col">{t("rest.club")}</th>
+                    <th scope="col" className="num">{t("sh.col_m")}</th><th scope="col" className="num">{t("sh.col_runs")}</th>
+                    <th scope="col" className="num">{t("sh.col_hs")}</th><th scope="col" className="num">{t("sh.col_fours")}</th>
+                    <th scope="col" className="num">{t("sh.col_sixes")}</th><th scope="col" className="num">{t("sh.col_wkts")}</th>
+                    <th scope="col" className="num">{t("sh.col_overs")}</th><th scope="col" className="num">{t("rest.ct")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -225,12 +226,13 @@ function Field({ label, value, note }: { label: string; value: string; note?: st
 }
 
 function Figure({ label, value, text, of }: { label: string; value?: number; text?: string; of?: number }) {
+  const t = useT();
   const pct = of && of > 0 && value !== undefined ? Math.round((value / of) * 100) : null;
   return (
     <div className="adm-figure">
       <strong>{text ?? value?.toLocaleString()}</strong>
       <span className="muted">{label}</span>
-      {pct !== null && <span className="adm-delta">{pct}% of {of}</span>}
+      {pct !== null && <span className="adm-delta">{t("rest.pct_of_n", { pct, n: of! })}</span>}
     </div>
   );
 }

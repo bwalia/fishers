@@ -58,7 +58,7 @@ export default function AdminPage() {
     return (
       <main id="main" className="adm">
         <div className="panel">
-          <h1>System</h1>
+          <h1>{t("rest.system")}</h1>
           <p className="error">{error}</p>
           <p className="muted">
             {t("rest.this_page_is_for_whoever_runs_the_serv")} <code>PLATFORM_ADMIN_EMAILS</code> {t("rest.and_confirmed")}
@@ -76,16 +76,16 @@ export default function AdminPage() {
     <main id="main" className="adm">
       <header className="adm-head">
         <div>
-          <h1>System</h1>
+          <h1>{t("rest.system")}</h1>
           <p className="muted">
-            Taken {new Date(data.taken_at).toLocaleString()} ·{" "}
+            {t("rest.taken_at", { when: new Date(data.taken_at).toLocaleString() })} ·{" "}
             <button type="button" className="linkish" onClick={load} disabled={loading}>
-              {loading ? t("le.refreshing") : "Refresh"}
+              {loading ? t("le.refreshing") : t("rest.refresh")}
             </button>
           </p>
         </div>
         <span className={problems === 0 ? "tag" : "tag warn"}>
-          {problems === 0 ? t("le.nothing_needs_you") : `${problems} to look at`}
+          {problems === 0 ? t("le.nothing_needs_you") : t("rest.n_to_look_at", { n: problems })}
         </span>
       </header>
 
@@ -93,8 +93,8 @@ export default function AdminPage() {
 
       <section className="adm-grid" aria-label={t("rest.how_big_the_system_is")}>
         <Figure label={t("rest.people")} value={people.users.total} growth={people.users} />
-        <Figure label="Clubs" value={clubs.clubs.total} growth={clubs.clubs} />
-        <Figure label="Matches" value={cricket.matches.total} growth={cricket.matches} />
+        <Figure label={t("rest.clubs")} value={clubs.clubs.total} growth={clubs.clubs} />
+        <Figure label={t("rest.matches")} value={cricket.matches.total} growth={cricket.matches} />
         <Figure label={t("rest.balls_scored")} value={cricket.scoring_events} />
       </section>
 
@@ -108,9 +108,9 @@ export default function AdminPage() {
           <Row label={t("rest.deleted_accounts")} value={people.deleted} muted />
         </Panel>
 
-        <Panel title="Clubs" icon="shield">
-          <Row label="Clubs" value={clubs.clubs.total} />
-          <Row label="Teams" value={clubs.teams} />
+        <Panel title={t("rest.clubs")} icon="shield">
+          <Row label={t("rest.clubs")} value={clubs.clubs.total} />
+          <Row label={t("rest.teams")} value={clubs.teams} />
           <Row label={t("rest.memberships")} value={clubs.memberships} />
           <Row label={t("rest.with_nobody_but_the_owner")} value={clubs.empty} muted />
           {clubs.by_sport.length > 0 && (
@@ -142,11 +142,14 @@ export default function AdminPage() {
           {takings.taken.length === 0 ? (
             <p className="muted">{t("rest.nothing_taken_yet")}</p>
           ) : (
-            takings.taken.map((t) => (
+            takings.taken.map((row) => (
               <Row
-                key={t.currency}
-                label={`Taken (${t.currency.toUpperCase()})`}
-                text={`${money(t.amount_cents, t.currency)} · ${t.payments} payments`}
+                key={row.currency}
+                label={t("rest.taken_currency", { currency: row.currency.toUpperCase() })}
+                text={t("rest.amount_and_payments", {
+                  amount: money(row.amount_cents, row.currency),
+                  n: row.payments,
+                })}
               />
             ))
           )}
@@ -213,29 +216,29 @@ function Health({
   const checks = [
     {
       label: t("le.schema"),
-      text: `migration ${health.migration}`,
+      text: t("rest.migration_n", { n: health.migration }),
       bad: health.migrations_failed > 0,
-      badText: `${health.migrations_failed} migration failed — the API is running against a schema it does not expect`,
+      badText: t("rest.migrations_failed_detail", { n: health.migrations_failed }),
     },
     {
       label: t("le.stripe_webhooks"),
-      text: "all processed",
+      text: t("rest.all_processed"),
       bad: health.webhooks_unprocessed > 0,
-      badText: `${health.webhooks_unprocessed} received and not processed — payments may look unpaid`,
+      badText: t("rest.webhooks_unprocessed_detail", { n: health.webhooks_unprocessed }),
     },
     {
-      label: "Payments",
-      text: "none failed this week",
+      label: t("rest.payments"),
+      text: t("rest.none_failed_this_week"),
       bad: takings.failed_7d > 0,
-      badText: `${takings.failed_7d} failed this week`,
+      badText: t("rest.n_failed_this_week", { n: takings.failed_7d }),
     },
     {
-      label: "Assistant",
-      text: "no errors this week",
+      label: t("rest.assistant"),
+      text: t("rest.no_errors_this_week"),
       bad: health.agent_failures_7d > 0,
-      badText: `${health.agent_failures_7d} runs failed${
-        health.agent_last_error ? ` — last: ${health.agent_last_error}` : ""
-      }`,
+      badText:
+        t("rest.n_runs_failed", { n: health.agent_failures_7d }) +
+        (health.agent_last_error ? t("rest.last_error", { error: health.agent_last_error }) : ""),
     },
   ];
 
@@ -251,21 +254,26 @@ function Health({
         ))}
       </ul>
       <p className="muted adm-health-foot">
-        Codes waiting {health.codes_pending} · Notifications 24h {health.notifications_24h} (
-        {health.notifications_unread} unread) · Database {bytes(health.database_bytes)}
+        {t("rest.health_foot", {
+          codes: health.codes_pending,
+          notifications: health.notifications_24h,
+          unread: health.notifications_unread,
+          db: bytes(health.database_bytes),
+        })}
       </p>
     </section>
   );
 }
 
 function Figure({ label, value, growth }: { label: string; value: number; growth?: Growth }) {
+  const t = useT();
   return (
     <div className="adm-figure">
       <strong>{value.toLocaleString()}</strong>
       <span className="muted">{label}</span>
       {growth && (
         <span className="adm-delta">
-          +{growth.last_7d} this week · +{growth.last_30d} this month
+          {t("rest.growth_week_month", { week: growth.last_7d, month: growth.last_30d })}
         </span>
       )}
     </div>
@@ -307,13 +315,14 @@ function Row({
   muted?: boolean;
   bad?: boolean;
 }) {
+  const t = useT();
   return (
     <p className={`adm-row${muted ? " muted" : ""}${bad ? " bad" : ""}`}>
       <span>{label}</span>
       <b>
         {text ?? value?.toLocaleString()}
         {of !== undefined && value !== undefined && of > 0 && (
-          <em> of {of.toLocaleString()}</em>
+          <em>{t("rest.of_total", { n: of.toLocaleString() })}</em>
         )}
       </b>
     </p>

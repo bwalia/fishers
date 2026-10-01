@@ -5,28 +5,26 @@
 
 export type ShotShape = {
   kind: string;
-  label: string;
   /// Bearing in the same system the wagon wheel uses: 0 is straight down the
   /// ground, increasing clockwise for a right-hander.
   angle: number | null;
   aerial?: boolean;
-  hint: string;
 };
 
 export const SHOT_SHAPES: ShotShape[] = [
-  { kind: "drive", label: "Drive", angle: 325, hint: "straight or through cover" },
-  { kind: "cut", label: "Cut", angle: 250, hint: "square on the off side" },
-  { kind: "pull", label: "Pull", angle: 100, hint: "square on the leg side" },
-  { kind: "hook", label: "Hook", angle: 140, aerial: true, hint: "up and round the corner" },
-  { kind: "sweep", label: "Sweep", angle: 150, hint: "down to fine leg" },
-  { kind: "reverse_sweep", label: "Reverse", angle: 210, hint: "reverse, behind point" },
-  { kind: "glance", label: "Glance", angle: 165, hint: "tickled fine" },
-  { kind: "flick", label: "Flick", angle: 70, hint: "off the pads to mid-wicket" },
-  { kind: "loft", label: "Loft", angle: 10, aerial: true, hint: "over the top" },
-  { kind: "defence", label: "Defence", angle: null, hint: "blocked" },
-  { kind: "edge", label: "Edge", angle: 200, hint: "thick or thin edge" },
-  { kind: "leave", label: "Leave", angle: null, hint: "shouldered arms" },
-  { kind: "other", label: "Other", angle: 45, hint: "worked away" },
+  { kind: "drive", angle: 325 },
+  { kind: "cut", angle: 250 },
+  { kind: "pull", angle: 100 },
+  { kind: "hook", angle: 140, aerial: true },
+  { kind: "sweep", angle: 150 },
+  { kind: "reverse_sweep", angle: 210 },
+  { kind: "glance", angle: 165 },
+  { kind: "flick", angle: 70 },
+  { kind: "loft", angle: 10, aerial: true },
+  { kind: "defence", angle: null },
+  { kind: "edge", angle: 200 },
+  { kind: "leave", angle: null },
+  { kind: "other", angle: 45 },
 ];
 
 export function ShotIcon({ shape, size = 44 }: { shape: ShotShape; size?: number }) {

@@ -7,14 +7,17 @@ import { readErr } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 import { adminUsers, type AdminUserPage, type AdminUserRow } from "@/lib/admin";
 import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n";
 
-const SORTS = [
+/// Labels are keys, resolved at render. They used to be a mix of keys and bare
+/// English, so the first two options printed "le.newest" at the reader.
+const SORTS: { key: string; label: Key }[] = [
   { key: "newest", label: "le.newest" },
   { key: "oldest", label: "le.oldest" },
-  { key: "name", label: "Name" },
-  { key: "matches", label: "Matches" },
-  { key: "clubs", label: "Clubs" },
-  { key: "last_seen", label: "Last seen" },
+  { key: "name", label: "rest.name" },
+  { key: "matches", label: "rest.matches" },
+  { key: "clubs", label: "rest.clubs" },
+  { key: "last_seen", label: "rest.last_seen" },
 ];
 
 /// Everybody, as a table somebody can actually work down.
@@ -59,7 +62,7 @@ export default function AdminUsersPage() {
           <h1>{t("rest.people")}</h1>
           <p className="muted">
             <Link href="/admin">← System</Link>
-            {data && ` · ${data.total.toLocaleString()} in total`}
+            {data && t("rest.in_total", { n: data.total.toLocaleString() })}
           </p>
         </div>
       </header>
@@ -94,7 +97,7 @@ export default function AdminUsersPage() {
           </button>
         )}
         <select
-          aria-label="Sort by"
+          aria-label={t("rest.sort_by")}
           value={sort}
           onChange={(e) => {
             setSort(e.target.value);
@@ -102,7 +105,7 @@ export default function AdminUsersPage() {
           }}
         >
           {SORTS.map((s) => (
-            <option key={s.key} value={s.key}>{s.label}</option>
+            <option key={s.key} value={s.key}>{t(s.label)}</option>
           ))}
         </select>
       </form>
@@ -116,11 +119,11 @@ export default function AdminUsersPage() {
             <table className="adm-table">
               <thead>
                 <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Contact</th>
+                  <th scope="col">{t("rest.name")}</th>
+                  <th scope="col">{t("rest.contact")}</th>
                   <th scope="col">{t("rest.plays")}</th>
-                  <th scope="col" className="num">Clubs</th>
-                  <th scope="col" className="num">Matches</th>
+                  <th scope="col" className="num">{t("rest.clubs")}</th>
+                  <th scope="col" className="num">{t("rest.matches")}</th>
                   <th scope="col">{t("rest.joined")}</th>
                   <th scope="col">{t("rest.last_seen")}</th>
                 </tr>
@@ -131,18 +134,18 @@ export default function AdminUsersPage() {
             </table>
           </div>
 
-          {data.rows.length === 0 && <p className="muted">Nobody matches that.</p>}
+          {data.rows.length === 0 && <p className="muted">{t("rest.nobody_matches_that")}</p>}
 
           {pages > 1 && (
             <nav className="adm-pager" aria-label={t("rest.pages")}>
               <button className="btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                Previous
+                {t("rest.previous")}
               </button>
               <span className="muted">
-                Page {data.page} of {pages}
+                {t("rest.page_of", { page: data.page, pages })}
               </span>
               <button className="btn" disabled={page >= pages} onClick={() => setPage(page + 1)}>
-                Next
+                {t("rest.next")}
               </button>
             </nav>
           )}

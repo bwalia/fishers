@@ -38,7 +38,7 @@ export default function StatsPage() {
         setClubs(c);
         if (c[0]) setClubId(c[0].id);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load clubs");
+        setError(err instanceof Error ? err.message : t("sh.could_not_load_clubs"));
       }
       try {
         setMine(await api<MeStats>("GET", "/me/stats"));
@@ -56,7 +56,7 @@ export default function StatsPage() {
       setBoard(await api<ClubSeasonBoard>("GET", `/clubs/${clubId}/stats?season=${season}`));
     } catch {
       setBoard(null);
-      setNote(`No ${season} season board for this club yet.`);
+      setNote(t("sh.no_season_board", { season }));
     } finally {
       setLoading(false);
     }
@@ -87,12 +87,8 @@ export default function StatsPage() {
   return (
     <main id="main">
       <section className="hero">
-        <h1>Season stats</h1>
-        <p>
-          Batting, bowling and results for the club and every player, by season. Figures
-          come from matches scored in {brand.name} and from ECB Play-Cricket where a club is
-          linked.
-        </p>
+        <h1>{t("sh.season_stats")}</h1>
+        <p>{t("sh.season_stats_intro", { brand: brand.name })}</p>
       </section>
 
       {error && <p className="error">{error}</p>}
@@ -100,7 +96,7 @@ export default function StatsPage() {
       {!error && (
         <div className="select-row">
           <label>
-            Club
+            {t("sh.club")}
             <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
               {clubs.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -108,7 +104,7 @@ export default function StatsPage() {
             </select>
           </label>
           <label>
-            Season
+            {t("sh.season")}
             <select value={season} onChange={(e) => setSeason(Number(e.target.value))}>
               {SEASONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -126,19 +122,19 @@ export default function StatsPage() {
         <>
           <div className="grid" style={{ marginBottom: "var(--s4)" }}>
             <Stat label={t("sh.played")} value={club.matches_played} />
-            <Stat label="Won" value={club.wins} tone="primary" />
+            <Stat label={t("sh.won")} value={club.wins} tone="primary" />
             <Stat label={t("sh.lost")} value={club.losses} />
             <Stat
               label={t("sh.win_rate")}
               value={winRate(club) === null ? "—" : `${num(winRate(club), 0)}%`}
-              sub={`${club.draws} drawn · ${club.no_results} no result`}
+              sub={t("sh.drawn_no_result", { drawn: club.draws, nr: club.no_results })}
               tone="accent"
             />
-            <Stat label={t("sh.runs_for")} value={club.runs_for} sub={`${club.runs_against} against`} />
+            <Stat label={t("sh.runs_for")} value={club.runs_for} sub={t("sh.runs_against", { n: club.runs_against })} />
             <Stat
               label={t("sh.wickets_taken")}
               value={club.wickets_taken}
-              sub={`${club.wickets_lost} lost`}
+              sub={t("sh.wickets_lost", { n: club.wickets_lost })}
             />
           </div>
 
@@ -163,14 +159,14 @@ export default function StatsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Season</th>
-                  <th className="n">M</th>
-                  <th className="n">Runs</th>
-                  <th className="n">HS</th>
-                  <th className="n">Avg</th>
-                  <th className="n">SR</th>
-                  <th className="n">Wkts</th>
-                  <th className="n">Econ</th>
+                  <th>{t("sh.season")}</th>
+                  <th className="n">{t("sh.col_m")}</th>
+                  <th className="n">{t("sh.col_runs")}</th>
+                  <th className="n">{t("sh.col_hs")}</th>
+                  <th className="n">{t("sh.col_avg")}</th>
+                  <th className="n">{t("sh.col_sr")}</th>
+                  <th className="n">{t("sh.col_wkts")}</th>
+                  <th className="n">{t("sh.col_econ")}</th>
                   <th className="n">{t("sh.ct_st")}</th>
                 </tr>
               </thead>
@@ -213,7 +209,7 @@ export default function StatsPage() {
 
       {board?.play_cricket?.site_url && (
         <p className="muted">
-          Club on Play-Cricket:{" "}
+          {t("sh.club_on_play_cricket")}{" "}
           <a href={board.play_cricket.site_url} target="_blank" rel="noreferrer">
             {board.play_cricket.name || board.play_cricket.site_url}
           </a>
@@ -258,28 +254,28 @@ function BattingBoard({ players }: { players: PlayerSeasonStats[] }) {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>Batting</h2>
+        <h2>{t("sh.batting")}</h2>
         <span className="tag">
-          <Icon name="bat" size={12} /> Top {players.length}
+          <Icon name="bat" size={12} /> {t("sh.top_n", { n: players.length })}
         </span>
       </div>
       {players.length === 0 ? (
-        <Empty what="batting figures" />
+        <Empty what={t("sh.batting_figures")} />
       ) : (
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
                 <th>{t("sh.player")}</th>
-                <th className="n">M</th>
-                <th className="n">Inns</th>
-                <th className="n">NO</th>
-                <th className="n">Runs</th>
-                <th className="n">HS</th>
-                <th className="n">Avg</th>
-                <th className="n">SR</th>
-                <th className="n">4s</th>
-                <th className="n">6s</th>
+                <th className="n">{t("sh.col_m")}</th>
+                <th className="n">{t("sh.col_inns")}</th>
+                <th className="n">{t("sh.col_no")}</th>
+                <th className="n">{t("sh.col_runs")}</th>
+                <th className="n">{t("sh.col_hs")}</th>
+                <th className="n">{t("sh.col_avg")}</th>
+                <th className="n">{t("sh.col_sr")}</th>
+                <th className="n">{t("sh.col_fours")}</th>
+                <th className="n">{t("sh.col_sixes")}</th>
               </tr>
             </thead>
             <tbody>
@@ -310,26 +306,26 @@ function BowlingBoard({ players }: { players: PlayerSeasonStats[] }) {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2>Bowling</h2>
+        <h2>{t("sh.bowling")}</h2>
         <span className="tag">
-          <Icon name="ball" size={12} /> Top {players.length}
+          <Icon name="ball" size={12} /> {t("sh.top_n", { n: players.length })}
         </span>
       </div>
       {players.length === 0 ? (
-        <Empty what="bowling figures" />
+        <Empty what={t("sh.bowling_figures")} />
       ) : (
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
                 <th>{t("sh.player")}</th>
-                <th className="n">M</th>
-                <th className="n">Overs</th>
-                <th className="n">Mdns</th>
-                <th className="n">Runs</th>
-                <th className="n">Wkts</th>
-                <th className="n">Avg</th>
-                <th className="n">Econ</th>
+                <th className="n">{t("sh.col_m")}</th>
+                <th className="n">{t("sh.col_overs")}</th>
+                <th className="n">{t("sh.col_mdns")}</th>
+                <th className="n">{t("sh.col_runs")}</th>
+                <th className="n">{t("sh.col_wkts")}</th>
+                <th className="n">{t("sh.col_avg")}</th>
+                <th className="n">{t("sh.col_econ")}</th>
               </tr>
             </thead>
             <tbody>
@@ -354,10 +350,11 @@ function BowlingBoard({ players }: { players: PlayerSeasonStats[] }) {
 }
 
 function Empty({ what }: { what: string }) {
+  const t = useT();
   return (
     <div className="empty">
       <Icon name="chart" size={28} />
-      <p>No {what} for this season yet. They appear once a match is scored or synced.</p>
+      <p>{t("sh.no_figures_yet", { what })}</p>
     </div>
   );
 }

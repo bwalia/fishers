@@ -24,6 +24,7 @@ import {
 import { copyText } from "@/lib/clipboard";
 import { useRequireAuth } from "@/lib/require-auth";
 import { useT } from "@/lib/i18n/provider";
+import type { T } from "@/lib/i18n";
 
 const ROLE_VALUES = CLUB_ROLES.map((r) => r.value) as readonly string[];
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -38,7 +39,7 @@ type Draft = {
   role: string;
   problems: string[];
   /// Set once the row has been acted on, so a re-run skips it.
-  done?: "invited" | "already a member" | "already invited";
+  done?: "cl.row_invited" | "cl.row_already_a_member" | "cl.row_already_invited";
   failed?: string;
 };
 
@@ -84,7 +85,7 @@ function parseSheet(text: string): Draft[] {
 
 /// The same rules the CLI script applies, so a sheet that works in one works
 /// in the other.
-function check(rows: Draft[], members: ClubMemberRow[], invites: Invite[]): Draft[] {
+function check(rows: Draft[], members: ClubMemberRow[], invites: Invite[], t: T): Draft[] {
   const seen = new Map<string, number>();
   const memberEmails = new Set(
     members.map((m) => (m.email || "").toLowerCase()).filter(Boolean)
@@ -98,24 +99,24 @@ function check(rows: Draft[], members: ClubMemberRow[], invites: Invite[]): Draf
 
   return rows.map((row, index) => {
     const problems: string[] = [];
-    if (!row.name.trim()) problems.push("needs a name");
-    if (!row.email.trim() && !row.phone.trim()) problems.push("needs an email or a phone");
-    if (row.email && !EMAIL_RE.test(row.email)) problems.push("email looks wrong");
-    if (row.phone && !PHONE_RE.test(row.phone)) problems.push("phone must be +447700900123");
-    if (!ROLE_VALUES.includes(row.role)) problems.push("unknown role");
+    if (!row.name.trim()) problems.push(t("cl.needs_a_name"));
+    if (!row.email.trim() && !row.phone.trim()) problems.push(t("cl.needs_an_email_or_a_phone"));
+    if (row.email && !EMAIL_RE.test(row.email)) problems.push(t("cl.email_looks_wrong"));
+    if (row.phone && !PHONE_RE.test(row.phone)) problems.push(t("cl.phone_must_be"));
+    if (!ROLE_VALUES.includes(row.role)) problems.push(t("cl.unknown_role"));
 
     const ident = (row.email || row.phone || "").toLowerCase();
     if (ident) {
       const earlier = seen.get(ident);
-      if (earlier !== undefined) problems.push(`same as row ${earlier + 1}`);
+      if (earlier !== undefined) problems.push(t("cl.same_as_row_n", { n: earlier + 1 }));
       else seen.set(ident, index);
     }
 
     let done = row.done;
     if (!done && row.email) {
       const e = row.email.toLowerCase();
-      if (memberEmails.has(e)) done = "already a member";
-      else if (invitedEmails.has(e)) done = "already invited";
+      if (memberEmails.has(e)) done = "cl.row_already_a_member";
+      else if (invitedEmails.has(e)) done = "cl.row_already_invited";
     }
     return { ...row, problems, done };
   });
@@ -161,7 +162,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
     if (authed) void load();
   }, [authed, load]);
 
-  const checked = useMemo(() => check(rows, members, invites), [rows, members, invites]);
+  const checked = useMemo(() => check(rows, members, invites, t), [rows, members, invites, t]);
   const ready = checked.filter((r) => !r.problems.length && !r.done && (r.name || r.email));
   const blocked = checked.filter((r) => r.problems.length && (r.name || r.email || r.phone));
 
@@ -204,9 +205,9 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
           target_id: id,
           invited_email: row.email || undefined,
         });
-        done[row.key] = { done: "invited", failed: undefined };
+        done[row.key] = { done: "cl.row_invited", failed: undefined };
       } catch (e) {
-        done[row.key] = { failed: readErr(e, "could not invite") };
+        done[row.key] = { failed: readErr(e, t("cl.could_not_invite")) };
       }
     }
     setRows((prev) => prev.map((r) => (done[r.key] ? { ...r, ...done[r.key] } : r)));
@@ -225,7 +226,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
   };
 
   const remove = async (userId: string, name: string) => {
-    if (!confirm(`Remove ${name} from ${club?.name ?? "this club"}?`)) return;
+    if (!confirm(t("cl.remove_from_club", { name, club: club?.name ?? t("cl.this_club") }))) return;
     try {
       await api("DELETE", `/clubs/${id}/members/${userId}`);
       setMembers((prev) => prev.filter((m) => m.user_id !== userId));
@@ -241,7 +242,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
       <main className="page">
         <h1>{t("rest.people")}</h1>
         <p className="muted">
-          Only a club secretary can bulk-manage the roster.{" "}
+          {t("cl.only_a_secretary_can_bulk_manage")}{" "}
           <Link href={`/clubs/${id}`}>{t("rest.back_to_the_club")}</Link>.
         </p>
       </main>
@@ -255,12 +256,12 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
   return (
     <main className="page">
       <p className="muted" style={{ marginBottom: 4 }}>
-        <Link href={`/clubs/${id}`}>← {club?.name ?? "Club"}</Link>
+        <Link href={`/clubs/${id}`}>← {club?.name ?? t("cl.club_fallback")}</Link>
       </p>
       <h1>{t("rest.people")}</h1>
       <p className="muted">
-        Paste a spreadsheet, import a CSV, or type. Same columns as{" "}
-        <code>{t("rest.scripts_register_from_csv_example_csv")}</code>, so a sheet that works here works there.
+        {t("cl.paste_a_spreadsheet")}{" "}
+        <code>{t("rest.scripts_register_from_csv_example_csv")}</code>{t("cl.so_a_sheet_that_works_here")}
       </p>
 
       {err && <p className="error" role="alert">{err}</p>}
@@ -270,7 +271,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
           {t("rest.invite_in_bulk")}
         </button>
         <button className={`btn ghost${tab === "members" ? " active" : ""}`} onClick={() => setTab("members")}>
-          Members ({members.length})
+          {t("cl.members_count", { n: members.length })}
         </button>
       </nav>
 
@@ -290,8 +291,8 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
               {t("rest.clear")}
             </button>
             <span className="muted">
-              {ready.length} ready
-              {blocked.length > 0 && <> · <strong>{blocked.length} to fix</strong></>}
+              {t("cl.n_ready", { n: ready.length })}
+              {blocked.length > 0 && <> · <strong>{t("cl.n_to_fix", { n: blocked.length })}</strong></>}
             </span>
           </div>
 
@@ -300,11 +301,11 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
               <thead>
                 <tr>
                   <th style={{ width: 28 }} />
-                  <th>Name</th>
-                  <th>Email</th>
+                  <th>{t("cl.col_name")}</th>
+                  <th>{t("cl.col_email")}</th>
                   <th>{t("rest.phone")}</th>
-                  <th style={{ width: 150 }}>Role</th>
-                  <th>Status</th>
+                  <th style={{ width: 150 }}>{t("cl.col_role")}</th>
+                  <th>{t("cl.col_status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -344,7 +345,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                     </td>
                     <td className="muted">
                       {row.failed ? <span className="error">{row.failed}</span>
-                        : row.done ? row.done
+                        : row.done ? t(row.done)
                         : row.problems.length ? row.problems.join("; ")
                         : ""}
                     </td>
@@ -355,24 +356,22 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
           </div>
 
           <p className="muted" style={{ marginTop: 12 }}>
-            An invite goes to the address; they set their own password. Roles above the
-            invite are applied once they accept — a role cannot be given to someone who is
-            not a member yet.
+            {t("cl.invite_goes_to_the_address")}
           </p>
 
           <button className="btn primary" onClick={invite} disabled={!ready.length || running} style={{ marginTop: 8 }}>
             {running && progress
-              ? `Inviting ${progress.at} of ${progress.of}…`
-              : `Invite ${ready.length || ""} ${ready.length === 1 ? "person" : "people"}`.trim()}
+              ? t("cl.inviting_at_of", { at: progress.at, of: progress.of })
+              : t("cl.invite_n_people", { n: ready.length || "", count: ready.length })}
           </button>
 
           {pending.length > 0 && (
             <>
-              <h2 style={{ marginTop: 32 }}>Pending invites ({pending.length})</h2>
+              <h2 style={{ marginTop: 32 }}>{t("cl.pending_invites_count", { n: pending.length })}</h2>
               <ul className="card-list">
                 {pending.map((i) => (
                   <li key={i.id} style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <span>{i.invited_email ?? "by link"}</span>
+                    <span>{i.invited_email ?? t("cl.by_link")}</span>
                     <button
                       className="btn ghost sm"
                       onClick={() => void copyText(`${location.origin}/invite/${i.token}`)}
@@ -391,10 +390,10 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
             <table>
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
+                  <th>{t("cl.col_name")}</th>
+                  <th>{t("cl.col_email")}</th>
                   <th>{t("rest.phone")}</th>
-                  <th style={{ width: 150 }}>Role</th>
+                  <th style={{ width: 150 }}>{t("cl.col_role")}</th>
                   <th style={{ width: 90 }} />
                 </tr>
               </thead>
@@ -416,7 +415,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                     </td>
                     <td>
                       <button className="btn ghost sm" onClick={() => void remove(m.user_id, m.name)}>
-                        Remove
+                        {t("cl.remove")}
                       </button>
                     </td>
                   </tr>
@@ -425,8 +424,11 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
             </table>
           </div>
           <p className="muted" style={{ marginTop: 12 }}>
-            {members.length} member{members.length === 1 ? "" : "s"}. Changing a role takes
-            effect immediately; {roleLabel("club_admin", false, t)} is the only role that can manage this page.
+            {t("cl.n_members_role_note", {
+              n: members.length,
+              count: members.length,
+              admin: roleLabel("club_admin", false, t),
+            })}
           </p>
         </section>
       )}
