@@ -23,10 +23,15 @@ function colourFor(runs: number) {
 /// which also mirrors it for a left-hander without any extra work here.
 const SECTOR_MIDPOINTS = [22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5];
 
-/// A cricket ground is an oval, not a circle, and it is longer down the ground
-/// than it is square. Lord's is about 170 yards straight and 150 square; this
-/// is that ratio, and it is the reason the maths below cannot use one radius.
-const SQUARE_RATIO = 0.88;
+/// The ground as drawn: wider across than it is deep, the same shape and the
+/// same ratio as the ground on the scoring panel.
+///
+/// A real one is the other way round — longer straight than square, Lord's
+/// being about 170 yards by 150 — and drawn that way it is a tall oval in a
+/// square box with empty corners either side. This is that ground seen from a
+/// stand rather than from directly overhead, which is how anybody has actually
+/// looked at one, and it is why the maths below cannot use a single radius.
+const GROUND_RATIO = 1.25;
 
 /// Strokes that go up rather than along. Only used for how the line is drawn —
 /// what was recorded is the bearing and the reach, same as ever.
@@ -52,7 +57,10 @@ export function WagonWheel({
 }) {
   const t = useT();
   const shots = deliveries.filter((d) => d.shot);
-  const centre = size / 2;
+  // `size` is the width; the height follows from the ratio.
+  const height = size / GROUND_RATIO;
+  const cx = size / 2;
+  const cy = height / 2;
   // Room inside the rope for the sector names. They are set on two lines and
   // pulled well inside the rope, because at 0.86 a name like "mid-wicket"
   // reached past the boundary and was clipped by the viewBox.
@@ -60,14 +68,36 @@ export function WagonWheel({
   // A six is drawn *past* the rope, so the padding has to leave room for it —
   // otherwise the one shot everybody wants to see gets clipped.
   const pad = size * 0.055;
-  const down = size / 2 - pad; // semi-axis down the ground
-  const square = down * SQUARE_RATIO; // semi-axis square of the wicket
+  const square = size / 2 - pad; // semi-axis square of the wicket
+  const down = height / 2 - pad; // semi-axis down the ground
+
+  /// A bearing, in radians, on the screen.
+  ///
+  /// Straight down the ground is 0° and it points *down* the picture: the
+  /// striker is in the middle looking that way, which puts long on and long
+  /// off at the bottom, where somebody standing behind the batter expects
+  /// them. It used to point up — the same ground seen from the bowler's end,
+  /// which reads back to front to the person scoring.
+  ///
+  /// Bearings run anticlockwise on the screen, which puts the off side on the
+  /// left for a right-hander: straight drive at the bottom, on drive and pull
+  /// to the right, cover and the cuts to the left. That is the field as it is
+  /// drawn in every coaching diagram, and it is the view from behind the
+  /// bowler's arm — the one angle everybody has watched cricket from.
+  ///
+  /// Clockwise put the off side on the right, which is a left-hander's field.
+  /// Note this is a reflection and not a rotation, so anything drawn with a
+  /// sweep direction — the shaded sector below — turns the other way too.
+  ///
+  /// This is the only place the orientation lives, and nothing recorded
+  /// changes with it: a bearing is a bearing, and only the picture turns.
+  const radiansOf = (angle: number) => ((90 - angle) * Math.PI) / 180;
 
   /// How far the rope is at a given bearing. The whole point of the oval: a
-  /// six straight is a longer hit than a six square, and a reach of 1.0 has to
-  /// mean "the rope" in both directions.
+  /// six square is a longer hit than a six straight on a ground drawn this
+  /// way, and a reach of 1.0 has to mean "the rope" in both directions.
   const ropeAt = (angle: number) => {
-    const radians = ((angle - 90) * Math.PI) / 180;
+    const radians = radiansOf(angle);
     const cos = Math.cos(radians);
     const sin = Math.sin(radians);
     return (
@@ -76,10 +106,10 @@ export function WagonWheel({
   };
 
   const point = (angle: number, distance: number) => {
-    const radians = ((angle - 90) * Math.PI) / 180;
+    const radians = radiansOf(angle);
     return {
-      x: centre + distance * Math.cos(radians),
-      y: centre + distance * Math.sin(radians),
+      x: cx + distance * Math.cos(radians),
+      y: cy + distance * Math.sin(radians),
     };
   };
 
@@ -101,11 +131,11 @@ export function WagonWheel({
     if (!onPick) return;
     const box = e.currentTarget.getBoundingClientRect();
     // The SVG is scaled to fit, so map the click back into viewBox units.
-    const x = ((e.clientX - box.left) / box.width) * size - centre;
-    const y = ((e.clientY - box.top) / box.height) * size - centre;
+    const x = ((e.clientX - box.left) / box.width) * size - cx;
+    const y = ((e.clientY - box.top) / box.height) * height - cy;
     const degrees = (Math.atan2(y, x) * 180) / Math.PI;
-    // Rendering rotates by -90°, so undo that to get a cricket bearing.
-    const angle = Math.round((degrees + 90 + 360) % 360);
+    // The inverse of `radiansOf`, so a tap lands on the sector it was aimed at.
+    const angle = Math.round((((90 - degrees) % 360) + 360) % 360);
     // Measured against the rope in *that* direction, so a tap on the rope is
     // a reach of 1 whether it is straight or square. Against a single radius
     // the same tap read as 0.88 square and 1.0 straight, and a hit to the
@@ -122,7 +152,7 @@ export function WagonWheel({
     const end = point(angle, distance);
     const bow = aerial ? 0.16 : 0.05;
     const mid = point(angle - bow * 40, distance * 0.55);
-    return `M${centre} ${centre} Q${mid.x} ${mid.y} ${end.x} ${end.y}`;
+    return `M${cx} ${cy} Q${mid.x} ${mid.y} ${end.x} ${end.y}`;
   };
 
   const shotCount = shots.length;
@@ -132,11 +162,18 @@ export function WagonWheel({
     <div>
       <svg
         width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
+        height={height}
+        viewBox={`0 0 ${size} ${height}`}
         role={onPick ? undefined : "img"}
         onClick={handleClick}
-        style={{ cursor: onPick ? "crosshair" : undefined, maxWidth: "100%", height: "auto" }}
+        style={{
+          cursor: onPick ? "crosshair" : undefined,
+          display: "block",
+          width: "100%",
+          maxWidth: size,
+          height: "auto",
+          margin: "0 auto",
+        }}
         aria-label={
           onPick
             ? undefined
@@ -145,8 +182,8 @@ export function WagonWheel({
       >
         {/* The outfield, inside the rope. */}
         <ellipse
-          cx={centre}
-          cy={centre}
+          cx={cx}
+          cy={cy}
           rx={square}
           ry={down}
           fill="#1b7f4c14"
@@ -156,8 +193,8 @@ export function WagonWheel({
         {/* The thirty-yard ring — the circle that actually means something in
             cricket, and the one a fielding restriction is written against. */}
         <ellipse
-          cx={centre}
-          cy={centre}
+          cx={cx}
+          cy={cy}
           rx={square * 0.52}
           ry={down * 0.52}
           fill="none"
@@ -173,7 +210,9 @@ export function WagonWheel({
               const spread = 26;
               const from = point(likelyAngle - spread, ropeAt(likelyAngle - spread));
               const to = point(likelyAngle + spread, ropeAt(likelyAngle + spread));
-              return `M${centre} ${centre} L${from.x} ${from.y} A${square} ${down} 0 0 1 ${to.x} ${to.y} Z`;
+              // Sweep 0: bearings run anticlockwise on the screen, so the
+              // arc from `-spread` to `+spread` does too.
+              return `M${cx} ${cy} L${from.x} ${from.y} A${square} ${down} 0 0 0 ${to.x} ${to.y} Z`;
             })()}
           />
         )}
@@ -184,8 +223,8 @@ export function WagonWheel({
           return (
             <line
               key={a}
-              x1={centre}
-              y1={centre}
+              x1={cx}
+              y1={cy}
               x2={x}
               y2={y}
               stroke="#1b7f4c22"
@@ -223,29 +262,66 @@ export function WagonWheel({
           );
         })}
 
-        {/* The square, then the pitch on it, then the creases. A wagon wheel
-            without a pitch is a pie chart; with one, which end the batter is
-            at is obvious and so is which way is down the ground. */}
+        {/* The square, the pitch on it, the creases — and the batter.
+            A wagon wheel without a pitch is a pie chart. The pitch runs from
+            the middle *away* from the reader, because the middle is where the
+            striker is standing: every line on this picture starts from them.
+            The bowler is at the far end, which is why long on and long off are
+            the sectors beyond it.
+
+            The batter is marked rather than left to be inferred, and sits just
+            behind the striker's crease — on the middle itself the lines
+            radiating out would cross it. */}
         <rect
-          x={centre - size * 0.075}
-          y={centre - down * 0.3}
-          width={size * 0.15}
-          height={down * 0.6}
+          x={cx - size * 0.05}
+          y={cy - down * 0.16}
+          width={size * 0.1}
+          height={down * 0.66}
           rx={2}
           fill="#c8b68a26"
         />
         <rect
-          x={centre - size * 0.032}
-          y={centre - down * 0.26}
-          width={size * 0.064}
-          height={down * 0.52}
+          x={cx - size * 0.022}
+          y={cy - down * 0.12}
+          width={size * 0.044}
+          height={down * 0.58}
           rx={1}
           fill="#c9ab72"
           opacity={0.5}
         />
         <g stroke="#ffffff" strokeOpacity={0.5} strokeWidth={1}>
-          <line x1={centre - size * 0.032} y1={centre - down * 0.2} x2={centre + size * 0.032} y2={centre - down * 0.2} />
-          <line x1={centre - size * 0.032} y1={centre + down * 0.2} x2={centre + size * 0.032} y2={centre + down * 0.2} />
+          {/* The striker's crease, then the bowler's at the far end. */}
+          <line x1={cx - size * 0.022} y1={cy - down * 0.05} x2={cx + size * 0.022} y2={cy - down * 0.05} />
+          <line x1={cx - size * 0.022} y1={cy + down * 0.4} x2={cx + size * 0.022} y2={cy + down * 0.4} />
+        </g>
+        <g style={{ pointerEvents: "none" }}>
+          {/* Stumps and a bat, at the striker's end. */}
+          <g stroke="#1b7f4c" strokeOpacity={0.8} strokeWidth={1.4} strokeLinecap="round">
+            <line x1={cx - size * 0.013} y1={cy - down * 0.13} x2={cx - size * 0.013} y2={cy - down * 0.07} />
+            <line x1={cx} y1={cy - down * 0.13} x2={cx} y2={cy - down * 0.07} />
+            <line x1={cx + size * 0.013} y1={cy - down * 0.13} x2={cx + size * 0.013} y2={cy - down * 0.07} />
+          </g>
+          <line
+            x1={cx + size * 0.032}
+            y1={cy - down * 0.13}
+            x2={cx + size * 0.046}
+            y2={cy - down * 0.05}
+            stroke="#1b7f4c"
+            strokeOpacity={0.8}
+            strokeWidth={size * 0.012}
+            strokeLinecap="round"
+          />
+          <text
+            x={cx}
+            y={cy - down * 0.19}
+            textAnchor="middle"
+            fontSize={size * 0.03}
+            fontWeight={600}
+            fill="currentColor"
+            opacity={0.7}
+          >
+            {t("wheel.batter")}
+          </text>
         </g>
 
         {shots.map((ball, index) => {

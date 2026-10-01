@@ -2731,6 +2731,15 @@ export const en = {
   "sc.crr": "CRR {rate}",
   "sc.rrr": " · RRR {rate}",
   "sc.over_n": "Over {n}",
+
+  // MARK: The fielding restriction warning
+  "la.fielders_outside_circle": "{out} fielders outside the circle — only {allowed} allowed.",
+
+  // MARK: The sheet's close button
+  "sc.close": "Close",
+
+  // MARK: The wagon wheel's batter mark
+  "wheel.batter": "Batter",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

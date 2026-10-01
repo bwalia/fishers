@@ -2808,7 +2808,11 @@ function LivePanel({
 
         {fieldBreach && (
           <p className="error">
-            {inn.fielders_outside} fielders outside the circle — only {allowedOutside} allowed.
+            {/* `fieldBreach` is only true when both of these are set. */}
+            {t("la.fielders_outside_circle", {
+              out: inn.fielders_outside ?? 0,
+              allowed: allowedOutside ?? 0,
+            })}
           </p>
         )}
 
@@ -3061,6 +3065,7 @@ function LivePanel({
 
       {draft && draft.step === "direction" && (
         <Sheet
+          wide
           title={t("sc.where_did_it_go")}
           step={draft.extra ? 3 : 2}
           of={draft.extra ? 3 : 2}
@@ -3069,13 +3074,16 @@ function LivePanel({
           <p className="muted">
             {t("sc.tap_the_field_nearer_the_rope_means_it")}
           </p>
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          {/* The field is the control here, so it gets the room. `.wheel-stage`
+              caps it against the viewport height as well as the sheet's width,
+              so the whole wheel is on screen without the sheet scrolling. */}
+          <div className="wheel-stage">
             {/* Only the ball being scored: the innings so far would be noise
                 when the question is where this one went. */}
             <WagonWheel
               deliveries={[]}
               batsLeft={batsLeft}
-              size={300}
+              size={520}
               likelyAngle={SHOT_SHAPES.find((sh) => sh.kind === draft.shotKind)?.angle ?? null}
               onPick={(angle, reach) =>
                 record(draft, { angle, kind: draft.shotKind || "other", reach })
@@ -3300,8 +3308,12 @@ function BatterCard({
   return (
     <div className={`card${onStrike ? " on-strike" : ""}`}>
       <div className="who-name">
-        {nameOf(id)}
-        {onStrike && <span className="tag">{t("sc.on_strike_lower")}</span>}
+        <span className="who-name-text">{nameOf(id)}</span>
+        {onStrike && (
+          <span className="on-strike-mark" title={t("sc.on_strike_lower")} aria-label={t("sc.on_strike_lower")}>
+            <Icon name="bat" size={14} />
+          </span>
+        )}
       </div>
       <div className="who-figs">
         {b ? b.runs : 0}

@@ -1073,6 +1073,21 @@ textarea { line-height: 1.5; resize: vertical; }
 @media (min-width: 700px) {
   .sheet { border-radius: var(--radius); }
 }
+/* A sheet whose content is a picture to aim at rather than a form to fill in.
+   The wagon wheel at 300px put eight field names in a circle the width of a
+   business card — legible, but not something you would trust a tap on. */
+.sheet-wide { max-width: 780px; }
+
+/* The wheel takes whichever runs out first: the sheet's width or the screen's
+   height. Sized against the viewport rather than left to overflow, because a
+   wheel you have to scroll to see the bottom of is a wheel you cannot aim at —
+   and the sheet is already capped at 88vh with the heading and buttons inside
+   that. The vh figure is a *width*: the wheel is 1.25 times wider than it is
+   tall, so 69vh of width is 55vh of height. */
+.wheel-stage {
+  width: min(100%, 69vh);
+  margin-inline: auto;
+}
 @keyframes sheet-in {
   from { transform: translateY(12px); opacity: 0; }
   to { transform: none; opacity: 1; }
@@ -1244,6 +1259,15 @@ textarea { line-height: 1.5; resize: vertical; }
   gap: var(--s4);
   grid-template-columns: 1fr;
   align-items: start;
+  /* The ground's height, and the height the dial beside it grows to meet. It
+     lives here rather than on `.ground` because nothing in CSS can ask another
+     element how tall it turned out — so the ground takes its *height* from
+     this and its width from the ratio, rather than the other way round, and
+     both columns can be sized from the same number.
+
+     The ceiling is what the scoring controls can spare; the vw term keeps the
+     ground inside its column, since a 1.45 ratio makes the width 1.45× this. */
+  --ground-h: clamp(420px, 34vw, 580px);
 }
 .score-state { order: 1; }
 .controls,
@@ -1266,6 +1290,21 @@ textarea { line-height: 1.5; resize: vertical; }
     position: sticky;
     top: 84px;
   }
+  /* Beside a round ground, two panels of their own natural heights stopped
+     short of it and left the column ragged. They share the ground's height
+     instead, so the two columns start and finish together. `flex-grow` rather
+     than `space-between`: the gap belongs between the panels, not inside one
+     of them. */
+  .controls {
+    min-height: var(--ground-h);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s4);
+  }
+  .controls > .panel {
+    flex: 1 1 auto;
+    margin-bottom: 0;
+  }
 }
 
 /* ---------- The ground ----------
@@ -1281,9 +1320,14 @@ textarea { line-height: 1.5; resize: vertical; }
    (a whole ground, but only by flattening it). A circle needs its content
    stacked rather than spread, and once it is stacked the circle costs nothing.
 
-   The stack is what makes the shape work: a circle is widest across the
+   The stack is what makes the shape work: the oval is widest across the
    middle and narrows at top and bottom, which is the exact shape of this
    content — one score card, then two batters side by side, then one bowler.
+
+   Wider than it is tall, because a true circle spent its extra width on grass
+   nobody reads while costing the same height. This keeps the height a circle
+   had and buys room across the middle, which is where the pitch and the two
+   batters are.
 
    Every piece of text sits on an opaque card, so nothing is ever read against
    grass: the contrast of a name is the contrast of its card, whatever the turf
@@ -1295,12 +1339,18 @@ textarea { line-height: 1.5; resize: vertical; }
   /* A ground is a size, not a share of the viewport, and a circle is as tall
      as it is wide — so this is also the height, and the ceiling is set by how
      much vertical room the scoring controls can spare. */
-  max-width: 580px;
-  aspect-ratio: 1 / 1;
-  /* `height: auto` keeps the circle as the *preferred* size while letting the
-     box grow if the cards inside ever need more. Without it, a long name or a
-     chase line would be clipped by the curve instead of pushing it out. */
-  height: auto;
+  height: var(--ground-h);
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 1.45 / 1;
+  /* One width for the score, each batter and the bowler: four cards reading as
+     one set rather than three sizes. The gap is what the pitch shows through,
+     so it is set wider than the pitch is drawn. */
+  --card-w: clamp(170px, 32%, 280px);
+  --pitch-gap: clamp(52px, 8%, 78px);
+  /* The height above is a floor as well as a size: a long name or a chase
+     line pushes the box out rather than being clipped by the curve. */
+  min-height: var(--ground-h);
   margin: 0 auto var(--s4);
   display: grid;
   align-content: center;
@@ -1349,8 +1399,8 @@ textarea { line-height: 1.5; resize: vertical; }
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 34px;
-  height: 46%;
+  width: 46px;
+  height: 32%;
   transform: translate(-50%, -50%);
   border-radius: 3px;
   background: rgb(201 171 114 / 34%);
@@ -1380,17 +1430,41 @@ textarea { line-height: 1.5; resize: vertical; }
   grid-template-columns: 1fr;
   justify-items: center;
   width: 100%;
-  gap: var(--s3);
+  /* Opens the band between the score card and the bowler's, which is the only
+     stretch of pitch that is not behind something. */
+  gap: var(--s5);
 }
-.ground-score { width: min(230px, 56%); }
-.ground .bowler { width: min(290px, 64%); }
+.ground-score,
+.ground .bowler { width: var(--card-w); }
 /* The two batters, with the pitch up the middle between them. The gap is wider
    than the pitch is, which is the only reason the pitch is visible at all. */
 .ground-batters {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 46px;
-  width: min(470px, 90%);
+  grid-template-columns: var(--card-w) var(--card-w);
+  justify-content: center;
+  gap: var(--pitch-gap);
+  width: auto;
+}
+/* Name on the left, who is on strike on the right. */
+.ground .who-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+/* A bat rather than the words "on strike": at this size the words were a chip
+   as wide as the name beside them. It carries an `aria-label`, because an icon
+   on its own is not a label — the one thing this mark has to survive is being
+   read aloud. */
+.ground .on-strike-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
 }
 /* Cards on grass: opaque, so their text is read against a surface. */
 .ground .card,
@@ -1422,8 +1496,8 @@ textarea { line-height: 1.5; resize: vertical; }
    one card; stacked, those cells would each be a row of their own. */
 .ground-chase {
   text-align: center;
-  width: min(290px, 64%);
-  margin-top: var(--s3);
+  width: var(--card-w);
+  margin-top: var(--s5);
 }
 .ground-chase > div:nth-child(1),
 .ground-chase > div:nth-child(3) { display: none; }
@@ -1444,7 +1518,10 @@ textarea { line-height: 1.5; resize: vertical; }
 @media (max-width: 620px) {
   .ground {
     aspect-ratio: auto;
+    width: 100%;
     max-width: none;
+    height: auto;
+    min-height: 0;
     padding: var(--s4) var(--s3);
     border-radius: var(--radius);
     border-color: var(--border);
@@ -1470,7 +1547,8 @@ textarea { line-height: 1.5; resize: vertical; }
   .ground .bowler,
   .ground-batters,
   .ground-chase { width: 100%; }
-  .ground-batters { gap: var(--s2); }
+  .ground-batters { grid-template-columns: 1fr 1fr; gap: var(--s2); }
+  .ground-row { gap: var(--s3); }
   .ground-pitch { display: none; }
 }
 

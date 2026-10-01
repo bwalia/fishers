@@ -2718,4 +2718,13 @@ export const pa: Dict = {
   "sc.crr": "ਮੌ.ਰ.ਰੇ. {rate}",
   "sc.rrr": " · ਲੋ.ਰ.ਰੇ. {rate}",
   "sc.over_n": "ਓਵਰ {n}",
+
+  // The fielding restriction warning
+  "la.fielders_outside_circle": "{out} ਫੀਲਡਰ ਸਰਕਲ ਤੋਂ ਬਾਹਰ — ਸਿਰਫ਼ {allowed} ਦੀ ਇਜਾਜ਼ਤ ਹੈ।",
+
+  // The sheet's close button
+  "sc.close": "ਬੰਦ ਕਰੋ",
+
+  // The wagon wheel's batter mark
+  "wheel.batter": "ਬੱਲੇਬਾਜ਼",
 };

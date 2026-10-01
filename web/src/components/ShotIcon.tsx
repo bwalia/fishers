@@ -34,7 +34,11 @@ export function ShotIcon({ shape, size = 44 }: { shape: ShotShape; size?: number
 
   let arrow = null;
   if (shape.angle !== null) {
-    const rad = ((shape.angle - 90) * Math.PI) / 180;
+    // The same orientation the wagon wheel draws: straight down the ground
+    // points down, and bearings run anticlockwise so a right-hander's off side
+    // is on the left. The two have to agree — the picker's pictogram and the
+    // field you then tap are the same shot.
+    const rad = ((90 - shape.angle) * Math.PI) / 180;
     const x = c + tip * Math.cos(rad);
     const y = c + tip * Math.sin(rad);
     if (shape.aerial) {
