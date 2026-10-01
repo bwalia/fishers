@@ -2129,4 +2129,18 @@ export const pa: Dict = {
   // The dashboard greeting
   "page.greeting": "{greeting}, {name}",
   "page.welcome_new": "{brand} ਤੇ ਜੀ ਆਇਆਂ ਨੂੰ। ਕੁਝ ਛੋਟੇ ਕਦਮ ਅਤੇ ਤੁਸੀਂ ਤਿਆਰ ਹੋ।",
+
+  // Answering a fixture
+  "fx.available": "ਉਪਲਬਧ",
+  "fx.maybe": "ਸ਼ਾਇਦ",
+
+  // Positions, sync and umpire ratings
+  "pos.batter": "ਬੱਲੇਬਾਜ਼",
+  "pos.bowler": "ਗੇਂਦਬਾਜ਼",
+  "pos.wicketkeeper": "ਵਿਕਟਕੀਪਰ",
+  "sync.saved": "ਸੰਭਾਲਿਆ",
+  "sync.offline_balls.one": "ਆਫ਼ਲਾਈਨ — ਇਸ ਡਿਵਾਈਸ ਤੇ {n} ਗੇਂਦ ਸੰਭਾਲੀ",
+  "sync.offline_balls.other": "ਆਫ਼ਲਾਈਨ — ਇਸ ਡਿਵਾਈਸ ਤੇ {n} ਗੇਂਦਾਂ ਸੰਭਾਲੀਆਂ",
+  "ump.rating_from.one": "{n} ਸਮੀਖਿਆ ਤੋਂ {avg}",
+  "ump.rating_from.other": "{n} ਸਮੀਖਿਆਵਾਂ ਤੋਂ {avg}",
 };

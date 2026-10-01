@@ -426,7 +426,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
           </div>
           <p className="muted" style={{ marginTop: 12 }}>
             {members.length} member{members.length === 1 ? "" : "s"}. Changing a role takes
-            effect immediately; {roleLabel("club_admin")} is the only role that can manage this page.
+            effect immediately; {roleLabel("club_admin", false, t)} is the only role that can manage this page.
           </p>
         </section>
       )}

@@ -207,7 +207,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
           {proposals.map((p) => (
             <article key={p.id} className="proposal">
               <header>
-                <span className="tag gold">{PROPOSAL_KIND[p.kind] ?? p.kind}</span>
+                <span className="tag gold">{t(PROPOSAL_KIND[p.kind])}</span>
                 <span className="subtle">{p.confidence} confidence</span>
               </header>
               <p>{p.rationale}</p>

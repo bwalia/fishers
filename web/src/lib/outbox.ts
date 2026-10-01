@@ -1,3 +1,4 @@
+import type { T } from "@/lib/i18n";
 /// What a scorer keeps when the network goes.
 ///
 /// Two things live here, per match: the last state the engine produced, and the
@@ -98,10 +99,8 @@ export async function clear(matchId: string): Promise<void> {
 /// two vocabularies for the same three states.
 export type SyncState = "saved" | "syncing" | "offline";
 
-export function syncLabel(state: SyncState, queued: number): string {
-  if (state === "saved") return "Saved";
-  if (state === "syncing") return "le.syncing";
-  return queued === 1
-    ? "le.offline_1_ball_saved_on_this_device"
-    : `Offline — ${queued} balls saved on this device`;
+export function syncLabel(state: SyncState, queued: number, t: T): string {
+  if (state === "saved") return t("sync.saved");
+  if (state === "syncing") return t("le.syncing");
+  return t("sync.offline_balls", { n: queued, count: queued });
 }

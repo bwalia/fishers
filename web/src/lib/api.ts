@@ -154,15 +154,18 @@ export const SKILL_LEVELS = [
   { value: "county", label: "lb.county_semi_pro" },
 ] as const;
 
-export function skillLabel(value?: string | null): string {
-  if (!value) return "lb.not_said";
-  return SKILL_LEVELS.find((s) => s.value === value)?.label ?? value;
+export function skillLabel(value: string | null | undefined, t: T): string {
+  if (!value) return t("lb.not_said");
+  const found = SKILL_LEVELS.find((s) => s.value === value)?.label;
+  // An unknown level is whatever the server called it — there is no key for a
+  // value this build has never heard of.
+  return found ? t(found) : value;
 }
 
 /// What each sport calls its positions. Adding a sport is a line here, not a
 /// migration — and an unknown sport still works, it just takes free text.
-export const SPORT_POSITIONS: Record<string, string[]> = {
-  cricket: ["Batter", "Bowler", "lb.all_rounder", "Wicketkeeper"],
+export const SPORT_POSITIONS: Record<string, Key[]> = {
+  cricket: ["pos.batter", "pos.bowler", "lb.all_rounder", "pos.wicketkeeper"],
   football: ["lb.goalkeeper", "lb.defender", "lb.midfielder", "lb.forward"],
   badminton: ["lb.singles", "lb.doubles", "lb.mixed_doubles"],
   paddle: ["lb.right_side", "lb.left_side"],
@@ -913,9 +916,10 @@ export const isSecretaryRole = (role: string) => role === "club_admin" || role =
 
 /// `captain` is the membership's `is_captain`: a secretary who also captains
 /// reads as both, since in a small club that is one person.
-export function roleLabel(role: string, captain = false): string {
-  if (captain && isSecretaryRole(role)) return "lb.secretary_captain";
-  return CLUB_ROLES.find((r) => r.value === role)?.label ?? role.replaceAll("_", " ");
+export function roleLabel(role: string, captain: boolean, t: T): string {
+  if (captain && isSecretaryRole(role)) return t("lb.secretary_captain");
+  const found = CLUB_ROLES.find((r) => r.value === role)?.label;
+  return found ? t(found) : role.replaceAll("_", " ");
 }
 
 /// The role picker's choices: the roles, plus a secretary who captains.

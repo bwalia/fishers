@@ -332,7 +332,7 @@ function Members({
                         ))}
                       </select>
                     ) : (
-                      <span className="tag grey">{roleLabel(m.role, m.is_captain)}</span>
+                      <span className="tag grey">{roleLabel(m.role, !!m.is_captain, t)}</span>
                     )}
                   </td>
                   {isSecretary && (
@@ -571,7 +571,7 @@ function TeamRow({ team }: { team: Team }) {
                   </strong>
                   <span className="pick-signals">
                     {m.role !== "member" && (
-                      <span className="tag">{roleLabel(m.role)}</span>
+                      <span className="tag">{roleLabel(m.role, false, t)}</span>
                     )}
                     {m.position_role && <span className="subtle">{m.position_role}</span>}
                   </span>

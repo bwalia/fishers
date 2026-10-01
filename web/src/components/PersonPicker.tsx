@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { roleLabel, type ClubMemberRow } from "@/lib/api";
 import { useT } from "@/lib/i18n/provider";
 
 export type Person = { id: string; name: string; note?: string };
@@ -157,13 +156,4 @@ export function PersonPicker({
       )}
     </div>
   );
-}
-
-/// Club members as the picker wants them, with the role worth showing.
-export function peopleFromMembers(members: ClubMemberRow[]): Person[] {
-  return members.map((m) => ({
-    id: m.user_id,
-    name: m.name,
-    note: m.role === "member" ? undefined : roleLabel(m.role, m.is_captain),
-  }));
 }

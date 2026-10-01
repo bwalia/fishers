@@ -1,3 +1,4 @@
+import type { T } from "@/lib/i18n";
 /// Umpiring, as the API hands it over.
 ///
 /// Club cricket umpires itself, and the person who does it every week has had
@@ -92,9 +93,11 @@ export const clubUmpires = (clubId: string) =>
 export function ratingLabel(p: {
   rating_average: number | null;
   rating_count: number;
-}): string {
-  if (p.rating_average === null || p.rating_count === 0) return "le.no_ratings_yet";
-  return `${p.rating_average.toFixed(1)} from ${p.rating_count} ${
-    p.rating_count === 1 ? "review" : "reviews"
-  }`;
+}, t: T): string {
+  if (p.rating_average === null || p.rating_count === 0) return t("le.no_ratings_yet");
+  return t("ump.rating_from", {
+    avg: p.rating_average.toFixed(1),
+    n: p.rating_count,
+    count: p.rating_count,
+  });
 }

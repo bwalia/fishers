@@ -133,7 +133,7 @@ function ProfileHero({
           <h1 className="pro-last">{last}</h1>
           <div className="pro-meta">
             {club && <span>{club}</span>}
-            {main?.skill_level && <span>{skillLabel(main.skill_level)}</span>}
+            {main?.skill_level && <span>{skillLabel(main.skill_level, t)}</span>}
             {main?.position && <span className="pro-role">{main.position}</span>}
           </div>
         </div>
@@ -870,7 +870,7 @@ function SportCard({
         </div>
         <dl className="terms-summary">
           <div><dt>{t("cl.position")}</dt><dd>{profile.position || "—"}</dd></div>
-          <div><dt>{t("cl.standard")}</dt><dd>{skillLabel(profile.skill_level)}</dd></div>
+          <div><dt>{t("cl.standard")}</dt><dd>{skillLabel(profile.skill_level, t)}</dd></div>
           {profile.team_name && <div><dt>{t("cl.team")}</dt><dd>{profile.team_name}</dd></div>}
           {profile.years_playing != null && (
             <div><dt>Playing for</dt><dd className="num">{profile.years_playing} years</dd></div>
@@ -913,7 +913,7 @@ function SportCard({
             onChange={(e) => setDraft({ ...draft, skill_level: e.target.value })}
           >
             <option value="">—</option>
-            {SKILL_LEVELS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            {SKILL_LEVELS.map((s) => <option key={s.value} value={s.value}>{t(s.label)}</option>)}
           </select>
         </label>
         <label>

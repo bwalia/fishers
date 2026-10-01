@@ -5,17 +5,20 @@ import { readErr } from "@/lib/api";
 import { ANSWERS, answerFixture, type Answer } from "@/lib/fixtures";
 import { useT } from "@/lib/i18n/provider";
 
-/// t("le.can_you_play") — Available, Maybe or Can't play, showing what you said and
+/// "Can you play?" — Available, Maybe or Can't play, showing what you said and
 /// letting you change it. Saved as you tap; put back if it does not save.
 export function FixtureAnswer({
   eventId,
   answer,
   onAnswered,
-  label = "le.can_you_play",
+  label,
 }: {
   eventId: string;
   answer: Answer | null;
   onAnswered: (answer: Answer | null) => void;
+  /// Already-translated text for the group — callers name the fixture in it,
+  /// so it carries a value and cannot be a bare key. Defaults to the plain
+  /// question.
   label?: string;
 }) {
   const t = useT();
@@ -40,7 +43,7 @@ export function FixtureAnswer({
 
   return (
     <div className="fx-answer">
-      <div className="fx-seg" role="radiogroup" aria-label={label}>
+      <div className="fx-seg" role="radiogroup" aria-label={label ?? t("le.can_you_play")}>
         {ANSWERS.map((a) => (
           <button
             key={a.value}
@@ -51,7 +54,7 @@ export function FixtureAnswer({
             disabled={busy}
             onClick={() => choose(a.value)}
           >
-            {a.label}
+            {t(a.label)}
           </button>
         ))}
       </div>

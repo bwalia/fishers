@@ -392,7 +392,7 @@ export default function ScorerPage({
           is a chip nobody reads. */}
       {sync !== "saved" && (
         <p className={`sync-chip ${sync}`} role="status" aria-live="polite">
-          {syncLabel(sync, queued.current.length)}
+          {syncLabel(sync, queued.current.length, t)}
           {sync === "offline" && (
             <span className="sync-note">
               {t("sc.they_will_go_up_on_their_own_when_ther")}

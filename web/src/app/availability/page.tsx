@@ -249,7 +249,7 @@ export default function AvailabilityPage() {
                     ]
                       .filter(Boolean)
                       .join(" ")}
-                    aria-label={`${date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} — ${status ? t(AVAILABILITY_LABEL[status]) : "not said"}${playing.map((f) => `; ${f.title} at ${timeOf(f.start_at)}: ${saidLabel(f.my_answer)}`).join("")}`}
+                    aria-label={`${date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} — ${status ? t(AVAILABILITY_LABEL[status]) : "not said"}${playing.map((f) => `; ${f.title} at ${timeOf(f.start_at)}: ${t(saidLabel(f.my_answer))}`).join("")}`}
                     onClick={() => setChosen(key)}
                   >
                     <span className="cal-num num">{date.getDate()}</span>
@@ -336,7 +336,7 @@ export default function AvailabilityPage() {
                   </div>
                   <p className="subtle">
                     {f.club_name}
-                    {f.venue_name ? ` · ${f.venue_name}` : ""} · {saidLabel(f.my_answer)}
+                    {f.venue_name ? ` · ${f.venue_name}` : ""} · {t(saidLabel(f.my_answer))}
                   </p>
                   {Date.parse(f.end_at) > Date.now() && (
                     <FixtureAnswer

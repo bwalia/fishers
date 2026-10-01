@@ -100,7 +100,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             <h1 className="pro-last">{last}</h1>
             <div className="pro-meta">
               {player.shared_clubs[0] && <span>{player.shared_clubs[0]}</span>}
-              {main?.skill_level && <span>{skillLabel(main.skill_level)}</span>}
+              {main?.skill_level && <span>{skillLabel(main.skill_level, t)}</span>}
               {(main?.position ?? player.position_role) && (
                 <span className="pro-role">{main?.position ?? player.position_role}</span>
               )}

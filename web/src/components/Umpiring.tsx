@@ -64,7 +64,7 @@ export function Umpiring({ userId, name }: { userId?: string; name?: string }) {
         <Figure value={String(profile.matches)} label={profile.matches === 1 ? "match umpired" : "matches umpired"} />
         <Figure
           value={profile.rating_average === null ? "—" : profile.rating_average.toFixed(1)}
-          label={ratingLabel(profile)}
+          label={ratingLabel(profile, t)}
         />
       </div>
 

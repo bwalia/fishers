@@ -2142,6 +2142,20 @@ export const en = {
   // MARK: The dashboard greeting
   "page.greeting": "{greeting}, {name}",
   "page.welcome_new": "Welcome to {brand}. A few quick steps and you're up and running.",
+
+  // MARK: Answering a fixture
+  "fx.available": "Available",
+  "fx.maybe": "Maybe",
+
+  // MARK: Positions, sync and umpire ratings
+  "pos.batter": "Batter",
+  "pos.bowler": "Bowler",
+  "pos.wicketkeeper": "Wicketkeeper",
+  "sync.saved": "Saved",
+  "sync.offline_balls.one": "Offline — {n} ball saved on this device",
+  "sync.offline_balls.other": "Offline — {n} balls saved on this device",
+  "ump.rating_from.one": "{avg} from {n} review",
+  "ump.rating_from.other": "{avg} from {n} reviews",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

@@ -364,10 +364,10 @@ function FixtureCard({
       </div>
       <div className="fx-side">
         {past ? (
-          <span className={`fx-said is-${state}`}>{saidLabel(f.my_answer)}</span>
+          <span className={`fx-said is-${state}`}>{t(saidLabel(f.my_answer))}</span>
         ) : (
           <>
-            <span className={`fx-said is-${state}`}>{saidLabel(f.my_answer)}</span>
+            <span className={`fx-said is-${state}`}>{t(saidLabel(f.my_answer))}</span>
             <FixtureAnswer eventId={f.event_id} answer={f.my_answer} onAnswered={onAnswered} label={t("fin.can_you_play_fixture", { fixture: f.title })} />
           </>
         )}

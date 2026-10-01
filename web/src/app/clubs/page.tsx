@@ -348,7 +348,7 @@ function ClubRow({ club }: { club: Membership }) {
         {club.description && <p className="cl-row-desc">{club.description}</p>}
       </div>
       <span className="cl-row-role">
-        <span className="tag gold">{roleLabel(club.role, club.is_captain)}</span>
+        <span className="tag gold">{roleLabel(club.role, !!club.is_captain, t)}</span>
       </span>
       <span className="cl-row-stat">
         <strong>{club.member_count}</strong> <span>{club.member_count === 1 ? "member" : "members"}</span>

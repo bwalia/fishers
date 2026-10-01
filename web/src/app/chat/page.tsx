@@ -105,7 +105,7 @@ export default function ChatListPage() {
                       {thread.pending_proposals}
                     </span>
                   )}
-                  <span className="tag grey">{CONVERSATION_KIND[thread.kind] ?? thread.kind}</span>
+                  <span className="tag grey">{t(CONVERSATION_KIND[thread.kind])}</span>
                 </span>
               </Link>
             </li>
