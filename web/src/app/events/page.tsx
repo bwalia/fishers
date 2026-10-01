@@ -440,9 +440,9 @@ function ScheduleMatch({
   // In the order the form asks, so the answer is always the next thing down
   // the page rather than something they have to hunt for.
   const missing = [
-    !clubId && "which of your clubs is playing",
-    !opponent && !oppositionName.trim() && "who you are playing",
-    !start && "when",
+    !clubId && t("ev.missing_which_club"),
+    !opponent && !oppositionName.trim() && t("ev.missing_who"),
+    !start && t("ev.missing_when"),
   ]
     .filter(Boolean)
     .join(", ");
@@ -451,13 +451,13 @@ function ScheduleMatch({
     <div className="panel setup-panel">
       <div className="panel-head">
         <h2>{t("ev.schedule_a_match")}</h2>
-        <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
+        <button className="btn ghost sm" type="button" onClick={onClose}>{t("ev.cancel")}</button>
       </div>
 
       <fieldset className="setup-group">
-        <legend>Your side</legend>
+        <legend>{t("ev.your_side")}</legend>
         <label>
-          Club
+          {t("ev.club")}
           <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
             {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -468,7 +468,7 @@ function ScheduleMatch({
         <legend>{t("ev.where")}</legend>
         {venues.length === 0 ? (
           <p className="muted">
-            No grounds saved for this club yet. Add them on the{" "}
+            {t("ev.no_grounds_saved")}{" "}
             <Link href={`/clubs/${clubId}`}>{t("ev.club_page")}</Link> {t("ev.and_they_show_up_here")}
           </p>
         ) : (
@@ -483,7 +483,7 @@ function ScheduleMatch({
       </fieldset>
 
       <fieldset className="setup-group">
-        <legend>The opposition</legend>
+        <legend>{t("ev.the_opposition")}</legend>
         <OppositionPicker
           homeClubId={clubId}
           onPick={(found, name) => {
@@ -493,8 +493,8 @@ function ScheduleMatch({
         />
         <p className="subtle">
           {opponent
-            ? `${opponent.name} are on ${brand.name} — their players get asked too.`
-            : `A club on ${brand.name} gets asked as well. Otherwise only your side is.`}
+            ? t("ev.opponent_is_on_brand", { opponent: opponent.name, brand: brand.name })
+            : t("ev.club_on_brand_gets_asked", { brand: brand.name })}
         </p>
       </fieldset>
 
@@ -515,7 +515,7 @@ function ScheduleMatch({
       {/* A dead button with no explanation reads as a broken app. Say which
           piece is missing, in the order the form asks for them. */}
       {!busy && missing && (
-        <p className="muted" role="status">Still needed: {missing}.</p>
+        <p className="muted" role="status">{t("ev.still_needed", { missing })}</p>
       )}
 
       <button

@@ -4296,6 +4296,13 @@ a.bell-item:hover { background: var(--surface-2); }
 }
 .overflow-item:hover { background: var(--surface-2); }
 
+/* `.subtle` is a muted grey tuned for a pale surface. On a filled button it
+   lands at 1.26:1 against the primary green — present in the DOM and invisible
+   to read. Inside one it keeps its smaller size, which is what carries the
+   hierarchy, and takes the button's own colour, which is what carries the
+   contrast. */
+.btn.primary .subtle { color: inherit; }
+
 /* The language menu reserves the tick's width on every row, so the names line
    up in a column instead of the current one sitting 16px to the right of the
    rest. */

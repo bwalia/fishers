@@ -29,6 +29,14 @@ export function OppositionPicker({
 }) {
   const t = useT();
   const [tab, setTab] = useState<"scan" | "code" | "search">("search");
+  /// What is currently chosen, so the result that was clicked can say so.
+  ///
+  /// The picker used to hand the choice to the parent and forget it, which
+  /// left the thing you clicked looking exactly as it did before — the only
+  /// confirmation was a line of prose two fields further down, past an empty
+  /// input. People clicked, saw nothing change, and concluded it had not
+  /// worked.
+  const [picked, setPicked] = useState<OpponentIdentity | null>(null);
   const [code, setCode] = useState("");
   const [query, setQuery] = useState("");
   /// A club that is not on Fishers at all: a name and nothing else.
@@ -54,8 +62,9 @@ export function OppositionPicker({
         return;
       }
       setPlain("");
+      setPicked(identity);
       onPick(identity, identity.name);
-      setNote(`Matched ${identity.name}.`);
+      setNote(t("opp.matched", { name: identity.name }));
     } catch {
       setNote(t("le.that_code_is_not_one_of_ours_try_searc"));
     } finally {
@@ -123,14 +132,19 @@ export function OppositionPicker({
             {results.filter(allowed).map((r) => (
               <li key={r.id}>
                 <button
-                  className="btn sm"
+                  className={`btn sm${picked?.id === r.id ? " primary" : ""}`}
                   type="button"
+                  // `aria-pressed` and the class are the whole point: this is
+                  // a choice, and a choice has to look made.
+                  aria-pressed={picked?.id === r.id}
                   onClick={() => {
                     setPlain("");
+                    setPicked(r);
                     onPick(r, r.name);
-                    setNote(`Matched ${r.name}.`);
+                    setNote(t("opp.matched", { name: r.name }));
                   }}
                 >
+                  {picked?.id === r.id && <Icon name="check" size={14} />}
                   {r.name}
                   <span className="subtle"> {r.kind}</span>
                 </button>
@@ -142,7 +156,7 @@ export function OppositionPicker({
               // "nobody by that name" read as though they were not on Fishers
               // at all — and left no way forward.
               <li className="muted">
-                Nobody by that name you can search for. A club set to{" "}
+                {t("opp.nobody_by_that_name")}{" "}
                 <strong>{t("rest.invite_only")}</strong> {t("rest.is_kept_out_of_search_ask_them_for_the")}
               </li>
             )}
@@ -162,6 +176,7 @@ export function OppositionPicker({
                 // A typed name and a matched club are alternatives, so typing
                 // clears whatever was matched — otherwise the fixture is
                 // scheduled against the club they abandoned.
+                setPicked(null);
                 onPick(null, e.target.value);
                 setNote(null);
               }}
@@ -192,7 +207,7 @@ export function OppositionPicker({
             disabled={!code.trim() || busy}
             onClick={() => resolve(code.trim())}
           >
-            {busy ? t("le.looking") : "Match"}
+            {busy ? t("le.looking") : t("opp.match_button")}
           </button>
         </div>
       )}
