@@ -2124,4 +2124,25 @@ export const pa: Dict = {
 
   // Fixture answer label
   "fin.can_you_play_fixture": "ਕੀ ਤੁਸੀਂ {fixture} ਖੇਡ ਸਕਦੇ ਹੋ?",
+
+  // Scheduling a match — the last of this screen
+  "opp.matched": "{name} ਚੁਣ ਲਿਆ ਗਿਆ।",
+  "opp.match_button": "ਮਿਲਾਓ",
+  "opp.nobody_by_that_name": "ਉਸ ਨਾਮ ਦਾ ਕੋਈ ਨਹੀਂ ਮਿਲਿਆ ਜਿਸਨੂੰ ਖੋਜਿਆ ਜਾ ਸਕੇ। ਜਿਹੜਾ ਕਲੱਬ",
+  "ev.cancel": "ਰੱਦ ਕਰੋ",
+  "ev.your_side": "ਤੁਹਾਡੀ ਟੀਮ",
+  "ev.club": "ਕਲੱਬ",
+  "ev.the_opposition": "ਵਿਰੋਧੀ ਟੀਮ",
+  "ev.no_grounds_saved": "ਇਸ ਕਲੱਬ ਦਾ ਹਾਲੇ ਕੋਈ ਮੈਦਾਨ ਸੰਭਾਲਿਆ ਨਹੀਂ। ਇਹਨਾਂ ਨੂੰ ਇੱਥੇ ਜੋੜੋ:",
+  "ev.opponent_is_on_brand": "{opponent} {brand} ਤੇ ਹਨ — ਉਨ੍ਹਾਂ ਦੇ ਖਿਡਾਰੀਆਂ ਤੋਂ ਵੀ ਪੁੱਛਿਆ ਜਾਵੇਗਾ।",
+  "ev.club_on_brand_gets_asked": "{brand} ਤੇ ਮੌਜੂਦ ਕਲੱਬ ਤੋਂ ਵੀ ਪੁੱਛਿਆ ਜਾਂਦਾ ਹੈ। ਨਹੀਂ ਤਾਂ ਸਿਰਫ਼ ਤੁਹਾਡੀ ਟੀਮ ਤੋਂ।",
+  "ev.still_needed": "ਹਾਲੇ ਲੋੜੀਂਦਾ: {missing}।",
+  "ev.missing_which_club": "ਤੁਹਾਡਾ ਕਿਹੜਾ ਕਲੱਬ ਖੇਡ ਰਿਹਾ ਹੈ",
+  "ev.missing_who": "ਤੁਸੀਂ ਕਿਸ ਨਾਲ ਖੇਡ ਰਹੇ ਹੋ",
+  "ev.missing_when": "ਕਦੋਂ",
+
+  // The chosen opposition
+  "opp.playing": "{name} ਨਾਲ ਖੇਡ ਰਹੇ ਹੋ",
+  "opp.change": "ਬਦਲੋ",
+  "opp.on_brand_too": "ਉਹ {brand} ਤੇ ਹਨ, ਇਸ ਲਈ ਉਨ੍ਹਾਂ ਦੇ ਖਿਡਾਰੀਆਂ ਤੋਂ ਵੀ ਪੁੱਛਿਆ ਜਾਵੇਗਾ।",
 };

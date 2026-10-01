@@ -2137,6 +2137,27 @@ export const en = {
 
   // MARK: Fixture answer label
   "fin.can_you_play_fixture": "Can you play {fixture}?",
+
+  // MARK: Scheduling a match — the last of this screen
+  "opp.matched": "Matched {name}.",
+  "opp.match_button": "Match",
+  "opp.nobody_by_that_name": "Nobody by that name you can search for. A club set to",
+  "ev.cancel": "Cancel",
+  "ev.your_side": "Your side",
+  "ev.club": "Club",
+  "ev.the_opposition": "The opposition",
+  "ev.no_grounds_saved": "No grounds saved for this club yet. Add them on the",
+  "ev.opponent_is_on_brand": "{opponent} are on {brand} — their players get asked too.",
+  "ev.club_on_brand_gets_asked": "A club on {brand} gets asked as well. Otherwise only your side is.",
+  "ev.still_needed": "Still needed: {missing}.",
+  "ev.missing_which_club": "which of your clubs is playing",
+  "ev.missing_who": "who you are playing",
+  "ev.missing_when": "when",
+
+  // MARK: The chosen opposition
+  "opp.playing": "Playing {name}",
+  "opp.change": "Change",
+  "opp.on_brand_too": "They are on {brand}, so their players get asked as well.",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.
