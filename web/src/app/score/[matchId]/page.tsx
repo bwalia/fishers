@@ -2512,6 +2512,10 @@ type Draft = {
 };
 
 const ASK_KEY = "fishers_ask_shot";
+/// Whether to ask a model for a line of colour after each ball. Per device,
+/// like the shot question: a scorer on a phone tethered to a car park may want
+/// it off, and the one beside them on the clubhouse wifi may not.
+const AI_KEY = "fishers_ai_commentary";
 
 function LivePanel({
   match,
@@ -2546,9 +2550,16 @@ function LivePanel({
   /// Model-written lines, keyed by ball. The log-written line shows instantly
   /// and is replaced only if a better one arrives.
   const [aiLines, setAiLines] = useState<Record<string, string>>({});
+  const [aiOn, setAiOn] = useState(true);
+  /// Why there is no model-written line, when there is none. Silence was the
+  /// whole problem: with the switch on and nothing appearing, there was no way
+  /// to tell an unconfigured server from an unreachable one from a model that
+  /// simply had nothing to add.
+  const [aiStatus, setAiStatus] = useState<"idle" | "ok" | "no_model" | "unreachable">("idle");
 
   const ballCount = (inn.deliveries || []).length;
   useEffect(() => {
+    if (!aiOn) return;
     const last = (inn.deliveries || [])[ballCount - 1];
     if (!last) return;
     const key = `${last.over}.${last.ball_in_over}.${last.label}`;
@@ -2560,7 +2571,7 @@ function LivePanel({
     // stream holds one, and lines still being written for old balls filled the
     // rest — so the next ball queued behind them and the scorer's taps stalled.
     const ctl = new AbortController();
-    api<{ line: string | null }>(
+    api<{ line: string | null; model: string | null }>(
       "POST",
       `/cricket/matches/${match.id}/commentary`,
       // The language goes with the request, not the response: the model writes
@@ -2571,19 +2582,36 @@ function LivePanel({
       ctl.signal
     )
       .then((r) => {
-        if (r.line) setAiLines((prev) => ({ ...prev, [key]: r.line! }));
+        if (r.line) {
+          setAiLines((prev) => ({ ...prev, [key]: r.line! }));
+          setAiStatus("ok");
+          return;
+        }
+        // The route answers with the model it would have used, so a server
+        // with none configured is a different thing to say than one whose
+        // model did not answer.
+        setAiStatus(r.model ? "unreachable" : "no_model");
       })
-      .catch(() => {});
+      .catch(() => {
+        // An abort is this effect cleaning up after itself, not a failure.
+        if (!ctl.signal.aborted) setAiStatus("unreachable");
+      });
     return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ballCount, match.id, locale]);
+  }, [ballCount, match.id, locale, aiOn]);
 
   useEffect(() => {
     setAskShot(localStorage.getItem(ASK_KEY) !== "0");
+    setAiOn(localStorage.getItem(AI_KEY) !== "0");
   }, []);
   const toggleAsk = (on: boolean) => {
     setAskShot(on);
     localStorage.setItem(ASK_KEY, on ? "1" : "0");
+  };
+  const toggleAi = (on: boolean) => {
+    setAiOn(on);
+    localStorage.setItem(AI_KEY, on ? "1" : "0");
+    if (!on) setAiStatus("idle");
   };
 
   /// Turn the draft into the one event it represents and send it.
@@ -2849,7 +2877,20 @@ function LivePanel({
         )}
 
         <div className="panel">
-          <h2>{t("sc.commentary")}</h2>
+          <div className="panel-head">
+            <h2>{t("sc.commentary")}</h2>
+            {/* Not only for whoever has the book: the request goes out for
+                anybody watching this page, so anybody watching can stop it. */}
+            <label className="checkbox" style={{ fontSize: "0.85rem" }}>
+              <input type="checkbox" checked={aiOn} onChange={(e) => toggleAi(e.target.checked)} />
+              {t("sc.ai_commentary")}
+            </label>
+          </div>
+          {aiOn && aiStatus !== "idle" && aiStatus !== "ok" && (
+            <p className="muted" style={{ fontSize: "0.85rem" }}>
+              {t(aiStatus === "no_model" ? "sc.ai_no_model" : "sc.ai_unreachable")}
+            </p>
+          )}
           <ul className="comm-list">
             {commentaryRows.map((row) =>
               row.kind === "over" ? (

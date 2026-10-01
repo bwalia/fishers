@@ -53,6 +53,13 @@ If you cannot write the other language, set \"translated\" to an empty string.";
 pub struct Ollama {
     url: String,
     model: String,
+    /// Sent as `Authorization: Bearer`, when the endpoint wants one.
+    ///
+    /// A bare Ollama does not, but one published on a hostname usually sits
+    /// behind something that does — and a gateway answering 403 looks from
+    /// here exactly like a model with nothing to say, which is a bad way to
+    /// spend an afternoon.
+    api_key: Option<String>,
     http: reqwest::Client,
 }
 
@@ -79,6 +86,10 @@ impl Ollama {
         Some(Self {
             url: url.trim_end_matches('/').to_string(),
             model: std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.into()),
+            api_key: std::env::var("OLLAMA_API_KEY")
+                .ok()
+                .map(|k| k.trim().to_string())
+                .filter(|k| !k.is_empty()),
             http: reqwest::Client::builder()
                 // A line is only worth having while its ball is the latest:
                 // by the next one it is stale, and the browser has already
@@ -132,13 +143,11 @@ impl Ollama {
             }),
         };
 
-        let response = match self
-            .http
-            .post(format!("{}/api/generate", self.url))
-            .json(&body)
-            .send()
-            .await
-        {
+        let mut request = self.http.post(format!("{}/api/generate", self.url));
+        if let Some(key) = &self.api_key {
+            request = request.bearer_auth(key);
+        }
+        let response = match request.json(&body).send().await {
             Ok(r) => r,
             Err(e) => {
                 warn!("ollama unreachable: {e}");
@@ -146,7 +155,22 @@ impl Ollama {
             }
         };
         if !response.status().is_success() {
-            warn!("ollama returned {}", response.status());
+            let status = response.status();
+            // 401 and 403 are almost always the gateway in front of the model
+            // rather than the model, and almost always a missing or wrong
+            // OLLAMA_API_KEY. Say so, because "returned 403" on its own sent
+            // somebody looking at the model for an afternoon.
+            if status == reqwest::StatusCode::UNAUTHORIZED
+                || status == reqwest::StatusCode::FORBIDDEN
+            {
+                warn!(
+                    "ollama returned {status} — the endpoint wants credentials and \
+                     OLLAMA_API_KEY is {}",
+                    if self.api_key.is_some() { "set, so it may be wrong" } else { "unset" }
+                );
+            } else {
+                warn!("ollama returned {status}");
+            }
             return None;
         }
         let payload: GenerateResponse = match response.json().await {

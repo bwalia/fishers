@@ -86,6 +86,15 @@ spec:
             - name: OLLAMA_MODEL
               value: {{ $.Values.config.ollamaModel | quote }}
             {{- end }}
+            {{- if .Values.config.ollamaApiKeySecret }}
+            # A published Ollama is normally behind a gateway that wants a key;
+            # a secret rather than a value, because that is what it is.
+            - name: OLLAMA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.config.ollamaApiKeySecret | quote }}
+                  key: {{ .Values.config.ollamaApiKeySecretKey | default "api-key" | quote }}
+            {{- end }}
             {{- with .Values.config.dlsResourceTable }}
             - name: DLS_RESOURCE_TABLE
               value: {{ . | quote }}

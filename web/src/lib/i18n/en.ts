@@ -2740,6 +2740,11 @@ export const en = {
 
   // MARK: The wagon wheel's batter mark
   "wheel.batter": "Batter",
+
+  // MARK: The AI commentary switch and what it says when there is no model
+  "sc.ai_commentary": "AI commentary",
+  "sc.ai_no_model": "No model is set up on the server, so every line stays as the scorebook wrote it.",
+  "sc.ai_unreachable": "The model could not be reached, so every line stays as the scorebook wrote it.",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

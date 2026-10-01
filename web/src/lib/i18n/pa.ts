@@ -2727,4 +2727,9 @@ export const pa: Dict = {
 
   // The wagon wheel's batter mark
   "wheel.batter": "ਬੱਲੇਬਾਜ਼",
+
+  // The AI commentary switch and what it says when there is no model
+  "sc.ai_commentary": "AI ਕਮੈਂਟਰੀ",
+  "sc.ai_no_model": "ਸਰਵਰ 'ਤੇ ਕੋਈ ਮਾਡਲ ਸੈੱਟ ਨਹੀਂ ਹੈ, ਸੋ ਹਰ ਲਾਈਨ ਉਵੇਂ ਹੀ ਰਹਿੰਦੀ ਹੈ ਜਿਵੇਂ ਸਕੋਰਬੁੱਕ ਨੇ ਲਿਖੀ।",
+  "sc.ai_unreachable": "ਮਾਡਲ ਤੱਕ ਨਹੀਂ ਪਹੁੰਚ ਸਕੇ, ਸੋ ਹਰ ਲਾਈਨ ਉਵੇਂ ਹੀ ਰਹਿੰਦੀ ਹੈ ਜਿਵੇਂ ਸਕੋਰਬੁੱਕ ਨੇ ਲਿਖੀ।",
 };

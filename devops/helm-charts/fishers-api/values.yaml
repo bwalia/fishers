@@ -101,6 +101,12 @@ config:
   dlsResourceTable: ""
   ollamaUrl: ""
   ollamaModel: "llama3.1:8b"
+  # A published Ollama is normally behind a gateway that wants a key, and that
+  # gateway answers 403 to a call without one — which looks from the app like a
+  # model with nothing to say. Name a secret holding it; the key inside it
+  # defaults to `api-key`.
+  ollamaApiKeySecret: ""
+  ollamaApiKeySecretKey: "api-key"
 
 podSecurityContext:
   runAsNonRoot: true
