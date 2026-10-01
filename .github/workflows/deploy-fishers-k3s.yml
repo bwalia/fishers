@@ -396,18 +396,53 @@ jobs:
           kubectl -n "$NS" get pods -l cluster-name="$CLUSTER" -o wide || true
           exit 1
 
+      # Object storage is uploads and backups. It is not what makes the app
+      # deployable: the API reads S3 settings from its environment and starts
+      # without ever talking to MinIO, and the web chart does not touch it at
+      # all. So a MinIO that cannot come up degrades the ring — it must not
+      # stop it being deployed.
+      #
+      # It did, for four days. MinIO closed public image distribution, the pod
+      # sat in ImagePullBackOff, `helm --wait` burned its timeout and `set -e`
+      # took the job down with it — so every merge to main deployed nothing at
+      # all, while the thing actually broken was a bucket nobody was writing to
+      # during a deploy anyway.
+      #
+      # Failure is reported loudly here and in the summary rather than
+      # swallowed, and the nightly backup check is the standing alarm for
+      # storage being down.
       - name: Deploy MinIO
+        id: minio
         env:
           NS: ${{ steps.ring.outputs.namespace }}
         run: |
+          # `-e` stays: helm's failure is caught by the `if` below, so the only
+          # thing it still guards is an unexpected failure anywhere else.
           set -euo pipefail
-          # --wait also waits for the post-install hook that creates the bucket
-          # and opens it for anonymous download.
-          helm upgrade --install fishers-minio "$CHARTS/fishers-minio" \
-            --namespace "$NS" \
-            -f "$CHARTS/fishers-minio/values.yaml" \
-            -f "$CHARTS/fishers-minio/values-$TARGET_ENV.yaml" \
-            --wait --timeout 10m
+          # Five minutes, not ten: a MinIO that is not up by then is not coming
+          # up this run, and the rest of the ring is waiting behind it.
+          if helm upgrade --install fishers-minio "$CHARTS/fishers-minio" \
+               --namespace "$NS" \
+               -f "$CHARTS/fishers-minio/values.yaml" \
+               -f "$CHARTS/fishers-minio/values-$TARGET_ENV.yaml" \
+               --wait --timeout 5m; then
+            echo "state=ok" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "state=failed" >> "$GITHUB_OUTPUT"
+          echo "::warning::MinIO did not become ready — uploads and backups are degraded on $TARGET_ENV. The rest of the ring is being deployed anyway."
+          # Why, not just that: the pod's own words are what makes this
+          # actionable, and an image that cannot be pulled says so here. The
+          # label is the chart's own selector and the pod name is read back
+          # from it rather than guessed.
+          kubectl -n "$NS" get pods -l app.kubernetes.io/name=fishers-minio -o wide 2>&1 | head -10 || true
+          pod=$(kubectl -n "$NS" get pods -l app.kubernetes.io/name=fishers-minio \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -n "${pod:-}" ]; then
+            kubectl -n "$NS" get events --field-selector "involvedObject.name=$pod" \
+              --sort-by=.lastTimestamp 2>&1 | tail -10 || true
+          fi
 
       - name: Deploy API
         env:
@@ -526,6 +561,11 @@ jobs:
             echo "- host: https://${{ steps.ring.outputs.hostname }}"
             echo "- namespace: \`$NS\`"
             echo "- image tag: \`$IMAGE_TAG\`"
+            # A deploy that went out with storage down is not the same as a
+            # clean one, and the summary is where somebody looks.
+            if [ "${{ steps.minio.outputs.state }}" = "failed" ]; then
+              echo "- **object storage: degraded** — MinIO is not ready, so uploads and backups will fail. The app itself deployed."
+            fi
             echo
             echo '```'
             kubectl get postgresql,externalsecret,deploy,statefulset,svc,ingress -n "$NS" 2>&1 | head -40
