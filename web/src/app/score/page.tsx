@@ -524,7 +524,7 @@ function MatchSetupSheet({
           }}
         />
         <label style={{ marginTop: "var(--s2)" }}>
-          Their name
+          {t("sc.their_name")}
           <input
             value={awayName}
             onChange={(e) => {

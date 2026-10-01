@@ -5,6 +5,7 @@ import { api, type OpponentIdentity } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { isSecureContextAvailable } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n/provider";
+import { brand } from "@/brand.generated";
 
 /// Three ways to name the other side, because a ground is not a laboratory:
 /// scan their code, paste the link they sent, or search for them by name. A
@@ -118,7 +119,37 @@ export function OppositionPicker({
         ))}
       </div>
 
-      {tab === "search" && (
+      {/* Once a club is chosen the search has done its job. Leaving the box,
+          the result list and the "or just their name" field all on screen was
+          the complaint: the list still offered clubs that were no longer
+          relevant, and the empty name field read as though nothing had been
+          picked. This is what was chosen and how to change it, and nothing
+          else. */}
+      {tab === "search" && picked && (
+        <div className="opp-chosen">
+          <p className="opp-chosen-name">
+            <Icon name="check" size={16} />
+            <strong>{t("opp.playing", { name: picked.name })}</strong>
+            <span className="subtle">{picked.kind}</span>
+          </p>
+          <p className="subtle">{t("opp.on_brand_too", { brand: brand.name })}</p>
+          <button
+            className="btn ghost sm"
+            type="button"
+            onClick={() => {
+              // Back to the search they had — same term, same results — rather
+              // than a blank box they have to start again from.
+              setPicked(null);
+              onPick(null, "");
+              setNote(null);
+            }}
+          >
+            {t("opp.change")}
+          </button>
+        </div>
+      )}
+
+      {tab === "search" && !picked && (
         <>
           <label>
             {t("rest.club_or_team_name")}
@@ -132,19 +163,19 @@ export function OppositionPicker({
             {results.filter(allowed).map((r) => (
               <li key={r.id}>
                 <button
-                  className={`btn sm${picked?.id === r.id ? " primary" : ""}`}
+                  className="btn sm"
                   type="button"
-                  // `aria-pressed` and the class are the whole point: this is
-                  // a choice, and a choice has to look made.
-                  aria-pressed={picked?.id === r.id}
                   onClick={() => {
+                    // The results stay in state deliberately. They are hidden
+                    // while something is chosen, so "Change" puts the list
+                    // back exactly as it was rather than making somebody type
+                    // their search again.
                     setPlain("");
                     setPicked(r);
                     onPick(r, r.name);
-                    setNote(t("opp.matched", { name: r.name }));
+                    setNote(null);
                   }}
                 >
-                  {picked?.id === r.id && <Icon name="check" size={14} />}
                   {r.name}
                   <span className="subtle"> {r.kind}</span>
                 </button>

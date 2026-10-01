@@ -2140,4 +2140,9 @@ export const pa: Dict = {
   "ev.missing_which_club": "ਤੁਹਾਡਾ ਕਿਹੜਾ ਕਲੱਬ ਖੇਡ ਰਿਹਾ ਹੈ",
   "ev.missing_who": "ਤੁਸੀਂ ਕਿਸ ਨਾਲ ਖੇਡ ਰਹੇ ਹੋ",
   "ev.missing_when": "ਕਦੋਂ",
+
+  // The chosen opposition
+  "opp.playing": "{name} ਨਾਲ ਖੇਡ ਰਹੇ ਹੋ",
+  "opp.change": "ਬਦਲੋ",
+  "opp.on_brand_too": "ਉਹ {brand} ਤੇ ਹਨ, ਇਸ ਲਈ ਉਨ੍ਹਾਂ ਦੇ ਖਿਡਾਰੀਆਂ ਤੋਂ ਵੀ ਪੁੱਛਿਆ ਜਾਵੇਗਾ।",
 };

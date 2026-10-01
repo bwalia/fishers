@@ -491,11 +491,12 @@ function ScheduleMatch({
             setOppositionName(name);
           }}
         />
-        <p className="subtle">
-          {opponent
-            ? t("ev.opponent_is_on_brand", { opponent: opponent.name, brand: brand.name })
-            : t("ev.club_on_brand_gets_asked", { brand: brand.name })}
-        </p>
+        {/* Only while nothing is chosen. Once it is, the picker's own panel
+            says the same thing where the choice is, and two copies of it on
+            one screen is one too many. */}
+        {!opponent && (
+          <p className="subtle">{t("ev.club_on_brand_gets_asked", { brand: brand.name })}</p>
+        )}
       </fieldset>
 
       <fieldset className="setup-group">

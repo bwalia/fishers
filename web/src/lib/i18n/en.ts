@@ -2153,6 +2153,11 @@ export const en = {
   "ev.missing_which_club": "which of your clubs is playing",
   "ev.missing_who": "who you are playing",
   "ev.missing_when": "when",
+
+  // MARK: The chosen opposition
+  "opp.playing": "Playing {name}",
+  "opp.change": "Change",
+  "opp.on_brand_too": "They are on {brand}, so their players get asked as well.",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

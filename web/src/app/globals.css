@@ -4296,12 +4296,35 @@ a.bell-item:hover { background: var(--surface-2); }
 }
 .overflow-item:hover { background: var(--surface-2); }
 
-/* `.subtle` is a muted grey tuned for a pale surface. On a filled button it
-   lands at 1.26:1 against the primary green — present in the DOM and invisible
-   to read. Inside one it keeps its smaller size, which is what carries the
-   hierarchy, and takes the button's own colour, which is what carries the
-   contrast. */
+/* A guard, not a fix for anything on screen today. `.subtle` is a muted grey
+   tuned for a pale surface, and measured against the primary green it is
+   1.26:1 — present in the DOM and impossible to read. Nothing currently puts
+   one inside a filled button; this is here so that the next thing that does
+   is legible, keeping the smaller size that carries the hierarchy and taking
+   the button's colour, which carries the contrast. */
 .btn.primary .subtle { color: inherit; }
+
+/* The opposition, once it is chosen. The search box, its results and the
+   "or just their name" fallback all give way to this: what was picked, and
+   the way back. */
+.opp-chosen {
+  display: grid;
+  gap: var(--s2);
+  justify-items: start;
+  margin-top: var(--s2);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.opp-chosen-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--primary-ink);
+}
+.opp-chosen .subtle { margin: 0; }
 
 /* The language menu reserves the tick's width on every row, so the names line
    up in a column instead of the current one sitting 16px to the right of the
