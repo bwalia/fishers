@@ -51,7 +51,7 @@ export default function LoginPage() {
       <AuthPitch />
 
       <div className="auth-card">
-        <h2>Sign in</h2>
+        <h2>{t("rest.sign_in")}</h2>
         <p>{t("rest.the_same_account_as_the_ios_app")}</p>
 
         <GoogleButton mode="signin" onSignedIn={goNext} />
@@ -93,7 +93,7 @@ export default function LoginPage() {
           {error && <p className="error">{error}</p>}
 
           <button className="btn primary" type="submit" disabled={busy}>
-            {busy ? t("le.signing_in") : "Sign in"}
+            {busy ? t("le.signing_in") : t("rest.sign_in")}
           </button>
         </form>
 

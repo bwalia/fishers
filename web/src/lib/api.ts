@@ -1,6 +1,7 @@
 import type { Key } from "@/lib/i18n/en";
 import type { T } from "@/lib/i18n";
 import { apiPort } from "./ports";
+import { clientT, type AnyKey } from "@/lib/i18n";
 
 /// Where the API lives, worked out at call time.
 ///
@@ -428,7 +429,7 @@ export async function api<T>(
     const token = await refreshSession();
     if (token) return api<T>(method, path, body, authorized, true, signal);
     sessionLost();
-    throw new Error("lb.your_session_has_expired_please_sign_i");
+    throw new Error(clientT()("lb.your_session_has_expired_please_sign_i"));
   }
 
   if (!res.ok) {
@@ -757,17 +758,18 @@ export const NOTIFICATION_KIND: Record<string, string> = {
   selection_published: "lb.squads",
   squad_promoted: "lb.squads",
   selection_reconfirm: "lb.confirmations",
-  match_terms_proposed: "Match setup",
-  match_terms_agreed: "Match setup",
+  match_terms_proposed: "lb.match_setup",
+  match_terms_agreed: "lb.match_setup",
   match_book_handed_over: "lb.scoring",
-  match_scheduled: "Fixtures",
-  availability_request: "Availability",
+  match_scheduled: "nav.fixtures",
+  availability_request: "nav.availability",
   fee_reminder: "lb.match_fees",
   scoreboard_shared: "lb.scoreboards",
 };
 
-export function kindLabel(kind: string): string {
-  return NOTIFICATION_KIND[kind] ?? kind.replaceAll("_", " ");
+export function kindLabel(kind: string, t: T): string {
+  const key = NOTIFICATION_KIND[kind];
+  return key ? t(key as AnyKey) : kind.replaceAll("_", " ");
 }
 
 /// One line for one notification, in the reader's language.

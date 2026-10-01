@@ -146,8 +146,8 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>{t("cl.season")}</th><th>Club</th>
-                        <th className="n">M</th><th className="n">Runs</th>
+                        <th>{t("cl.season")}</th><th>{t("cl.club")}</th>
+                        <th className="n">{t("cl.m")}</th><th className="n">{t("cl.runs")}</th>
                         <th className="n">{t("cl.hs")}</th><th className="n">{t("cl.avg")}</th>
                         <th className="n">{t("cl.wkts")}</th><th className="n">Econ</th>
                       </tr>

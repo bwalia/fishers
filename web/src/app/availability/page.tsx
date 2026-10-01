@@ -167,7 +167,7 @@ export default function AvailabilityPage() {
             <li>
               <span className="guide-num" aria-hidden>1</span>
               <div>
-                <strong>Tap a day, say if you&rsquo;re free</strong>
+                <strong>{t("ev.tap_a_day_say_if_free")}</strong>
                 <p>{t("ev.the_colour_of_the_day_is_your_general")}</p>
               </div>
             </li>
@@ -249,7 +249,21 @@ export default function AvailabilityPage() {
                     ]
                       .filter(Boolean)
                       .join(" ")}
-                    aria-label={`${date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} — ${status ? t(AVAILABILITY_LABEL[status]) : "not said"}${playing.map((f) => `; ${f.title} at ${timeOf(f.start_at)}: ${t(saidLabel(f.my_answer))}`).join("")}`}
+                    aria-label={
+                      t("ev.day_aria", {
+                        date: date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }),
+                        status: status ? t(AVAILABILITY_LABEL[status]) : t("ev.not_said"),
+                      }) +
+                      playing
+                        .map((f) =>
+                          t("ev.fixture_at_time_answer", {
+                            title: f.title,
+                            time: timeOf(f.start_at),
+                            answer: t(saidLabel(f.my_answer)),
+                          })
+                        )
+                        .join("")
+                    }
                     onClick={() => setChosen(key)}
                   >
                     <span className="cal-num num">{date.getDate()}</span>
@@ -319,8 +333,8 @@ export default function AvailabilityPage() {
               {chosenFixtures.length === 0
                 ? t("le.no_fixtures_this_day")
                 : chosenFixtures.length === 1
-                  ? "1 fixture"
-                  : `${chosenFixtures.length} fixtures — answer each one`}
+                  ? t("ev.one_fixture")
+                  : t("ev.n_fixtures_answer_each", { n: chosenFixtures.length })}
             </p>
             {chosenStatus === "unavailable" && chosenFixtures.some((f) => f.my_answer === "going") && (
               <p className="fx-warn">You&rsquo;ve marked the day not available, but said yes to a fixture on it.</p>

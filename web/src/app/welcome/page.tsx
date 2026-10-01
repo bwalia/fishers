@@ -93,7 +93,7 @@ export default function WelcomePage() {
       }
       await handOff(updated);
     } catch (err) {
-      setError(readErr(err, "Could not save that"));
+      setError(readErr(err, t("le.could_not_save_that")));
     } finally {
       setBusy(false);
     }
@@ -129,7 +129,7 @@ export default function WelcomePage() {
 
         {asksRole && (
           <fieldset className="qs-question">
-            <legend>I&apos;m here to…</legend>
+            <legend>{t("rest.im_here_to")}</legend>
             <RoleChooser compact value={role} onPicked={(_, r) => setRole(r)} />
           </fieldset>
         )}

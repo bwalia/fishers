@@ -77,8 +77,16 @@ export default function EntryPage({ params }: { params: Promise<{ token: string 
           <h1>{answered === "accepted" ? t("le.you_re_in") : t("le.thanks_for_letting_them_know")}</h1>
           <p>
             {answered === "accepted"
-              ? `${invite?.host_club} has been told that ${invite?.side} is entering ${invite?.tournament}. They will send the fixtures once the draw is made.`
-              : `${invite?.host_club} has been told ${invite?.side} can't make ${invite?.tournament}. Telling them now is what lets them find somebody else.`}
+              ? t("tn.told_entering", {
+                  host: invite?.host_club ?? "",
+                  side: invite?.side ?? "",
+                  tournament: invite?.tournament ?? "",
+                })
+              : t("tn.told_cannot_make", {
+                  host: invite?.host_club ?? "",
+                  side: invite?.side ?? "",
+                  tournament: invite?.tournament ?? "",
+                })}
           </p>
         </section>
       </main>
@@ -117,7 +125,7 @@ export default function EntryPage({ params }: { params: Promise<{ token: string 
             disabled={busy !== null}
             onClick={() => answer("accepted")}
           >
-            {busy === "accepted" ? "Sending…" : `Yes — ${invite.side} will enter`}
+            {busy === "accepted" ? t("le.sending") : t("tn.yes_side_will_enter", { name: invite.side })}
           </button>
           <button
             className="btn"

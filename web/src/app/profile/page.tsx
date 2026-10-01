@@ -281,7 +281,7 @@ function Overview({
             <>
               <dl className="pro-figures">
                 <div><dt>{t("cl.matches")}</dt><dd className="num">{career.matches}</dd></div>
-                <div><dt>Runs</dt><dd className="num">{career.runs}</dd></div>
+                <div><dt>{t("cl.runs")}</dt><dd className="num">{career.runs}</dd></div>
                 <div><dt>{t("cl.wickets")}</dt><dd className="num">{career.wickets}</dd></div>
                 <div><dt>{t("cl.catches")}</dt><dd className="num">{career.catches}</dd></div>
               </dl>
@@ -317,7 +317,7 @@ function Overview({
 
         <div className="panel">
           <h2>{t("cl.season_boards")}</h2>
-          <p className="muted">Where you sit in your club&apos;s table, season by season.</p>
+          <p className="muted">{t("cl.where_you_sit_season_by_season")}</p>
           <Link className="btn" href="/stats">
             <Icon name="chart" size={16} /> {t("cl.season_stats")}
           </Link>
@@ -424,7 +424,7 @@ function DeleteAccount() {
       clearSession();
       router.replace("/");
     } catch (err) {
-      setError(readErr(err, "could not delete the account — try again"));
+      setError(readErr(err, t("cl.could_not_delete_the_account")));
       setBusy(false);
     }
   };
@@ -549,16 +549,16 @@ function CareerStats({
       <dl className="pro-strip">
         {(discipline === "batting"
           ? [
-              ["Runs", String(sum.runs)],
-              ["Innings", String(sum.battingInnings)],
-              ["Average", num(battingAverage(sum), 2)],
-              ["Strike rate", num(strikeRate(sum), 2)],
+              [t("cl.runs"), String(sum.runs)],
+              [t("cl.innings"), String(sum.battingInnings)],
+              [t("cl.average"), num(battingAverage(sum), 2)],
+              [t("cl.strike_rate"), num(strikeRate(sum), 2)],
             ]
           : [
-              ["Wickets", String(sum.wickets)],
-              ["Overs", num(sum.overs, 1)],
-              ["Average", num(bowlingAverage(sum), 2)],
-              ["Economy", num(sum.overs ? sum.bowlingRuns / sum.overs : null, 2)],
+              [t("cl.wickets"), String(sum.wickets)],
+              [t("cl.overs"), num(sum.overs, 1)],
+              [t("cl.average"), num(bowlingAverage(sum), 2)],
+              [t("cl.economy"), num(sum.overs ? sum.bowlingRuns / sum.overs : null, 2)],
             ]
         ).map(([label, value]) => (
           <div key={label}>
@@ -575,9 +575,9 @@ function CareerStats({
           <thead>
             {discipline === "batting" ? (
               <tr>
-                <th>{t("cl.season")}</th><th>Club</th><th className="n">M</th><th className="n">{t("cl.inns")}</th>
-                <th className="n">{t("cl.no")}</th><th className="n">Runs</th><th className="n">{t("cl.hs")}</th>
-                <th className="n">{t("cl.avg")}</th><th className="n">SR</th>
+                <th>{t("cl.season")}</th><th>{t("cl.club")}</th><th className="n">{t("cl.m")}</th><th className="n">{t("cl.inns")}</th>
+                <th className="n">{t("cl.no")}</th><th className="n">{t("cl.runs")}</th><th className="n">{t("cl.hs")}</th>
+                <th className="n">{t("cl.avg")}</th><th className="n">{t("cl.sr")}</th>
                 <th className="n">4s</th><th className="n">6s</th>
               </tr>
             ) : (
@@ -811,9 +811,9 @@ function Details({ me, onSaved }: { me: PublicUser; onSaved: () => void }) {
       {error && <p className="error">{error}</p>}
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn primary" type="button" disabled={busy || !name.trim()} onClick={save}>
-          {busy ? "Saving…" : "Save"}
+          {busy ? t("la.saving") : t("lc.save")}
         </button>
-        <button className="btn" type="button" onClick={() => setEditing(false)}>Cancel</button>
+        <button className="btn" type="button" onClick={() => setEditing(false)}>{t("sc.cancel")}</button>
       </div>
     </div>
   );
@@ -949,7 +949,7 @@ function SportCard({
           disabled={busy}
           onClick={() => write([...others, draft])}
         >
-          {busy ? "Saving…" : "Save"}
+          {busy ? t("la.saving") : t("lc.save")}
         </button>
         {!isPrimary && (
           <button

@@ -516,10 +516,10 @@ export type SquadResponse = { home: SideSquad; away: SideSquad };
 /// may keep the book.
 export type MatchOfficial = { user_id: string; name: string; role: string };
 
-export const STANDING_LABEL: Record<string, string> = {
-  selected: "picked",
-  reserve: "reserve",
-  available: "available",
-  unavailable: "said no",
-  member: "member",
+export const STANDING_LABEL: Record<string, Key> = {
+  selected: "le.picked_standing",
+  reserve: "le.reserve_standing",
+  available: "le.available_standing",
+  unavailable: "le.said_no_standing",
+  member: "le.member_standing",
 };

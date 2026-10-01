@@ -7,20 +7,20 @@ import { TOUR_CHAPTERS, TOUR_DURATION, TOUR_VIDEO_ID } from "./chapters";
 import { brand } from "@/brand.generated";
 import { getT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: `Video tour — ${brand.name}`,
-  description:
-    `Twenty minutes of ${brand.name} on a phone: a player joining a club, availability, a captain ` +
-    "picking the side, a whole T20 scored ball by ball, and the rest of the cricket section.",
-  openGraph: {
-    title: `${brand.name} — the video tour`,
-    description:
-      "le.a_season_on_a_phone_joining_a_club_ava" +
-      "and everything the cricket section does.",
-    type: "video.other",
-    images: [`https://i.ytimg.com/vi/${TOUR_VIDEO_ID}/maxresdefault.jpg`],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  const title = t("le.brand_video_tour", { brand: brand.name });
+  return {
+    title: t("sr.video_tour_brand", { brand: brand.name }),
+    description: t("sr.tour_description", { brand: brand.name }),
+    openGraph: {
+      title,
+      description: t("le.a_season_on_a_phone_joining_a_club_ava"),
+      type: "video.other",
+      images: [`https://i.ytimg.com/vi/${TOUR_VIDEO_ID}/maxresdefault.jpg`],
+    },
+  };
+}
 
 /// `/tour` — the film, its five chapters, and everything it says, with the same
 /// contents as a PDF for anyone who would rather keep it than stream it.

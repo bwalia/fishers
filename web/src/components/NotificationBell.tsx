@@ -85,7 +85,7 @@ export function NotificationBell() {
       <button
         type="button"
         className="bell-button"
-        aria-label={feed.unread ? `${feed.unread} unread notifications` : "Notifications"}
+        aria-label={feed.unread ? t("rest.unread_notifications", { n: feed.unread }) : t("rest.notifications")}
         aria-expanded={open}
         onClick={openFeed}
       >
@@ -94,9 +94,9 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="bell-panel" role="dialog" aria-label="Notifications">
+        <div className="bell-panel" role="dialog" aria-label={t("rest.notifications")}>
           <div className="bell-head">
-            <strong>Notifications</strong>
+            <strong>{t("rest.notifications")}</strong>
             {feed.unread > 0 && (
               <button className="btn ghost sm" type="button" onClick={markAllRead}>
                 {t("rest.mark_all_read")}

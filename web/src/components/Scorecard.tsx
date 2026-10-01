@@ -142,11 +142,11 @@ export function Scorecard({
         <table className="table">
           <thead>
             <tr>
-              <th>Bowler</th>
-              <th className="n">O</th>
-              <th className="n">M</th>
-              <th className="n">R</th>
-              <th className="n">W</th>
+              <th>{t("sr.col_bowler")}</th>
+              <th className="n">{t("sr.col_o")}</th>
+              <th className="n">{t("sr.col_m")}</th>
+              <th className="n">{t("sr.col_r")}</th>
+              <th className="n">{t("sr.col_w")}</th>
               <th className="n">{t("sr.econ")}</th>
             </tr>
           </thead>

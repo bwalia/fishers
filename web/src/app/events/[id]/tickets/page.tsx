@@ -70,7 +70,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
       setNote(said);
       await load();
     } catch (err) {
-      setError(readErr(err, "That did not work"));
+      setError(readErr(err, t("le.that_did_not_work")));
     } finally {
       setBusy(null);
     }
@@ -97,7 +97,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
           <span className="tag">{summary.headcount} coming</span>
           {left != null && (
             <span className={left <= 0 ? "tag danger" : "tag grey"}>
-              {left <= 0 ? t("le.full") : `${left} places left`}
+              {left <= 0 ? t("le.full") : t("le.n_places_left", { n: left })}
             </span>
           )}
           {summary.ticket_price_cents != null && (
@@ -134,7 +134,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                     disabled={busy !== null || paying}
                     onClick={async () => {
                       setPaying(true);
-                      const problem = await payAtStripe(`/tickets/${mine.id}/pay`);
+                      const problem = await payAtStripe(`/tickets/${mine.id}/pay`, t);
                       if (problem) {
                         setError(problem);
                         setPaying(false);
@@ -143,7 +143,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                   >
                     {paying
                       ? t("le.taking_you_to_stripe")
-                      : `Pay ${money(mine.amount_cents, mine.currency)} by card`}
+                      : t("le.pay_by_card", { amount: money(mine.amount_cents, mine.currency) })}
                   </button>
                 )}
                 {mine.status !== "paid" && cards === false && (
@@ -258,7 +258,7 @@ export default function TicketsPage({ params }: { params: Promise<{ id: string }
                         act(
                           ticket.id,
                           () => api("POST", `/tickets/${ticket.id}/mark-paid`, { method }),
-                          `${ticket.name ?? t("le.that_booking")} marked paid.`
+                          t("le.marked_paid", { what: ticket.name ?? t("le.that_booking") })
                         )
                       }
                     />

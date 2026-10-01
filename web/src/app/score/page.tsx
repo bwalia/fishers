@@ -278,7 +278,7 @@ export default function ScoreIndexPage() {
         {page && page.items.length === 0 && !loading && (
           <div className="empty">
             <Icon name="bat" size={28} />
-            <p>{search || stateFilter ? "Nothing matches that." : t("ld.no_cricket_fixtures_yet")}</p>
+            <p>{search || stateFilter ? t("ld.nothing_matches_that") : t("ld.no_cricket_fixtures_yet")}</p>
           </div>
         )}
 
@@ -549,7 +549,7 @@ function MatchSetupSheet({
         {sameSides && <p className="error">{sameSides}</p>}
 
         <div className="sheet-actions">
-          <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn ghost" type="button" onClick={onClose}>{t("sc.cancel")}</button>
           <button
             className="btn primary"
             type="button"

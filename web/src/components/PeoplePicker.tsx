@@ -22,7 +22,7 @@ export function PeoplePicker({
   chosen,
   onChoose,
   searchFrom = 8,
-  empty = "le.nobody_to_choose_from_yet",
+  empty,
   keepTabs = false,
   openOn,
 }: {
@@ -62,7 +62,7 @@ export function PeoplePicker({
     return term ? tab.people.filter((p) => p.name.toLowerCase().includes(term)) : tab.people;
   }, [tab, filter]);
 
-  if (shown.every((t) => t.people.length === 0) && !keepTabs) return <p className="muted">{empty}</p>;
+  if (shown.every((t) => t.people.length === 0) && !keepTabs) return <p className="muted">{empty ?? t("le.nobody_to_choose_from_yet")}</p>;
 
   return (
     <div className="people-picker">

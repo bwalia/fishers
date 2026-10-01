@@ -16,8 +16,9 @@ const DISMISSED = "fishers:push-prompt-dismissed";
 /// they say "not now", and it never asks the browser for permission unless the
 /// button was pressed: an unrequested prompt is the fastest way to be blocked
 /// for good, and a denied permission cannot be asked for again.
-export function PushPrompt({ context = "chats, invites and fixture news" }: { context?: string }) {
+export function PushPrompt({ context }: { context?: string }) {
   const t = useT();
+  const about = context ?? t("le.chats_invites_fixture_news");
   const [state, setState] = useState<PushState | null>(null);
   const [hidden, setHidden] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -49,8 +50,10 @@ export function PushPrompt({ context = "chats, invites and fixture news" }: { co
         <Icon name="inbox" size={20} />
       </span>
       <div className="push-prompt-text">
-        <strong>Get alerts when {brand.name} is closed</strong>
-        <span className="muted">{`${context[0].toUpperCase()}${context.slice(1)} — straight to this device.`}</span>
+        <strong>{t("le.get_alerts_when_closed", { brand: brand.name })}</strong>
+        <span className="muted">
+          {t("le.straight_to_this_device", { about: `${about[0].toUpperCase()}${about.slice(1)}` })}
+        </span>
       </div>
       <div className="push-prompt-actions">
         <button

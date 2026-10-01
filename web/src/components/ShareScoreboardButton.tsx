@@ -43,7 +43,7 @@ export function ShareScoreboardButton({
         `/cricket/matches/${matchId}/share`,
         { post_to_chat: postToChat, ttl_hours: 48 }
       );
-      const title = `${homeName} vs ${awayName} — live scoreboard`;
+      const title = t("le.home_vs_away_live_scoreboard", { home: homeName, away: awayName });
       setLink(res.url);
 
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {

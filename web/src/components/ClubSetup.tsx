@@ -76,7 +76,7 @@ export function ClubSetup({
     },
     {
       key: "team",
-      title: "Add a team",
+      title: t("ld.add_a_team"),
       body: t("ld.a_1st_xi_a_sunday_side_the_juniors_eac"),
       done: teams.length > 0,
       cta: "Add a team",
@@ -86,14 +86,14 @@ export function ClubSetup({
     },
     {
       key: "captain",
-      title: "Name a captain",
+      title: t("ld.name_a_captain"),
       body: t("ld.captains_pick_the_side_and_run_the_sco"),
       done: members.some((m) => m.role === "team_captain" || m.is_captain),
       cta: "Choose a captain",
       icon: "trophy",
       target: "members-table",
       tour: {
-        title: "Pick your captain",
+        title: t("ld.pick_your_captain"),
         body: t("ld.set_a_member_s_role_to_captain_here_or"),
       },
     },

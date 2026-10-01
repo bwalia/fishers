@@ -43,8 +43,8 @@ export default function PlayPage({ params }: { params: Promise<{ token: string }
       {error ? (
         <div className="panel empty">
           <Icon name="link" size={28} />
-          <h1>This code didn&apos;t work</h1>
-          <p className="muted">{error}. Ask them to send their link again.</p>
+          <h1>{t("le.this_code_didnt_work")}</h1>
+          <p className="muted">{t("le.ask_them_for_link_again", { error })}</p>
         </div>
       ) : !who ? (
         <div className="panel">

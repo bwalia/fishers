@@ -298,7 +298,7 @@ function Entrants({
                             api("POST", `/entrants/${e.id}/mark-entry-paid`, {
                               method: "transfer",
                             }),
-                          `${e.name}'s entry fee recorded.`
+                          t("tn.entry_fee_recorded", { name: e.name })
                         )
                       }
                     >
@@ -317,7 +317,7 @@ function Entrants({
                             api("POST", `/fixture-blocks/${blockId}/invite`, {
                               club_id: e.club_id,
                             }),
-                          `Asked ${e.name} again.`
+                          t("tn.asked_again", { name: e.name })
                         )
                       }
                     >
@@ -406,7 +406,7 @@ function InviteClub({ blockId, onInvited }: { blockId: string; onInvited: () => 
         `/fixture-blocks/${blockId}/invite`,
         body
       );
-      setNote(`Asked ${picked?.name ?? typed.trim()}. They decide whether to enter.`);
+      setNote(t("tn.asked_they_decide", { name: picked?.name ?? typed.trim() }));
       setLink(out.invite_link);
       setPicked(null);
       setTyped("");
@@ -505,7 +505,7 @@ function Grid({
         rounds,
         replace,
       });
-      setNote(`${out.created} slots laid out.`);
+      setNote(t("tn.slots_laid_out", { n: out.created }));
       onChanged();
     } catch (err) {
       setError(readErr(err, t("la.could_not_lay_out_the_grid")));
@@ -713,8 +713,8 @@ function Fixtures({
             <table className="table">
               <thead>
                 <tr>
-                  <th>When</th><th>{t("tn.pitch")}</th><th>{t("tn.match")}</th>
-                  <th>{t("tn.stage")}</th><th className="n">Result</th><th></th>
+                  <th>{t("tn.when")}</th><th>{t("tn.pitch")}</th><th>{t("tn.match")}</th>
+                  <th>{t("tn.stage")}</th><th className="n">{t("tn.result")}</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -873,7 +873,7 @@ function RecordResult({
         >
           {busy ? t("la.recording") : t("la.record_it")}
         </button>
-        <button className="btn" type="button" onClick={onClose}>Cancel</button>
+        <button className="btn" type="button" onClick={onClose}>{t("sc.cancel")}</button>
       </div>
     </div>
   );
@@ -977,8 +977,8 @@ function Knockout({
       const made = out.scheduled?.length ?? 0;
       setNote(
         commit
-          ? `${out.committed ?? made} knockout fixtures written.`
-          : `${made} knockout fixtures would be created.`
+          ? t("tn.knockout_written", { n: out.committed ?? made })
+          : t("tn.knockout_would_be_created", { n: made })
       );
       if (commit) onChanged();
     } catch (err) {
@@ -992,12 +992,12 @@ function Knockout({
     <div className="panel">
       <h2>{t("tn.into_the_knockout")}</h2>
       <p className="muted">
-        Takes the top of {groups === 1 ? "the table" : `each of the ${groups} groups`} as it
-        stands now. Run it once the group games are done — running it early builds a bracket
-        from an unfinished table.
+        {t("tn.takes_the_top_of", {
+          where: groups === 1 ? t("tn.the_table") : t("tn.each_of_the_n_groups", { n: groups }),
+        })}
       </p>
       <label>
-        How many go through{groups > 1 ? " from each group" : ""}
+        {t("tn.how_many_go_through", { suffix: groups > 1 ? t("tn.from_each_group") : "" })}
         <input
           type="number"
           min={1}
@@ -1079,7 +1079,7 @@ function Rules({
         <dl className="pro-about">
           <div>
             <dt>{t("tn.sides")}</dt>
-            <dd>{block.max_entrants ? `Up to ${block.max_entrants}` : t("la.no_limit")}</dd>
+            <dd>{block.max_entrants ? t("tn.up_to_n", { n: block.max_entrants }) : t("la.no_limit")}</dd>
           </div>
           <div>
             <dt>{t("tn.entries_close")}</dt>
@@ -1101,7 +1101,7 @@ function Rules({
             <dd>
               {block.guest_players_allowed === 0
                 ? t("la.none_every_player_must_be_a_club_membe")
-                : `Up to ${block.guest_players_allowed} from outside the club`}
+                : t("tn.up_to_n_from_outside", { n: block.guest_players_allowed })}
             </dd>
           </div>
           <div><dt>{t("tn.age_group")}</dt><dd>{t(AGE_LABEL[block.age_group])}</dd></div>
@@ -1119,11 +1119,11 @@ function Rules({
                 <dt>{t("tn.most_overs_one_bowler")}</dt>
                 <dd className="num">{c.overs_per_bowler === 0 ? t("la.no_limit") : c.overs_per_bowler}</dd>
               </div>
-              <div><dt>Ball</dt><dd>{t(BALL_LABEL[c.ball])}</dd></div>
-              <div><dt>Ground</dt><dd>{t(GROUND_LABEL[c.ground])}</dd></div>
+              <div><dt>{t("tn.ball")}</dt><dd>{t(BALL_LABEL[c.ball])}</dd></div>
+              <div><dt>{t("tn.ground")}</dt><dd>{t(GROUND_LABEL[c.ground])}</dd></div>
               <div>
-                <dt>Powerplay</dt>
-                <dd>{c.powerplay_overs === 0 ? t("la.none") : `${c.powerplay_overs} overs`}</dd>
+                <dt>{t("tn.powerplay")}</dt>
+                <dd>{c.powerplay_overs === 0 ? t("la.none") : t("tn.n_overs", { n: c.powerplay_overs })}</dd>
               </div>
             </dl>
             <p className="subtle">
@@ -1213,7 +1213,7 @@ function RulesForm({
     <div className="panel setup-panel">
       <div className="panel-head">
         <h2>{t("tn.the_rules")}</h2>
-        <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
+        <button className="btn ghost sm" type="button" onClick={onClose}>{t("sc.cancel")}</button>
       </div>
 
       <label>
@@ -1252,7 +1252,7 @@ function RulesForm({
         <button className="btn primary" type="button" disabled={busy || !feeOk} onClick={save}>
           {busy ? t("la.saving") : t("la.save_the_rules")}
         </button>
-        <button className="btn" type="button" onClick={onClose}>Cancel</button>
+        <button className="btn" type="button" onClick={onClose}>{t("sc.cancel")}</button>
       </div>
     </div>
   );

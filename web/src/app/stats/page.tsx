@@ -46,7 +46,7 @@ export default function StatsPage() {
         // A player with no recorded season is not an error.
       }
     })();
-  }, [authed]);
+  }, [authed, t]);
 
   const loadBoard = useCallback(async () => {
     if (!clubId) return;
@@ -60,7 +60,7 @@ export default function StatsPage() {
     } finally {
       setLoading(false);
     }
-  }, [clubId, season]);
+  }, [clubId, season, t]);
 
   useEffect(() => {
     loadBoard();

@@ -22,7 +22,7 @@ export function AddByLink({ clubId }: { clubId: string }) {
     e.preventDefault();
     const token = /\/p\/([A-Za-z0-9]{16,64})/.exec(text)?.[1];
     if (!token) {
-      setError(`That isn't a ${brand.name} profile link — it looks like …/p/ followed by letters and numbers.`);
+      setError(t("le.not_a_brand_profile_link", { brand: brand.name }));
       return;
     }
     router.push(`/p/${token}?club=${encodeURIComponent(clubId)}`);
@@ -30,7 +30,7 @@ export function AddByLink({ clubId }: { clubId: string }) {
 
   return (
     <form className="add-by-link" onSubmit={go}>
-      <label htmlFor={`profile-link-${clubId}`}>Got a player&apos;s profile link?</label>
+      <label htmlFor={`profile-link-${clubId}`}>{t("le.got_a_profile_link")}</label>
       <div className="add-by-link-row">
         <input
           id={`profile-link-${clubId}`}

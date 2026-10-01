@@ -137,7 +137,7 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
 
           <p className={`item-stock ${sold ? "gone" : ""}`}>
             <Icon name={sold ? "clock" : "check"} size={15} />
-            {sold ? t("lc.sold_no_longer_available") : availability(item)}
+            {sold ? t("lc.sold_no_longer_available") : availability(item, t)}
           </p>
 
           {mine ? (
@@ -168,7 +168,7 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
           arrangements, and a buyer should not have to guess which. */}
       <div className="item-detail">
         <section className="item-block">
-          <h2>Description</h2>
+          <h2>{t("sh.description_heading")}</h2>
           {item.description ? (
             <p className="item-prose">{item.description}</p>
           ) : (
@@ -205,7 +205,7 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
             )}
             <div>
               <dt>{t("sh.how_many")}</dt>
-              <dd>{availability(item)}</dd>
+              <dd>{availability(item, t)}</dd>
             </div>
             {item.condition_note && (
               <div className="item-spec-wide">
@@ -374,7 +374,7 @@ function OwnerPanel({ item }: { item: MarketListing }) {
         {asked > 0 ? (
           <Link className="btn btn-lg" href="/chat">
             <Icon name="chat" size={16} />
-            Read {asked === 1 ? "the message" : `all ${asked} conversations`}
+            {asked === 1 ? t("sh.read_the_message") : t("sh.read_all_conversations", { n: asked })}
           </Link>
         ) : (
           <p className="item-reassure">
@@ -475,7 +475,7 @@ function Slideshow({ photos, title }: { photos: string[]; title: string }) {
               key={src}
               type="button"
               className={i === at ? "on" : undefined}
-              aria-label={`Photograph ${i + 1} of ${photos.length}`}
+              aria-label={t("sh.photograph_i_of_n", { i: i + 1, n: photos.length })}
               aria-current={i === at}
               onClick={() => setAt(i)}
             >

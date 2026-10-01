@@ -6,6 +6,7 @@
 /// played, which on most Saturdays is most of the club.
 
 import { api } from "@/lib/api";
+import type { T } from "./i18n";
 
 export type MotmCandidate = {
   user_id: string;
@@ -71,12 +72,12 @@ export function sideNames(poll: MotmPollView): { home: string; away: string } {
   return { home: "Home", away: "Away" };
 }
 
-export function closingLabel(closesAt: string): string {
+export function closingLabel(closesAt: string, t: T): string {
   const remaining = Date.parse(closesAt) - Date.now();
-  if (remaining <= 0) return "le.closing";
-  if (remaining < 3_600_000) return `${Math.max(1, Math.round(remaining / 60_000))}m left`;
-  if (remaining < 86_400_000) return `${Math.floor(remaining / 3_600_000)}h left`;
-  return `${Math.floor(remaining / 86_400_000)}d left`;
+  if (remaining <= 0) return t("le.closing");
+  if (remaining < 3_600_000) return t("le.minutes_left", { n: Math.max(1, Math.round(remaining / 60_000)) });
+  if (remaining < 86_400_000) return t("le.hours_left", { n: Math.floor(remaining / 3_600_000) });
+  return t("le.days_left", { n: Math.floor(remaining / 86_400_000) });
 }
 
 export const getPoll = (id: string) => api<MotmPollView>("GET", `/motm/polls/${id}`);

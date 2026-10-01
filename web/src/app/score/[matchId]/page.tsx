@@ -1791,6 +1791,7 @@ function WaitingPanel({
 /// playing in it and is already permissioned for whoever is scoring, so it
 /// answers for both sides in one request.
 function useSquad(matchId: string) {
+  const t = useT();
   const [squad, setSquad] = useState<SquadResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1818,7 +1819,7 @@ function useSquad(matchId: string) {
         id: p.id,
         name: p.name,
         // "member" only means nobody has said whether they are coming.
-        note: p.standing === "member" ? undefined : STANDING_LABEL[p.standing],
+        note: p.standing === "member" ? undefined : t(STANDING_LABEL[p.standing]),
       })),
   };
 }
@@ -2205,7 +2206,7 @@ function SideSheet({
                 )}
                 {p.standing !== "member" && (
                   <span className={`tag ${p.standing === "selected" ? "gold" : "grey"}`}>
-                    {STANDING_LABEL[p.standing] ?? p.standing}
+                    {STANDING_LABEL[p.standing] ? t(STANDING_LABEL[p.standing]) : p.standing}
                   </span>
                 )}
               </button>

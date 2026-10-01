@@ -238,7 +238,7 @@ function Members({
   };
 
   const remove = async (userId: string, name: string) => {
-    if (!confirm(`Remove ${name} from the club?`)) return;
+    if (!confirm(t("cl.remove_from_the_club", { name }))) return;
     setBusy(userId);
     setError(null);
     try {
@@ -266,7 +266,7 @@ function Members({
         {t("cl.a_role_is_what_somebody_is_allowed_to")} <em>{t("cl.run")}</em>, not whether they play.
         Everybody here is picked from for a side, the secretary included — and the
         levels stack, so a secretary already has a captain&rsquo;s powers. Captain your
-        own side as well? Choose <strong>Secretary &amp; captain</strong>.
+        own side as well? Choose <strong>{t("cl.secretary_and_captain")}</strong>.
       </p>
 
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
@@ -319,7 +319,7 @@ function Members({
                         value={roleChoice(m)}
                         disabled={busy === m.user_id}
                         onChange={(e) => setRole(m.user_id, e.target.value)}
-                        aria-label={`Role for ${m.name}`}
+                        aria-label={t("cl.role_for", { name: m.name })}
                       >
                         {/* The last secretary can still captain, or stop
                             captaining — just not stop being secretary. */}
@@ -621,7 +621,7 @@ function Venues({
       setAdding(false);
       await onChanged();
     } catch (err) {
-      setError(readErr(err, "Could not add that ground"));
+      setError(readErr(err, t("cl.could_not_add_that_ground")));
     } finally {
       setBusy(false);
     }
@@ -635,7 +635,7 @@ function Venues({
       </div>
       {canEdit && (
         <p className="muted" style={{ marginBottom: 12 }}>
-          <Link href={`/clubs/${clubId}/hire`}>Hireable spaces &amp; rates →</Link>
+          <Link href={`/clubs/${clubId}/hire`}>{t("cl.hireable_spaces_and_rates")}</Link>
         </p>
       )}
 
@@ -698,9 +698,9 @@ function Venues({
           <div className="field-row" style={{ marginTop: "var(--s4)" }}>
             <button className="btn primary" type="button" disabled={busy || !name.trim()}
                     onClick={add}>
-              {busy ? "Adding…" : "Add it"}
+              {busy ? t("cl.adding") : t("cl.add_it")}
             </button>
-            <button className="btn" type="button" onClick={() => setAdding(false)}>Cancel</button>
+            <button className="btn" type="button" onClick={() => setAdding(false)}>{t("sc.cancel")}</button>
           </div>
         </>
       )}
@@ -788,13 +788,13 @@ function Settings({ clubId }: { clubId: string }) {
 
       <div className="setup-fields">
         {hours(t("lc.ask_for_confirmation"), "confirm_lead_hours",
-               "hours before the start")}
+               t("cl.hours_before_the_start"))}
         {hours(t("lc.drop_anyone_who_has_not_confirmed"), "drop_lead_hours",
-               "hours before the start — reserves move up")}
+               t("cl.hours_before_reserves_move_up"))}
         {hours(t("lc.chase_an_unpaid_fee_after"), "fee_chase_after_hours",
-               "hours from the fixture")}
+               t("cl.hours_from_the_fixture"))}
         {hours(t("lc.stop_chasing_after"), "fee_chase_max_reminders",
-               "reminders, so nobody is nagged forever")}
+               t("cl.reminders_so_nobody_is_nagged"))}
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -869,7 +869,7 @@ function Fees({ clubId }: { clubId: string }) {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Who</th><th>{t("cl.fixture")}</th><th>When</th>
+                  <th>{t("cl.who")}</th><th>{t("cl.fixture")}</th><th>{t("cl.when")}</th>
                   <th className="n">{t("cl.owes")}</th><th className="n">{t("cl.chased")}</th>
                 </tr>
               </thead>

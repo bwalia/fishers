@@ -86,7 +86,7 @@ function One({
       setSaved(true);
       onDone();
     } catch (err) {
-      setError(readErr(err, "Could not save that"));
+      setError(readErr(err, t("le.could_not_save_that")));
     } finally {
       setBusy(false);
     }
@@ -124,7 +124,7 @@ function One({
             type="button"
             className={n <= rating ? "on" : ""}
             aria-pressed={n <= rating}
-            aria-label={`${n} out of 5`}
+            aria-label={t("ump.n_out_of_5", { n })}
             disabled={busy}
             onClick={() => {
               setRating(n);

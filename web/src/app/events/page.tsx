@@ -134,7 +134,7 @@ export default function EventsPage() {
     <main id="main" className="fixtures">
       <section className="hero fixtures-hero">
         <div>
-          <h1>Fixtures</h1>
+          <h1>{t("ev.fixtures")}</h1>
           <p>{t("ev.every_match_your_clubs_play_say_whethe")}</p>
         </div>
         <div className="fixtures-hero-actions">
@@ -175,14 +175,14 @@ export default function EventsPage() {
               <span className="guide-num" aria-hidden>1</span>
               <div>
                 <strong>{t("ev.answer_each_fixture")}</strong>
-                <p>Available, Maybe or Can&rsquo;t play — right on the card. Change it any time.</p>
+                <p>{t("ev.answer_each_detail")}</p>
               </div>
             </li>
             <li>
               <span className="guide-num" aria-hidden>2</span>
               <div>
                 <strong>{t("ev.the_captain_picks_the_side")}</strong>
-                <p>From everyone&rsquo;s answers. You get told when you&rsquo;re in the squad.</p>
+                <p>{t("ev.captain_picks_detail")}</p>
               </div>
             </li>
             <li>
@@ -222,9 +222,9 @@ export default function EventsPage() {
       )}
 
       <div className="fx-filters">
-        <div className="people-tabs fx-views" role="tablist" aria-label="Which fixtures">
+        <div className="people-tabs fx-views" role="tablist" aria-label={t("ev.which_fixtures")}>
           {([
-            ["upcoming", "Coming up"],
+            ["upcoming", t("ev.coming_up")],
             ["unanswered", t("ld.needs_my_answer")],
             ["past", t("ld.past")],
           ] as [View, string][]).map(([v, label]) => (
@@ -340,11 +340,11 @@ function FixtureCard({
               <Icon name="pin" size={14} /> {f.venue_name}
             </span>
           )}
-          {f.fee_amount_cents != null && <span className="num">£{(f.fee_amount_cents / 100).toFixed(2)} match fee</span>}
+          {f.fee_amount_cents != null && <span className="num">{t("ev.match_fee_amount", { amount: `£${(f.fee_amount_cents / 100).toFixed(2)}` })}</span>}
         </p>
-        {clash && <p className="fx-warn">You&rsquo;re available for another fixture at the same time.</p>}
+        {clash && <p className="fx-warn">{t("ev.clash_same_time")}</p>}
         {dayStatus === "unavailable" && f.my_answer !== "not_going" && (
-          <p className="fx-warn">Your calendar says you&rsquo;re not available this day.</p>
+          <p className="fx-warn">{t("ev.calendar_says_not_available")}</p>
         )}
         <div className="fx-links">
           <Link className="btn sm" href={`/events/${f.event_id}/selection`}>
@@ -440,8 +440,8 @@ function ScheduleMatch({
   // In the order the form asks, so the answer is always the next thing down
   // the page rather than something they have to hunt for.
   const missing = [
-    !clubId && "which of your clubs is playing",
-    !opponent && !oppositionName.trim() && "who you are playing",
+    !clubId && t("ev.missing_which_club"),
+    !opponent && !oppositionName.trim() && t("ev.missing_who_you_play"),
     !start && "when",
   ]
     .filter(Boolean)
@@ -451,13 +451,13 @@ function ScheduleMatch({
     <div className="panel setup-panel">
       <div className="panel-head">
         <h2>{t("ev.schedule_a_match")}</h2>
-        <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
+        <button className="btn ghost sm" type="button" onClick={onClose}>{t("sc.cancel")}</button>
       </div>
 
       <fieldset className="setup-group">
-        <legend>Your side</legend>
+        <legend>{t("ev.your_side")}</legend>
         <label>
-          Club
+          {t("ev.club")}
           <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
             {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -483,7 +483,7 @@ function ScheduleMatch({
       </fieldset>
 
       <fieldset className="setup-group">
-        <legend>The opposition</legend>
+        <legend>{t("ev.the_opposition")}</legend>
         <OppositionPicker
           homeClubId={clubId}
           onPick={(found, name) => {
@@ -493,8 +493,8 @@ function ScheduleMatch({
         />
         <p className="subtle">
           {opponent
-            ? `${opponent.name} are on ${brand.name} — their players get asked too.`
-            : `A club on ${brand.name} gets asked as well. Otherwise only your side is.`}
+            ? t("ev.opponent_on_brand", { name: opponent.name, brand: brand.name })
+            : t("ev.a_club_on_brand_gets_asked", { brand: brand.name })}
         </p>
       </fieldset>
 
@@ -515,7 +515,7 @@ function ScheduleMatch({
       {/* A dead button with no explanation reads as a broken app. Say which
           piece is missing, in the order the form asks for them. */}
       {!busy && missing && (
-        <p className="muted" role="status">Still needed: {missing}.</p>
+        <p className="muted" role="status">{t("ev.still_needed", { what: missing })}</p>
       )}
 
       <button
@@ -527,8 +527,7 @@ function ScheduleMatch({
         {busy ? t("ld.scheduling") : t("ld.schedule_and_ask_who_is_available")}
       </button>
       <p className="subtle">
-        Everyone in {opponent ? "both clubs" : "your club"} is asked whether they can
-        play, and the captain hears each answer.
+        {t("ev.everyone_in_is_asked", { who: opponent ? t("ev.both_clubs") : t("ev.your_club") })}
       </p>
     </div>
   );

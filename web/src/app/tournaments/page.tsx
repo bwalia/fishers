@@ -74,7 +74,7 @@ export default function TournamentsPage() {
   return (
     <main id="main">
       <section className="hero">
-        <h1>Tournaments</h1>
+        <h1>{t("tn.tournaments")}</h1>
         <p>{t("tn.a_block_holds_the_sides_the_pitches_an")}</p>
         {!error && (
           <button className="btn primary" type="button" onClick={() => setCreating(true)}>
@@ -280,7 +280,7 @@ function NewBlock({
     <div className="panel setup-panel">
       <div className="panel-head">
         <h2>{t("tn.new_tournament")}</h2>
-        <button className="btn ghost sm" type="button" onClick={onClose}>Cancel</button>
+        <button className="btn ghost sm" type="button" onClick={onClose}>{t("sc.cancel")}</button>
       </div>
 
       <section className="form-step">
@@ -311,7 +311,7 @@ function NewBlock({
             <select value={kind} onChange={(e) => setKind(e.target.value)}>
               <option value="tournament">{t("tn.tournament")}</option>
               <option value="tour">{t("tn.tour")}</option>
-              <option value="season">Season</option>
+              <option value="season">{t("tn.season")}</option>
               <option value="block">{t("tn.block_of_fixtures")}</option>
             </select>
             <span className="subtle">
@@ -375,7 +375,7 @@ function NewBlock({
         <button className="btn primary" type="button" disabled={busy || !ready} onClick={create}>
           {busy ? "Creating…" : t("le.create_it")}
         </button>
-        <button className="btn" type="button" onClick={onClose}>Cancel</button>
+        <button className="btn" type="button" onClick={onClose}>{t("sc.cancel")}</button>
       </div>
     </div>
   );

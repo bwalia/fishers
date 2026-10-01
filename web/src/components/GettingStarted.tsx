@@ -107,7 +107,7 @@ export function GettingStarted({
       ? [
           {
             key: "verify",
-            title: `Confirm your ${verification!.email.available ? "email" : "phone number"}`,
+            title: verification!.email.available ? t("le.confirm_your_email") : t("le.confirm_your_phone"),
             body: t("lb.proves_it_s_really_you_clubs_are_only"),
             done: verified,
             inline: (
@@ -158,7 +158,7 @@ export function GettingStarted({
           done: (members?.length ?? 0) > 1,
           cta: { label: t("lb.invite_players"), href: `${clubPage}#members`, icon: "send" },
           tour: {
-            title: "Bring your players in",
+            title: t("lb.bring_your_players_in"),
             body: t("lb.an_invite_link_in_the_club_whatsapp_gr"),
           },
         },
@@ -175,7 +175,7 @@ export function GettingStarted({
           title: t("lb.schedule_your_first_fixture"),
           body: t("lb.who_where_and_when_players_mark_themse"),
           done: eventsCount > 0,
-          cta: { label: "Schedule a match", href: "/events?new=1", icon: "calendar" },
+          cta: { label: t("lb.schedule_a_match"), href: "/events?new=1", icon: "calendar" },
           tour: { title: t("lb.last_one_your_first_fixture"), body: t("lb.once_it_s_in_your_players_get_asked_if") },
         },
       ];
@@ -259,7 +259,7 @@ export function GettingStarted({
           </p>
         </div>
         <button className="btn ghost sm" type="button" onClick={() => setTourOpen(true)}>
-          <Icon name="help" size={16} /> {"rest.show_me_around"}
+          <Icon name="help" size={16} /> {t("rest.show_me_around")}
         </button>
       </div>
 
@@ -269,7 +269,7 @@ export function GettingStarted({
         aria-valuenow={doneCount}
         aria-valuemin={0}
         aria-valuemax={steps.length}
-        aria-label={"rest.setup_progress"}
+        aria-label={t("rest.setup_progress")}
       >
         <span style={{ width: `${pct}%` }} />
       </div>
@@ -311,11 +311,11 @@ export function GettingStarted({
 
       {role === "secretary" ? (
         <p className="gs-switch subtle">
-          {"rest.here_to_play_not_to_run_a_club"} <SwitchRole to="player" onUserChange={onUserChange} />
+          {t("rest.here_to_play_not_to_run_a_club")} <SwitchRole to="player" onUserChange={onUserChange} />
         </p>
       ) : (
         <p className="gs-switch subtle">
-          {"rest.running_a_club_instead"} <SwitchRole to="secretary" onUserChange={onUserChange} />
+          {t("rest.running_a_club_instead")} <SwitchRole to="secretary" onUserChange={onUserChange} />
         </p>
       )}
 

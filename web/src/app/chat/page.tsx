@@ -56,7 +56,7 @@ export default function ChatListPage() {
   return (
     <main id="main">
       <section className="hero">
-        <h1>Chats</h1>
+        <h1>{t("cl.chats")}</h1>
         <p>{t("cl.message_anyone_in_your_clubs_or_start")}</p>
         {!error && (
           <button className="btn primary" type="button" onClick={() => setStarting(true)}>
@@ -66,7 +66,7 @@ export default function ChatListPage() {
       </section>
 
       {error && <p className="error">{error}</p>}
-      {!error && !loading && <PushPrompt context="new messages from your clubs" />}
+      {!error && !loading && <PushPrompt context={t("cl.new_messages_from_your_clubs")} />}
 
       {loading && <div className="skeleton" style={{ height: 200 }} />}
 

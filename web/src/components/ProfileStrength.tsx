@@ -30,7 +30,7 @@ export function ProfileStrength({ user, onProfilePage = false }: { user: PublicU
       <div
         className="strength-ring"
         role="img"
-        aria-label={`Profile ${strength.percent} percent complete`}
+        aria-label={t("le.profile_percent_complete", { n: strength.percent })}
         style={{ ["--pct" as string]: `${strength.percent}%` }}
       >
         <span>{strength.percent}%</span>

@@ -183,7 +183,7 @@ export function WorldScoresPanel() {
         ))}
       </div>
       <p className="score-asof">
-        <Icon name="clock" size={14} /> Scores updated {freshness(scores.as_of)}
+        <Icon name="clock" size={14} /> {t("sr.scores_updated", { when: freshness(scores.as_of, t) })}
       </p>
     </div>
   );

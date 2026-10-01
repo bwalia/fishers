@@ -135,7 +135,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
     markSeen();
   };
 
-  const days = useMemo(() => byDay(messages), [messages]);
+  const days = useMemo(() => byDay(messages, t), [messages, t]);
 
   const send = async () => {
     const body = draft.trim();

@@ -8,6 +8,7 @@
 /// account.
 
 import { api, type MarketListing, type Product, type ProductCondition } from "./api";
+import type { T } from "./i18n";
 
 export const marketplace = (params: { condition?: ProductCondition; q?: string } = {}) => {
   const qs = new URLSearchParams();
@@ -74,9 +75,9 @@ export const markSold = (clubId: string, productId: string) =>
 
 /// "£45.00", or "£45.00 or nearest offer" when the seller will haggle. The
 /// difference decides whether somebody asks at all.
-export function priceLine(p: Product): string {
+export function priceLine(p: Product, t: T): string {
   const amount = price(p.price_cents, p.currency);
-  return p.negotiable ? `${amount} or near offer` : amount;
+  return p.negotiable ? t("sh.amount_or_near_offer", { amount }) : amount;
 }
 
 /// "£45.00", in the currency it was listed in.
@@ -90,9 +91,9 @@ export function price(cents: number, currency: string): string {
 
 /// What to say about how many there are. A used bat is one of one, and "1 in
 /// stock" reads like a warehouse; "on request" is for things made to order.
-export function availability(p: Product): string {
-  if (p.stock == null) return "On request";
-  if (p.stock === 0) return "le.sold";
-  if (p.stock === 1 && p.condition === "used") return "One only";
-  return `${p.stock} available`;
+export function availability(p: Product, t: T): string {
+  if (p.stock == null) return t("lc.on_request");
+  if (p.stock === 0) return t("le.sold");
+  if (p.stock === 1 && p.condition === "used") return t("sh.one_only");
+  return t("sh.n_available", { n: p.stock });
 }

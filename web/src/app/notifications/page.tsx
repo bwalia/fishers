@@ -89,7 +89,7 @@ export default function NotificationsPage() {
   return (
     <main id="main">
       <section className="hero">
-        <h1>Notifications</h1>
+        <h1>{t("rest.notifications")}</h1>
         <p>{t("rest.everything_the_club_has_told_you_newes")}</p>
       </section>
 
@@ -103,8 +103,8 @@ export default function NotificationsPage() {
             {feed
               ? feed.total === 0
                 ? filtered ? t("le.nothing_matches") : t("le.nothing_yet")
-                : `Showing ${from}–${to} of ${feed.total}`
-              : "Loading…"}
+                : t("cl.showing_range_of_total", { from, to, total: feed.total })
+              : t("rest.loading_ellipsis")}
           </h2>
           {(feed?.unread ?? 0) > 0 && (
             <button className="btn ghost sm" type="button" onClick={markAll}>
@@ -135,7 +135,7 @@ export default function NotificationsPage() {
               {/* Only the kinds this person has actually been sent, so the
                   filter never offers a choice that returns nothing. */}
               {(feed?.kinds ?? []).map((k) => (
-                <option key={k} value={k}>{kindLabel(k)}</option>
+                <option key={k} value={k}>{kindLabel(k, t)}</option>
               ))}
             </select>
           </label>
@@ -169,7 +169,7 @@ export default function NotificationsPage() {
               const line = notificationLine(n, t);
               const inner = (
                 <>
-                  <span className="note-kind">{kindLabel(n.type)}</span>
+                  <span className="note-kind">{kindLabel(n.type, t)}</span>
                   <span className="note-title">{line.title}</span>
                   {line.when && <span className="note-when">{line.when}</span>}
                   <time className="subtle" dateTime={n.sent_at}>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, apiV1, readErr } from "@/lib/api";
 import { useT } from "@/lib/i18n/provider";
+import type { T } from "@/lib/i18n";
 
 /// Sending somebody to Stripe to pay, and noticing when they come back.
 ///
@@ -44,12 +45,12 @@ export function useCardPayments(): boolean | null {
 /// address arrives with no session, sees a login page, and cannot tell whether
 /// they paid. The server checks the origin against the ones it serves before
 /// trusting it.
-export async function payAtStripe(openPath: string): Promise<string> {
+export async function payAtStripe(openPath: string, t: T): Promise<string> {
   const out = await api<{ checkout_url: string | null }>("POST", openPath, {
     return_to: window.location.origin,
   });
   if (!out.checkout_url) {
-    return "le.card_payments_are_not_switched_on_for";
+    return t("le.card_payments_are_not_switched_on_for");
   }
   window.location.assign(out.checkout_url);
   // The assignment is not instant; the caller keeps its spinner until the

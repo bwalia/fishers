@@ -41,7 +41,7 @@ export function VerifyContact({
   if (channels.length === 0) return null;
 
   const address = status[channel].address ?? "";
-  const where = channel === "email" ? "emailed" : "sent on WhatsApp";
+  const where = channel === "email" ? t("le.emailed") : t("le.sent_on_whatsapp");
 
   const send = async () => {
     setError(null);
@@ -51,7 +51,7 @@ export function VerifyContact({
         "POST",
         `/me/verification/${channel}`
       );
-      setNote(`New code ${where} to ${sent.sent_to}.`);
+      setNote(t("le.new_code_sent", { where, address: sent.sent_to }));
       setWait(sent.resend_after);
       setCode("");
       input.current?.focus();
@@ -90,9 +90,9 @@ export function VerifyContact({
             <Icon name={channel === "email" ? "mail" : "chat"} size={20} />
           </span>
           <div>
-            <h3>Confirm your {channel === "email" ? "email" : "phone number"}</h3>
+            <h3>{channel === "email" ? t("le.confirm_your_email") : t("le.confirm_your_phone")}</h3>
             <p className="muted">
-              Enter the 6-digit code we {where} to <strong>{address}</strong>.
+              {t("le.enter_the_code_we_sent", { where })} <strong>{address}</strong>.
             </p>
           </div>
         </div>

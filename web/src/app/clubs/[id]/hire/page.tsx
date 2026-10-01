@@ -264,7 +264,7 @@ export default function ClubHireManagePage() {
                 <input
                   value={capacity}
                   onChange={(e) => setCapacity(e.target.value)}
-                  placeholder="optional"
+                  placeholder={t("le.optional")}
                   inputMode="numeric"
                 />
               </label>

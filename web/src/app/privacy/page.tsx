@@ -3,10 +3,13 @@ import Link from "next/link";
 import { brand } from "@/brand.generated";
 import { getT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: `Privacy — ${brand.name}`,
-  description: `What ${brand.name} records about you, why, and how to have it deleted.`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  return {
+    title: `${t("rest.privacy")} — ${brand.name}`,
+    description: t("sr.privacy_description", { brand: brand.name }),
+  };
+}
 
 /// The policy App Store Connect asks for a link to, and the one the app links
 /// to from Profile. Static on purpose: a privacy policy that needs the API up
@@ -68,7 +71,7 @@ export default async function PrivacyPage() {
           </li>
         </ul>
 
-        <h2>Why</h2>
+        <h2>{t("privacy.why")}</h2>
         <p>
           {t("rest.to_run_the_club_you_joined_selecting_s")}
         </p>
@@ -78,7 +81,7 @@ export default async function PrivacyPage() {
           <li><strong>{t("rest.your_club")}</strong> {t("rest.members_and_officials_see_what_the_app")}</li>
           <li><strong>{t("rest.stripe")}</strong>, for payments.</li>
           <li><strong>{t("rest.google")}</strong>, only if you choose to sign in with Google.</li>
-          <li><strong>Apple and your browser&apos;s push service</strong>, to deliver notifications.</li>
+          <li><strong>{t("privacy.apple_and_push")}</strong>{t("privacy.to_deliver_notifications")}</li>
           <li>{t("rest.our_email_and_messaging_providers_to_s")}</li>
         </ul>
         <p>
@@ -92,8 +95,8 @@ export default async function PrivacyPage() {
 
         <h2>{t("rest.deleting_your_account")}</h2>
         <p>
-          <strong>Profile → Delete account</strong>, in the app or on the web. It is
-          immediate and cannot be undone.
+          <strong>{t("privacy.profile_delete_account")}</strong>
+          {t("privacy.immediate_cannot_be_undone")}
         </p>
         <p>
           {t("rest.everything_that_identifies_you_goes_na")}

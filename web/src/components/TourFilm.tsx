@@ -39,7 +39,7 @@ export function TourFilm() {
         {playing ? (
           <iframe
             src={source}
-            title={`${brand.name} — the video tour`}
+            title={t("le.brand_video_tour", { brand: brand.name })}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
             allowFullScreen
           />

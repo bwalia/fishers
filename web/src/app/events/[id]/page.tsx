@@ -76,7 +76,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       setNote(said);
       await load();
     } catch (err) {
-      setError(readErr(err, "That did not work"));
+      setError(readErr(err, t("le.that_did_not_work")));
     } finally {
       setBusy(null);
     }
@@ -132,7 +132,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   disabled={busy !== null}
                   onClick={() =>
                     act(answer, () => api("POST", `/events/${id}/rsvp`, { status: answer }),
-                        `Told them: ${t(RSVP_LABEL[answer]).toLowerCase()}.`)
+                        t("le.told_them", { answer: t(RSVP_LABEL[answer]).toLowerCase() }))
                   }
                 >
                   {t(RSVP_LABEL[answer])}

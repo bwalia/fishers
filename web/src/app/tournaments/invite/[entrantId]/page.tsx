@@ -133,9 +133,9 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
         </p>
         <h1>{i.block_name}</h1>
         <div className="hero-tags">
-          <span className="tag">entering as {i.entrant_name}</span>
+          <span className="tag">{t("tn.entering_as", { name: i.entrant_name })}</span>
           {dates && <span className="tag grey">{dates}</span>}
-          {view.confirmed && <span className="tag">You&apos;re in</span>}
+          {view.confirmed && <span className="tag">{t("tn.youre_in")}</span>}
           {view.owes_entry_fee && i.status === "accepted" && (
             <span className="tag gold">{t("tn.entry_fee_outstanding")}</span>
           )}
@@ -158,8 +158,8 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
                 <dt>{t("tn.guest_players")}</dt>
                 <dd>
                   {i.guest_players_allowed === 0
-                    ? "None — every player must be a club member"
-                    : `Up to ${i.guest_players_allowed} from outside the club`}
+                    ? t("tn.none_every_player_a_member")
+                    : t("tn.up_to_n_from_outside", { n: i.guest_players_allowed })}
                 </dd>
               </div>
               {i.age_group !== "open" && (
@@ -168,17 +168,17 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
               {i.gender !== "open" && (
                 <div><dt>{t("tn.who_it_is_for")}</dt><dd>{t(GENDER_LABEL[i.gender])}</dd></div>
               )}
-              {i.venue_name && <div><dt>Ground</dt><dd>{i.venue_name}</dd></div>}
+              {i.venue_name && <div><dt>{t("tn.ground")}</dt><dd>{i.venue_name}</dd></div>}
               {i.conditions && (
                 <>
-                  <div><dt>Overs</dt><dd className="num">{i.conditions.overs_limit}</dd></div>
+                  <div><dt>{t("tn.overs")}</dt><dd className="num">{i.conditions.overs_limit}</dd></div>
                   <div>
                     <dt>{t("tn.most_per_bowler")}</dt>
                     <dd className="num">
                       {i.conditions.overs_per_bowler === 0 ? "No limit" : i.conditions.overs_per_bowler}
                     </dd>
                   </div>
-                  <div><dt>Ball</dt><dd>{t(BALL_LABEL[i.conditions.ball])}</dd></div>
+                  <div><dt>{t("tn.ball")}</dt><dd>{t(BALL_LABEL[i.conditions.ball])}</dd></div>
                   <div>
                     <dt>{t("tn.ground_type")}</dt>
                     <dd>{t(GROUND_LABEL[i.conditions.ground])}</dd>
@@ -200,8 +200,8 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
               <h2>{t("tn.are_you_entering")}</h2>
               <p className="muted">
                 {fee > 0
-                  ? `${i.host_club_name} cannot make the draw until every side has said. There is an entry fee of ${money(fee)} — you pay it after you accept, and your place is confirmed once it clears.`
-                  : `${i.host_club_name} cannot make the draw until every side has said.`}
+                  ? t("tn.cannot_make_draw_with_fee", { host: i.host_club_name, fee: money(fee) })
+                  : t("tn.cannot_make_draw", { host: i.host_club_name })}
               </p>
               {!view.can_answer && (
                 <p className="notice">
@@ -216,7 +216,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
                     disabled={busy !== null}
                     onClick={() => answer("accepted")}
                   >
-                    {busy === "accepted" ? "Sending…" : `Yes — ${i.entrant_name} will enter`}
+                    {busy === "accepted" ? t("tn.sending") : t("tn.yes_side_will_enter", { name: i.entrant_name })}
                   </button>
                   <button
                     className="btn"
@@ -251,14 +251,14 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
                     disabled={paying}
                     onClick={async () => {
                       setPaying(true);
-                      const problem = await payAtStripe(`/entrants/${entrantId}/pay-entry`);
+                      const problem = await payAtStripe(`/entrants/${entrantId}/pay-entry`, t);
                       if (problem) {
                         setError(problem);
                         setPaying(false);
                       }
                     }}
                   >
-                    {paying ? t("le.taking_you_to_stripe") : `Pay ${money(fee)} by card`}
+                    {paying ? t("le.taking_you_to_stripe") : t("tn.pay_by_card", { amount: money(fee) })}
                   </button>
                 </div>
               )}
@@ -273,13 +273,17 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
 
           {view.confirmed && (
             <div className="panel">
-              <h2>You&apos;re in</h2>
+              <h2>{t("tn.youre_in")}</h2>
               <p>
-                {i.entrant_name} is entered in {i.block_name}.
+                {t("tn.side_is_entered_in", { name: i.entrant_name, block: i.block_name })}
                 {i.entry_paid_at
-                  ? ` The entry fee is settled${i.entry_payment_method ? ` (${i.entry_payment_method})` : ""}.`
+                  ? t("tn.entry_fee_is_settled", {
+                      method: i.entry_payment_method
+                        ? t("tn.payment_method_paren", { method: i.entry_payment_method })
+                        : "",
+                    })
                   : t("fin.nothing_to_pay")}{" "}
-                {i.host_club_name} will send the fixtures once the draw is made.
+                {t("tn.will_send_fixtures_once_draw", { host: i.host_club_name })}
               </p>
             </div>
           )}
@@ -307,7 +311,7 @@ export default function InvitePage({ params }: { params: Promise<{ entrantId: st
             <h2>{t("tn.the_tournament")}</h2>
             <dl className="pro-figures">
               <div><dt>{t("tn.run_by")}</dt><dd>{i.host_club_name}</dd></div>
-              {dates && <div><dt>When</dt><dd>{dates}</dd></div>}
+              {dates && <div><dt>{t("tn.when")}</dt><dd>{dates}</dd></div>}
               {i.max_entrants != null && (
                 <div><dt>{t("tn.sides")}</dt><dd className="num">{i.max_entrants}</dd></div>
               )}

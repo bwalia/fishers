@@ -18,7 +18,7 @@ export function ReshareLiveLink({
 
   const share = async () => {
     const url = window.location.href;
-    const title = `${homeName} vs ${awayName} — live scoreboard`;
+    const title = t("le.home_vs_away_live_scoreboard", { home: homeName, away: awayName });
     setNote(null);
     try {
       if (typeof navigator.share === "function") {

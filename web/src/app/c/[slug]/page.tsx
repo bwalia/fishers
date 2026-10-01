@@ -91,21 +91,21 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
       </header>
 
       {record && record.played > 0 && (
-        <section className="club-record" aria-label={`${record.season} season record`}>
+        <section className="club-record" aria-label={t("cl.season_record", { season: record.season })}>
           {/* The number every club leads with, and the three that back it up. */}
           <div className="record-headline">
             <span className="record-pct num">{record.win_percent ?? "—"}%</span>
             <span className="record-label">
-              won in {record.season}
+              {t("cl.won_in_season", { season: record.season })}
               <small>
-                {record.no_result > 0 && `${record.no_result} no result — not counted`}
+                {record.no_result > 0 && t("cl.no_result_not_counted", { n: record.no_result })}
               </small>
             </span>
           </div>
           <dl className="record-grid">
-            <div><dt>Played</dt><dd className="num">{record.played}</dd></div>
-            <div><dt>Won</dt><dd className="num">{record.won}</dd></div>
-            <div><dt>Lost</dt><dd className="num">{record.lost}</dd></div>
+            <div><dt>{t("cl.played")}</dt><dd className="num">{record.played}</dd></div>
+            <div><dt>{t("cl.won")}</dt><dd className="num">{record.won}</dd></div>
+            <div><dt>{t("cl.lost")}</dt><dd className="num">{record.lost}</dd></div>
             <div><dt>{t("rest.drawn")}</dt><dd className="num">{record.drawn}</dd></div>
           </dl>
         </section>
@@ -144,7 +144,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
           <div className="player-cols">
             {page.top_batters.length > 0 && (
               <div>
-                <h3>Runs</h3>
+                <h3>{t("cl.runs")}</h3>
                 <ol className="club-leaders">
                   {page.top_batters.slice(0, 5).map((p, i) => (
                     <li key={i}>
@@ -157,7 +157,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
             )}
             {page.top_bowlers.length > 0 && (
               <div>
-                <h3>Wickets</h3>
+                <h3>{t("cl.wickets")}</h3>
                 <ol className="club-leaders">
                   {page.top_bowlers.slice(0, 5).map((p, i) => (
                     <li key={i}>

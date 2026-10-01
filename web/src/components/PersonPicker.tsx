@@ -17,7 +17,7 @@ export function PersonPicker({
   people,
   value,
   onChange,
-  placeholder = "le.start_typing_a_name",
+  placeholder,
   loading = false,
   emptyHint,
 }: {
@@ -112,7 +112,7 @@ export function PersonPicker({
         aria-activedescendant={open && matches[active] ? `${listId}-${active}` : undefined}
         autoComplete="off"
         value={query}
-        placeholder={loading ? t("le.loading_the_squad") : placeholder}
+        placeholder={loading ? t("le.loading_the_squad") : placeholder ?? t("le.start_typing_a_name")}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
         onChange={(e) => {

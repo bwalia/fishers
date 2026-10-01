@@ -104,8 +104,8 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
       <main id="main" className="shared-profile">
         <div className="panel empty">
           <Icon name="link" size={28} />
-          <h1>This link didn&apos;t work</h1>
-          <p className="muted">{error}. Ask the player to send you their link again.</p>
+          <h1>{t("le.this_link_didnt_work")}</h1>
+          <p className="muted">{t("le.ask_for_link_again", { error })}</p>
         </div>
       </main>
     );
@@ -244,7 +244,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
             onClick={invite}
             disabled={busy || !place || (!team && !canInviteToClub(place))}
           >
-            <Icon name="send" size={16} /> {busy ? "Sending…" : `Add to ${target ?? "your club"}`}
+            <Icon name="send" size={16} /> {busy ? t("le.sending") : t("le.add_to_target", { target: target ?? t("le.your_club") })}
           </button>
           {team && (
             <p className="subtle add-to-note">
