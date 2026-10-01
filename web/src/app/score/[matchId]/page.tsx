@@ -347,7 +347,7 @@ export default function ScorerPage({
             <>
               <span className="tag">
                 {st.conditions.overs_limit > 0
-                  ? `${st.conditions.overs_limit} overs`
+                  ? t("tn.n_overs", { n: st.conditions.overs_limit })
                   : t("la.no_over_limit")}
               </span>
               <span className="tag">{t("sc.ball_with_type", { type: t(`ball_type.${st.conditions.ball}` as Key) })}</span>
@@ -2747,8 +2747,8 @@ function LivePanel({
                 {t("sc.overs_of", { balls: overs(inn.legal_balls), limit: oversAvailable })}
               </span>
               <div className="ground-rates">
-                CRR {crr === null ? "—" : crr.toFixed(2)}
-                {rrr !== null && ` · RRR ${rrr.toFixed(2)}`}
+                {t("sc.crr", { rate: crr === null ? "—" : crr.toFixed(2) })}
+                {rrr !== null && t("sc.rrr", { rate: rrr.toFixed(2) })}
               </div>
             </div>
 
@@ -2825,7 +2825,7 @@ function LivePanel({
               const total = balls.reduce((sum, b) => sum + b.runs, 0);
               return (
                 <div className="over-row" key={over}>
-                  <span className="over-label">Over {over + 1}</span>
+                  <span className="over-label">{t("sc.over_n", { n: over + 1 })}</span>
                   {balls.map((b, i) => (
                     <span key={i} className={`ball-chip ${chipClass(b)}`} title={b.label}>
                       {b.is_wicket ? "W" : b.label}

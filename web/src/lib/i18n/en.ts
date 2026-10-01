@@ -2726,6 +2726,11 @@ export const en = {
   "str.emergency": "an emergency contact",
   "str.add_one": "Add {one}",
   "str.add_list": "Add {rest} and {last}",
+
+  // MARK: Rates and the over label on the scoring screen
+  "sc.crr": "CRR {rate}",
+  "sc.rrr": " · RRR {rate}",
+  "sc.over_n": "Over {n}",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

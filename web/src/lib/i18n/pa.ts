@@ -2713,4 +2713,9 @@ export const pa: Dict = {
   "str.emergency": "ਸੰਕਟ ਵੇਲੇ ਦਾ ਸੰਪਰਕ",
   "str.add_one": "{one} ਜੋੜੋ",
   "str.add_list": "{rest} ਅਤੇ {last} ਜੋੜੋ",
+
+  // Rates and the over label on the scoring screen
+  "sc.crr": "ਮੌ.ਰ.ਰੇ. {rate}",
+  "sc.rrr": " · ਲੋ.ਰ.ਰੇ. {rate}",
+  "sc.over_n": "ਓਵਰ {n}",
 };

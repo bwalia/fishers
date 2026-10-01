@@ -1269,16 +1269,21 @@ textarea { line-height: 1.5; resize: vertical; }
 }
 
 /* ---------- The ground ----------
-   The live state, laid out the way the game is: what the score is, who is
-   batting, who is bowling — left to right across the full width, rather than
-   stacked in a column with two thirds of the panel empty beside them.
+   The live state on a round ground, read top to bottom the way the game is
+   laid out on the field: the score, then the two batters either side of the
+   pitch, then the bowler running in at the far end.
 
-   The turf is drawn, not photographed. The first attempt fitted a whole oval
-   inside the panel, and a panel this wide made it a 5:1 lens that read as a
-   stray line rather than a boundary. So the ground is drawn *larger than the
-   panel* and cropped by it: what you see is the middle band of an aerial — the
-   rope curving in at top and bottom, the thirty-yard ring inside it, the pitch
-   running down the middle. That keeps a believable oval at any width.
+   The panel *is* the ground — its own border is the boundary rope, so the
+   whole circle is on screen rather than a band cropped out of something
+   bigger. Three attempts got here: an oval fitted inside a rectangle (a 5:1
+   lens that read as a stray line), an oval drawn larger than the panel and
+   cropped (a believable aerial, but only ever its middle), and a wide ellipse
+   (a whole ground, but only by flattening it). A circle needs its content
+   stacked rather than spread, and once it is stacked the circle costs nothing.
+
+   The stack is what makes the shape work: a circle is widest across the
+   middle and narrows at top and bottom, which is the exact shape of this
+   content — one score card, then two batters side by side, then one bowler.
 
    Every piece of text sits on an opaque card, so nothing is ever read against
    grass: the contrast of a name is the contrast of its card, whatever the turf
@@ -1286,69 +1291,69 @@ textarea { line-height: 1.5; resize: vertical; }
 .ground {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
-  min-height: 250px;
+  width: 100%;
+  /* A ground is a size, not a share of the viewport, and a circle is as tall
+     as it is wide — so this is also the height, and the ceiling is set by how
+     much vertical room the scoring controls can spare. */
+  max-width: 580px;
+  aspect-ratio: 1 / 1;
+  /* `height: auto` keeps the circle as the *preferred* size while letting the
+     box grow if the cards inside ever need more. Without it, a long name or a
+     chase line would be clipped by the curve instead of pushing it out. */
+  height: auto;
+  margin: 0 auto var(--s4);
   display: grid;
   align-content: center;
-  margin-bottom: var(--s4);
-  padding: var(--s6) var(--s4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  justify-items: center;
+  padding: var(--s4);
+  /* The rope. It is the panel's own border now, so there is no second circle
+     to keep aligned with it. */
+  border: 2.5px solid rgb(27 127 76 / 38%);
+  border-radius: 50%;
   /* A groundsman mows in bands, and it is the one cue that says "cut grass"
-     before any of the lines do. */
+     before any of the lines do. The radial on top lifts the square, the way
+     the middle of a ground is always a shade barer than the outfield.
+     Backgrounds are clipped by `border-radius` without `overflow: hidden`,
+     which is why the box can still grow. */
   background-image:
+    radial-gradient(
+      ellipse 22% 34% at 50% 50%,
+      rgb(201 171 114 / 12%),
+      transparent 70%
+    ),
     repeating-linear-gradient(
       90deg,
-      rgb(27 127 76 / 6%) 0 44px,
-      rgb(27 127 76 / 11%) 44px 88px
+      rgb(27 127 76 / 4%) 0 52px,
+      rgb(27 127 76 / 8%) 52px 104px
     );
   background-color: var(--surface);
 }
-/* The rope, and the outfield inside it.
-   Narrower than the panel but much taller, so what shows is the middle band of
-   the oval: the rope curving at the far left and far right — the ends of the
-   ground — with its top and bottom cropped away. At 118% wide it was wider
-   *and* taller than the panel, so no part of the border crossed the visible
-   area at all and the rope simply did not appear. */
+/* The thirty-yard ring — the circle that actually means something in cricket. */
 .ground::before {
   content: "";
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 97%;
-  height: 260%;
+  width: 62%;
+  height: 62%;
   transform: translate(-50%, -50%);
-  border: 2px solid rgb(27 127 76 / 32%);
-  border-radius: 50%;
-  background: rgb(27 127 76 / 7%);
-  pointer-events: none;
-  z-index: 0;
-}
-/* The thirty-yard ring — the circle that actually means something in cricket. */
-.ground::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 46%;
-  height: 128%;
-  transform: translate(-50%, -50%);
-  border: 1.5px dashed rgb(27 127 76 / 28%);
+  border: 1.5px dashed rgb(27 127 76 / 30%);
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
 }
-/* The square, with the pitch on it. Tall enough to run clear of the cards at
-   both ends, so it reads as a pitch rather than as a sliver in a gap. */
+/* The square, with the pitch on it. It runs up the middle between the two
+   batter cards, which is where the two batters are actually standing — the
+   gap in that row is set wide enough to leave it showing. */
 .ground-pitch {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 40px;
-  height: 92%;
+  width: 34px;
+  height: 46%;
   transform: translate(-50%, -50%);
   border-radius: 3px;
-  background: rgb(201 171 114 / 30%);
+  background: rgb(201 171 114 / 34%);
   pointer-events: none;
   z-index: 0;
 }
@@ -1360,24 +1365,32 @@ textarea { line-height: 1.5; resize: vertical; }
   left: 3px;
   right: 3px;
   height: 1.5px;
-  background: rgb(255 255 255 / 50%);
+  background: rgb(255 255 255 / 55%);
 }
-.ground-pitch::before { top: 14%; }
-.ground-pitch::after { bottom: 14%; }
+.ground-pitch::before { top: 10%; }
+.ground-pitch::after { bottom: 10%; }
 
-/* Score, then who is in, then who is bowling — across the width. */
+/* Score, then the batters, then the bowler — down the ground.
+   Each row is capped well inside the circle, narrowest at top and bottom where
+   the curve closes in, widest across the middle where there is room for two. */
 .ground-row {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(150px, 0.42fr);
-  align-items: center;
-  gap: var(--s4);
+  grid-template-columns: 1fr;
+  justify-items: center;
+  width: 100%;
+  gap: var(--s3);
 }
+.ground-score { width: min(230px, 56%); }
+.ground .bowler { width: min(290px, 64%); }
+/* The two batters, with the pitch up the middle between them. The gap is wider
+   than the pitch is, which is the only reason the pitch is visible at all. */
 .ground-batters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--s3);
+  grid-template-columns: 1fr 1fr;
+  gap: 46px;
+  width: min(470px, 90%);
 }
 /* Cards on grass: opaque, so their text is read against a surface. */
 .ground .card,
@@ -1392,7 +1405,7 @@ textarea { line-height: 1.5; resize: vertical; }
 .ground-score .scoreline {
   display: block;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  font-size: clamp(1.9rem, 1.3rem + 2.2vw, 2.6rem);
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -1404,12 +1417,18 @@ textarea { line-height: 1.5; resize: vertical; }
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
 }
-/* The chase sits under the middle column, where the pitch is — it is the thing
-   the two batters out there are doing. On a card like everything else: it is
-   the one line that was being read straight off the turf, and the rule above
-   is only true if it holds for every line. */
-.ground-chase { text-align: center; }
+/* The chase goes under the bowler, last thing down the ground. The row was
+   built for a three-across layout and carries an empty cell either side of its
+   one card; stacked, those cells would each be a row of their own. */
+.ground-chase {
+  text-align: center;
+  width: min(290px, 64%);
+  margin-top: var(--s3);
+}
+.ground-chase > div:nth-child(1),
+.ground-chase > div:nth-child(3) { display: none; }
 .ground-chase > div:nth-child(2) {
+  width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1419,14 +1438,40 @@ textarea { line-height: 1.5; resize: vertical; }
 .ground-chase strong { display: block; font-size: 1.05rem; }
 .ground-chase .subtle { font-size: 0.8rem; }
 
-/* A phone has no width to spread across, so it stacks — and the ring and the
-   pitch come off, because at that size they are texture nobody reads. */
-@media (max-width: 720px) {
-  .ground { min-height: 0; padding: var(--s4) var(--s3); }
-  .ground-row { grid-template-columns: 1fr; }
-  .ground::after,
+/* A phone is narrower than the circle wants to be, and a circle that shrinks
+   to fit squeezes two batter cards into a third of its width. Below this it
+   goes back to a panel: the same stack, no curve to work around. */
+@media (max-width: 620px) {
+  .ground {
+    aspect-ratio: auto;
+    max-width: none;
+    padding: var(--s4) var(--s3);
+    border-radius: var(--radius);
+    border-color: var(--border);
+    /* The circle above has no `overflow: hidden`, so the box can grow past its
+       aspect ratio rather than clip a long name. Here the rope is drawn taller
+       than the panel to curve across it, and with nothing clipping it that arc
+       swept out over the rest of the page. */
+    overflow: hidden;
+  }
+  /* `::before` is the thirty-yard ring on the circle; here it plays the rope.
+     Narrower than the panel and much taller, so the curve shows at the far
+     left and right — the ends of the ground — with top and bottom cropped. It
+     has to be *narrower*: at 150% wide and 190% tall every edge fell outside
+     the panel and no part of the border crossed it, which is why no rope ever
+     appeared at this width. */
+  .ground::before {
+    width: 88%;
+    height: 320%;
+    border-style: solid;
+    border-color: rgb(27 127 76 / 30%);
+  }
+  .ground-score,
+  .ground .bowler,
+  .ground-batters,
+  .ground-chase { width: 100%; }
+  .ground-batters { gap: var(--s2); }
   .ground-pitch { display: none; }
-  .ground::before { width: 150%; height: 190%; }
 }
 
 :root[data-theme="dark"] .ground,
