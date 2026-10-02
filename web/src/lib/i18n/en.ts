@@ -2753,6 +2753,9 @@ export const en = {
   "cl.teams_optional": "optional",
   "lb.add_players": "Add players",
   "lb.add_a_ground": "Add a ground",
+  // MARK: A club's own public page, in a search result
+  "cp.club_on_brand": "{club} on {brand}",
+  "cp.description": "Fixtures, results and players for {club} — kept up to date by the club itself.",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

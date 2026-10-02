@@ -88,6 +88,29 @@ pub async fn page_by_slug(pool: &PgPool, slug: &str) -> Result<Option<ClubPage>,
     .await
 }
 
+/// A published club page: its address and when it last changed.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct PublishedPage {
+    pub slug: String,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Every club page that is actually on the open web, for the sitemap.
+///
+/// An address and a date is all a sitemap can carry, so that is all this
+/// selects. `public_page AND slug IS NOT NULL` is the same condition
+/// `page_by_slug` serves on, so nothing is listed that would then 404 — a
+/// sitemap full of dead addresses is worse than no sitemap.
+pub async fn published_pages(pool: &PgPool) -> Result<Vec<PublishedPage>, sqlx::Error> {
+    sqlx::query_as::<_, PublishedPage>(
+        "SELECT slug, updated_at FROM clubs
+         WHERE public_page AND slug IS NOT NULL
+         ORDER BY updated_at DESC LIMIT 5000",
+    )
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn page_for(pool: &PgPool, club_id: Uuid) -> Result<Option<ClubPage>, sqlx::Error> {
     sqlx::query_as::<_, ClubPage>(&format!("SELECT {PAGE_COLS} FROM clubs WHERE id = $1"))
         .bind(club_id)

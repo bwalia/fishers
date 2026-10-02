@@ -2740,4 +2740,7 @@ export const pa: Dict = {
   "cl.teams_optional": "ਮਰਜ਼ੀ ਨਾਲ",
   "lb.add_players": "ਖਿਡਾਰੀ ਜੋੜੋ",
   "lb.add_a_ground": "ਮੈਦਾਨ ਜੋੜੋ",
+  // A club's own public page, in a search result
+  "cp.club_on_brand": "{brand} ਉੱਤੇ {club}",
+  "cp.description": "{club} ਦੇ ਫ਼ਿਕਸਚਰ, ਨਤੀਜੇ ਅਤੇ ਖਿਡਾਰੀ — ਕਲੱਬ ਆਪ ਹੀ ਅੱਪਡੇਟ ਰੱਖਦਾ ਹੈ।",
 };

@@ -44,6 +44,8 @@ pub fn router() -> Router<AppState> {
         .route("/clubs/{id}/page", get(get_page).patch(update_page))
         // No auth: this is the club's shop window.
         .route("/public/clubs/{slug}", get(public_page))
+        // No auth either: the addresses of the shop windows, for the sitemap.
+        .route("/public/clubs", get(public_pages))
 }
 
 #[derive(Serialize)]
@@ -89,6 +91,17 @@ struct PublicFixture {
 /// the record they have played to, the players at the top of it, and when they
 /// are next out. No rosters, no contact details for members, nothing a club
 /// would not put on a noticeboard.
+/// The addresses of every published club page, for the sitemap.
+///
+/// Slugs and dates only. It is public because each page it names is public:
+/// listing the doors to rooms whose doors are already open gives nothing away,
+/// and a crawler cannot discover a club page any other way.
+async fn public_pages(
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<clubs_repo::PublishedPage>>> {
+    Ok(Json(clubs_repo::published_pages(&state.pool).await?))
+}
+
 async fn public_page(
     State(state): State<AppState>,
     Path(slug): Path<String>,
