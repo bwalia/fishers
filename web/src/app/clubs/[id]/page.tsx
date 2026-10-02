@@ -150,7 +150,6 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
           clubId={id}
           clubName={club.name}
           members={members}
-          teams={teams}
           venues={venues}
           welcome={welcome}
         />
@@ -471,6 +470,7 @@ function Teams({
   const [name, setName] = useState("");
   const [sport, setSport] = useState("cricket");
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const create = async () => {
@@ -479,6 +479,7 @@ function Teams({
     try {
       await api("POST", `/clubs/${clubId}/teams`, { name: name.trim(), sport });
       setName("");
+      setAdding(false);
       onChanged();
     } catch (err) {
       setError(readErr(err, t("lc.could_not_create_the_team")));
@@ -491,28 +492,57 @@ function Teams({
     <div className="panel" id="teams">
       <div className="panel-head">
         <h2>{t("cl.teams")}</h2>
-        <span className="tag grey">{teams.length}</span>
+        {/* "optional" rather than a count of nought, which read as something
+            missing. A club is already a side; this is only for a club that
+            runs two of them. */}
+        <span className="tag grey">{teams.length || t("cl.teams_optional")}</span>
       </div>
-      {teams.length === 0 && (
-        <p className="muted">
-          {t("cl.no_teams_yet_a_club_can_run_without_th")}
-        </p>
+      {teams.length === 0 && <p className="muted">{t("cl.club_plays_as_one_side")}</p>}
+      {teams.map((team) => <TeamRow key={team.id} team={team} />)}
+      {isSecretary && !adding && (
+        // A button, not a form standing open. An empty form with a label and a
+        // dropdown in it is a thing somebody has not finished; a button is an
+        // offer, which is what a team actually is.
+        <button
+          className="btn"
+          type="button"
+          id="add-team"
+          style={{ marginTop: "var(--s3)" }}
+          onClick={() => setAdding(true)}
+        >
+          <Icon name="plus" size={16} /> {t("ld.add_a_team")}
+        </button>
       )}
-      {teams.map((t) => <TeamRow key={t.id} team={t} />)}
-      {isSecretary && (
-        <div className="field-row" id="add-team" style={{ marginTop: "var(--s3)" }}>
-          <label>
+      {isSecretary && adding && (
+        <div className="field-row team-add" id="add-team" style={{ marginTop: "var(--s3)" }}>
+          <label className="team-add-name">
             {t("cl.new_team")}
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("cl.1st_xi")} />
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("cl.1st_xi")}
+            />
           </label>
-          <label>
+          <label className="team-add-sport">
             {t("cl.sport")}
             <select value={sport} onChange={(e) => setSport(e.target.value)}>
               {SPORTS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
-          <button className="btn" type="button" disabled={!name.trim() || busy} onClick={create}>
+          <button className="btn primary" type="button" disabled={!name.trim() || busy} onClick={create}>
             <Icon name="plus" size={16} /> {t("cl.create")}
+          </button>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => {
+              setAdding(false);
+              setName("");
+              setError(null);
+            }}
+          >
+            {t("sc.cancel")}
           </button>
         </div>
       )}

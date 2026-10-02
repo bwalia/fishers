@@ -9,7 +9,6 @@ import {
   type ClubMemberRow,
   type PublicUser,
   type RoleIntent,
-  type Team,
   type VerificationStatus,
 } from "@/lib/api";
 import { Icon, type IconName } from "@/components/Icon";
@@ -68,7 +67,6 @@ export function GettingStarted({
   const t = useT();
   const role: RoleIntent = user.role_intent ?? "player";
   const [verification, setVerification] = useState<VerificationStatus | null>(null);
-  const [teams, setTeams] = useState<Team[] | null>(null);
   const [members, setMembers] = useState<ClubMemberRow[] | null>(null);
   const [sharedOnce, setSharedOnce] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
@@ -76,7 +74,7 @@ export function GettingStarted({
   const ownClub = clubs.find((c) => c.owner_id === user.id) ?? null;
   // clubs.find() answers with a new object every render, so the effect below
   // depends on the id rather than the club: depending on the object would
-  // refetch the teams and members on every render for ever.
+  // refetch the members on every render for ever.
   const ownClubId = ownClub?.id ?? null;
 
   useEffect(() => {
@@ -88,13 +86,9 @@ export function GettingStarted({
 
   useEffect(() => {
     if (!ownClubId) return;
-    Promise.all([
-      api<Team[]>("GET", `/clubs/${ownClubId}/teams`).catch(() => [] as Team[]),
-      api<ClubMemberRow[]>("GET", `/clubs/${ownClubId}/members`).catch(() => [] as ClubMemberRow[]),
-    ]).then(([t, m]) => {
-      setTeams(t);
-      setMembers(m);
-    });
+    api<ClubMemberRow[]>("GET", `/clubs/${ownClubId}/members`)
+      .then(setMembers)
+      .catch(() => setMembers([]));
   }, [ownClubId]);
 
   const verified = !!(user.email_verified || user.phone_verified);
@@ -142,14 +136,6 @@ export function GettingStarted({
             title: t("lb.start_your_club_here"),
             body: t("lb.give_it_a_name_and_pick_the_sport_you"),
           },
-        },
-        {
-          key: "team",
-          title: t("lb.add_your_first_team"),
-          body: t("lb.a_1st_xi_a_sunday_side_the_juniors_eac"),
-          done: (teams?.length ?? 0) > 0,
-          cta: { label: t("lb.add_a_team"), href: `${clubPage}#teams`, icon: "users" },
-          tour: { title: t("lb.now_add_a_team"), body: t("lb.most_clubs_start_with_one_you_can_add") },
         },
         {
           key: "players",
@@ -211,7 +197,7 @@ export function GettingStarted({
               },
       },
     ];
-  }, [role, canVerify, verification, verified, ownClub, teams, members, eventsCount, user, sharedOnce, invitesCount, clubs.length, onUserChange, t]);
+  }, [role, canVerify, verification, verified, ownClub, members, eventsCount, user, sharedOnce, invitesCount, clubs.length, onUserChange, t]);
 
   const current = steps.find((s) => !s.done) ?? null;
   // Seen-once per step AND per thing it points at: when an invite arrives on
