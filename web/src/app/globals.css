@@ -1193,32 +1193,6 @@ textarea { line-height: 1.5; resize: vertical; }
   line-height: 1.25;
 }
 
-/* ---------- Sticky match bar ---------- */
-
-.matchbar {
-  position: sticky;
-  top: 64px;
-  z-index: calc(var(--z-nav) - 1);
-  display: flex;
-  align-items: baseline;
-  gap: var(--s3);
-  flex-wrap: wrap;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--s3) var(--s4);
-  margin-bottom: var(--s4);
-  box-shadow: var(--shadow-2);
-}
-.matchbar .scoreline { font-size: clamp(1.9rem, 1.4rem + 2vw, 2.6rem); }
-.matchbar .crease {
-  display: flex;
-  gap: var(--s4);
-  flex-wrap: wrap;
-  margin-left: auto;
-  font-size: 0.9rem;
-}
-
 /* ---------- Secondary action row ---------- */
 
 .actions {
