@@ -5,6 +5,7 @@ import { api, type OpponentIdentity } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { isSecureContextAvailable } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n/provider";
+import { brand } from "@/brand.generated";
 
 /// Three ways to name the other side, because a ground is not a laboratory:
 /// scan their code, paste the link they sent, or search for them by name. A
@@ -29,6 +30,14 @@ export function OppositionPicker({
 }) {
   const t = useT();
   const [tab, setTab] = useState<"scan" | "code" | "search">("search");
+  /// What is currently chosen, so the result that was clicked can say so.
+  ///
+  /// The picker used to hand the choice to the parent and forget it, which
+  /// left the thing you clicked looking exactly as it did before — the only
+  /// confirmation was a line of prose two fields further down, past an empty
+  /// input. People clicked, saw nothing change, and concluded it had not
+  /// worked.
+  const [picked, setPicked] = useState<OpponentIdentity | null>(null);
   const [code, setCode] = useState("");
   const [query, setQuery] = useState("");
   /// A club that is not on Fishers at all: a name and nothing else.
@@ -54,8 +63,9 @@ export function OppositionPicker({
         return;
       }
       setPlain("");
+      setPicked(identity);
       onPick(identity, identity.name);
-      setNote(`Matched ${identity.name}.`);
+      setNote(t("opp.matched", { name: identity.name }));
     } catch {
       setNote(t("le.that_code_is_not_one_of_ours_try_searc"));
     } finally {
@@ -109,7 +119,37 @@ export function OppositionPicker({
         ))}
       </div>
 
-      {tab === "search" && (
+      {/* Once a club is chosen the search has done its job. Leaving the box,
+          the result list and the "or just their name" field all on screen was
+          the complaint: the list still offered clubs that were no longer
+          relevant, and the empty name field read as though nothing had been
+          picked. This is what was chosen and how to change it, and nothing
+          else. */}
+      {tab === "search" && picked && (
+        <div className="opp-chosen">
+          <p className="opp-chosen-name">
+            <Icon name="check" size={16} />
+            <strong>{t("opp.playing", { name: picked.name })}</strong>
+            <span className="subtle">{picked.kind}</span>
+          </p>
+          <p className="subtle">{t("opp.on_brand_too", { brand: brand.name })}</p>
+          <button
+            className="btn ghost sm"
+            type="button"
+            onClick={() => {
+              // Back to the search they had — same term, same results — rather
+              // than a blank box they have to start again from.
+              setPicked(null);
+              onPick(null, "");
+              setNote(null);
+            }}
+          >
+            {t("opp.change")}
+          </button>
+        </div>
+      )}
+
+      {tab === "search" && !picked && (
         <>
           <label>
             {t("rest.club_or_team_name")}
@@ -126,9 +166,14 @@ export function OppositionPicker({
                   className="btn sm"
                   type="button"
                   onClick={() => {
+                    // The results stay in state deliberately. They are hidden
+                    // while something is chosen, so "Change" puts the list
+                    // back exactly as it was rather than making somebody type
+                    // their search again.
                     setPlain("");
+                    setPicked(r);
                     onPick(r, r.name);
-                    setNote(`Matched ${r.name}.`);
+                    setNote(null);
                   }}
                 >
                   {r.name}
@@ -142,7 +187,7 @@ export function OppositionPicker({
               // "nobody by that name" read as though they were not on Fishers
               // at all — and left no way forward.
               <li className="muted">
-                Nobody by that name you can search for. A club set to{" "}
+                {t("opp.nobody_by_that_name")}{" "}
                 <strong>{t("rest.invite_only")}</strong> {t("rest.is_kept_out_of_search_ask_them_for_the")}
               </li>
             )}
@@ -162,6 +207,7 @@ export function OppositionPicker({
                 // A typed name and a matched club are alternatives, so typing
                 // clears whatever was matched — otherwise the fixture is
                 // scheduled against the club they abandoned.
+                setPicked(null);
                 onPick(null, e.target.value);
                 setNote(null);
               }}
@@ -192,7 +238,7 @@ export function OppositionPicker({
             disabled={!code.trim() || busy}
             onClick={() => resolve(code.trim())}
           >
-            {busy ? t("le.looking") : "Match"}
+            {busy ? t("le.looking") : t("opp.match_button")}
           </button>
         </div>
       )}

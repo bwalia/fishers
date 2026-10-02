@@ -441,8 +441,8 @@ function ScheduleMatch({
   // the page rather than something they have to hunt for.
   const missing = [
     !clubId && t("ev.missing_which_club"),
-    !opponent && !oppositionName.trim() && t("ev.missing_who_you_play"),
-    !start && "when",
+    !opponent && !oppositionName.trim() && t("ev.missing_who"),
+    !start && t("ev.missing_when"),
   ]
     .filter(Boolean)
     .join(", ");
@@ -468,7 +468,7 @@ function ScheduleMatch({
         <legend>{t("ev.where")}</legend>
         {venues.length === 0 ? (
           <p className="muted">
-            No grounds saved for this club yet. Add them on the{" "}
+            {t("ev.no_grounds_saved")}{" "}
             <Link href={`/clubs/${clubId}`}>{t("ev.club_page")}</Link> {t("ev.and_they_show_up_here")}
           </p>
         ) : (
@@ -491,11 +491,12 @@ function ScheduleMatch({
             setOppositionName(name);
           }}
         />
-        <p className="subtle">
-          {opponent
-            ? t("ev.opponent_on_brand", { name: opponent.name, brand: brand.name })
-            : t("ev.a_club_on_brand_gets_asked", { brand: brand.name })}
-        </p>
+        {/* Only while nothing is chosen. Once it is, the picker's own panel
+            says the same thing where the choice is, and two copies of it on
+            one screen is one too many. */}
+        {!opponent && (
+          <p className="subtle">{t("ev.club_on_brand_gets_asked", { brand: brand.name })}</p>
+        )}
       </fieldset>
 
       <fieldset className="setup-group">

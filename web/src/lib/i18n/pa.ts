@@ -2357,12 +2357,9 @@ export const pa: Dict = {
   "ev.clash_same_time": "ਤੁਸੀਂ ਉਸੇ ਵੇਲੇ ਕਿਸੇ ਹੋਰ ਮੈਚ ਲਈ ਉਪਲਬਧ ਹੋ।",
   "ev.calendar_says_not_available": "ਤੁਹਾਡਾ ਕੈਲੰਡਰ ਕਹਿੰਦਾ ਹੈ ਕਿ ਇਸ ਦਿਨ ਤੁਸੀਂ ਉਪਲਬਧ ਨਹੀਂ।",
   "ev.missing_which_club": "ਤੁਹਾਡਾ ਕਿਹੜਾ ਕਲੱਬ ਖੇਡ ਰਿਹਾ ਹੈ",
-  "ev.missing_who_you_play": "ਤੁਸੀਂ ਕਿਸ ਨਾਲ ਖੇਡ ਰਹੇ ਹੋ",
   "ev.your_side": "ਤੁਹਾਡੀ ਟੀਮ",
   "ev.club": "ਕਲੱਬ",
   "ev.the_opposition": "ਵਿਰੋਧੀ ਟੀਮ",
-  "ev.opponent_on_brand": "{name} {brand} 'ਤੇ ਹਨ — ਉਨ੍ਹਾਂ ਦੇ ਖਿਡਾਰੀਆਂ ਨੂੰ ਵੀ ਪੁੱਛਿਆ ਜਾਂਦਾ ਹੈ।",
-  "ev.a_club_on_brand_gets_asked": "{brand} 'ਤੇ ਹੋਣ ਵਾਲੇ ਕਲੱਬ ਨੂੰ ਵੀ ਪੁੱਛਿਆ ਜਾਂਦਾ ਹੈ। ਨਹੀਂ ਤਾਂ ਸਿਰਫ਼ ਤੁਹਾਡੀ ਟੀਮ ਨੂੰ।",
   "ev.still_needed": "ਅਜੇ ਲੋੜ ਹੈ: {what}।",
   "ev.everyone_in_is_asked": "{who} ਵਿੱਚ ਹਰ ਕਿਸੇ ਨੂੰ ਪੁੱਛਿਆ ਜਾਂਦਾ ਹੈ ਕਿ ਉਹ ਖੇਡ ਸਕਦਾ ਹੈ ਜਾਂ ਨਹੀਂ, ਅਤੇ ਹਰ ਜਵਾਬ ਕਪਤਾਨ ਤੱਕ ਪਹੁੰਚਦਾ ਹੈ।",
   "ev.both_clubs": "ਦੋਵੇਂ ਕਲੱਬ",
@@ -2732,4 +2729,17 @@ export const pa: Dict = {
   "sc.ai_commentary": "AI ਕਮੈਂਟਰੀ",
   "sc.ai_no_model": "ਸਰਵਰ 'ਤੇ ਕੋਈ ਮਾਡਲ ਸੈੱਟ ਨਹੀਂ ਹੈ, ਸੋ ਹਰ ਲਾਈਨ ਉਵੇਂ ਹੀ ਰਹਿੰਦੀ ਹੈ ਜਿਵੇਂ ਸਕੋਰਬੁੱਕ ਨੇ ਲਿਖੀ।",
   "sc.ai_unreachable": "ਮਾਡਲ ਤੱਕ ਨਹੀਂ ਪਹੁੰਚ ਸਕੇ, ਸੋ ਹਰ ਲਾਈਨ ਉਵੇਂ ਹੀ ਰਹਿੰਦੀ ਹੈ ਜਿਵੇਂ ਸਕੋਰਬੁੱਕ ਨੇ ਲਿਖੀ।",
+
+  // Scheduling a match — the last of this screen
+  "opp.matched": "{name} ਚੁਣ ਲਿਆ ਗਿਆ।",
+  "opp.match_button": "ਮਿਲਾਓ",
+  "opp.nobody_by_that_name": "ਉਸ ਨਾਮ ਦਾ ਕੋਈ ਨਹੀਂ ਮਿਲਿਆ ਜਿਸਨੂੰ ਖੋਜਿਆ ਜਾ ਸਕੇ। ਜਿਹੜਾ ਕਲੱਬ",
+  "ev.no_grounds_saved": "ਇਸ ਕਲੱਬ ਦਾ ਹਾਲੇ ਕੋਈ ਮੈਦਾਨ ਸੰਭਾਲਿਆ ਨਹੀਂ। ਇਹਨਾਂ ਨੂੰ ਇੱਥੇ ਜੋੜੋ:",
+  "ev.club_on_brand_gets_asked": "{brand} ਤੇ ਮੌਜੂਦ ਕਲੱਬ ਤੋਂ ਵੀ ਪੁੱਛਿਆ ਜਾਂਦਾ ਹੈ। ਨਹੀਂ ਤਾਂ ਸਿਰਫ਼ ਤੁਹਾਡੀ ਟੀਮ ਤੋਂ।",
+  "ev.missing_who": "ਤੁਸੀਂ ਕਿਸ ਨਾਲ ਖੇਡ ਰਹੇ ਹੋ",
+  "ev.missing_when": "ਕਦੋਂ",
+  // The chosen opposition
+  "opp.playing": "{name} ਨਾਲ ਖੇਡ ਰਹੇ ਹੋ",
+  "opp.change": "ਬਦਲੋ",
+  "opp.on_brand_too": "ਉਹ {brand} ਤੇ ਹਨ, ਇਸ ਲਈ ਉਨ੍ਹਾਂ ਦੇ ਖਿਡਾਰੀਆਂ ਤੋਂ ਵੀ ਪੁੱਛਿਆ ਜਾਵੇਗਾ।",
 };
