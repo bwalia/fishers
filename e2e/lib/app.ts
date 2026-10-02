@@ -122,7 +122,17 @@ export async function ensureAccount(a: Actor): Promise<"created" | "reused"> {
 export async function signOut(page: Page) {
   await page.goto("/");
   await clearOverlays(page);
-  await page.getByRole("button", { name: /Sign out/ }).first().click();
+  // Sign out lives inside the nav's overflow menu, and that menu renders its
+  // items only while it is open — so there is nothing to click until it is.
+  // Clicking it directly timed out looking for a button that was not in the
+  // DOM. The menu is found by its role rather than its label, because the
+  // label is the signed-in person's first name.
+  const signOutButton = page.getByRole("button", { name: /Sign out/ });
+  if (!(await signOutButton.first().isVisible().catch(() => false))) {
+    await page.locator('header.topbar button[aria-haspopup="menu"]').last().click();
+    await expect(signOutButton.first()).toBeVisible({ timeout: 10_000 });
+  }
+  await signOutButton.first().click();
   await page.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: 15_000 });
   // Landing on /login is not the end of it: the page can still be settling,
   // and reading storage mid-navigation throws rather than answering. Ask
