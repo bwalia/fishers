@@ -2742,4 +2742,10 @@ export const pa: Dict = {
   "opp.playing": "{name} ਨਾਲ ਖੇਡ ਰਹੇ ਹੋ",
   "opp.change": "ਬਦਲੋ",
   "opp.on_brand_too": "ਉਹ {brand} ਤੇ ਹਨ, ਇਸ ਲਈ ਉਨ੍ਹਾਂ ਦੇ ਖਿਡਾਰੀਆਂ ਤੋਂ ਵੀ ਪੁੱਛਿਆ ਜਾਵੇਗਾ।",
+
+  // Teams, which a club does not need
+  "cl.club_plays_as_one_side": "ਤੁਹਾਡਾ ਕਲੱਬ ਪਹਿਲਾਂ ਹੀ ਇੱਕ ਟੀਮ ਵਜੋਂ ਖੇਡਦਾ ਹੈ — ਮੈਚ ਰੱਖਣ ਲਈ ਇੱਥੇ ਕੁਝ ਕਰਨ ਦੀ ਲੋੜ ਨਹੀਂ। ਟੀਮਾਂ ਉਸ ਕਲੱਬ ਲਈ ਹਨ ਜੋ ਇੱਕ ਤੋਂ ਵੱਧ ਚਲਾਉਂਦਾ ਹੈ: ਪਹਿਲੀ ਤੇ ਦੂਜੀ ਗਿਆਰਾਂ, ਜਿਨ੍ਹਾਂ ਦੇ ਖਿਡਾਰੀ ਵੱਖਰੇ ਹੋਣ।",
+  "cl.teams_optional": "ਮਰਜ਼ੀ ਨਾਲ",
+  "lb.add_players": "ਖਿਡਾਰੀ ਜੋੜੋ",
+  "lb.add_a_ground": "ਮੈਦਾਨ ਜੋੜੋ",
 };

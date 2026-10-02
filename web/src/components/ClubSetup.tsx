@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "@/components/Icon";
 import { Spotlight } from "@/components/Spotlight";
-import type { ClubMemberRow, Team, Venue } from "@/lib/api";
+import type { ClubMemberRow, Venue } from "@/lib/api";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
 
@@ -29,14 +29,12 @@ export function ClubSetup({
   clubId,
   clubName,
   members,
-  teams,
   venues,
   welcome,
 }: {
   clubId: string;
   clubName: string;
   members: ClubMemberRow[];
-  teams: Team[];
   venues: Venue[];
   welcome: boolean;
 }) {
@@ -66,7 +64,7 @@ export function ClubSetup({
       title: t("ld.add_your_players"),
       body: t("ld.by_email_or_mobile_number_or_from_a_pr"),
       done: members.length > 1,
-      cta: "Add players",
+      cta: t("lb.add_players"),
       icon: "users",
       target: "add-players",
       tour: {
@@ -75,21 +73,11 @@ export function ClubSetup({
       },
     },
     {
-      key: "team",
-      title: t("ld.add_a_team"),
-      body: t("ld.a_1st_xi_a_sunday_side_the_juniors_eac"),
-      done: teams.length > 0,
-      cta: "Add a team",
-      icon: "shield",
-      target: "add-team",
-      tour: { title: t("ld.name_your_first_team"), body: t("ld.give_it_a_name_pick_the_sport_and_pres") },
-    },
-    {
       key: "captain",
       title: t("ld.name_a_captain"),
       body: t("ld.captains_pick_the_side_and_run_the_sco"),
       done: members.some((m) => m.role === "team_captain" || m.is_captain),
-      cta: "Choose a captain",
+      cta: t("lb.choose_a_captain"),
       icon: "trophy",
       target: "members-table",
       tour: {
@@ -102,7 +90,7 @@ export function ClubSetup({
       title: t("ld.add_your_ground"),
       body: t("ld.so_every_fixture_says_where_to_turn_up"),
       done: venues.length > 0,
-      cta: "Add a ground",
+      cta: t("lb.add_a_ground"),
       icon: "pin",
       target: "grounds",
       tour: { title: t("ld.where_do_you_play"), body: t("ld.add_your_ground_and_it_can_be_picked_w") },

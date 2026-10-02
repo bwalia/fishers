@@ -2755,6 +2755,12 @@ export const en = {
   "opp.playing": "Playing {name}",
   "opp.change": "Change",
   "opp.on_brand_too": "They are on {brand}, so their players get asked as well.",
+
+  // MARK: Teams, which a club does not need
+  "cl.club_plays_as_one_side": "Your club plays as one side already — nothing here is needed to arrange a match. Teams are for a club running more than one: a 1st XI and a 2nd XI keeping separate squads.",
+  "cl.teams_optional": "optional",
+  "lb.add_players": "Add players",
+  "lb.add_a_ground": "Add a ground",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

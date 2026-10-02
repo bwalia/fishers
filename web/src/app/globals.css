@@ -602,6 +602,37 @@ textarea {
   border-radius: var(--radius-sm);
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
+/* The arrow on a select.
+ *
+ * The browser's own sits hard against the right border and `padding-right`
+ * will not move it — padding moves the text, the arrow is drawn by the UA at
+ * the edge. So the arrow is ours: `appearance: none` takes theirs away and
+ * these two gradients draw a caret we can place.
+ *
+ * Drawn in `currentColor` rather than from an SVG with a colour in it, because
+ * this is a multi-brand app whose inks arrive from `brand.generated.css` and a
+ * literal here would be one brand's grey on every other brand's select — and
+ * would need a second copy for dark mode besides. */
+select {
+  --select-arrow: 16px; /* from the right border to the arrow */
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: calc(var(--select-arrow) + 20px);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    right calc(var(--select-arrow) + 5px) center,
+    right var(--select-arrow) center;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+/* A multiple or sized select is a list, not a dropdown: no arrow to draw. */
+select[multiple],
+select[size]:not([size="1"]) {
+  background-image: none;
+  padding-right: var(--s3);
+}
 input:focus,
 select:focus,
 textarea:focus {
@@ -4157,6 +4188,15 @@ a.bell-item:hover { background: var(--surface-2); }
    waiting on you for. */
 .invites { border-color: color-mix(in srgb, var(--gold) 50%, transparent); }
 
+/* Adding a team: a name that needs room, a sport that is one short word, and
+   two buttons. Equal-width fields put a 90px dropdown on the same footing as
+   the field somebody actually types in, which is what made the row read as
+   badly set rather than merely plain. */
+.team-add { align-items: flex-end; }
+.team-add .team-add-name { flex: 3 1 220px; }
+.team-add .team-add-sport { flex: 0 1 190px; }
+.team-add .btn { flex: 0 0 auto; }
+
 .team-row { border-bottom: 1px solid var(--border); }
 .team-row:last-of-type { border-bottom: none; }
 
@@ -6436,7 +6476,7 @@ main .panel[id] { scroll-margin-top: 80px; }
 }
 .cl-filters select,
 .cl-filters input { margin-top: 0; min-height: 40px; }
-.cl-filters select { width: auto; flex: 0 1 auto; padding-right: var(--s5); }
+.cl-filters select { width: auto; flex: 0 1 auto; --select-arrow: 10px; }
 .cl-filter-search { position: relative; flex: 1 1 240px; }
 .cl-filter-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--fg-subtle); pointer-events: none; }
 .cl-filter-search input { padding-left: 36px; }
@@ -7638,13 +7678,18 @@ main .panel[id] { scroll-margin-top: 80px; }
 .field-narrow { max-width: 22rem; }
 
 /* Fields side by side where they belong together, wrapping when there is no
-   room rather than shrinking into unusable boxes. */
-.field-row {
-  display: flex;
-  gap: var(--s3);
-  flex-wrap: wrap;
-  align-items: flex-start;
-}
+   room rather than shrinking into unusable boxes.
+ *
+ * `.field-row` is already laid out further up, for rows of `label > control`,
+ * where the controls bottom-align so a button sits level with the inputs. This
+ * block used to redeclare the whole thing with `align-items: flex-start` — and
+ * being later in the file, it won everywhere. Every label-and-button row on the
+ * site was top-aligned as a result, which is why a Create button floated above
+ * the field beside it.
+ *
+ * A `.field` carries its own label and helper text and does want its rows
+ * top-aligned, so that stays — scoped to rows that actually contain one. */
+.field-row:has(> .field) { align-items: flex-start; }
 .field-row > .field { flex: 1 1 12rem; }
 .field-price { flex: 0 0 10rem; }
 .field-qty { flex: 0 0 9rem; }
