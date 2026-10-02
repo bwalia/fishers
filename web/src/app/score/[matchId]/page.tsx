@@ -46,6 +46,7 @@ import {
   type MatchOfficial,
   type SquadResponse,
   inningsScore,
+  titleCase,
 } from "@/lib/cricket";
 import { brand } from "@/brand.generated";
 import { apply as engineApply } from "@/lib/engine";
@@ -3403,7 +3404,12 @@ function WicketSheet({
             type="button"
             onClick={() => setKind(d)}
           >
-            {t(`out.${d}` as Key)}
+            {/* The dictionary holds the scorebook's lowercase forms, because
+                that is how a scorecard reads: "lbw b Jones", "run out
+                (Smith)". A row of buttons is not a scorecard, and this row
+                read "bowled / caught / lbw" until it got its capital back.
+                A no-op in Gurmukhi, which has no case. */}
+            {titleCase(t(`out.${d}` as Key))}
           </button>
         ))}
       </div>
