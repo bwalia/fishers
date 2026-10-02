@@ -26,7 +26,19 @@
 # include the ring's URL), GOOGLE_IOS_CLIENT_ID (the matching "iOS" OAuth
 # client for the com.fishers.app bundle — Continue with Google on iPhone),
 # APPLE_CLIENT_ID (defaults to com.fishers.app when unset) — and they reach
-# the API on the next deploy with no chart change.
+# the API on the next deploy with no chart change, because the deployment
+# takes the whole Secret with envFrom rather than naming keys one at a time.
+#
+# Email is the one a ring is most likely to be missing without noticing: with
+# SMTP_HOST unset the API logs "email is off" and carries on, so verification
+# codes and the forgotten-password flow answer 503 rather than failing loudly.
+# A ring that wants them needs SMTP_HOST, SMTP_PORT, SMTP_TLS (starttls | tls
+# | none), SMTP_USERNAME, SMTP_PASSWORD and EMAIL_FROM. Gmail wants an app
+# password; it refuses the account password.
+#
+# Taking money needs NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY beside the two Stripe
+# secrets: the dashboard asks the API for it rather than baking it in, so all
+# three live here and none of them is a build argument.
 #
 # The database password is deliberately not here: the Zalando operator
 # generates it and the API reads it from the operator's own Secret.
