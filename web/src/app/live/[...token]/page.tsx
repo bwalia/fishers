@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { apiV1 } from "@/lib/api";
+import { apiV1, readErr } from "@/lib/api";
 import { watchScoreboard } from "@/lib/live";
 import { WagonWheel } from "@/components/WagonWheel";
 import { Scorecard } from "@/components/Scorecard";
@@ -93,7 +93,7 @@ export default function LiveScoreboardPage({
       setBoard(data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("le.could_not_load_scoreboard"));
+      setError(readErr(e, t("le.could_not_load_scoreboard")));
     } finally {
       setLoading(false);
     }
@@ -172,25 +172,25 @@ export default function LiveScoreboardPage({
             {board.dls && (
               <p className={board.dls.ahead_by >= 0 ? "tag" : "muted"}>
                 {board.dls.ahead_by === 0
-                  ? `Level with the DLS par of ${board.dls.par}`
+                  ? t("sr.dls_level_with_par", { par: board.dls.par })
                   : board.dls.ahead_by > 0
-                    ? `${board.dls.ahead_by} ahead of the DLS par of ${board.dls.par}`
-                    : `${-board.dls.ahead_by} behind the DLS par of ${board.dls.par}`}
+                    ? t("sr.dls_ahead_of_par", { n: board.dls.ahead_by, par: board.dls.par })
+                    : t("sr.dls_behind_par", { n: -board.dls.ahead_by, par: board.dls.par })}
                 {" · "}
                 <span className="muted">
-                  target {board.dls.target}
+                  {t("sr.target_n", { n: board.dls.target })}
                   {board.dls.method === "standard_approximation"
-                    ? " (Standard Edition approximation)"
+                    ? t("sr.standard_edition_approximation")
                     : ""}
                 </span>
               </p>
             )}
             {board.conditions && (
               <p className="muted">
-                {board.conditions.overs_limit} overs ·{" "}
+                {t("tn.n_overs", { n: board.conditions.overs_limit })} ·{" "}
                 {board.conditions.overs_per_bowler > 0
-                  ? `${board.conditions.overs_per_bowler} per bowler`
-                  : "no bowler limit"}{" "}
+                  ? t("sr.n_per_bowler", { n: board.conditions.overs_per_bowler })
+                  : t("sr.no_bowler_limit")}{" "}
                 · {board.conditions.ball} ball · {board.conditions.ground}
               </p>
             )}
@@ -232,16 +232,17 @@ export default function LiveScoreboardPage({
           {board.state.innings.map((inn) => (
             <section key={inn.index} className="panel">
               <h2>
-                {inn.super_over ? "Super over" : `Innings ${inn.index + 1}`} · wagon
-                wheel &amp; commentary
+                {t("sr.wagon_wheel_and_commentary", {
+                  innings: inn.super_over ? t("sr.super_over") : t("sr.innings_n", { n: inn.index + 1 }),
+                })}
               </h2>
-              {inn.free_hit && <p className="tag">Free hit</p>}
+              {inn.free_hit && <p className="tag">{t("sr.free_hit")}</p>}
               <h3>{t("sr.wagon_wheel")}</h3>
               <WagonWheel deliveries={inn.deliveries || []} />
 
               {(inn.deliveries || []).length > 0 && (
                 <>
-                  <h3>Commentary</h3>
+                  <h3>{t("sr.commentary")}</h3>
                   <ul className="commentary">
                     {(inn.deliveries || [])
                       .slice(-40)

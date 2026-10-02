@@ -76,7 +76,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       setNote(said);
       await load();
     } catch (err) {
-      setError(readErr(err, "That did not work"));
+      setError(readErr(err, t("le.that_did_not_work")));
     } finally {
       setBusy(null);
     }
@@ -100,10 +100,10 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         </p>
         <h1>{event.title}</h1>
         <div className="hero-tags">
-          <span className="tag">{count("going")} playing</span>
-          {count("maybe") > 0 && <span className="tag gold">{count("maybe")} maybe</span>}
+          <span className="tag">{t("ev.n_playing", { n: count("going") })}</span>
+          {count("maybe") > 0 && <span className="tag gold">{t("ev.n_maybe", { n: count("maybe") })}</span>}
           {count("invited") > 0 && (
-            <span className="tag grey">{count("invited")} not answered</span>
+            <span className="tag grey">{t("ev.n_not_answered", { n: count("invited") })}</span>
           )}
           {event.status !== "scheduled" && (
             <span className="tag danger">{event.status}</span>
@@ -120,7 +120,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             <div className="panel-head">
               <h2>{t("ev.are_you_playing")}</h2>
               {event.fee_amount_cents != null && (
-                <span className="tag gold">{money(event.fee_amount_cents)} match fee</span>
+                <span className="tag gold">{t("ev.amount_match_fee", { amount: money(event.fee_amount_cents) })}</span>
               )}
             </div>
             <div className="field-row">
@@ -132,7 +132,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                   disabled={busy !== null}
                   onClick={() =>
                     act(answer, () => api("POST", `/events/${id}/rsvp`, { status: answer }),
-                        `Told them: ${t(RSVP_LABEL[answer]).toLowerCase()}.`)
+                        t("le.told_them", { answer: t(RSVP_LABEL[answer]).toLowerCase() }))
                   }
                 >
                   {t(RSVP_LABEL[answer])}
@@ -162,7 +162,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                           {t(RSVP_LABEL[a.status])}
                         </span>
                         {a.availability && (
-                          <span className="subtle">calendar says {a.availability}</span>
+                          <span className="subtle">{t("ev.calendar_says", { what: a.availability })}</span>
                         )}
                       </span>
                     </div>
@@ -210,7 +210,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           />
 
           <p className="muted">
-            <Link href="/events">← All fixtures</Link>
+            <Link href="/events">{t("ev.all_fixtures_back")}</Link>
           </p>
         </aside>
       </div>
@@ -322,7 +322,7 @@ function CallOff({
       <h2>{off ? t("ld.this_fixture_is_off") : t("ld.call_it_off")}</h2>
       {off ? (
         <>
-          <p className="muted">It is marked {status}. Everybody asked has been told.</p>
+          <p className="muted">{t("ev.it_is_marked_status", { status })}</p>
           <button className="btn" type="button" disabled={busy}
                   onClick={() => onDo("scheduled", "")}>
             {t("ev.put_it_back_on")}
@@ -476,7 +476,7 @@ function Tickets({ event, onSaved }: { event: EventRow; onSaved: () => void }) {
           onChange={(e) => setIsPublic(e.target.checked)}
         />
         <span>
-          <strong>Anyone on {brand.name} can buy</strong>
+          <strong>{t("ev.anyone_on_brand_can_buy", { brand: brand.name })}</strong>
           <span className="subtle">
             {isPublic
               ? t("ld.visiting_clubs_and_their_supporters_ca")

@@ -25,7 +25,7 @@ export function PlayerPicker({
   players,
   value,
   onChange,
-  placeholder = "le.type_a_name",
+  placeholder,
 }: {
   label: string;
   hint?: string;
@@ -120,7 +120,7 @@ export function PlayerPicker({
           aria-activedescendant={open && matches[active] ? `${listId}-${active}` : undefined}
           autoComplete="off"
           value={query}
-          placeholder={chosen && !query ? "" : placeholder}
+          placeholder={chosen && !query ? "" : placeholder ?? t("le.type_a_name")}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           onChange={(e) => {

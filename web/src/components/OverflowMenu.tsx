@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "@/components/Icon";
+import { useT } from "@/lib/i18n/provider";
 
 /// The ⋯ menu: things that matter occasionally.
 ///
@@ -10,7 +11,7 @@ import { Icon, type IconName } from "@/components/Icon";
 /// space above the fold belongs to the score and the dial, so anything used
 /// once a match lives behind this.
 export function OverflowMenu({
-  label = "More",
+  label,
   children,
   showLabel = false,
   className = "",
@@ -30,6 +31,7 @@ export function OverflowMenu({
   /// "this navigates" — the two are otherwise identical in a row of links.
   chevron?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -52,13 +54,13 @@ export function OverflowMenu({
       <button
         type="button"
         className="overflow-button"
-        aria-label={label}
+        aria-label={label ?? t("le.more")}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
       >
         <Icon name={icon} size={icon === "more" ? 20 : 16} />
-        {showLabel && <span>{label}</span>}
+        {showLabel && <span>{label ?? t("le.more")}</span>}
         {chevron && <Icon name="chevronDown" size={14} className="overflow-chevron" />}
       </button>
       {open && (

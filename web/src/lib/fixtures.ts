@@ -1,3 +1,4 @@
+import type { Key } from "@/lib/i18n/en";
 /// Your fixtures with your answer to each (`GET /events/mine`,
 /// `backend/db/src/repos/events.rs` MyFixture).
 ///
@@ -28,13 +29,15 @@ export type MyFixture = {
   ticket_price_cents: number | null;
 };
 
-export const ANSWERS: { value: Answer; label: string; said: string }[] = [
-  { value: "going", label: "Available", said: "le.you_re_available" },
-  { value: "maybe", label: "Maybe", said: "le.you_said_maybe" },
+/// Dictionary keys, not words: `label` is the button, `said` is how the answer
+/// reads back on a card. Both are translated where they are rendered.
+export const ANSWERS: { value: Answer; label: Key; said: Key }[] = [
+  { value: "going", label: "fx.available", said: "le.you_re_available" },
+  { value: "maybe", label: "fx.maybe", said: "le.you_said_maybe" },
   { value: "not_going", label: "le.can_t_play", said: "le.you_can_t_play" },
 ];
 
-export function saidLabel(answer: Answer | null): string {
+export function saidLabel(answer: Answer | null): Key {
   return ANSWERS.find((a) => a.value === answer)?.said ?? "le.not_answered_yet";
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useT } from "@/lib/i18n/provider";
 
 /// A bottom sheet. Escape closes it, and the backdrop is a real button so a
 /// keyboard user is never trapped.
@@ -9,14 +10,19 @@ export function Sheet({
   step,
   of,
   onClose,
+  wide,
   children,
 }: {
   title: string;
   step?: number;
   of?: number;
   onClose: () => void;
+  /// For a sheet whose content is a picture rather than a form — the wagon
+  /// wheel, where the whole point is being able to aim at a part of the field.
+  wide?: boolean;
   children: React.ReactNode;
 }) {
+  const t = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -33,11 +39,11 @@ export function Sheet({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`sheet${wide ? " sheet-wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-head">
           <h2>{title}</h2>
-          <button className="btn ghost sm" type="button" onClick={onClose} aria-label="Close">
-            Close
+          <button className="btn ghost sm" type="button" onClick={onClose} aria-label={t("sc.close")}>
+            {t("sc.close")}
           </button>
         </div>
         {of && (

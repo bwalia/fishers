@@ -198,7 +198,7 @@ export function TournamentRuleFields({
 
   return (
     <>
-      <Step n={from} title={"tn.the_format"} hint={"la.pick_the_one_you_are_playing_the_numbe"}>
+      <Step n={from} title={t("tn.the_format")} hint={t("la.pick_the_one_you_are_playing_the_numbe")}>
         <div className="opt-cards opt-cards-wide">
           {FORMATS.map((f) => (
             <label key={f.key} className={`opt-card${chosen === f.key ? " on" : ""}`}>
@@ -220,7 +220,7 @@ export function TournamentRuleFields({
             <span className="opt-card on" aria-hidden>
               <span className="opt-card-icon"><Icon name="more" size={18} /></span>
               <span className="opt-card-body">
-                <span className="opt-card-title">{"tn.your_own"}</span>
+                <span className="opt-card-title">{t("tn.your_own")}</span>
                 <span className="opt-card-text">
                   {rules.overs} overs · {rules.perBowler} an over each · {rules.playersPerSide} a side
                 </span>
@@ -236,13 +236,13 @@ export function TournamentRuleFields({
           onClick={() => setOpen(!open)}
         >
           <Icon name="arrowLeft" size={14} className="disclose-chev" />
-          {open ? "la.hide_the_details" : "la.change_the_details"}
+          {open ? t("la.hide_the_details") : t("la.change_the_details")}
         </button>
 
         {open && (
           <div className="setup-fields" style={{ marginTop: "var(--s3)" }}>
             <label>
-              {"tn.overs_an_innings"}
+              {t("tn.overs_an_innings")}
               <input
                 type="number" min={1} max={100} value={rules.overs}
                 onChange={(e) => {
@@ -259,15 +259,15 @@ export function TournamentRuleFields({
               />
             </label>
             <label>
-              {"tn.most_overs_one_bowler"}
+              {t("tn.most_overs_one_bowler")}
               <input
                 type="number" min={1} max={rules.overs} value={rules.perBowler}
                 onChange={(e) => set({ perBowler: clamp(Number(e.target.value), 1, rules.overs, 1) })}
               />
-              <span className="subtle">{"tn.usually_a_fifth_of_the_innings"}</span>
+              <span className="subtle">{t("tn.usually_a_fifth_of_the_innings")}</span>
             </label>
             <label>
-              {"tn.players_a_side"}
+              {t("tn.players_a_side")}
               <input
                 type="number" min={2} max={15} value={rules.playersPerSide}
                 onChange={(e) => set({ playersPerSide: clamp(Number(e.target.value), 2, 15, 11) })}
@@ -279,14 +279,14 @@ export function TournamentRuleFields({
                 type="number" min={0} max={rules.overs} value={rules.powerplay}
                 onChange={(e) => set({ powerplay: clamp(Number(e.target.value), 0, rules.overs, 0) })}
               />
-              <span className="subtle">{"tn.zero_for_none"}</span>
+              <span className="subtle">{t("tn.zero_for_none")}</span>
             </label>
             <label>
               Ball
               <select value={rules.ball} onChange={(e) => set({ ball: e.target.value })}>
                 {BALLS.map((b) => <option key={b} value={b}>{t(BALL_LABEL[b])}</option>)}
               </select>
-              <span className="subtle">{"tn.white_for_limited_overs_red_for_the_lo"}</span>
+              <span className="subtle">{t("tn.white_for_limited_overs_red_for_the_lo")}</span>
             </label>
             <label>
               Ground
@@ -298,31 +298,31 @@ export function TournamentRuleFields({
         )}
       </Step>
 
-      <Step n={from + 1} title={"tn.entry"} hint={"la.who_can_enter_by_when_and_what_it_cost"}>
+      <Step n={from + 1} title={t("tn.entry")} hint={t("la.who_can_enter_by_when_and_what_it_cost")}>
         <div className="setup-fields">
           <label>
-            {"tn.how_many_sides"}
+            {t("tn.how_many_sides")}
             <input
               type="number" min={2} value={rules.maxEntrants} placeholder="8"
               onChange={(e) => set({ maxEntrants: e.target.value })}
             />
-            <span className="subtle">Leave empty for no limit.</span>
+            <span className="subtle">{t("tn.leave_empty_for_no_limit")}</span>
           </label>
           <label>
-            {"tn.entries_close"}
+            {t("tn.entries_close")}
             <input
               type="datetime-local" value={rules.entryDeadline}
               onChange={(e) => set({ entryDeadline: e.target.value })}
             />
-            <span className="subtle">{"tn.after_this_nobody_else_can_be_asked_in"}</span>
+            <span className="subtle">{t("tn.after_this_nobody_else_can_be_asked_in")}</span>
           </label>
           <label>
-            {"tn.entry_fee_per_side"}
+            {t("tn.entry_fee_per_side")}
             <input
-              inputMode="decimal" value={rules.entryFee} placeholder={"tn.50_00"}
+              inputMode="decimal" value={rules.entryFee} placeholder={t("tn.50_00")}
               onChange={(e) => set({ entryFee: e.target.value })}
             />
-            <span className="subtle">{"tn.what_a_club_pays_to_enter_empty_is_fre"}</span>
+            <span className="subtle">{t("tn.what_a_club_pays_to_enter_empty_is_fre")}</span>
           </label>
           <GroundField
             venues={venues}
@@ -336,43 +336,43 @@ export function TournamentRuleFields({
           />
         </div>
         {fee !== null && Number.isNaN(fee) && (
-          <p className="error">{"tn.give_the_entry_fee_as_an_amount_like_5"}</p>
+          <p className="error">{t("tn.give_the_entry_fee_as_an_amount_like_5")}</p>
         )}
       </Step>
 
-      <Step n={from + 2} title={"tn.who_may_play"} hint={"la.the_rule_clubs_argue_about_on_the_day"}>
+      <Step n={from + 2} title={t("tn.who_may_play")} hint={t("la.the_rule_clubs_argue_about_on_the_day")}>
         <div className="setup-fields">
           <label>
-            {"tn.guest_players_allowed"}
+            {t("tn.guest_players_allowed")}
             <input
               type="number" min={0} max={rules.playersPerSide} value={rules.guests}
               onChange={(e) => set({ guests: clamp(Number(e.target.value), 0, rules.playersPerSide, 0) })}
             />
             <span className="subtle">
               {rules.guests === 0
-                ? "la.every_player_must_be_a_member_of_the_e"
-                : `A side may borrow up to ${rules.guests} from outside.`}
+                ? t("la.every_player_must_be_a_member_of_the_e")
+                : t("tn.may_borrow_up_to_n", { n: rules.guests })}
             </span>
           </label>
           <label>
-            {"tn.age_group"}
+            {t("tn.age_group")}
             <select value={rules.ageGroup} onChange={(e) => set({ ageGroup: e.target.value })}>
               {AGE_GROUPS.map((a) => <option key={a} value={a}>{t(AGE_LABEL[a])}</option>)}
             </select>
           </label>
           <label>
-            {"tn.who_it_is_for"}
+            {t("tn.who_it_is_for")}
             <select value={rules.gender} onChange={(e) => set({ gender: e.target.value })}>
               {GENDERS.map((g) => <option key={g} value={g}>{t(GENDER_LABEL[g])}</option>)}
             </select>
           </label>
         </div>
         <label style={{ marginTop: "var(--s4)" }}>
-          {"tn.anything_else_in_the_rules"}
+          {t("tn.anything_else_in_the_rules")}
           <textarea
             rows={2} value={rules.rulesNotes}
             onChange={(e) => set({ rulesNotes: e.target.value })}
-            placeholder={"tn.ties_settled_on_wickets_lost_then_boun"}
+            placeholder={t("tn.ties_settled_on_wickets_lost_then_boun")}
           />
         </label>
       </Step>
@@ -397,6 +397,7 @@ function GroundField({
   onPick: (id: string) => void;
   onAdded: (venue: Venue) => void;
 }) {
+  const t = useT();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
@@ -419,7 +420,7 @@ function GroundField({
       // Adding a ground is `ManageClubOps`, which a team captain does not hold
       // even though they may be running the tournament. Say so rather than
       // leaving a button that quietly does nothing.
-      setError(readErr(err, "la.could_not_add_that_ground"));
+      setError(readErr(err, t("la.could_not_add_that_ground")));
     } finally {
       setBusy(false);
     }
@@ -429,21 +430,21 @@ function GroundField({
     return (
       <div className="ground-add">
         <label>
-          {"tn.new_ground"}
+          {t("tn.new_ground")}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={"tn.wray_crescent"}
+            placeholder={t("tn.wray_crescent")}
             maxLength={160}
             autoFocus
           />
         </label>
         <label>
-          {"tn.where_it_is"}
+          {t("tn.where_it_is")}
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder={"tn.optional_the_address_or_the_postcode"}
+            placeholder={t("tn.optional_the_address_or_the_postcode")}
           />
         </label>
         {error && <p className="error">{error}</p>}
@@ -454,7 +455,7 @@ function GroundField({
             disabled={busy || !name.trim() || !clubId}
             onClick={add}
           >
-            {busy ? "la.adding" : "la.add_it"}
+            {busy ? t("la.adding") : t("la.add_it")}
           </button>
           <button
             className="btn sm"
@@ -465,7 +466,7 @@ function GroundField({
               setError(null);
             }}
           >
-            Cancel
+            {t("sc.cancel")}
           </button>
         </div>
       </div>
@@ -474,7 +475,7 @@ function GroundField({
 
   return (
     <label>
-      {"tn.main_ground"}
+      {t("tn.main_ground")}
       <select
         value={venueId}
         onChange={(e) => {
@@ -485,14 +486,14 @@ function GroundField({
           onPick(e.target.value);
         }}
       >
-        <option value="">{"tn.not_decided"}</option>
+        <option value="">{t("tn.not_decided")}</option>
         {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-        <option value="__new">+ Add a new ground…</option>
+        <option value="__new">{t("tn.add_a_new_ground")}</option>
       </select>
       <span className="subtle">
         {venues.length === 0
-          ? "la.none_saved_yet_add_one_here"
-          : "la.pitches_are_laid_out_later"}
+          ? t("la.none_saved_yet_add_one_here")
+          : t("la.pitches_are_laid_out_later")}
       </span>
     </label>
   );

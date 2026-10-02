@@ -4,6 +4,7 @@ import { useState } from "react";
 import { copyText } from "@/lib/clipboard";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/lib/i18n/provider";
+import { readErr } from "@/lib/api";
 
 /// Recipients of a live link can pass it on again without signing in.
 export function ReshareLiveLink({
@@ -18,7 +19,7 @@ export function ReshareLiveLink({
 
   const share = async () => {
     const url = window.location.href;
-    const title = `${homeName} vs ${awayName} — live scoreboard`;
+    const title = t("le.home_vs_away_live_scoreboard", { home: homeName, away: awayName });
     setNote(null);
     try {
       if (typeof navigator.share === "function") {
@@ -44,7 +45,7 @@ export function ReshareLiveLink({
           : t("le.copy_this_page_s_address_from_the_addr")
       );
     } catch (err) {
-      setNote(err instanceof Error ? err.message : t("le.could_not_share"));
+      setNote(readErr(err, t("le.could_not_share")));
     }
   };
 

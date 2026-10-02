@@ -135,7 +135,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
     markSeen();
   };
 
-  const days = useMemo(() => byDay(messages), [messages]);
+  const days = useMemo(() => byDay(messages, t), [messages, t]);
 
   const send = async () => {
     const body = draft.trim();
@@ -207,7 +207,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
           {proposals.map((p) => (
             <article key={p.id} className="proposal">
               <header>
-                <span className="tag gold">{PROPOSAL_KIND[p.kind] ?? p.kind}</span>
+                <span className="tag gold">{t(PROPOSAL_KIND[p.kind])}</span>
                 <span className="subtle">{p.confidence} confidence</span>
               </header>
               <p>{p.rationale}</p>
@@ -271,7 +271,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
         <div ref={foot} />
         {unseen > 0 && (
           <button type="button" className="thread-new" onClick={jumpDown}>
-            {unseen} new message{unseen === 1 ? "" : "s"} <span aria-hidden="true">↓</span>
+            {t("cl.n_new_messages", { n: unseen, count: unseen })} <span aria-hidden="true">↓</span>
           </button>
         )}
       </div>

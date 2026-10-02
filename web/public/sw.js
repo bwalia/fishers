@@ -23,7 +23,10 @@
  * can be reasoned about, not in an HTTP cache.
  */
 
-const SHELL_VERSION = "v1";
+// v2 evicts v1: `activate` deletes every fishers-shell cache that is not the
+// current name, so bumping this is how a bad cache is taken back from people
+// who already have it.
+const SHELL_VERSION = "v2";
 const SHELL_CACHE = `fishers-shell-${SHELL_VERSION}`;
 /* The page served when a navigation fails and nothing better is cached. */
 const OFFLINE_FALLBACK = "/";

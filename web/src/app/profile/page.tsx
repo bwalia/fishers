@@ -51,7 +51,7 @@ export default function ProfilePage() {
       // The nav reads the cached copy, so keep it honest after an edit.
       saveUser(user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("ld.could_not_load_your_profile"));
+      setError(readErr(err, t("ld.could_not_load_your_profile")));
     } finally {
       setLoading(false);
     }
@@ -133,7 +133,7 @@ function ProfileHero({
           <h1 className="pro-last">{last}</h1>
           <div className="pro-meta">
             {club && <span>{club}</span>}
-            {main?.skill_level && <span>{skillLabel(main.skill_level)}</span>}
+            {main?.skill_level && <span>{skillLabel(main.skill_level, t)}</span>}
             {main?.position && <span className="pro-role">{main.position}</span>}
           </div>
         </div>
@@ -281,7 +281,7 @@ function Overview({
             <>
               <dl className="pro-figures">
                 <div><dt>{t("cl.matches")}</dt><dd className="num">{career.matches}</dd></div>
-                <div><dt>Runs</dt><dd className="num">{career.runs}</dd></div>
+                <div><dt>{t("cl.runs")}</dt><dd className="num">{career.runs}</dd></div>
                 <div><dt>{t("cl.wickets")}</dt><dd className="num">{career.wickets}</dd></div>
                 <div><dt>{t("cl.catches")}</dt><dd className="num">{career.catches}</dd></div>
               </dl>
@@ -317,7 +317,7 @@ function Overview({
 
         <div className="panel">
           <h2>{t("cl.season_boards")}</h2>
-          <p className="muted">Where you sit in your club&apos;s table, season by season.</p>
+          <p className="muted">{t("cl.where_you_sit_season_by_season")}</p>
           <Link className="btn" href="/stats">
             <Icon name="chart" size={16} /> {t("cl.season_stats")}
           </Link>
@@ -379,7 +379,7 @@ function PasswordSection() {
       </p>
       <form className="pwd-form" onSubmit={submit}>
         <label htmlFor="pwd-current">
-          {t("cl.current_password")} <span className="muted">(leave blank if you have never set one)</span>
+          {t("cl.current_password")} <span className="muted">{t("cl.leave_blank_if_never_set")}</span>
         </label>
         <input
           id="pwd-current"
@@ -424,7 +424,7 @@ function DeleteAccount() {
       clearSession();
       router.replace("/");
     } catch (err) {
-      setError(readErr(err, "could not delete the account — try again"));
+      setError(readErr(err, t("cl.could_not_delete_the_account")));
       setBusy(false);
     }
   };
@@ -507,10 +507,9 @@ function CareerStats({
     return (
       <div className="panel pro-blank">
         <Icon name={discipline === "batting" ? "bat" : "ball"} size={32} />
-        <h2>No {discipline} figures yet</h2>
+        <h2>{discipline === "batting" ? t("cl.no_batting_figures_yet") : t("cl.no_bowling_figures_yet")}</h2>
         <p className="muted">
-          These are worked out from matches scored on {brand.name}. Play one — or ask your
-          scorer to record it here — and it shows up the same evening.
+          {t("cl.figures_from_matches_scored", { brand: brand.name })}
         </p>
         <Link className="btn primary" href="/matches">{t("cl.find_a_match")}</Link>
       </div>
@@ -549,16 +548,16 @@ function CareerStats({
       <dl className="pro-strip">
         {(discipline === "batting"
           ? [
-              ["Runs", String(sum.runs)],
-              ["Innings", String(sum.battingInnings)],
-              ["Average", num(battingAverage(sum), 2)],
-              ["Strike rate", num(strikeRate(sum), 2)],
+              [t("cl.runs"), String(sum.runs)],
+              [t("cl.innings"), String(sum.battingInnings)],
+              [t("cl.average"), num(battingAverage(sum), 2)],
+              [t("cl.strike_rate"), num(strikeRate(sum), 2)],
             ]
           : [
-              ["Wickets", String(sum.wickets)],
-              ["Overs", num(sum.overs, 1)],
-              ["Average", num(bowlingAverage(sum), 2)],
-              ["Economy", num(sum.overs ? sum.bowlingRuns / sum.overs : null, 2)],
+              [t("cl.wickets"), String(sum.wickets)],
+              [t("cl.overs"), num(sum.overs, 1)],
+              [t("cl.average"), num(bowlingAverage(sum), 2)],
+              [t("cl.economy"), num(sum.overs ? sum.bowlingRuns / sum.overs : null, 2)],
             ]
         ).map(([label, value]) => (
           <div key={label}>
@@ -575,9 +574,9 @@ function CareerStats({
           <thead>
             {discipline === "batting" ? (
               <tr>
-                <th>{t("cl.season")}</th><th>Club</th><th className="n">M</th><th className="n">{t("cl.inns")}</th>
-                <th className="n">{t("cl.no")}</th><th className="n">Runs</th><th className="n">{t("cl.hs")}</th>
-                <th className="n">{t("cl.avg")}</th><th className="n">SR</th>
+                <th>{t("cl.season")}</th><th>{t("cl.club")}</th><th className="n">{t("cl.m")}</th><th className="n">{t("cl.inns")}</th>
+                <th className="n">{t("cl.no")}</th><th className="n">{t("cl.runs")}</th><th className="n">{t("cl.hs")}</th>
+                <th className="n">{t("cl.avg")}</th><th className="n">{t("cl.sr")}</th>
                 <th className="n">4s</th><th className="n">6s</th>
               </tr>
             ) : (
@@ -811,9 +810,9 @@ function Details({ me, onSaved }: { me: PublicUser; onSaved: () => void }) {
       {error && <p className="error">{error}</p>}
       <div className="field-row" style={{ marginTop: "var(--s4)" }}>
         <button className="btn primary" type="button" disabled={busy || !name.trim()} onClick={save}>
-          {busy ? "Saving…" : "Save"}
+          {busy ? t("la.saving") : t("lc.save")}
         </button>
-        <button className="btn" type="button" onClick={() => setEditing(false)}>Cancel</button>
+        <button className="btn" type="button" onClick={() => setEditing(false)}>{t("sc.cancel")}</button>
       </div>
     </div>
   );
@@ -870,10 +869,10 @@ function SportCard({
         </div>
         <dl className="terms-summary">
           <div><dt>{t("cl.position")}</dt><dd>{profile.position || "—"}</dd></div>
-          <div><dt>{t("cl.standard")}</dt><dd>{skillLabel(profile.skill_level)}</dd></div>
+          <div><dt>{t("cl.standard")}</dt><dd>{skillLabel(profile.skill_level, t)}</dd></div>
           {profile.team_name && <div><dt>{t("cl.team")}</dt><dd>{profile.team_name}</dd></div>}
           {profile.years_playing != null && (
-            <div><dt>Playing for</dt><dd className="num">{profile.years_playing} years</dd></div>
+            <div><dt>{t("cl.playing_for")}</dt><dd className="num">{t("cl.n_years", { n: profile.years_playing })}</dd></div>
           )}
           {/* Whatever this sport measures, shown as it was stored. */}
           {Object.entries(profile.stats ?? {}).map(([k, v]) => (
@@ -913,7 +912,7 @@ function SportCard({
             onChange={(e) => setDraft({ ...draft, skill_level: e.target.value })}
           >
             <option value="">—</option>
-            {SKILL_LEVELS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            {SKILL_LEVELS.map((s) => <option key={s.value} value={s.value}>{t(s.label)}</option>)}
           </select>
         </label>
         <label>
@@ -949,7 +948,7 @@ function SportCard({
           disabled={busy}
           onClick={() => write([...others, draft])}
         >
-          {busy ? "Saving…" : "Save"}
+          {busy ? t("la.saving") : t("lc.save")}
         </button>
         {!isPrimary && (
           <button

@@ -134,7 +134,7 @@ export default function EventsPage() {
     <main id="main" className="fixtures">
       <section className="hero fixtures-hero">
         <div>
-          <h1>Fixtures</h1>
+          <h1>{t("ev.fixtures")}</h1>
           <p>{t("ev.every_match_your_clubs_play_say_whethe")}</p>
         </div>
         <div className="fixtures-hero-actions">
@@ -175,14 +175,14 @@ export default function EventsPage() {
               <span className="guide-num" aria-hidden>1</span>
               <div>
                 <strong>{t("ev.answer_each_fixture")}</strong>
-                <p>Available, Maybe or Can&rsquo;t play — right on the card. Change it any time.</p>
+                <p>{t("ev.answer_each_detail")}</p>
               </div>
             </li>
             <li>
               <span className="guide-num" aria-hidden>2</span>
               <div>
                 <strong>{t("ev.the_captain_picks_the_side")}</strong>
-                <p>From everyone&rsquo;s answers. You get told when you&rsquo;re in the squad.</p>
+                <p>{t("ev.captain_picks_detail")}</p>
               </div>
             </li>
             <li>
@@ -190,8 +190,8 @@ export default function EventsPage() {
               <div>
                 <strong>{t("ev.keep_your_calendar")}</strong>
                 <p>
-                  {t("ev.mark_your_usual_days_on")} <Link href="/availability">{t("ev.your_calendar_2")}</Link> — it shows every
-                  fixture and what you said, two matches on one day included.
+                  {t("ev.mark_your_usual_days_on")} <Link href="/availability">{t("ev.your_calendar_2")}</Link>{" "}
+                  {t("ev.calendar_shows_every_fixture")}
                 </p>
               </div>
             </li>
@@ -222,9 +222,9 @@ export default function EventsPage() {
       )}
 
       <div className="fx-filters">
-        <div className="people-tabs fx-views" role="tablist" aria-label="Which fixtures">
+        <div className="people-tabs fx-views" role="tablist" aria-label={t("ev.which_fixtures")}>
           {([
-            ["upcoming", "Coming up"],
+            ["upcoming", t("ev.coming_up")],
             ["unanswered", t("ld.needs_my_answer")],
             ["past", t("ld.past")],
           ] as [View, string][]).map(([v, label]) => (
@@ -340,11 +340,11 @@ function FixtureCard({
               <Icon name="pin" size={14} /> {f.venue_name}
             </span>
           )}
-          {f.fee_amount_cents != null && <span className="num">£{(f.fee_amount_cents / 100).toFixed(2)} match fee</span>}
+          {f.fee_amount_cents != null && <span className="num">{t("ev.match_fee_amount", { amount: `£${(f.fee_amount_cents / 100).toFixed(2)}` })}</span>}
         </p>
-        {clash && <p className="fx-warn">You&rsquo;re available for another fixture at the same time.</p>}
+        {clash && <p className="fx-warn">{t("ev.clash_same_time")}</p>}
         {dayStatus === "unavailable" && f.my_answer !== "not_going" && (
-          <p className="fx-warn">Your calendar says you&rsquo;re not available this day.</p>
+          <p className="fx-warn">{t("ev.calendar_says_not_available")}</p>
         )}
         <div className="fx-links">
           <Link className="btn sm" href={`/events/${f.event_id}/selection`}>
@@ -364,10 +364,10 @@ function FixtureCard({
       </div>
       <div className="fx-side">
         {past ? (
-          <span className={`fx-said is-${state}`}>{saidLabel(f.my_answer)}</span>
+          <span className={`fx-said is-${state}`}>{t(saidLabel(f.my_answer))}</span>
         ) : (
           <>
-            <span className={`fx-said is-${state}`}>{saidLabel(f.my_answer)}</span>
+            <span className={`fx-said is-${state}`}>{t(saidLabel(f.my_answer))}</span>
             <FixtureAnswer eventId={f.event_id} answer={f.my_answer} onAnswered={onAnswered} label={t("fin.can_you_play_fixture", { fixture: f.title })} />
           </>
         )}
@@ -451,7 +451,7 @@ function ScheduleMatch({
     <div className="panel setup-panel">
       <div className="panel-head">
         <h2>{t("ev.schedule_a_match")}</h2>
-        <button className="btn ghost sm" type="button" onClick={onClose}>{t("ev.cancel")}</button>
+        <button className="btn ghost sm" type="button" onClick={onClose}>{t("sc.cancel")}</button>
       </div>
 
       <fieldset className="setup-group">
@@ -516,7 +516,7 @@ function ScheduleMatch({
       {/* A dead button with no explanation reads as a broken app. Say which
           piece is missing, in the order the form asks for them. */}
       {!busy && missing && (
-        <p className="muted" role="status">{t("ev.still_needed", { missing })}</p>
+        <p className="muted" role="status">{t("ev.still_needed", { what: missing })}</p>
       )}
 
       <button
@@ -528,8 +528,7 @@ function ScheduleMatch({
         {busy ? t("ld.scheduling") : t("ld.schedule_and_ask_who_is_available")}
       </button>
       <p className="subtle">
-        Everyone in {opponent ? "both clubs" : "your club"} is asked whether they can
-        play, and the captain hears each answer.
+        {t("ev.everyone_in_is_asked", { who: opponent ? t("ev.both_clubs") : t("ev.your_club") })}
       </p>
     </div>
   );

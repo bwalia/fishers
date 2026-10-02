@@ -57,8 +57,7 @@ export default function ScoresPage() {
       <section className="hero">
         <h1>{t("sr.cricket_scores")}</h1>
         <p>
-          Internationals and domestic competitions from around the world. Your own club&apos;s
-          matches are under <Link href="/score">{t("sr.score_a_match")}</Link>.
+          {t("sr.world_scores_lede")} <Link href="/score">{t("sr.score_a_match")}</Link>.
         </p>
       </section>
 
@@ -67,7 +66,7 @@ export default function ScoresPage() {
       {loaded && scores && !scores.enabled && (
         <div className="empty">
           <Icon name="ball" size={28} />
-          <p>World scores aren&apos;t switched on here.</p>
+          <p>{t("sr.world_scores_not_on")}</p>
           <p className="muted">{t("sr.they_run_on_this_ring_only_when_a_scor")}</p>
         </div>
       )}
@@ -75,8 +74,8 @@ export default function ScoresPage() {
       {loaded && scores?.enabled && (
         <>
           <p className="score-asof">
-            <Icon name="clock" size={14} /> Scores updated {freshness(scores.as_of)}. They come
-            from a free feed and run a few minutes behind live play.
+            <Icon name="clock" size={14} />{" "}
+            {t("sr.scores_updated_free_feed", { when: freshness(scores.as_of, t) })}
           </p>
 
           <Section

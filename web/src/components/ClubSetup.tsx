@@ -76,7 +76,7 @@ export function ClubSetup({
     },
     {
       key: "team",
-      title: "Add a team",
+      title: t("ld.add_a_team"),
       body: t("ld.a_1st_xi_a_sunday_side_the_juniors_eac"),
       done: teams.length > 0,
       cta: "Add a team",
@@ -86,14 +86,14 @@ export function ClubSetup({
     },
     {
       key: "captain",
-      title: "Name a captain",
+      title: t("ld.name_a_captain"),
       body: t("ld.captains_pick_the_side_and_run_the_sco"),
       done: members.some((m) => m.role === "team_captain" || m.is_captain),
       cta: "Choose a captain",
       icon: "trophy",
       target: "members-table",
       tour: {
-        title: "Pick your captain",
+        title: t("ld.pick_your_captain"),
         body: t("ld.set_a_member_s_role_to_captain_here_or"),
       },
     },
@@ -140,10 +140,9 @@ export function ClubSetup({
       <dialog ref={dialog} className="cw" aria-labelledby="cw-title">
         <span className="cw-badge" aria-hidden="true"><Icon name="check" size={30} /></span>
         <p className="gs-eyebrow">{t("rest.club_created")}</p>
-        <h2 id="cw-title">{clubName} is ready</h2>
+        <h2 id="cw-title">{t("ld.club_is_ready", { club: clubName })}</h2>
         <p className="muted">
-          You&apos;re its secretary. Add your players and you can start a match straight away —
-          teams, a captain and a ground can come later.
+          {t("ld.youre_its_secretary")}
         </p>
         <ol className="cw-steps">
           <li className="done">
@@ -187,9 +186,9 @@ export function ClubSetup({
           <div className="gs-head">
             <div>
               <p className="gs-eyebrow"><Icon name="sparkle" size={14} /> {t("rest.club_setup")}</p>
-              <h2 id="cs-title">Get {clubName} ready for its first match</h2>
+              <h2 id="cs-title">{t("ld.get_club_ready_first_match", { club: clubName })}</h2>
               <p className="muted">
-                {doneCount} of {total} done — {total - doneCount} to go.
+                {t("ld.n_of_total_done_to_go", { done: doneCount, total, left: total - doneCount })}
               </p>
             </div>
             <button className="btn ghost sm" type="button" onClick={hide}>{t("rest.hide")}</button>

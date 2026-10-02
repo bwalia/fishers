@@ -1,6 +1,7 @@
 import type { Key } from "@/lib/i18n/en";
 import type { T } from "@/lib/i18n";
 import { apiPort } from "./ports";
+import { clientT, type AnyKey } from "@/lib/i18n";
 
 /// Where the API lives, worked out at call time.
 ///
@@ -68,9 +69,23 @@ export type ProfileStrength = {
   percent: number;
   /// What is not filled in yet, most valuable first: "photo", "standard"…
   missing: string[];
-  /// "lb.add_a_photo_the_standard_you_play_at_a".
+  /// The same list as an English sentence, composed on the server. Unusable in
+  /// any other language, so `nextUp` below builds the sentence from `missing`
+  /// instead and nothing reads this.
   next_up: string;
 };
+
+/// "Add a photo, the standard you play at and your position" — in the reader's
+/// language, from the tokens the API sends rather than the sentence it wrote.
+///
+/// The server takes the top three; so does this, for the same reason: a list of
+/// ten things to do reads as a wall rather than a next step.
+export function nextUp(missing: string[], t: T): string {
+  const words = missing.slice(0, 3).map((key) => t(`str.${key}` as AnyKey));
+  if (words.length === 0) return "";
+  if (words.length === 1) return t("str.add_one", { one: words[0] });
+  return t("str.add_list", { rest: words.slice(0, -1).join(", "), last: words[words.length - 1] });
+}
 
 /// Past the quick start: anyone with a sport on file, on any device; anyone
 /// who skipped it, in this browser.
@@ -154,15 +169,18 @@ export const SKILL_LEVELS = [
   { value: "county", label: "lb.county_semi_pro" },
 ] as const;
 
-export function skillLabel(value?: string | null): string {
-  if (!value) return "lb.not_said";
-  return SKILL_LEVELS.find((s) => s.value === value)?.label ?? value;
+export function skillLabel(value: string | null | undefined, t: T): string {
+  if (!value) return t("lb.not_said");
+  const found = SKILL_LEVELS.find((s) => s.value === value)?.label;
+  // An unknown level is whatever the server called it — there is no key for a
+  // value this build has never heard of.
+  return found ? t(found) : value;
 }
 
 /// What each sport calls its positions. Adding a sport is a line here, not a
 /// migration — and an unknown sport still works, it just takes free text.
-export const SPORT_POSITIONS: Record<string, string[]> = {
-  cricket: ["Batter", "Bowler", "lb.all_rounder", "Wicketkeeper"],
+export const SPORT_POSITIONS: Record<string, Key[]> = {
+  cricket: ["pos.batter", "pos.bowler", "lb.all_rounder", "pos.wicketkeeper"],
   football: ["lb.goalkeeper", "lb.defender", "lb.midfielder", "lb.forward"],
   badminton: ["lb.singles", "lb.doubles", "lb.mixed_doubles"],
   paddle: ["lb.right_side", "lb.left_side"],
@@ -425,7 +443,7 @@ export async function api<T>(
     const token = await refreshSession();
     if (token) return api<T>(method, path, body, authorized, true, signal);
     sessionLost();
-    throw new Error("lb.your_session_has_expired_please_sign_i");
+    throw new Error(clientT()("lb.your_session_has_expired_please_sign_i"));
   }
 
   if (!res.ok) {
@@ -478,6 +496,10 @@ export function errCode(err: unknown): string | undefined {
 
 export function readErr(err: unknown, fallback: string): string {
   const raw = err instanceof Error ? err.message : "";
+  // `fetch` rejects with its own untranslated wording when the network is the
+  // problem — "Failed to fetch", "Load failed", "NetworkError…" depending on
+  // the browser. There is no server message behind it, so say so ourselves.
+  if (err instanceof TypeError) return clientT()("le.network_unreachable");
   try {
     return JSON.parse(raw).error ?? fallback;
   } catch {
@@ -754,17 +776,18 @@ export const NOTIFICATION_KIND: Record<string, string> = {
   selection_published: "lb.squads",
   squad_promoted: "lb.squads",
   selection_reconfirm: "lb.confirmations",
-  match_terms_proposed: "Match setup",
-  match_terms_agreed: "Match setup",
+  match_terms_proposed: "lb.match_setup",
+  match_terms_agreed: "lb.match_setup",
   match_book_handed_over: "lb.scoring",
-  match_scheduled: "Fixtures",
-  availability_request: "Availability",
+  match_scheduled: "nav.fixtures",
+  availability_request: "nav.availability",
   fee_reminder: "lb.match_fees",
   scoreboard_shared: "lb.scoreboards",
 };
 
-export function kindLabel(kind: string): string {
-  return NOTIFICATION_KIND[kind] ?? kind.replaceAll("_", " ");
+export function kindLabel(kind: string, t: T): string {
+  const key = NOTIFICATION_KIND[kind];
+  return key ? t(key as AnyKey) : kind.replaceAll("_", " ");
 }
 
 /// One line for one notification, in the reader's language.
@@ -913,9 +936,10 @@ export const isSecretaryRole = (role: string) => role === "club_admin" || role =
 
 /// `captain` is the membership's `is_captain`: a secretary who also captains
 /// reads as both, since in a small club that is one person.
-export function roleLabel(role: string, captain = false): string {
-  if (captain && isSecretaryRole(role)) return "lb.secretary_captain";
-  return CLUB_ROLES.find((r) => r.value === role)?.label ?? role.replaceAll("_", " ");
+export function roleLabel(role: string, captain: boolean, t: T): string {
+  if (captain && isSecretaryRole(role)) return t("lb.secretary_captain");
+  const found = CLUB_ROLES.find((r) => r.value === role)?.label;
+  return found ? t(found) : role.replaceAll("_", " ");
 }
 
 /// The role picker's choices: the roles, plus a secretary who captains.

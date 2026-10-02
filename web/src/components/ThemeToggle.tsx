@@ -37,8 +37,14 @@ export function ThemeToggle() {
       type="button"
       className="theme-toggle"
       onClick={() => apply(next)}
-      title={`Theme: ${label}. Tap for ${next === "system" ? "your device setting" : next}.`}
-      aria-label={`Theme: ${label}. Change to ${next === "system" ? "match my device" : next}.`}
+      title={t("le.theme_tap_for", {
+        current: label,
+        next: next === "system" ? t("le.your_device_setting") : next,
+      })}
+      aria-label={t("le.theme_change_to", {
+        current: label,
+        next: next === "system" ? t("le.match_my_device") : next,
+      })}
     >
       {choice === "dark" ? <MoonIcon /> : choice === "light" ? <SunIcon /> : <AutoIcon />}
     </button>

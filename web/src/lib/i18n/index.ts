@@ -114,3 +114,17 @@ export function makeT(locale: Locale) {
 }
 
 export type T = ReturnType<typeof makeT>;
+
+/// A translator for code that is neither a component nor a server component —
+/// `api.ts` throwing a session error, for instance, where threading `t` down
+/// from a caller would mean changing every call in the app.
+///
+/// Reads the same cookie the provider writes, so it agrees with what is on
+/// screen. Off the browser there is no cookie to read and it falls back to
+/// English; anything rendered belongs in `useT`/`getT`, which do see the
+/// request.
+export function clientT(): T {
+  if (typeof document === "undefined") return makeT(DEFAULT_LOCALE);
+  const match = document.cookie.match(new RegExp(`(?:^|; )${LOCALE_COOKIE}=([^;]*)`));
+  return makeT(localeFrom(match ? decodeURIComponent(match[1]) : null));
+}

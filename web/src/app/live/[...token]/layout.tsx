@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { apiPort } from "@/lib/ports";
 import { brand } from "@/brand.generated";
+import { getT } from "@/lib/i18n/server";
 
 type BoardPreview = {
   home_name: string;
@@ -32,9 +33,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   // Catch-all, and a mangled link keeps only its leading hex — as the page does.
   const token = /^[0-9a-f]*/i.exec((await params).token[0] ?? "")?.[0] ?? "";
+  const t = await getT();
   const fallback: Metadata = {
-    title: `Live scoreboard — ${brand.name}`,
-    description: "le.follow_the_full_live_cricket_scoreboar",
+    title: t("sr.live_scoreboard_brand", { brand: brand.name }),
+    description: t("le.follow_the_full_live_cricket_scoreboar"),
   };
   try {
     const res = await fetch(`${apiOrigin()}/api/v1/public/scoreboard/${token}`, {
@@ -45,11 +47,15 @@ export async function generateMetadata({
     const inn = board.state?.innings?.at(-1);
     const score = inn
       ? `${inn.runs}/${inn.wickets}`
-      : board.state?.margin || "le.waiting_for_first_ball";
-    const title = `${board.home_name} vs ${board.away_name} — live on ${brand.name}`;
+      : board.state?.margin || t("le.waiting_for_first_ball");
+    const title = t("sr.home_vs_away_live_on", {
+      home: board.home_name,
+      away: board.away_name,
+      brand: brand.name,
+    });
     const description = board.club_name
-      ? `${score} · ${board.club_name}`
-      : `${score} · live cricket scoreboard`;
+      ? t("sr.score_and_club", { score, club: board.club_name })
+      : t("sr.score_live_cricket_scoreboard", { score });
     return {
       title,
       description,

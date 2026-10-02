@@ -48,10 +48,10 @@ export function NewChat({ onClose }: { onClose: () => void }) {
         setClubs(mine);
         setPeople([...byId.values()].sort((a, b) => a.name.localeCompare(b.name)));
       } catch (err) {
-        setError(readErr(err, "Could not load your clubs"));
+        setError(readErr(err, t("sh.could_not_load_clubs")));
       }
     })();
-  }, []);
+  }, [t]);
 
   const open = async (body: Record<string, unknown>) => {
     setBusy(true);
@@ -67,7 +67,7 @@ export function NewChat({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Sheet title="New chat" onClose={onClose}>
+    <Sheet title={t("le.new_chat")} onClose={onClose}>
       <div className="people-tabs new-chat-modes" role="tablist" aria-label={t("rest.who_is_it_with")}>
         <button type="button" role="tab" aria-selected={mode === "people"} className={mode === "people" ? "on" : undefined} onClick={() => setMode("people")}>
           <Icon name="chat" size={14} /> {t("rest.people")}
@@ -84,7 +84,7 @@ export function NewChat({ onClose }: { onClose: () => void }) {
             {t("rest.you_chat_with_the_people_in_your_clubs")}
           </p>
           <Link className="btn primary" href="/clubs">
-            <Icon name="users" size={16} /> Your clubs
+            <Icon name="users" size={16} /> {t("rest.your_clubs")}
           </Link>
         </div>
       )}
@@ -237,9 +237,9 @@ function PickClub({
         </label>
       )}
       <fieldset className="chip-set">
-        <legend>Who&apos;s in it</legend>
+        <legend>{t("le.whos_in_it")}</legend>
         <button type="button" className={`chip${teamId === "" ? " on" : ""}`} aria-pressed={teamId === ""} onClick={() => setTeamId("")}>
-          Everyone at {club?.name}
+          {t("le.everyone_at_club", { club: club?.name ?? "" })}
         </button>
         {teams.map((t) => (
           <button key={t.id} type="button" className={`chip${teamId === t.id ? " on" : ""}`} aria-pressed={teamId === t.id} onClick={() => setTeamId(t.id)}>

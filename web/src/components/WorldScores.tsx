@@ -170,7 +170,7 @@ export function WorldScoresPanel() {
     <div className="panel">
       <div className="panel-head">
         <h2>{t("sr.around_the_world")}</h2>
-        <Link href="/scores">All scores →</Link>
+        <Link href="/scores">{t("sr.all_scores_arrow")}</Link>
       </div>
       <p className="panel-note">
         {scores.live.length > 0
@@ -183,7 +183,7 @@ export function WorldScoresPanel() {
         ))}
       </div>
       <p className="score-asof">
-        <Icon name="clock" size={14} /> Scores updated {freshness(scores.as_of)}
+        <Icon name="clock" size={14} /> {t("sr.scores_updated", { when: freshness(scores.as_of, t) })}
       </p>
     </div>
   );

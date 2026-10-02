@@ -61,10 +61,10 @@ export function Umpiring({ userId, name }: { userId?: string; name?: string }) {
       </div>
 
       <div className="ump-figures">
-        <Figure value={String(profile.matches)} label={profile.matches === 1 ? "match umpired" : "matches umpired"} />
+        <Figure value={String(profile.matches)} label={t("ump.match_umpired", { n: profile.matches, count: profile.matches })} />
         <Figure
           value={profile.rating_average === null ? "—" : profile.rating_average.toFixed(1)}
-          label={ratingLabel(profile)}
+          label={ratingLabel(profile, t)}
         />
       </div>
 
@@ -91,7 +91,7 @@ export function Umpiring({ userId, name }: { userId?: string; name?: string }) {
           {profile.matches === 0
             ? mine
               ? t("le.you_have_not_umpired_a_match_here_yet")
-              : `${name ?? t("le.they")} have not umpired a match here yet.`
+              : t("ump.they_have_not_umpired", { name: name ?? t("le.they") })
             : t("le.no_reviews_yet_the_players_in_the_next")}
         </p>
       )}
@@ -164,7 +164,7 @@ function WillingSwitch({
       onSaved(await setUmpiring(body));
       setEditing(false);
     } catch (err) {
-      setError(readErr(err, "Could not save that"));
+      setError(readErr(err, t("le.could_not_save_that")));
     } finally {
       setBusy(false);
     }

@@ -52,10 +52,10 @@ const NO_FILTERS: Filters = { q: "", role: "", sport: "", published: "", sort: "
 const PER_PAGE = 20;
 
 const ROLE_FILTERS = [
-  ["secretary", "Secretary"],
-  ["captain", "Captain"],
-  ["vice_captain", "Vice captain"],
-  ["member", "Member"],
+  ["secretary", "cl.secretary"],
+  ["captain", "sc.captain"],
+  ["vice_captain", "cl.vice_captain"],
+  ["member", "lb.member"],
 ] as const;
 
 /// The filters as the address bar carries them, so back, refresh and a
@@ -214,7 +214,11 @@ export default function ClubsPage() {
               <h2 id="cl-list-title">{t("cl.your_clubs")}</h2>
               <p className="subtle" aria-live="polite">
                 {result && total > 0
-                  ? `Showing ${(result.page - 1) * PER_PAGE + 1}–${(result.page - 1) * PER_PAGE + result.items.length} of ${total}`
+                  ? t("cl.showing_range_of_total", {
+                      from: (result.page - 1) * PER_PAGE + 1,
+                      to: (result.page - 1) * PER_PAGE + result.items.length,
+                      total,
+                    })
                   : result && filtered
                     ? t("lc.no_matches")
                     : ""}
@@ -235,7 +239,7 @@ export default function ClubsPage() {
               </label>
               <select aria-label={t("cl.your_role")} value={filters.role} onChange={(e) => set({ role: e.target.value })}>
                 <option value="">{t("cl.all_roles")}</option>
-                {ROLE_FILTERS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                {ROLE_FILTERS.map(([v, label]) => <option key={v} value={v}>{t(label)}</option>)}
               </select>
               <select aria-label={t("cl.sport")} value={filters.sport} onChange={(e) => set({ sport: e.target.value })}>
                 <option value="">{t("cl.all_sports")}</option>
@@ -259,7 +263,7 @@ export default function ClubsPage() {
             </div>
 
             <div className="cl-cols" aria-hidden="true">
-              <span>Club</span>
+              <span>{t("cl.club")}</span>
               <span>{t("cl.your_role")}</span>
               <span>{t("cl.members")}</span>
               <span>{t("cl.teams")}</span>
@@ -348,7 +352,7 @@ function ClubRow({ club }: { club: Membership }) {
         {club.description && <p className="cl-row-desc">{club.description}</p>}
       </div>
       <span className="cl-row-role">
-        <span className="tag gold">{roleLabel(club.role, club.is_captain)}</span>
+        <span className="tag gold">{roleLabel(club.role, !!club.is_captain, t)}</span>
       </span>
       <span className="cl-row-stat">
         <strong>{club.member_count}</strong> <span>{club.member_count === 1 ? "member" : "members"}</span>
@@ -363,7 +367,7 @@ function ClubRow({ club }: { club: Membership }) {
             href={`/c/${club.public_slug}`}
             target="_blank"
             rel="noreferrer"
-            aria-label={`${club.name} public page (opens in a new tab)`}
+            aria-label={t("cl.public_page_new_tab", { club: club.name })}
           >
             <Icon name="share" size={14} /> {t("cl.view_page")}
           </a>
@@ -414,7 +418,7 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
             </div>
           </div>
           <p className="muted">
-            Send this link to a club&apos;s secretary and they can invite you straight from it.
+            {t("cl.send_this_link_to_a_secretary")}
           </p>
           <ShareProfile userId={me.id} />
         </section>
@@ -451,7 +455,7 @@ function ClubsSidebar({ me, onShowPublished }: { me: PublicUser | null; onShowPu
                     href={`/c/${c.public_slug}`}
                     target="_blank"
                     rel="noreferrer"
-                    aria-label={`View ${c.name}'s public page (opens in a new tab)`}
+                    aria-label={t("cl.view_public_page_new_tab", { club: c.name })}
                   >
                     {t("cl.view")}
                   </a>
@@ -656,7 +660,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
         {verify ? (
           <div className="verify-gate">
             <p className="verify-gate-title">
-              <Icon name="shield" size={16} /> One thing first — confirm it&apos;s you
+              <Icon name="shield" size={16} /> {t("cl.one_thing_first_confirm")}
             </p>
             <VerifyContact
               status={verify}
@@ -678,7 +682,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
             {missing ?? t("lc.you_become_its_secretary_so_you_can_ad")}
           </p>
           <div className="cc-buttons">
-            <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
+            <button className="btn ghost" type="button" onClick={onClose}>{t("sc.cancel")}</button>
             <button className="btn primary" type="submit" form="cc-fields" disabled={busy || !!verify || !!missing}>
               {busy ? t("lc.creating") : t("lc.create_club")}
             </button>

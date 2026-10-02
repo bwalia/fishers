@@ -142,7 +142,7 @@ export function ManOfTheMatch({ pollId }: { pollId: string }) {
           <p className="subtle">{poll.title}</p>
         </div>
         <span className={`tag ${open ? "gold" : "grey"}`}>
-          {open ? closingLabel(poll.closes_at) : t("le.closed")}
+          {open ? closingLabel(poll.closes_at, t) : t("le.closed")}
         </span>
       </header>
 

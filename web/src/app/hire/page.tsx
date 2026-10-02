@@ -65,9 +65,7 @@ export default function HireBrowsePage() {
           <Icon name="pin" /> {t("rest.venue_hire")}
         </h1>
         <p className="lede">
-          Spaces clubs are offering for hire — pitches, nets, halls and
-          pavilions. Booking requests come in the next phase; this list is the
-          catalogue.
+          {t("rest.hire_lede")}
         </p>
       </header>
 
@@ -81,7 +79,7 @@ export default function HireBrowsePage() {
           />
         </label>
         <label className="field" style={{ flex: "0 1 180px" }}>
-          <span>Sport</span>
+          <span>{t("rest.sport")}</span>
           <select value={sport} onChange={(e) => setSport(e.target.value)}>
             <option value="">{t("rest.any")}</option>
             {SPORTS.map((s) => (
@@ -99,8 +97,7 @@ export default function HireBrowsePage() {
         <p className="muted">{t("rest.loading")}</p>
       ) : rows.length === 0 ? (
         <p className="muted">
-          No hireable spaces yet. Secretaries can mark a space as hireable from
-          their club&apos;s venues.
+          {t("rest.no_hireable_spaces_yet")}
         </p>
       ) : (
         <ul className="card-list">
@@ -121,8 +118,8 @@ export default function HireBrowsePage() {
                   {row.sports.length > 0
                     ? row.sports.join(", ")
                     : t("le.general_hire")}
-                  {row.capacity != null ? ` · up to ${row.capacity}` : ""}
-                  {row.requires_approval ? " · approval required" : " · instant"}
+                  {row.capacity != null ? t("le.up_to_capacity", { n: row.capacity }) : ""}
+                  {row.requires_approval ? t("le.approval_required") : t("le.instant")}
                 </p>
                 {row.from_amount_cents != null && (
                   <p className="price">

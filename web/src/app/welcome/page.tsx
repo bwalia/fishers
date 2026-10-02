@@ -93,7 +93,7 @@ export default function WelcomePage() {
       }
       await handOff(updated);
     } catch (err) {
-      setError(readErr(err, "Could not save that"));
+      setError(readErr(err, t("le.could_not_save_that")));
     } finally {
       setBusy(false);
     }
@@ -124,12 +124,12 @@ export default function WelcomePage() {
     <main id="main" className="qs">
       <section className="panel qs-card" aria-labelledby="qs-title">
         <p className="gs-eyebrow"><Icon name="sparkle" size={14} /> {t("rest.quick_start")}</p>
-        <h1 id="qs-title">Hi {first}</h1>
-        <p className="muted">Two quick things and you&apos;re in. Everything else can wait until you have a minute.</p>
+        <h1 id="qs-title">{t("rest.hi_name", { name: first })}</h1>
+        <p className="muted">{t("rest.two_quick_things")}</p>
 
         {asksRole && (
           <fieldset className="qs-question">
-            <legend>I&apos;m here to…</legend>
+            <legend>{t("rest.im_here_to")}</legend>
             <RoleChooser compact value={role} onPicked={(_, r) => setRole(r)} />
           </fieldset>
         )}

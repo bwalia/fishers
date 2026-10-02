@@ -6,6 +6,7 @@ import type { Key } from "@/lib/i18n/en";
 /// and offer to set that person's availability.
 
 import { api } from "@/lib/api";
+import type { T } from "./i18n";
 
 export type ConversationSummary = {
   id: string;
@@ -117,10 +118,10 @@ export function mergeMessages(...lists: ChatMessage[][]): ChatMessage[] {
   );
 }
 
-export function byDay(messages: ChatMessage[]): { day: string; messages: ChatMessage[] }[] {
+export function byDay(messages: ChatMessage[], t: T): { day: string; messages: ChatMessage[] }[] {
   const out: { day: string; messages: ChatMessage[] }[] = [];
   for (const message of messages) {
-    const day = dayLabel(message.created_at);
+    const day = dayLabel(message.created_at, t);
     const last = out[out.length - 1];
     if (last?.day === day) last.messages.push(message);
     else out.push({ day, messages: [message] });
@@ -128,13 +129,13 @@ export function byDay(messages: ChatMessage[]): { day: string; messages: ChatMes
   return out;
 }
 
-function dayLabel(iso: string): string {
+function dayLabel(iso: string, t: T): string {
   const at = new Date(iso);
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  if (at.toDateString() === today.toDateString()) return "Today";
-  if (at.toDateString() === yesterday.toDateString()) return "le.yesterday";
+  if (at.toDateString() === today.toDateString()) return t("le.today");
+  if (at.toDateString() === yesterday.toDateString()) return t("le.yesterday");
   return at.toLocaleDateString("en-GB", {
     weekday: "long", day: "numeric", month: "long",
   });

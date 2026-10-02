@@ -104,8 +104,8 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
       <main id="main" className="shared-profile">
         <div className="panel empty">
           <Icon name="link" size={28} />
-          <h1>This link didn&apos;t work</h1>
-          <p className="muted">{error}. Ask the player to send you their link again.</p>
+          <h1>{t("le.this_link_didnt_work")}</h1>
+          <p className="muted">{t("le.ask_for_link_again", { error })}</p>
         </div>
       </main>
     );
@@ -172,10 +172,9 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
         </div>
       ) : places.length === 0 ? (
         <div className="panel">
-          <h2>Start a club to add {first}</h2>
+          <h2>{t("rest.start_a_club_to_add", { name: first })}</h2>
           <p className="muted">
-            Players are added by a club&apos;s secretary or a team&apos;s captain. Start your club and this
-            link will be waiting.
+            {t("rest.players_added_by_secretary")}
           </p>
           <Link className="btn primary" href="/clubs?new=1">
             <Icon name="plus" size={16} /> {t("rest.start_your_club")}
@@ -183,7 +182,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
         </div>
       ) : (
         <div className="panel">
-          <h2>Add {first} to your club</h2>
+          <h2>{t("rest.add_name_to_your_club", { name: first })}</h2>
           <p className="muted">
             {t("rest.they_get_a_notification_to_approve_nob")}
           </p>
@@ -244,7 +243,7 @@ export default function SharedProfilePage({ params }: { params: Promise<{ token:
             onClick={invite}
             disabled={busy || !place || (!team && !canInviteToClub(place))}
           >
-            <Icon name="send" size={16} /> {busy ? "Sending…" : `Add to ${target ?? "your club"}`}
+            <Icon name="send" size={16} /> {busy ? t("le.sending") : t("le.add_to_target", { target: target ?? t("le.your_club") })}
           </button>
           {team && (
             <p className="subtle add-to-note">

@@ -157,10 +157,10 @@ export default function ShopPage() {
         <label>
           Category{" "}
           <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="all">All</option>
-            <option value="equipment">Bats, balls &amp; kit</option>
-            <option value="merchandise">Shoes &amp; sportswear</option>
-            <option value="kit_hire">Hire</option>
+            <option value="all">{t("sh.all")}</option>
+            <option value="equipment">{t("sh.bats_balls_and_kit")}</option>
+            <option value="merchandise">{t("sh.shoes_and_sportswear")}</option>
+            <option value="kit_hire">{t("sh.hire")}</option>
             <option value="food">{t("sh.food")}</option>
             <option value="drink">{t("sh.drinks")}</option>
           </select>
@@ -182,7 +182,7 @@ export default function ShopPage() {
             <div className="row" style={{ marginTop: 12 }}>
               <span className="price">{money(p.price_cents, p.currency)}</span>
               <span className="muted">
-                {p.stock == null ? t("lc.on_request") : `${p.stock} in stock`}
+                {p.stock == null ? t("lc.on_request") : t("sh.n_in_stock", { n: p.stock })}
               </span>
             </div>
             <Stepper
@@ -239,7 +239,7 @@ export default function ShopPage() {
           <div className="table-wrap">
             <table className="table">
               <thead>
-                <tr><th>When</th><th>Club</th><th className="n">Total</th><th>{t("sh.status")}</th><th></th></tr>
+                <tr><th>{t("sh.when")}</th><th>{t("sh.club_label")}</th><th className="n">{t("sh.total")}</th><th>{t("sh.status")}</th><th></th></tr>
               </thead>
               <tbody>
                 {orders.map((o) => (
@@ -331,9 +331,9 @@ function Marketplace() {
       <section className="panel">
         <h2>{t("sh.kit_for_sale")}</h2>
         <p className="muted">
-          Nothing listed yet. If your club has kit it has replaced,{" "}
-          <Link href="/shop/sell">{t("sh.put_it_up")}</Link> — it is worth more to somebody else than it
-          is in the cupboard.
+          {t("sh.nothing_listed_yet_if_club")}{" "}
+          <Link href="/shop/sell">{t("sh.put_it_up")}</Link>{" "}
+          {t("sh.worth_more_than_in_cupboard")}
         </p>
       </section>
     );
@@ -397,13 +397,13 @@ function Marketplace() {
                   <strong>{p.name}</strong>
                   {p.condition && (
                     <span className={`tag ${p.condition === "used" ? "grey" : "gold"}`}>
-                      {p.condition === "used" ? t("lc.used") : "New"}
+                      {p.condition === "used" ? t("lc.used") : t("sh.new")}
                     </span>
                   )}
                 </div>
-                <p className="market-price">{priceLine(p)}</p>
+                <p className="market-price">{priceLine(p, t)}</p>
                 <p className="muted">
-                  {availability(p)}
+                  {availability(p, t)}
                   {p.size && ` · ${p.size}`}
                   {p.brand && ` · ${p.brand}`}
                 </p>

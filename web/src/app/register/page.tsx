@@ -97,7 +97,7 @@ export default function RegisterPage() {
 
         {/* Asked first, so it applies however they sign up — Google included. */}
         <fieldset className="auth-role">
-          <legend>I&apos;m here to…</legend>
+          <legend>{t("rest.im_here_to")}</legend>
           <RoleChooser compact value={role} onPicked={(_, r) => setRole(r)} />
         </fieldset>
 
@@ -113,7 +113,7 @@ export default function RegisterPage() {
               type="button"
               onClick={() => setMethod(m)}
             >
-              {m === "email" ? "Email" : "Mobile number"}
+              {m === "email" ? t("rest.email") : t("rest.mobile_number")}
             </button>
           ))}
         </div>
@@ -195,7 +195,7 @@ export default function RegisterPage() {
         )}
 
         <p className="auth-alt">
-          {t("rest.already_have_an_account")} <Link href="/login">Sign in</Link>
+          {t("rest.already_have_an_account")} <Link href="/login">{t("rest.sign_in")}</Link>
         </p>
       </div>
     </main>

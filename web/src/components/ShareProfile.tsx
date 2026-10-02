@@ -62,7 +62,7 @@ export function ShareProfile({ userId, onShared }: { userId: string; onShared?: 
   const nativeShare = async () => {
     if (!link) return;
     try {
-      await navigator.share({ title: `My ${brand.name} profile`, text: message(link), url: link });
+      await navigator.share({ title: t("le.my_brand_profile", { brand: brand.name }), text: message(link), url: link });
       shared();
     } catch {
       /* dismissed the share sheet */

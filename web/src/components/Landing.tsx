@@ -135,18 +135,18 @@ function Scoreboard() {
     >
       <div className="lp-board" aria-hidden="true">
         <div className="lp-board-head">
-          <span className="tag live">Live</span>
-          <span>T20 · Sunday League</span>
+          <span className="tag live">{t("lp.live")}</span>
+          <span>{t("lp.t20_sunday_league")}</span>
         </div>
         <div className="lp-board-team done">
           <span>{brand.name} CC</span>
           <strong>168/6</strong>
-          <em>20 ov</em>
+          <em>{t("lp.n_ov", { n: 20 })}</em>
         </div>
         <div className="lp-board-team">
           <span>{t("rest.riverside_cc")}</span>
           <strong>142/4</strong>
-          <em>18.4 ov</em>
+          <em>{t("lp.n_ov", { n: "18.4" })}</em>
         </div>
         <p className="lp-board-need">{t("rest.riverside_need_27_runs_from_8_balls")}</p>
         <div className="lp-board-over">

@@ -86,7 +86,7 @@ function One({
       setSaved(true);
       onDone();
     } catch (err) {
-      setError(readErr(err, "Could not save that"));
+      setError(readErr(err, t("le.could_not_save_that")));
     } finally {
       setBusy(false);
     }
@@ -117,14 +117,14 @@ function One({
       </div>
 
       <fieldset className="ump-picker">
-        <legend className="sr-only">Rate {umpire.name} from 1 to 5</legend>
+        <legend className="sr-only">{t("ump.rate_name_from_1_to_5", { name: umpire.name })}</legend>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             type="button"
             className={n <= rating ? "on" : ""}
             aria-pressed={n <= rating}
-            aria-label={`${n} out of 5`}
+            aria-label={t("ump.n_out_of_5", { n })}
             disabled={busy}
             onClick={() => {
               setRating(n);

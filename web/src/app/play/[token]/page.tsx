@@ -43,8 +43,8 @@ export default function PlayPage({ params }: { params: Promise<{ token: string }
       {error ? (
         <div className="panel empty">
           <Icon name="link" size={28} />
-          <h1>This code didn&apos;t work</h1>
-          <p className="muted">{error}. Ask them to send their link again.</p>
+          <h1>{t("le.this_code_didnt_work")}</h1>
+          <p className="muted">{t("le.ask_them_for_link_again", { error })}</p>
         </div>
       ) : !who ? (
         <div className="panel">
@@ -71,7 +71,7 @@ export default function PlayPage({ params }: { params: Promise<{ token: string }
                 {t("rest.start_a_match_against_them_and_their_c")}
               </p>
               <Link className="btn primary lg" href={`/score?against=${encodeURIComponent(token)}`}>
-                <Icon name="bat" size={16} /> Start a match against {who.name}
+                <Icon name="bat" size={16} /> {t("rest.start_a_match_against", { name: who.name })}
               </Link>
             </>
           )}

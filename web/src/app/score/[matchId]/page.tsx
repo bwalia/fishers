@@ -131,7 +131,7 @@ export default function ScorerPage({
         setSync(kept.pending.length > 0 ? "offline" : "saved");
         return;
       }
-      setError(err instanceof Error ? err.message : t("la.could_not_load_the_match"));
+      setError(readErr(err, t("la.could_not_load_the_match")));
     }
   }, [matchId, t]);
 
@@ -157,7 +157,7 @@ export default function ScorerPage({
       // Only worth saying out loud when the server refused on its own terms;
       // a dropped network is what the chip is for.
       if (navigator.onLine) {
-        setError(err instanceof Error ? err.message : t("la.the_api_rejected_that"));
+        setError(readErr(err, t("la.the_api_rejected_that")));
       }
     }
   }, [matchId, t]);
@@ -253,7 +253,7 @@ export default function ScorerPage({
           last_seq: seq,
         };
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("la.the_laws_do_not_allow_that"));
+        setError(readErr(err, t("la.the_laws_do_not_allow_that")));
         sending.current = false;
         setBusy(false);
         return;
@@ -290,7 +290,7 @@ export default function ScorerPage({
         })
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("la.could_not_claim_the_book"));
+      setError(readErr(err, t("la.could_not_claim_the_book")));
     } finally {
       setBusy(false);
     }
@@ -347,8 +347,8 @@ export default function ScorerPage({
             <>
               <span className="tag">
                 {st.conditions.overs_limit > 0
-                  ? `${st.conditions.overs_limit} overs`
-                  : "no over limit"}
+                  ? t("tn.n_overs", { n: st.conditions.overs_limit })
+                  : t("la.no_over_limit")}
               </span>
               <span className="tag">{t("sc.ball_with_type", { type: t(`ball_type.${st.conditions.ball}` as Key) })}</span>
               <span className="tag">{t("sc.ground_with_type", { type: t(`ground_type.${st.conditions.ground}` as Key) })}</span>
@@ -392,7 +392,7 @@ export default function ScorerPage({
           is a chip nobody reads. */}
       {sync !== "saved" && (
         <p className={`sync-chip ${sync}`} role="status" aria-live="polite">
-          {syncLabel(sync, queued.current.length)}
+          {syncLabel(sync, queued.current.length, t)}
           {sync === "offline" && (
             <span className="sync-note">
               {t("sc.they_will_go_up_on_their_own_when_ther")}
@@ -474,7 +474,7 @@ export default function ScorerPage({
       <Scorecard st={st} nameOf={nameOf} />
 
       <p className="muted" style={{ marginTop: "1rem" }}>
-        <Link href="/score">← All fixtures</Link>
+        <Link href="/score">{t("ev.all_fixtures_back")}</Link>
       </p>
     </main>
   );
@@ -523,7 +523,7 @@ function Umpires({
       people: players.filter((p) => !named.has(p.id)).map((p) => ({ id: p.id, name: p.name })),
     });
     return [
-      side(match.state.home_name || "Home", squad?.home.players ?? []),
+      side(match.state.home_name || t("la.home"), squad?.home.players ?? []),
       side(match.state.away_name || t("la.away"), squad?.away.players ?? []),
     ];
   }, [officials, squad, match.state.home_name, match.state.away_name, t]);
@@ -784,9 +784,9 @@ function sidesAndOfficials(
   });
 
   return [
-    side(squad?.home, match.state.home_name || "Home"),
+    side(squad?.home, match.state.home_name || t("la.home")),
     side(squad?.away, match.state.away_name || t("la.away")),
-    ...(umpires.length > 0 ? [{ label: "Umpires", people: umpires }] : []),
+    ...(umpires.length > 0 ? [{ label: t("la.umpires"), people: umpires }] : []),
   ];
 }
 
@@ -894,6 +894,7 @@ function CallItOff({
 /// Who won the toss and what they did with it — the thing both sides ask about
 /// the moment it happens.
 function TossResult({ st }: { st: MatchState }) {
+  const t = useT();
   const winner = st.toss_winner === "home" ? st.home_name : st.away_name;
   const loser = st.toss_winner === "home" ? st.away_name : st.home_name;
   const batting =
@@ -906,9 +907,11 @@ function TossResult({ st }: { st: MatchState }) {
     <div className="toss-result">
       <Icon name="trophy" size={18} />
       <p>
-        <strong>{winner}</strong> won the toss and chose to{" "}
-        <strong>{st.toss_decision === "bat" ? "bat" : "bowl"}</strong>.
-        {batting && <> {batting} bat first.</>}
+        {t("la.won_toss_and_chose", {
+          winner,
+          decision: st.toss_decision === "bat" ? t("la.bat_lower") : t("la.bowl_lower"),
+        })}
+        {batting && <> {t("la.side_bats_first", { side: batting })}</>}
       </p>
     </div>
   );
@@ -919,9 +922,9 @@ function TossResult({ st }: { st: MatchState }) {
 function SetupRail({ st, hasScorer }: { st: MatchState; hasScorer: boolean }) {
   const t = useT();
   const steps = [
-    { label: "Scorer", done: hasScorer },
+    { label: t("la.scorer"), done: hasScorer },
     { label: t("la.terms"), done: !!st.agreed_home && !!st.agreed_away },
-    { label: "Toss", done: !!st.toss_winner },
+    { label: t("la.toss"), done: !!st.toss_winner },
     { label: t("la.team_sheets"), done: st.home_xi.length > 0 && st.away_xi.length > 0 },
   ];
   const current = steps.findIndex((s) => !s.done);
@@ -985,12 +988,12 @@ function Comparison({
     better?: "high" | "low";
   };
   const rows: Row[] = [
-    { label: "Score", left: `${left.runs}/${left.wickets}`, right: `${right.runs}/${right.wickets}`, lead: left.runs - right.runs, better: "high" },
-    { label: "Overs", left: left.overs, right: right.overs },
-    { label: "Run rate", left: rate(left.run_rate), right: rate(right.run_rate), lead: left.run_rate - right.run_rate, better: "high" },
+    { label: t("la.score"), left: `${left.runs}/${left.wickets}`, right: `${right.runs}/${right.wickets}`, lead: left.runs - right.runs, better: "high" },
+    { label: t("la.overs"), left: left.overs, right: right.overs },
+    { label: t("la.run_rate"), left: rate(left.run_rate), right: rate(right.run_rate), lead: left.run_rate - right.run_rate, better: "high" },
     { label: t("la.dot_balls"), left: `${left.dots} · ${pct(left.dot_percent)}`, right: `${right.dots} · ${pct(right.dot_percent)}`, lead: left.dots - right.dots, better: "low" },
-    { label: "Fours", left: `${left.fours}`, right: `${right.fours}`, lead: left.fours - right.fours, better: "high" },
-    { label: "Sixes", left: `${left.sixes}`, right: `${right.sixes}`, lead: left.sixes - right.sixes, better: "high" },
+    { label: t("la.fours"), left: `${left.fours}`, right: `${right.fours}`, lead: left.fours - right.fours, better: "high" },
+    { label: t("la.sixes"), left: `${left.sixes}`, right: `${right.sixes}`, lead: left.sixes - right.sixes, better: "high" },
     { label: t("la.in_boundaries"), left: `${left.boundary_runs} · ${pct(left.boundary_percent)}`, right: `${right.boundary_runs} · ${pct(right.boundary_percent)}`, lead: left.boundary_runs - right.boundary_runs, better: "high" },
     ...phaseNames.map((n): Row => {
       const l = left.phases.find((p) => p.name === n);
@@ -1007,7 +1010,7 @@ function Comparison({
     { label: t("la.middle_order_4_7"), left: `${left.middle_order}`, right: `${right.middle_order}`, lead: left.middle_order - right.middle_order, better: "high" },
     { label: t("la.lower_order_8"), left: `${left.lower_order}`, right: `${right.lower_order}`, lead: left.lower_order - right.lower_order, better: "high" },
     { label: t("la.best_stand"), left: `${left.best_partnership}`, right: `${right.best_partnership}`, lead: left.best_partnership - right.best_partnership, better: "high" },
-    { label: "Extras", left: `${left.extras}`, right: `${right.extras}`, lead: left.extras - right.extras, better: "low" },
+    { label: t("la.extras"), left: `${left.extras}`, right: `${right.extras}`, lead: left.extras - right.extras, better: "low" },
   ];
 
   const ahead = (row: Row, side: "left" | "right") => {
@@ -1308,9 +1311,10 @@ function Stages({
     return current ? (
       <ScorersTurn
         title={t("sc.innings_break")}
-        note={`${battingNext === "home" ? st.home_name : st.away_name} bat next${
-          st.target ? `, chasing ${st.target}` : ""
-        }. Whoever has the book names the openers — this page updates when they do.`}
+        note={t("la.innings_break_note", {
+          side: battingNext === "home" ? st.home_name : st.away_name,
+          chase: st.target ? t("la.chasing_target", { target: st.target }) : "",
+        })}
       />
     ) : (
       <ScorersTurn
@@ -1493,7 +1497,7 @@ function ProposePanel({
           <label>
             {t("sc.overs")} <input {...num("overs_limit")} />
             {(c.innings_per_side ?? 1) >= 2 && (
-              <span className="subtle">0 for no limit — played to the clock</span>
+              <span className="subtle">{t("la.zero_for_no_limit_clock")}</span>
             )}
           </label>
           <label>
@@ -1517,7 +1521,7 @@ function ProposePanel({
           <label>
             {t("sc.overs_per_bowler")}
             <input {...num("overs_per_bowler")} />
-            <span className="subtle">0 for no limit</span>
+            <span className="subtle">{t("la.zero_for_no_limit")}</span>
           </label>
           <label>{t("sc.powerplay_overs")} <input {...num("powerplay_overs")} /></label>
           <label>
@@ -1531,7 +1535,7 @@ function ProposePanel({
           <label>
             {t("sc.overs_per_hour")}
             <input {...num("target_overs_per_hour")} />
-            <span className="subtle">0 to not count it</span>
+            <span className="subtle">{t("la.zero_to_not_count_it")}</span>
           </label>
         </div>
       </fieldset>
@@ -1564,15 +1568,15 @@ function ProposePanel({
         )}
         <p className="muted">
           {t("sc.proposing_on_behalf_of")} <strong>{by === "home" ? st.home_name : st.away_name}</strong>.{" "}
-          {other(by) === "home" ? st.home_name : st.away_name} will be asked to accept.
+          {t("la.side_will_be_asked", { side: other(by) === "home" ? st.home_name : st.away_name })}
         </p>
         <PersonPicker
-          label={`Captain of ${by === "home" ? st.home_name : st.away_name}`}
+          label={t("la.captain_of", { name: by === "home" ? st.home_name : st.away_name })}
           people={squad.people(by)}
           value={name}
           onChange={setName}
           loading={squad.loading}
-          emptyHint={`Nobody on ${brand.name} for that side — type their captain's name.`}
+          emptyHint={t("la.nobody_on_brand_for_side", { brand: brand.name })}
         />
       </fieldset>
 
@@ -1662,15 +1666,15 @@ function WaitingPanel({
           {isMine && canAgree
             ? t("la.do_you_accept_these_terms")
             : recording
-              ? `${pendingName}, do you agree?`
-              : `Waiting on ${pendingName}`}
+              ? t("la.do_you_agree", { name: pendingName })
+              : t("la.waiting_on", { name: pendingName })}
         </h2>
         <p className="muted">
           {isMine && canAgree
-            ? `${proposer} has proposed this match. Check it over — once you accept, the toss is next.`
+            ? t("la.proposed_check_it_over", { proposer })
             : recording
-              ? `Record ${pendingName}'s captain agreeing and the toss is next.`
-              : `${proposer} has proposed these terms. ${pendingName} has to accept before the toss.`}
+              ? t("la.record_captain_agreeing", { name: pendingName })
+              : t("la.proposed_terms_pending", { proposer, name: pendingName })}
         </p>
       </div>
 
@@ -1717,9 +1721,9 @@ function WaitingPanel({
       {canAgree && (!theirsToAnswer || recording) ? (
         <>
           <fieldset className="setup-group">
-            <legend>{isMine ? t("la.accepted_by") : `${pendingName} agrees`}</legend>
+            <legend>{isMine ? t("la.accepted_by") : t("la.side_agrees", { name: pendingName })}</legend>
             <PersonPicker
-              label={isMine ? t("la.your_captain_s_name") : `Captain of ${pendingName}`}
+              label={isMine ? t("la.your_captain_s_name") : t("la.captain_of", { name: pendingName })}
               people={squad.people(pending)}
               value={name}
               onChange={setName}
@@ -1739,10 +1743,10 @@ function WaitingPanel({
             {busy
               ? t("la.saving")
               : isMine
-                ? `Accept — ${name.trim() || "name your captain"}`
+                ? t("la.accept_named", { name: name.trim() || t("la.name_your_captain") })
                 : name.trim()
-                  ? `${name.trim()} agrees`
-                  : "Agree the terms"}
+                  ? t("la.side_agrees", { name: name.trim() })
+                  : t("la.agree_the_terms")}
           </button>
         </>
       ) : (
@@ -1787,6 +1791,7 @@ function WaitingPanel({
 /// playing in it and is already permissioned for whoever is scoring, so it
 /// answers for both sides in one request.
 function useSquad(matchId: string) {
+  const t = useT();
   const [squad, setSquad] = useState<SquadResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1814,7 +1819,7 @@ function useSquad(matchId: string) {
         id: p.id,
         name: p.name,
         // "member" only means nobody has said whether they are coming.
-        note: p.standing === "member" ? undefined : STANDING_LABEL[p.standing],
+        note: p.standing === "member" ? undefined : t(STANDING_LABEL[p.standing]),
       })),
   };
 }
@@ -1853,7 +1858,7 @@ function TossPanel({
               <span className="side-card-name">
                 {side === "home" ? st.home_name : st.away_name}
               </span>
-              <span className="side-card-role">{side === "home" ? "Home" : t("la.away")}</span>
+              <span className="side-card-role">{side === "home" ? t("la.home") : t("la.away")}</span>
             </button>
           ))}
         </div>
@@ -1871,7 +1876,7 @@ function TossPanel({
               onClick={() => setDecision(d)}
             >
               <Icon name={d === "bat" ? "bat" : "ball"} size={22} />
-              <span className="side-card-name">{d === "bat" ? "Bat" : t("la.bowl")}</span>
+              <span className="side-card-name">{d === "bat" ? t("la.bat") : t("la.bowl")}</span>
             </button>
           ))}
         </div>
@@ -1884,7 +1889,10 @@ function TossPanel({
         onClick={() => send({ type: "toss_recorded", winner, decision })}
       >
         {winner && decision
-          ? `${winner === "home" ? st.home_name : st.away_name} chose to ${decision}`
+          ? t("la.chose_to_label", {
+              side: winner === "home" ? st.home_name : st.away_name,
+              decision: decision === "bat" ? t("la.bat_lower") : t("la.bowl_lower"),
+            })
           : t("la.record_the_toss")}
       </button>
     </div>
@@ -1910,7 +1918,7 @@ function XiPanel({
     try {
       setSquad(await api<SquadResponse>("GET", `/cricket/matches/${matchId}/squad`));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("la.could_not_load_the_squads"));
+      setError(readErr(err, t("la.could_not_load_the_squads")));
     }
   }, [matchId, t]);
 
@@ -2158,7 +2166,7 @@ function SideSheet({
               <button
                 type="button"
                 className="pick-remove"
-                aria-label={`Take ${p.name} out`}
+                aria-label={t("la.take_player_out", { name: p.name })}
                 onClick={() => drop(p.id)}
               >
                 ×
@@ -2198,7 +2206,7 @@ function SideSheet({
                 )}
                 {p.standing !== "member" && (
                   <span className={`tag ${p.standing === "selected" ? "gold" : "grey"}`}>
-                    {STANDING_LABEL[p.standing] ?? p.standing}
+                    {STANDING_LABEL[p.standing] ? t(STANDING_LABEL[p.standing]) : p.standing}
                   </span>
                 )}
               </button>
@@ -2262,7 +2270,7 @@ function SideSheet({
         {picked.length < 2
           ? t("la.pick_at_least_two_players")
           : short > 0
-            ? `${short} short of a full XI — you can still confirm if that is the side.`
+            ? t("la.short_of_full_xi", { n: short })
             : t("la.a_full_xi_confirm_when_you_are_happy")}
       </p>
     </div>
@@ -2360,7 +2368,7 @@ function OpenersPanel({
           {isSuperOver
             ? replying
               ? t("la.super_over_the_reply")
-              : "Super over"
+              : t("la.super_over")
             : index === 0
               ? t("la.who_is_opening")
               : `Innings ${index + 1}`}
@@ -2389,7 +2397,7 @@ function OpenersPanel({
             {t("sc.the_side_batting_normally_keeps_their")}
           </p>
           <button className="btn ghost sm" type="button" onClick={onHandOver}>
-            <Icon name="book" size={14} /> Hand the book to {battingName}
+            <Icon name="book" size={14} /> {t("la.hand_the_book_to", { name: battingName })}
           </button>
         </div>
       )}
@@ -2400,7 +2408,7 @@ function OpenersPanel({
           <PlayerPicker
             label={t("sc.striker")}
             hint={t("la.faces_the_first_ball")}
-            players={listFor(battingXi, nonStriker ? { [nonStriker]: "at the other end" } : {})}
+            players={listFor(battingXi, nonStriker ? { [nonStriker]: t("la.at_the_other_end") } : {})}
             value={striker}
             onChange={setStriker}
           />
@@ -2436,7 +2444,7 @@ function OpenersPanel({
       <div className="bowling-end">
         <PlayerPicker
           label={t("sc.opening_bowler")}
-          hint={`${bowlingName} — bowls the first over`}
+          hint={t("la.bowls_the_first_over", { name: bowlingName })}
           players={listFor(bowlingXi, {})}
           value={bowler}
           onChange={setBowler}
@@ -2479,7 +2487,7 @@ function OpenersPanel({
             ? t("la.the_same_player_cannot_be_at_both_ends")
             : !bowler
               ? t("la.name_the_bowler_taking_the_first_over")
-              : `${nameOf(bowler)} to ${nameOf(striker)}, first ball.`}
+              : t("la.bowler_to_striker_first_ball", { bowler: nameOf(bowler), striker: nameOf(striker) })}
       </p>
     </div>
   );
@@ -2504,6 +2512,10 @@ type Draft = {
 };
 
 const ASK_KEY = "fishers_ask_shot";
+/// Whether to ask a model for a line of colour after each ball. Per device,
+/// like the shot question: a scorer on a phone tethered to a car park may want
+/// it off, and the one beside them on the clubhouse wifi may not.
+const AI_KEY = "fishers_ai_commentary";
 
 function LivePanel({
   match,
@@ -2538,9 +2550,16 @@ function LivePanel({
   /// Model-written lines, keyed by ball. The log-written line shows instantly
   /// and is replaced only if a better one arrives.
   const [aiLines, setAiLines] = useState<Record<string, string>>({});
+  const [aiOn, setAiOn] = useState(true);
+  /// Why there is no model-written line, when there is none. Silence was the
+  /// whole problem: with the switch on and nothing appearing, there was no way
+  /// to tell an unconfigured server from an unreachable one from a model that
+  /// simply had nothing to add.
+  const [aiStatus, setAiStatus] = useState<"idle" | "ok" | "no_model" | "unreachable">("idle");
 
   const ballCount = (inn.deliveries || []).length;
   useEffect(() => {
+    if (!aiOn) return;
     const last = (inn.deliveries || [])[ballCount - 1];
     if (!last) return;
     const key = `${last.over}.${last.ball_in_over}.${last.label}`;
@@ -2552,7 +2571,7 @@ function LivePanel({
     // stream holds one, and lines still being written for old balls filled the
     // rest — so the next ball queued behind them and the scorer's taps stalled.
     const ctl = new AbortController();
-    api<{ line: string | null }>(
+    api<{ line: string | null; model: string | null }>(
       "POST",
       `/cricket/matches/${match.id}/commentary`,
       // The language goes with the request, not the response: the model writes
@@ -2563,19 +2582,36 @@ function LivePanel({
       ctl.signal
     )
       .then((r) => {
-        if (r.line) setAiLines((prev) => ({ ...prev, [key]: r.line! }));
+        if (r.line) {
+          setAiLines((prev) => ({ ...prev, [key]: r.line! }));
+          setAiStatus("ok");
+          return;
+        }
+        // The route answers with the model it would have used, so a server
+        // with none configured is a different thing to say than one whose
+        // model did not answer.
+        setAiStatus(r.model ? "unreachable" : "no_model");
       })
-      .catch(() => {});
+      .catch(() => {
+        // An abort is this effect cleaning up after itself, not a failure.
+        if (!ctl.signal.aborted) setAiStatus("unreachable");
+      });
     return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ballCount, match.id, locale]);
+  }, [ballCount, match.id, locale, aiOn]);
 
   useEffect(() => {
     setAskShot(localStorage.getItem(ASK_KEY) !== "0");
+    setAiOn(localStorage.getItem(AI_KEY) !== "0");
   }, []);
   const toggleAsk = (on: boolean) => {
     setAskShot(on);
     localStorage.setItem(ASK_KEY, on ? "1" : "0");
+  };
+  const toggleAi = (on: boolean) => {
+    setAiOn(on);
+    localStorage.setItem(AI_KEY, on ? "1" : "0");
+    if (!on) setAiStatus("idle");
   };
 
   /// Turn the draft into the one event it represents and send it.
@@ -2739,8 +2775,8 @@ function LivePanel({
                 {t("sc.overs_of", { balls: overs(inn.legal_balls), limit: oversAvailable })}
               </span>
               <div className="ground-rates">
-                CRR {crr === null ? "—" : crr.toFixed(2)}
-                {rrr !== null && ` · RRR ${rrr.toFixed(2)}`}
+                {t("sc.crr", { rate: crr === null ? "—" : crr.toFixed(2) })}
+                {rrr !== null && t("sc.rrr", { rate: rrr.toFixed(2) })}
               </div>
             </div>
 
@@ -2800,7 +2836,11 @@ function LivePanel({
 
         {fieldBreach && (
           <p className="error">
-            {inn.fielders_outside} fielders outside the circle — only {allowedOutside} allowed.
+            {/* `fieldBreach` is only true when both of these are set. */}
+            {t("la.fielders_outside_circle", {
+              out: inn.fielders_outside ?? 0,
+              allowed: allowedOutside ?? 0,
+            })}
           </p>
         )}
 
@@ -2817,7 +2857,7 @@ function LivePanel({
               const total = balls.reduce((sum, b) => sum + b.runs, 0);
               return (
                 <div className="over-row" key={over}>
-                  <span className="over-label">Over {over + 1}</span>
+                  <span className="over-label">{t("sc.over_n", { n: over + 1 })}</span>
                   {balls.map((b, i) => (
                     <span key={i} className={`ball-chip ${chipClass(b)}`} title={b.label}>
                       {b.is_wicket ? "W" : b.label}
@@ -2837,16 +2877,29 @@ function LivePanel({
         )}
 
         <div className="panel">
-          <h2>{t("sc.commentary")}</h2>
+          <div className="panel-head">
+            <h2>{t("sc.commentary")}</h2>
+            {/* Not only for whoever has the book: the request goes out for
+                anybody watching this page, so anybody watching can stop it. */}
+            <label className="checkbox" style={{ fontSize: "0.85rem" }}>
+              <input type="checkbox" checked={aiOn} onChange={(e) => toggleAi(e.target.checked)} />
+              {t("sc.ai_commentary")}
+            </label>
+          </div>
+          {aiOn && aiStatus !== "idle" && aiStatus !== "ok" && (
+            <p className="muted" style={{ fontSize: "0.85rem" }}>
+              {t(aiStatus === "no_model" ? "sc.ai_no_model" : "sc.ai_unreachable")}
+            </p>
+          )}
           <ul className="comm-list">
             {commentaryRows.map((row) =>
               row.kind === "over" ? (
                 <li className="over-summary" key={`o${row.over}`}>
-                  <strong>End of over {row.over + 1}</strong>
+                  <strong>{t("la.end_of_over_n", { n: row.over + 1 })}</strong>
                   <span className="muted">
-                    {row.overRuns} run{row.overRuns === 1 ? "" : "s"}
+                    {t("la.over_runs", { n: row.overRuns, count: row.overRuns })}
                     {row.overWickets > 0 &&
-                      `, ${row.overWickets} wicket${row.overWickets === 1 ? "" : "s"}`}
+                      t("la.over_wickets", { n: row.overWickets, count: row.overWickets })}
                   </span>
                   <strong className="num">
                     {inn.batting === "home" ? st.home_name : st.away_name} {row.runs}/{row.wickets}
@@ -2883,11 +2936,11 @@ function LivePanel({
         {needsBowler && (
           <div className="panel" style={{ borderColor: "var(--accent)" }}>
             <div className="panel-head">
-              <h2>Over {currentOver} done — who bowls next?</h2>
-              <span className="tag gold">{lastOverRuns} off it</span>
+              <h2>{t("la.over_n_done_who_next", { n: currentOver })}</h2>
+              <span className="tag gold">{t("la.n_off_it", { n: lastOverRuns })}</span>
             </div>
             <p className="muted">
-              {nameOf(inn.last_over_bowler)} bowled it, and nobody bowls two in a row.
+              {t("la.bowled_it_nobody_two_in_a_row", { name: nameOf(inn.last_over_bowler) })}
             </p>
             <div className="actions bowler-options">
               {bowlingXi
@@ -2903,7 +2956,7 @@ function LivePanel({
                       className="btn"
                       type="button"
                       disabled={!canAct || spent}
-                      title={spent ? `${nameOf(id)} has bowled their ${limit}` : undefined}
+                      title={spent ? t("la.has_bowled_their_limit", { name: nameOf(id), limit }) : undefined}
                       onClick={() => send({ type: "bowler_changed", bowler_id: id })}
                     >
                       {nameOf(id)}
@@ -3053,6 +3106,7 @@ function LivePanel({
 
       {draft && draft.step === "direction" && (
         <Sheet
+          wide
           title={t("sc.where_did_it_go")}
           step={draft.extra ? 3 : 2}
           of={draft.extra ? 3 : 2}
@@ -3061,13 +3115,16 @@ function LivePanel({
           <p className="muted">
             {t("sc.tap_the_field_nearer_the_rope_means_it")}
           </p>
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          {/* The field is the control here, so it gets the room. `.wheel-stage`
+              caps it against the viewport height as well as the sheet's width,
+              so the whole wheel is on screen without the sheet scrolling. */}
+          <div className="wheel-stage">
             {/* Only the ball being scored: the innings so far would be noise
                 when the question is where this one went. */}
             <WagonWheel
               deliveries={[]}
               batsLeft={batsLeft}
-              size={300}
+              size={520}
               likelyAngle={SHOT_SHAPES.find((sh) => sh.kind === draft.shotKind)?.angle ?? null}
               onPick={(angle, reach) =>
                 record(draft, { angle, kind: draft.shotKind || "other", reach })
@@ -3259,7 +3316,7 @@ function Following({
             {toBat.slice(0, 3).map((id) => <li key={id}>{nameOf(id)}</li>)}
           </ol>
           {toBat.length > 3 && (
-            <p className="subtle">and {toBat.length - 3} more on the scorecard</p>
+            <p className="subtle">{t("la.and_n_more_on_scorecard", { n: toBat.length - 3 })}</p>
           )}
         </div>
       )}
@@ -3292,16 +3349,20 @@ function BatterCard({
   return (
     <div className={`card${onStrike ? " on-strike" : ""}`}>
       <div className="who-name">
-        {nameOf(id)}
-        {onStrike && <span className="tag">{t("sc.on_strike_lower")}</span>}
+        <span className="who-name-text">{nameOf(id)}</span>
+        {onStrike && (
+          <span className="on-strike-mark" title={t("sc.on_strike_lower")} aria-label={t("sc.on_strike_lower")}>
+            <Icon name="bat" size={14} />
+          </span>
+        )}
       </div>
       <div className="who-figs">
         {b ? b.runs : 0}
         <span className="subtle" style={{ fontSize: "0.9rem" }}> ({b ? b.balls : 0})</span>
       </div>
       <div className="who-sub">
-        {b ? `${b.fours}x4 · ${b.sixes}x6` : "yet to face"}
-        {sr && ` · SR ${sr}`}
+        {b ? t("la.boundaries_count", { fours: b.fours, sixes: b.sixes }) : t("la.yet_to_face")}
+        {sr && t("la.sr_suffix", { sr })}
       </div>
     </div>
   );
@@ -3350,8 +3411,8 @@ function WicketSheet({
         <label>
           {t("sc.who_is_out")}
           <select value={batter} onChange={(e) => setBatter(e.target.value)}>
-            <option value={striker}>{nameOf(striker)} (striker)</option>
-            <option value={nonStriker}>{nameOf(nonStriker)} (non-striker)</option>
+            <option value={striker}>{t("la.name_striker", { name: nameOf(striker) })}</option>
+            <option value={nonStriker}>{t("la.name_non_striker", { name: nameOf(nonStriker) })}</option>
           </select>
         </label>
         {DISMISSALS_WITH_FIELDER.includes(kind) && (
@@ -3366,7 +3427,7 @@ function WicketSheet({
         <label>
           {t("sc.next_in")}
           <select value={newBatter} onChange={(e) => setNewBatter(e.target.value)}>
-            <option value="">— innings ends —</option>
+            <option value="">{t("la.innings_ends_dash")}</option>
             {available.map((id) => <option key={id} value={id}>{nameOf(id)}</option>)}
           </select>
         </label>
@@ -3428,13 +3489,13 @@ function MoreSheet({
   const t = useT();
   const [outside, setOutside] = useState(inn.fielders_outside ?? 0);
   const [penalty, setPenalty] = useState(5);
-  const [reason, setReason] = useState("slow over rate");
+  const [reason, setReason] = useState(t("la.slow_over_rate"));
   const [side, setSide] = useState<Side>("home");
   const [overs, setOvers] = useState(inn.overs_available ?? st.overs_limit);
   const [subName, setSubName] = useState("");
   const [subFor, setSubFor] = useState("");
   const [suspend, setSuspend] = useState("");
-  const [suspendWhy, setSuspendWhy] = useState("second beamer");
+  const [suspendWhy, setSuspendWhy] = useState(t("la.second_beamer"));
   const suspended = inn.suspended_bowlers ?? [];
   // A declaration game ends in ways a limited-overs one cannot, so those
   // buttons only appear where they mean something.
@@ -3508,7 +3569,7 @@ function MoreSheet({
           />
           <span className="subtle">
             {oversBowled > 0
-              ? oversBowled + " already bowled, so it cannot go below that."
+              ? t("la.already_bowled_floor", { n: oversBowled })
               : t("la.none_bowled_yet")}
           </span>
         </label>

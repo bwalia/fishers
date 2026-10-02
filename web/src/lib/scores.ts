@@ -6,6 +6,7 @@
 /// number of people watching costs nothing.
 
 import { api } from "./api";
+import type { T } from "./i18n";
 
 export type WorldMatch = {
   id: string;
@@ -76,15 +77,13 @@ export const startLabel = (iso?: string | null) => {
 
 /// How old the scores are, said plainly. Anything under a minute is "just
 /// now" rather than "0 minutes ago", which reads like a bug.
-export const freshness = (iso?: string | null) => {
-  if (!iso) return "not loaded yet";
+export const freshness = (iso: string | null | undefined, t: T) => {
+  if (!iso) return t("sr.not_loaded_yet");
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (!Number.isFinite(mins) || mins < 0) return "just now";
-  if (mins < 1) return "just now";
-  if (mins === 1) return "1 minute ago";
-  if (mins < 60) return `${mins} minutes ago`;
+  if (!Number.isFinite(mins) || mins < 1) return t("sr.just_now");
+  if (mins < 60) return t("sr.minutes_ago", { n: mins, count: mins });
   const hours = Math.round(mins / 60);
-  return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+  return t("sr.hours_ago", { n: hours, count: hours });
 };
 
 /// One batter's line on the card.
@@ -187,12 +186,15 @@ export const inningsTitle = (innings: Innings[], at: number) => {
 ///
 /// A Test has four innings and two of them belong to each side, so the team
 /// name alone will not tell them apart.
-export const inningsLabel = (innings: Innings[], at: number) => {
+export const inningsLabel = (innings: Innings[], at: number, t: T) => {
   const inn = innings[at];
   const name = inn.team_short || inn.team_name;
   const nth = innings.slice(0, at + 1).filter((i) => i.team_name === inn.team_name).length;
   const twice = innings.filter((i) => i.team_name === inn.team_name).length > 1;
-  return twice ? `${name} ${nth === 1 ? "1st" : nth === 2 ? "2nd" : `${nth}th`}` : name;
+  if (!twice) return name;
+  const nthLabel =
+    nth === 1 ? t("sr.ordinal_1st") : nth === 2 ? t("sr.ordinal_2nd") : t("sr.ordinal_nth", { n: nth });
+  return t("sr.nth_innings", { name, nth: nthLabel });
 };
 
 /// "282-7", or "282" where nobody is out yet.

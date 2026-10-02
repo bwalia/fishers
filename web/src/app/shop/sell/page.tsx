@@ -108,12 +108,12 @@ export default function SellPage() {
         <div>
           <h1>{t("sh.your_listings")}</h1>
           <p className="muted">
-            <Link href="/shop">← Shop</Link> · Kit your club is selling, new or second-hand.
+            <Link href="/shop">{t("sh.shop_back")}</Link>{t("sh.kit_your_club_is_selling")}
           </p>
         </div>
         {clubs.length > 1 && (
           <label className="sell-club">
-            <span className="sr-only">Club</span>
+            <span className="sr-only">{t("sh.club_label")}</span>
             <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
               {clubs.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -133,7 +133,7 @@ export default function SellPage() {
         <ol>
           <li><strong>{t("sh.put_it_up_2")}</strong> {t("sh.say_what_it_is_what_state_it_is_in_and")}</li>
           <li><strong>{t("sh.add_photographs")}</strong> {t("sh.up_to_six_nobody_buys_a_bat_they_canno")}</li>
-          <li><strong>{t("sh.people_ask_about_it")}</strong> {t("sh.questions_and_offers_arrive_in")} <Link href="/chat">Chats</Link>, one conversation per person, each named after the thing they are asking about.</li>
+          <li><strong>{t("sh.people_ask_about_it")}</strong> {t("sh.questions_and_offers_arrive_in")} <Link href="/chat">{t("sh.chats")}</Link>{t("sh.one_conversation_per_person")}</li>
           <li><strong>{t("sh.somebody_takes_it")}</strong> {t("sh.it_comes_off_the_marketplace_so_nobody")}</li>
           <li><strong>{t("sh.they_collect_and_pay_you")}</strong> {t("sh.cash_or_transfer_directly_to_the_club")}</li>
         </ol>
@@ -149,7 +149,7 @@ export default function SellPage() {
           </p>
           <div className="done-actions">
             <Link className="btn" href={`/shop/item/${fresh.id}`}>{t("sh.see_how_buyers_see_it")}</Link>
-            <button className="btn" onClick={() => setJustListed(null)}>Done</button>
+            <button className="btn" onClick={() => setJustListed(null)}>{t("sh.done")}</button>
           </div>
         </section>
       )}
@@ -272,7 +272,7 @@ function Listing({
         </div>
 
         <p className="muted">
-          {priceLine(product)} · {availability(product)}
+          {priceLine(product, t)} · {availability(product, t)}
           {product.size && ` · ${product.size}`}
           {product.brand && ` · ${product.brand}`}
         </p>
@@ -306,7 +306,7 @@ function Listing({
       </div>
 
       <div className="sell-actions">
-        <Link className="btn" href={`/shop/item/${product.id}`}>View</Link>
+        <Link className="btn" href={`/shop/item/${product.id}`}>{t("sh.view")}</Link>
         {!editing && shelf !== "sold" && (
           <button className="btn" onClick={() => setEditing(true)} disabled={busy}>
             {t("sh.change_price")}
@@ -409,8 +409,8 @@ function QuickEdit({
         <input type="checkbox" checked={negotiable} onChange={(e) => setNegotiable(e.target.checked)} />
         <span>{t("sh.open_to_offers")}</span>
       </label>
-      <button className="btn primary" disabled={busy}>{busy ? "Saving…" : t("lc.save")}</button>
-      <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+      <button className="btn primary" disabled={busy}>{busy ? t("la.saving") : t("lc.save")}</button>
+      <button type="button" className="btn" onClick={onCancel}>{t("sc.cancel")}</button>
       {error && <p className="error">{error}</p>}
     </form>
   );
@@ -444,11 +444,11 @@ function Photos({
     const chosen = Array.from(files).slice(0, room);
     setError(null);
     for (const [i, file] of chosen.entries()) {
-      setBusy(`Adding ${i + 1} of ${chosen.length}…`);
+      setBusy(t("sh.adding_i_of_n", { i: i + 1, n: chosen.length }));
       try {
         await upload<Product>(`/clubs/${clubId}/products/${product.id}/photo`, file);
       } catch (err) {
-        setError(readErr(err, `Could not add ${file.name}`));
+        setError(readErr(err, t("sh.could_not_add_file", { file: file.name })));
         break;
       }
     }
@@ -481,7 +481,7 @@ function Photos({
               <button
                 type="button"
                 className="photos-remove"
-                aria-label={`Remove photograph ${i + 1}`}
+                aria-label={t("sh.remove_photograph_n", { n: i + 1 })}
                 disabled={busy !== null}
                 onClick={() => remove(url)}
               >
@@ -600,7 +600,7 @@ function ListingForm({
           <h2>{t("sh.what_it_is")}</h2>
 
           <div className="field">
-            <label htmlFor="sl-name">Name</label>
+            <label htmlFor="sl-name">{t("sh.name")}</label>
             <input
               id="sl-name"
               required
@@ -612,7 +612,7 @@ function ListingForm({
           </div>
 
           <div className="field">
-            <label htmlFor="sl-desc">Description</label>
+            <label htmlFor="sl-desc">{t("sh.description")}</label>
             <textarea
               id="sl-desc"
               rows={4}
@@ -624,10 +624,10 @@ function ListingForm({
           </div>
 
           <div className="field field-narrow">
-            <label htmlFor="sl-cat">Kind</label>
+            <label htmlFor="sl-cat">{t("sh.kind")}</label>
             <select id="sl-cat" value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="equipment">Bats, balls &amp; kit</option>
-              <option value="merchandise">Shoes &amp; sportswear</option>
+              <option value="equipment">{t("sh.bats_balls_and_kit")}</option>
+              <option value="merchandise">{t("sh.shoes_and_sportswear")}</option>
             </select>
             <small>{t("sh.only_kit_is_shown_to_other_clubs")}</small>
           </div>
@@ -778,7 +778,7 @@ function ListingForm({
             </div>
             <p className="market-price">
               {pounds ? `£${pounds}` : "£0.00"}
-              {negotiable && " or near offer"}
+              {negotiable && t("sh.or_near_offer_suffix")}
             </p>
             <p className="muted">
               {stock === "" ? t("lc.on_request") : stock === "1" && condition === "used" ? t("lc.one_only") : `${stock || 0} available`}

@@ -5,18 +5,19 @@ import { api, readErr, saveUser, type PublicUser, type RoleIntent } from "@/lib/
 import { Icon, type IconName } from "@/components/Icon";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n";
 
-const ROLES: { value: RoleIntent; icon: IconName; title: string; body: string }[] = [
+const ROLES: { value: RoleIntent; icon: IconName; title: Key; body: Key }[] = [
   {
     value: "secretary",
     icon: "users",
-    title: "I run a club",
+    title: "le.i_run_a_club",
     body: "le.secretary_or_organiser_you_set_up_the",
   },
   {
     value: "player",
     icon: "bat",
-    title: "I play for a club",
+    title: "le.i_play_for_a_club",
     body: "le.set_up_your_player_profile_send_it_to",
   },
 ];
@@ -46,7 +47,7 @@ export function RoleChooser({
       saveUser(user);
       onPicked(user, role);
     } catch (err) {
-      setError(readErr(err, "Could not save that"));
+      setError(readErr(err, t("le.could_not_save_that")));
     } finally {
       setBusy(null);
     }
@@ -71,8 +72,8 @@ export function RoleChooser({
                 <Icon name={r.icon} size={compact ? 20 : 26} />
               </span>
               <span className="role-text">
-                <strong>{busy === r.value ? "Saving…" : r.title}</strong>
-                {!compact && <span className="muted">{r.body}</span>}
+                <strong>{busy === r.value ? t("la.saving") : t(r.title)}</strong>
+                {!compact && <span className="muted">{t(r.body)}</span>}
               </span>
               {selected && (
                 <span className="role-tick" aria-hidden="true">

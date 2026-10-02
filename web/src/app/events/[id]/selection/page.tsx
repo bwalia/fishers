@@ -104,7 +104,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
       setNote(said);
       await load();
     } catch (err) {
-      setError(readErr(err, "That did not work"));
+      setError(readErr(err, t("le.that_did_not_work")));
     } finally {
       setBusy(null);
     }
@@ -204,7 +204,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
             <div className="panel-head">
               <h2>{t("ev.the_pool")}</h2>
               <span className={short > 0 ? "tag gold" : "tag"}>
-                {short > 0 ? `${short} more to pick` : t("ld.side_is_full")}
+                {short > 0 ? t("le.n_more_to_pick", { n: short }) : t("ld.side_is_full")}
               </span>
             </div>
             <p className="muted">
@@ -301,7 +301,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
               <div><dt>{t("ev.reserves")}</dt><dd className="num">{board.requirements.reserves}</dd></div>
               {board.requirements.position_quotas.map((q) => (
                 <div key={q.position}>
-                  <dt>{q.position}</dt><dd className="num">at least {q.minimum}</dd>
+                  <dt>{q.position}</dt><dd className="num">{t("ev.at_least_n", { n: q.minimum })}</dd>
                 </div>
               ))}
             </dl>
@@ -324,7 +324,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
           </div>
 
           <p className="muted">
-            <Link href="/events">← All fixtures</Link>
+            <Link href="/events">{t("ev.all_fixtures_back")}</Link>
           </p>
         </aside>
       </div>

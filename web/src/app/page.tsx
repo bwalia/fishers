@@ -12,8 +12,7 @@ import {
   type Club,
   type EventRow,
   type Page,
-  type PublicUser,
-} from "@/lib/api";
+  type PublicUser, readErr,} from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { GettingStarted } from "@/components/GettingStarted";
 import { Landing } from "@/components/Landing";
@@ -25,6 +24,7 @@ import { WorldScoresPanel } from "@/components/WorldScores";
 import { overs, type MatchResponse } from "@/lib/cricket";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
 
 export default function HomePage() {
   const t = useT();
@@ -75,7 +75,7 @@ export default function HomePage() {
         );
         setLive(matches.filter((m): m is MatchResponse => !!m && m.state.status !== "complete"));
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("le.failed_to_load"));
+        setError(readErr(err, t("le.failed_to_load")));
       } finally {
         setLoaded(true);
       }
@@ -99,11 +99,16 @@ export default function HomePage() {
   return (
     <main id="main">
       <section className="hero dash-hero">
-        <h1>{`${greeting()}, ${user.name.split(" ")[0]}`}</h1>
+        <h1>
+          {t("page.greeting", {
+            greeting: t(greeting()),
+            name: user.name.split(" ")[0],
+          })}
+        </h1>
         <p>
           {clubs.length > 0
             ? t("le.your_club_at_a_glance_what_s_next_what")
-            : `Welcome to ${brand.name}. A few quick steps and you're up and running.`}
+            : t("page.welcome_new", { brand: brand.name })}
         </p>
       </section>
 
@@ -116,7 +121,7 @@ export default function HomePage() {
         <section className="panel welcome" aria-labelledby="welcome-title">
           <h2 id="welcome-title">{t("fin.how_will_you_use", { brand: brand.name })}</h2>
           <p className="muted">
-            We&apos;ll show you exactly what to do next. You can switch later.
+            {t("rest.well_show_you_what_next")}
           </p>
           <RoleChooser onPicked={(u) => u && setUser(u)} />
         </section>
@@ -193,7 +198,7 @@ export default function HomePage() {
           <div className="panel">
             <div className="panel-head">
               <h2>{t("rest.next_fixtures")}</h2>
-              <Link href="/events">All fixtures →</Link>
+              <Link href="/events">{t("rest.all_fixtures_arrow")}</Link>
             </div>
             {upcoming.slice(0, 5).map((e) => (
               <div className="row" key={e.id}>
@@ -248,7 +253,10 @@ function Quick({
 }
 
 /// Morning, afternoon, evening — by the viewer's own clock.
-function greeting() {
+///
+/// Safe to read the clock here because the dashboard only renders once the
+/// client has checked who is signed in; the server renders an empty main.
+function greeting(): Key {
   const h = new Date().getHours();
   return h < 12 ? "le.good_morning" : h < 18 ? "le.good_afternoon" : "le.good_evening";
 }

@@ -74,7 +74,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
         {stage === "joined" && (
           <div className="empty">
             <Icon name="check" size={28} />
-            <h1>You are in{club ? `, ${club.name}` : ""}</h1>
+            <h1>{club ? t("rest.you_are_in_club", { club: club.name }) : t("rest.you_are_in")}</h1>
             <button
               className="btn primary"
               type="button"
@@ -92,7 +92,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             <p className="muted">
               {t("rest.an_invite_can_only_be_used_once_ask_wh")}
             </p>
-            <Link className="btn" href="/clubs">Your clubs</Link>
+            <Link className="btn" href="/clubs">{t("rest.your_clubs")}</Link>
           </>
         )}
       </div>
