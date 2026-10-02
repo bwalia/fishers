@@ -58,3 +58,25 @@ podSecurityContext:
   fsGroup: 1000
   runAsUser: 1000
   runAsNonRoot: true
+
+# Where MinIO may run.
+#
+# `quay.io/minio/minio` stopped answering anonymously: the manifest is a 401
+# from quay and from Docker Hub alike, and `dl.min.io` is 410 Gone. Every ring
+# is therefore running on a layer some node already had, and `pullPolicy:
+# IfNotPresent` is the only reason they are up at all — a pod that moves to a
+# node without that layer never starts again.
+#
+# That is what happened to fishers-int: it was rescheduled onto debworker00 and
+# sat in ImagePullBackOff for days. So MinIO is kept on the nodes that still
+# have the image, by label rather than by hostname, so draining one of them
+# moves it to another that works instead of to one that cannot.
+#
+#   kubectl label node <node> fishers.cloud/minio-image=cached
+#
+# When the image is mirrored into the private registry this becomes dead
+# weight and the selector comes out. Until then it is what keeps uploads up.
+nodeSelector:
+  fishers.cloud/minio-image: cached
+
+tolerations: []

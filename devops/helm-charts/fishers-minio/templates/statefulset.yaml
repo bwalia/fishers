@@ -23,6 +23,14 @@ spec:
         {{- $live := lookup "v1" "Secret" .Release.Namespace .Values.secretsName }}
         fishers.cloud/credentials: {{ printf "%v%v" (dig "data" "S3_ACCESS_KEY" "" $live) (dig "data" "S3_SECRET_KEY" "" $live) | sha256sum | trunc 16 | quote }}
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
