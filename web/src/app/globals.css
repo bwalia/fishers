@@ -8323,3 +8323,28 @@ main .panel[id] { scroll-margin-top: 80px; }
   color: var(--accent);
 }
 .sync-note { font-weight: 400; font-size: 0.82rem; color: var(--fg-muted); }
+
+/* The Play/Club dropdowns go with the link scroller below 1024.
+ *
+ * They live outside `.nav` so their panels are not clipped by its sideways
+ * scroll, which is also why the media query that hides `.nav` never hid them:
+ * 130px of menus the bottom tab bar already carries, and the reason every page
+ * scrolled sideways on a phone — 521px of top bar in a 390px window.
+ *
+ * Down here rather than up beside that media query because `.nav-groups` sets
+ * `display: flex` further down the file, and at equal specificity the later
+ * rule wins. Their links are all in the bottom bar's More sheet.
+ */
+@media (max-width: 1023px) {
+  .nav-groups { display: none; }
+}
+
+/* A 360px Android — the commonest width this app will ever be opened at — had
+ * 16px more top bar than window when signed out: brand, language, theme, Sign
+ * in and Join. The wordmark gives it back, and is the right thing to give:
+ * it is the one item on that row that is decoration rather than a control.
+ */
+@media (max-width: 399px) {
+  .brand { font-size: 1.05rem; }
+  .topbar-inner { gap: var(--s2); }
+}
