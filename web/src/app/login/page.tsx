@@ -70,7 +70,7 @@ export default function LoginPage() {
             />
           </label>
           <label>
-            Password
+            {t("cl.password")}
             <span className="password-field">
               <input
                 type={show ? "text" : "password"}
@@ -85,7 +85,7 @@ export default function LoginPage() {
                 onClick={() => setShow((v) => !v)}
                 aria-label={show ? t("le.hide_password") : t("le.show_password")}
               >
-                {show ? "Hide" : t("le.show")}
+                {show ? t("rest.hide") : t("le.show")}
               </button>
             </span>
           </label>

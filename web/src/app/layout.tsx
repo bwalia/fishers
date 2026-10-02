@@ -5,6 +5,7 @@ import "./globals.css";
 import { OfflineReady } from "@/components/OfflineReady";
 import { ShellNav } from "@/components/ShellNav";
 import { MobileNav } from "@/components/MobileNav";
+import { SiteFooter } from "@/components/SiteFooter";
 import { LiveAlerts } from "@/components/LiveAlerts";
 import { LOCALES, makeT } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
@@ -139,6 +140,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <OfflineReady />
           <ShellNav />
           <div className="shell">{children}</div>
+          <SiteFooter />
           <MobileNav />
           <LiveAlerts />
         </LocaleProvider>
