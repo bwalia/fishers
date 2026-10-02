@@ -2818,4 +2818,8 @@ export const pa: Dict = {
   "fp.again": "ਹੋਰ ਕੋਡ ਭੇਜੋ",
   "fp.could_not_send": "ਹੁਣੇ ਕੋਡ ਨਹੀਂ ਭੇਜਿਆ ਜਾ ਸਕਿਆ",
   "fp.could_not_reset": "ਉਹ ਪਾਸਵਰਡ ਨਹੀਂ ਲਾਇਆ ਜਾ ਸਕਿਆ",
+  // Removing a team
+  "cl.remove_team": "ਇਹ ਟੀਮ ਹਟਾਓ",
+  "cl.remove_team_confirm": "{name} ਹਟਾ ਦੇਣੀ ਹੈ? ਇਸ ਦੀ ਸੂਚੀ ਵੀ ਨਾਲ ਜਾਵੇਗੀ — ਖਿਡਾਰੀ ਕਲੱਬ ਵਿੱਚ ਹੀ ਰਹਿਣਗੇ।",
+  "cl.could_not_remove_the_team": "ਟੀਮ ਨਹੀਂ ਹਟਾਈ ਜਾ ਸਕੀ",
 };

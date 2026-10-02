@@ -416,6 +416,35 @@ pub async fn create_team(
     .await
 }
 
+/// Whether anything that counts as history points at this team.
+///
+/// Deleting a team is cheap at the database level — every reference either
+/// cascades or goes null — and that is exactly the problem: a fixture the 2nd
+/// XI played would quietly become the club's, with nothing to say it moved.
+/// So a team that has been on a fixture or faced as an opponent is not
+/// deletable, and the API says why.
+pub async fn team_has_history(pool: &PgPool, team_id: Uuid) -> Result<bool, sqlx::Error> {
+    let (used,): (bool,) = sqlx::query_as(
+        "SELECT EXISTS (SELECT 1 FROM events WHERE team_id = $1)
+             OR EXISTS (SELECT 1 FROM cricket_matches WHERE opponent_team_id = $1)",
+    )
+    .bind(team_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(used)
+}
+
+/// Removes the team and its roster. False when it was already gone, so a
+/// double tap is not an error.
+pub async fn delete_team(pool: &PgPool, team_id: Uuid) -> Result<bool, sqlx::Error> {
+    Ok(sqlx::query("DELETE FROM teams WHERE id = $1")
+        .bind(team_id)
+        .execute(pool)
+        .await?
+        .rows_affected()
+        > 0)
+}
+
 pub async fn list_teams(pool: &PgPool, club_id: Uuid) -> Result<Vec<Team>, sqlx::Error> {
     sqlx::query_as::<_, Team>(
         r#"

@@ -37,6 +37,7 @@ pub fn router() -> Router<AppState> {
             "/teams/{id}/members",
             get(list_team_members).post(add_team_member),
         )
+        .route("/teams/{id}", axum::routing::delete(delete_team))
         .route("/clubs/{id}/qr", get(club_qr).post(rotate_qr))
         .route("/teams/{id}/qr", get(team_qr))
         .route("/opponents/lookup", post(lookup_opponent))
@@ -535,6 +536,30 @@ async fn list_teams(
 ) -> ApiResult<Json<Vec<Team>>> {
     require_club_member(&state, id, auth.user_id).await?;
     Ok(Json(clubs_repo::list_teams(&state.pool, id).await?))
+}
+
+/// Removes a team. Whoever runs the club's operations may, which is the same
+/// permission that created it.
+///
+/// Refused once the team has been on a fixture: everything that points at a
+/// team either cascades or goes null, so the delete would succeed and take the
+/// link between a match and the side that played it with it.
+async fn delete_team(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<()> {
+    let team = clubs_repo::get_team(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("no such team"))?;
+    require_club_permission(&state, team.club_id, auth.user_id, Permission::ManageClubOps).await?;
+    if clubs_repo::team_has_history(&state.pool, id).await? {
+        return Err(ApiError::conflict(
+            "this team has played — rename it instead, so its fixtures keep the side that played them",
+        ));
+    }
+    clubs_repo::delete_team(&state.pool, id).await?;
+    Ok(())
 }
 
 async fn create_venue(

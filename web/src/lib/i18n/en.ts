@@ -2831,6 +2831,10 @@ export const en = {
   "fp.again": "Send another code",
   "fp.could_not_send": "Could not send a code just now",
   "fp.could_not_reset": "Could not set that password",
+  // MARK: Removing a team
+  "cl.remove_team": "Remove this team",
+  "cl.remove_team_confirm": "Remove {name}? Its roster goes with it — the players stay in the club.",
+  "cl.could_not_remove_the_team": "Could not remove the team",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.
