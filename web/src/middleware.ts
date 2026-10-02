@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isIndexable } from "@/lib/site";
+
 /// Send every other hostname to the one this ring calls itself.
 ///
 /// Prod answers on two names — `fishers.cloud` because people type it, and
@@ -25,13 +27,33 @@ const REDIRECTS = new Map(
 );
 
 export function middleware(request: NextRequest) {
-  if (REDIRECTS.size === 0) return NextResponse.next();
+  const moved = canonicalRedirect(request);
+  if (moved) return moved;
+
+  const response = NextResponse.next();
+  // Said in the response as well as in robots.txt, because the two are read
+  // by different things: robots.txt asks a crawler not to fetch the page,
+  // this tells anything that fetched it anyway not to index what it got.
+  //
+  // Worth knowing if a test ring is ever actually found in a search index:
+  // the two work against each other at that point, because a crawler that is
+  // refused the page never sees this header and so never learns to drop it.
+  // Getting it removed means letting the crawler back in — the disallow in
+  // `robots.ts` lifted — until it has re-read the page and seen this.
+  if (!isIndexable()) response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return response;
+}
+
+/// Sends a request on to the hostname this ring calls itself, or nothing when
+/// it already arrived on it.
+function canonicalRedirect(request: NextRequest) {
+  if (REDIRECTS.size === 0) return null;
 
   // The Host header carries the port on a non-standard one; the map is keyed
   // by hostname alone, because that is what anybody configures.
   const host = (request.headers.get("host") ?? "").split(":")[0].toLowerCase();
   const to = REDIRECTS.get(host);
-  if (!to) return NextResponse.next();
+  if (!to) return null;
 
   const url = request.nextUrl.clone();
   url.host = to;

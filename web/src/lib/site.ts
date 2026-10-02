@@ -13,3 +13,17 @@ export function siteUrl(): string {
   if (base) return base.replace(/\/+$/, "");
   return `https://${brand.domain}`;
 }
+
+/// Whether this ring may appear in a search engine at all.
+///
+/// Only production may. int, test and acc all answer on the open internet
+/// with no password in front of them, so without this they are four more
+/// crawlable copies of the same product, competing with the real one for the
+/// same words — and the test ring, being smaller, sometimes wins.
+///
+/// Unset means no: a ring that nobody remembered to configure, and a local
+/// development server, are both kept out rather than let in. Production sets
+/// `WEB_RING` from the chart, where it is required.
+export function isIndexable(): boolean {
+  return process.env.WEB_RING?.trim().toLowerCase() === "prod";
+}
