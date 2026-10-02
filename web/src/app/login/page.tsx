@@ -98,6 +98,9 @@ export default function LoginPage() {
         </form>
 
         <p className="auth-alt">
+          <Link href="/forgot">{t("fp.forgot")}</Link>
+        </p>
+        <p className="auth-alt">
           {t("rest.new_here")} <Link href="/register">{t("rest.create_an_account")}</Link>
         </p>
       </div>

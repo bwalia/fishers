@@ -2814,6 +2814,23 @@ export const en = {
   // MARK: Strings the sweep missed on the profile page
   "cl.delete_removes": "Removes your name, contact details, picture and player profile, and signs you out everywhere. Scorecards you appear on stay, under no name —",
   "ld.saving": "Saving…",
+  // MARK: Forgotten passwords
+  "fp.forgot": "Forgot your password?",
+  "fp.title": "Reset your password",
+  "fp.ask": "Give us the email address you signed up with and we will send a six-digit code.",
+  "fp.send_code": "Send the code",
+  "fp.sending": "Sending…",
+  "fp.sent": "If {address} has an account, a code is on its way. It lasts ten minutes.",
+  "fp.no_account_no_tell": "We do not say whether an address has an account — that is nobody else's business either.",
+  "fp.code": "The code from the email",
+  "fp.set": "Set the new password",
+  "fp.setting": "Setting…",
+  "fp.min": "At least 8 characters.",
+  "fp.done": "That is done — sign in with the new password.",
+  "fp.signs_out_everywhere": "Setting a new password signs out every other device.",
+  "fp.again": "Send another code",
+  "fp.could_not_send": "Could not send a code just now",
+  "fp.could_not_reset": "Could not set that password",
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

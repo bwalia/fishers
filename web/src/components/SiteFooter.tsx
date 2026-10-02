@@ -35,6 +35,7 @@ export async function SiteFooter() {
           <div className="site-foot-col">
             <h2>{t("foot.your_account")}</h2>
             <Link href="/profile">{t("nav.profile")}</Link>
+            <Link href="/forgot">{t("foot.forgot_password")}</Link>
             <Link href="/profile#delete">{t("foot.delete_account")}</Link>
           </div>
 
