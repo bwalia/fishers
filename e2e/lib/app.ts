@@ -122,12 +122,15 @@ export async function ensureAccount(a: Actor): Promise<"created" | "reused"> {
 export async function signOut(page: Page) {
   await page.goto("/");
   await clearOverlays(page);
-  // Sign out lives inside the nav's overflow menu, and that menu renders its
-  // items only while it is open — so there is nothing to click until it is.
-  // Clicking it directly timed out looking for a button that was not in the
-  // DOM. The menu is found by its role rather than its label, because the
-  // label is the signed-in person's first name.
-  const signOutButton = page.getByRole("button", { name: /Sign out/ });
+  // Sign out is a `menuitem`, not a `button`: `ShellNav` sets the role
+  // explicitly and an explicit role replaces the implicit one, so
+  // `getByRole("button")` never matched it however long it waited.
+  //
+  // It also lives inside the nav's overflow menu, which renders its items only
+  // while open — so there is nothing to match until it is. The menu is found
+  // by `aria-haspopup` rather than by its label, because the label is the
+  // signed-in person's first name.
+  const signOutButton = page.getByRole("menuitem", { name: /Sign out/ });
   if (!(await signOutButton.first().isVisible().catch(() => false))) {
     await page.locator('header.topbar button[aria-haspopup="menu"]').last().click();
     await expect(signOutButton.first()).toBeVisible({ timeout: 10_000 });
