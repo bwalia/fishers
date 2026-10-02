@@ -504,7 +504,7 @@ function Teams({
         // dropdown in it is a thing somebody has not finished; a button is an
         // offer, which is what a team actually is.
         <button
-          className="btn ghost sm"
+          className="btn"
           type="button"
           id="add-team"
           style={{ marginTop: "var(--s3)" }}
