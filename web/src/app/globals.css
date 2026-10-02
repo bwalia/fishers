@@ -1193,32 +1193,6 @@ textarea { line-height: 1.5; resize: vertical; }
   line-height: 1.25;
 }
 
-/* ---------- Sticky match bar ---------- */
-
-.matchbar {
-  position: sticky;
-  top: 64px;
-  z-index: calc(var(--z-nav) - 1);
-  display: flex;
-  align-items: baseline;
-  gap: var(--s3);
-  flex-wrap: wrap;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--s3) var(--s4);
-  margin-bottom: var(--s4);
-  box-shadow: var(--shadow-2);
-}
-.matchbar .scoreline { font-size: clamp(1.9rem, 1.4rem + 2vw, 2.6rem); }
-.matchbar .crease {
-  display: flex;
-  gap: var(--s4);
-  flex-wrap: wrap;
-  margin-left: auto;
-  font-size: 0.9rem;
-}
-
 /* ---------- Secondary action row ---------- */
 
 .actions {
@@ -8323,3 +8297,145 @@ main .panel[id] { scroll-margin-top: 80px; }
   color: var(--accent);
 }
 .sync-note { font-weight: 400; font-size: 0.82rem; color: var(--fg-muted); }
+
+/* The Play/Club dropdowns go with the link scroller below 1024.
+ *
+ * They live outside `.nav` so their panels are not clipped by its sideways
+ * scroll, which is also why the media query that hides `.nav` never hid them:
+ * 130px of menus the bottom tab bar already carries, and the reason every page
+ * scrolled sideways on a phone — 521px of top bar in a 390px window.
+ *
+ * Down here rather than up beside that media query because `.nav-groups` sets
+ * `display: flex` further down the file, and at equal specificity the later
+ * rule wins. Their links are all in the bottom bar's More sheet.
+ */
+@media (max-width: 1023px) {
+  .nav-groups { display: none; }
+}
+
+/* A 360px Android — the commonest width this app will ever be opened at — had
+ * 16px more top bar than window when signed out: brand, language, theme, Sign
+ * in and Join. The wordmark gives it back, and is the right thing to give:
+ * it is the one item on that row that is decoration rather than a control.
+ */
+@media (max-width: 399px) {
+  .brand { font-size: 1.05rem; }
+  .topbar-inner { gap: var(--s2); }
+}
+
+/* ---------------------------------------------------------------------------
+ * The footer on every page
+ *
+ * Outside `.shell`, so its background runs the full width of the window while
+ * its contents line up with the page above it — same max-width, same gutter.
+ * Rendered on the server, so there is no JavaScript behind any of this.
+ * ------------------------------------------------------------------------- */
+.site-foot {
+  margin-top: var(--s6);
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 0.92rem;
+}
+
+.site-foot-in,
+.site-foot-bar {
+  max-width: 1680px;
+  margin: 0 auto;
+  padding-inline: clamp(var(--s4), 3vw, var(--s6));
+}
+
+.site-foot-in {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s5) var(--s6);
+  padding-block: var(--s6) var(--s5);
+}
+
+/* The blurb takes the slack on a wide window and the full width on a narrow
+   one, so the link columns never stretch to fill a 1680px screen. */
+.site-foot-brand { flex: 1 1 260px; max-width: 34ch; }
+.site-foot-name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 var(--s2);
+}
+.site-foot-brand .muted { margin: 0; line-height: 1.6; }
+
+/* auto-fit rather than four fixed columns: the columns reflow to two on a
+   tablet and one on a phone without a breakpoint for each. */
+.site-foot-cols {
+  flex: 2 1 480px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s5) var(--s4);
+}
+
+.site-foot-col { display: flex; flex-direction: column; gap: var(--s2); }
+.site-foot-col h2 {
+  margin: 0 0 var(--s1);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.site-foot-col a {
+  color: var(--fg);
+  text-decoration: none;
+  /* 44px of target without 44px of visible row: the padding is what a thumb
+     hits, the line-height is what the eye reads. */
+  padding-block: var(--s1);
+  overflow-wrap: anywhere;
+}
+.site-foot-col a:hover { color: var(--primary-ink); text-decoration: underline; }
+.site-foot-col a:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 4px; }
+
+.site-foot-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding-block: var(--s4);
+  border-top: 1px solid var(--border);
+}
+.site-foot-bar .muted { margin: 0; font-size: 0.85rem; }
+
+/* Which build this is. Monospace because it is a version somebody reads a
+   character at a time into a bug report. */
+.site-foot-build {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  padding: 4px var(--s2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--fg-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.site-foot-build:hover { color: var(--primary-ink); border-color: var(--primary); }
+.site-foot-build:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* Under 1024 the bottom tab bar is fixed over the page, and the footer is now
+   the last thing on it — so the clearance belongs here rather than on
+   `.shell`, where it would leave a band of empty page above the footer. */
+@media (max-width: 1023px) {
+  .shell { padding-bottom: var(--s5); }
+  .site-foot-bar { padding-bottom: calc(var(--s4) + 72px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* The remove control inside an opened team row. Its own line, above the row's
+   bottom edge, so it is nowhere near the names it is not about. */
+.team-remove {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+}
+.team-remove .muted { font-size: 0.88rem; }

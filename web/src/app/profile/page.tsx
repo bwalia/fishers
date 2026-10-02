@@ -399,7 +399,7 @@ function PasswordSection() {
           onChange={(e) => setNext(e.target.value)}
         />
         <button className="btn primary" disabled={busy || next.length < 8}>
-          {busy ? "Saving…" : t("ld.set_password")}
+          {busy ? t("ld.saving") : t("ld.set_password")}
         </button>
       </form>
       {done && <p className="ok-note">{t("cl.set_other_sessions_have_been_signed_ou")}</p>}
@@ -429,14 +429,14 @@ function DeleteAccount() {
     }
   };
 
+  // Addressable: the footer and the terms page both link straight here.
   return (
-    <div className="panel danger-panel">
+    <div className="panel danger-panel" id="delete">
       <h2>{t("cl.delete_account")}</h2>
       {!open ? (
         <>
           <p className="muted">
-            Removes your name, contact details, picture and player profile, and signs
-            you out everywhere. Scorecards you appear on stay, under no name —{" "}
+            {t("cl.delete_removes")}{" "}
             <Link href="/privacy">{t("cl.what_that_means")}</Link>.
           </p>
           <button className="btn" type="button" onClick={() => setOpen(true)}>

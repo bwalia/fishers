@@ -59,6 +59,19 @@ spec:
             # neighbour on localhost. Runtime env, so it still needs no rebuild.
             - name: API_INTERNAL_BASE
               value: {{ .Values.apiInternalBase | quote }}
+            # Which ring this is, and what it calls itself.
+            #
+            # The web app had neither, so `siteUrl()` fell back to the brand's
+            # own domain on every ring: int's sitemap listed production's URLs
+            # and int's canonicals named production's pages. Built from the
+            # ingress hostname, the same way the API builds its own copy.
+            - name: PUBLIC_WEB_BASE
+              value: "https://{{ include "fishers-web.hostname" . }}"
+            # Only `prod` is allowed to be indexed. A ring added without
+            # setting this is therefore kept out of search rather than let in,
+            # which is the right way round for a mistake to go.
+            - name: WEB_RING
+              value: {{ required "env is empty. Set it in values-<env>.yaml — it is the ring's name, and the web app reads it to decide whether this ring may be indexed." .Values.env | quote }}
             {{- with .Values.ingress.redirectHosts }}
             # The other hostnames the ingress lets through, and where they go —
             # read by next.config.js. Built from the same list, so a hostname

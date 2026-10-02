@@ -498,7 +498,9 @@ function Teams({
         <span className="tag grey">{teams.length || t("cl.teams_optional")}</span>
       </div>
       {teams.length === 0 && <p className="muted">{t("cl.club_plays_as_one_side")}</p>}
-      {teams.map((team) => <TeamRow key={team.id} team={team} />)}
+      {teams.map((team) => (
+        <TeamRow key={team.id} team={team} isSecretary={isSecretary} onChanged={onChanged} />
+      ))}
       {isSecretary && !adding && (
         // A button, not a form standing open. An empty form with a label and a
         // dropdown in it is a thing somebody has not finished; a button is an
@@ -555,10 +557,21 @@ function Teams({
 ///
 /// Collapsed by default: a club with four teams should not fetch four rosters
 /// to show a list of four names. Open one and it loads.
-function TeamRow({ team }: { team: Team }) {
+function TeamRow({
+  team,
+  isSecretary,
+  onChanged,
+}: {
+  team: Team;
+  isSecretary: boolean;
+  onChanged: () => void;
+}) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [members, setMembers] = useState<TeamMemberRow[] | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || members) return;
@@ -566,6 +579,21 @@ function TeamRow({ team }: { team: Team }) {
       .then(setMembers)
       .catch(() => setMembers([]));
   }, [open, members, team.id]);
+
+  const remove = async () => {
+    setRemoving(true);
+    setError(null);
+    try {
+      await api("DELETE", `/teams/${team.id}`);
+      onChanged();
+    } catch (err) {
+      // The API refuses a team that has been on a fixture and says why, so
+      // whatever it said is better than anything written here.
+      setError(readErr(err, t("cl.could_not_remove_the_team")));
+      setRemoving(false);
+      setConfirming(false);
+    }
+  };
 
   return (
     <div className="team-row">
@@ -612,6 +640,34 @@ function TeamRow({ team }: { team: Team }) {
           </ul>
         )
       )}
+
+      {/* Inside the opened row, not beside the name: a delete sitting next to
+          every team in a collapsed list is a mis-tap waiting to happen. */}
+      {open && isSecretary && (
+        <div className="team-remove">
+          {confirming ? (
+            <>
+              <span className="muted">{t("cl.remove_team_confirm", { name: team.name })}</span>
+              <button className="btn danger sm" type="button" disabled={removing} onClick={remove}>
+                {removing ? t("ld.deleting") : t("cl.remove")}
+              </button>
+              <button
+                className="btn ghost sm"
+                type="button"
+                disabled={removing}
+                onClick={() => setConfirming(false)}
+              >
+                {t("sc.cancel")}
+              </button>
+            </>
+          ) : (
+            <button className="btn ghost sm" type="button" onClick={() => setConfirming(true)}>
+              {t("cl.remove_team")}
+            </button>
+          )}
+        </div>
+      )}
+      {error && <p className="error">{error}</p>}
     </div>
   );
 }

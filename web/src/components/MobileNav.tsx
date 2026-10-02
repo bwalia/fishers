@@ -30,11 +30,13 @@ const PRIMARY: { href: string; label: Key; icon: IconName }[] = [
 const MORE: { href: string; label: Key; icon: IconName }[] = [
   { href: "/availability", label: "nav.availability", icon: "clock" },
   { href: "/clubs", label: "nav.clubs", icon: "users" },
+  { href: "/scores", label: "nav.world_scores", icon: "ball" },
   { href: "/profile", label: "nav.profile", icon: "book" },
   { href: "/notifications", label: "nav.notifications", icon: "inbox" },
   { href: "/stats", label: "nav.stats", icon: "chart" },
   { href: "/tournaments", label: "nav.tournaments", icon: "trophy" },
   { href: "/shop", label: "nav.shop", icon: "shop" },
+  { href: "/hire", label: "nav.hire", icon: "pin" },
 ];
 
 export function MobileNav() {
