@@ -28,7 +28,9 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
  */
 const SIZES = [
   // iOS: the App Store icon, and the two imagesets the brand header uses.
-  ["icon", 1024, "icon-1024.png"],
+  // The App Store icon is the one that has to be opaque — App Store Connect
+  // rejects an upload whose large icon has an alpha channel (ITMS-90717).
+  ["icon", 1024, "icon-1024.png", { opaque: true }],
   ["icon", 512, "icon-512.png"],
   ["mark", 512, "mark-512.png"],
   // Web: the PWA icon, and the notification badge Chrome masks to a silhouette.
@@ -71,12 +73,15 @@ async function main() {
     }
 
     mkdirSync(dir, { recursive: true });
-    for (const [source, size, name] of SIZES) {
+    for (const [source, size, name, { opaque = false } = {}] of SIZES) {
       // density, not the default 72dpi: sharp rasterises the SVG at that
       // density and *then* resizes, so a 1024px icon off a 48pt viewBox comes
       // out of a 72dpi render upscaled and soft.
-      await sharp(join(dir, `${source}.svg`), { density: 600 })
-        .resize(size, size)
+      let image = sharp(join(dir, `${source}.svg`), { density: 600 }).resize(size, size);
+      // Onto the brand's page colour, so a drawing with transparent corners
+      // sits on the brand rather than on black.
+      if (opaque) image = image.flatten({ background: brand.source.surface }).removeAlpha();
+      await image
         .png({ compressionLevel: 9 })
         .toFile(join(dir, name));
       console.log(`  ${brand.name.padEnd(14)} ${name.padEnd(16)} ${size}px from ${source}.svg`);
