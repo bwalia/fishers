@@ -8,6 +8,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${t("rest.privacy")} — ${brand.name}`,
     description: t("sr.privacy_description", { brand: brand.name }),
+    alternates: { canonical: "/privacy" },
   };
 }
 
@@ -15,10 +16,16 @@ export async function generateMetadata(): Promise<Metadata> {
 /// to from Profile. Static on purpose: a privacy policy that needs the API up
 /// is no use to somebody who has just deleted their account.
 ///
-/// TODO before submitting: replace CONTROLLER and CONTACT below with the legal
-/// entity that actually runs this and an address somebody answers.
-const CONTROLLER = `[the operator of ${brand.name}]`;
-const CONTACT = "[privacy@your-domain]";
+/// TODO before submitting: CONTROLLER is still a placeholder, and it is the
+/// one that matters — a privacy notice that names no data controller names
+/// nobody accountable. It wants the legal entity that actually runs this, the
+/// same one `terms/page.tsx` names.
+///
+/// CONTACT is the brand's own support address rather than a placeholder: it
+/// is real, somebody answers it, and the terms page already uses it. A
+/// dedicated privacy@ address can replace it here alone whenever there is one.
+const CONTROLLER = `[the legal entity that runs ${brand.name}]`;
+const CONTACT = brand.supportEmail;
 
 export default async function PrivacyPage() {
   const t = await getT();

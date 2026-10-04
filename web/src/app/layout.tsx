@@ -1,14 +1,17 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Barlow, Barlow_Condensed, Noto_Sans_Gurmukhi } from "next/font/google";
 import "./globals.css";
 import { OfflineReady } from "@/components/OfflineReady";
 import { ShellNav } from "@/components/ShellNav";
 import { MobileNav } from "@/components/MobileNav";
+import { SiteFooter } from "@/components/SiteFooter";
 import { LiveAlerts } from "@/components/LiveAlerts";
 import { LOCALES, makeT } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import { brand } from "@/brand.generated";
+import { siteUrl } from "@/lib/site";
 
 // next/font self-hosts and sets font-display: swap, so no FOIT and no layout
 // shift waiting on Google.
@@ -35,9 +38,39 @@ const gurmukhi = Noto_Sans_Gurmukhi({
   preload: false,
 });
 
-export const metadata = {
+/// What a crawler, a link preview and a browser tab are told.
+///
+/// `metadataBase` is the one that cannot be skipped: without it every
+/// canonical and every OpenGraph image resolves relative to nothing, and
+/// Next quietly falls back to localhost — which is the URL that then ends up
+/// in a shared link. It comes from the ring rather than the brand, because
+/// int.fishers.cloud claiming www.fishers.cloud as its canonical is how a
+/// test ring gets production de-indexed.
+///
+/// No `title.template` on purpose: every page here already ends its own title
+/// with the brand, and a template would make that "Privacy — Fishers — Fishers".
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: `${brand.name} — ${brand.tagline}`,
   description: brand.description,
+  applicationName: brand.name,
+  // No `alternates.canonical` and no `openGraph.url` here, however much they
+  // look like they belong: a route that does not set its own inherits this
+  // one, and every page on the site then declared `/` as its canonical —
+  // which is how you ask Google to index one page and throw the rest away.
+  // Without the tag a crawler self-canonicalises, which is the right answer
+  // everywhere; the pages worth pinning set their own below.
+  openGraph: {
+    type: "website",
+    siteName: brand.name,
+    title: `${brand.name} — ${brand.tagline}`,
+    description: brand.description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${brand.name} — ${brand.tagline}`,
+    description: brand.description,
+  },
 };
 
 export const viewport = {
@@ -107,6 +140,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <OfflineReady />
           <ShellNav />
           <div className="shell">{children}</div>
+          <SiteFooter />
           <MobileNav />
           <LiveAlerts />
         </LocaleProvider>

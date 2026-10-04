@@ -500,15 +500,32 @@ jobs:
           # Exit code, not grepped output: kubectl run propagates the container's
           # status, and curl -f already fails on any non-2xx. Matching on stdout
           # would also match the pod-lifecycle chatter kubectl interleaves with it.
-          probe() { # name url [host-header]
+          hit() { # name url [host-header]
             local host_args=()
             [ -n "${3:-}" ] && host_args=(-H "Host: $3")
-            if kubectl run "smoke-$1-$RANDOM" --rm -i --restart=Never --namespace "$NS" \
-                 --image=curlimages/curl:8.10.1 --quiet --command -- \
-                 curl -fsS -m 10 -o /dev/null "${host_args[@]}" "$2"; then
+            kubectl run "smoke-$1-$RANDOM" --rm -i --restart=Never --namespace "$NS" \
+              --image=curlimages/curl:8.10.1 --quiet --command -- \
+              curl -fsS -m 10 -o /dev/null "${host_args[@]}" "$2"
+          }
+          # The app. A ring that cannot serve these is not deployed.
+          probe() { # name url [host-header]
+            if hit "$@"; then echo "  ok   $1"; else echo "  FAIL $1 ($2)"; fail=1; fi
+          }
+          # Reported, never fatal.
+          #
+          # MinIO is uploads and backups, not the app: a ring whose API and
+          # dashboard both answer is a ring that deployed, and the deploy step
+          # above already says so — it was made non-fatal deliberately, because
+          # the MinIO image is unpullable and every ring is running on a cached
+          # layer. Failing the job here undid that: the summary said "the app
+          # itself deployed" while the run went red, so a genuine deploy failure
+          # and a known storage outage looked identical on the branch.
+          soft() { # name url
+            if hit "$@"; then
               echo "  ok   $1"
             else
-              echo "  FAIL $1 ($2)"; fail=1
+              echo "  WARN $1 ($2) — degraded, not fatal"
+              echo "::warning::$1 is not answering on $TARGET_ENV: uploads and backups are degraded. The app itself deployed."
             fi
           }
           # The API through the front door rather than straight at the Service:
@@ -517,7 +534,7 @@ jobs:
           # nothing about whether the ring works.
           probe api-health  "http://$EDGE/health"  "$HOST"
           probe web-login   "http://$EDGE/login"   "$HOST"
-          probe minio-ready "http://fishers-minio:9000/minio/health/ready"
+          soft  minio-ready "http://fishers-minio:9000/minio/health/ready"
           exit $fail
 
       - name: Reachable from outside

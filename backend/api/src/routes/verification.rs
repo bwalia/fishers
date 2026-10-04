@@ -1,9 +1,16 @@
-//! Confirming an email address or a phone number with a one-time code.
+//! One-time codes: confirming an email address or a phone number, and
+//! resetting a forgotten password.
 //!
-//! One flow for both channels: send a six-digit code, confirm it. Codes last
-//! ten minutes, allow five guesses, and at most five can be sent an hour — so a
-//! six-digit code cannot be brute-forced, and nobody can use this to flood a
-//! stranger's inbox or phone.
+//! One flow for all three channels: send a six-digit code, confirm it. Codes
+//! last ten minutes, allow five guesses, and at most five can be sent an hour —
+//! so a six-digit code cannot be brute-forced, and nobody can use this to
+//! flood a stranger's inbox or phone.
+//!
+//! Reset lives here rather than in `auth.rs` because it is this mechanism
+//! exactly, down to the keyed hash and the attempt counter. The one thing it
+//! does differently is that it runs for somebody who cannot sign in, so it
+//! takes an email address instead of an `AuthUser` and is careful never to
+//! say whether that address has an account.
 
 use axum::extract::{Path, State};
 use axum::routing::{get, post};
@@ -19,6 +26,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
+use argon2::PasswordHasher;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -32,6 +40,9 @@ pub fn router() -> Router<AppState> {
         .route("/me/verification", get(status))
         .route("/me/verification/{channel}", post(send))
         .route("/me/verification/{channel}/confirm", post(confirm))
+        // No auth: somebody resetting a password is by definition locked out.
+        .route("/auth/forgot", post(forgot))
+        .route("/auth/reset", post(reset))
 }
 
 #[derive(Serialize)]
@@ -265,6 +276,178 @@ async fn confirm(
     Ok(Json(load(&state, auth.user_id).await?.into()))
 }
 
+/// The reset channel. Separate from `email` so that asking for a reset code
+/// does not retire the code somebody is halfway through using to confirm the
+/// same address, and so the five-an-hour limit is counted for each on its own.
+const RESET: &str = "reset";
+
+#[derive(Deserialize)]
+struct ForgotRequest {
+    email: String,
+}
+
+/// Starts a password reset. Always succeeds.
+///
+/// Whether an address has an account here is not a question an unauthenticated
+/// caller gets answered: "no such account", "that account has no password" and
+/// "you have asked five times this hour" are all 200 with the same body, and
+/// the only thing that comes back differently is a malformed address or a
+/// server with no mail at all — neither of which is about any one person.
+async fn forgot(
+    State(state): State<AppState>,
+    Json(body): Json<ForgotRequest>,
+) -> ApiResult<Json<Sent>> {
+    let email = body.email.trim().to_lowercase();
+    if email.len() < 3 || !email.contains('@') {
+        return Err(ApiError::bad_request("that does not look like an email address"));
+    }
+    if !state.email.enabled() {
+        return Err(ApiError::unavailable(
+            "resetting a password by email is not switched on for this server yet",
+        ));
+    }
+
+    // Everything past here is per-account and therefore silent.
+    if let Some(user) = users_repo::find_by_email(&state.pool, &email).await? {
+        if let Err(e) = send_reset(&state, &user, &email).await {
+            // A log line, not a response: the caller is told the same thing
+            // either way, so this is the only place a failure is visible.
+            warn!(error = %e.message, "reset code not sent");
+        }
+    }
+
+    Ok(Json(Sent {
+        sent_to: mask("email", &email),
+        expires_in: TTL_SECS,
+        resend_after: RESEND_AFTER_SECS,
+    }))
+}
+
+/// Issues and delivers one reset code, with the same limits as any other.
+async fn send_reset(state: &AppState, user: &User, email: &str) -> ApiResult<()> {
+    let (sent_this_hour, secs_since_last) =
+        codes::recent_sends(&state.pool, user.id, RESET, 3600).await?;
+    if secs_since_last.is_some_and(|s| s < RESEND_AFTER_SECS) || sent_this_hour >= MAX_PER_HOUR {
+        return Err(ApiError::too_many("a reset code has already gone out"));
+    }
+
+    let code = format!("{:06}", rand::rngs::OsRng.gen_range(0..1_000_000u32));
+    let hash = hash_code(&state.jwt_secret, user.id, RESET, email, &code);
+    codes::create(&state.pool, user.id, RESET, email, &hash, TTL_SECS).await?;
+
+    let (text, html) = reset_email_body(&user.name, &code);
+    if let Err(e) = state
+        .email
+        .send_html(email, &format!("{code} is your Fishers reset code"), &text, &html)
+        .await
+    {
+        // Leave nothing live that nobody received.
+        if let Ok(Some(live)) = codes::active(&state.pool, user.id, RESET).await {
+            let _ = codes::consume(&state.pool, live.id).await;
+        }
+        return Err(ApiError::internal(format!("reset email failed: {e}")));
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct ResetRequest {
+    email: String,
+    code: String,
+    password: String,
+}
+
+/// Finishes the reset: code in, new password set, every other session ended.
+///
+/// A wrong address and a wrong code give the same answer, so this cannot be
+/// used to find out who has an account either.
+async fn reset(
+    State(state): State<AppState>,
+    Json(body): Json<ResetRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let email = body.email.trim().to_lowercase();
+    let code = body.code.trim();
+    if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(ApiError::bad_request("the code is six digits"));
+    }
+    if body.password.chars().count() < 8 || body.password.len() > 128 {
+        return Err(ApiError::bad_request(
+            "a new password needs at least 8 characters",
+        ));
+    }
+
+    // One answer for every way this can fail: no account at that address, no
+    // code outstanding, too many guesses already, and a wrong code are all
+    // this.
+    //
+    // `confirm` above counts the tries down out loud, and it can afford to —
+    // the caller is signed in, so it already knows whose account it is. Here
+    // the caller is not, and the difference between "not right, 4 more tries"
+    // and "expired" would be a yes/no on whether an address has an account:
+    // ask for a code, send a wrong one, read which sentence comes back. The
+    // five-guess limit below still holds, it is just no longer narrated.
+    let refused = || {
+        ApiError::bad_request("that code is not right, or it has expired — ask for a new one")
+            .with_code("code_expired")
+    };
+    let user = users_repo::find_by_email(&state.pool, &email)
+        .await?
+        .ok_or_else(refused)?;
+    let live = codes::active(&state.pool, user.id, RESET)
+        .await?
+        .ok_or_else(refused)?;
+    if live.attempts >= MAX_ATTEMPTS {
+        return Err(refused());
+    }
+    // Counted before comparing, so a wrong guess is never free.
+    codes::record_attempt(&state.pool, live.id).await?;
+
+    let expected = hash_code(&state.jwt_secret, user.id, RESET, &live.target, code);
+    if !constant_time_eq(expected.as_bytes(), live.code_hash.as_bytes()) {
+        return Err(refused());
+    }
+    codes::consume(&state.pool, live.id).await?;
+
+    let salt =
+        argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+    let hash = argon2::Argon2::default()
+        .hash_password(body.password.as_bytes(), &salt)
+        .map_err(|_| ApiError::internal("password hash failed"))?
+        .to_string();
+    // `None`: every refresh token goes, including whoever was in the account
+    // before. A reset is what somebody does when they think they have been
+    // locked out of their own, and leaving the other session alive would be
+    // the one thing it must not do.
+    users_repo::set_password(&state.pool, user.id, &hash, None).await?;
+
+    // The address proved itself by receiving the code, which is the same proof
+    // `/me/verification/email/confirm` accepts.
+    let _ = users_repo::mark_verified(&state.pool, user.id, "email", &live.target).await;
+
+    Ok(Json(serde_json::json!({ "reset": true })))
+}
+
+fn reset_email_body(name: &str, code: &str) -> (String, String) {
+    let first = name.split_whitespace().next().unwrap_or("there");
+    let text = format!(
+        "Hi {first},\n\nUse this code to set a new Fishers password:\n\n    {code}\n\n\
+         It expires in 10 minutes. If you did not ask to reset your password, ignore this \
+         email — your current one still works and nobody has been told it.\n\n— Fishers\n"
+    );
+    let first = html_escape(first);
+    let html = format!(
+        r#"<!doctype html><html><body style="margin:0;background:#f4f1e8;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2a22">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="100%" style="max-width:460px;background:#ffffff;border-radius:14px;border:1px solid #e3ddd0">
+<tr><td style="padding:28px 28px 8px;font-size:15px;font-weight:700;letter-spacing:.08em">FISHERS</td></tr>
+<tr><td style="padding:8px 28px;font-size:15px;line-height:1.6">Hi {first}, use this code to set a new password:</td></tr>
+<tr><td style="padding:12px 28px"><div style="font-size:34px;font-weight:700;letter-spacing:.3em;background:#eef2ea;border-radius:10px;padding:16px 0;text-align:center;color:#2f4a36">{code}</div></td></tr>
+<tr><td style="padding:8px 28px 28px;font-size:13px;line-height:1.6;color:#5b6660">It expires in 10 minutes. If you did not ask to reset your password, ignore this email — your current one still works and nobody has been told it.</td></tr>
+</table></td></tr></table></body></html>"#
+    );
+    (text, html)
+}
+
 async fn load(state: &AppState, user_id: Uuid) -> ApiResult<User> {
     users_repo::find_by_id(&state.pool, user_id)
         .await?
@@ -364,6 +547,9 @@ mod tests {
             hash_code("k", Uuid::new_v4(), "email", "a@b.co", "123456")
         );
         assert_ne!(h, hash_code("k", u, "phone", "a@b.co", "123456"));
+        // A reset code is not a confirmation code, even for the same address:
+        // one sets a password, the other only proves the inbox is yours.
+        assert_ne!(h, hash_code("k", u, RESET, "a@b.co", "123456"));
         assert_ne!(h, hash_code("k", u, "email", "other@b.co", "123456"));
         assert_ne!(h, hash_code("other-secret", u, "email", "a@b.co", "123456"));
     }
@@ -379,6 +565,19 @@ mod tests {
         assert!(constant_time_eq(b"abc", b"abc"));
         assert!(!constant_time_eq(b"abc", b"abd"));
         assert!(!constant_time_eq(b"abc", b"ab"));
+    }
+
+    #[test]
+    fn a_reset_email_never_carries_the_password_or_a_working_link() {
+        let (text, html) = reset_email_body("Jiya", "123456");
+        for body in [&text, &html] {
+            assert!(body.contains("123456"), "the code is the whole point");
+            assert!(
+                !body.contains("http"),
+                "no link: a reset email that can be clicked is a reset email that \
+                 can be forwarded, and the code alone is enough"
+            );
+        }
     }
 
     #[test]

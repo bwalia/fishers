@@ -493,7 +493,7 @@ async function playInnings(page: Page, inn: Innings, script: Ball[][], bowlers: 
         inn.apply(ball);
         if (inn.complete) break;
         await expect(page.locator(".scoreline"), `after ${describe(ball)}`).toHaveText(inn.scoreline);
-        await expect(page.locator(".matchbar")).toContainText(`(${inn.overs} of ${OVERS} ov)`);
+        await expect(page.locator(".ground-overs")).toHaveText(`(${inn.overs} of ${OVERS} ov)`);
       }
     });
   }
@@ -633,7 +633,7 @@ test("Step 16 — Second innings: Club 2 bat, five overs", async () => {
   // Taking the book now sends its own alert, and it lands over this panel.
   await clearOverlays(page);
   await page.getByRole("button", { name: "Start the innings" }).click();
-  await expect(page.locator(".matchbar")).toContainText(`${inn1.runs + 1} needed`);
+  await expect(page.locator(".ground-chase")).toContainText(`${inn1.runs + 1} needed`);
   await playInnings(page, inn2, SECOND, HOME.slice(0, 5).map((p) => p.name));
   await expect(page.locator(".result-panel"), "the match ends after both innings").toBeVisible();
   inningsLine(CLUB_TWO.name, inn2);
