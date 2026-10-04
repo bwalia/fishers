@@ -11,6 +11,8 @@ name: iOS Release (TestFlight & App Store)
 #   PRIMARY              : workflow_dispatch — TestFlight internal by default
 #   SECONDARY            : push a v*.*.* tag (e.g. from auto-tag.yml) → TestFlight
 #   APP STORE            : workflow_dispatch with target = app_store (after QA)
+#   SCREENSHOTS          : workflow_dispatch with target = screenshots — uploads
+#                          the runner's ~/fishers-store-screenshots/<brand>/
 #
 # Pipeline: brand → ci_build_number → prepare_signing → build_ipa → beta
 # Runner: self-hosted Mac Studio. Secrets: GitHub Actions or WSLVault
@@ -46,6 +48,11 @@ on:
           - testflight_ready
           - invite_testers
           - app_store
+          - screenshots
+      screenshots_dir:
+        description: "screenshots: folder on the runner holding <locale>/*.png (blank = ~/fishers-store-screenshots/<brand>)"
+        required: false
+        default: ""
 
 concurrency:
   group: fishers-ios-release
@@ -218,7 +225,8 @@ jobs:
       - name: Install XcodeGen
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
+              && inputs.target != 'screenshots')
         run: |
           if ! command -v xcodegen >/dev/null 2>&1; then
             brew install xcodegen
@@ -227,7 +235,8 @@ jobs:
       - name: Resolve marketing version
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
+              && inputs.target != 'screenshots')
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
@@ -245,20 +254,23 @@ jobs:
       - name: Compute next build number
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
+              && inputs.target != 'screenshots')
         id: build
         run: bundle exec fastlane ios ci_build_number
 
       - name: Prepare code signing
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
+              && inputs.target != 'screenshots')
         run: bundle exec fastlane ios prepare_signing
 
       - name: Build signed IPA
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers')
+          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
+              && inputs.target != 'screenshots')
         env:
           BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: bundle exec fastlane ios build_ipa
@@ -280,6 +292,16 @@ jobs:
       - name: Submit for App Store review
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'app_store'
         run: bundle exec fastlane ios release
+
+      - name: Upload App Store screenshots
+        # Screenshots only — no build, no metadata, no submission. They are
+        # taken by scripts/store-screenshots.sh on the runner Mac and read from
+        # there, because git ignores fastlane/screenshots/**/*.png.
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'screenshots'
+        env:
+          SCREENSHOTS_DIR: ${{ inputs.screenshots_dir }}
+          BRAND: ${{ matrix.brand }}
+        run: bundle exec fastlane ios upload_screenshots
 
       - name: Archive IPA artifact
         if: always()
