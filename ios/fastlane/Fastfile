@@ -139,6 +139,41 @@ rescue => e
   )
 end
 
+# The entitlements ask for aps-environment, so the App ID needs Push before sigh
+# can cut a profile that signs the archive.
+def ensure_push_notifications_capability!(api_key)
+  spaceship_token_from!(api_key)
+  ids = Spaceship::ConnectAPI.get_bundle_ids(
+    filter: { identifier: APP_ID },
+    includes: "bundleIdCapabilities"
+  )
+  models = ids.respond_to?(:all_pages) ? ids.all_pages.flat_map(&:to_models) : Array(ids)
+  bundle = models.find { |b| b.identifier.to_s == APP_ID } || models.first
+  UI.user_error!("Developer App ID '#{APP_ID}' not found — create it in the Apple Developer portal") unless bundle
+
+  already = Array(bundle.bundle_id_capabilities).any? do |c|
+    t = c.respond_to?(:capability_type) ? c.capability_type : c["capabilityType"]
+    t.to_s == "PUSH_NOTIFICATIONS"
+  end
+  if already
+    UI.message("Push Notifications already enabled on #{APP_ID}")
+    return
+  end
+
+  UI.important("Enabling Push Notifications on App ID #{APP_ID}")
+  Spaceship::ConnectAPI::BundleIdCapability.create(
+    bundle_id_id: bundle.id,
+    capability_type: Spaceship::ConnectAPI::BundleIdCapability::Type::PUSH_NOTIFICATIONS
+  )
+  UI.success("Push Notifications enabled on #{APP_ID}")
+rescue => e
+  UI.user_error!(
+    "Could not enable Push Notifications on #{APP_ID}: #{e.message}. " \
+    "Enable it once at https://developer.apple.com/account/resources/identifiers/list " \
+    "then re-run iOS Release."
+  )
+end
+
 def testflight_group_name
   ENV.fetch("TESTFLIGHT_GROUP", DEFAULT_TESTFLIGHT_GROUP).to_s.strip
 end
@@ -706,7 +741,8 @@ platform :ios do
     )
 
     ensure_sign_in_with_apple_capability!(api_key)
-    # force regenerates so the new Sign in with Apple entitlement is included
+    ensure_push_notifications_capability!(api_key)
+    # force regenerates so newly enabled capabilities are included
     # (readonly + force conflict in sigh).
     get_provisioning_profile(
       api_key: api_key,
