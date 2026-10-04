@@ -883,6 +883,28 @@ platform :ios do
     )
   end
 
+  desc "Replace the App Store screenshots with <dir>/<locale>/*.png (nothing else)"
+  lane :upload_screenshots do
+    dir = ENV["SCREENSHOTS_DIR"].to_s.strip
+    dir = File.expand_path("~/fishers-store-screenshots/#{ENV.fetch('BRAND', 'fishers')}") if dir.empty?
+    UI.user_error!("No screenshots at #{dir} — run scripts/store-screenshots.sh, then copy them into <dir>/<locale>/") \
+      if Dir.glob(File.join(dir, "*", "*.png")).empty?
+
+    deliver(
+      api_key: asc_api_key,
+      app_identifier: APP_ID,
+      platform: "ios",
+      screenshots_path: dir,
+      overwrite_screenshots: true,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_app_version_update: true,
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      force: true
+    )
+  end
+
   desc "Submit the latest build for App Store review (manual release gate)"
   lane :release do
     key = asc_api_key
