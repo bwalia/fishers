@@ -17,20 +17,25 @@ resources:
 config:
   rustLog: "fishers_api=debug,fishers_notifications=info,fishers_jobs=info,tower_http=info,sqlx=warn"
   # Ball-by-ball commentary. Without this the API builds no model client at
-  # all and the scoring screen says so — which is what every ring has been
+  # all and the scoring screen says so — which is what every ring had been
   # doing since the feature landed, because no ring ever set it.
   #
-  # The cluster's own Service for the model host, by name rather than by
-  # address: in-cluster DNS is what the rest of this chart talks to, and a
-  # LAN address in a values file is a route nobody can audit.
-  #
-  # It does live in another namespace, so if `acc` is ever torn down this
-  # wants a Service of its own in the fishers namespaces pointing at the same
-  # endpoint. Commentary going quiet is the symptom, and the screen says so
-  # plainly rather than failing silently.
-  ollamaUrl: "http://ollama-external.acc.svc.cluster.local:11434"
-  # Longer than the built-in 15: this host has no GPU reserved for us and a
-  # model that has to load first will not answer inside it. A line that misses
-  # its ball is wasted either way, so the ceiling is about not holding a
-  # connection through the rest of the over.
-  ollamaTimeoutSecs: "25"
+  # The published gateway, which is where everything in this cluster that
+  # actually talks to a model points: beacon-api and the registry scanner both
+  # use it. The in-cluster Service `acc/ollama-external` looks like the
+  # obvious answer and is not — nothing reaches the host behind it, and the
+  # API logged "ollama unreachable" against it.
+  ollamaUrl: "https://ollama.workstation.co.uk"
+  # A model that gateway actually serves. The chart's default `llama3.1:8b` is
+  # not one of them: what runs there is qwen3, and beacon asks for this exact
+  # name.
+  ollamaModel: "qwen3:30b-a3b"
+  # Sixty, as beacon uses. A 30B model is not quick, and the built-in 15 would
+  # cut off a line that was coming. It costs the scorer nothing to wait: the
+  # browser drops its own request the moment the next ball is recorded, so
+  # this is only a ceiling on how long the server holds a connection.
+  ollamaTimeoutSecs: "60"
+  # The gateway answers 403 without a key, which reaches the app as a model
+  # with nothing to say. The key is not here: put it in the ring's vault as
+  # OLLAMA_API_KEY at kv/<brand>/int/config and `envFrom` carries it in, the
+  # same way SMTP and Stripe credentials arrive.
