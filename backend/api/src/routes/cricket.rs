@@ -458,6 +458,12 @@ async fn post_events(
     let when = fixture_time(&state, &row).await;
     let mut resp = to_response(&state, &row, true, sides, mine, when);
     resp.dls = state_out.dls_par(&state.dls, state.g50);
+    // The row above was read back *after* this batch committed, so its
+    // `last_seq` can already count a ball from another batch that this
+    // response does not carry — two taps from the same scorer, both in
+    // flight. Ship the number that belongs to the state being shipped, or the
+    // browser cannot tell a stale answer from a current one.
+    resp.last_seq = state_out.last_seq;
     resp.state = state_out;
     Ok(Json(resp))
 }
