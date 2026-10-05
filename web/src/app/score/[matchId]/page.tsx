@@ -139,27 +139,49 @@ export default function ScorerPage({
   /// Push whatever is queued. Everything goes in one batch: the API takes up
   /// to 500 events and applies a batch it has already seen as nothing, so a
   /// retry after a half-failure cannot double-count a ball.
+  // One at a time, and it drains until the queue is empty. Two taps in quick
+  // succession used to start two overlapping batches, and whichever answered
+  // last won the screen: when that was the older one, the ball the scorer had
+  // just recorded vanished from the ground until the next poll, half a minute
+  // later. The server had it all along — only this screen had lost it.
+  const flushing = useRef(false);
   const flush = useCallback(async () => {
-    if (queued.current.length === 0) return;
-    setSync("syncing");
+    if (flushing.current) return;
+    flushing.current = true;
     try {
-      const next = await api<MatchResponse>(
-        "POST",
-        `/cricket/matches/${matchId}/events`,
-        { device_id: deviceId(), events: queued.current },
-      );
-      queued.current = [];
-      setMatch(next);
-      setSync("saved");
-      setError(null);
-      await clearOutbox(matchId);
-    } catch (err) {
-      setSync("offline");
-      // Only worth saying out loud when the server refused on its own terms;
-      // a dropped network is what the chip is for.
-      if (navigator.onLine) {
-        setError(readErr(err, t("la.the_api_rejected_that")));
+      while (queued.current.length > 0) {
+        const batch = queued.current;
+        setSync("syncing");
+        try {
+          const next = await api<MatchResponse>(
+            "POST",
+            `/cricket/matches/${matchId}/events`,
+            { device_id: deviceId(), events: batch },
+          );
+          // Only what this batch carried. A ball tapped while it was in
+          // flight is still waiting its turn, and emptying the whole queue
+          // would throw that ball away without a word.
+          queued.current = queued.current.slice(batch.length);
+          // Never step backwards, for the same reason `load` does not.
+          setMatch((cur) => (cur && next.last_seq < cur.last_seq ? cur : next));
+          setError(null);
+          if (queued.current.length === 0) {
+            setSync("saved");
+            await clearOutbox(matchId);
+          }
+        } catch (err) {
+          setSync("offline");
+          // Only worth saying out loud when the server refused on its own
+          // terms; a dropped network is what the chip is for. What is queued
+          // stays queued — the interval and `online` will try again.
+          if (navigator.onLine) {
+            setError(readErr(err, t("la.the_api_rejected_that")));
+          }
+          return;
+        }
       }
+    } finally {
+      flushing.current = false;
     }
   }, [matchId, t]);
 
