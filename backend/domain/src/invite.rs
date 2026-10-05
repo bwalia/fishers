@@ -60,4 +60,12 @@ pub struct AttendeeSummary {
     pub status: RsvpStatus,
     pub availability: Option<crate::AvailabilityStatus>,
     pub paid: bool,
+    /// Which side they are on. A fixture asks both clubs, so a list of names
+    /// with nothing to separate them is two squads in a heap — and on a
+    /// twenty-a-side league that is forty strangers in one column.
+    pub club_id: Option<Uuid>,
+    pub club_name: Option<String>,
+    /// The last fixture they actually turned out for, for *that* club. It is
+    /// the difference between a squad member and a name on a list.
+    pub last_played_at: Option<DateTime<Utc>>,
 }

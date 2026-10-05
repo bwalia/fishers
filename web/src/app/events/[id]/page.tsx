@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   api,
@@ -12,6 +12,7 @@ import {
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { PeoplePicker, type PeopleTab } from "@/components/PeoplePicker";
+import { getStoredUser } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
@@ -25,7 +26,29 @@ type Attendee = {
   status: string;
   availability: string | null;
   paid: boolean;
+  /// Which side they are on, and when they last turned out for it.
+  club_id: string | null;
+  club_name: string | null;
+  last_played_at: string | null;
 };
+
+/// A fixture asks both clubs, so the answers come back as two squads. Shown as
+/// one list they are a column of strangers — on a twenty-a-side league, forty
+/// of them, alphabetical, with nothing to say who is on which side. So: a tab
+/// per club, yours first, each name carrying the last time they actually
+/// turned out for that club.
+type Side = { clubId: string; name: string; people: Attendee[] };
+
+/// A search box earns its place somewhere around here; below it, it is one
+/// more thing to read past. Same threshold the squad picker uses.
+const SEARCH_FROM = 8;
+
+function lastPlayed(at: string | null, t: ReturnType<typeof useT>): string {
+  if (!at) return t("ev.not_played_for_them_yet");
+  return t("ev.last_played_on", {
+    when: new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+  });
+}
 
 const RSVP_LABEL: Record<string, Key> = {
   going: "ev.playing",
@@ -45,6 +68,8 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [side, setSide] = useState(0);
+  const [who, setWho] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -81,6 +106,33 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       setBusy(null);
     }
   };
+
+  // Above the early returns, every one of them: a hook that runs only once the
+  // fixture has loaded changes the hook order between renders, and React
+  // blanks the page (#310). The fixtures screen carries the same warning.
+  const me = getStoredUser();
+  const sides: Side[] = useMemo(() => {
+    const by = new Map<string, Side>();
+    for (const a of attendees) {
+      const clubId = a.club_id ?? "";
+      const name = a.club_name ?? t("ev.no_club");
+      if (!by.has(clubId)) by.set(clubId, { clubId, name, people: [] });
+      by.get(clubId)!.people.push(a);
+    }
+    // Your own side first. You were asked too, so your own row says which it
+    // is; failing that, the club staging the fixture leads.
+    const mine = attendees.find((a) => a.user_id === me?.id)?.club_id ?? event?.club_id;
+    return [...by.values()].sort((x, y) =>
+      x.clubId === mine ? -1 : y.clubId === mine ? 1 : x.name.localeCompare(y.name)
+    );
+  }, [attendees, me?.id, event?.club_id, t]);
+
+  const tab = sides[Math.min(side, Math.max(sides.length - 1, 0))];
+  const inTab = useMemo(() => {
+    const term = who.trim().toLowerCase();
+    if (!tab) return [];
+    return term ? tab.people.filter((p) => p.name.toLowerCase().includes(term)) : tab.people;
+  }, [tab, who]);
 
   if (!authed) return <main id="main" />;
   if (error && !event) return <main id="main"><p className="error">{error}</p></main>;
@@ -151,31 +203,73 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
             {attendees.length === 0 ? (
               <p className="muted">{t("ev.nobody_asked_yet_invite_people_below")}</p>
             ) : (
-              <ul className="pick-list">
-                {attendees.map((a) => (
-                  <li key={a.user_id}>
-                    <Avatar name={a.name} size={32} />
-                    <div className="pick-who">
-                      <strong>{a.name}</strong>
-                      <span className="pick-signals">
-                        <span className={`tag ${a.status === "going" ? "" : a.status === "not_going" ? "danger" : "grey"}`}>
-                          {t(RSVP_LABEL[a.status])}
+              <>
+                {sides.length > 1 && (
+                  <div className="people-tabs" role="tablist" aria-label={t("ev.which_side")}>
+                    {sides.map((s, i) => (
+                      <button
+                        key={s.clubId || "none"}
+                        type="button"
+                        role="tab"
+                        aria-selected={i === side}
+                        className={i === side ? "on" : undefined}
+                        onClick={() => {
+                          setSide(i);
+                          setWho("");
+                        }}
+                      >
+                        {s.name}
+                        <span className="people-count num">{s.people.length}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {tab && tab.people.length >= SEARCH_FROM && (
+                  <input
+                    className="people-search"
+                    value={who}
+                    onChange={(e) => setWho(e.target.value)}
+                    placeholder={t("ev.search_squad", { club: tab.name })}
+                    aria-label={t("ev.search_squad", { club: tab.name })}
+                  />
+                )}
+
+                <ul className="pick-list" aria-label={tab?.name}>
+                  {inTab.map((a) => (
+                    <li key={a.user_id}>
+                      <Avatar name={a.name} size={32} />
+                      <div className="pick-who">
+                        <strong>{a.name}</strong>
+                        <span className="pick-signals">
+                          <span className={`tag ${a.status === "going" ? "" : a.status === "not_going" ? "danger" : "grey"}`}>
+                            {t(RSVP_LABEL[a.status])}
+                          </span>
+                          {a.availability && (
+                            <span className="subtle">{t("ev.calendar_says", { what: a.availability })}</span>
+                          )}
+                          {/* Whether this is a regular or a name on a list. */}
+                          <span className="subtle">{lastPlayed(a.last_played_at, t)}</span>
                         </span>
-                        {a.availability && (
-                          <span className="subtle">{t("ev.calendar_says", { what: a.availability })}</span>
+                      </div>
+                      <div className="pick-actions">
+                        {event.fee_amount_cents != null && (
+                          <span className={a.paid ? "tag" : "tag grey"}>
+                            {a.paid ? "paid" : "owes"}
+                          </span>
                         )}
-                      </span>
-                    </div>
-                    <div className="pick-actions">
-                      {event.fee_amount_cents != null && (
-                        <span className={a.paid ? "tag" : "tag grey"}>
-                          {a.paid ? "paid" : "owes"}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                {tab && tab.people.length === 0 && (
+                  <p className="muted">{t("ev.nobody_from_club_asked", { club: tab.name })}</p>
+                )}
+                {tab && tab.people.length > 0 && inTab.length === 0 && (
+                  <p className="muted">{t("ev.nobody_by_that_name", { club: tab.name })}</p>
+                )}
+              </>
             )}
           </div>
 

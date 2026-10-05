@@ -46,6 +46,15 @@ export function myFixtures(from: Date, to: Date): Promise<MyFixture[]> {
   return api<MyFixture[]>("GET", `/events/mine?${q}`);
 }
 
+/// The clubs to offer in the fixtures filter, searched by the server.
+///
+/// Not gathered from the fixtures on screen: those are one window of dates,
+/// and a club you play in March would vanish from the filter in June.
+export function searchFixtureClubs(term: string): Promise<{ id: string; name: string }[]> {
+  const q = new URLSearchParams(term ? { q: term } : {});
+  return api<{ id: string; name: string }[]>("GET", `/events/mine/clubs?${q}`);
+}
+
 export function answerFixture(eventId: string, status: Answer): Promise<unknown> {
   return api("POST", `/events/${eventId}/rsvp`, { status });
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getStoredUser, readErr, type Club, type ClubMemberRow, type Team } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
+import { SearchSelect } from "@/components/SearchSelect";
 import { Sheet } from "@/components/Sheet";
 import { useT } from "@/lib/i18n/provider";
 
@@ -114,6 +115,14 @@ function PickPeople({
   const [chosen, setChosen] = useState<string[]>([]);
   const [name, setName] = useState("");
 
+  const findClub = useCallback(
+    async (needle: string) => {
+      const term = needle.toLowerCase();
+      return clubs.filter((c) => !term || c.name.toLowerCase().includes(term));
+    },
+    [clubs]
+  );
+
   const shown = useMemo(() => {
     const t = term.trim().toLowerCase();
     return people.filter((p) => (!club || p.clubIds.includes(club)) && (!t || p.name.toLowerCase().includes(t)));
@@ -139,15 +148,14 @@ function PickPeople({
         aria-label={t("rest.search_by_name")}
       />
       {clubs.length > 1 && (
-        <div className="chip-set new-chat-clubs" role="group" aria-label="Which club">
-          <button type="button" className={`chip${club === "" ? " on" : ""}`} aria-pressed={club === ""} onClick={() => setClub("")}>
-            All clubs
-          </button>
-          {clubs.map((c) => (
-            <button key={c.id} type="button" className={`chip${club === c.id ? " on" : ""}`} aria-pressed={club === c.id} onClick={() => setClub(c.id)}>
-              {c.name}
-            </button>
-          ))}
+        <div className="new-chat-clubs">
+          <SearchSelect
+            value={club}
+            onChange={setClub}
+            search={findClub}
+            label={t("ev.which_club")}
+            anyLabel={t("ev.all_clubs")}
+          />
         </div>
       )}
 

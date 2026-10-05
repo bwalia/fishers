@@ -10,7 +10,7 @@ use fishers_domain::{
     AttendeeSummary, CreateEventRequest, Event, EventInvite, Permission, RsvpRequest,
     UpdateEventRequest,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -25,6 +25,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/events", get(list_events).post(create_event))
         .route("/events/mine", get(my_fixtures))
+        .route("/events/mine/clubs", get(my_fixture_clubs))
         .route("/events/{id}", get(get_event).patch(update_event))
         .route("/events/{id}/rsvp", post(rsvp))
         .route("/events/{id}/attendees", get(attendees))
@@ -195,6 +196,39 @@ struct MineQuery {
 
 /// Your fixtures in a window, each with your answer — the calendar's month,
 /// or the fixtures list's next few weeks.
+#[derive(Debug, Deserialize)]
+struct MineClubsQuery {
+    /// Part of a club's name. Empty means the first page of all of them.
+    q: Option<String>,
+    limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+struct ClubRef {
+    id: Uuid,
+    name: String,
+}
+
+/// The clubs to offer in the fixtures filter. Answered by the database so the
+/// screen never has to hold every fixture to know what to put in the list.
+async fn my_fixture_clubs(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(q): Query<MineClubsQuery>,
+) -> ApiResult<Json<Vec<ClubRef>>> {
+    let term = q.q.unwrap_or_default();
+    let found = events_repo::my_fixture_clubs(
+        &state.pool,
+        auth.user_id,
+        term.trim(),
+        q.limit.unwrap_or(20),
+    )
+    .await?;
+    Ok(Json(
+        found.into_iter().map(|(id, name)| ClubRef { id, name }).collect(),
+    ))
+}
+
 async fn my_fixtures(
     State(state): State<AppState>,
     auth: AuthUser,
