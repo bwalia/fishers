@@ -26,11 +26,17 @@ config:
   # obvious answer and is not — nothing reaches the host behind it, and the
   # API logged "ollama unreachable" against it.
   ollamaUrl: "https://ollama.workstation.co.uk"
-  # The model the project's own .env has always asked for: small and quick,
-  # which is what ball-by-ball needs. The gateway serves fifteen, qwen3:30b
-  # and the chart's llama3.1:8b among them — a bigger one writes a better
-  # line and misses the ball it was about.
-  ollamaModel: "qwen3.8-fast:latest"
+  # The model the gateway keeps *resident*, which turns out to be the only
+  # thing that matters here. /api/ps lists what is loaded, and
+  # qwen3.8-fast:latest is not among them — asking for it makes the host pull
+  # 17.7GB off disk on every ball, which is why the API logged nothing but
+  # timeouts. Same family, same size, and it answers in about 20 seconds.
+  #
+  # Measured on the models that *are* resident: this one 19.8s and 21.8s,
+  # llama3.1:8b 56s and 73s despite being a third of the size. Residency
+  # beats parameter count on this hardware, so check /api/ps before changing
+  # this line.
+  ollamaModel: "qwen3.8:latest"
   # Under the API's own 30-second ceiling, deliberately. main.rs wraps every
   # route in a TimeoutLayer that answers 504 at 30s, so a longer limit here
   # cannot be reached: the request is killed before this client gives up, and
