@@ -26,16 +26,19 @@ config:
   # obvious answer and is not — nothing reaches the host behind it, and the
   # API logged "ollama unreachable" against it.
   ollamaUrl: "https://ollama.workstation.co.uk"
-  # A model that gateway actually serves. The chart's default `llama3.1:8b` is
-  # not one of them: what runs there is qwen3, and beacon asks for this exact
-  # name.
-  ollamaModel: "qwen3:30b-a3b"
-  # Sixty, as beacon uses. A 30B model is not quick, and the built-in 15 would
-  # cut off a line that was coming. It costs the scorer nothing to wait: the
-  # browser drops its own request the moment the next ball is recorded, so
-  # this is only a ceiling on how long the server holds a connection.
-  ollamaTimeoutSecs: "60"
-  # The gateway answers 403 without a key, which reaches the app as a model
-  # with nothing to say. The key is not here: put it in the ring's vault as
-  # OLLAMA_API_KEY at kv/<brand>/int/config and `envFrom` carries it in, the
-  # same way SMTP and Stripe credentials arrive.
+  # The model the project's own .env has always asked for: small and quick,
+  # which is what ball-by-ball needs. The gateway serves fifteen, qwen3:30b
+  # and the chart's llama3.1:8b among them — a bigger one writes a better
+  # line and misses the ball it was about.
+  ollamaModel: "qwen3.8-fast:latest"
+  # Forty-five, as the local .env uses. The built-in 15 can cut off a line
+  # that was coming; past this it is not worth holding the connection, and
+  # the browser has abandoned its own request long before — it drops it the
+  # moment the next ball is recorded.
+  ollamaTimeoutSecs: "45"
+  # The gateway answers 403 to an unsigned request, which reaches the app as
+  # a model with nothing to say. OLLAMA_API_KEY is not a bearer token and is
+  # never sent as one: the API signs a 120-second HS256 JWT with it per
+  # request and sends that as x-api-key. The passphrase lives in the ring's
+  # vault at kv/<brand>/int/config, where envFrom picks it up like the SMTP
+  # and Stripe credentials.
