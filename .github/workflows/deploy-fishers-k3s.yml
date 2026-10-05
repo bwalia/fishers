@@ -316,7 +316,15 @@ jobs:
           # old one. "Fresh" is judged by refreshTime CHANGING, not by
           # comparing it with this runner's clock, which is not the cluster's.
           before=$(kubectl -n "$NS" get externalsecret fishers-secrets -o jsonpath='{.status.refreshTime}' 2>/dev/null || true)
-          kubectl -n "$NS" annotate externalsecret fishers-secrets force-sync="$(date +%s)" --overwrite >/dev/null
+          # Retried, like the reads below: this cluster's apiserver times out
+          # on calls when it is busy, and losing the deploy to one of those is
+          # worse than asking again.
+          stamp="$(date +%s)"
+          for attempt in 1 2 3 4 5; do
+            kubectl -n "$NS" annotate externalsecret fishers-secrets force-sync="$stamp" --overwrite >/dev/null && break
+            [ "$attempt" = 5 ] && { echo "::error::the apiserver would not take the force-sync annotation in $NS."; exit 1; }
+            sleep 5
+          done
           synced=0
           for _ in $(seq 1 45); do
             now=$(kubectl -n "$NS" get externalsecret fishers-secrets -o jsonpath='{.status.refreshTime}' 2>/dev/null || true)
@@ -334,7 +342,24 @@ jobs:
 
           # The keys every ring needs. Optional integrations (Stripe,
           # Anthropic) are simply absent where unused, so they are not checked.
-          have=$(kubectl -n "$NS" get secret fishers-secrets -o json | jq -r '.data | keys[]')
+          # One read, retried, with both checks taken off it rather than
+          # asking the apiserver twice. It times out on reads under load — the
+          # Longhorn webhook note on the database step below is the same
+          # weather — and every call in the wait loop above already shrugs
+          # that off. This one did not, so a deploy that had got as far as a
+          # freshly synced secret could still die on a slow read of it.
+          secret=""
+          for attempt in 1 2 3 4 5; do
+            secret=$(kubectl -n "$NS" get secret fishers-secrets -o json) && break
+            secret=""
+            [ "$attempt" = 5 ] || sleep 5
+          done
+          if [ -z "$secret" ]; then
+            echo "::error::the apiserver did not answer for the fishers-secrets Secret in $NS after five tries."
+            echo "::error::The vault read itself succeeded above, so this is the cluster being slow rather than a missing key."
+            exit 1
+          fi
+          have=$(jq -r '.data | keys[]' <<<"$secret")
           missing=""
           for k in JWT_SECRET S3_ACCESS_KEY S3_SECRET_KEY; do
             grep -qx "$k" <<<"$have" || missing="$missing $k"
@@ -345,7 +370,7 @@ jobs:
             exit 1
           fi
           # A short signing key makes every token on the ring forgeable.
-          jwt_len=$(kubectl -n "$NS" get secret fishers-secrets -o jsonpath='{.data.JWT_SECRET}' | base64 -d | wc -c)
+          jwt_len=$(jq -r '.data.JWT_SECRET' <<<"$secret" | base64 -d | wc -c)
           if [ "$jwt_len" -lt 32 ]; then
             echo "::error::JWT_SECRET at $VAULT_PATH is $jwt_len bytes; use at least 32."
             exit 1
