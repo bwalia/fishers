@@ -130,7 +130,17 @@ pub async fn list_attendees(
     pool: &PgPool,
     event_id: Uuid,
 ) -> Result<Vec<AttendeeSummary>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, (Uuid, String, RsvpStatus, Option<fishers_domain::AvailabilityStatus>, bool)>(
+    type Row = (
+        Uuid,
+        String,
+        RsvpStatus,
+        Option<fishers_domain::AvailabilityStatus>,
+        bool,
+        Option<Uuid>,
+        Option<String>,
+        Option<chrono::DateTime<chrono::Utc>>,
+    );
+    let rows = sqlx::query_as::<_, Row>(
         r#"
         SELECT
             u.id,
@@ -140,13 +150,43 @@ pub async fn list_attendees(
             EXISTS(
               SELECT 1 FROM payments p
               WHERE p.user_id = u.id AND p.event_id = ei.event_id AND p.status = 'succeeded'
-            ) AS paid
+            ) AS paid,
+            side.club_id,
+            c.name AS club_name,
+            last_out.start_at AS last_played_at
         FROM event_invites ei
         JOIN users u ON u.id = ei.user_id
-        LEFT JOIN events e ON e.id = ei.event_id
+        JOIN events e ON e.id = ei.event_id
         LEFT JOIN availability a ON a.user_id = u.id AND a.date = (e.start_at AT TIME ZONE 'UTC')::date
+        -- Which of the two sides they belong to. Somebody in both clubs plays
+        -- for the one staging the fixture, which is what the ground would say.
+        LEFT JOIN LATERAL (
+            SELECT m.club_id
+              FROM club_members m
+             WHERE m.user_id = u.id
+               AND m.status = 'active'
+               AND m.club_id IN (e.club_id, e.opponent_club_id)
+             ORDER BY (m.club_id = e.club_id) DESC
+             LIMIT 1
+        ) side ON TRUE
+        LEFT JOIN clubs c ON c.id = side.club_id
+        -- When they last turned out for that side. Said "going" and the
+        -- fixture happened: the app's own record of somebody being there.
+        LEFT JOIN LATERAL (
+            SELECT pe.start_at
+              FROM event_invites pi
+              JOIN events pe ON pe.id = pi.event_id
+             WHERE pi.user_id = u.id
+               AND pi.status = 'going'
+               AND pe.club_id = side.club_id
+               AND pe.id <> e.id
+               AND pe.start_at < e.start_at
+               AND pe.status <> 'cancelled'
+             ORDER BY pe.start_at DESC
+             LIMIT 1
+        ) last_out ON TRUE
         WHERE ei.event_id = $1
-        ORDER BY u.name
+        ORDER BY (side.club_id = e.club_id) DESC, c.name, u.name
         "#,
     )
     .bind(event_id)
@@ -155,13 +195,20 @@ pub async fn list_attendees(
 
     Ok(rows
         .into_iter()
-        .map(|(user_id, name, status, availability, paid)| AttendeeSummary {
-            user_id,
-            name,
-            status,
-            availability,
-            paid,
-        })
+        .map(
+            |(user_id, name, status, availability, paid, club_id, club_name, last_played_at)| {
+                AttendeeSummary {
+                    user_id,
+                    name,
+                    status,
+                    availability,
+                    paid,
+                    club_id,
+                    club_name,
+                    last_played_at,
+                }
+            },
+        )
         .collect())
 }
 

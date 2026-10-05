@@ -530,6 +530,42 @@ pub struct MyFixture {
 
 /// Every fixture of either side the player belongs to, starting in
 /// `[from, to)`, soonest first. Cancelled ones are left out, as in the list.
+/// The clubs somebody's own fixtures are against or for, for the filter on
+/// the fixtures screen.
+///
+/// Searched and counted here rather than gathered from the fixtures already on
+/// screen: a player in a league with a hundred matches has as many clubs as
+/// they have opponents, and a row of buttons one per club stops being a filter
+/// somewhere around the eighth.
+pub async fn my_fixture_clubs(
+    pool: &PgPool,
+    user_id: Uuid,
+    q: &str,
+    limit: i64,
+) -> Result<Vec<(Uuid, String)>, sqlx::Error> {
+    sqlx::query_as::<_, (Uuid, String)>(
+        r#"
+        SELECT c.id, c.name
+          FROM clubs c
+         WHERE c.id IN (
+                 SELECT e.club_id FROM events e
+                   JOIN event_invites ei ON ei.event_id = e.id AND ei.user_id = $1
+                 UNION
+                 SELECT e.opponent_club_id FROM events e
+                   JOIN event_invites ei ON ei.event_id = e.id AND ei.user_id = $1
+               )
+           AND ($2 = '' OR c.name ILIKE '%' || $2 || '%')
+         ORDER BY c.name
+         LIMIT $3
+        "#,
+    )
+    .bind(user_id)
+    .bind(q)
+    .bind(limit.clamp(1, 100))
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn my_fixtures(
     pool: &PgPool,
     user_id: Uuid,

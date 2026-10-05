@@ -11,10 +11,11 @@ import {
   type Venue,
 } from "@/lib/api";
 import { dayKey, type Availability, type AvailabilityStatus } from "@/lib/availability";
-import { byDay, clashes, dayTitle, myFixtures, saidLabel, timeOf, type MyFixture } from "@/lib/fixtures";
+import { byDay, clashes, dayTitle, myFixtures, saidLabel, searchFixtureClubs, timeOf, type MyFixture } from "@/lib/fixtures";
 import { FixtureAnswer } from "@/components/FixtureAnswer";
 import { OppositionPicker } from "@/components/OppositionPicker";
 import { Icon, type IconName } from "@/components/Icon";
+import { SearchSelect } from "@/components/SearchSelect";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
@@ -91,9 +92,11 @@ export default function EventsPage() {
 
   // Hooks must run every render — before any authed early return — or React
   // throws #310 the moment a token appears and this component keeps mounting.
+  // Only to decide whether a filter is worth showing at all. Which clubs it
+  // offers is the server's business — see `searchFixtureClubs`.
   const clubs = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const f of [...(fixtures ?? []), ...(past ?? [])]) seen.set(f.club_id, f.club_name);
+    const seen = new Set<string>();
+    for (const f of [...(fixtures ?? []), ...(past ?? [])]) seen.add(f.club_id);
     return [...seen];
   }, [fixtures, past]);
 
@@ -242,16 +245,13 @@ export default function EventsPage() {
           ))}
         </div>
         {clubs.length > 1 && (
-          <div className="chip-set fx-clubs" role="group" aria-label={t("ev.which_club")}>
-            <button type="button" className={`chip${club === "" ? " on" : ""}`} aria-pressed={club === ""} onClick={() => setClub("")}>
-              {t("ev.all_clubs")}
-            </button>
-            {clubs.map(([id, name]) => (
-              <button key={id} type="button" className={`chip${club === id ? " on" : ""}`} aria-pressed={club === id} onClick={() => setClub(id)}>
-                {name}
-              </button>
-            ))}
-          </div>
+          <SearchSelect
+            value={club}
+            onChange={setClub}
+            search={searchFixtureClubs}
+            label={t("ev.which_club")}
+            anyLabel={t("ev.all_clubs")}
+          />
         )}
       </div>
 
