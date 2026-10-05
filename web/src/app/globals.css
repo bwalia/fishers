@@ -8488,3 +8488,36 @@ main .panel[id] { scroll-margin-top: 80px; }
 @media (max-width: 599px) {
   .search-select-panel { right: auto; left: 0; }
 }
+
+/* A name on the scorecard that goes somewhere. Underlined on hover rather
+   than always: a column of twenty underlined names is a wall, and the whole
+   card is names. The colour alone would not be enough to find them, so the
+   hit area and the hover both have to be honest — and a guest's name, which
+   links nowhere, stays plain text rather than looking clickable and failing. */
+.who-link {
+  color: inherit;
+  text-decoration: none;
+  /* Big enough to hit on a phone without stretching the row. */
+  padding: 2px 0;
+  border-bottom: 1px solid transparent;
+}
+
+.who-link:hover,
+.who-link:focus-visible {
+  color: var(--primary-ink);
+  border-bottom-color: currentColor;
+}
+
+.who-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* In the "yet to bat" chips the name is the whole chip, so the chip is the
+   target and the underline would fight its border. */
+.chip-list .tag .who-link:hover,
+.chip-list .tag .who-link:focus-visible {
+  border-bottom-color: transparent;
+  text-decoration: underline;
+}

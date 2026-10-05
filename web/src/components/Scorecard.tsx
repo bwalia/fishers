@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   economy,
@@ -21,12 +22,30 @@ import { useT } from "@/lib/i18n/provider";
 export function Scorecard({
   st,
   nameOf,
+  profile,
 }: {
   st: MatchState;
   nameOf: (id?: string | null) => string;
+  /// Where a player's profile lives, or null for somebody who has none — a
+  /// guest is a name the scorer typed, with an id this browser invented, and
+  /// a link to it would go nowhere. Omitted entirely on a scoreboard whose
+  /// readers are not signed in, because a profile asks them to be.
+  profile?: (id: string) => string | null;
 }) {
   const t = useT();
   const [shown, setShown] = useState(0);
+  /// A name, linked where there is somebody to link to.
+  const Who = ({ id }: { id?: string | null }) => {
+    const name = nameOf(id);
+    const href = id && profile ? profile(id) : null;
+    return href ? (
+      <Link className="who-link" href={href}>
+        {name}
+      </Link>
+    ) : (
+      <>{name}</>
+    );
+  };
   if (st.innings.length === 0) return null;
   const index = Math.min(shown, st.innings.length - 1);
   const inn = st.innings[index];
@@ -86,7 +105,7 @@ export function Scorecard({
                     how a scorebook marks it without repeating itself. */}
                 <td>
                   <span className="cell-name">
-                    {nameOf(b.player_id)}
+                    <Who id={b.player_id} />
                     {!b.out && atCrease.has(b.player_id) ? "\u00a0*" : ""}
                   </span>
                   <span className="cell-sub">{howOut(b, nameOf, st.substitutes ?? [], t)}</span>
@@ -131,7 +150,7 @@ export function Scorecard({
           <h3 className="section-head">{t("sr.yet_to_bat")}</h3>
           <ul className="chip-list">
             {yetToBat.map((id) => (
-              <li key={id} className="tag">{nameOf(id)}</li>
+              <li key={id} className="tag"><Who id={id} /></li>
             ))}
           </ul>
         </>
@@ -155,7 +174,7 @@ export function Scorecard({
               .filter((b) => b.balls > 0)
               .map((b) => (
                 <tr key={b.player_id}>
-                  <td>{nameOf(b.player_id)}</td>
+                  <td><Who id={b.player_id} /></td>
                   <td className="n">{overs(b.balls)}</td>
                   <td className="n">{b.maidens}</td>
                   <td className="n">{b.runs}</td>
@@ -182,7 +201,7 @@ export function Scorecard({
               <tbody>
                 {inn.fall!.map((f, i) => (
                   <tr key={i}>
-                    <td>{nameOf(f.batter_id)}</td>
+                    <td><Who id={f.batter_id} /></td>
                     <td className="n">
                       {f.score}-{f.wickets}
                     </td>
