@@ -31,11 +31,13 @@ config:
   # and the chart's llama3.1:8b among them — a bigger one writes a better
   # line and misses the ball it was about.
   ollamaModel: "qwen3.8-fast:latest"
-  # Forty-five, as the local .env uses. The built-in 15 can cut off a line
-  # that was coming; past this it is not worth holding the connection, and
-  # the browser has abandoned its own request long before — it drops it the
-  # moment the next ball is recorded.
-  ollamaTimeoutSecs: "45"
+  # Under the API's own 30-second ceiling, deliberately. main.rs wraps every
+  # route in a TimeoutLayer that answers 504 at 30s, so a longer limit here
+  # cannot be reached: the request is killed before this client gives up, and
+  # the scorer gets a gateway error instead of a screen saying the model had
+  # nothing to say. Measured against this gateway, a line takes 16s warm and
+  # 23s cold, so 25 leaves the margin where it is useful.
+  ollamaTimeoutSecs: "25"
   # The gateway answers 403 to an unsigned request, which reaches the app as
   # a model with nothing to say. OLLAMA_API_KEY is not a bearer token and is
   # never sent as one: the API signs a 120-second HS256 JWT with it per
