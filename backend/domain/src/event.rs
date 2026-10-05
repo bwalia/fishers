@@ -97,7 +97,10 @@ pub struct UpdateEventRequest {
     pub capacity: Option<i32>,
     pub fee_amount_cents: Option<i32>,
     pub ticket_price_cents: Option<i32>,
-    pub ticket_capacity: Option<i32>,
+    /// Absent leaves the cap; `null` takes it off, which is how the editor
+    /// says "no limit" — a blank box.
+    #[serde(default, deserialize_with = "crate::double_option")]
+    pub ticket_capacity: Option<Option<i32>>,
     pub guests_allowed: Option<i32>,
     pub tickets_public: Option<bool>,
     pub status: Option<EventStatus>,

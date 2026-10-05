@@ -73,3 +73,21 @@ pub use world_cricket_detail::{dismissal_line, WorldMatchDetail, WorldMatchDetai
 
 // Moved with the engine, which was its only user.
 pub use fishers_cricket::DomainError;
+
+/// `null` and absent are different things in a PATCH: one clears the field,
+/// the other leaves it alone. serde collapses both into `None` unless asked
+/// not to, which is how a setting ends up impossible to turn back off.
+///
+/// ```ignore
+/// #[serde(default, deserialize_with = "fishers_domain::double_option")]
+/// ticket_capacity: Option<Option<i32>>,
+/// ```
+///
+/// `None` means untouched, `Some(None)` means clear it, `Some(v)` means set it.
+pub fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    serde::Deserialize::deserialize(de).map(Some)
+}

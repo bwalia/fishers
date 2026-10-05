@@ -80,7 +80,7 @@ struct Willing {
     /// the question again.
     umpires: Option<bool>,
     /// `Some(None)` clears it; absent leaves it.
-    #[serde(default, deserialize_with = "double_option")]
+    #[serde(default, deserialize_with = "fishers_domain::double_option")]
     note: Option<Option<String>>,
 }
 
@@ -218,12 +218,3 @@ async fn share_a_club(state: &AppState, me: Uuid, them: Uuid) -> ApiResult<()> {
     Ok(())
 }
 
-/// `null` and absent are different things in a PATCH: one clears the note, the
-/// other leaves it alone. serde collapses them unless asked not to.
-fn double_option<'de, D, T>(de: D) -> Result<Option<Option<T>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: serde::Deserialize<'de>,
-{
-    serde::Deserialize::deserialize(de).map(Some)
-}

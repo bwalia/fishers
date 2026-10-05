@@ -55,6 +55,42 @@ pub async fn create_club(
     Ok(club)
 }
 
+/// The club's own details, after the day somebody started it.
+///
+/// All three of these used to be write-once: a club that typed its name in a
+/// hurry, or took the invite-only default without reading it, had no way back
+/// from either. Nothing here touches `sport_types` — changing the sport a club
+/// plays after it has played is a different question, and a bigger one.
+pub async fn update_club(
+    pool: &PgPool,
+    club_id: Uuid,
+    name: Option<&str>,
+    description: Option<Option<&str>>,
+    visibility: Option<ClubVisibility>,
+) -> Result<Club, sqlx::Error> {
+    sqlx::query_as::<_, Club>(
+        r#"
+        UPDATE clubs SET
+            name = COALESCE($2, name),
+            -- Three states, not two: absent leaves the description alone,
+            -- while an empty one is a description somebody deleted.
+            description = CASE WHEN $3 THEN $4 ELSE description END,
+            visibility = COALESCE($5, visibility),
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING id, name, sport_types, visibility, owner_id, description,
+                  is_informal_group, created_at, updated_at
+        "#,
+    )
+    .bind(club_id)
+    .bind(name)
+    .bind(description.is_some())
+    .bind(description.flatten())
+    .bind(visibility)
+    .fetch_one(pool)
+    .await
+}
+
 /// A club's own public page: what they write about themselves, plus the
 /// record and the players worked out from what they have played.
 #[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
@@ -125,7 +161,9 @@ pub struct UpdateClubPage {
     pub tagline: Option<String>,
     pub about: Option<String>,
     pub ground: Option<String>,
-    pub founded_year: Option<i32>,
+    /// Absent leaves the year alone; `Some(None)` takes it off.
+    #[serde(default, deserialize_with = "fishers_domain::double_option")]
+    pub founded_year: Option<Option<i32>>,
     pub contact_email: Option<String>,
     pub website: Option<String>,
     pub icon_player_id: Option<Uuid>,
@@ -144,7 +182,9 @@ pub async fn update_page(
             tagline = COALESCE($4, tagline),
             about = COALESCE($5, about),
             ground = COALESCE($6, ground),
-            founded_year = COALESCE($7, founded_year),
+            -- Three states, not two. A null used to mean untouched, so a
+            -- year could be set and never taken off again.
+            founded_year = CASE WHEN $11 THEN $7 ELSE founded_year END,
             contact_email = COALESCE($8, contact_email),
             website = COALESCE($9, website),
             -- A null means the editor did not touch the field, so COALESCE
@@ -163,10 +203,11 @@ pub async fn update_page(
     .bind(req.tagline.as_deref())
     .bind(req.about.as_deref())
     .bind(req.ground.as_deref())
-    .bind(req.founded_year)
+    .bind(req.founded_year.flatten())
     .bind(req.contact_email.as_deref())
     .bind(req.website.as_deref())
     .bind(req.icon_player_id)
+    .bind(req.founded_year.is_some())
     .fetch_one(pool)
     .await
 }
@@ -412,6 +453,20 @@ pub async fn create_team(
     .bind(club_id)
     .bind(req.sport)
     .bind(&req.name)
+    .fetch_one(pool)
+    .await
+}
+
+/// Rename a side. The 409 from `delete_team` tells a secretary to rename a
+/// team that has already played rather than remove it, so that has to be
+/// something they can actually do.
+pub async fn update_team(pool: &PgPool, team_id: Uuid, name: &str) -> Result<Team, sqlx::Error> {
+    sqlx::query_as::<_, Team>(
+        "UPDATE teams SET name = $2 WHERE id = $1
+         RETURNING id, club_id, sport, name, created_at",
+    )
+    .bind(team_id)
+    .bind(name)
     .fetch_one(pool)
     .await
 }
