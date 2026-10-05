@@ -479,6 +479,10 @@ export default function ScorerPage({
         send={send}
         scoring={scoring}
         canAct={canAct}
+        // Whether the server has everything this screen has. Commentary is
+        // the only thing that asks the server about a particular ball, so it
+        // is the only thing that has to wait for one to arrive there.
+        synced={sync === "saved"}
         nameOf={nameOf}
         onPicked={setMatch}
         onHandOver={() => setHandingOver(true)}
@@ -1176,6 +1180,7 @@ function Stages({
   send,
   scoring,
   canAct,
+  synced,
   nameOf,
   onPicked,
   onHandOver,
@@ -1186,6 +1191,9 @@ function Stages({
   scoring: boolean;
   /// …and it can take a tap right now: decides what is enabled.
   canAct: boolean;
+  /// Nothing is waiting to go up: every ball on this screen is also on the
+  /// server.
+  synced: boolean;
   nameOf: (id?: string | null) => string;
   onPicked: (next: MatchResponse) => void;
   onHandOver: () => void;
@@ -1346,7 +1354,9 @@ function Stages({
       />
     );
   }
-  return <LivePanel match={match} send={send} scoring={scoring} canAct={canAct} nameOf={nameOf} />;
+  return (
+    <LivePanel match={match} send={send} scoring={scoring} canAct={canAct} synced={synced} nameOf={nameOf} />
+  );
 }
 
 /// Somebody else's move. Said once, quietly — not as an error, and not as a
@@ -2545,12 +2555,15 @@ function LivePanel({
   send,
   scoring,
   canAct,
+  synced,
   nameOf,
 }: {
   match: MatchResponse;
   send: (kind: Record<string, unknown>) => Promise<void>;
   scoring: boolean;
   canAct: boolean;
+  /// Every ball on this screen has reached the server.
+  synced: boolean;
   nameOf: (id?: string | null) => string;
 }) {
   const { t, locale } = useLocale();
@@ -2581,11 +2594,22 @@ function LivePanel({
   const [aiStatus, setAiStatus] = useState<"idle" | "ok" | "no_model" | "unreachable">("idle");
 
   const ballCount = (inn.deliveries || []).length;
+  /// The last ball a line was asked for, so a sync settling does not ask
+  /// again for one already in flight or answered.
+  const askedAbout = useRef<string | null>(null);
   useEffect(() => {
     if (!aiOn) return;
     const last = (inn.deliveries || [])[ballCount - 1];
     if (!last) return;
+    // The engine here applies the ball before the batch carrying it goes up,
+    // so for a moment this screen knows about a delivery the server does not.
+    // Asking then is a 404 for a ball that exists in one browser — which is
+    // what the scorer's console was full of. Wait for it to land; the effect
+    // runs again when it does.
+    if (!synced) return;
     const key = `${last.over}.${last.ball_in_over}.${last.label}`;
+    if (askedAbout.current === key) return;
+    askedAbout.current = key;
     // Fire and forget: a model takes seconds and the ball is already recorded,
     // so nothing waits on this and a failure leaves the written line in place.
     //
@@ -2621,7 +2645,7 @@ function LivePanel({
       });
     return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ballCount, match.id, locale, aiOn]);
+  }, [ballCount, match.id, locale, aiOn, synced]);
 
   useEffect(() => {
     setAskShot(localStorage.getItem(ASK_KEY) !== "0");
