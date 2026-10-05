@@ -333,7 +333,10 @@ pub async fn update_event(
             -- COALESCE: the editor sends only what it changed, and a null must
             -- not wipe a price somebody has already sold tickets at.
             ticket_price_cents = COALESCE($10, ticket_price_cents),
-            ticket_capacity = COALESCE($11, ticket_capacity),
+            -- Three states, not two: a null here is the editor clearing the
+            -- cap, and COALESCE had no way to tell that from an untouched
+            -- field, so a capped event could never be uncapped again.
+            ticket_capacity = CASE WHEN $14 THEN $11 ELSE ticket_capacity END,
             guests_allowed = COALESCE($12, guests_allowed),
             tickets_public = COALESCE($13, tickets_public),
             updated_at = NOW()
@@ -355,9 +358,10 @@ pub async fn update_event(
     .bind(status)
     .bind(metadata)
     .bind(req.ticket_price_cents)
-    .bind(req.ticket_capacity)
+    .bind(req.ticket_capacity.flatten())
     .bind(req.guests_allowed)
     .bind(req.tickets_public)
+    .bind(req.ticket_capacity.is_some())
     .fetch_one(pool)
     .await
 }

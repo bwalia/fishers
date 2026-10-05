@@ -155,6 +155,8 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
         />
       )}
 
+      {isSecretary && <ClubDetails club={club} onSaved={load} />}
+
       <Members
         clubId={id}
         members={members}
@@ -571,6 +573,7 @@ function TeamRow({
   const [members, setMembers] = useState<TeamMemberRow[] | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -579,6 +582,19 @@ function TeamRow({
       .then(setMembers)
       .catch(() => setMembers([]));
   }, [open, members, team.id]);
+
+  const rename = async () => {
+    const name = (renaming ?? "").trim();
+    if (!name || name === team.name) return setRenaming(null);
+    setError(null);
+    try {
+      await api("PATCH", `/teams/${team.id}`, { name });
+      setRenaming(null);
+      onChanged();
+    } catch (err) {
+      setError(readErr(err, t("ld.could_not_save_that")));
+    }
+  };
 
   const remove = async () => {
     setRemoving(true);
@@ -645,7 +661,28 @@ function TeamRow({
           every team in a collapsed list is a mis-tap waiting to happen. */}
       {open && isSecretary && (
         <div className="team-remove">
-          {confirming ? (
+          {renaming !== null ? (
+            <>
+              <input
+                autoFocus
+                aria-label={t("cl.club_name")}
+                value={renaming}
+                onChange={(e) => setRenaming(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && rename()}
+              />
+              <button
+                className="btn primary sm"
+                type="button"
+                disabled={!renaming.trim()}
+                onClick={rename}
+              >
+                {t("lc.save")}
+              </button>
+              <button className="btn ghost sm" type="button" onClick={() => setRenaming(null)}>
+                {t("sc.cancel")}
+              </button>
+            </>
+          ) : confirming ? (
             <>
               <span className="muted">{t("cl.remove_team_confirm", { name: team.name })}</span>
               <button className="btn danger sm" type="button" disabled={removing} onClick={remove}>
@@ -661,13 +698,108 @@ function TeamRow({
               </button>
             </>
           ) : (
-            <button className="btn ghost sm" type="button" onClick={() => setConfirming(true)}>
-              {t("cl.remove_team")}
-            </button>
+            <>
+              {/* A side that has played cannot be removed, only renamed — so
+                  the rename has to be here, where the refusal points. */}
+              <button className="btn ghost sm" type="button" onClick={() => setRenaming(team.name)}>
+                {t("cl.rename")}
+              </button>
+              <button className="btn ghost sm" type="button" onClick={() => setConfirming(true)}>
+                {t("cl.remove_team")}
+              </button>
+            </>
           )}
         </div>
       )}
       {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
+
+/// The club's own name, blurb and whether anyone outside it can find it.
+///
+/// All three were set on the day the club was started and then fixed for
+/// good. Invite-only is the default, so a club that never read that screen
+/// closely was quietly unfindable with nothing on any page to change.
+function ClubDetails({ club, onSaved }: { club: Club; onSaved: () => void }) {
+  const t = useT();
+  const [name, setName] = useState(club.name);
+  const [description, setDescription] = useState(club.description ?? "");
+  const [visibility, setVisibility] = useState(club.visibility ?? "invite_only");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty =
+    name.trim() !== club.name ||
+    description.trim() !== (club.description ?? "") ||
+    visibility !== (club.visibility ?? "invite_only");
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api<Club>("PATCH", `/clubs/${club.id}`, {
+        name: name.trim(),
+        // Null, not "": the API reads an absent field as untouched, so
+        // clearing the blurb needs to say so.
+        description: description.trim() || null,
+        visibility,
+      });
+      setSaved(true);
+      onSaved();
+    } catch (err) {
+      setError(readErr(err, t("ld.could_not_save_that")));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="panel" id="club-details">
+      <div className="panel-head">
+        <h2>{t("cl.club_details")}</h2>
+      </div>
+      <p className="muted">{t("cl.the_name_people_see_and_whether_they_c")}</p>
+
+      <div className="setup-fields">
+        <label>
+          {t("cl.club_name")}
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label>
+          {t("cl.who_can_find_it")}
+          <select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
+            <option value="invite_only">{t("lc.invite_only")}</option>
+            <option value="public">{t("lc.anyone_can_find_it")}</option>
+          </select>
+          <span className="subtle">
+            {visibility === "public"
+              ? t("lc.other_clubs_can_find_you_by_name_when")
+              : t("lc.kept_out_of_search_players_join_with_y")}
+          </span>
+        </label>
+      </div>
+
+      <label>
+        {t("cl.description")}
+        <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </label>
+
+      {error && <p className="error">{error}</p>}
+      {saved && !error && <p className="muted">{t("cl.saved")}</p>}
+
+      <div className="field-row">
+        <button
+          className="btn primary"
+          type="button"
+          disabled={busy || !name.trim() || !dirty}
+          onClick={save}
+        >
+          {busy ? t("ld.saving") : t("lc.save")}
+        </button>
+      </div>
     </div>
   );
 }

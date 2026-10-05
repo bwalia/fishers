@@ -7,8 +7,9 @@ use fishers_db::repos::clubs::{
     ClubMemberDetail, ClubMembership, ClubSettings, QrIdentity, UpdateClubSettings,
 };
 use fishers_domain::{
-    parse_role, permissions_for, AddMemberRequest, Club, ClubMember, CreateClubRequest,
-    CreateTeamRequest, CreateVenueRequest, Permission, Team, TeamMember, UserRole, Venue,
+    parse_role, permissions_for, AddMemberRequest, Club, ClubMember, ClubVisibility,
+    CreateClubRequest, CreateTeamRequest, CreateVenueRequest, Permission, Team, TeamMember,
+    UserRole, Venue,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -23,7 +24,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/clubs", get(list_clubs).post(create_club))
         .route("/me/clubs", get(list_my_clubs))
-        .route("/clubs/{id}", get(get_club))
+        .route("/clubs/{id}", get(get_club).patch(update_club))
         .route("/clubs/{id}/my-role", get(my_role))
         .route("/clubs/{id}/members", get(list_members).post(add_member))
         .route(
@@ -37,7 +38,7 @@ pub fn router() -> Router<AppState> {
             "/teams/{id}/members",
             get(list_team_members).post(add_team_member),
         )
-        .route("/teams/{id}", axum::routing::delete(delete_team))
+        .route("/teams/{id}", patch(rename_team).delete(delete_team))
         .route("/clubs/{id}/qr", get(club_qr).post(rotate_qr))
         .route("/teams/{id}/qr", get(team_qr))
         .route("/opponents/lookup", post(lookup_opponent))
@@ -305,6 +306,43 @@ async fn get_club(
     Ok(Json(club))
 }
 
+/// Everything about a club that it used to be stuck with. Each field is
+/// optional because this is a PATCH: only what was sent is changed.
+#[derive(Debug, Deserialize)]
+struct UpdateClubRequest {
+    name: Option<String>,
+    /// Absent leaves it; `null` clears it.
+    #[serde(default, deserialize_with = "fishers_domain::double_option")]
+    description: Option<Option<String>>,
+    visibility: Option<ClubVisibility>,
+}
+
+async fn update_club(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateClubRequest>,
+) -> ApiResult<Json<Club>> {
+    require_secretary(&state, id, auth.user_id).await?;
+    let name = body.name.as_deref().map(str::trim);
+    if let Some(name) = name {
+        // A blank name would leave the club unfindable and unaddressable, and
+        // the old name is gone the moment this commits.
+        if name.is_empty() {
+            return Err(ApiError::bad_request("a club needs a name"));
+        }
+        if name.chars().count() > 120 {
+            return Err(ApiError::bad_request("keep the club name under 120 characters"));
+        }
+    }
+    let description = body
+        .description
+        .as_ref()
+        .map(|d| d.as_deref().map(str::trim).filter(|d| !d.is_empty()));
+    let club = clubs_repo::update_club(&state.pool, id, name, description, body.visibility).await?;
+    Ok(Json(club))
+}
+
 #[derive(Serialize)]
 struct MyRoleResponse {
     role: UserRole,
@@ -544,6 +582,31 @@ async fn list_teams(
 /// Refused once the team has been on a fixture: everything that points at a
 /// team either cascades or goes null, so the delete would succeed and take the
 /// link between a match and the side that played it with it.
+#[derive(Debug, Deserialize)]
+struct RenameTeamRequest {
+    name: String,
+}
+
+async fn rename_team(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RenameTeamRequest>,
+) -> ApiResult<Json<Team>> {
+    let team = clubs_repo::get_team(&state.pool, id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("no such team"))?;
+    require_club_permission(&state, team.club_id, auth.user_id, Permission::ManageClubOps).await?;
+    let name = body.name.trim();
+    if name.is_empty() {
+        return Err(ApiError::bad_request("a side needs a name"));
+    }
+    if name.chars().count() > 120 {
+        return Err(ApiError::bad_request("keep the team name under 120 characters"));
+    }
+    Ok(Json(clubs_repo::update_team(&state.pool, id, name).await?))
+}
+
 async fn delete_team(
     State(state): State<AppState>,
     auth: AuthUser,
