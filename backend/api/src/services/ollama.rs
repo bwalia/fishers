@@ -70,6 +70,10 @@ pub struct Ollama {
 struct GenerateResponse {
     #[serde(default)]
     response: String,
+    /// `"stop"` when the model finished, `"length"` when it ran out of budget
+    /// mid-sentence. Only used to explain an empty answer.
+    #[serde(default)]
+    done_reason: Option<String>,
 }
 
 /// The bilingual answer. Both fields default, so a model that sent only one of
@@ -173,6 +177,13 @@ impl Ollama {
                 "system": SYSTEM,
                 "prompt": facts,
                 "stream": false,
+                // A reasoning model spends its whole budget deliberating and
+                // returns an empty answer with done_reason "length" — which
+                // arrives here as a model that had nothing to say, with
+                // nothing anywhere to suggest otherwise. We want the call, not
+                // the deliberation. Models that cannot think accept this and
+                // ignore it, so it is safe to send to all of them.
+                "think": false,
                 "options": { "temperature": 0.8, "num_predict": 80 },
             }),
             Some(name) => serde_json::json!({
@@ -180,6 +191,8 @@ impl Ollama {
                 "system": SYSTEM_BILINGUAL,
                 "prompt": format!("{facts}\n\nThe other language is {name}."),
                 "stream": false,
+                // As above: deliberation would eat the budget both lines need.
+                "think": false,
                 // Ollama's JSON mode, so the answer parses rather than arriving
                 // wrapped in an explanation of itself.
                 "format": "json",
@@ -239,6 +252,17 @@ impl Ollama {
                 return None;
             }
         };
+        // An empty answer is the one failure with no error attached to it, and
+        // it is what a thinking model does when it talks itself out of the
+        // budget. Say so, because the alternative is a silent feature.
+        if payload.response.trim().is_empty() {
+            warn!(
+                "ollama said nothing (done_reason {}) — if this is a reasoning model, \
+                 it spent the whole num_predict budget thinking",
+                payload.done_reason.as_deref().unwrap_or("unknown")
+            );
+            return None;
+        }
         match language {
             None => {
                 let line = clean(&payload.response)?;
