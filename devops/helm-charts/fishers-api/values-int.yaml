@@ -20,12 +20,15 @@ config:
   # all and the scoring screen says so — which is what every ring had been
   # doing since the feature landed, because no ring ever set it.
   #
-  # The published gateway, which is where everything in this cluster that
-  # actually talks to a model points: beacon-api and the registry scanner both
-  # use it. The in-cluster Service `acc/ollama-external` looks like the
-  # obvious answer and is not — nothing reaches the host behind it, and the
-  # API logged "ollama unreachable" against it.
-  ollamaUrl: "https://ollama.workstation.co.uk"
+  # The model host over the LAN, through the Service the cluster already has
+  # for it. The published gateway at ollama.workstation.co.uk resolves to a
+  # public address, so a pod on this LAN would have to leave the network and
+  # come back in through the router to reach a machine three hops away — and
+  # that hairpin is exactly the sort of thing a home router declines.
+  #
+  # The host is open to the LAN: ollama listens on *:11434 and its firewall is
+  # off, so this needs no gateway and no key.
+  ollamaUrl: "http://ollama-external.acc.svc.cluster.local:11434"
   # The model the gateway keeps *resident*, which turns out to be the only
   # thing that matters here. /api/ps lists what is loaded, and
   # qwen3.8-fast:latest is not among them — asking for it makes the host pull
