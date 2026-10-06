@@ -1,36 +1,88 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The app icon: a wicket chalked on a dark wall, and the tape ball that is
-     about to be bowled at it.
+<!-- Gully Cricket, the app icon: a tape ball arriving at a wicket chalked on
+     a gully wall.
 
-     Full-bleed and high contrast, because this is read at 40px on a home
-     screen beside thirty others. The mark's own version is drawn for light
-     pages and would disappear here. -->
+     The game this app is for is not played at a ground. It is played against
+     a wall somebody drew three lines on, with a tennis ball somebody wrapped
+     in electrical tape — so those two things are the mark, and a bat is not
+     in it. A bat, three stumps and a red ball is every cricket logo ever
+     drawn; this is only ever one kind of cricket.
+
+     Read at 40px on a home screen beside thirty others, so the whole drawing
+     is three things — a green wall, three pale strokes, an orange ball — and
+     everything else is light falling on them. Everything here was checked at
+     16px as well as at 1024: the ball is clear of the stumps because at 16 a
+     ball touching them eats one, and the tape is three lines rather than a
+     ring because a ring at that size is a broken doughnut. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Gully Cricket">
   <defs>
-    <!-- Light falling down the wall, rather than a highlight sitting on it. -->
-    <linearGradient id="wall" x1="0" y1="0" x2=".45" y2="1">
-      <stop offset="0" stop-color="#27664f"/>
-      <stop offset="1" stop-color="#173f33"/>
+    <linearGradient id="wall" x1=".05" y1="0" x2=".7" y2="1">
+      <stop offset="0" stop-color="#31866a"/>
+      <stop offset=".5" stop-color="#1d5342"/>
+      <stop offset="1" stop-color="#0e2e25"/>
     </linearGradient>
+    <radialGradient id="sun" cx="28%" cy="18%" r="62%">
+      <stop offset="0" stop-color="#6fbb9a" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#6fbb9a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="34%" cy="28%" r="82%">
+      <stop offset=".45" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".32"/>
+    </radialGradient>
+    <radialGradient id="tape" cx="32%" cy="27%" r="80%">
+      <stop offset="0" stop-color="#f9ac6a"/>
+      <stop offset=".4" stop-color="#ee8537"/>
+      <stop offset=".8" stop-color="#d1631f"/>
+      <stop offset="1" stop-color="#9c4510"/>
+    </radialGradient>
+    <clipPath id="ball"><circle cx="37.6" cy="29.8" r="6.2"/></clipPath>
+    <!-- Chalk leaves dust, and dust has no edge. A wider stroke behind a
+         narrower one cannot say that: both have hard edges, so it reads as an
+         outline round a sticker. This is the one thing here worth a filter. -->
+    <filter id="dust" x="-60%" y="-25%" width="220%" height="150%">
+      <feGaussianBlur stdDeviation=".85"/>
+    </filter>
+    <filter id="cast" x="-60%" y="-180%" width="220%" height="460%">
+      <feGaussianBlur stdDeviation="1"/>
+    </filter>
   </defs>
+
   <rect width="48" height="48" fill="url(#wall)"/>
+  <!-- Where the sun actually lands on the wall. A flat ellipse leaves a rim
+       across the plaster where the light is supposed to be fading, so the
+       falloff has to be in the fill rather than in the shape. -->
+  <rect width="48" height="48" fill="url(#sun)"/>
+  <rect width="48" height="48" fill="url(#vignette)"/>
 
-  <!-- Three stumps, chalked: not quite parallel, not quite the same height,
+  <!-- Three stumps, chalked on the wall: not parallel, not the same height,
        because nobody draws them straight. No bails — chalk never has any. -->
-  <g fill="none" stroke="#fdf7f2" stroke-width="3.3" stroke-linecap="round">
-    <path d="M12.6 10.8 12.1 33.8"/>
-    <path d="M21 10.2 21 34"/>
-    <path d="M29.4 10.8 29.9 33.8"/>
+  <g fill="none" stroke="#fdf7f2" stroke-linecap="round">
+    <g stroke-width="3.4" opacity=".17" filter="url(#dust)">
+      <path d="M13.2 11.4q-.9 11.8-.6 23.8"/>
+      <path d="M20.6 10.6q.4 12.4-.1 24.6"/>
+      <path d="M28 11.3q1 11.7.7 23.6"/>
+    </g>
+    <g stroke-width="3.1">
+      <path d="M13.2 11.4q-.9 11.8-.6 23.8" opacity=".9"/>
+      <path d="M20.6 10.6q.4 12.4-.1 24.6"/>
+      <path d="M28 11.3q1 11.7.7 23.6" opacity=".86"/>
+    </g>
+    <!-- The crease, scuffed into the ground under all of it. -->
+    <path d="M5.6 39.8c10.4-1.9 26.6-2 36.8-.2" stroke-width="1.7" opacity=".3"/>
   </g>
 
-  <!-- The crease, scuffed into the ground under the whole thing. -->
-  <path d="M5.5 39.4c10-1.8 27-1.8 37 0" fill="none" stroke="#fdf7f2" stroke-width="2" stroke-linecap="round" opacity=".5"/>
-
-  <!-- The tape ball, clear of the stumps so three of them still read at 16px.
-       A tennis ball in electrical tape: the thing gully cricket is played with. -->
-  <circle cx="37.4" cy="26.6" r="7.1" fill="#e8752a"/>
-  <g fill="none" stroke="#8f4414" stroke-width="1.6" stroke-linecap="round" opacity=".8">
-    <path d="M32 22.6a7.1 7.1 0 0 1 9.8 1.4"/>
-    <path d="M33.3 31.9a7.1 7.1 0 0 0 9.7-6.4"/>
+  <!-- The tape ball, in the air and about to arrive: clear of the stumps so
+       all three still read at 16px, and shadowed onto the ground so it is
+       above it rather than pasted on it. -->
+  <ellipse cx="37.6" cy="40.2" rx="4.8" ry="1.45" fill="#05170f" opacity=".55" filter="url(#cast)"/>
+  <circle cx="37.6" cy="29.8" r="6.2" fill="url(#tape)"/>
+  <!-- Electrical tape wound round a tennis ball: you see its edges, so they
+       curve with the sphere and stop where it turns away. -->
+  <g clip-path="url(#ball)" fill="none" stroke="#8f3d06" stroke-linecap="round">
+    <path d="M30.9 26.7q6.8-2 13.2 1" stroke-width=".92" opacity=".5"/>
+    <path d="M31 30.8q6.6-2.1 13 .9" stroke-width="1" opacity=".55"/>
+    <path d="M32.1 34.5q5.7-2 11 .8" stroke-width=".92" opacity=".45"/>
   </g>
+  <ellipse cx="35.2" cy="27.1" rx="2.1" ry="1.5" fill="#fff" opacity=".27"
+           transform="rotate(-30 35.2 27.1)"/>
 </svg>

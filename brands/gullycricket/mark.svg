@@ -2,23 +2,47 @@
 <!-- Gully Cricket, for light surfaces: the page header, a share card, a
      favicon on a white tab strip.
 
-     Same wicket as the app icon, but chalk is the wrong colour without the
-     wall behind it, so the stumps take the brand's deep green instead. -->
+     The same wicket and the same ball as the app icon, in the same places, so
+     the two are one drawing in two lights rather than two drawings. What
+     changes is what carries it: chalk is the wrong colour without the wall
+     behind it, so the stumps take the brand's deep green.
+
+     It is also the source of badge.png, which Chrome masks down to a
+     silhouette — so every part of this has to say something in alpha alone.
+     Three bars and a disc do; a glow would not, which is why the dust the
+     icon uses is not here. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Gully Cricket">
-  <g fill="none" stroke="#1b4d3e" stroke-width="3.3" stroke-linecap="round">
-    <path d="M12.6 10.8 12.1 33.8"/>
-    <path d="M21 10.2 21 34"/>
-    <path d="M29.4 10.8 29.9 33.8"/>
+  <defs>
+    <radialGradient id="tape" cx="32%" cy="27%" r="80%">
+      <stop offset="0" stop-color="#f3934a"/>
+      <stop offset=".45" stop-color="#e8752a"/>
+      <stop offset=".85" stop-color="#c85c1b"/>
+      <stop offset="1" stop-color="#a44a12"/>
+    </radialGradient>
+    <clipPath id="ball"><circle cx="37.6" cy="29.8" r="6.2"/></clipPath>
+  </defs>
+
+  <!-- Three stumps, chalked: not parallel, not the same height, because
+       nobody draws them straight. No bails — chalk never has any. -->
+  <g fill="none" stroke="#1b4d3e" stroke-linecap="round">
+    <g stroke-width="3.1">
+      <path d="M13.2 11.4q-.9 11.8-.6 23.8" opacity=".88"/>
+      <path d="M20.6 10.6q.4 12.4-.1 24.6"/>
+      <path d="M28 11.3q1 11.7.7 23.6" opacity=".84"/>
+    </g>
+    <!-- The crease. Lighter than the stumps on a page, where there is no wall
+         to lose it against. -->
+    <path d="M5.6 39.8c10.4-1.9 26.6-2 36.8-.2" stroke-width="1.7" opacity=".45"/>
   </g>
 
-  <path d="M5.5 39.4c10-1.8 27-1.8 37 0" fill="none" stroke="#1b4d3e" stroke-width="2" stroke-linecap="round" opacity=".42"/>
-
-  <!-- The ball sits on its own pale ring so it stays separate from the stump
-       behind it when the whole mark is 16 pixels wide. -->
-  <circle cx="37.4" cy="26.6" r="8.3" fill="#fdf7f2"/>
-  <circle cx="37.4" cy="26.6" r="7.1" fill="#e8752a"/>
-  <g fill="none" stroke="#8f4414" stroke-width="1.6" stroke-linecap="round" opacity=".8">
-    <path d="M32 22.6a7.1 7.1 0 0 1 9.8 1.4"/>
-    <path d="M33.3 31.9a7.1 7.1 0 0 0 9.7-6.4"/>
+  <circle cx="37.6" cy="29.8" r="6.2" fill="url(#tape)"/>
+  <!-- Electrical tape wound round a tennis ball: you see its edges, so they
+       curve with the sphere and stop where it turns away. -->
+  <g clip-path="url(#ball)" fill="none" stroke="#8f3d06" stroke-linecap="round">
+    <path d="M30.9 26.7q6.8-2 13.2 1" stroke-width=".92" opacity=".45"/>
+    <path d="M31 30.8q6.6-2.1 13 .9" stroke-width="1" opacity=".5"/>
+    <path d="M32.1 34.5q5.7-2 11 .8" stroke-width=".92" opacity=".4"/>
   </g>
+  <ellipse cx="35.2" cy="27.1" rx="2.1" ry="1.5" fill="#fff" opacity=".24"
+           transform="rotate(-30 35.2 27.1)"/>
 </svg>
