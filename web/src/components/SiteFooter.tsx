@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/BrandMark";
 import { brand } from "@/brand.generated";
 import { getT } from "@/lib/i18n/server";
 import { appVersion } from "@/lib/version";
@@ -20,7 +21,10 @@ export async function SiteFooter() {
     <footer className="site-foot">
       <div className="site-foot-in">
         <div className="site-foot-brand">
-          <p className="site-foot-name">{brand.name}</p>
+          <p className="site-foot-name">
+            <BrandMark size={36} />
+            {brand.name}
+          </p>
           <p className="muted">{t("foot.blurb")}</p>
         </div>
 

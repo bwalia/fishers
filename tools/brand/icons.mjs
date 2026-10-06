@@ -52,6 +52,10 @@ const SIZES = [
   ["icon", 1024, "icon-1024.png", { opaque: true }],
   ["icon", 512, "icon-512.png"],
   ["mark", 512, "mark-512.png"],
+  // The header mark, for a brand whose artwork is raster. It is drawn at 32
+  // to 48 CSS pixels, so 192 covers a 3x screen — and the source it comes
+  // from is 646KB, which is not a logo, it is a page's whole budget.
+  ["mark", 192, "mark-192.png"],
   // Web: the PWA icon, and the notification badge Chrome masks to a silhouette.
   ["icon", 192, "icon-192.png"],
   ["mark", 96, "badge.png"],

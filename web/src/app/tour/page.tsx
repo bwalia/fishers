@@ -33,7 +33,7 @@ export default async function TourPage() {
     <main id="main" className="tour">
       <section className="tour-hero">
         <p className="lp-brand">
-          <BrandMark size={36} />
+          <BrandMark size={44} />
           <span>{brand.name}</span>
         </p>
         <p className="lp-kicker">{t("tour.video_tour_duration", { duration: TOUR_DURATION })}</p>
