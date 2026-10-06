@@ -3,13 +3,16 @@ env: prod
 hostname: www.fishers.cloud
 replicaCount: 2
 
-ingress:
-  # The bare domain, sent to www by the app. One canonical hostname: two that
-  # both serve the site would split sign-in (Google authorises origins, and a
-  # session cookie set on one is not sent to the other) and have search engines
-  # pick a favourite for us.
-  redirectHosts:
-    - fishers.cloud
+# The bare domain is sent to www by the app — one canonical hostname, because
+# two that both serve the site would split sign-in (Google authorises origins,
+# and a session cookie set on one is not sent to the other) and let search
+# engines pick a favourite for us.
+#
+# It is NOT set here. An apex belongs to a domain, and this file does not know
+# which domain it is deploying: naming fishers.cloud in a ring file gave every
+# brand's prod ingress Fishers' apex, so GullyCricket claimed a host it does not
+# own and never claimed gullycricket.app. tools/brand emits it per brand, and
+# the overlay is applied after this file.
 
 # Whether Kong stands in front of the API is a per-brand fact, not a per-ring
 # one — the gateway's Service lives in the brand's own namespace. It is set in

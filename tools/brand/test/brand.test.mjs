@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkContrast, listBrands, loadBrand, BrandError } from "../src/brand.mjs";
 import { validate } from "../src/schema.mjs";
+import { parse as parseYaml } from "yaml";
 import { webAssets, webFiles } from "../src/targets/web.mjs";
 import { androidFiles } from "../src/targets/android.mjs";
 import { iosFiles } from "../src/targets/ios.mjs";
@@ -472,6 +473,40 @@ test("the header mark is served from the file the brand actually has", () => {
       String(ts.contents).includes(`"markSrc": "/${name}"`),
       `${id}: brand.generated.ts does not point at ${name}`,
     );
+  }
+});
+
+/**
+ * An apex belongs to a domain, so it cannot live in a ring's values file. One
+ * did: values-prod.yaml named a brand's bare domain outright, which gave every
+ * brand's prod ingress that same apex. The brand that did not own it answered
+ * 404 on its own domain, and two Ingresses in two namespaces claimed one
+ * hostname with only Traefik to choose between them.
+ */
+test("every brand's prod ring carries its own apex and no one else's", () => {
+  const brands = listBrands(repoRoot).map((id) => loadBrand(repoRoot, id));
+  for (const brand of brands) {
+    const prod = parseYaml(helmValues(brand, "prod"));
+    assert.deepEqual(
+      prod.ingress.redirectHosts,
+      [brand.domain],
+      `${brand.id} prod should redirect exactly its own apex`,
+    );
+    const theirs = brands.filter((b) => b.id !== brand.id).map((b) => b.domain);
+    for (const other of theirs) {
+      assert.ok(
+        !prod.ingress.redirectHosts.includes(other),
+        `${brand.id} prod claims ${other}`,
+      );
+    }
+    // Only prod has a bare domain beside its www.
+    for (const ring of Object.keys(brand.rings).filter((r) => r !== "prod")) {
+      assert.deepEqual(
+        parseYaml(helmValues(brand, ring)).ingress.redirectHosts,
+        [],
+        `${brand.id} ${ring} should carry no apex`,
+      );
+    }
   }
 });
 

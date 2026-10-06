@@ -29,6 +29,9 @@ export function helmValues(brand, ring) {
   // no value: the TLS secret is named from the chart and isolated by the
   // namespace already, so setting it here would look like it mattered.
   const gateway = brand.gateway.includes(ring);
+  // Everything this ring answers on except its canonical host — today that is
+  // the apex, and only on prod.
+  const redirects = edgeHostsFor(brand, ring).filter((h) => h !== host);
   return `# ${ring} — generated from brands/${brand.id}.yaml by tools/brand. Do not edit.
 #
 # Only what differs by brand. The ring's own values file carries everything
@@ -48,6 +51,17 @@ hostname: ${host}
   }
 kong:
   enabled: ${gateway}
+
+# The hostnames that land on this ring and are sent to the canonical one.
+#
+# Brand-level, because an apex belongs to a domain and a ring file cannot know
+# which domain it is deploying. It used to be named in values-prod.yaml, which
+# gave every brand the same apex: one brand answered 404 on its own domain
+# while two Ingresses in two namespaces claimed the other's.
+#
+# A list, so Helm replaces the ring's value rather than merging into it.
+ingress:
+  redirectHosts:${redirects.length ? "\n" + redirects.map((h) => `    - ${h}`).join("\n") : " []"}
 `;
 }
 
