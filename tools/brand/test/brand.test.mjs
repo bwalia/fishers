@@ -450,6 +450,31 @@ test("every brand in this repo supplies its own icons", () => {
   }
 });
 
+/**
+ * A brand drawn as vector and a brand whose logo arrived as artwork both have
+ * to reach the header, and the component cannot guess which: a browser will
+ * not render a PNG that is served as mark.svg. So whichever file the brand has
+ * is the one copied, and the path it lands at is generated into
+ * brand.generated.ts rather than written into the component.
+ */
+test("the header mark is served from the file the brand actually has", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    const mark = webAssets(brand, repoRoot)
+      .map((f) => f.path)
+      .find((p) => /mark\.(svg|png)$/.test(p));
+    assert.ok(mark, `${id} copies no mark at all`);
+    const name = mark.slice(mark.lastIndexOf("/") + 1);
+    const ts = webFiles(brand, repoRoot).find((f) =>
+      f.path.endsWith("brand.generated.ts"),
+    );
+    assert.ok(
+      String(ts.contents).includes(`"markSrc": "/${name}"`),
+      `${id}: brand.generated.ts does not point at ${name}`,
+    );
+  }
+});
+
 test("no two brands ship the same icon", () => {
   const seen = new Map();
   for (const id of listBrands(repoRoot)) {

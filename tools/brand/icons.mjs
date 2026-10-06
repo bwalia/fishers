@@ -13,11 +13,30 @@
  * same reason: CI installs with --omit=dev and never sees it.
  */
 import { existsSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { listBrands, loadBrand } from "./src/brand.mjs";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+/**
+ * Where a brand's drawing lives.
+ *
+ * SVG first, because it is the only form that is still sharp at 1024 and the
+ * only one worth editing. PNG is accepted because a brand's logo does not
+ * always arrive as one: GullyCricket's came as 2000px artwork, and demanding a
+ * redraw before it could ship would have meant redrawing somebody else's logo,
+ * which is the one thing this file already refuses to do.
+ *
+ * Whichever is there is used. If both are, the drawing wins.
+ */
+function sourceFile(dir, source) {
+  for (const ext of ["svg", "png"]) {
+    const path = join(dir, `${source}.${ext}`);
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
 
 /**
  * What comes out of which drawing.
@@ -62,11 +81,13 @@ async function main() {
   for (const id of brands) {
     const brand = loadBrand(repoRoot, id);
     const dir = join(repoRoot, "brands", id);
+    const sources = {};
     for (const source of ["mark", "icon"]) {
-      if (!existsSync(join(dir, `${source}.svg`))) {
+      sources[source] = sourceFile(dir, source);
+      if (!sources[source]) {
         console.error(
-          `${brand.name} has no ${source}.svg. Both drawings are the brand's own —` +
-            ` a fallback here ships somebody else's mark.`,
+          `${brand.name} has no ${source}.svg or ${source}.png. Both drawings are` +
+            ` the brand's own — a fallback here ships somebody else's mark.`,
         );
         return 1;
       }
@@ -77,14 +98,16 @@ async function main() {
       // density, not the default 72dpi: sharp rasterises the SVG at that
       // density and *then* resizes, so a 1024px icon off a 48pt viewBox comes
       // out of a 72dpi render upscaled and soft.
-      let image = sharp(join(dir, `${source}.svg`), { density: 600 }).resize(size, size);
+      let image = sharp(sources[source], { density: 600 }).resize(size, size);
       // Onto the brand's page colour, so a drawing with transparent corners
       // sits on the brand rather than on black.
       if (opaque) image = image.flatten({ background: brand.source.surface }).removeAlpha();
       await image
         .png({ compressionLevel: 9 })
         .toFile(join(dir, name));
-      console.log(`  ${brand.name.padEnd(14)} ${name.padEnd(16)} ${size}px from ${source}.svg`);
+      console.log(
+        `  ${brand.name.padEnd(14)} ${name.padEnd(16)} ${size}px from ${basename(sources[source])}`,
+      );
     }
   }
   return 0;
