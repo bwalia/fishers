@@ -60,8 +60,20 @@ permissions:
   contents: read
   packages: write
 
+# Per commit AND per brand set, because `image_tag` is `latest` for every
+# caller — so this was ONE queue for every build in the repository. GitHub
+# keeps at most one pending run per group and cancels the previous one when a
+# third joins, so promoting GullyCricket and then Fishers sixteen seconds
+# apart, while a merge-to-main build held the queue, cancelled the GullyCricket
+# promote outright: run 37427942372, whose build job was cancelled at 07:10:01,
+# the same second the Fishers promote's build job joined.
+#
+# Two brands are two different dashboard images and have no reason to wait for
+# each other. What this still serialises is the thing worth serialising: two
+# builds of the same commit for the same brands, which would push identical
+# tags twice over.
 concurrency:
-  group: build-images-${{ inputs.image_tag || 'latest' }}
+  group: build-images-${{ inputs.ref }}-${{ inputs.brands || 'fishers' }}
   cancel-in-progress: false
 
 jobs:

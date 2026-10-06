@@ -85,6 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.pick.outputs.sha }}
+      build: ${{ steps.pick.outputs.build }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -107,20 +108,20 @@ jobs:
           SHA=$(git rev-parse HEAD)
           summary() { echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
 
-          # int and test build this commit themselves.
-          if [ "$RING" = int ] || [ "$RING" = test ]; then
-            echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-            summary "Deploying \`$SHA\` to **$BRAND $RING** (built by this run)."
-            exit 0
-          fi
-
-          # acc and prod deploy a build that already exists — look for it.
+          # The registry is the only thing that knows whether a commit was
+          # ever built, so ask it before deciding anything — including for int
+          # and test, which used to build unconditionally.
+          #
+          # Tolerated here rather than fatal: a ring whose registry credentials
+          # are missing can still have int and test build the commit
+          # themselves, which is what they did before this check existed. acc
+          # and prod cannot, and say so below.
           if [ "$PROVIDER" = GHCR ]; then
             HOST=ghcr.io; NS="ghcr.io/${{ github.repository_owner }}"
-            echo "$GHCR_PASS" | docker login "$HOST" -u "${{ github.actor }}" --password-stdin >/dev/null
+            echo "$GHCR_PASS" | docker login "$HOST" -u "${{ github.actor }}" --password-stdin >/dev/null && LOGGED_IN=1 || LOGGED_IN=0
           else
             HOST="$NEBULA_HOST"; NS="$HOST/fishers"
-            echo "$NEBULA_PASS" | docker login "$HOST" -u "$NEBULA_USER" --password-stdin >/dev/null
+            echo "$NEBULA_PASS" | docker login "$HOST" -u "$NEBULA_USER" --password-stdin >/dev/null && LOGGED_IN=1 || LOGGED_IN=0
           fi
           # The API image is shared — one binary, pointed at each brand's own
           # database — but the dashboard is not: the brand is baked into the
@@ -128,9 +129,36 @@ jobs:
           # here would have let a GullyCricket promote to acc or prod pass this
           # gate on Fishers' build and then pull an image nothing had pushed.
           built() {
+            [ "$LOGGED_IN" = 1 ] || return 1
             docker manifest inspect "$NS/fishers-api:$1" >/dev/null 2>&1 &&
               docker manifest inspect "$NS/$BRAND-web:$1" >/dev/null 2>&1
           }
+
+          # int and test build the commit themselves — unless it is already
+          # built, which on main it almost always is: cd-int builds every
+          # merge. Rebuilding it pushed the identical image a second time and,
+          # worse, queued behind whatever build was already running, which is
+          # how one promote came to cancel another.
+          #
+          # "Build once, promote many" is what the top of this file says; this
+          # is int and test finally obeying it too.
+          if [ "$RING" = int ] || [ "$RING" = test ]; then
+            echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+            if built "$SHA"; then
+              echo "build=false" >> "$GITHUB_OUTPUT"
+              summary "Deploying \`$SHA\` to **$BRAND $RING** — already built, so this promotes that image rather than making another."
+            else
+              echo "build=true" >> "$GITHUB_OUTPUT"
+              summary "Deploying \`$SHA\` to **$BRAND $RING** (no images for it yet, so this run builds them)."
+            fi
+            exit 0
+          fi
+
+          if [ "$LOGGED_IN" != 1 ]; then
+            echo "::error::could not sign in to $HOST, so there is no way to tell whether $SHA was ever built."
+            echo "::error::$RING deploys an existing image and will not guess. Check NEBULACR_USERNAME / NEBULACR_PASSWORD (or GHCR_TOKEN)."
+            exit 1
+          fi
 
           # A merge that only touches docs, markdown or the iOS app builds
           # nothing (cd-int ignores those paths), so the newest commit on main
@@ -154,6 +182,9 @@ jobs:
           done
 
           echo "sha=$PICK" >> "$GITHUB_OUTPUT"
+          # acc and prod never build: the loop above only ends on a commit the
+          # registry already has.
+          echo "build=false" >> "$GITHUB_OUTPUT"
           summary "Deploying \`$PICK\` to **$BRAND $RING**: $(git log -1 --format=%s "$PICK")"
           [ "$PICK" = "$SHA" ] || summary "(\`$SHA\` was asked for; the commits after \`$PICK\` change only docs or the iOS app.)"
           summary ""
@@ -170,10 +201,13 @@ jobs:
       soft_fail: true
     secrets: inherit
 
-  # int and test build. acc and prod deploy what those builds produced.
+  # Only when the commit has no images yet. acc and prod never reach this —
+  # resolve refuses a commit they cannot find a build for — and int and test
+  # skip it whenever cd-int has already built the commit, which for anything
+  # merged to main is the normal case.
   build-images:
     needs: [resolve]
-    if: ${{ github.event.inputs.ENV == 'int' || github.event.inputs.ENV == 'test' }}
+    if: ${{ needs.resolve.outputs.build == 'true' }}
     uses: ./.github/workflows/build-images.yml
     with:
       ref: ${{ needs.resolve.outputs.sha }}

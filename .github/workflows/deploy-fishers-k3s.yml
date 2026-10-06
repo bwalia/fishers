@@ -89,8 +89,17 @@ on:
 permissions:
   contents: read
 
+# Per brand as well as per ring. Each brand is its own namespace, its own
+# database and its own helm release, so a GullyCricket deploy has nothing to
+# serialise against a Fishers one — and sharing a lock made them queue: in
+# cd-int run 37427753421, "Deploy fishers int" sat pending while "Deploy
+# gullycricket int" ran, doubling the time a merge takes to reach int and
+# leaving a pending deploy for a third run to cancel.
+#
+# Never cancel-in-progress, whatever the key: an interrupted helm upgrade
+# leaves the release in pending-upgrade, which blocks the next one.
 concurrency:
-  group: fishers-deploy-${{ inputs.target_env }}
+  group: fishers-deploy-${{ inputs.brand || 'fishers' }}-${{ inputs.target_env }}
   cancel-in-progress: false
 
 jobs:
