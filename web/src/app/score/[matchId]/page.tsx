@@ -2610,6 +2610,24 @@ function LivePanel({
   /// The last ball a line was asked for, so a sync settling does not ask
   /// again for one already in flight or answered.
   const askedAbout = useRef<string | null>(null);
+  /// How many lines are being written right now.
+  ///
+  /// This used to be an AbortController cancelled whenever the effect re-ran,
+  /// which is every ball AND every time `synced` flickers through "syncing".
+  /// That was fine while a line took eight seconds and fatal once it took
+  /// twenty-two: the scorer's next tap cancelled the Punjabi line every time,
+  /// so the feature worked in English, worked under test, and never once
+  /// worked for a Punjabi scorer in a real over.
+  ///
+  /// A late line is not a wasted one — `aiLines` is keyed by ball, so it lands
+  /// against the delivery it describes however long it took. What the abort
+  /// was really protecting is still protected, by counting instead of
+  /// cancelling: a browser keeps six connections to a host over plain http (a
+  /// ground's LAN), the live stream holds one, and the scorer's own event
+  /// POSTs must never queue behind commentary. Two in the air at once is the
+  /// most this will risk; a third ball is simply not asked about, and the
+  /// effect picks it up when one finishes.
+  const linesInFlight = useRef(0);
   useEffect(() => {
     if (!aiOn) return;
     const last = (inn.deliveries || [])[ballCount - 1];
@@ -2622,24 +2640,19 @@ function LivePanel({
     if (!synced) return;
     const key = `${last.over}.${last.ball_in_over}.${last.label}`;
     if (askedAbout.current === key) return;
+    // Left unset on purpose when the line is not asked for, so the ball is
+    // still owed one and the next run of this effect offers it again.
+    if (linesInFlight.current >= 2) return;
     askedAbout.current = key;
+    linesInFlight.current += 1;
     // Fire and forget: a model takes seconds and the ball is already recorded,
     // so nothing waits on this and a failure leaves the written line in place.
-    //
-    // Cancelled, not just ignored, when the next ball arrives. A browser keeps
-    // six connections to a host over plain http (a ground's LAN), the live
-    // stream holds one, and lines still being written for old balls filled the
-    // rest — so the next ball queued behind them and the scorer's taps stalled.
-    const ctl = new AbortController();
     api<{ line: string | null; model: string | null }>(
       "POST",
       `/cricket/matches/${match.id}/commentary`,
       // The language goes with the request, not the response: the model writes
       // the line, so it has to know which language to write it in.
-      { over: last.over, ball_in_over: last.ball_in_over, lang: locale },
-      true,
-      false,
-      ctl.signal
+      { over: last.over, ball_in_over: last.ball_in_over, lang: locale }
     )
       .then((r) => {
         if (r.line) {
@@ -2652,11 +2665,10 @@ function LivePanel({
         // model did not answer.
         setAiStatus(r.model ? "unreachable" : "no_model");
       })
-      .catch(() => {
-        // An abort is this effect cleaning up after itself, not a failure.
-        if (!ctl.signal.aborted) setAiStatus("unreachable");
+      .catch(() => setAiStatus("unreachable"))
+      .finally(() => {
+        linesInFlight.current -= 1;
       });
-    return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ballCount, match.id, locale, aiOn, synced]);
 

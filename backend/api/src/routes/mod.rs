@@ -34,6 +34,12 @@ pub fn live_router() -> Router<AppState> {
     live::router()
 }
 
+/// Commentary, kept apart for the same reason: it waits on a language model,
+/// not on the database.
+pub fn slow_router() -> Router<AppState> {
+    cricket::slow_router()
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(|| async { "ok" }))

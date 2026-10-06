@@ -81,6 +81,15 @@ async fn main() -> anyhow::Result<()> {
             std::time::Duration::from_secs(30),
         ))
         .merge(routes::live_router())
+        // Same reasoning as the stream above, different number: commentary
+        // waits on a model rather than on a database, and a 504 at thirty
+        // seconds costs the line that was nearly ready.
+        .merge(
+            routes::slow_router().layer(TimeoutLayer::with_status_code(
+                axum::http::StatusCode::GATEWAY_TIMEOUT,
+                std::time::Duration::from_secs(60),
+            )),
+        )
         .layer(cors_layer())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -158,5 +167,25 @@ fn cors_layer() -> CorsLayer {
     } else {
         tracing::info!(count = configured.len(), "CORS origins allowed");
         layer.allow_origin(AllowOrigin::list(configured))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// main() merges four routers into one table, and axum decides at
+    /// construction time whether their paths can coexist — by panicking if
+    /// they cannot. Commentary is the reason this matters now: it is routed
+    /// outside the shared `/api/v1` nest so it can carry a longer timeout,
+    /// and a path that collides with the nest would not be a failing request,
+    /// it would be an API that does not start. One assertion, no database.
+    #[test]
+    fn every_router_merges_into_one_table() {
+        let _: Router<AppState> = Router::new()
+            .merge(docs::router())
+            .merge(routes::router())
+            .merge(routes::live_router())
+            .merge(routes::slow_router());
     }
 }
