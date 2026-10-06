@@ -99,6 +99,11 @@ export default function ScorerPage({
   /// middle of that would number the next ball from a stale queue.
   const queued = useRef<Record<string, unknown>[]>([]);
   const [sync, setSync] = useState<SyncState>("saved");
+  /// Both team sheets as the clubs hold them, which is the only thing that
+  /// says who on the card is a Fishers player. A guest is a name the scorer
+  /// typed with an id this browser invented, and their profile does not
+  /// exist — so their name on the scorecard stays plain text.
+  const squad = useSquad(matchId);
 
   const load = useCallback(async () => {
     try {
@@ -338,6 +343,10 @@ export default function ScorerPage({
   const nameOf = (id?: string | null) =>
     !id ? "—" : st.player_names[id] || st.player_names[id.toLowerCase()] || id.slice(0, 8);
 
+  const onFishers = new Set(
+    (["home", "away"] as Side[]).flatMap((side) => squad.people(side).map((p) => p.id))
+  );
+
   // Before the first ball the screen is a setup flow, and saying which step
   // you are on is most of what makes it feel like one.
   const isSetup = st.status !== "complete" && st.innings.length === 0;
@@ -498,7 +507,11 @@ export default function ScorerPage({
 
       <CallItOff match={match} onChanged={setMatch} onGone={() => router.push("/score")} />
 
-      <Scorecard st={st} nameOf={nameOf} />
+      <Scorecard
+        st={st}
+        nameOf={nameOf}
+        profile={(id) => (onFishers.has(id) ? `/players/${id}` : null)}
+      />
 
       <p className="muted" style={{ marginTop: "1rem" }}>
         <Link href="/score">{t("ev.all_fixtures_back")}</Link>
