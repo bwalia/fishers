@@ -16,23 +16,41 @@ import { join } from "node:path";
  * shipping another brand's mark, which is worse than a build that stops and
  * says which file to add.
  *
- * `mark.svg` is the drawing; the PNGs are rendered from it and its full-bleed
- * twin by `npm --prefix tools/brand run icons`. The header takes the vector,
- * because it is drawn at three sizes on the same page.
+ * The mark is the drawing; the PNGs are rendered from it and its full-bleed
+ * twin by `npm --prefix tools/brand run icons`. The header takes the source
+ * file itself, because it is drawn at three sizes on the same page — vector
+ * where the brand has one, and the artwork where it does not.
  */
-const ASSETS = ["icon-192.png", "badge.png", "mark.svg"];
+const ASSETS = ["icon-192.png", "badge.png"];
+
+/**
+ * The file the header mark is served from.
+ *
+ * A brand that was drawn has mark.svg; one whose logo arrived as artwork has
+ * mark.png. Which one it is has to reach the component, because a browser
+ * will not serve a PNG named .svg — so it is generated into brand.generated.ts
+ * rather than assumed here.
+ */
+function markAsset(repoRoot, brand) {
+  for (const name of ["mark.svg", "mark.png"]) {
+    if (existsSync(join(repoRoot, "brands", brand.id, name))) return name;
+  }
+  return null;
+}
 
 export function webAssets(brand, repoRoot, outDir) {
   const from = join(repoRoot, "brands", brand.id);
   const to = outDir ? join(outDir, "public") : join(repoRoot, "web", "public");
-  const missing = ASSETS.filter((name) => !existsSync(join(from, name)));
+  const mark = markAsset(repoRoot, brand);
+  const wanted = [...ASSETS, ...(mark ? [mark] : [])];
+  const missing = [...ASSETS.filter((name) => !existsSync(join(from, name))), ...(mark ? [] : ["mark.svg or mark.png"])];
   if (missing.length) {
     throw new Error(
       `${brand.name} has no ${missing.join(", ")}. Put them in brands/${brand.id}/ — ` +
         `a build cannot fall back to another brand's mark.`,
     );
   }
-  return ASSETS.map((name) => ({
+  return wanted.map((name) => ({
     path: join(to, name),
     contents: readFileSync(join(from, name)),
   }));
@@ -50,7 +68,7 @@ export function webFiles(brand, repoRoot, outDir) {
     },
     {
       path: join(web, "src", "brand.generated.ts"),
-      contents: typescript(brand),
+      contents: typescript(brand, markAsset(repoRoot, brand)),
     },
   ];
 }
@@ -108,7 +126,7 @@ function css(brand) {
 `;
 }
 
-function typescript(brand) {
+function typescript(brand, mark) {
   const value = {
     id: brand.id,
     name: brand.name,
@@ -121,6 +139,10 @@ function typescript(brand) {
     // these two have to be here as well as in the stylesheet.
     themeLight: brand.source.surface,
     themeDark: brand.dark.bg,
+    // Where the header mark is served from. A brand that was drawn has a
+    // vector here; one whose logo arrived as artwork has a PNG, and the
+    // component must not have to know which.
+    markSrc: `/${mark ?? "mark.svg"}`,
   };
   return `/* Generated from brands/${brand.id}.yaml. Do not edit. */
 

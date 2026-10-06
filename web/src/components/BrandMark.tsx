@@ -7,10 +7,11 @@ import { brand } from "@/brand.generated";
 /// to be itself wherever it lands: the top bar, a browser tab, a phone's home
 /// screen, a notification.
 ///
-/// The drawing itself lives in `brands/<id>/mark.svg` and is copied to
-/// `/mark.svg` by the brand generator, so this component holds no artwork. It
-/// used to hold Fishers' cricket ball inline, which is why every other brand
-/// wore it.
+/// The drawing itself lives in `brands/<id>/mark.svg` — or `mark.png`, where a
+/// brand's logo arrived as artwork rather than as a drawing — and the brand
+/// generator copies it and writes the path into `brand.markSrc`. This
+/// component holds no artwork and no file extension: it used to hold Fishers'
+/// cricket ball inline, which is why every other brand wore it.
 export function BrandMark({
   size = 24,
   className,
@@ -23,7 +24,7 @@ export function BrandMark({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/mark.svg"
+      src={brand.markSrc}
       width={size}
       height={size}
       className={className}
