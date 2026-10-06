@@ -42,7 +42,6 @@ pub fn router() -> Router<AppState> {
         )
         .route("/cricket/matches/{id}/handover", post(handover))
         .route("/cricket/matches/{id}/scorer-trail", get(scorer_trail))
-        .route("/cricket/matches/{id}/commentary", post(commentary))
         .route("/cricket/matches/{id}/squad", get(squad))
         .route("/cricket/matches/{id}/xi", post(submit_xi))
         .route("/cricket/matches/{id}/propose", post(propose_terms))
@@ -878,6 +877,19 @@ struct CommentaryResponse {
     /// keeps the line it already has.
     line: Option<String>,
     model: Option<String>,
+}
+
+/// Commentary on its own router, so main.rs can give it a budget of its own.
+///
+/// Every other route here answers out of the database in milliseconds, and the
+/// thirty second cap over the rest of the API is right for exactly that. This
+/// one waits on a language model: on int the English line takes around eight
+/// seconds and the Punjabi one twenty-two, and on a busy host thirty-five.
+/// Under the shared cap that arrives as a 504 and the scoreboard keeps the
+/// line the scorebook wrote — which is the feature looking switched off, for
+/// no reason except the ceiling above it.
+pub fn slow_router() -> Router<AppState> {
+    Router::new().route("/api/v1/cricket/matches/{id}/commentary", post(commentary))
 }
 
 /// A line of colour for one ball.

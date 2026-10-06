@@ -217,6 +217,17 @@ impl Ollama {
         }
         let response = match request.json(&body).send().await {
             Ok(r) => r,
+            // Told apart because reqwest words its own timeout exactly like a
+            // refused connection — "error sending request for url (…)" — and
+            // that one string has now twice sent somebody reading routing
+            // tables and firewall rules while the model was merely slow.
+            Err(e) if e.is_timeout() => {
+                warn!(
+                    "ollama did not answer within OLLAMA_TIMEOUT_SECS ({e}) — \
+                     slow or busy, not unreachable"
+                );
+                return None;
+            }
             Err(e) => {
                 warn!("ollama unreachable: {e}");
                 return None;

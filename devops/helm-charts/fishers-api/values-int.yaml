@@ -40,13 +40,26 @@ config:
   # beats parameter count on this hardware, so check /api/ps before changing
   # this line.
   ollamaModel: "qwen3.8:latest"
-  # Under the API's own 30-second ceiling, deliberately. main.rs wraps every
-  # route in a TimeoutLayer that answers 504 at 30s, so a longer limit here
-  # cannot be reached: the request is killed before this client gives up, and
-  # the scorer gets a gateway error instead of a screen saying the model had
-  # nothing to say. Measured against this gateway, a line takes 16s warm and
-  # 23s cold, so 25 leaves the margin where it is useful.
-  ollamaTimeoutSecs: "25"
+  # 45, not 25, and the reason the old number existed is gone: main.rs used to
+  # wrap EVERY route in a 30-second TimeoutLayer, so anything above ~28 here
+  # could never be reached. Commentary now has a router of its own with 60
+  # seconds, because it waits on a model rather than on the database.
+  #
+  # 25 was fine for English and was never enough for Punjabi, which is the
+  # whole of why commentary worked when it was tested and not when it was
+  # used. Measured from inside gullycricket-int against this model, same ball,
+  # same prompts as the code sends:
+  #
+  #   English only  (num_predict 80)    7.9s
+  #   English + Punjabi (JSON, 220)     21.6s, and 35.2s with the host busy
+  #
+  # Gurmukhi costs several tokens per word, so the bilingual answer is most of
+  # a minute's worth of generation on a bad day. At 25 it tipped over the edge
+  # and reqwest reported its own timeout in the same words it uses for a
+  # refused connection, so the log said "unreachable" about a model that was
+  # answering fine. 45 clears the measured worst case and still sits inside
+  # the route's 60.
+  ollamaTimeoutSecs: "45"
   # The gateway answers 403 to an unsigned request, which reaches the app as
   # a model with nothing to say. OLLAMA_API_KEY is not a bearer token and is
   # never sent as one: the API signs a 120-second HS256 JWT with it per
