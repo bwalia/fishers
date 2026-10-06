@@ -18,8 +18,12 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: brand.themeLight,
     theme_color: brand.themeLight,
     orientation: "any",
+    // No SVG entry: a brand's artwork is not always a drawing, and the one
+    // that used to be here was a single committed file every brand wore.
+    // These are copied out of brands/<id>/ per build, so each brand installs
+    // as itself.
     icons: [
-      { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
     ],

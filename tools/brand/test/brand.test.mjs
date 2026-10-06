@@ -444,7 +444,7 @@ test("every brand in this repo supplies its own icons", () => {
   for (const id of listBrands(repoRoot)) {
     const brand = loadBrand(repoRoot, id);
     const files = webAssets(brand, repoRoot);
-    assert.equal(files.length, 3, `${id} is missing an asset`);
+    assert.equal(files.length, 4, `${id} is missing an asset`);
     for (const f of files) {
       assert.ok(f.contents.length > 0, `${id}: ${f.path} is empty`);
     }
@@ -463,7 +463,7 @@ test("the header mark is served from the file the brand actually has", () => {
     const brand = loadBrand(repoRoot, id);
     const mark = webAssets(brand, repoRoot)
       .map((f) => f.path)
-      .find((p) => /mark\.(svg|png)$/.test(p));
+      .find((p) => /\/mark(-\d+)?\.(svg|png)$/.test(p));
     assert.ok(mark, `${id} copies no mark at all`);
     const name = mark.slice(mark.lastIndexOf("/") + 1);
     const ts = webFiles(brand, repoRoot).find((f) =>
@@ -507,6 +507,59 @@ test("every brand's prod ring carries its own apex and no one else's", () => {
         `${brand.id} ${ring} should carry no apex`,
       );
     }
+  }
+});
+
+/**
+ * The browser tab and the iOS home screen used to come from one icon.svg
+ * committed under web/src/app, so every brand wore whichever brand drew it —
+ * GullyCricket's tab showed Fishers' ball. They are generated per brand now,
+ * and this is what keeps them that way.
+ */
+test("the tab and home-screen icons come from the brand's own artwork", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    const files = webFiles(brand, repoRoot);
+    for (const [out, src] of [
+      ["icon.png", "icon-192.png"],
+      ["apple-icon.png", "icon-512.png"],
+    ]) {
+      const written = files.find((f) => f.path.endsWith(`app/${out}`));
+      assert.ok(written, `${id} generates no ${out}`);
+      assert.ok(
+        written.contents.equals(
+          readFileSync(join(repoRoot, "brands", id, src)),
+        ),
+        `${id}: ${out} is not that brand's ${src}`,
+      );
+    }
+  }
+});
+
+/**
+ * A mark drawn for a light page has nothing to stand on when the page is dark:
+ * GullyCricket's is navy on transparent, and in dark mode it was not faint, it
+ * was absent. The dark one is the brand's full-bleed icon — and it has to be a
+ * file the web build actually copies, or the fix is a 404 that only shows up
+ * for people using dark mode.
+ */
+test("the dark mark points at a file the web build ships", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    const shipped = webAssets(brand, repoRoot).map((f) =>
+      f.path.slice(f.path.lastIndexOf("/") + 1),
+    );
+    const ts = String(
+      webFiles(brand, repoRoot).find((f) =>
+        f.path.endsWith("brand.generated.ts"),
+      ).contents,
+    );
+    const named = ts.match(/"markSrcDark": "\/([^"]+)"/);
+    assert.ok(named, `${id} has no markSrcDark`);
+    assert.ok(
+      shipped.includes(named[1]),
+      `${id}: markSrcDark is /${named[1]}, which the web build does not copy`,
+    );
   }
 });
 

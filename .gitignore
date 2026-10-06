@@ -79,3 +79,7 @@ ios/Fishers/Resources/Assets.xcassets/AppIcon.appiconset/
 ios/Fishers/Resources/Assets.xcassets/BrandLogo.imageset/
 ios/Fishers/Resources/Assets.xcassets/BrandMark.imageset/
 tools/brand/node_modules/
+web/src/app/icon.png
+web/src/app/apple-icon.png
+web/public/icon-512.png
+web/public/mark-192.png
