@@ -135,10 +135,10 @@ jobs:
           }
 
           # int and test build the commit themselves — unless it is already
-          # built, which on main it almost always is: cd-int builds every
-          # merge. Rebuilding it pushed the identical image a second time and,
-          # worse, queued behind whatever build was already running, which is
-          # how one promote came to cancel another.
+          # built, which on main it almost always is: the merge-to-main build
+          # makes one for every commit. Rebuilding it pushed the identical
+          # image a second time and, worse, queued behind whatever build was
+          # already running, which is how one promote came to cancel another.
           #
           # "Build once, promote many" is what the top of this file says; this
           # is int and test finally obeying it too.
@@ -161,7 +161,7 @@ jobs:
           fi
 
           # A merge that only touches docs, markdown or the iOS app builds
-          # nothing (cd-int ignores those paths), so the newest commit on main
+          # nothing (build-on-main ignores those paths), so the newest commit on main
           # can have no images of its own. Step back over exactly those commits
           # — and nothing else: a commit that changes what runs and has no
           # images is a failed or unfinished build, and deploying the one before
@@ -172,7 +172,7 @@ jobs:
             if [ -n "$RUNS" ]; then
               echo "::error::No images for $PICK, and it changes what runs:"
               echo "$RUNS" | head -20 | sed 's/^/  /'
-              echo "::error::Let its int build finish (CD — deploy int on merge to main), or deploy it to int or test first."
+              echo "::error::Let its build finish (Build and push on merge to main), or deploy it to int or test first."
               exit 1
             fi
             PREV=$(git rev-parse --verify -q "$PICK^1") || {
@@ -203,7 +203,7 @@ jobs:
 
   # Only when the commit has no images yet. acc and prod never reach this —
   # resolve refuses a commit they cannot find a build for — and int and test
-  # skip it whenever cd-int has already built the commit, which for anything
+  # skip it whenever the merge-to-main build has already made the commit, which for anything
   # merged to main is the normal case.
   build-images:
     needs: [resolve]

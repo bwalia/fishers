@@ -36,10 +36,17 @@ on:
         description: "Post the result to Slack"
         type: boolean
         default: true
-  # After int is deployed, test what was deployed.
-  workflow_run:
-    workflows: ["CD — deploy int on merge to main"]
-    types: [completed]
+  # There used to be a workflow_run trigger here, firing after the merge-to-main
+  # workflow deployed int. That workflow no longer deploys anything — main
+  # builds and pushes, and Ring Promoter decides what reaches a ring — so
+  # running on it would have tested whatever int happened to be on, which is
+  # the version BEFORE the one that was just built. A green tick for code that
+  # is not there is worse than no tick.
+  #
+  # So int is tested nightly and whenever somebody asks. Wiring it to fire
+  # after a Ring Promoter deploy needs a token the GITHUB_TOKEN cannot
+  # substitute for: a workflow_dispatch made with GITHUB_TOKEN does not start
+  # a run.
   schedule:
     - cron: "30 5 * * *"
 
@@ -55,7 +62,6 @@ concurrency:
 jobs:
   e2e:
     name: Full match (${{ (github.event_name == 'pull_request' || inputs.target == 'ci') && 'ci' || 'int' }})
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:

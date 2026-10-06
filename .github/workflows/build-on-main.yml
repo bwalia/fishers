@@ -1,0 +1,151 @@
+name: Build and push on merge to main
+
+# Every merge to main builds both brands' images and pushes them. It deploys
+# nothing.
+#
+# Deploying is Ring Promoter's job, and only Ring Promoter's: a version goes
+# int -> test -> acc -> prod by somebody choosing it, through a tool that
+# records what it did and can roll it back. A merge that also shipped to int
+# meant int was whatever landed last rather than a version anyone had picked,
+# and it made "what is on int" a question about git history rather than about
+# the promotion log.
+#
+# So this builds, pushes, and says so in Slack with the tag to promote.
+#
+# Images carry two tags: the commit sha, which is what every deploy pins, and
+# :latest, which moves and which nothing deploys (deploy-fishers-k3s.yml
+# refuses a moving tag outright).
+#
+# DNS and the wslproxy vhost are not here either. They belong to a ring, and
+# deploy-single-environment.yml registers them for whichever ring it is
+# deploying — so a ring that has never been deployed gets its edge config the
+# first time somebody promotes into it, rather than from a merge that had no
+# opinion about rings.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      # These cannot change what runs in the cluster, and a ten-minute deploy
+      # for a README edit trains people to ignore the pipeline.
+      - "ios/**"
+      - "android/**"
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
+
+# One build of main at a time. Not cancel-in-progress: both builds push the
+# same :latest, and killing the older one half way through leaves that tag
+# pointing at a layer set nobody assembled on purpose.
+concurrency:
+  group: fishers-build-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # The brand list, from brands/. One place, so adding a brand file is the
+  # whole of adding a brand — not a file plus four workflow edits, three of
+  # which somebody remembers.
+  brands:
+    name: Which brands
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+      space: ${{ steps.list.outputs.space }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          npm ci --omit=dev --prefix tools/brand
+          echo "list=$(node tools/brand/index.mjs list --json)" >> "$GITHUB_OUTPUT"
+          echo "space=$(node tools/brand/index.mjs list | tr '\n' ' ' | xargs)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build images
+    needs: brands
+    uses: ./.github/workflows/build-images.yml
+    with:
+      ref: ${{ github.sha }}
+      image_tag: latest
+      # Every brand in brands/. The dashboard is built per brand because the
+      # brand is baked into the bundle; the API is not, because it is the same
+      # code pointed at a different database.
+      brands: ${{ needs.brands.outputs.space }}
+    secrets: inherit
+
+
+  announce:
+    name: Say what to promote
+    needs: [brands, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Enough history for the tag lookup below to see this commit.
+          fetch-depth: 0
+
+      # Auto Tag cuts vX.Y.Z on this same push, so the two race. The build
+      # takes minutes and the tag takes seconds, which means the tag is nearly
+      # always there by now — but "nearly always" is not a thing to put in a
+      # message telling somebody what to deploy, so it is waited for and the
+      # sha is used if it never arrives.
+      - name: What should be promoted
+        id: what
+        run: |
+          set -euo pipefail
+          version=""
+          for attempt in 1 2 3 4 5 6; do
+            git fetch --tags --force --quiet || true
+            version=$(git tag --points-at HEAD --list 'v[0-9]*' | sort -V | tail -n1)
+            [ -n "$version" ] && break
+            sleep 10
+          done
+          if [ -z "$version" ]; then
+            version="${GITHUB_SHA}"
+            echo "::warning::no v* tag points at this commit yet, so the sha is what to promote."
+          fi
+          {
+            echo "version=$version"
+            echo "subject=$(git log -1 --format=%s | tr -d '"' | cut -c1-120)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        env:
+          VERSION: ${{ steps.what.outputs.version }}
+          BRANDS: ${{ needs.brands.outputs.space }}
+        run: |
+          {
+            echo "### Built and pushed — nothing deployed"
+            echo ""
+            echo "Promote \`$VERSION\` from Ring Promoter."
+            echo ""
+            echo "Brands built: $BRANDS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Quiet rather than failing when the webhook is unset: a fork, or a
+      # repository that has not been given one, should still build.
+      - name: Tell Slack
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          VERSION: ${{ steps.what.outputs.version }}
+          SUBJECT: ${{ steps.what.outputs.subject }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK:-}" ]; then
+            echo "::notice::SLACK_WEBHOOK is not set on this repository, so nobody was told."
+            exit 0
+          fi
+          text=$(printf '*Build and push done — %s*\n%s\n\nNothing is deployed. Deploy this version from Ring Promoter:\nhttps://rp.workstation.co.uk/\n\n<%s|the build>' "$VERSION" "$SUBJECT" "$RUN_URL")
+          jq -nc --arg t "$text" '{text: $t}' > /tmp/slack.json
+          code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
+            -X POST -H 'content-type: application/json' \
+            --data @/tmp/slack.json "$SLACK_WEBHOOK")
+          if [ "$code" != 200 ]; then
+            echo "::error::Slack refused the message (HTTP $code): $(cat /tmp/slack.out)"
+            exit 1
+          fi
+          echo "told Slack about $VERSION"
