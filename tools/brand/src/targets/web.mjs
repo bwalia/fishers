@@ -21,7 +21,7 @@ import { join } from "node:path";
  * file itself, because it is drawn at three sizes on the same page — vector
  * where the brand has one, and the artwork where it does not.
  */
-const ASSETS = ["icon-192.png", "badge.png"];
+const ASSETS = ["icon-192.png", "icon-512.png", "badge.png"];
 
 /**
  * The file the header mark is served from.
@@ -32,7 +32,10 @@ const ASSETS = ["icon-192.png", "badge.png"];
  * rather than assumed here.
  */
 function markAsset(repoRoot, brand) {
-  for (const name of ["mark.svg", "mark.png"]) {
+  // mark-192.png rather than mark.png: the source artwork is the thing the
+  // other sizes are rendered FROM, and shipping it to a browser that draws it
+  // at 32px costs most of a megabyte.
+  for (const name of ["mark.svg", "mark-192.png"]) {
     if (existsSync(join(repoRoot, "brands", brand.id, name))) return name;
   }
   return null;
@@ -61,6 +64,7 @@ export function webFiles(brand, repoRoot, outDir) {
   // because there the tool lives outside the app and would otherwise resolve
   // a repo root that does not contain it.
   const web = outDir ?? join(repoRoot, "web");
+  const from = join(repoRoot, "brands", brand.id);
   return [
     {
       path: join(web, "src", "app", "brand.generated.css"),
@@ -70,6 +74,26 @@ export function webFiles(brand, repoRoot, outDir) {
       path: join(web, "src", "brand.generated.ts"),
       contents: typescript(brand, markAsset(repoRoot, brand)),
     },
+    // The browser tab and the iOS home screen, as Next's app-directory
+    // conventions want them. Generated per brand rather than committed: a
+    // single icon.svg checked in here is one brand's mark worn by every brand,
+    // which is what GullyCricket was serving in its tab — Fishers' ball.
+    //
+    // PNG, not SVG, because a brand's artwork is not always a drawing, and a
+    // favicon is read at 16px where that difference does not survive anyway.
+    // Skipped rather than thrown when the rendered PNGs are not there:
+    // webAssets above already refuses a brand that is missing them, and it
+    // does it by name, so failing twice for one reason only buys a worse
+    // message.
+    ...[
+      ["icon.png", "icon-192.png"],
+      ["apple-icon.png", "icon-512.png"],
+    ]
+      .filter(([, src]) => existsSync(join(from, src)))
+      .map(([out, src]) => ({
+        path: join(web, "src", "app", out),
+        contents: readFileSync(join(from, src)),
+      })),
   ];
 }
 

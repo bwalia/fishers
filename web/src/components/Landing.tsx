@@ -15,7 +15,7 @@ export function Landing() {
         <div className="lp-hero-inner">
           <div className="lp-hero-copy">
             <p className="lp-brand">
-              <BrandMark size={40} />
+              <BrandMark size={56} />
               <span>{brand.name}</span>
             </p>
             <h1>{t("rest.run_the_club_score_the_match")}</h1>

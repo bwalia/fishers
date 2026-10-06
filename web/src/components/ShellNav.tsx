@@ -106,7 +106,7 @@ export function ShellNav() {
           this inner track keeps its contents on the same grid as the page. */}
       <div className="topbar-inner">
       <Link href="/" className="brand">
-        <BrandMark size={24} />
+        <BrandMark size={40} />
         {brand.name}
       </Link>
       {!landing && <>
