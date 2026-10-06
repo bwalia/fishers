@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Put a ring's generated secrets into WSLVault at kv/fishers/<ring>/config.
+# Put a ring's generated secrets into WSLVault at kv/<brand>/<ring>/config.
 #
-#   scripts/vault-seed-ring.sh <int|test|acc|prod>
+#   scripts/vault-seed-ring.sh <int|test|acc|prod> [--brand <name>]
+#
+# --brand defaults to fishers. Every brand is its own stack and reads its own
+# path, so standing up gullycricket's test ring means seeding
+# kv/gullycricket/test/config — generating that brand its OWN JWT_SECRET and S3
+# keys rather than copying Fishers'. Sharing JWT_SECRET would make a token
+# minted by one brand authenticate on the other.
 #
 # Then run "Deploy Single Environment" for that ring. That is the whole of
 # standing a ring up.
@@ -48,14 +54,32 @@
 set -euo pipefail
 
 RING="${1:-}"
-case "$RING" in int|test|acc|prod) ;; *) echo "usage: $0 <int|test|acc|prod> [--rotate-vapid]" >&2; exit 2 ;; esac
+case "$RING" in int|test|acc|prod) ;; *) echo "usage: $0 <int|test|acc|prod> [--brand <name>] [--rotate-vapid]" >&2; exit 2 ;; esac
+shift
 ROTATE_VAPID=false
-[ "${2:-}" = "--rotate-vapid" ] && ROTATE_VAPID=true
+BRAND=fishers
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --rotate-vapid) ROTATE_VAPID=true ;;
+    --brand) BRAND="${2:-}"; shift ;;
+    --brand=*) BRAND="${1#--brand=}" ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# A typo'd brand must not reach the vault: writing kv/fisher/prod/config would
+# succeed, look seeded, and leave the deploy still failing to read the path it
+# actually wants. brands/ is the list, so ask it.
+if [ ! -f "$HERE/../brands/$BRAND.yaml" ]; then
+  echo "no such brand: ${BRAND:-(empty)} — expected brands/$BRAND.yaml" >&2
+  exit 2
+fi
 
 VAULT_ADDR="${VAULT_ADDR:-https://vault.workstation.co.uk}"
-PATH_KV="fishers/$RING/config"
+PATH_KV="$BRAND/$RING/config"
 URL="$VAULT_ADDR/v1/kv/data/$PATH_KV"
-HERE="$(cd "$(dirname "$0")" && pwd)"
 
 for cmd in curl jq openssl; do
   command -v "$cmd" >/dev/null || { echo "needs $cmd" >&2; exit 1; }
