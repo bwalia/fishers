@@ -63,6 +63,14 @@ on:
         required: true
         default: int
         options: [int, test, acc, prod]
+      brand:
+        description: >-
+          Which brand in brands/. The workflow_call path above has always
+          taken this; the dispatch path did not, so running this by hand
+          deployed fishers whatever you meant.
+        type: string
+        required: false
+        default: fishers
       image_tag:
         description: "Commit sha to deploy. Never a moving tag — see 'Refuse a moving tag'."
         type: string
@@ -335,7 +343,7 @@ jobs:
           if [ "$synced" != 1 ]; then
             msg=$(kubectl -n "$NS" get externalsecret fishers-secrets -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || true)
             echo "::error::could not read $VAULT_PATH from the vault: ${msg:-no status yet}"
-            echo "::error::Create it with: scripts/vault-seed-ring.sh $TARGET_ENV"
+            echo "::error::Create it with: scripts/vault-seed-ring.sh $TARGET_ENV --brand $BRAND"
             exit 1
           fi
           echo "  synced $VAULT_PATH"
@@ -366,7 +374,7 @@ jobs:
           done
           if [ -n "$missing" ]; then
             echo "::error::$VAULT_PATH is missing:$missing"
-            echo "::error::scripts/vault-seed-ring.sh $TARGET_ENV adds the missing ones and never overwrites existing keys."
+            echo "::error::scripts/vault-seed-ring.sh $TARGET_ENV --brand $BRAND adds the missing ones and never overwrites existing keys."
             exit 1
           fi
           # A short signing key makes every token on the ring forgeable.

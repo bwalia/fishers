@@ -7,6 +7,12 @@ name: "Deploy Single Environment (build from ref + deploy one ring)"
 #   ENV           <- ring target_env      (int | test | acc | prod)
 #   DEPLOY_BRANCH <- the promoted version (git ref to build and deploy)
 #   DEPLOY_MODE   <- reserved             ("full" = build + deploy)
+#   brand         <- extra_inputs.brand   (fishers | gullycricket)
+#
+# One registered app per brand, both pointed here: Ring Promoter promotes one
+# stack through one pipeline, and a brand IS a stack — own namespace, own
+# database, own vault path, own dashboard image. Nothing below is shared
+# between two brands except the API binary.
 #
 # Build once, promote many. int and test build images from the given ref; acc
 # and prod do not build at all — they deploy an image those builds already
@@ -43,6 +49,19 @@ on:
         type: string
         required: false
         default: "full"
+      brand:
+        description: >-
+          Which brand in brands/ to promote. Each is a whole stack — its own
+          namespace, its own API, its own database, its own vault path — so
+          this picks the deployment, not a skin on a shared one. Ring Promoter
+          sends it as a static extra_input, one registered app per brand.
+          A free-form string rather than a choice: the brand list lives in
+          brands/ and a dispatch input cannot read it, so a hard-coded list
+          here would be a third place to remember. An unknown brand stops at
+          the brand tool with "no such brand".
+        type: string
+        required: false
+        default: "fishers"
       REGISTRY_PROVIDER:
         description: "Container registry"
         type: choice
@@ -50,8 +69,12 @@ on:
         default: "NEBULACR"
         options: [NEBULACR, GHCR]
 
+# Per brand as well as per ring: two brands are two namespaces, two databases
+# and two helm releases, so promoting one has nothing to serialise against the
+# other. Sharing a lock would make a GullyCricket promote wait out a Fishers
+# one for no reason.
 concurrency:
-  group: single-env-deploy-${{ github.event.inputs.ENV }}
+  group: single-env-deploy-${{ github.event.inputs.brand || 'fishers' }}-${{ github.event.inputs.ENV }}
   cancel-in-progress: false
 
 jobs:
@@ -73,6 +96,7 @@ jobs:
         id: pick
         env:
           RING: ${{ github.event.inputs.ENV }}
+          BRAND: ${{ github.event.inputs.brand || 'fishers' }}
           PROVIDER: ${{ github.event.inputs.REGISTRY_PROVIDER || 'NEBULACR' }}
           NEBULA_HOST: ${{ secrets.NEBULACR_REGISTRY || 'int-spectoncr.diytaxreturn.co.uk' }}
           NEBULA_USER: ${{ secrets.NEBULACR_USERNAME }}
@@ -86,7 +110,7 @@ jobs:
           # int and test build this commit themselves.
           if [ "$RING" = int ] || [ "$RING" = test ]; then
             echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-            summary "Deploying \`$SHA\` to **$RING** (built by this run)."
+            summary "Deploying \`$SHA\` to **$BRAND $RING** (built by this run)."
             exit 0
           fi
 
@@ -98,9 +122,14 @@ jobs:
             HOST="$NEBULA_HOST"; NS="$HOST/fishers"
             echo "$NEBULA_PASS" | docker login "$HOST" -u "$NEBULA_USER" --password-stdin >/dev/null
           fi
+          # The API image is shared — one binary, pointed at each brand's own
+          # database — but the dashboard is not: the brand is baked into the
+          # bundle, so it is built and named per brand. Asking for fishers-web
+          # here would have let a GullyCricket promote to acc or prod pass this
+          # gate on Fishers' build and then pull an image nothing had pushed.
           built() {
             docker manifest inspect "$NS/fishers-api:$1" >/dev/null 2>&1 &&
-              docker manifest inspect "$NS/fishers-web:$1" >/dev/null 2>&1
+              docker manifest inspect "$NS/$BRAND-web:$1" >/dev/null 2>&1
           }
 
           # A merge that only touches docs, markdown or the iOS app builds
@@ -125,10 +154,10 @@ jobs:
           done
 
           echo "sha=$PICK" >> "$GITHUB_OUTPUT"
-          summary "Deploying \`$PICK\` to **$RING**: $(git log -1 --format=%s "$PICK")"
+          summary "Deploying \`$PICK\` to **$BRAND $RING**: $(git log -1 --format=%s "$PICK")"
           [ "$PICK" = "$SHA" ] || summary "(\`$SHA\` was asked for; the commits after \`$PICK\` change only docs or the iOS app.)"
           summary ""
-          summary "Roll back by running this workflow for $RING with an earlier sha."
+          summary "Roll back by running this workflow for $BRAND $RING with an earlier sha."
 
   # DNS and the wslproxy vhost + rule for this ring. soft_fail: a bad
   # WSLPROXY_* secret must not block helm when the vhost already exists.
@@ -137,6 +166,7 @@ jobs:
     uses: ./.github/workflows/register-edge-vhost.yml
     with:
       ENV: ${{ github.event.inputs.ENV }}
+      brand: ${{ github.event.inputs.brand || 'fishers' }}
       soft_fail: true
     secrets: inherit
 
@@ -148,6 +178,7 @@ jobs:
     with:
       ref: ${{ needs.resolve.outputs.sha }}
       image_tag: latest
+      brands: ${{ github.event.inputs.brand || 'fishers' }}
       registry_provider: ${{ github.event.inputs.REGISTRY_PROVIDER || 'NEBULACR' }}
     secrets: inherit
 
@@ -165,6 +196,7 @@ jobs:
     uses: ./.github/workflows/deploy-fishers-k3s.yml
     with:
       target_env: ${{ github.event.inputs.ENV }}
+      brand: ${{ github.event.inputs.brand || 'fishers' }}
       # The commit, never :latest — see the note at the top.
       image_tag: ${{ needs.resolve.outputs.sha }}
       registry_provider: ${{ github.event.inputs.REGISTRY_PROVIDER || 'NEBULACR' }}
