@@ -167,6 +167,12 @@ function typescript(brand, mark) {
     // vector here; one whose logo arrived as artwork has a PNG, and the
     // component must not have to know which.
     markSrc: `/${mark ?? "mark.svg"}`,
+    // And the dark one. The mark is drawn for a light page — GullyCricket's is
+    // navy on nothing, which on a dark surface is nothing on nothing, and that
+    // is exactly how it shipped. The icon is the same artwork full-bleed, with
+    // a background of its own, which is what it was drawn for: "a home screen
+    // gives it none". So dark surfaces get the tile.
+    markSrcDark: "/icon-192.png",
   };
   return `/* Generated from brands/${brand.id}.yaml. Do not edit. */
 

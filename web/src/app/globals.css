@@ -287,6 +287,24 @@ a:hover { text-decoration: underline; }
   padding: var(--s2) clamp(var(--s4), 3vw, var(--s6));
 }
 
+/* The brand mark, in two coats.
+   `.brand-mark-light` is the mark: drawn for a light page, and for GullyCricket
+   that means navy on transparent, which on a dark surface is nothing at all.
+   `.brand-mark-dark` is the brand's full-bleed icon — the same artwork with a
+   background of its own, which is what it was drawn for.
+   The corner radius is here rather than in the artwork: a tile with its
+   rounding baked in is wrong on a home screen, where the platform cuts its own
+   shape, and square in a nav bar. */
+.brand-mark { display: inline-block; }
+.brand-mark-dark { display: none; border-radius: 22%; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-mark-light { display: none; }
+  :root:not([data-theme="light"]) .brand-mark-dark { display: inline-block; }
+}
+:root[data-theme="dark"] .brand-mark-light { display: none; }
+:root[data-theme="dark"] .brand-mark-dark { display: inline-block; }
+
 .brand {
   display: inline-flex;
   align-items: center;

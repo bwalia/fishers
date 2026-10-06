@@ -12,6 +12,11 @@ import { brand } from "@/brand.generated";
 /// generator copies it and writes the path into `brand.markSrc`. This
 /// component holds no artwork and no file extension: it used to hold Fishers'
 /// cricket ball inline, which is why every other brand wore it.
+///
+/// There are two, because a mark drawn for a light page has nothing to stand
+/// on when the page is dark. GullyCricket's is navy on transparent, so in dark
+/// mode it was invisible — not faint, absent. The dark one is the brand's
+/// full-bleed icon, which carries its own background.
 export function BrandMark({
   size = 24,
   className,
@@ -19,17 +24,34 @@ export function BrandMark({
   size?: number;
   className?: string;
 }) {
-  // A fixed-size static asset that is on screen before hydration. next/image
-  // would defer it and route it through the optimiser for no gain.
+  // Both are rendered and CSS shows one. Not a media query in JS and not a
+  // theme read at runtime: the bar is on screen before hydration, and a mark
+  // that picks itself after first paint flickers through the wrong one. The
+  // hidden copy costs a `display: none` img — it is not fetched by any
+  // browser that honours the rule, and it is never announced, because
+  // display:none takes it out of the accessibility tree too.
+  const cls = (which: string) =>
+    `brand-mark brand-mark-${which}${className ? ` ${className}` : ""}`;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={brand.markSrc}
-      width={size}
-      height={size}
-      className={className}
-      alt={brand.name}
-      decoding="async"
-    />
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={brand.markSrc}
+        width={size}
+        height={size}
+        alt={brand.name}
+        decoding="async"
+        className={cls("light")}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={brand.markSrcDark}
+        width={size}
+        height={size}
+        alt={brand.name}
+        decoding="async"
+        className={cls("dark")}
+      />
+    </>
   );
 }
