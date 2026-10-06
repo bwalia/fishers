@@ -42,8 +42,12 @@ for. The matrix runs one at a time: there is one Mac, one signing keychain and
 one Ruby bundle, and two brands building at once would fight over all three.
 
 > **Only Fishers has ever shipped.** GullyCricket has no App Store Connect app
-> and no `kv/gullycricket/ios` in Vault, so its first run will fail until both
-> exist. The pipeline is ready for it; Apple's side is not.
+> yet, so its job fails with "Could not find an app on App Store Connect with
+> app_identifier: app.gullycricket" while Fishers' succeeds in the same run.
+> No new Apple keys are needed for it — the API key, issuer and team id are per
+> TEAM, not per app. Creating the app is one dispatch with
+> `target: bootstrap_app`, and the whole checklist is in
+> [IOS_NEW_BRAND_TESTFLIGHT.md](IOS_NEW_BRAND_TESTFLIGHT.md).
 
 ## Flow
 
