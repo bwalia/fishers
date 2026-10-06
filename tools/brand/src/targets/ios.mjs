@@ -36,7 +36,7 @@ export function iosFiles(brand, repoRoot, outDir) {
 /**
  * The home-screen icon and the two images the brand header draws.
  *
- * Rendered from the brand's own `icon.svg` and `mark.svg` by
+ * Rendered from the brand's own drawing or artwork by
  * `npm --prefix tools/brand run icons`, which commits the PNGs. The catalogue
  * used to hold Fishers' artwork under Fishers' names, so every other brand
  * installed with Fishers' icon on the home screen and Fishers' ball in its
@@ -54,7 +54,7 @@ function artwork(brand, repoRoot, assets) {
   if (missing.length) {
     throw new Error(
       `${brand.name} has no ${missing.join(", ")}. Run \`npm --prefix tools/brand run icons\` ` +
-        `to render them from brands/${brand.id}/icon.svg and mark.svg — a build ` +
+        `to render them from brands/${brand.id}/icon.* and mark.* — a build ` +
         `cannot fall back to another brand's mark.`,
     );
   }
