@@ -49,6 +49,7 @@ on:
           - invite_testers
           - app_store
           - screenshots
+          - bootstrap_app
       screenshots_dir:
         description: "screenshots: folder on the runner holding <locale>/*.png (blank = ~/fishers-store-screenshots/<brand>)"
         required: false
@@ -226,7 +227,7 @@ jobs:
         if: >-
           github.event_name != 'workflow_dispatch'
           || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+              && inputs.target != 'screenshots' && inputs.target != 'bootstrap_app')
         run: |
           if ! command -v xcodegen >/dev/null 2>&1; then
             brew install xcodegen
@@ -236,7 +237,7 @@ jobs:
         if: >-
           github.event_name != 'workflow_dispatch'
           || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+              && inputs.target != 'screenshots' && inputs.target != 'bootstrap_app')
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
@@ -251,11 +252,21 @@ jobs:
           echo "Resolved version: $v"
           echo "VERSION_NAME=$v" >> "$GITHUB_ENV"
 
+      # Once per brand, by hand. A brand Apple has never heard of has no app to
+      # ask for a build number, which is where this brand's first two releases
+      # stopped: "Could not find an app on App Store Connect with
+      # app_identifier: app.gullycricket". Nothing below runs on a bootstrap —
+      # it registers the app and finishes, and the release is a second
+      # dispatch with target=testflight.
+      - name: Create this brand's app on Apple
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'bootstrap_app'
+        run: bundle exec fastlane ios bootstrap_app
+
       - name: Compute next build number
         if: >-
           github.event_name != 'workflow_dispatch'
           || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+              && inputs.target != 'screenshots' && inputs.target != 'bootstrap_app')
         id: build
         run: bundle exec fastlane ios ci_build_number
 
@@ -263,14 +274,14 @@ jobs:
         if: >-
           github.event_name != 'workflow_dispatch'
           || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+              && inputs.target != 'screenshots' && inputs.target != 'bootstrap_app')
         run: bundle exec fastlane ios prepare_signing
 
       - name: Build signed IPA
         if: >-
           github.event_name != 'workflow_dispatch'
           || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+              && inputs.target != 'screenshots' && inputs.target != 'bootstrap_app')
         env:
           BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: bundle exec fastlane ios build_ipa
