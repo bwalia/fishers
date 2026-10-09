@@ -159,28 +159,54 @@ async fn post_message(
     )
     .await?;
 
-    // Everyone else in the thread gets a push; the sender does not.
-    let recipients = chat_repo::member_ids(&state.pool, id).await?;
+    // Everyone else in the thread gets a push; the sender does not — and the
+    // sender does not wait for it either.
+    //
+    // This used to run inline, before the response. `push.send` is a
+    // device_tokens lookup and then one network call per device, awaited in
+    // series, so a two-hundred member club thread made the person who typed
+    // the message wait on two hundred queries and some hundreds of round trips
+    // to Apple, Google and the browser push services before their own message
+    // came back to them. The cost of sending grew with the size of the room.
+    //
+    // Fire and forget, deliberately. If this pod dies mid-fan-out those pushes
+    // are lost — but the message is already committed, and both the live
+    // stream and the polling fallback still put it on everyone's screen. A
+    // lost push is a missed buzz on one message; an inline fan-out is every
+    // send, for everyone, forever.
+    let pool = state.pool.clone();
+    let push = state.push.clone();
     let sender_name = message.sender_name.clone().unwrap_or_default();
-    for recipient in recipients.into_iter().filter(|r| *r != auth.user_id) {
-        if let Err(error) = state
-            .push
-            .send(
-                &state.pool,
-                recipient,
-                "chat_message",
-                &sender_name,
-                &body.body,
-                // `url` is where a tap on the notification lands. Without it
-                // the service worker fell back to /notifications — a chat
-                // push that opened a page with no chat on it.
-                json!({ "conversation_id": id, "message_id": message.id, "url": format!("/chat/{id}") }),
-            )
-            .await
-        {
-            warn!(%recipient, %error, "chat push failed");
+    let sender_id = auth.user_id;
+    let text = body.body.clone();
+    let message_id = message.id;
+    tokio::spawn(async move {
+        let recipients = match chat_repo::member_ids(&pool, id).await {
+            Ok(recipients) => recipients,
+            Err(error) => {
+                warn!(%id, %error, "could not read the thread's members to push to");
+                return;
+            }
+        };
+        for recipient in recipients.into_iter().filter(|r| *r != sender_id) {
+            if let Err(error) = push
+                .send(
+                    &pool,
+                    recipient,
+                    "chat_message",
+                    &sender_name,
+                    &text,
+                    // `url` is where a tap on the notification lands. Without
+                    // it the service worker fell back to /notifications — a
+                    // chat push that opened a page with no chat on it.
+                    json!({ "conversation_id": id, "message_id": message_id, "url": format!("/chat/{id}") }),
+                )
+                .await
+            {
+                warn!(%recipient, %error, "chat push failed");
+            }
         }
-    }
+    });
 
     Ok(Json(message))
 }
