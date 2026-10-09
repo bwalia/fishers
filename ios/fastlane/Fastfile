@@ -694,41 +694,6 @@ platform :ios do
     )
   end
 
-  desc "Register this brand's App ID and create its App Store Connect record"
-  # Run once, for a brand Apple has never heard of. Everything else in this
-  # file assumes the app already exists: ci_build_number below asks App Store
-  # Connect for the last build and stops with
-  #
-  #   Could not find an app on App Store Connect with app_identifier: app.gullycricket
-  #
-  # which is exactly where GullyCricket's first two releases stopped. The
-  # pipeline was never the problem; the app was simply not there.
-  #
-  # The capabilities are the ones Fishers.entitlements asks for. They have to
-  # be on the App ID before a profile can carry them, and a profile without
-  # them fails at signing rather than here — so they are set at creation.
-  #
-  # Deliberately not called by any other lane and not reachable from a push:
-  # it creates a real record under the team's Apple account, and a bundle id,
-  # once registered, cannot be deleted.
-  lane :bootstrap_app do
-    produce(
-      api_key: asc_api_key,
-      app_identifier: APP_ID,
-      app_name: BRAND_NAME,
-      # The SKU is ours, never shown to anyone, and must be unique across the
-      # account. The bundle id already is.
-      sku: APP_ID,
-      language: ENV.fetch("APP_STORE_LANGUAGE", "English (U.K.)"),
-      team_id: ENV["APPLE_TEAM_ID"],
-      enable_services: {
-        push_notification: "on",
-        sign_in_with_apple: "on"
-      }
-    )
-    UI.success("#{BRAND_NAME} (#{APP_ID}) exists on App Store Connect. Release it with target=testflight.")
-  end
-
   desc "Print next TestFlight build number for VERSION_NAME to GITHUB_OUTPUT"
   lane :ci_build_number do
     version = ENV.fetch("VERSION_NAME")

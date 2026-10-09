@@ -25,50 +25,55 @@ Creating authorization token for App Store Connect API
 It authenticated. It then asked Apple about an app that does not exist.
 
 So there is exactly **one** thing standing between GullyCricket and TestFlight:
-the app record. Everything else is optional polish.
+the app record, which is made by hand in a browser once. Everything else is
+optional polish.
 
 ---
 
-## Step 1 — create the app on Apple
+## Step 1 — create the app on Apple (in a browser, once)
 
-**Actions → iOS Release (TestFlight & App Store) → Run workflow**
+This is the only manual step, it takes about two minutes, and it is done once
+per brand forever.
 
-| field | value |
-|---|---|
-| brand | `gullycricket` |
-| target | `bootstrap_app` |
+**It cannot be automated from this pipeline.** fastlane's `produce` is the
+action for it, and `produce` has no `api_key` option — it signs in with an
+Apple ID through Spaceship, and this pipeline deliberately has no Apple ID,
+only an App Store Connect API key. A `bootstrap_app` target was added on
+2026-10-06 and removed on 2026-10-07 for exactly that reason:
 
-This registers the App ID and creates the App Store Connect record, with the
-two capabilities the app actually uses:
+```
+[!] Could not find option 'api_key' in the list of available options:
+    username, app_identifier, ..., skip_devcenter, team_id, team_name, ...
+```
 
-- **Sign in with Apple** (`com.apple.developer.applesignin`)
-- **Push Notifications** (`aps-environment`)
+### 1a. Register the App ID
 
-Both come from `ios/Fishers/Fishers.entitlements`. They have to be on the App
-ID *before* a provisioning profile can carry them — a profile without them
-fails later, at signing, with an error about provisioning that does not mention
-capabilities.
+[developer.apple.com → Identifiers](https://developer.apple.com/account/resources/identifiers/list)
 
-Nothing is built on this run. No IPA, no upload.
+1. **+** → **App IDs** → Continue → **App** → Continue
+2. Description: `Gully Cricket`
+3. Bundle ID: **Explicit**, `app.gullycricket`
+4. Tick **Sign In with Apple** and **Push Notifications**
+5. Continue → Register
 
-### If it half-works
+Those two capabilities come from `ios/Fishers/Fishers.entitlements`. They must
+be on the App ID *before* a provisioning profile can carry them — a profile
+without them fails later, at signing, with an error about provisioning that
+never mentions capabilities.
 
-Whether `produce` can register the App ID in the **developer portal** with an
-API key depends on that key's role. **Admin** or **App Manager** can; a weaker
-key will create the App Store Connect side and refuse the portal side.
+### 1b. Create the App Store Connect record
 
-If that happens, do the portal half once by hand:
+[appstoreconnect.apple.com → Apps](https://appstoreconnect.apple.com/apps)
 
-1. [developer.apple.com](https://developer.apple.com/account/resources/identifiers/list)
-   → Identifiers → **+**
-2. App IDs → App → Bundle ID **explicit**: `app.gullycricket`
-3. Tick **Sign In with Apple** and **Push Notifications**
-4. Register
+1. **+** → **New App**
+2. Platform: **iOS**
+3. Name: `Gully Cricket`
+4. Primary language: whatever you want it listed in
+5. Bundle ID: pick `app.gullycricket` from the list — it appears because of 1a
+6. SKU: anything unique to the account; `app.gullycricket` is fine
+7. Create
 
-Then run `bootstrap_app` again — it will find the identifier and do the App
-Store Connect half.
-
----
+That is the whole of it. Nothing else about Apple is per-brand.
 
 ## Step 2 — release it
 

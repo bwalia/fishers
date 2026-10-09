@@ -45,9 +45,9 @@ one Ruby bundle, and two brands building at once would fight over all three.
 > yet, so its job fails with "Could not find an app on App Store Connect with
 > app_identifier: app.gullycricket" while Fishers' succeeds in the same run.
 > No new Apple keys are needed for it — the API key, issuer and team id are per
-> TEAM, not per app. Creating the app is one dispatch with
-> `target: bootstrap_app`, and the whole checklist is in
-> [IOS_NEW_BRAND_TESTFLIGHT.md](IOS_NEW_BRAND_TESTFLIGHT.md).
+> TEAM, not per app. The app record is made by hand in App Store Connect once,
+> because fastlane's `produce` cannot authenticate with an API key. The whole
+> checklist is in [IOS_NEW_BRAND_TESTFLIGHT.md](IOS_NEW_BRAND_TESTFLIGHT.md).
 
 ## Flow
 
