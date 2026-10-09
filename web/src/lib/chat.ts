@@ -19,9 +19,24 @@ export type ConversationSummary = {
   updated_at: string;
   last_message_body: string | null;
   last_message_at: string | null;
+  /// Counted up to 100 by the API and no further, so that a thread nobody has
+  /// opened for a fortnight costs the same to list as one read this morning.
+  /// Render it with `unreadLabel`, never raw: at the cap the number is a floor,
+  /// not a total.
   unread_count: number;
   pending_proposals: number;
 };
+
+/// How many unread, for a badge.
+///
+/// The API counts to 100 and stops, so anything at the cap means "at least
+/// this many" — and a badge is the one place that distinction does not matter,
+/// because nobody reads 247 as a quantity. They read it as "lots".
+export const UNREAD_CAP = 100;
+
+export function unreadLabel(n: number): string {
+  return n >= UNREAD_CAP ? "99+" : String(n);
+}
 
 export type ChatMessage = {
   id: string;

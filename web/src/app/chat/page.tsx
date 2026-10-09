@@ -5,7 +5,7 @@ import Link from "next/link";
 import { PushPrompt } from "@/components/PushPrompt";
 import { subscribeLive } from "@/lib/live";
 import { api, readErr } from "@/lib/api";
-import { chatTime, CONVERSATION_KIND, type ConversationSummary } from "@/lib/chat";
+import { chatTime, CONVERSATION_KIND, unreadLabel, type ConversationSummary } from "@/lib/chat";
 import { Icon } from "@/components/Icon";
 import { NewChat } from "@/components/NewChat";
 import { useRequireAuth } from "@/lib/require-auth";
@@ -96,8 +96,8 @@ export default function ChatListPage() {
                 </span>
                 <span className="thread-badges">
                   {thread.unread_count > 0 && (
-                    <span className="tag" aria-label={`${thread.unread_count} unread`}>
-                      {thread.unread_count}
+                    <span className="tag" aria-label={`${unreadLabel(thread.unread_count)} unread`}>
+                      {unreadLabel(thread.unread_count)}
                     </span>
                   )}
                   {thread.pending_proposals > 0 && (

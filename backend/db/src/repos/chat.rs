@@ -246,15 +246,32 @@ pub async fn list_for_user(
                c.updated_at,
                last.body AS last_message_body,
                last.created_at AS last_message_at,
+               -- Counted up to a point and no further. Unbounded, this was
+               -- the one thing on the page that got slower the longer somebody
+               -- stayed away: the index makes it a range scan, so the cost is
+               -- the number of unread messages, and a fortnight off left the
+               -- app counting twenty thousand rows per thread, per load, on
+               -- every thread in the list. Nobody reads a number that big —
+               -- they read "lots" — so the query stops at the point the
+               -- display stops being exact.
                COALESCE((
-                   SELECT COUNT(*) FROM messages m
-                   WHERE m.conversation_id = c.id
-                     AND m.created_at > COALESCE(cm.last_read_at, TIMESTAMPTZ '-infinity')
-                     AND (m.sender_id IS DISTINCT FROM $1)
+                   SELECT COUNT(*) FROM (
+                       SELECT 1 FROM messages m
+                       WHERE m.conversation_id = c.id
+                         AND m.created_at > COALESCE(cm.last_read_at, TIMESTAMPTZ '-infinity')
+                         AND (m.sender_id IS DISTINCT FROM $1)
+                       LIMIT 100
+                   ) capped
                ), 0) AS unread_count,
+               -- Same shape, far smaller numbers: a thread with a hundred
+               -- pending proposals is a bug, not a busy week. Capped for the
+               -- same reason rather than because it hurts today.
                COALESCE((
-                   SELECT COUNT(*) FROM agent_proposals p
-                   WHERE p.conversation_id = c.id AND p.status = 'pending'
+                   SELECT COUNT(*) FROM (
+                       SELECT 1 FROM agent_proposals p
+                       WHERE p.conversation_id = c.id AND p.status = 'pending'
+                       LIMIT 100
+                   ) capped
                ), 0) AS pending_proposals
         FROM conversations c
         JOIN conversation_members cm ON cm.conversation_id = c.id AND cm.user_id = $1
