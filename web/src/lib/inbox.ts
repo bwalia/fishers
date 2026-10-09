@@ -49,6 +49,11 @@ function subscribe(listener: () => void) {
   };
 }
 
+// Each thread's count stops at UNREAD_CAP, so this total is a floor once any
+// thread is at it — which is exactly what the badge wants, because the badge
+// renders anything over 99 as "99+" anyway. A capped thread contributes 100,
+// which puts the total past 99 on its own, so the label stays true without
+// this having to know which threads were capped.
 const unread = () => threads.reduce((n, t) => n + (t.unread_count ?? 0), 0);
 
 export function useUnreadChats(): number {
