@@ -479,7 +479,7 @@ def beta_app_review_info_hash
     demo_account_required: false,
     notes: ENV.fetch(
       "TESTFLIGHT_REVIEW_NOTES",
-      "QA build for Fishers TestFlight testers. No special demo account required."
+      "QA build for #{BRAND_NAME} TestFlight testers. No special demo account required."
     )
   }
 end
@@ -556,10 +556,10 @@ rescue => e
 end
 
 def submit_fishers_external_review_if_needed!(key:, group:)
-  notes = ENV.fetch("TESTFLIGHT_CHANGELOG", "Fishers TestFlight build — please install and smoke-test.")
+  notes = ENV.fetch("TESTFLIGHT_CHANGELOG", "#{BRAND_NAME} TestFlight build — please install and smoke-test.")
   beta_desc = ENV.fetch(
     "TESTFLIGHT_BETA_DESCRIPTION",
-    "Fishers is a club sports app for fixtures, live cricket scoring, chat, and team selection."
+    "#{BRAND_NAME} is a club sports app for fixtures, live cricket scoring, chat, and team selection."
   )
 
   # Leave a review that is already under way alone. Cancelling it on every
@@ -854,7 +854,11 @@ platform :ios do
       submit_beta_review: false,
       notify_external_testers: false,
       demo_account_required: false,
-      uses_non_exempt_encryption: false
+      uses_non_exempt_encryption: false,
+      # A brand-new app has no Beta App Review contact yet, and Apple refuses
+      # the update pilot makes after processing without one ("contactEmail").
+      beta_app_review_info: beta_app_review_info_hash,
+      beta_app_feedback_email: testflight_tester_emails.first
     )
 
     spaceship_token_from!(key)
