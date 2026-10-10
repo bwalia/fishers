@@ -165,3 +165,4 @@ until then.
 | `Could not find an app on App Store Connect with app_identifier: app.gullycricket` | Step 1 has not been done. |
 | `ERROR: ... is missing required key(s): ASC_KEY_ID, ASC_ISSUER_ID, APPLE_TEAM_ID` | The team-wide credentials are not reaching the runner. Not a per-brand problem — Fishers would be failing too. |
 | A signing or provisioning error naming the bundle id | The App ID exists but is missing a capability. Check Sign in with Apple and Push Notifications on it. |
+| `You must provide a value for the attribute 'contactEmail'` | The app is new and has no Beta App Review contact. The `beta` lane now sends one on the first upload (`TESTFLIGHT_CONTACT_*` overrides it); a build that hit this was still uploaded and processed. |
