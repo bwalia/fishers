@@ -52,6 +52,15 @@ hostname: ${host}
 kong:
   enabled: ${gateway}
 
+# Sign in with Apple checks that the identity token was issued for this app,
+# by comparing its audience claim with this. The token comes from the brand's own iOS
+# build, so the value is the brand's own bundle id — and the API defaults to
+# Fishers' when it is unset, which is why Apple sign-in failed on every brand
+# but Fishers: the token said app.gullycricket and the server wanted
+# com.fishers.app.
+config:
+  appleClientId: ${brand.mobile.bundleId}
+
 # The hostnames that land on this ring and are sent to the canonical one.
 #
 # Brand-level, because an apex belongs to a domain and a ring file cannot know

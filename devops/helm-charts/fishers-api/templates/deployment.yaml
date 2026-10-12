@@ -80,6 +80,10 @@ spec:
               value: "https://{{ include "fishers-api.hostname" . }}"
             - name: CORS_ALLOWED_ORIGINS
               value: "https://{{ include "fishers-api.hostname" . }}"
+            {{- with .Values.config.appleClientId }}
+            - name: APPLE_CLIENT_ID
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.config.ollamaUrl }}
             - name: OLLAMA_URL
               value: {{ . | quote }}
