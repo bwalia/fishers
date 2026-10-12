@@ -27,8 +27,11 @@ struct APIServerSettingsView: View {
             items.append(("Simulator loopback", build.absoluteString))
         }
         #endif
-        items.append(("int.fishers.cloud", "https://int.fishers.cloud"))
-        items.append(("www.fishers.cloud", "https://www.fishers.cloud"))
+        // This brand's rings, not Fishers'. A preset naming another brand's
+        // server is one tap from signing into the wrong database.
+        for host in ["int.\(Brand.domain)", Brand.apiHost] {
+            items.append((host, "https://\(host)"))
+        }
         return items
     }
 

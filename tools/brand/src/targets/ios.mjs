@@ -168,6 +168,16 @@ enum Brand {
     static let supportEmail = ${JSON.stringify(brand.support.email)}
     static let domain = ${JSON.stringify(brand.domain)}
 
+    /// Where this brand's production API and public web answer.
+    ///
+    /// The same value \`brand.xcconfig\` carries as \`FISHERS_API_HOST\`, which is
+    /// what a Release build reaches through Info.plist. This is the fallback
+    /// for when that substitution did not happen — it used to be
+    /// \`www.fishers.cloud\` written into the source, so every other brand's
+    /// TestFlight build signed into Fishers' database and showed Fishers'
+    /// clubs under its own name.
+    static let apiHost = ${JSON.stringify(brand.rings.prod)}
+
     /// The source colours are what the brand looks like. All four are light by
     /// design — none of them carries white text — which is why the ramp exists.
     enum Source {
