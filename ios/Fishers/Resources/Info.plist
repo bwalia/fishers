@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Fishers</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -68,9 +68,9 @@
 		<string>_http._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>$(PRODUCT_NAME) uses the camera to scan another club's QR code when you start a match, so you don't have to type their name.</string>
+	<string>Fishers uses the camera to scan another club's QR code when you start a match, so you don't have to type their name.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>$(PRODUCT_NAME) reaches your club's scoring API on the same Wi-Fi — for example a Mac running the local server while you test on a phone.</string>
+	<string>Fishers reaches your club's scoring API on the same Wi-Fi — for example a Mac running the local server while you test on a phone.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

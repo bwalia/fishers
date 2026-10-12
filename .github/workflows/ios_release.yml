@@ -118,6 +118,14 @@ jobs:
       matrix:
         brand: ${{ fromJSON(needs.brands.outputs.list) }}
     env:
+      # Which brand this whole job is. It must be here, at job level, and not
+      # only on the "Generate the brand" step: fastlane regenerates the brand
+      # itself (generate_xcode_project! -> generate_brand!), reads BRAND from
+      # the environment, and falls back to "fishers" when it is unset. For as
+      # long as it was a step-level variable, every brand's job generated its
+      # own brand, then had fastlane quietly overwrite it with Fishers four
+      # seconds later and build that — right icon in git, Fishers in the IPA.
+      BRAND: ${{ matrix.brand }}
       # WSLVault only — never vault.diytaxreturn.co.uk.
       VAULT_ADDR: https://vault.workstation.co.uk
       VAULT_TOKEN_FILE: /Users/balinderwalia/.secrets/wslvault/token.json
