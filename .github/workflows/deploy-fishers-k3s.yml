@@ -497,10 +497,19 @@ jobs:
           # No credentials on this command line: they come from the vault and
           # the operator. rolloutId rolls the pods every deploy, so a vault
           # change lands even when the image tag has not moved.
+          #
+          # The brand overlay goes last here too. It used to go only to the
+          # dashboard, so anything brand-shaped the API needed had no way to
+          # reach it: APPLE_CLIENT_ID stayed at its com.fishers.app default on
+          # every brand, and Sign in with Apple failed verification for all of
+          # them but Fishers. The API chart has no kong, ingress or brand
+          # template, so those keys pass through unread, and `config:` is a map
+          # — helm merges it rather than replacing the block.
           helm upgrade --install fishers-api "$CHARTS/fishers-api" \
             --namespace "$NS" \
             -f "$CHARTS/fishers-api/values.yaml" \
             -f "$CHARTS/fishers-api/values-$TARGET_ENV.yaml" \
+            -f /tmp/brand-values.yaml \
             --set image.repository='${{ steps.ring.outputs.ns }}/fishers-api' \
             --set image.tag="$IMAGE_TAG" \
             --set hostname='${{ steps.ring.outputs.hostname }}' \
