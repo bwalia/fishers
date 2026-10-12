@@ -131,6 +131,19 @@ Things people reasonably expect to need, which are already handled:
 
 ## Watch-outs
 
+**Builds before 2026-10-12 talked to Fishers' API.** `ios/project.yml` set the
+Release base URL to the literal `https://www.fishers.cloud` for every brand,
+and `AppConfig.swift` repeated it as the fallback — while the brand had been
+generating the right host into `brand.xcconfig` as `FISHERS_API_HOST` all
+along, where nothing read it. A GullyCricket TestFlight build therefore signed
+into **Fishers' production database** and showed Fishers' clubs and fixtures,
+under GullyCricket's own icon and (on the home screen) the name `Fishers`,
+which is hardcoded no longer. Both now follow the brand.
+
+If anyone tested GullyCricket on TestFlight before that, whatever they signed
+up or typed went into Fishers' production data, not GullyCricket's. Worth a
+look before the next round of testers.
+
 **The Beta App Review text is Fishers-worded.** External TestFlight goes
 through Apple's Beta App Review, and the lane submits a description that
 defaults to *"Fishers is a club sports app for fixtures, live cricket scoring,

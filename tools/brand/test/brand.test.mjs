@@ -274,6 +274,65 @@ test("the iOS xcconfig carries the bundle id that makes it its own listing", () 
 });
 
 /**
+ * The bug this guards: the host was generated into brand.xcconfig and read by
+ * nothing, while project.yml and AppConfig.swift each wrote "www.fishers.cloud"
+ * as a literal. GullyCricket's TestFlight build therefore signed into Fishers'
+ * production database and showed Fishers' clubs — under GullyCricket's icon and
+ * name, which made it look like a theming bug rather than the wrong server.
+ *
+ * Both halves are asserted here: that the brand still offers the host, and that
+ * the iOS project reaches for it by name instead of naming a brand.
+ */
+test("a Release build points at its own brand's host, not a literal one", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    const [xcconfig, swift] = iosFiles(brand, repoRoot);
+    assert.match(
+      xcconfig.contents,
+      new RegExp(`^FISHERS_API_HOST = ${brand.rings.prod}$`, "m"),
+      `${id}: brand.xcconfig does not carry its own prod host`,
+    );
+    assert.match(
+      swift.contents,
+      new RegExp(`static let apiHost = ${JSON.stringify(brand.rings.prod)}`),
+      `${id}: Brand.apiHost is not its own prod host`,
+    );
+  }
+
+  const project = readFileSync(join(repoRoot, "ios", "project.yml"), "utf8");
+  for (const key of ["FISHERS_API_BASE_URL", "FISHERS_WEB_BASE_URL"]) {
+    assert.match(
+      project,
+      new RegExp(`${key}: "https://\\$\\(FISHERS_API_HOST\\)"`),
+      `Release ${key} must be https://$(FISHERS_API_HOST), so it follows the brand`,
+    );
+  }
+  // The home-screen label: CFBundleDisplayName beats CFBundleName, so a literal
+  // here put Fishers under every brand's icon.
+  assert.match(project, /CFBundleDisplayName: "\$\(PRODUCT_NAME\)"/);
+
+  // No brand's host written into the iOS sources as a value. Any of them
+  // appearing is the same mistake again, whichever brand is the hardcoded one.
+  // Comments are stripped first: the notes above explain the bug by naming the
+  // host it used to be, which is documentation rather than a setting.
+  const code = (file) =>
+    readFileSync(join(repoRoot, "ios", file), "utf8")
+      .split("\n")
+      .filter((line) => !/^\s*(#|\/\/)/.test(line))
+      .join("\n");
+  for (const id of listBrands(repoRoot)) {
+    const { domain } = loadBrand(repoRoot, id);
+    for (const file of ["project.yml", "Fishers/Config/AppConfig.swift"]) {
+      assert.doesNotMatch(
+        code(file),
+        new RegExp(domain.replace(/\./g, "\\.")),
+        `ios/${file} names ${domain} — use FISHERS_API_HOST / Brand.apiHost`,
+      );
+    }
+  }
+});
+
+/**
  * SwiftUI reaches for AccentColor without being asked, so a brand that did not
  * write one would be its own colour everywhere it named one and Fishers' sage
  * everywhere it did not — the hardest kind of wrong to see in a screenshot.

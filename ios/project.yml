@@ -105,14 +105,28 @@ targets:
           FISHERS_LAN_API_BASE_URL: "http://${LAN_IP}:${API_PORT}"
           FISHERS_LAN_WEB_BASE_URL: "http://${LAN_IP}:${WEB_PORT}"
         Release:
-          # Production. Blank here meant TestFlight builds fell through to
+          # Production — whichever brand this build is. FISHERS_API_HOST comes
+          # from Brand/Generated/brand.xcconfig above, so it is the brand's own
+          # prod ring (www.fishers.cloud, www.gullycricket.app, ...).
+          #
+          # These were the literal "https://www.fishers.cloud". The brand had
+          # been generating the right host all along and nothing read it, so
+          # every non-Fishers TestFlight build carried Fishers' name and signed
+          # into Fishers' database — the app looked entirely like Fishers with
+          # the other brand's icon on it.
+          #
+          # Blank here would be worse than wrong: builds fall through to
           # AppConfig's fallback instead of reaching a server at all.
-          FISHERS_API_BASE_URL: "https://www.fishers.cloud"
-          FISHERS_WEB_BASE_URL: "https://www.fishers.cloud"
+          FISHERS_API_BASE_URL: "https://$(FISHERS_API_HOST)"
+          FISHERS_WEB_BASE_URL: "https://$(FISHERS_API_HOST)"
     info:
       path: Fishers/Resources/Info.plist
       properties:
-        CFBundleDisplayName: Fishers
+        # PRODUCT_NAME is the brand's displayName, from brand.xcconfig. This
+        # was the literal "Fishers", and CFBundleDisplayName beats CFBundleName
+        # on the home screen — so the icon under every brand said Fishers while
+        # App Store Connect listed it correctly.
+        CFBundleDisplayName: "$(PRODUCT_NAME)"
         # Debug/base expand to loopback; scripts/start.sh overrides at launch.
         # Release expands to production — see the Release config above.
         FishersAPIBaseURL: "$(FISHERS_API_BASE_URL)"
@@ -157,15 +171,15 @@ targets:
               NSExceptionAllowsInsecureHTTPLoads: true
         # Scanning the other club's QR code at the toss is the only camera use.
         NSCameraUsageDescription: >-
-          Fishers uses the camera to scan another club's QR code when you start
-          a match, so you don't have to type their name.
+          $(PRODUCT_NAME) uses the camera to scan another club's QR code when
+          you start a match, so you don't have to type their name.
         # Physical iPhones talking to the Mac's API over Wi-Fi need Local Network
         # permission. Without this string the prompt never appears, the connect
         # fails, and it looks as if the API is down. Must live here (xcodegen
         # rewrites Info.plist from these properties on every generate).
         NSLocalNetworkUsageDescription: >-
-          Fishers reaches your club's scoring API on the same Wi-Fi — for
-          example a Mac running the local server while you test on a phone.
+          $(PRODUCT_NAME) reaches your club's scoring API on the same Wi-Fi —
+          for example a Mac running the local server while you test on a phone.
         # Declaring a Bonjour service type is required for the Local Network
         # privacy prompt on some iOS versions even for plain HTTP to a LAN IP.
         NSBonjourServices:

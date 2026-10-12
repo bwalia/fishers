@@ -24,8 +24,11 @@ enum AppConfig {
     /// answering on that address). Prod is the only fallback that is right for
     /// a build in someone else's hands; point a device at a local API with the
     /// Settings panel or `FISHERS_API_URL`.
-    private static let deviceAPIBase = "https://www.fishers.cloud"
-    private static let deviceWebBase = "https://www.fishers.cloud"
+    /// `Brand.apiHost`, not a literal: this is the second place that said
+    /// `www.fishers.cloud`, and between the two of them a GullyCricket build
+    /// talked to Fishers' production API however the first one was fixed.
+    private static let deviceAPIBase = "https://\(Brand.apiHost)"
+    private static let deviceWebBase = "https://\(Brand.apiHost)"
 
     /// UserDefaults / launch-argument key written by Settings and `scripts/start.sh`.
     static let apiDefaultsKey = "FishersAPIBaseURL"
@@ -213,9 +216,9 @@ enum APIConfigError: LocalizedError {
         switch self {
         case .invalidURL:
             #if targetEnvironment(simulator)
-            return "Enter a full URL such as http://127.0.0.1:\(AppConfig.defaultAPIPort) or https://int.fishers.cloud"
+            return "Enter a full URL such as http://127.0.0.1:\(AppConfig.defaultAPIPort) or https://int.\(Brand.domain)"
             #else
-            return "Enter a full URL such as https://int.fishers.cloud or http://192.168.1.10:\(AppConfig.defaultAPIPort) — not localhost on a phone"
+            return "Enter a full URL such as https://int.\(Brand.domain) or http://192.168.1.10:\(AppConfig.defaultAPIPort) — not localhost on a phone"
             #endif
         }
     }

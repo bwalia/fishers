@@ -339,7 +339,7 @@ struct PublicPageEditorView: View {
                     TextField(suggested, text: $slug)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    Text("\(AppConfig.webBaseURL.host() ?? "fishers.cloud")/c/\(address)")
+                    Text("\(AppConfig.webBaseURL.host() ?? Brand.domain)/c/\(address)")
                         .font(.system(.footnote, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
