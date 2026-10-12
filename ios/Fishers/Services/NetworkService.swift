@@ -8,32 +8,96 @@ enum APIError: LocalizedError {
     case empty
     case unreachable(String)
 
+    /// The sentence to put in front of somebody.
+    ///
+    /// This is `localizedDescription`, which is what most of the app reaches
+    /// for, so it is the one that has to be readable — not a second, nicer
+    /// property beside it that callers have to remember. It used to return
+    /// `HTTP 400: {"error":"that is not a JPEG…"}`: the API's own sentence,
+    /// written for a person, wrapped in the plumbing that hid it. Sixty-seven
+    /// places showed that to people who are not developers.
+    ///
+    /// The technical form has not gone away — see `diagnostic`, which is what
+    /// to log.
     var errorDescription: String? {
         switch self {
-        case .invalidURL: return "Invalid URL"
-        case .http(let code, let body): return "HTTP \(code): \(body)"
-        case .decoding(let e): return "Decode error: \(e.localizedDescription)"
-        case .unauthorized: return "Please sign in again"
-        case .empty: return "Empty response"
+        case .http(_, let body):
+            // The API answers a refusal as {"error": "..."}, already written
+            // for a person. When it has done that, nothing here can improve on
+            // it: it knows which field was wrong and this does not.
+            if let message = Self.serverMessage(in: body) { return message }
+            return statusSentence
+        case .unauthorized:
+            return "Please sign in again."
+        case .decoding(let e):
+            #if DEBUG
+            return "Decode error: \(e.localizedDescription)"
+            #else
+            // Nothing the person did, and nothing they can fix by retrying.
+            return "\(Brand.name) sent back something this version of the app "
+                + "did not understand. Updating the app usually fixes it."
+            #endif
         case .unreachable(let detail):
+            #if DEBUG
             return "Cannot reach API at \(AppConfig.apiBaseURL.absoluteString) — is it running? (\(detail))"
+            #else
+            return "Can't reach \(Brand.name) right now. Check your connection "
+                + "and try again."
+            #endif
+        case .empty:
+            return "\(Brand.name) did not send anything back. Try again."
+        case .invalidURL:
+            return "This app is pointed at an address that is not valid. "
+                + "Check Profile → API server."
         }
     }
 
-    /// The sentence to put in front of somebody.
+    /// What a status code means when the API did not say anything itself.
     ///
-    /// The API answers a refusal as `{"error": "..."}`, written for a person to
-    /// read. Showing `HTTP 400: {"error":"that is not a JPEG…"}` throws that
-    /// away and hands them the plumbing instead.
-    var friendlyMessage: String {
-        if case .http(_, let body) = self,
-           let data = body.data(using: .utf8),
-           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let message = object["error"] as? String,
-           !message.isEmpty {
-            return message
+    /// Every one of these is something the person can act on, or an honest
+    /// admission that they cannot. A bare number is neither.
+    private var statusSentence: String {
+        guard case .http(let code, _) = self else { return "Something went wrong." }
+        switch code {
+        case 400, 422: return "Some of what you entered was not accepted. Check it and try again."
+        case 401: return "Please sign in again."
+        case 403: return "You do not have permission to do that."
+        case 404: return "That is not here any more."
+        case 409: return "That clashes with something that already exists."
+        case 413: return "That file is too big."
+        case 429: return "Too many tries just now. Wait a moment and try again."
+        case 500...599: return "\(Brand.name) is having trouble right now. Try again in a moment."
+        default: return "Something went wrong. Try again."
         }
-        return errorDescription ?? "Something went wrong."
+    }
+
+    /// The API's own sentence, if it sent one.
+    private static func serverMessage(in body: String) -> String? {
+        guard let data = body.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let message = object["error"] as? String,
+              !message.isEmpty
+        else { return nil }
+        return message
+    }
+
+    /// The technical form, for logs. Never put this in front of somebody.
+    var diagnostic: String {
+        switch self {
+        case .invalidURL: return "invalidURL"
+        case .http(let code, let body): return "HTTP \(code): \(body)"
+        case .decoding(let e): return "decoding: \(e)"
+        case .unauthorized: return "unauthorized"
+        case .empty: return "empty response"
+        case .unreachable(let detail):
+            return "unreachable \(AppConfig.apiBaseURL.absoluteString): \(detail)"
+        }
+    }
+
+    /// Kept because thirty-four call sites say it, and it reads well at the
+    /// point of use. Now the same string `localizedDescription` gives.
+    var friendlyMessage: String {
+        errorDescription ?? "Something went wrong."
     }
 
     /// The machine-readable reason, when the API gives one — `"unverified"`

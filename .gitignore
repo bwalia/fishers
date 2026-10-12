@@ -73,6 +73,12 @@ ios/Fishers/Brand/Generated/
 # the asset catalogue because Xcode compiles it from there, not next to the
 # generated Swift — but it is generated all the same, so committing it would
 # mean a brand switch showed up as a diff.
+# Written by xcodegen from project.yml's info.properties on every generate —
+# GENERATE_INFOPLIST_FILE is false, so this file IS that block, rendered. It was
+# tracked, so a brand switch or a local experiment left a diff that git was
+# happy to commit: PR #210 reverted PR #209's change to it that way, silently
+# and with no effect on any build, because every build regenerates it first.
+ios/Fishers/Resources/Info.plist
 ios/Fishers/Resources/Assets.xcassets/AccentColor.colorset/
 # Likewise the artwork: rendered from the brand's own icon.svg and mark.svg.
 ios/Fishers/Resources/Assets.xcassets/AppIcon.appiconset/

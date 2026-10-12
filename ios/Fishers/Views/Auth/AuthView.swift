@@ -23,6 +23,29 @@ struct AuthView: View {
         case email, phone
         var id: String { rawValue }
         var label: String { self == .email ? "Email" : "Mobile number" }
+
+        /// Whether a value is plausibly the thing this method asks for.
+        ///
+        /// Deliberately loose. The API is the authority on what it will
+        /// accept — this only catches the obvious mismatch, so it can never be
+        /// the reason a real address or a foreign number is turned away. It
+        /// exists because one field serves both methods: switching from
+        /// Mobile number to Email used to leave the number behind, and the
+        /// form sent it.
+        func accepts(_ value: String) -> Bool {
+            switch self {
+            case .email:
+                guard !value.contains(" "),
+                      let at = value.firstIndex(of: "@"),
+                      at != value.startIndex
+                else { return false }
+                let domain = value[value.index(after: at)...]
+                return domain.contains(".") && !domain.hasPrefix(".") && !domain.hasSuffix(".")
+            case .phone:
+                return value.filter(\.isNumber).count >= 7
+                    && value.allSatisfy { $0.isNumber || "+-() ".contains($0) }
+            }
+        }
     }
 
     var body: some View {
@@ -65,6 +88,11 @@ struct AuthView: View {
                                     ForEach(Method.allCases) { Text($0.label).tag($0) }
                                 }
                                 .pickerStyle(.segmented)
+                                // One @State serves both methods, so switching
+                                // left the old value behind: a mobile number
+                                // sitting under a label saying Email, which the
+                                // form then accepted and the API refused.
+                                .onChange(of: method) { _, _ in identifier = "" }
                             }
                             if mode == .signup && method == .phone {
                                 field("Mobile number", text: $identifier, field: .identifier)
@@ -80,6 +108,14 @@ struct AuthView: View {
                                 .keyboardType(mode == .login ? .default : .emailAddress)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
+                            }
+                            if mode == .signup, !trimmedIdentifier.isEmpty, !identifierLooksRight {
+                                Text(method == .email
+                                     ? "That does not look like an email address."
+                                     : "That does not look like a mobile number.")
+                                    .font(FishersTheme.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             SecureField("Password", text: $password)
                                 .font(FishersTheme.body)
@@ -197,9 +233,18 @@ struct AuthView: View {
         let passwordOk = mode == .signup ? password.count >= 8 : password.count >= 6
         guard !trimmedIdentifier.isEmpty, passwordOk else { return false }
         if mode == .signup {
-            return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+            return identifierLooksRight
         }
         return true
+    }
+
+    /// Signing in this is not asked: the API is told an identifier and works
+    /// out which it is, so a number and an address are both fine. Signing up
+    /// the person has chosen one, and the other is a round trip that can only
+    /// come back as a refusal.
+    private var identifierLooksRight: Bool {
+        mode == .login || method.accepts(trimmedIdentifier)
     }
 
     private func field(_ title: String, text: Binding<String>, field: Field) -> some View {

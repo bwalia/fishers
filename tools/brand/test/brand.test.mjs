@@ -365,6 +365,25 @@ test("the generated Swift carries every ramp and dark colour", () => {
 });
 
 /**
+ * Sign in with Apple checks the identity token's audience against this. The
+ * token is minted by the brand's own iOS build, so it carries that brand's
+ * bundle id — and the API falls back to com.fishers.app when APPLE_CLIENT_ID
+ * is unset, which silently broke Apple sign-in on every brand but Fishers.
+ */
+test("every brand's Helm overlay names its own bundle id for Apple sign-in", () => {
+  for (const id of listBrands(repoRoot)) {
+    const brand = loadBrand(repoRoot, id);
+    for (const ring of Object.keys(brand.rings)) {
+      assert.match(
+        helmValues(brand, ring),
+        new RegExp(`^  appleClientId: ${brand.mobile.bundleId.replace(/\./g, "\\.")}$`, "m"),
+        `${id} ${ring}: appleClientId is not the brand's own bundle id`,
+      );
+    }
+  }
+});
+
+/**
  * The release workflows append this straight to $GITHUB_ENV, and fastlane's
  * Appfile and Fastfile read both. A change to the shape here is a change to
  * which App Store listing a build is signed for.

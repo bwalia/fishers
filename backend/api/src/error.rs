@@ -114,7 +114,79 @@ impl From<sqlx::Error> for ApiError {
 
 impl From<validator::ValidationErrors> for ApiError {
     fn from(err: validator::ValidationErrors) -> Self {
-        Self::bad_request(err.to_string())
+        Self::bad_request(say(&err))
+    }
+}
+
+/// What a failed validation should sound like to the person who typed it.
+///
+/// `ValidationErrors::to_string()` is a debug dump of the crate's own structs,
+/// and it went out as the API's `error` field — which every client shows
+/// verbatim, because it is the one place the server gets to explain itself.
+/// Signing up with a number in the email box answered:
+///
+/// ```text
+/// email: Validation error: email [{"value": String("+447700900123")}]
+/// password: Validation error: length [{"value": String("short"), "min": Number(8), ...}]
+/// ```
+///
+/// Both the web and the iOS app put that in front of people. They are club
+/// cricketers; `String(...)` and `Number(8)` are the API talking about its
+/// crates. Fixing it here fixes every client at once, which is why it is here
+/// and not in either of them.
+fn say(errors: &validator::ValidationErrors) -> String {
+    let mut lines: Vec<String> = errors
+        .field_errors()
+        .iter()
+        .flat_map(|(field, errs)| errs.iter().map(move |e| sentence(field, e)))
+        .collect();
+    // field_errors() is a HashMap, so without this the same bad form answers
+    // in a different order each time — and a test could only ever be flaky.
+    lines.sort();
+    lines.join(" ")
+}
+
+/// One field's failure, as a sentence.
+fn sentence(field: &str, e: &validator::ValidationError) -> String {
+    // A `custom` validator that set its own message has already said it better
+    // than anything here could: it knows the rule it was checking.
+    if let Some(message) = &e.message {
+        return format!("{} {message}.", label(field));
+    }
+    let n = |key: &str| e.params.get(key).and_then(serde_json::Value::as_i64);
+    let detail = match e.code.as_ref() {
+        "email" => "does not look like an email address".to_string(),
+        "url" => "must be a web address".to_string(),
+        "required" => "is required".to_string(),
+        "length" => match (n("min"), n("max")) {
+            (Some(1), None) => "cannot be empty".to_string(),
+            (Some(min), Some(max)) => format!("must be between {min} and {max} characters"),
+            (Some(min), None) => format!("must be at least {min} characters"),
+            (None, Some(max)) => format!("must be {max} characters or fewer"),
+            (None, None) => "is the wrong length".to_string(),
+        },
+        "range" => match (n("min"), n("max")) {
+            (Some(min), Some(max)) => format!("must be between {min} and {max}"),
+            (Some(min), None) => format!("must be {min} or more"),
+            (None, Some(max)) => format!("must be {max} or less"),
+            (None, None) => "is out of range".to_string(),
+        },
+        _ => "is not valid".to_string(),
+    };
+    format!("{} {detail}.", label(field))
+}
+
+/// A field name as a person would write it. `phone` is the one the app calls
+/// something else on screen, so it is named here rather than humanised.
+fn label(field: &str) -> String {
+    if field == "phone" {
+        return "Mobile number".to_string();
+    }
+    let spaced = field.replace('_', " ");
+    let mut chars = spaced.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => "That".to_string(),
     }
 }
 
@@ -133,7 +205,66 @@ fn taken(constraint: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::taken;
+    use super::{say, taken};
+    use validator::Validate;
+
+    #[derive(Validate)]
+    struct Signup<'a> {
+        #[validate(email)]
+        email: &'a str,
+        #[validate(length(min = 8, max = 128))]
+        password: &'a str,
+    }
+
+    #[derive(Validate)]
+    struct Innings {
+        #[validate(range(min = 1, max = 99))]
+        overs: u8,
+        #[validate(length(min = 1))]
+        name: String,
+    }
+
+    /// The report that started this: a mobile number typed into the email box
+    /// on sign-up, with a short password. It used to answer
+    /// `email: Validation error: email [{"value": String("+447700900123")}]`.
+    #[test]
+    fn a_bad_signup_reads_as_sentences() {
+        let err = Signup { email: "+447700900123", password: "short" }
+            .validate()
+            .unwrap_err();
+        assert_eq!(
+            say(&err),
+            "Email does not look like an email address. Password must be between 8 and 128 characters."
+        );
+    }
+
+    #[test]
+    fn nothing_leaks_the_crate_s_debug_shape() {
+        let err = Signup { email: "nope", password: "" }.validate().unwrap_err();
+        let said = say(&err);
+        for leak in ["Validation error", "String(", "Number(", "params", "[{"] {
+            assert!(!said.contains(leak), "{said:?} still contains {leak:?}");
+        }
+    }
+
+    #[test]
+    fn numbers_and_lengths_each_get_their_own_wording() {
+        let err = Innings { overs: 0, name: String::new() }.validate().unwrap_err();
+        assert_eq!(say(&err), "Name cannot be empty. Overs must be between 1 and 99.");
+    }
+
+    /// field_errors() is a HashMap, so the order has to be imposed somewhere.
+    #[test]
+    fn the_same_bad_form_always_answers_the_same_way() {
+        let once = {
+            let err = Signup { email: "nope", password: "x" }.validate().unwrap_err();
+            say(&err)
+        };
+        for _ in 0..50 {
+            let err = Signup { email: "nope", password: "x" }.validate().unwrap_err();
+            assert_eq!(say(&err), once);
+        }
+    }
 
     #[test]
     fn a_taken_number_reads_as_a_sentence() {

@@ -90,6 +90,12 @@ config:
     # Empty: derived as https://<hostname>/<bucket>.
     publicBase: ""
 
+  # Sign in with Apple: the bundle id the identity token must name as its
+  # audience. Set per brand by `brand helm <id> <ring>`; empty here because
+  # this file is shared and no brand's id belongs in it. Empty means the API
+  # falls back to com.fishers.app, which is only right for Fishers.
+  appleClientId: ""
+
   jwtAccessTtlSecs: 900
   jwtRefreshTtlSecs: 2592000
   rustLog: "fishers_api=info,fishers_notifications=info,fishers_jobs=info,tower_http=warn,sqlx=warn"
