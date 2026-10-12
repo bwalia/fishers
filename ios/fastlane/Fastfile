@@ -81,11 +81,38 @@ end
 # wrong app and uploaded to somebody else's listing.
 def generate_brand!
   brand = ENV.fetch("BRAND", "fishers")
+  mobile = nil
   Dir.chdir("../..") do
     sh("npm", "ci", "--omit=dev", "--prefix", "tools/brand")
     sh("node", "tools/brand/index.mjs", "generate", brand, "--ios")
+    mobile = sh("node", "tools/brand/index.mjs", "mobile", brand)
   end
-  UI.success("Built as #{brand}")
+
+  # The brand we just generated must be the brand we are about to sign as.
+  #
+  # BRAND decides the icon, the palette, the name and the server; BRAND_APP_ID
+  # decides the App Store listing, and they come from different places — the
+  # first from the environment, the second from what the workflow wrote to
+  # $GITHUB_ENV. Nothing used to compare them, and `ENV.fetch("BRAND",
+  # "fishers")` turned a missing variable into a silent, plausible answer.
+  #
+  # On 2026-10-12 that is exactly what happened: BRAND was set on the workflow
+  # step that generates the brand but not on the job, so fastlane regenerated
+  # everything as Fishers four seconds later and archived it — then signed it
+  # as app.gullycricket, because that came from BRAND_APP_ID and was still
+  # right. A whole Fishers app went to GullyCricket's TestFlight, with only the
+  # bundle id to say otherwise. Every step was green.
+  generated = mobile.to_s[/^BRAND_APP_ID=(\S+)/, 1]
+  if generated && generated != APP_ID
+    UI.user_error!(
+      "Building '#{brand}' (#{generated}) but signing as #{APP_ID}. " \
+      "BRAND and BRAND_APP_ID disagree, so this build would upload one brand's " \
+      "app to another brand's listing. Set BRAND=#{brand} at job level, or fix " \
+      "BRAND_APP_ID."
+    )
+  end
+
+  UI.success("Built as #{brand} (#{APP_ID})")
 end
 
 def generate_xcode_project!
