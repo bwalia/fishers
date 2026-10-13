@@ -73,7 +73,7 @@ struct CareerStatsView: View {
 
     private var seasonPicker: some View {
         Picker("Season", selection: $season) {
-            Text("All").tag(Int?.none)
+            Text(t("cl.all")).tag(Int?.none)
             ForEach(years, id: \.self) { year in
                 Text(String(year)).tag(Int?.some(year))
             }
@@ -84,16 +84,16 @@ struct CareerStatsView: View {
 
     /// The four numbers a player quotes, before any table.
     private var figures: some View {
-        let t = Totals(shown)
+        let totals = Totals(shown)
         let cells: [(String, String)] = discipline == .batting
-            ? [("Runs", String(t.runs)),
-               ("Innings", String(t.battingInnings)),
-               ("Average", fmt(t.battingAverage)),
-               ("Strike rate", fmt(t.strikeRate))]
-            : [("Wickets", String(t.wickets)),
-               ("Overs", fmt(t.overs, places: 1)),
-               ("Average", fmt(t.bowlingAverage)),
-               ("Economy", fmt(t.economy))]
+            ? [("Runs", String(totals.runs)),
+               ("Innings", String(totals.battingInnings)),
+               ("Average", fmt(totals.battingAverage)),
+               ("Strike rate", fmt(totals.strikeRate))]
+            : [("Wickets", String(totals.wickets)),
+               ("Overs", fmt(totals.overs, places: 1)),
+               ("Average", fmt(totals.bowlingAverage)),
+               ("Economy", fmt(totals.economy))]
 
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                          spacing: FishersTheme.space2) {

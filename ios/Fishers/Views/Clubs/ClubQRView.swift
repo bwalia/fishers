@@ -30,7 +30,7 @@ struct ClubQRView: View {
                             )
                         Text(shown.identity.displayName)
                             .font(FishersTheme.headline)
-                        Text("Show this to the other captain. They scan it when they start the match.")
+                        Text(t("cl.show_to_other_captain"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -60,13 +60,13 @@ struct ClubQRView: View {
             if let shown {
                 Section {
                     ShareLink(item: shown.payload) {
-                        Label("Share the link", systemImage: "square.and.arrow.up")
+                        Label(t("cl.share_the_link"), systemImage: "square.and.arrow.up")
                     }
                     Button {
                         UIPasteboard.general.string = shown.payload
                         message = "Copied."
                     } label: {
-                        Label("Copy the link", systemImage: "doc.on.doc")
+                        Label(t("cl.copy_the_link"), systemImage: "doc.on.doc")
                     }
                 } footer: {
                     Text(shown.payload)
@@ -80,14 +80,14 @@ struct ClubQRView: View {
                     Task { await rotate() }
                 } label: {
                     if isRotating {
-                        HStack { ProgressView(); Text("Minting a new code…") }
+                        HStack { ProgressView(); Text(t("cl.minting_a_new_code")) }
                     } else {
-                        Label("Retire this code", systemImage: "arrow.triangle.2.circlepath")
+                        Label(t("cl.retire_this_code"), systemImage: "arrow.triangle.2.circlepath")
                     }
                 }
                 .disabled(isRotating)
             } footer: {
-                Text("Only if it has been shared too widely. The old code stops working immediately.")
+                Text(t("cl.retire_code_warning"))
             }
 
             if let message {
@@ -95,7 +95,7 @@ struct ClubQRView: View {
             }
         }
         .fishersList()
-        .navigationTitle("Club QR code")
+        .navigationTitle(t("cl.club_qr_code"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .onChange(of: selectedTeamId) { _, _ in Task { await loadTeamCode() } }

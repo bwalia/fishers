@@ -106,17 +106,17 @@ struct WagonWheelPicker: View {
                 Spacer(minLength: 0)
             }
             .padding(.vertical)
-            .navigationTitle("Where did it go?")
+            .navigationTitle(t("sc.where_did_it_go"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Skip") {
+                    Button(t("score.skip")) {
                         onSkip()
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(t("lc.save")) {
                         if let angle {
                             onSave(ShotRecord(angle: angle, kind: kind, reach: reach))
                         } else {
@@ -306,7 +306,7 @@ struct WagonWheelChart: View {
             .aspectRatio(1, contentMode: .fit)
 
             if shots.isEmpty {
-                Text("No shots recorded yet.")
+                Text(t("sc.no_shots_recorded_yet"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

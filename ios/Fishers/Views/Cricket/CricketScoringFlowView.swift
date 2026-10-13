@@ -144,7 +144,7 @@ struct CricketScoringFlowView: View {
     private var setupStep: some View {
         Form {
             Section {
-                TextField("Batting first / home side", text: $homeName)
+                TextField(t("sc.batting_first_home_side"), text: $homeName)
                 Button {
                     isPickingOpposition = true
                 } label: {
@@ -167,7 +167,7 @@ struct CricketScoringFlowView: View {
             } header: {
                 Text(event.title)
             } footer: {
-                Text("Scan the other club's QR code, search for them, or type a name.")
+                Text(t("sc.scan_search_or_type"))
             }
 
             Section {
@@ -198,7 +198,7 @@ struct CricketScoringFlowView: View {
                     in: 0...25
                 )
             } header: {
-                Text("Format")
+                Text(t("sc.format"))
             } footer: {
                 Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs — with a \(MatchConditions.standardPowerplay(conditions.oversLimit)) over powerplay. Fourteen an hour is the usual over rate. Set any of them to none for a social game.")
             }
@@ -228,9 +228,9 @@ struct CricketScoringFlowView: View {
                     in: 0...11
                 )
             } header: {
-                Text("Fielding restrictions")
+                Text(t("sc.fielding_restrictions"))
             } footer: {
-                Text("Two and five are standard. Two behind square on the leg side applies throughout and is not adjustable.")
+                Text(t("sc.two_and_five_standard"))
             }
 
             Section("Ball") {
@@ -245,8 +245,7 @@ struct CricketScoringFlowView: View {
 
             if !canScore {
                 Section {
-                    Label(
-                        "You need scoring permission — a captain, club secretary or an assigned scorer.",
+                    Label(t("sc.need_scoring_permission"),
                         systemImage: "lock.fill"
                     )
                     .font(.footnote)
@@ -266,14 +265,14 @@ struct CricketScoringFlowView: View {
                         if booting {
                             ProgressView()
                         } else {
-                            Text("Propose these terms").bold()
+                            Text(t("la.propose_these_terms")).bold()
                         }
                         Spacer()
                     }
                 }
                 .disabled(!canScore || booting || homeName.isEmpty || awayName.isEmpty)
             } footer: {
-                Text("Both captains have to agree before the toss.")
+                Text(t("sc.both_captains_must_agree"))
             }
         }
         .onChange(of: conditions.oversLimit) { _, new in
@@ -295,9 +294,9 @@ struct CricketScoringFlowView: View {
                     .font(FishersTheme.headline)
                     .fixedSize(horizontal: false, vertical: true)
             } header: {
-                Text("On the table")
+                Text(t("sc.on_the_table"))
             } footer: {
-                Text("Change anything and both captains have to agree again.")
+                Text(t("sc.change_means_agree_again"))
             }
 
             Section("Captains") {
@@ -310,10 +309,10 @@ struct CricketScoringFlowView: View {
             }
 
             Section {
-                Button("Continue to the toss") { step = .toss }
+                Button(t("sc.continue_to_the_toss")) { step = .toss }
                     .bold()
                     .disabled(!store.state.conditionsAgreed)
-                Button("Change the terms") { step = .setup }
+                Button(t("sc.change_the_terms")) { step = .setup }
                     .foregroundStyle(FishersTheme.accent)
             } footer: {
                 if !store.state.conditionsAgreed {
@@ -342,14 +341,14 @@ struct CricketScoringFlowView: View {
                         .font(.caption)
                         .foregroundStyle(FishersTheme.available)
                 } else {
-                    Text("Not agreed yet")
+                    Text(t("sc.not_agreed_yet"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             Spacer()
             if store.state.agreedName(side) == nil {
-                Button("Agree") {
+                Button(t("sc.agree")) {
                     agreeingSide = side
                     captainName = suggestedCaptainName(for: side)
                     isNamingCaptain = true
@@ -468,7 +467,7 @@ struct CricketScoringFlowView: View {
                     .foregroundStyle(.secondary)
             }
             Section {
-                Button("Record toss") {
+                Button(t("sc.record_toss")) {
                     guard store.append(.tossRecorded(winner: tossWinner, decision: tossDecision))
                     else { return }
                     step = .sheets
@@ -512,7 +511,7 @@ struct CricketScoringFlowView: View {
                     scorers: $scorers,
                     clubPlayers: clubPlayers
                 )
-                .tabItem { Label("Officials", systemImage: "figure.australian.football") }
+                .tabItem { Label(t("sc.officials"), systemImage: "figure.australian.football") }
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
 
@@ -555,7 +554,7 @@ struct CricketScoringFlowView: View {
                 Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
             }
             Section {
-                Button("Start innings") { startInnings(batting: batting) }
+                Button(t("sc.start_innings")) { startInnings(batting: batting) }
                     .bold()
             }
         }
@@ -808,7 +807,7 @@ private struct TeamSheetEditor: View {
         List {
             Section {
                 if players.isEmpty {
-                    Text("Nobody picked yet.")
+                    Text(t("sc.nobody_picked_yet"))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
@@ -824,7 +823,7 @@ private struct TeamSheetEditor: View {
                                     .foregroundStyle(FishersTheme.accent)
                             }
                             if keeper == player.id {
-                                Text("WK").font(.caption2.bold())
+                                Text(t("sc.wk")).font(.caption2.bold())
                                     .foregroundStyle(FishersTheme.accent)
                             }
                         }
@@ -844,7 +843,7 @@ private struct TeamSheetEditor: View {
             } header: {
                 Text("\(title) — batting order (\(players.count))")
             } footer: {
-                Text("Drag to set the batting order. Swipe to remove.")
+                Text(t("sc.drag_to_set_batting_order"))
             }
 
             if !players.isEmpty {
@@ -865,10 +864,10 @@ private struct TeamSheetEditor: View {
 
             Section("Add a guest or the opposition") {
                 HStack {
-                    TextField("Name", text: $guestName)
+                    TextField(t("cl.name"), text: $guestName)
                         .textInputAutocapitalization(.words)
                         .onSubmit(addGuest)
-                    Button("Add", action: addGuest)
+                    Button(t("sc.add"), action: addGuest)
                         .disabled(guestName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -932,7 +931,7 @@ private struct OfficialsEditor: View {
         List {
             Section {
                 if umpires.isEmpty {
-                    Text("Nobody standing yet.").foregroundStyle(.secondary)
+                    Text(t("sc.nobody_standing_yet")).foregroundStyle(.secondary)
                 } else {
                     ForEach(umpires) { official in
                         Text(official.name)
@@ -947,7 +946,7 @@ private struct OfficialsEditor: View {
 
             Section("Scorers (\(scorers.count))") {
                 if scorers.isEmpty {
-                    Text("Only the person who started the match.")
+                    Text(t("sc.only_who_started_the_match"))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(scorers) { official in
@@ -959,16 +958,16 @@ private struct OfficialsEditor: View {
 
             Section("Add") {
                 Picker("Role", selection: $addingUmpire) {
-                    Text("Umpire").tag(true)
-                    Text("Scorer").tag(false)
+                    Text(t("sc.umpire_one")).tag(true)
+                    Text(t("la.scorer")).tag(false)
                 }
                 .pickerStyle(.segmented)
 
                 HStack {
-                    TextField("Name", text: $guestName)
+                    TextField(t("cl.name"), text: $guestName)
                         .textInputAutocapitalization(.words)
                         .onSubmit(addGuest)
-                    Button("Add", action: addGuest)
+                    Button(t("sc.add"), action: addGuest)
                         .disabled(guestName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
 
@@ -1042,7 +1041,7 @@ private struct CaptainNameSheet: View {
                 if !candidates.isEmpty {
                     Section("Their squad") {
                         if matches.isEmpty {
-                            Text("Nobody in the squad matches. Type the name below to record them anyway.")
+                            Text(t("sc.nobody_in_squad_matches"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -1065,12 +1064,12 @@ private struct CaptainNameSheet: View {
                     }
                 }
                 Section {
-                    TextField("Name", text: $name)
+                    TextField(t("cl.name"), text: $name)
                         .textContentType(.name)
                 } header: {
                     Text(candidates.isEmpty ? "Captain" : "Somebody else")
                 } footer: {
-                    Text("Recorded against the agreement, so there is no argument later.")
+                    Text(t("sc.recorded_against_agreement"))
                 }
             }
             .searchable(text: $search, prompt: "Find a player")
@@ -1078,10 +1077,10 @@ private struct CaptainNameSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel(); dismiss() }
+                    Button(t("sc.cancel")) { onCancel(); dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Agree") { onAgree(); dismiss() }
+                    Button(t("sc.agree")) { onAgree(); dismiss() }
                         .bold()
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }

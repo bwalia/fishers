@@ -110,10 +110,10 @@ final class GettingStartedStore: ObservableObject {
         sharedOnce = UserDefaults.standard.bool(forKey: ShareProfileView.sharedKey(user.id))
         async let status = FishersAPI.verificationStatus()
         if let club = ownClub {
-            async let t = FishersAPI.teams(clubId: club.id)
+            async let teamList = FishersAPI.teams(clubId: club.id)
             async let m = FishersAPI.clubMembers(clubId: club.id)
             async let r = FishersAPI.myClubRole(clubId: club.id)
-            teams = (try? await t) ?? []
+            teams = (try? await teamList) ?? []
             members = (try? await m) ?? []
             ownClubRole = try? await r
         } else {

@@ -23,19 +23,19 @@ struct AboutForm: View {
                 .listRowBackground(Color.clear)
             }
             Section("You") {
-                TextField("Full name", text: $form.name)
+                TextField(t("rest.full_name"), text: $form.name)
                     .textContentType(.name)
-                TextField("Mobile", text: $form.phone)
+                TextField(t("cl.mobile"), text: $form.phone)
                     .textContentType(.telephoneNumber)
                     .keyboardType(.phonePad)
             }
             Section {
-                TextField("Name · number", text: $form.emergencyContact)
+                TextField(t("rest.name_dot_number"), text: $form.emergencyContact)
                     .textContentType(.name)
             } header: {
-                Text("Emergency contact")
+                Text(t("rest.emergency_contact"))
             } footer: {
-                Text("Only club admins can see this. Optional, but useful on away trips.")
+                Text(t("rest.only_club_admins_see_this"))
             }
         }
     }
@@ -58,9 +58,9 @@ struct SportsPicker: View {
 
                 if form.selectedSports.count > 1 {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Main sport")
+                        Text(t("cl.main_sport"))
                             .font(.headline)
-                        Text("Shown first on your profile and used for club suggestions.")
+                        Text(t("rest.shown_first_on_profile"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Picker("Main sport", selection: $form.primarySport) {
@@ -87,12 +87,12 @@ struct SportDetailForm: View {
                 TierSelector(tier: form.tierBinding(sport))
                     .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             } header: {
-                Text("Your standard")
+                Text(t("rest.your_standard"))
             } footer: {
                 if let tier = form.detail(for: sport).tier, let next = tier.next {
                     Text("Next rung up: \(next.label). Log games and stats to make the case for it.")
                 } else {
-                    Text("Be honest — captains use this to balance sides, not to judge you.")
+                    Text(t("rest.be_honest_captains_balance"))
                 }
             }
 
@@ -102,7 +102,7 @@ struct SportDetailForm: View {
             }
 
             Section("Team & league") {
-                TextField("Team you play for", text: teamNameBinding)
+                TextField(t("rest.team_you_play_for"), text: teamNameBinding)
                 OptionMenu(title: "Age group", selection: form.ageGroupBinding(sport))
                 if sport.usesDivisions {
                     OptionMenu(title: "Division you play in", selection: form.divisionBinding(sport, target: false))
@@ -125,7 +125,7 @@ struct SportDetailForm: View {
             } header: {
                 Text("Your \(sport.label.lowercased()) stats")
             } footer: {
-                Text("All optional. They show on your player card and help captains pick balanced sides.")
+                Text(t("rest.all_optional_player_card"))
             }
         }
     }
@@ -151,8 +151,8 @@ struct LogisticsForm: View {
     var body: some View {
         Form {
             Section("Based") {
-                TextField("Area or town", text: $form.area)
-                TextField("Postcode (first part is fine)", text: $form.postcode)
+                TextField(t("rest.area_or_town"), text: $form.area)
+                TextField(t("rest.postcode_first_part"), text: $form.postcode)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
             }
@@ -168,22 +168,22 @@ struct LogisticsForm: View {
                     Stepper("Spare seats: \(form.spareSeats)", value: $form.spareSeats, in: 0...6)
                 }
             } header: {
-                Text("Travel")
+                Text(t("rest.travel"))
             } footer: {
-                Text("Away fixtures use this to sort lifts before the meet time is sent out.")
+                Text(t("rest.away_fixtures_lifts"))
             }
 
             Section {
                 WeekdayPicker(selected: $form.preferredDays)
                     .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
             } header: {
-                Text("Usual days")
+                Text(t("rest.usual_days"))
             } footer: {
-                Text("A starting point for your availability calendar — you can still change any single date.")
+                Text(t("rest.availability_starting_point"))
             }
 
             Section("Anything else") {
-                TextField("e.g. no Saturdays before 2pm", text: $form.logisticsNotes, axis: .vertical)
+                TextField(t("rest.no_saturdays_example"), text: $form.logisticsNotes, axis: .vertical)
                     .lineLimit(2...4)
             }
         }

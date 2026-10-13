@@ -46,6 +46,14 @@ jobs:
         working-directory: .
         run: python3 scripts/check-brand-literals.py
 
+      # The phone's words come from the web's dictionaries. Nothing stops
+      # somebody adding a string for the web and not regenerating, and the app
+      # would then quietly show English for it — which is exactly how one
+      # platform ends up a translation behind the other.
+      - name: The phone's strings match the web's
+        working-directory: .
+        run: node tools/i18n/index.mjs --check
+
       - name: Generate Xcode project
         run: xcodegen generate
 

@@ -81,7 +81,7 @@ struct ListingDetailView: View {
                     .font(.largeTitle.bold())
                     .monospacedDigit()
                 if listing.product.negotiable == true {
-                    Text("or near offer")
+                    Text(t("sh.or_near_offer"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -103,13 +103,10 @@ struct ListingDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             if reserved {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Reserved for you.", systemImage: "checkmark.circle.fill")
+                    Label(t("sh.reserved_for_you"), systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(FishersTheme.pitch)
-                    Text(
-                        "The seller has been told. Arrange collection with them and pay them "
-                            + "directly — nothing has been taken online."
-                    )
+                    Text(t("sh.seller_has_been_told"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 }
@@ -141,11 +138,7 @@ struct ListingDetailView: View {
                 .controlSize(.large)
                 .disabled(asking)
 
-                Label(
-                    "Nothing is paid online. Reserving tells the seller you want it; you settle up "
-                        + "when you collect.",
-                    systemImage: "lock"
-                )
+                Label(t("sh.nothing_paid_online"), systemImage: "lock")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             }
@@ -162,7 +155,7 @@ struct ListingDetailView: View {
                             .foregroundStyle(.white)
                     )
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Sold by").font(.caption).foregroundStyle(.secondary)
+                    Text(t("sh.sold_by")).font(.caption).foregroundStyle(.secondary)
                     Text(listing.sellerName ?? listing.clubName).font(.subheadline.bold())
                     if listing.sellerName != nil {
                         Text(listing.clubName).font(.caption).foregroundStyle(.secondary)
@@ -175,7 +168,7 @@ struct ListingDetailView: View {
             // out otherwise, so there is nothing here to forget to hide.
             if listing.sellerPhone != nil || listing.sellerEmail != nil {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Happy to be contacted directly")
+                    Text(t("sh.happy_to_be_contacted"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let phone = listing.sellerPhone, let url = URL(string: "tel:\(phone)") {
@@ -302,14 +295,14 @@ private struct OwnerPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("This is your listing", systemImage: "checkmark.circle")
+            Label(t("sh.this_is_your_listing"), systemImage: "checkmark.circle")
                 .font(.subheadline.bold())
                 .foregroundStyle(FishersTheme.pitch)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(FishersTheme.pitch.opacity(0.12), in: Capsule())
 
-            Text("This is exactly how buyers see it.")
+            Text(t("sh.this_is_exactly_how_buyers_see_it"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
@@ -327,7 +320,7 @@ private struct OwnerPanel: View {
                 )
                 .font(.footnote)
             } else {
-                Label("Nobody has asked about it yet. Questions arrive in Chats.",
+                Label(t("sh.nobody_has_asked_about_it_yet_question"),
                       systemImage: "bubble.left.and.bubble.right")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -336,10 +329,7 @@ private struct OwnerPanel: View {
             // Editing lives on the web for now, so this says so rather than
             // offering a button that would go nowhere.
             if (listing.product.photos?.count ?? 0) == 0 {
-                Text(
-                    "It has no photographs. A listing without one is usually scrolled past — "
-                        + "adding a couple is the single thing most likely to sell it."
-                )
+                Text(t("sh.no_photographs_advice"))
                 .font(.footnote)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -372,7 +362,7 @@ private struct Gallery: View {
                 .overlay(
                     VStack(spacing: 6) {
                         Image(systemName: "camera").font(.largeTitle)
-                        Text("No photograph").font(.footnote)
+                        Text(t("sh.no_photograph")).font(.footnote)
                     }
                     .foregroundStyle(.secondary)
                 )

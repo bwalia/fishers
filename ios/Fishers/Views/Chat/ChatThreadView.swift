@@ -70,7 +70,7 @@ struct ChatThreadView: View {
                     if store.isThinking {
                         ProgressView()
                     } else {
-                        Label("Ask assistant", systemImage: "sparkles")
+                        Label(t("cl.ask_assistant"), systemImage: "sparkles")
                     }
                 }
                 .disabled(store.isThinking)
@@ -117,7 +117,7 @@ struct ChatThreadView: View {
 
     private var proposalsHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Suggestions")
+            Text(t("cl.suggestions"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             ForEach(store.pendingProposals) { proposal in
@@ -133,7 +133,7 @@ struct ChatThreadView: View {
 
     private var composer: some View {
         HStack(spacing: 10) {
-            TextField("Message", text: $draft, axis: .vertical)
+            TextField(t("rest.message"), text: $draft, axis: .vertical)
                 .lineLimit(1...4)
                 .textFieldStyle(.roundedBorder)
             Button {
@@ -250,10 +250,10 @@ private struct ProposalCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Button("Apply", action: onApply)
+                Button(t("sc.apply"), action: onApply)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                Button("Dismiss", action: onDismiss)
+                Button(t("rest.dismiss"), action: onDismiss)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }

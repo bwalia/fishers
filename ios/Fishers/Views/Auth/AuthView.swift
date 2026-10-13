@@ -70,7 +70,7 @@ struct AuthView: View {
 
                         if mode == .signup {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("I'm here to…")
+                                Text(t("rest.im_here_to"))
                                     .font(FishersTheme.subhead.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                 RoleChooserView(selection: $role, compact: true)
@@ -117,7 +117,7 @@ struct AuthView: View {
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            SecureField("Password", text: $password)
+                            SecureField(t("cl.password"), text: $password)
                                 .font(FishersTheme.body)
                                 .padding(.horizontal, 14)
                                 .frame(minHeight: FishersTheme.minTap)
@@ -213,7 +213,7 @@ struct AuthView: View {
                 }
                 HStack {
                     Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)
-                    Text("or with email")
+                    Text(t("rest.or_with_email"))
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                     Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)

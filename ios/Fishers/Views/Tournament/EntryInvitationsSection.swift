@@ -39,13 +39,13 @@ struct EntryInvitationsSection: View {
                                 if busy == invitation.id {
                                     ProgressView()
                                 } else {
-                                    Text("Accept")
+                                    Text(t("le.accept"))
                                 }
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
 
-                            Button("Decline") {
+                            Button(t("ev.decline")) {
                                 Task { await answer(invitation, .declined) }
                             }
                             .buttonStyle(.bordered)
@@ -67,7 +67,7 @@ struct EntryInvitationsSection: View {
                 }
             } header: {
                 HStack {
-                    Text("You have been asked").font(FishersTheme.overline).tracking(0.8)
+                    Text(t("tn.you_have_been_asked")).font(FishersTheme.overline).tracking(0.8)
                     Spacer()
                     Text("\(invitations.count)").font(FishersTheme.caption)
                 }

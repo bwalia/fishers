@@ -8,6 +8,7 @@ import SwiftUI
 /// told us about themselves.
 struct ProfileView: View {
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var language: LanguageStore
     @State private var tab: Tab = .overview
     @State private var isEditing = false
     @State private var confirmSignOut = false
@@ -67,21 +68,21 @@ struct ProfileView: View {
             }
             .listStyle(.insetGrouped)
             .fishersList()
-            .navigationTitle("Profile")
+            .navigationTitle(t("nav.profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Edit") { isEditing = true }
+                    Button(t("cl.edit")) { isEditing = true }
                 }
             }
             .sheet(isPresented: $isEditing) {
                 ProfileEditView(user: session.user)
             }
             .confirmationDialog("Sign out of \(Brand.name)?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                Button("Sign out", role: .destructive) { session.signOut() }
-                Button("Cancel", role: .cancel) {}
+                Button(t("nav.sign_out"), role: .destructive) { session.signOut() }
+                Button(t("sc.cancel"), role: .cancel) {}
             } message: {
-                Text("You can sign back in anytime on this device.")
+                Text(t("rest.sign_back_in_anytime"))
             }
             .task {
                 await session.refreshProfile()
@@ -155,7 +156,7 @@ struct ProfileView: View {
             NavigationLink {
                 ShopView()
             } label: {
-                Label("Browse kit & food", systemImage: "bag")
+                Label(t("rest.browse_kit_and_food"), systemImage: "bag")
             }
         }
 
@@ -163,12 +164,12 @@ struct ProfileView: View {
             NavigationLink {
                 ShareProfileScreen(userId: user.id)
             } label: {
-                Label("Send my profile to a club", systemImage: "link")
+                Label(t("rest.send_my_profile_to_a_club"), systemImage: "link")
             }
         } header: {
-            Text("Joining a club")
+            Text(t("rest.joining_a_club"))
         } footer: {
-            Text("A club's secretary can invite you straight from your profile link.")
+            Text(t("cl.secretary_can_invite_you"))
         }
 
         Section("Account") {
@@ -176,7 +177,7 @@ struct ProfileView: View {
                 NavigationLink {
                     VerifyAccountScreen()
                 } label: {
-                    Label("Confirm your email or phone", systemImage: "checkmark.shield")
+                    Label(t("rest.confirm_email_or_phone"), systemImage: "checkmark.shield")
                         .foregroundStyle(FishersTheme.maybe)
                 }
             }
@@ -189,19 +190,30 @@ struct ProfileView: View {
             )) {
                 ForEach(RoleIntent.allCases) { Text($0.title).tag(Optional($0)) }
             } label: {
-                Label("Getting-started guide", systemImage: "sparkles")
+                Label(t("rest.getting_started_guide"), systemImage: "sparkles")
+            }
+            // In its own script and never translated — a picker offering
+            // "Punjabi" in English is no use to the person who needs it. The
+            // same reasoning, and the same list, as the web's.
+            Picker(selection: Binding(
+                get: { language.language },
+                set: { language.set($0) }
+            )) {
+                ForEach(Language.allCases) { Text($0.native).tag($0) }
+            } label: {
+                Label(language.t("lang.label"), systemImage: "globe")
             }
             NavigationLink {
                 APIServerSettingsView()
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Label("API server", systemImage: "network")
+                    Label(t("rest.api_server"), systemImage: "network")
                     Text(AppConfig.displayHost)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            Button("Sign out", role: .destructive) {
+            Button(t("nav.sign_out"), role: .destructive) {
                 confirmSignOut = true
             }
         }
@@ -210,32 +222,32 @@ struct ProfileView: View {
             // App Store Connect wants a policy anybody can read without an
             // account, so it lives on the web host rather than in here.
             Link(destination: AppConfig.webBaseURL.appendingPathComponent("privacy")) {
-                Label("Privacy", systemImage: "hand.raised")
+                Label(t("rest.privacy"), systemImage: "hand.raised")
             }
             NavigationLink {
                 DeleteAccountView()
             } label: {
-                Label("Delete account", systemImage: "person.crop.circle.badge.xmark")
+                Label(t("cl.delete_account"), systemImage: "person.crop.circle.badge.xmark")
                     .foregroundStyle(FishersTheme.unavailable)
             }
         } footer: {
-            Text("Deleting removes everything that identifies you and cannot be undone.")
+            Text(t("rest.deleting_removes_everything"))
         }
     }
 
-    private func careerSummary(_ t: Totals, seasons: Int) -> some View {
+    private func careerSummary(_ totals: Totals, seasons: Int) -> some View {
         Section {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                       spacing: FishersTheme.space2) {
-                figure("Matches", t.matches)
-                figure("Runs", t.runs)
-                figure("Wickets", t.wickets)
-                figure("Catches", t.catches)
+                figure("Matches", totals.matches)
+                figure("Runs", totals.runs)
+                figure("Wickets", totals.wickets)
+                figure("Catches", totals.catches)
             }
             .padding(.vertical, 4)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         } header: {
-            Text("Career")
+            Text(t("cl.career"))
         } footer: {
             Text("Across \(seasons) season\(seasons == 1 ? "" : "s"), worked out from the ball-by-ball log.")
         }
@@ -304,7 +316,7 @@ struct ProfileView: View {
                     Label(sport.label, systemImage: sport.systemImage)
                 }
                 if session.user?.primarySport == profile.sport {
-                    Text("MAIN")
+                    Text(t("rest.main_sport_badge"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.tint)
                 }
@@ -364,11 +376,11 @@ struct ShareProfileScreen: View {
                 ShareProfileView(userId: userId)
                     .padding(.vertical, 4)
             } footer: {
-                Text("Drop it in your club's WhatsApp group or message your secretary. They see your name, photo and what you play — not your email or number — and send you an invite, which appears on Home.")
+                Text(t("rest.drop_it_in_whatsapp"))
             }
         }
         .fishersList()
-        .navigationTitle("Your profile link")
+        .navigationTitle(t("rest.your_profile_link"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -390,17 +402,17 @@ struct VerifyAccountScreen: View {
                     }
                     .padding(.vertical, 4)
                 } else if failed || (status != nil && status?.canVerify == false) {
-                    Text("Codes can't be sent from this server right now.")
+                    Text(t("rest.codes_cannot_be_sent"))
                         .foregroundStyle(.secondary)
                 } else {
                     ProgressView()
                 }
             } footer: {
-                Text("Starting a club and accepting an invite need a confirmed email address or phone number.")
+                Text(t("rest.starting_club_needs_confirmed"))
             }
         }
         .fishersList()
-        .navigationTitle("Confirm it's you")
+        .navigationTitle(t("rest.confirm_its_you"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             do { status = try await FishersAPI.verificationStatus() } catch { failed = true }

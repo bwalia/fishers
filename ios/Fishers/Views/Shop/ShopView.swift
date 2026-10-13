@@ -21,9 +21,9 @@ struct ShopView: View {
         List {
             Section {
                 Picker("Condition", selection: $condition) {
-                    Text("Everything").tag(String?.none)
-                    Text("Second-hand").tag(String?.some("used"))
-                    Text("Brand new").tag(String?.some("new"))
+                    Text(t("rest.everything")).tag(String?.none)
+                    Text(t("lc.second_hand")).tag(String?.some("used"))
+                    Text(t("lc.brand_new")).tag(String?.some("new"))
                 }
                 .pickerStyle(.segmented)
                 .listRowSeparator(.hidden)
@@ -48,7 +48,7 @@ struct ShopView: View {
         .listStyle(.insetGrouped)
         .fishersList()
         .searchable(text: $search, prompt: "Bats, pads, a club shirt")
-        .navigationTitle("Kit for sale")
+        .navigationTitle(t("sh.kit_for_sale"))
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
@@ -128,7 +128,7 @@ private struct ListingRow: View {
             }
             Spacer(minLength: 0)
             if product.isSold {
-                Text("Sold")
+                Text(t("le.sold"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }

@@ -46,6 +46,17 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # The app's words come from the web's dictionaries. Nothing stops
+      # somebody adding a string for the web and not regenerating, and the app
+      # would then quietly show English for it — which is how one platform ends
+      # up a translation behind another.
+      - name: The app's strings match the web's
+        # This job defaults every `run:` to `android/`, which is right for
+        # gradle and wrong here: the tool and the dictionaries are both at the
+        # repo root.
+        working-directory: .
+        run: node tools/i18n/index.mjs --check
+
       # The cricket engine is Rust, cross-compiled into the app, so the Android
       # build needs a Rust toolchain and the NDK. There is no fallback on
       # purpose: a build that quietly skipped the engine would produce an app

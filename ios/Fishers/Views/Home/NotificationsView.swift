@@ -66,12 +66,12 @@ struct NotificationsView: View {
         }
         .listStyle(.insetGrouped)
         .fishersList()
-        .navigationTitle("Notifications")
+        .navigationTitle(t("nav.notifications"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if unread > 0 {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Mark all read") {
+                    Button(t("rest.mark_all_read")) {
                         Task {
                             try? await FishersAPI.markNotificationRead(id: nil)
                             await reload()
@@ -92,7 +92,7 @@ struct NotificationsView: View {
         .onChange(of: kind) { _, _ in Task { await reload() } }
         .onChange(of: unreadOnly) { _, _ in Task { await reload() } }
         .alert("Something went wrong", isPresented: .constant(message != nil)) {
-            Button("OK") { message = nil }
+            Button(t("rest.ok")) { message = nil }
         } message: {
             Text(message ?? "")
         }
@@ -106,7 +106,7 @@ struct NotificationsView: View {
     private var filters: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search", text: $search)
+            TextField(t("rest.search"), text: $search)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
         }
@@ -115,12 +115,12 @@ struct NotificationsView: View {
         // offers a filter that returns nothing.
         if !kinds.isEmpty {
             Picker("Kind", selection: $kind) {
-                Text("Everything").tag("")
+                Text(t("rest.everything")).tag("")
                 ForEach(kinds, id: \.self) { Text(label(for: $0)).tag($0) }
             }
         }
 
-        Toggle("Unread only", isOn: $unreadOnly)
+        Toggle(t("rest.unread_only"), isOn: $unreadOnly)
     }
 
     private func label(for kind: String) -> String {

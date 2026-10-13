@@ -168,7 +168,7 @@ struct LiveScorerView: View {
                 CricketScorecardView(state: store.state, dls: nil)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Done") { showScorecard = false }
+                            Button(t("ev.done")) { showScorecard = false }
                         }
                     }
             }
@@ -178,25 +178,25 @@ struct LiveScorerView: View {
             isPresented: $confirmEndInnings,
             titleVisibility: .visible
         ) {
-            Button("End innings", role: .destructive) {
+            Button(t("sc.end_innings"), role: .destructive) {
                 _ = store.append(.inningsCompleted(declared: false, forfeited: false))
             }
             if store.state.conditions.twoInnings {
                 // Only a declaration game has these, and only there do they mean
                 // anything: a closed innings, one given up, or a drawn match.
-                Button("Declare") {
+                Button(t("sc.declare")) {
                     _ = store.append(.inningsCompleted(declared: true, forfeited: false))
                 }
-                Button("Forfeit the innings", role: .destructive) {
+                Button(t("sc.forfeit_the_innings"), role: .destructive) {
                     _ = store.append(.inningsCompleted(declared: false, forfeited: true))
                 }
-                Button("Match drawn") {
+                Button(t("sc.match_drawn")) {
                     _ = store.append(.matchCompleted(winner: nil, margin: "Match drawn"))
                 }
             }
-            Button("Keep scoring", role: .cancel) {}
+            Button(t("sc.keep_scoring"), role: .cancel) {}
         } message: {
-            Text("Declarations and rain both end an innings early. You can undo it.")
+            Text(t("sc.declarations_and_rain"))
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -204,18 +204,18 @@ struct LiveScorerView: View {
                     Button {
                         Task { await shareLiveLink(postToChat: false, presentSheet: true) }
                     } label: {
-                        Label("Share via WhatsApp, Mail…", systemImage: "square.and.arrow.up")
+                        Label(t("sc.share_via_whatsapp_mail"), systemImage: "square.and.arrow.up")
                     }
                     Button {
                         Task { await shareLiveLink(postToChat: true, presentSheet: true) }
                     } label: {
-                        Label("Share and post to club chat", systemImage: "bubble.left.and.bubble.right")
+                        Label(t("sc.share_and_post_to_club_chat"), systemImage: "bubble.left.and.bubble.right")
                     }
                 } label: {
                     if isSharing {
                         ProgressView()
                     } else {
-                        Label("Share", systemImage: "square.and.arrow.up")
+                        Label(t("sc.share"), systemImage: "square.and.arrow.up")
                     }
                 }
                 .disabled(isSharing || store.matchId == nil)
@@ -232,39 +232,39 @@ struct LiveScorerView: View {
                     Button {
                         showCorrection = true
                     } label: {
-                        Label("Correct an earlier ball", systemImage: "arrow.uturn.backward.badge.clock")
+                        Label(t("sc.correct_an_earlier_ball"), systemImage: "arrow.uturn.backward.badge.clock")
                     }
                     Button {
                         showField = true
                     } label: {
-                        Label("Set the field", systemImage: "circle.dashed.inset.filled")
+                        Label(t("sc.set_the_field"), systemImage: "circle.dashed.inset.filled")
                     }
                     Button {
                         showPenalty = true
                     } label: {
-                        Label("Penalty runs", systemImage: "exclamationmark.triangle")
+                        Label(t("sc.penalty_runs"), systemImage: "exclamationmark.triangle")
                     }
                     Divider()
                     Button {
                         showHandover = true
                     } label: {
-                        Label("Hand the book over", systemImage: "person.2.arrow.trianglehead.swap")
+                        Label(t("sc.hand_the_book_over"), systemImage: "person.2.arrow.trianglehead.swap")
                     }
                     Button {
                         showRain = true
                     } label: {
-                        Label("Overs reduced (rain)", systemImage: "cloud.rain.fill")
+                        Label(t("sc.overs_reduced_rain"), systemImage: "cloud.rain.fill")
                     }
                     Button {
                         showScorecard = true
                     } label: {
-                        Label("Scorecard", systemImage: "list.bullet.rectangle")
+                        Label(t("ld.scorecard"), systemImage: "list.bullet.rectangle")
                     }
                     Divider()
                     Button(role: .destructive) {
                         showCallOff = true
                     } label: {
-                        Label("Call this match off", systemImage: "xmark.octagon")
+                        Label(t("la.call_this_match_off"), systemImage: "xmark.octagon")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -330,7 +330,7 @@ struct LiveScorerView: View {
                     .accessibilityLabel("Powerplay, \(inn.powerplayOversLeft) overs left")
                 }
                 if inn.freeHit {
-                    Label("FREE HIT — only a run out can get them", systemImage: "shield.lefthalf.filled")
+                    Label(t("sc.free_hit_banner"), systemImage: "shield.lefthalf.filled")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(FishersTheme.maybe)
                         .padding(.vertical, 4)
@@ -367,7 +367,7 @@ struct LiveScorerView: View {
                     )
                     .font(FishersTheme.headline)
                     .foregroundStyle(FishersTheme.seam)
-                    Button("Start the reply") { showSuperOver = true }
+                    Button(t("la.start_the_reply")) { showSuperOver = true }
                         .buttonStyle(.borderedProminent)
                         .tint(FishersTheme.accent)
                 }
@@ -377,7 +377,7 @@ struct LiveScorerView: View {
                 // moment to pass it on.
                 if let next = handOverTo {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("The side batting normally keeps their own book — they know who is going in.")
+                        Text(t("sc.the_side_batting_normally_keeps_their"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Button {
@@ -388,7 +388,7 @@ struct LiveScorerView: View {
                         .buttonStyle(.bordered)
                     }
                 }
-                Button("Start second innings") { showSecondInnings = true }
+                Button(t("sc.start_second_innings")) { showSecondInnings = true }
                     .buttonStyle(.borderedProminent)
                     .tint(FishersTheme.accent)
             }
@@ -402,7 +402,7 @@ struct LiveScorerView: View {
                     )
                     .font(FishersTheme.headline)
                     .foregroundStyle(FishersTheme.seam)
-                    Button("Start the super over") { showSuperOver = true }
+                    Button(t("la.start_the_super_over")) { showSuperOver = true }
                         .buttonStyle(.borderedProminent)
                         .tint(FishersTheme.seam)
                 }
@@ -422,9 +422,9 @@ struct LiveScorerView: View {
                             showAward = true
                         }
                         .buttonStyle(.bordered)
-                        Button("Scorecard") { showScorecard = true }
+                        Button(t("ld.scorecard")) { showScorecard = true }
                             .buttonStyle(.bordered)
-                        Button("Done", action: onDone)
+                        Button(t("ev.done"), action: onDone)
                             .buttonStyle(.borderedProminent)
                             .tint(FishersTheme.accent)
                     }
@@ -454,7 +454,7 @@ struct LiveScorerView: View {
 
     private func overStrip(_ inn: InningsState) -> some View {
         HStack(spacing: 6) {
-            Text("This over")
+            Text(t("rest.this_over"))
                 .font(FishersTheme.overline)
                 .foregroundStyle(.secondary)
             ForEach(inn.currentOverBalls) { ball in
@@ -615,7 +615,7 @@ struct LiveScorerView: View {
             }
             runButton(6, big: true)
             Button { showExtras = true } label: {
-                Text("Extras")
+                Text(t("la.extras"))
                     .font(FishersTheme.headline)
                     .frame(maxWidth: .infinity, minHeight: 56)
             }
@@ -623,7 +623,7 @@ struct LiveScorerView: View {
             .accessibilityLabel("Extras")
             HStack(spacing: 10) {
                 Button { showWicket = true } label: {
-                    Text("Wicket")
+                    Text(t("sc.wicket"))
                         .font(FishersTheme.headline)
                         .frame(maxWidth: .infinity, minHeight: 56)
                 }
@@ -636,7 +636,7 @@ struct LiveScorerView: View {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
                 } label: {
-                    Label("Undo", systemImage: "arrow.uturn.backward")
+                    Label(t("sc.undo"), systemImage: "arrow.uturn.backward")
                         .frame(maxWidth: .infinity, minHeight: 56)
                 }
                 .buttonStyle(.bordered)
@@ -644,9 +644,9 @@ struct LiveScorerView: View {
                 .accessibilityLabel("Undo last ball")
             }
             HStack {
-                Button("Change bowler") { showBowler = true }
+                Button(t("sc.change_bowler")) { showBowler = true }
                 Spacer()
-                Button("End innings") { confirmEndInnings = true }
+                Button(t("sc.end_innings")) { confirmEndInnings = true }
                     .disabled(innings?.complete != false)
             }
             .font(FishersTheme.subhead)
@@ -854,12 +854,12 @@ private struct ExtrasSheet: View {
                 if kind != .penalty {
                     Section {
                         Stepper(runsLabel, value: $runs, in: runRange)
-                        Toggle("Went to the boundary", isOn: $boundary)
+                        Toggle(t("sc.went_to_the_boundary"), isOn: $boundary)
                             .disabled(runs < 4)
                         if kind == .noBall {
                             Picker("Those runs came", selection: $offTheBat) {
-                                Text("Off the bat").tag(true)
-                                Text("As byes").tag(false)
+                                Text(t("sc.off_the_bat")).tag(true)
+                                Text(t("sc.as_byes")).tag(false)
                             }
                             .pickerStyle(.segmented)
                         }
@@ -872,7 +872,7 @@ private struct ExtrasSheet: View {
 
                 Section {
                     HStack {
-                        Text("Total to the side")
+                        Text(t("sc.total_to_the_side"))
                         Spacer()
                         Text("\(totalRuns)")
                             .font(.title3.bold().monospacedDigit())
@@ -881,14 +881,14 @@ private struct ExtrasSheet: View {
                 }
             }
             .fishersList()
-            .navigationTitle("Extras")
+            .navigationTitle(t("la.extras"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { add() }.bold()
+                    Button(t("sc.add")) { add() }.bold()
                 }
             }
             .onChange(of: kind) { _, new in
@@ -1001,7 +1001,7 @@ private struct RevisedOversSheet: View {
                 Section {
                     Stepper("Overs: \(overs)", value: $overs, in: bowledSoFar...50)
                 } header: {
-                    Text("That innings now has")
+                    Text(t("sc.that_innings_now_has"))
                 } footer: {
                     Text("\(bowledSoFar) over\(bowledSoFar == 1 ? "" : "s") already bowled. The DLS par score updates immediately — including when the first innings was the one cut short.")
                 }
@@ -1009,14 +1009,14 @@ private struct RevisedOversSheet: View {
                     Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
                 }
             }
-            .navigationTitle("Overs reduced")
+            .navigationTitle(t("sc.overs_reduced"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") { apply() }.bold()
+                    Button(t("sc.apply")) { apply() }.bold()
                 }
             }
             .onAppear {
@@ -1073,8 +1073,7 @@ private struct WicketSheet: View {
             Form {
                 if isFreeHit {
                     Section {
-                        Label(
-                            "Free hit — only a run out can get them.",
+                        Label(t("sc.free_hit_sentence"),
                             systemImage: "shield.lefthalf.filled"
                         )
                         .font(.footnote)
@@ -1089,9 +1088,9 @@ private struct WicketSheet: View {
 
                 if kind.canFollowAnExtra {
                     Section {
-                        Toggle("Off a wide or a no ball", isOn: $onExtra)
+                        Toggle(t("sc.off_a_wide_or_no_ball"), isOn: $onExtra)
                     } footer: {
-                        Text("The delivery is already in the book as an extra, so it is not counted twice.")
+                        Text(t("sc.already_in_the_book_as_extra"))
                     }
                 }
 
@@ -1109,7 +1108,7 @@ private struct WicketSheet: View {
                     Section {
                         Stepper("Runs completed: \(completedRuns)", value: $completedRuns, in: 0...4)
                     } footer: {
-                        Text("Runs finished before the throw came in. The batters cross on an odd number.")
+                        Text(t("sc.runs_finished_before_throw"))
                     }
                 }
 
@@ -1124,7 +1123,7 @@ private struct WicketSheet: View {
 
                 Section {
                     if nextIn.isEmpty && resuming.isEmpty {
-                        Text("That is all out — no one left to come in.")
+                        Text(t("sc.that_is_all_out"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     } else {
@@ -1137,21 +1136,21 @@ private struct WicketSheet: View {
                         }
                     }
                 } header: {
-                    Text("New batter")
+                    Text(t("sc.new_batter"))
                 } footer: {
                     if !resuming.isEmpty {
-                        Text("Anyone who retired hurt can come back in.")
+                        Text(t("sc.retired_hurt_can_return"))
                     }
                 }
             }
-            .navigationTitle("Wicket")
+            .navigationTitle(t("sc.wicket"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Out") { record() }.bold().disabled(!canRecord)
+                    Button(t("sc.out")) { record() }.bold().disabled(!canRecord)
                 }
             }
             .onAppear { newBatterId = nextIn.first?.id }
@@ -1266,12 +1265,12 @@ private struct BowlerSheet: View {
                         row(player, reason: nil)
                     }
                 } header: {
-                    Text("Can bowl")
+                    Text(t("sc.can_bowl"))
                 } footer: {
                     if store.state.conditions.oversPerBowler > 0 {
                         Text("\(store.state.conditions.oversPerBowler) overs each. Nobody bowls two overs in a row.")
                     } else {
-                        Text("No allocation agreed. Nobody bowls two overs in a row.")
+                        Text(t("sc.no_allocation_agreed"))
                     }
                 }
 
@@ -1283,11 +1282,11 @@ private struct BowlerSheet: View {
                     }
                 }
             }
-            .navigationTitle("Bowler")
+            .navigationTitle(t("sc.bowler"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
             }
         }
@@ -1380,14 +1379,14 @@ private struct SecondInningsSheet: View {
                     Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
                 }
             }
-            .navigationTitle("Second innings")
+            .navigationTitle(t("sc.second_innings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Start") { start() }.bold()
+                    Button(t("sc.start")) { start() }.bold()
                 }
             }
             .onAppear {
@@ -1470,8 +1469,7 @@ private struct HandoverSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Label(
-                        "You hold the book. Nobody else can change this match until you pass it on.",
+                    Label(t("sc.you_hold_the_book"),
                         systemImage: "lock.fill"
                     )
                     .font(.footnote)
@@ -1485,9 +1483,9 @@ private struct HandoverSheet: View {
                         empty: "Nobody else is named on this match yet. Pick the teams first, or appoint an umpire from the match setup."
                     )
                 } header: {
-                    Text("Hand over to")
+                    Text(t("sc.hand_over_to"))
                 } footer: {
-                    Text("Anyone playing can take it, from either side. They pick it up on their own phone, and anything you have not synced yet goes up first.")
+                    Text(t("sc.anyone_playing_can_take_it"))
                 }
 
                 if chosen != nil {
@@ -1524,11 +1522,11 @@ private struct HandoverSheet: View {
                     Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
                 }
             }
-            .navigationTitle("The book")
+            .navigationTitle(t("sc.the_book"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button(t("sc.close")) { dismiss() }
                 }
             }
             .task { await load() }
@@ -1583,11 +1581,11 @@ private struct CallItOffSheet: View {
             Form {
                 if hasBeenScored {
                     Section {
-                        TextField("Rain, bad light, ground unfit…", text: $reason)
+                        TextField(t("sc.rain_bad_light_ground_unfit"), text: $reason)
                     } header: {
-                        Text("Why")
+                        Text(t("ev.why"))
                     } footer: {
-                        Text("The scorecard stays exactly as it is and the match goes down as no result. Everything scored so far still counts towards averages.")
+                        Text(t("sc.no_result_explainer"))
                     }
 
                     Section {
@@ -1615,7 +1613,7 @@ private struct CallItOffSheet: View {
                         }
                         .disabled(isWorking)
                     } footer: {
-                        Text("Nobody has scored a ball, so there is nothing to keep. This removes the match entirely.")
+                        Text(t("sc.nothing_scored_removes_match"))
                     }
                 }
 
@@ -1625,11 +1623,11 @@ private struct CallItOffSheet: View {
                     }
                 }
             }
-            .navigationTitle("Call it off")
+            .navigationTitle(t("ld.call_it_off"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Keep playing") { dismiss() }
+                    Button(t("sc.keep_playing")) { dismiss() }
                 }
             }
         }
@@ -1686,9 +1684,9 @@ private struct AwardSheet: View {
                             )
                         }
                     } header: {
-                        Text("Who had the game")
+                        Text(t("sc.who_had_the_game"))
                     } footer: {
-                        Text("Ranked off the scorecard — runs and wickets weighed against how the match was going. The award is still yours to give.")
+                        Text(t("sc.ranked_off_the_scorecard"))
                     }
                 }
                 if !others.isEmpty {
@@ -1699,11 +1697,11 @@ private struct AwardSheet: View {
                     }
                 }
             }
-            .navigationTitle("Player of the match")
+            .navigationTitle(t("sc.player_of_the_match"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
             }
         }
@@ -1730,7 +1728,7 @@ private struct AwardSheet: View {
                 if store.state.playerOfTheMatch == id {
                     Image(systemName: "star.fill").foregroundStyle(FishersTheme.maybe)
                 } else if suggested {
-                    Text("Suggested")
+                    Text(t("sc.suggested"))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -1776,8 +1774,7 @@ private struct SuperOverSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Label(
-                        "One over each. Two wickets down and the innings is over.",
+                    Label(t("sc.one_over_each"),
                         systemImage: "bolt.fill"
                     )
                     .font(.footnote)
@@ -1785,7 +1782,7 @@ private struct SuperOverSheet: View {
                 } header: {
                     Text("\(store.state.name(for: batting)) bat first")
                 } footer: {
-                    Text("The side that batted second in the match opens the super over.")
+                    Text(t("sc.second_batting_side_opens_super_over"))
                 }
 
                 Section("Openers") {
@@ -1800,14 +1797,14 @@ private struct SuperOverSheet: View {
                     Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
                 }
             }
-            .navigationTitle("Super over")
+            .navigationTitle(t("la.super_over"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Start") { start() }.bold()
+                    Button(t("sc.start")) { start() }.bold()
                 }
             }
             .onAppear {
@@ -1879,9 +1876,9 @@ private struct PenaltySheet: View {
                 Section {
                     Stepper("\(runs) run\(runs == 1 ? "" : "s")", value: $runs, in: 1...10)
                 } header: {
-                    Text("Award")
+                    Text(t("sh.award"))
                 } footer: {
-                    Text("Five is the usual. They go to the side batting, and against nobody's bowling figures.")
+                    Text(t("sc.five_is_the_usual"))
                 }
 
                 Section {
@@ -1891,7 +1888,7 @@ private struct PenaltySheet: View {
                     }
                     .pickerStyle(.segmented)
                 } header: {
-                    Text("Who gets them")
+                    Text(t("sc.who_gets_them"))
                 } footer: {
                     Text(sideFootnote)
                 }
@@ -1903,18 +1900,18 @@ private struct PenaltySheet: View {
                     .pickerStyle(.inline)
                     .labelsHidden()
                     if reason == .other {
-                        TextField("Reason", text: $otherReason)
+                        TextField(t("sc.reason"), text: $otherReason)
                     }
                 }
             }
-            .navigationTitle("Penalty runs")
+            .navigationTitle(t("sc.penalty_runs"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Award") {
+                    Button(t("sh.award")) {
                         let text = reason == .other
                             ? otherReason.trimmingCharacters(in: .whitespaces)
                             : reason.rawValue
@@ -1965,8 +1962,7 @@ private struct BallCorrectionSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Label(
-                        "Pick the ball that was wrong. Everything after it comes off, and you score them again.",
+                    Label(t("sc.pick_the_wrong_ball"),
                         systemImage: "info.circle"
                     )
                     .font(.footnote)
@@ -1974,7 +1970,7 @@ private struct BallCorrectionSheet: View {
                 }
 
                 if recent.isEmpty {
-                    Text("Nothing bowled yet.").foregroundStyle(.secondary)
+                    Text(t("sc.nothing_bowled_yet")).foregroundStyle(.secondary)
                 } else {
                     Section("Recent balls") {
                         ForEach(recent, id: \.offset) { entry in
@@ -1995,7 +1991,7 @@ private struct BallCorrectionSheet: View {
                                         .lineLimit(1)
                                     Spacer()
                                     if entry.offset == 0 {
-                                        Text("last")
+                                        Text(t("sc.last"))
                                             .font(.caption2)
                                             .foregroundStyle(.tertiary)
                                     }
@@ -2006,11 +2002,11 @@ private struct BallCorrectionSheet: View {
                     }
                 }
             }
-            .navigationTitle("Correct a ball")
+            .navigationTitle(t("sc.correct_a_ball"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
             }
             .overlay {
@@ -2024,12 +2020,12 @@ private struct BallCorrectionSheet: View {
                 ),
                 titleVisibility: .visible
             ) {
-                Button("Wind back", role: .destructive) {
+                Button(t("sc.wind_back"), role: .destructive) {
                     if let offset = confirming { rewind(by: offset + 1) }
                 }
-                Button("Cancel", role: .cancel) { confirming = nil }
+                Button(t("sc.cancel"), role: .cancel) { confirming = nil }
             } message: {
-                Text("You will score them again from there.")
+                Text(t("sc.score_them_again_from_there"))
             }
         }
         .presentationDetents([.medium, .large])
@@ -2091,7 +2087,7 @@ struct FieldSheet: View {
                 Section {
                     Stepper("\(outside) outside the circle", value: $outside, in: 0...11)
                 } header: {
-                    Text("Fielders")
+                    Text(t("sc.fielders"))
                 } footer: {
                     Text(circleFootnote)
                 }
@@ -2103,7 +2099,7 @@ struct FieldSheet: View {
                         in: 0...11
                     )
                 } footer: {
-                    Text("Two at most, in every format.")
+                    Text(t("sc.two_at_most_every_format"))
                 }
 
                 if !breaches.isEmpty {
@@ -2114,20 +2110,20 @@ struct FieldSheet: View {
                                 .foregroundStyle(FishersTheme.unavailable)
                         }
                     } header: {
-                        Text("That field is not legal")
+                        Text(t("sc.field_not_legal"))
                     } footer: {
-                        Text("The umpire calls a no ball for this — the app only tells you it has happened.")
+                        Text(t("sc.umpire_calls_no_ball"))
                     }
                 }
             }
-            .navigationTitle("The field")
+            .navigationTitle(t("sc.the_field"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Set") {
+                    Button(t("sc.set")) {
                         _ = store.append(.fieldSet(
                             outsideCircle: UInt8(outside),
                             behindSquareLeg: UInt8(behindSquare)

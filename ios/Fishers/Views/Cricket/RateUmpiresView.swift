@@ -25,9 +25,9 @@ struct RateUmpiresView: View {
                         }
                     }
                 } header: {
-                    Text("How was the umpiring?")
+                    Text(t("sr.how_was_the_umpiring"))
                 } footer: {
-                    Text("It goes on their profile, with your name on it. One review each — you can change it later.")
+                    Text(t("sr.it_goes_on_their_profile_with_your_nam"))
                 }
             }
         }
@@ -65,11 +65,11 @@ private struct RateOne: View {
                 Text(umpire.name).font(FishersTheme.headline)
                 Spacer()
                 if saved {
-                    Label("Saved", systemImage: "checkmark.circle.fill")
+                    Label(t("sr.saved"), systemImage: "checkmark.circle.fill")
                         .font(FishersTheme.caption)
                         .foregroundStyle(FishersTheme.available)
                 } else if umpire.myRating != nil {
-                    Text("Your review")
+                    Text(t("sr.your_review"))
                         .font(FishersTheme.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -77,7 +77,7 @@ private struct RateOne: View {
 
             StarPicker(value: $rating) { saved = false }
 
-            TextField("Gave everything, explained the wides…", text: $comment, axis: .vertical)
+            TextField(t("sr.gave_everything_explained_the_wides"), text: $comment, axis: .vertical)
                 .lineLimit(2...4)
                 .onChange(of: comment) { _, _ in saved = false }
 
@@ -89,7 +89,7 @@ private struct RateOne: View {
                 .disabled(busy || rating < 1)
 
                 if umpire.myRating != nil {
-                    Button("Remove", role: .destructive) { Task { await remove() } }
+                    Button(t("cl.remove"), role: .destructive) { Task { await remove() } }
                         .disabled(busy)
                 }
             }
@@ -184,7 +184,7 @@ struct PendingUmpireReviewsView: View {
                 Text(match.matchTitle)
             } footer: {
                 if match.id == pending.first?.id {
-                    Text("You played in these. It goes on their profile, with your name on it.")
+                    Text(t("sc.you_played_in_these"))
                 }
             }
         }

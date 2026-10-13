@@ -80,15 +80,15 @@ struct ScoreHubPane: View {
             if !startable.isEmpty {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Two sides, right now")
+                        Text(t("sr.two_sides_right_now"))
                             .font(FishersTheme.headline)
-                        Text("No fixture needed — name the teams and start scoring. Works with no signal; syncs when you are back online.")
+                        Text(t("sc.no_fixture_needed"))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                         Button {
                             starting = true
                         } label: {
-                            Label("Start a match now", systemImage: "plus")
+                            Label(t("sr.start_a_match_now"), systemImage: "plus")
                                 .font(FishersTheme.headline)
                                 .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                         }
@@ -135,8 +135,8 @@ struct ScoreHubPane: View {
                     if total > 0 { Text("\(rows.count) of \(total)") }
                     Spacer()
                     Picker("Order", selection: $query.newestFirst) {
-                        Text("Soonest first").tag(false)
-                        Text("Newest first").tag(true)
+                        Text(t("ld.soonest_first")).tag(false)
+                        Text(t("ld.newest_first")).tag(true)
                     }
                     .pickerStyle(.menu)
                     .textCase(nil)
@@ -403,7 +403,7 @@ struct ScoreFixtureRow: View {
                         .background(FishersTheme.raised, in: Capsule())
                 }
                 if fixture.hasScorer, fixture.matchStatus == "live" {
-                    Text("Being scored")
+                    Text(t("sr.being_scored"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -472,7 +472,7 @@ struct QuickMatchSheet: View {
                     }
                     if !teams.isEmpty {
                         Picker("Team", selection: $teamId) {
-                            Text("The club").tag(UUID?.none)
+                            Text(t("rest.the_club")).tag(UUID?.none)
                             ForEach(teams) { Text($0.name).tag(Optional($0.id)) }
                         }
                     }
@@ -485,7 +485,7 @@ struct QuickMatchSheet: View {
                         LabeledContent("Opposition", value: awayName.isEmpty ? "Choose…" : awayName)
                     }
                 } header: {
-                    Text("The opposition")
+                    Text(t("ev.the_opposition"))
                 } footer: {
                     Text(opponent.map { "\($0.clubName) are on \(Brand.name) — their captain can name their own eleven." }
                          ?? "Find them by their code or name, or just type who turned up. Works offline if you type the name.")
@@ -507,7 +507,7 @@ struct QuickMatchSheet: View {
                         Task { await start() }
                     } label: {
                         Group {
-                            if busy { ProgressView() } else { Text("Start scoring").font(FishersTheme.headline) }
+                            if busy { ProgressView() } else { Text(t("sc.start_scoring")).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
@@ -519,10 +519,10 @@ struct QuickMatchSheet: View {
                     if let missing { Text("Still needed: \(missing).") }
                 }
             }
-            .navigationTitle("Start a match")
+            .navigationTitle(t("cl.start_a_match"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }
             }
             .sheet(isPresented: $picking) {
                 OppositionPickerView { name, identity in

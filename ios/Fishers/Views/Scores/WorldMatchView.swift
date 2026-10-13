@@ -41,16 +41,16 @@ struct WorldMatchView: View {
                     }
                     if detail.innings.isEmpty {
                         Section {
-                            Text("Not a ball bowled yet.").font(.headline)
-                            Text("The card will fill in once the match is under way.")
+                            Text(t("sr.not_a_ball_bowled_yet")).font(.headline)
+                            Text(t("sr.the_card_will_fill_in_once_the_match_i"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
                 } else {
                     Section {
-                        Text("No scorecard for this match yet.").font(.headline)
-                        Text("If it has not started, there is nothing to show.")
+                        Text(t("sr.no_scorecard_for_this_match_yet")).font(.headline)
+                        Text(t("rest.not_started_nothing_to_show"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -60,7 +60,7 @@ struct WorldMatchView: View {
         }
         .listStyle(.insetGrouped)
         .fishersList()
-        .navigationTitle("Scorecard")
+        .navigationTitle(t("ld.scorecard"))
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task {
@@ -132,9 +132,9 @@ struct WorldMatchView: View {
             ForEach(d.battingNow) { CreaseRow(role: "Batting", player: $0) }
             ForEach(d.bowlingNow) { CreaseRow(role: "Bowling", player: $0) }
         } header: {
-            Text("At the crease")
+            Text(t("sc.at_the_crease"))
         } footer: {
-            Text("Who is in, and who is bowling at them, right now.")
+            Text(t("sr.who_is_in_and_who_is_bowling_at_them_r"))
         }
     }
 
@@ -208,7 +208,7 @@ private struct ScoreSummaryRow: View {
         HStack {
             Text(name).font(.subheadline.weight(batting ? .bold : .regular)).lineLimit(1)
             if batting {
-                Text("· batting").font(.caption2).foregroundStyle(.secondary)
+                Text("· " + t("rest.batting_caption")).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 0) {
@@ -248,7 +248,7 @@ private struct InningsSection: View {
             ForEach(innings.batting) { BatRow(row: $0) }
             if let total = innings.extras.total {
                 HStack {
-                    Text("WorldExtras").font(.subheadline.weight(.semibold))
+                    Text(t("sc.extras")).font(.subheadline.weight(.semibold))
                     if let b = innings.extras.breakdown {
                         Text("(\(b))").font(.caption).foregroundStyle(.secondary)
                     }
@@ -258,7 +258,7 @@ private struct InningsSection: View {
             }
             if !innings.fallOfWickets.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("FALL OF WICKETS")
+                    Text(t("rest.fall_of_wickets"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.secondary)
                     Text(

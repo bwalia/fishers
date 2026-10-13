@@ -33,7 +33,7 @@ struct PendingInvitesSection: View {
                         Button {
                             Task { await accept(invite) }
                         } label: {
-                            if busy == invite.id { ProgressView() } else { Text("Accept") }
+                            if busy == invite.id { ProgressView() } else { Text(t("le.accept")) }
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
@@ -44,7 +44,7 @@ struct PendingInvitesSection: View {
                 }
             } header: {
                 HStack {
-                    Text("Waiting for you").font(FishersTheme.overline).tracking(0.8)
+                    Text(t("rest.waiting_for_you")).font(FishersTheme.overline).tracking(0.8)
                     Spacer()
                     Text("\(invites.count)")
                         .font(FishersTheme.caption)

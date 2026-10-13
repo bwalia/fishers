@@ -27,14 +27,14 @@ struct ProfileEditView: View {
                 Section {
                     NavigationLink {
                         AboutForm(form: form)
-                            .navigationTitle("About you")
+                            .navigationTitle(t("rest.about_you"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
                         LabeledContent("About you", value: form.name)
                     }
                     NavigationLink {
                         SportsPicker(form: form)
-                            .navigationTitle("Sports")
+                            .navigationTitle(t("rest.sports"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
                         LabeledContent("Sports", value: form.selectedSports.map(\.label).joined(separator: ", "))
@@ -60,7 +60,7 @@ struct ProfileEditView: View {
                 Section {
                     NavigationLink {
                         LogisticsForm(form: form)
-                            .navigationTitle("Travel & logistics")
+                            .navigationTitle(t("rest.travel_and_logistics"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
                         LabeledContent("Travel & logistics", value: form.area.nonEmpty ?? "Not set")
@@ -74,14 +74,14 @@ struct ProfileEditView: View {
                         LabeledContent("API server", value: AppConfig.displayHost)
                     }
                 } footer: {
-                    Text("Reliability is worked out by the server from your attendance and payments — it can't be edited here.")
+                    Text(t("rest.reliability_is_server_worked"))
                 }
             }
-            .navigationTitle("Edit profile")
+            .navigationTitle(t("cl.edit_profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if isSaving {
@@ -89,7 +89,7 @@ struct ProfileEditView: View {
                     } else {
                         // Whatever is filled in saves — a profile is finished
                         // a bit at a time, not all at once.
-                        Button("Save") { save() }
+                        Button(t("lc.save")) { save() }
                             .disabled(!form.isNameValid)
                     }
                 }

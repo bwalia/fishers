@@ -19,9 +19,9 @@ struct ClubWelcomeSheet: View {
                 .background(FishersTheme.pitch, in: Circle())
                 .padding(.top, FishersTheme.space3)
                 .accessibilityHidden(true)
-            Text("CLUB CREATED").font(FishersTheme.overline).tracking(0.8).foregroundStyle(FishersTheme.pitch)
+            Text(t("cl.club_created")).font(FishersTheme.overline).tracking(0.8).foregroundStyle(FishersTheme.pitch)
             Text("\(clubName) is ready").font(FishersTheme.display).multilineTextAlignment(.center)
-            Text("You're its secretary. Add your players and you can start a match straight away — teams, a captain and a ground can come later.")
+            Text(t("cl.you_are_its_secretary"))
                 .font(FishersTheme.subhead)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -40,12 +40,12 @@ struct ClubWelcomeSheet: View {
             Button {
                 onAddPlayers()
             } label: {
-                Label("Add players", systemImage: "person.badge.plus")
+                Label(t("lb.add_players"), systemImage: "person.badge.plus")
                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            Button("I'll do it later") { dismiss() }
+            Button(t("cl.ill_do_it_later")) { dismiss() }
                 .frame(minHeight: FishersTheme.minTap)
         }
         .padding(.horizontal, FishersTheme.space3)
@@ -94,7 +94,7 @@ struct TeamRosterView: View {
                     ContentUnavailableView(
                         "Nobody in this team yet",
                         systemImage: "person.3",
-                        description: Text("A secretary or the team captain adds people.")
+                        description: Text(t("cl.secretary_or_captain_adds"))
                     )
                 } else {
                     Section("\(members.count) in the squad") {
@@ -122,7 +122,7 @@ struct TeamRosterView: View {
                     }
                 }
             } else if failed {
-                Text("Could not load this team.").foregroundStyle(.secondary)
+                Text(t("cl.could_not_load_this_team")).foregroundStyle(.secondary)
             } else {
                 ProgressView()
             }
@@ -149,25 +149,25 @@ struct AddTeamSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("1st XI", text: $name)
+                    TextField(t("cl.1st_xi"), text: $name)
                     Picker("Sport", selection: $sport) {
                         ForEach(club.sportTypes.isEmpty ? ["cricket"] : club.sportTypes, id: \.self) {
                             Text($0.capitalized).tag($0)
                         }
                     }
                 } footer: {
-                    Text("Each team keeps its own squad and fixtures. You can add more any time.")
+                    Text(t("cl.each_team_own_squad"))
                 }
                 if let error {
                     Text(error).foregroundStyle(FishersTheme.unavailable)
                 }
             }
-            .navigationTitle("Add a team")
+            .navigationTitle(t("lb.add_a_team"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") { Task { await create() } }
+                    Button(t("cl.create")) { Task { await create() } }
                         .bold()
                         .disabled(busy || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -202,7 +202,7 @@ struct GroundsSection: View {
     var body: some View {
         Section {
             if venues.isEmpty {
-                Text("No grounds yet. Add the ones you play at and they can be picked when a fixture is scheduled.")
+                Text(t("cl.no_grounds_yet_add_the_ones_you_play_a"))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -228,10 +228,10 @@ struct GroundsSection: View {
                 }
             }
             if canEdit {
-                Button(action: onAdd) { Label("Add a ground", systemImage: "plus") }
+                Button(action: onAdd) { Label(t("cl.add_a_ground"), systemImage: "plus") }
             }
         } header: {
-            Text("Grounds")
+            Text(t("cl.grounds"))
         }
     }
 
@@ -255,22 +255,22 @@ struct AddGroundSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Highbury Fields", text: $name)
-                    TextField("Highbury Fields, London N5 1AR", text: $address, axis: .vertical)
+                    TextField(t("cl.highbury_fields"), text: $name)
+                    TextField(t("cl.highbury_fields_london_n5_1ar"), text: $address, axis: .vertical)
                         .textContentType(.fullStreetAddress)
                 } footer: {
-                    Text("It can be picked whenever a fixture is scheduled, and players get a map to it.")
+                    Text(t("cl.ground_picked_per_fixture"))
                 }
                 if let error {
                     Text(error).foregroundStyle(FishersTheme.unavailable)
                 }
             }
-            .navigationTitle("Add a ground")
+            .navigationTitle(t("cl.add_a_ground"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { Task { await add() } }
+                    Button(t("sc.add")) { Task { await add() } }
                         .bold()
                         .disabled(busy || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -332,7 +332,7 @@ struct PublicPageEditorView: View {
                         }
                     }
                 } footer: {
-                    Text("A page anyone can open — no login. Your record and top players are worked out from the matches you have played; the rest is yours to write.")
+                    Text(t("cl.public_page_blurb_long"))
                 }
 
                 Section("Web address") {
@@ -345,26 +345,26 @@ struct PublicPageEditorView: View {
                 }
 
                 Section("About the club") {
-                    TextField("Sunday cricket in north London since 1974.", text: optional(binding.tagline))
-                    TextField("Who you are, where you play, who you are looking for.", text: optional(binding.about), axis: .vertical)
+                    TextField(t("cl.sunday_cricket_in_north_london_since_1"), text: optional(binding.tagline))
+                    TextField(t("cl.who_you_are_where_you_play_who_you_are"), text: optional(binding.about), axis: .vertical)
                         .lineLimit(3...8)
                 }
 
                 Section("Details") {
-                    TextField("Ground — Highbury Fields, London N5", text: optional(binding.ground))
-                    TextField("Founded — 1974", text: $founded).keyboardType(.numberPad)
-                    TextField("Email for new players", text: optional(binding.contactEmail))
+                    TextField(t("cl.ground_example"), text: optional(binding.ground))
+                    TextField(t("cl.founded_example"), text: $founded).keyboardType(.numberPad)
+                    TextField(t("cl.email_for_new_players"), text: optional(binding.contactEmail))
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                 }
 
                 Section {
                     Picker("Lead with", selection: binding.iconPlayerId) {
-                        Text("Nobody for now").tag(UUID?.none)
+                        Text(t("cl.nobody_for_now")).tag(UUID?.none)
                         ForEach(members.filter(\.isActive)) { Text($0.name).tag(Optional($0.userId)) }
                     }
                 } footer: {
-                    Text("The one player the club puts on its front page. Optional.")
+                    Text(t("cl.front_page_player"))
                 }
 
                 if let error {
@@ -391,7 +391,7 @@ struct PublicPageEditorView: View {
                 ProgressView()
             }
         }
-        .navigationTitle("Public page")
+        .navigationTitle(t("cl.public_page"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }
@@ -480,7 +480,7 @@ struct SharedPlayerCardView: View {
                     }
                     .padding(.vertical, 4)
                 } footer: {
-                    Text("No contact details — those come with membership, which they still accept.")
+                    Text(t("cl.no_contact_details_yet"))
                 }
 
                 if let sent {
@@ -490,7 +490,7 @@ struct SharedPlayerCardView: View {
                     }
                 } else if places.isEmpty {
                     Section {
-                        Text("You can't invite anyone yet — that takes a club where you're the secretary or a captain.")
+                        Text(t("cl.cannot_invite_anyone_yet"))
                             .foregroundStyle(.secondary)
                     }
                 } else {
@@ -500,7 +500,7 @@ struct SharedPlayerCardView: View {
                         }
                         if let place {
                             Picker("Team", selection: $teamId) {
-                                if place.canInviteToClub { Text("The club as a whole").tag(UUID?.none) }
+                                if place.canInviteToClub { Text(t("cl.the_club_as_a_whole")).tag(UUID?.none) }
                                 ForEach(place.teams) { Text($0.name).tag(Optional($0.id)) }
                             }
                         }
@@ -508,7 +508,7 @@ struct SharedPlayerCardView: View {
                             Task { await invite() }
                         } label: {
                             Group {
-                                if busy { ProgressView() } else { Label("Send the invite", systemImage: "paperplane") }
+                                if busy { ProgressView() } else { Label(t("cl.send_the_invite"), systemImage: "paperplane") }
                             }
                             .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                         }
@@ -518,7 +518,7 @@ struct SharedPlayerCardView: View {
                 }
             } else if let error {
                 ContentUnavailableView {
-                    Label("This link didn't work", systemImage: "link")
+                    Label(t("cl.this_link_didnt_work"), systemImage: "link")
                 } description: {
                     Text("\(error). Ask the player to send you their link again.")
                 }
@@ -530,7 +530,7 @@ struct SharedPlayerCardView: View {
             }
         }
         .fishersList()
-        .navigationTitle("Player profile")
+        .navigationTitle(t("cl.player_profile"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .onChange(of: clubId) { _, id in

@@ -34,6 +34,7 @@ import { QrCard } from "@/components/QrCard";
 import { copyText } from "@/lib/clipboard";
 import { useRequireAuth } from "@/lib/require-auth";
 import { useT } from "@/lib/i18n/provider";
+import { brand } from "@/brand.generated";
 
 export default function ClubPage({ params }: { params: Promise<{ id: string }> }) {
   const t = useT();
@@ -1195,7 +1196,7 @@ function PublicPage({
             onChange={(e) => set({ slug: e.target.value })}
             placeholder={suggested}
           />
-          <span className="subtle">{t("cl.public_url_preview", { slug: address || suggested })}</span>
+          <span className="subtle">{t("cl.public_url_preview", { domain: brand.domain, slug: address || suggested })}</span>
         </label>
         <label>
           {t("cl.ground")}

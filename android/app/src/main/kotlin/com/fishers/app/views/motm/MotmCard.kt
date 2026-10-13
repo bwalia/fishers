@@ -1,5 +1,7 @@
 package com.fishers.app.views.motm
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -122,8 +124,7 @@ private fun CandidateRow(
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             )
             if (scorersPick) {
-                Text(
-                    "The scorer's award",
+                Text(t("sc.the_scorers_award"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )

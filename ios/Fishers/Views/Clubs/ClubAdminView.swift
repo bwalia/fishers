@@ -46,12 +46,12 @@ struct ClubAdminView: View {
             case .fees: FeesList(store: store, canChase: role?.isCaptain ?? false)
             }
         }
-        .navigationTitle("Manage club")
+        .navigationTitle(t("cl.manage_club"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
         .refreshable { await store.load() }
         .alert("Something went wrong", isPresented: store.errorBinding) {
-            Button("OK", role: .cancel) { store.errorMessage = nil }
+            Button(t("rest.ok"), role: .cancel) { store.errorMessage = nil }
         } message: {
             Text(store.errorMessage ?? "")
         }
@@ -76,8 +76,7 @@ private struct RosterList: View {
         List {
             if !canManage {
                 Section {
-                    Label(
-                        "Only a club secretary can change roles or the roster.",
+                    Label(t("cl.only_secretary_changes_roles"),
                         systemImage: "info.circle"
                     )
                     .font(.footnote)
@@ -109,7 +108,7 @@ private struct RosterList: View {
                 ContentUnavailableView(
                     "No members yet",
                     systemImage: "person.3",
-                    description: Text("Add players by the email they signed up with.")
+                    description: Text(t("cl.add_players_by_signup_email"))
                 )
             }
         }
@@ -183,13 +182,13 @@ private struct RosterList: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Email or mobile number", text: $newIdentifier)
+                    TextField(t("cl.email_or_mobile_number"), text: $newIdentifier)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
-                    Text("Whatever they signed up with. Somebody who registered with a mobile number has no address to look up.")
+                    Text(t("cl.whatever_they_signed_up_with"))
                 }
                 Section("Role") {
                     Picker("Role", selection: $newRole) {
@@ -204,7 +203,7 @@ private struct RosterList: View {
                     Button {
                         Task { await store.makeInvite(email: trimmedIdentifier) }
                     } label: {
-                        Label("Make an invite link instead", systemImage: "link")
+                        Label(t("cl.make_an_invite_link_instead"), systemImage: "link")
                     }
                     if let invite = store.invite,
                        let url = invite.url(webBase: AppConfig.webBaseURL.absoluteString) {
@@ -218,14 +217,14 @@ private struct RosterList: View {
                     Text("An invite link works for somebody with no \(Brand.name) account. It joins them to the club once they sign up, and can only be used once.")
                 }
                 Section {
-                    TextField("Paste the link they sent you", text: $pastedLink)
+                    TextField(t("rest.paste_the_link_they_sent_you"), text: $pastedLink)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     if let token = SharedPlayerCard.token(in: pastedLink) {
                         NavigationLink {
                             SharedPlayerCardView(token: token, preferredClubId: club.id)
                         } label: {
-                            Label("Open their profile", systemImage: "person.crop.rectangle")
+                            Label(t("cl.open_their_profile"), systemImage: "person.crop.rectangle")
                         }
                     } else if !pastedLink.isEmpty {
                         Text("That isn't a \(Brand.name) profile link — it looks like …/p/ followed by letters and numbers.")
@@ -233,22 +232,22 @@ private struct RosterList: View {
                             .foregroundStyle(FishersTheme.unavailable)
                     }
                 } header: {
-                    Text("Got a player's profile link?")
+                    Text(t("cl.got_a_profile_link"))
                 } footer: {
-                    Text("Open their card, pick the club or a team, and send the invite. They still accept it.")
+                    Text(t("cl.open_card_pick_club_send"))
                 }
             }
-            .navigationTitle("Add a member")
+            .navigationTitle(t("cl.add_a_member"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(t("sc.cancel")) {
                         isAdding = false
                         store.invite = nil
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button(t("sc.add")) {
                         let identifier = trimmedIdentifier
                         let role = newRole
                         isAdding = false
@@ -336,23 +335,23 @@ private struct RoleSheet: View {
                 } header: {
                     Text(member.name)
                 } footer: {
-                    Text("A club must always keep at least one secretary.")
+                    Text(t("cl.must_keep_one_secretary"))
                 }
 
                 Section {
-                    Button("Remove from the club", role: .destructive) {
+                    Button(t("cl.remove_from_the_club_action"), role: .destructive) {
                         confirmRemove = true
                     }
                 }
             }
-            .navigationTitle("Role")
+            .navigationTitle(t("cl.role"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(t("lc.save")) {
                         onSet(role)
                         dismiss()
                     }
@@ -365,13 +364,13 @@ private struct RoleSheet: View {
                 isPresented: $confirmRemove,
                 titleVisibility: .visible
             ) {
-                Button("Remove", role: .destructive) {
+                Button(t("cl.remove"), role: .destructive) {
                     onRemove()
                     dismiss()
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(t("sc.cancel"), role: .cancel) {}
             } message: {
-                Text("Their past availability, fees and appearances stay on record.")
+                Text(t("cl.past_record_stays"))
             }
         }
     }
@@ -397,7 +396,7 @@ private struct PolicyForm: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Text("Squad selection")
+                    Text(t("cl.squad_selection"))
                 }
 
                 Section {
@@ -410,9 +409,9 @@ private struct PolicyForm: View {
                         value: binding(\.dropLeadHours), in: 0...168, step: 6
                     )
                 } header: {
-                    Text("Chasing the squad")
+                    Text(t("cl.chasing_the_squad"))
                 } footer: {
-                    Text("Selected players are asked to reconfirm, then their place goes to a reserve.")
+                    Text(t("cl.reconfirm_then_reserve"))
                 }
 
                 Section {
@@ -425,13 +424,13 @@ private struct PolicyForm: View {
                         value: binding(\.feeChaseMaxReminders), in: 0...10
                     )
                 } header: {
-                    Text("Match fees")
+                    Text(t("lb.match_fees"))
                 } footer: {
-                    Text("Then daily until they pay or the cap is reached.")
+                    Text(t("cl.then_daily_until_paid"))
                 }
 
                 if store.isSaving {
-                    Section { HStack { ProgressView(); Text("Saving…") } }
+                    Section { HStack { ProgressView(); Text(t("la.saving")) } }
                 }
             } else if store.isLoading {
                 Section { ProgressView() }
@@ -477,7 +476,7 @@ private struct FeesList: View {
                 }
                 if fees.owed.isEmpty {
                     Section {
-                        Label("Everyone has paid.", systemImage: "checkmark.seal.fill")
+                        Label(t("cl.everyone_has_paid"), systemImage: "checkmark.seal.fill")
                             .foregroundStyle(FishersTheme.available)
                     }
                 } else {
@@ -507,14 +506,14 @@ private struct FeesList: View {
                                 Task { await store.chaseFees() }
                             } label: {
                                 if store.isChasing {
-                                    HStack { ProgressView(); Text("Sending…") }
+                                    HStack { ProgressView(); Text(t("fp.sending")) }
                                 } else {
-                                    Label("Send reminders now", systemImage: "envelope.badge")
+                                    Label(t("cl.send_reminders_now"), systemImage: "envelope.badge")
                                 }
                             }
                             .disabled(store.isChasing)
                         } footer: {
-                            Text("The scheduler does this on its own; this is the do-it-now button.")
+                            Text(t("cl.scheduler_does_this_itself"))
                         }
                     }
                 }

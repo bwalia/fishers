@@ -50,7 +50,7 @@ struct ManOfTheMatchCard: View {
             Image(systemName: "star.circle.fill")
                 .foregroundStyle(FishersTheme.accent400)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Man of the match")
+                Text(t("sr.man_of_the_match"))
                     .font(.subheadline.weight(.semibold))
                 if let view = store.view {
                     Text(view.poll.title)
@@ -86,7 +86,7 @@ struct ManOfTheMatchCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
-            Text("Only the two clubs who played can vote.")
+            Text(t("le.only_the_two_clubs_who_played_can_vote"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -106,7 +106,7 @@ struct ManOfTheMatchCard: View {
             // get a 403, which the card shows as the sentence the API sent —
             // better than hiding the button behind this app's own guess at
             // who counts as a captain, which is the server's call to make.
-            Button("Close the vote") {
+            Button(t("sc.close_the_vote")) {
                 Task { await store.close() }
             }
             .font(.caption2.weight(.semibold))
@@ -159,7 +159,7 @@ struct ManOfTheMatchCard: View {
             // Nobody is recorded as the winner when the vote ties: choosing
             // between two players who drew is a captain's call.
             VStack(alignment: .leading, spacing: 4) {
-                Label("A tie", systemImage: "equal.circle.fill")
+                Label(t("sc.a_tie"), systemImage: "equal.circle.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(FishersTheme.maybe)
                 Text(view.tiedAtTheTop.map(\.displayName).formatted(.list(type: .and))
@@ -169,7 +169,7 @@ struct ManOfTheMatchCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } else {
-            Text("Voting closed with nobody voted for.")
+            Text(t("sr.voting_closed_with_nobody_voted_for"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

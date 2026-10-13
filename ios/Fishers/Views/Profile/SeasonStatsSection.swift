@@ -13,7 +13,7 @@ struct SeasonStatsSection: View {
             if isLoading && meStats == nil {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text("Loading season stats…")
+                    Text(t("rest.loading_season_stats"))
                         .foregroundStyle(.secondary)
                 }
             } else if let season = meStats?.seasons.first {
@@ -23,12 +23,12 @@ struct SeasonStatsSection: View {
                     Text(errorMessage)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Button("Try again") {
+                    Button(t("rest.try_again")) {
                         Task { await load() }
                     }
                 }
             } else {
-                Text("No season stats yet. Sign in as demo@fishers.test / password123 for sample runs and wickets, or pull to refresh.")
+                Text(t("rest.no_season_stats_yet"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -69,9 +69,9 @@ struct SeasonStatsSection: View {
                 }
             }
         } header: {
-            Text("Season stats")
+            Text(t("cl.season_stats"))
         } footer: {
-            Text("ECB Play-Cricket season board. Sample data ships with the demo club; live sync uses a club API token when configured.")
+            Text(t("rest.play_cricket_season_board"))
         }
         .task { await load() }
     }
@@ -102,7 +102,7 @@ struct SeasonStatsSection: View {
         LabeledContent("Season", value: "\(season.seasonYear)")
         if let url = season.playCricketURL {
             Link(destination: url) {
-                Label("View on Play-Cricket", systemImage: "arrow.up.right.square")
+                Label(t("rest.view_on_play_cricket"), systemImage: "arrow.up.right.square")
             }
         }
     }

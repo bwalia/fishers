@@ -62,28 +62,28 @@ struct EventTicketsView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(busy != nil)
                         }
-                        Button("Cancel my place", role: .destructive) {
+                        Button(t("le.cancel_my_place"), role: .destructive) {
                             act("cancel", "Booking cancelled.") { _ = try await FishersAPI.cancelTicket(mine.id) }
                         }
                         .disabled(busy != nil)
                     } header: {
-                        Text("You are booked")
+                        Text(t("ev.you_are_booked"))
                     }
                 } else {
                     Section {
                         if let left, left <= 0 {
-                            Text("Sold out. Ask your secretary whether there is a list.").foregroundStyle(.secondary)
+                            Text(t("ev.sold_out_ask_your_secretary_whether_th")).foregroundStyle(.secondary)
                         } else {
                             let allowed = summary.guestsAllowed ?? 0
                             if allowed > 0 {
                                 Stepper("Bringing \(guests) \(guests == 1 ? "guest" : "guests")", value: $guests, in: 0...allowed)
                                 if guests > 0 {
-                                    TextField("Names, so the table plan works", text: $guestNames)
+                                    TextField(t("ev.names_so_the_table_plan_works"), text: $guestNames)
                                 }
                             } else {
-                                Text("Members only — no guests at this one.").font(FishersTheme.footnote).foregroundStyle(.secondary)
+                                Text(t("ev.members_only_no_guests_at_this_one")).font(FishersTheme.footnote).foregroundStyle(.secondary)
                             }
-                            TextField("Anything the club should know", text: $notes)
+                            TextField(t("ev.anything_the_club_should_know"), text: $notes)
                             Button {
                                 let places = 1 + guests
                                 act("book", "Booked \(places) \(places == 1 ? "place" : "places").") {
@@ -101,7 +101,7 @@ struct EventTicketsView: View {
                             .disabled(busy != nil)
                         }
                     } header: {
-                        Text("Book a place")
+                        Text(t("ev.book_a_place"))
                     }
                 }
 
@@ -112,7 +112,7 @@ struct EventTicketsView: View {
                 if booking.insider {
                     Section {
                         if booking.tickets.isEmpty {
-                            Text("Nobody yet. Be the first.").foregroundStyle(.secondary)
+                            Text(t("ev.nobody_yet_be_the_first")).foregroundStyle(.secondary)
                         }
                         ForEach(booking.tickets) { ticket in
                             HStack(spacing: 12) {
@@ -137,8 +137,8 @@ struct EventTicketsView: View {
                             // whoever is collecting records it without a card reader.
                             .swipeActions(edge: .trailing) {
                                 if canManage && ticket.status == "reserved" {
-                                    Button("Cash") { markPaid(ticket, "cash") }.tint(FishersTheme.pitch)
-                                    Button("Transfer") { markPaid(ticket, "transfer") }.tint(FishersTheme.accent700)
+                                    Button(t("ev.cash")) { markPaid(ticket, "cash") }.tint(FishersTheme.pitch)
+                                    Button(t("ev.transfer")) { markPaid(ticket, "transfer") }.tint(FishersTheme.accent700)
                                 }
                             }
                         }

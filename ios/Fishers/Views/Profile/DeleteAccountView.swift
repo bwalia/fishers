@@ -17,18 +17,18 @@ struct DeleteAccountView: View {
     var body: some View {
         Form {
             Section {
-                Text("Deleting removes your name, email, phone number, password, picture, location and player profile, and signs you out on every device.")
-                Text("Scorecards you appear on stay, under no name. They belong to the other players too, and a match that loses a batter stops adding up.")
+                Text(t("rest.deleting_removes"))
+                Text(t("rest.scorecards_stay_unnamed"))
                     .foregroundStyle(.secondary)
             } header: {
-                Text("What happens")
+                Text(t("rest.what_happens"))
             }
 
             Section {
-                SecureField("Your password", text: $password)
+                SecureField(t("cl.your_password"), text: $password)
                     .textContentType(.password)
             } footer: {
-                Text("Leave blank if you sign in with Google.")
+                Text(t("rest.leave_blank_if_google"))
             }
 
             if let errorMessage {
@@ -44,25 +44,25 @@ struct DeleteAccountView: View {
                     if busy {
                         ProgressView()
                     } else {
-                        Text("Delete my account")
+                        Text(t("ld.delete_my_account"))
                     }
                 }
                 .disabled(busy)
             } footer: {
-                Text("This cannot be undone.")
+                Text(t("rest.cannot_be_undone"))
             }
         }
-        .navigationTitle("Delete account")
+        .navigationTitle(t("cl.delete_account"))
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             "Delete your \(Brand.name) account?",
             isPresented: $confirming,
             titleVisibility: .visible
         ) {
-            Button("Delete account", role: .destructive) { Task { await remove() } }
-            Button("Keep my account", role: .cancel) {}
+            Button(t("cl.delete_account"), role: .destructive) { Task { await remove() } }
+            Button(t("rest.keep_my_account"), role: .cancel) {}
         } message: {
-            Text("This cannot be undone.")
+            Text(t("rest.cannot_be_undone"))
         }
     }
 

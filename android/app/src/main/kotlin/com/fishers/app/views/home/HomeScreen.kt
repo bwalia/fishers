@@ -1,5 +1,7 @@
 package com.fishers.app.views.home
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,7 +63,7 @@ fun HomeScreen(
 
         Tile("Next up") {
             state.next?.let { NextFixture(it) }
-                ?: Text("Nothing in the diary.", style = MaterialTheme.typography.bodyMedium)
+                ?: Text(t("ev.nothing_in_the_diary"), style = MaterialTheme.typography.bodyMedium)
         }
 
         Tile("Chats") {
@@ -87,8 +89,7 @@ fun HomeScreen(
         }
 
         Tile("Kit for sale", onClick = onOpenShop) {
-            Text(
-                "Bats, pads and club kit that other clubs are selling, new and second-hand.",
+            Text(t("sh.bats_pads_club_kit"),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -96,8 +97,7 @@ fun HomeScreen(
         // Worded so it cannot be read as your own club's match: the fixtures
         // above are yours, this is everybody else's.
         Tile("Cricket scores", onClick = onOpenScores) {
-            Text(
-                "Live scores from internationals and domestic cricket around the world.",
+            Text(t("rest.live_scores_around_the_world"),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }

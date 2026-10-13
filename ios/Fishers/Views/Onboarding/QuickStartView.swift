@@ -30,7 +30,7 @@ struct QuickStartView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Hi \(firstName)")
                             .font(FishersTheme.display)
-                        Text("Two quick things and you're in. Everything else can wait until you have a minute.")
+                        Text(t("rest.two_quick_things"))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -52,7 +52,7 @@ struct QuickStartView: View {
 
                     if asksPhone {
                         question("Your mobile number", note: "So your captain can reach you on match day. Only your clubs see it.") {
-                            TextField("07700 900123", text: $phone)
+                            TextField(t("cl.07700_900123"), text: $phone)
                                 .keyboardType(.phonePad)
                                 .textContentType(.telephoneNumber)
                                 .font(FishersTheme.body)
@@ -78,7 +78,7 @@ struct QuickStartView: View {
                         Task { await finish() }
                     } label: {
                         Group {
-                            if saving { ProgressView() } else { Text("Continue").font(FishersTheme.headline) }
+                            if saving { ProgressView() } else { Text(t("le.continue")).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
@@ -86,7 +86,7 @@ struct QuickStartView: View {
                     .controlSize(.large)
                     .disabled(saving || sports.isEmpty)
 
-                    Button("Skip for now") { Task { await skip() } }
+                    Button(t("rest.skip_for_now")) { Task { await skip() } }
                         .font(FishersTheme.subhead.weight(.semibold))
                         .frame(minHeight: FishersTheme.minTap)
                         .disabled(saving)
@@ -184,9 +184,9 @@ struct WelcomeShareSheet: View {
                             .font(.system(size: 44))
                             .foregroundStyle(FishersTheme.pitch)
                             .accessibilityHidden(true)
-                        Text("You're in. Now get picked.")
+                        Text(t("fin.youre_in_now_get_picked"))
                             .font(FishersTheme.title)
-                        Text("Send your profile link to your club's secretary or captain — on WhatsApp is fine. They add you in one tap, and your fixtures show up here.")
+                        Text(t("fin.send_your_profile_link"))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -199,14 +199,14 @@ struct WelcomeShareSheet: View {
                     ShareProfileView(userId: userId)
                         .padding(.vertical, 4)
                 } footer: {
-                    Text("They see your name, photo and what you play — not your email or number.")
+                    Text(t("fin.they_see_name_photo"))
                 }
             }
             .fishersList()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: onDone)
+                    Button(t("ev.done"), action: onDone)
                 }
             }
         }

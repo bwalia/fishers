@@ -1,5 +1,7 @@
 package com.fishers.app.views.shop
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -113,8 +115,7 @@ private fun Header(listing: MarketListing) {
                 fontWeight = FontWeight.Bold,
             )
             if (product.negotiable) {
-                Text(
-                    "or near offer",
+                Text(t("sh.or_near_offer"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     modifier = Modifier.padding(bottom = 4.dp),
@@ -145,10 +146,9 @@ private fun BuyerPanel(
         if (state.reserved) {
             Card(colors = CardDefaults.cardColors(MaterialTheme.colorScheme.primaryContainer)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Reserved for you.", style = MaterialTheme.typography.titleSmall)
+                    Text(t("sh.reserved_for_you"), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "The seller has been told. Arrange collection with them and pay them " +
-                            "directly — nothing has been taken online.",
+                        t("sh.seller_has_been_told"),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -181,8 +181,7 @@ private fun BuyerPanel(
                 )
             }
             Text(
-                "Nothing is paid online. Reserving tells the seller you want it; you settle up " +
-                    "when you collect.",
+                t("sh.nothing_paid_online"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
@@ -206,8 +205,7 @@ private fun BuyerPanel(
                 }
             }
             Column {
-                Text(
-                    "Sold by",
+                Text(t("sh.sold_by"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
@@ -229,8 +227,7 @@ private fun BuyerPanel(
         // otherwise, so there is nothing here to forget to hide.
         if (listing.sellerPhone != null || listing.sellerEmail != null) {
             Column {
-                Text(
-                    "Happy to be contacted directly",
+                Text(t("sh.happy_to_be_contacted"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
@@ -249,13 +246,12 @@ private fun OwnerPanel(listing: MarketListing) {
         AssistChip(
             onClick = {},
             enabled = false,
-            label = { Text("This is your listing") },
+            label = { Text(t("sh.this_is_your_listing")) },
             colors = AssistChipDefaults.assistChipColors(
                 disabledLabelColor = MaterialTheme.colorScheme.primary,
             ),
         )
-        Text(
-            "This is exactly how buyers see it.",
+        Text(t("sh.this_is_exactly_how_buyers_see_it"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
@@ -275,8 +271,7 @@ private fun OwnerPanel(listing: MarketListing) {
         if (listing.photos.isEmpty()) {
             Card(colors = CardDefaults.cardColors(MaterialTheme.colorScheme.secondaryContainer)) {
                 Text(
-                    "It has no photographs. A listing without one is usually scrolled past — " +
-                        "adding a couple is the single thing most likely to sell it.",
+                    t("sh.no_photographs_advice"),
                     Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -284,8 +279,7 @@ private fun OwnerPanel(listing: MarketListing) {
         }
         // Editing a listing is on the web for now, so this says where rather
         // than offering a button that would go nowhere.
-        Text(
-            "Change the price, add photographs or mark it sold on the website.",
+        Text(t("sh.change_price_on_website"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
@@ -389,8 +383,7 @@ private fun Gallery(photos: List<String>, title: String) {
             modifier = Modifier.fillMaxWidth().height(200.dp),
         ) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text(
-                    "No photograph",
+                Text(t("sh.no_photograph"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )

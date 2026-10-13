@@ -1,5 +1,7 @@
 package com.fishers.app.views.umpire
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,7 +52,7 @@ fun UmpiringCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Umpiring", style = MaterialTheme.typography.titleMedium)
+            Text(t("sr.umpiring"), style = MaterialTheme.typography.titleMedium)
 
             when {
                 state.isLoading && state.profile == null ->
@@ -93,7 +95,7 @@ private fun Body(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("I umpire", style = MaterialTheme.typography.bodyLarge)
+            Text(t("sr.i_umpire"), style = MaterialTheme.typography.bodyLarge)
             Switch(
                 checked = profile.umpires,
                 onCheckedChange = onWilling,
@@ -101,7 +103,7 @@ private fun Body(
             )
         }
     } else if (profile.umpires) {
-        Text("Will stand", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+        Text(t("sr.will_stand"), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
     }
 
     profile.note?.let {

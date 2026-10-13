@@ -130,13 +130,13 @@ extension MatchState {
         // player who wins it one-handed is exactly who this list is for.
         for inn in innings {
             for bat in inn.batters where bat.hasBatted {
-                var t = tallies[bat.playerId] ?? Tally()
-                t.runs += bat.runs
-                t.balls += bat.balls
-                t.fours += bat.fours
-                t.sixes += bat.sixes
-                t.notOut = t.notOut || !bat.out
-                tallies[bat.playerId] = t
+                var tally = tallies[bat.playerId] ?? Tally()
+                tally.runs += bat.runs
+                tally.balls += bat.balls
+                tally.fours += bat.fours
+                tally.sixes += bat.sixes
+                tally.notOut = tally.notOut || !bat.out
+                tallies[bat.playerId] = tally
 
                 // The fielder is on the other side, so this credits them in
                 // their own tally, not the batter's.
@@ -152,12 +152,12 @@ extension MatchState {
                 }
             }
             for bowl in inn.bowlers {
-                var t = tallies[bowl.playerId] ?? Tally()
-                t.wickets += bowl.wickets
-                t.conceded += bowl.runs
-                t.bowled += bowl.balls
-                t.maidens += bowl.maidens
-                tallies[bowl.playerId] = t
+                var tally = tallies[bowl.playerId] ?? Tally()
+                tally.wickets += bowl.wickets
+                tally.conceded += bowl.runs
+                tally.bowled += bowl.balls
+                tally.maidens += bowl.maidens
+                tallies[bowl.playerId] = tally
             }
         }
 
