@@ -69,7 +69,7 @@ struct SeasonStatsSection: View {
                 }
             }
         } header: {
-            Text("Season stats")
+            Text(t("cl.season_stats"))
         } footer: {
             Text("ECB Play-Cricket season board. Sample data ships with the demo club; live sync uses a club API token when configured.")
         }

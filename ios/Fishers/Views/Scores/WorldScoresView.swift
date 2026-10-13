@@ -44,7 +44,7 @@ struct WorldScoresView: View {
         }
         .listStyle(.insetGrouped)
         .fishersList()
-        .navigationTitle("Cricket scores")
+        .navigationTitle(t("sr.cricket_scores"))
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task {
@@ -280,7 +280,7 @@ struct WorldScoresSection: View {
                         Text("All cricket scores").font(.subheadline.weight(.medium))
                     }
                 } header: {
-                    Text("Around the world")
+                    Text(t("sr.around_the_world"))
                         .font(FishersTheme.overline)
                         .tracking(0.8)
                 } footer: {

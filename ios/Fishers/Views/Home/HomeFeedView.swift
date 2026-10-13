@@ -127,7 +127,7 @@ struct HomeFeedView: View {
                         }
                     } header: {
                         HStack {
-                            Text("In progress")
+                            Text(t("rest.in_progress"))
                                 .font(FishersTheme.overline)
                                 .tracking(0.8)
                             Spacer()
@@ -148,7 +148,7 @@ struct HomeFeedView: View {
                             }
                         }
                     } header: {
-                        Text("Upcoming")
+                        Text(t("rest.upcoming"))
                             .font(FishersTheme.overline)
                             .tracking(0.8)
                     } footer: {

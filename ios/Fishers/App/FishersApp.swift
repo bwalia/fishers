@@ -16,7 +16,7 @@ struct FishersApp: App {
     @StateObject private var clubContext = ClubContextStore()
     /// The reader's language. Owned here so changing it redraws the whole app
     /// at once, the way the web's provider does.
-    @StateObject private var language = LanguageStore()
+    @StateObject private var language = LanguageStore.shared
 
     private let cricketContainer: ModelContainer = {
         let schema = Schema([LocalCricketMatch.self, LocalScoringEvent.self])
@@ -42,6 +42,10 @@ struct FishersApp: App {
                 .environmentObject(session)
                 .environmentObject(clubContext)
                 .environmentObject(language)
+                // The global `t()` is not something SwiftUI watches, so this
+                // is what makes a language change show up: a new identity for
+                // the tree rebuilds every view that reads a string.
+                .id(language.language)
                 .modelContainer(cricketContainer)
                 .tint(FishersTheme.accent)
                 .task {

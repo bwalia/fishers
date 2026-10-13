@@ -31,7 +31,7 @@ struct ProfileStrengthSection: View {
 
                 HStack(spacing: 10) {
                     Button(action: onComplete) {
-                        Text("Complete profile")
+                        Text(t("rest.complete_profile"))
                             .font(FishersTheme.subhead.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 36)
                     }
@@ -45,7 +45,7 @@ struct ProfileStrengthSection: View {
                                     : "Turn on notifications for \(Brand.name) in Settings to get a reminder."
                             }
                         } label: {
-                            Text("Remind me later")
+                            Text(t("rest.remind_me_later"))
                                 .font(FishersTheme.subhead.weight(.semibold))
                                 .frame(maxWidth: .infinity, minHeight: 36)
                         }

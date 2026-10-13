@@ -50,7 +50,7 @@ struct VerifyContactView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: FishersTheme.space1) {
-                TextField("••••••", text: $code)
+                TextField(t("rest.x"), text: $code)
                     .font(.system(.title2, design: .monospaced).weight(.semibold))
                     .multilineTextAlignment(.center)
                     .keyboardType(.numberPad)
@@ -71,7 +71,7 @@ struct VerifyContactView: View {
                     Task { await confirm() }
                 } label: {
                     Group {
-                        if busy { ProgressView() } else { Text("Confirm").font(FishersTheme.headline) }
+                        if busy { ProgressView() } else { Text(t("le.confirm")).font(FishersTheme.headline) }
                     }
                     .frame(minWidth: 88, minHeight: FishersTheme.minTap)
                 }

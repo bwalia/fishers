@@ -84,6 +84,15 @@ enum Strings {
 /// cookie for the same reason.
 @MainActor
 final class LanguageStore: ObservableObject {
+    /// The one the global `t()` reads.
+    ///
+    /// A singleton as well as an environment object, for the same reason the
+    /// web has both `useT()` and `clientT()`: most of what needs a string is a
+    /// view, but plenty is not — a view model building an error, a formatter,
+    /// a static helper — and threading a store down to all of them would mean
+    /// changing every call site in the app to fix the wording in one.
+    static let shared = LanguageStore()
+
     private static let key = "FishersLanguage"
 
     @Published private(set) var language: Language {
@@ -124,4 +133,25 @@ final class LanguageStore: ObservableObject {
     ) -> String {
         Strings.t(key, language: language, count: count, vars: vars)
     }
+}
+
+
+/// `t("nav.home")` — the same call the web makes, from anywhere.
+///
+/// Reads the shared store rather than taking one, so converting a screen is
+/// replacing the literal and nothing else. SwiftUI is not watching this, so it
+/// does not redraw by itself: `FishersApp` gives the root an `.id(language)`,
+/// which rebuilds the tree when the language changes.
+///
+/// ponytail: rebuilding the tree also resets navigation and scroll position.
+/// That is the right trade for a deliberate, rare action — and the web's
+/// `router.refresh()` is no gentler. If it ever needs to be seamless, the
+/// answer is `@EnvironmentObject` in each view rather than a smarter global.
+@MainActor
+func t(
+    _ key: String,
+    count: Int? = nil,
+    vars: [String: CustomStringConvertible] = [:]
+) -> String {
+    Strings.t(key, language: LanguageStore.shared.language, count: count, vars: vars)
 }

@@ -1,5 +1,13 @@
 package com.fishers.app.views
 
+import com.fishers.app.i18n.t
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.platform.LocalContext
+import com.fishers.app.i18n.Language
+import com.fishers.app.i18n.Strings
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -229,7 +237,9 @@ fun MainTabScreen(
                         onWilling = umpiring::setWilling,
                     )
 
-                    TextButton(onClick = onSignOut) { Text("Sign out") }
+                    LanguagePicker()
+
+                    TextButton(onClick = onSignOut) { Text(t("nav.sign_out")) }
                 }
 
                 else -> {
@@ -343,4 +353,31 @@ private enum class Tab(val title: String, val icon: ImageVector, val missing: St
     Chats("Chats", Icons.Filled.Email, ""),
     Clubs("Clubs", Icons.Filled.Person, ""),
     Profile("Profile", Icons.Filled.AccountCircle, ""),
+}
+
+/**
+ * Which language the app speaks.
+ *
+ * Each listed in its own script and never translated — a picker offering
+ * "Punjabi" in English is no use to the person who needs it. Choosing one
+ * redraws every screen: `t()` reads `Strings.language`, which is Compose
+ * state, so the subscription is automatic.
+ */
+@Composable
+private fun LanguagePicker() {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(t("lang.label"), style = MaterialTheme.typography.labelLarge)
+        Language.entries.forEach { language ->
+            FilterChip(
+                selected = Strings.language == language,
+                onClick = { Strings.set(context, language) },
+                label = { Text(language.native) },
+            )
+        }
+    }
 }

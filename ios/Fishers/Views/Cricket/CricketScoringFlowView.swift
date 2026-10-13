@@ -198,7 +198,7 @@ struct CricketScoringFlowView: View {
                     in: 0...25
                 )
             } header: {
-                Text("Format")
+                Text(t("sc.format"))
             } footer: {
                 Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs — with a \(MatchConditions.standardPowerplay(conditions.oversLimit)) over powerplay. Fourteen an hour is the usual over rate. Set any of them to none for a social game.")
             }
@@ -266,7 +266,7 @@ struct CricketScoringFlowView: View {
                         if booting {
                             ProgressView()
                         } else {
-                            Text("Propose these terms").bold()
+                            Text(t("la.propose_these_terms")).bold()
                         }
                         Spacer()
                     }
@@ -313,7 +313,7 @@ struct CricketScoringFlowView: View {
                 Button("Continue to the toss") { step = .toss }
                     .bold()
                     .disabled(!store.state.conditionsAgreed)
-                Button("Change the terms") { step = .setup }
+                Button(t("sc.change_the_terms")) { step = .setup }
                     .foregroundStyle(FishersTheme.accent)
             } footer: {
                 if !store.state.conditionsAgreed {
@@ -824,7 +824,7 @@ private struct TeamSheetEditor: View {
                                     .foregroundStyle(FishersTheme.accent)
                             }
                             if keeper == player.id {
-                                Text("WK").font(.caption2.bold())
+                                Text(t("sc.wk")).font(.caption2.bold())
                                     .foregroundStyle(FishersTheme.accent)
                             }
                         }
@@ -865,10 +865,10 @@ private struct TeamSheetEditor: View {
 
             Section("Add a guest or the opposition") {
                 HStack {
-                    TextField("Name", text: $guestName)
+                    TextField(t("cl.name"), text: $guestName)
                         .textInputAutocapitalization(.words)
                         .onSubmit(addGuest)
-                    Button("Add", action: addGuest)
+                    Button(t("sc.add"), action: addGuest)
                         .disabled(guestName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -960,15 +960,15 @@ private struct OfficialsEditor: View {
             Section("Add") {
                 Picker("Role", selection: $addingUmpire) {
                     Text("Umpire").tag(true)
-                    Text("Scorer").tag(false)
+                    Text(t("la.scorer")).tag(false)
                 }
                 .pickerStyle(.segmented)
 
                 HStack {
-                    TextField("Name", text: $guestName)
+                    TextField(t("cl.name"), text: $guestName)
                         .textInputAutocapitalization(.words)
                         .onSubmit(addGuest)
-                    Button("Add", action: addGuest)
+                    Button(t("sc.add"), action: addGuest)
                         .disabled(guestName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
 
@@ -1065,7 +1065,7 @@ private struct CaptainNameSheet: View {
                     }
                 }
                 Section {
-                    TextField("Name", text: $name)
+                    TextField(t("cl.name"), text: $name)
                         .textContentType(.name)
                 } header: {
                     Text(candidates.isEmpty ? "Captain" : "Somebody else")
@@ -1078,7 +1078,7 @@ private struct CaptainNameSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel(); dismiss() }
+                    Button(t("sc.cancel")) { onCancel(); dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Agree") { onAgree(); dismiss() }

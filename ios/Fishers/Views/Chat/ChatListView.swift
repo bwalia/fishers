@@ -33,7 +33,7 @@ struct ChatListView: View {
                 }
             }
             .fishersList()
-            .navigationTitle("Chats")
+            .navigationTitle(t("cl.chats"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -131,14 +131,14 @@ struct ChatListView: View {
                     }
                 }
             }
-            .navigationTitle("New chat")
+            .navigationTitle(t("cl.new_chat"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { isCreating = false }
+                    Button(t("sc.cancel")) { isCreating = false }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
+                    Button(t("cl.create")) {
                         let title = newTitle
                         let clubId = clubContext.activeClubId
                         isCreating = false

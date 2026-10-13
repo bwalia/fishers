@@ -81,7 +81,7 @@ struct ListingDetailView: View {
                     .font(.largeTitle.bold())
                     .monospacedDigit()
                 if listing.product.negotiable == true {
-                    Text("or near offer")
+                    Text(t("sh.or_near_offer"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -103,7 +103,7 @@ struct ListingDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             if reserved {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Reserved for you.", systemImage: "checkmark.circle.fill")
+                    Label(t("sh.reserved_for_you"), systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(FishersTheme.pitch)
                     Text(
@@ -162,7 +162,7 @@ struct ListingDetailView: View {
                             .foregroundStyle(.white)
                     )
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Sold by").font(.caption).foregroundStyle(.secondary)
+                    Text(t("sh.sold_by")).font(.caption).foregroundStyle(.secondary)
                     Text(listing.sellerName ?? listing.clubName).font(.subheadline.bold())
                     if listing.sellerName != nil {
                         Text(listing.clubName).font(.caption).foregroundStyle(.secondary)
@@ -302,14 +302,14 @@ private struct OwnerPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("This is your listing", systemImage: "checkmark.circle")
+            Label(t("sh.this_is_your_listing"), systemImage: "checkmark.circle")
                 .font(.subheadline.bold())
                 .foregroundStyle(FishersTheme.pitch)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(FishersTheme.pitch.opacity(0.12), in: Capsule())
 
-            Text("This is exactly how buyers see it.")
+            Text(t("sh.this_is_exactly_how_buyers_see_it"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
@@ -327,7 +327,7 @@ private struct OwnerPanel: View {
                 )
                 .font(.footnote)
             } else {
-                Label("Nobody has asked about it yet. Questions arrive in Chats.",
+                Label(t("sh.nobody_has_asked_about_it_yet_question"),
                       systemImage: "bubble.left.and.bubble.right")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -372,7 +372,7 @@ private struct Gallery: View {
                 .overlay(
                     VStack(spacing: 6) {
                         Image(systemName: "camera").font(.largeTitle)
-                        Text("No photograph").font(.footnote)
+                        Text(t("sh.no_photograph")).font(.footnote)
                     }
                     .foregroundStyle(.secondary)
                 )

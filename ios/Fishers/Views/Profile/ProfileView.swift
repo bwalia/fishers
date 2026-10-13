@@ -68,19 +68,19 @@ struct ProfileView: View {
             }
             .listStyle(.insetGrouped)
             .fishersList()
-            .navigationTitle("Profile")
+            .navigationTitle(t("nav.profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Edit") { isEditing = true }
+                    Button(t("cl.edit")) { isEditing = true }
                 }
             }
             .sheet(isPresented: $isEditing) {
                 ProfileEditView(user: session.user)
             }
             .confirmationDialog("Sign out of \(Brand.name)?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                Button("Sign out", role: .destructive) { session.signOut() }
-                Button("Cancel", role: .cancel) {}
+                Button(t("nav.sign_out"), role: .destructive) { session.signOut() }
+                Button(t("sc.cancel"), role: .cancel) {}
             } message: {
                 Text("You can sign back in anytime on this device.")
             }
@@ -213,7 +213,7 @@ struct ProfileView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Button("Sign out", role: .destructive) {
+            Button(t("nav.sign_out"), role: .destructive) {
                 confirmSignOut = true
             }
         }
@@ -222,12 +222,12 @@ struct ProfileView: View {
             // App Store Connect wants a policy anybody can read without an
             // account, so it lives on the web host rather than in here.
             Link(destination: AppConfig.webBaseURL.appendingPathComponent("privacy")) {
-                Label("Privacy", systemImage: "hand.raised")
+                Label(t("rest.privacy"), systemImage: "hand.raised")
             }
             NavigationLink {
                 DeleteAccountView()
             } label: {
-                Label("Delete account", systemImage: "person.crop.circle.badge.xmark")
+                Label(t("cl.delete_account"), systemImage: "person.crop.circle.badge.xmark")
                     .foregroundStyle(FishersTheme.unavailable)
             }
         } footer: {
@@ -235,19 +235,19 @@ struct ProfileView: View {
         }
     }
 
-    private func careerSummary(_ t: Totals, seasons: Int) -> some View {
+    private func careerSummary(_ totals: Totals, seasons: Int) -> some View {
         Section {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                       spacing: FishersTheme.space2) {
-                figure("Matches", t.matches)
-                figure("Runs", t.runs)
-                figure("Wickets", t.wickets)
-                figure("Catches", t.catches)
+                figure("Matches", totals.matches)
+                figure("Runs", totals.runs)
+                figure("Wickets", totals.wickets)
+                figure("Catches", totals.catches)
             }
             .padding(.vertical, 4)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         } header: {
-            Text("Career")
+            Text(t("cl.career"))
         } footer: {
             Text("Across \(seasons) season\(seasons == 1 ? "" : "s"), worked out from the ball-by-ball log.")
         }
@@ -380,7 +380,7 @@ struct ShareProfileScreen: View {
             }
         }
         .fishersList()
-        .navigationTitle("Your profile link")
+        .navigationTitle(t("rest.your_profile_link"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

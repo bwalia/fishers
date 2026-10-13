@@ -57,7 +57,7 @@ struct LiveAlerts: View {
                 destination(alert.destination)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Close") { opening = nil }
+                            Button(t("sc.close")) { opening = nil }
                         }
                     }
             }

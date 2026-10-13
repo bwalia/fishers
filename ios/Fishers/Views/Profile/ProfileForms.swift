@@ -25,7 +25,7 @@ struct AboutForm: View {
             Section("You") {
                 TextField("Full name", text: $form.name)
                     .textContentType(.name)
-                TextField("Mobile", text: $form.phone)
+                TextField(t("cl.mobile"), text: $form.phone)
                     .textContentType(.telephoneNumber)
                     .keyboardType(.phonePad)
             }
@@ -58,7 +58,7 @@ struct SportsPicker: View {
 
                 if form.selectedSports.count > 1 {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Main sport")
+                        Text(t("cl.main_sport"))
                             .font(.headline)
                         Text("Shown first on your profile and used for club suggestions.")
                             .font(.caption)

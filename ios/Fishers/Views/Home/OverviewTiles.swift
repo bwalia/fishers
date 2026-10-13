@@ -71,7 +71,7 @@ struct LivePip: View {
             Circle()
                 .fill(FishersTheme.seam)
                 .frame(width: 7, height: 7)
-            Text("Live")
+            Text(t("lp.live"))
                 .font(FishersTheme.overline)
                 .tracking(0.8)
                 .foregroundStyle(FishersTheme.seam)

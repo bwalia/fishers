@@ -40,7 +40,7 @@ struct ClubWelcomeSheet: View {
             Button {
                 onAddPlayers()
             } label: {
-                Label("Add players", systemImage: "person.badge.plus")
+                Label(t("lb.add_players"), systemImage: "person.badge.plus")
                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
             }
             .buttonStyle(.borderedProminent)
@@ -149,7 +149,7 @@ struct AddTeamSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("1st XI", text: $name)
+                    TextField(t("cl.1st_xi"), text: $name)
                     Picker("Sport", selection: $sport) {
                         ForEach(club.sportTypes.isEmpty ? ["cricket"] : club.sportTypes, id: \.self) {
                             Text($0.capitalized).tag($0)
@@ -162,12 +162,12 @@ struct AddTeamSheet: View {
                     Text(error).foregroundStyle(FishersTheme.unavailable)
                 }
             }
-            .navigationTitle("Add a team")
+            .navigationTitle(t("lb.add_a_team"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") { Task { await create() } }
+                    Button(t("cl.create")) { Task { await create() } }
                         .bold()
                         .disabled(busy || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -202,7 +202,7 @@ struct GroundsSection: View {
     var body: some View {
         Section {
             if venues.isEmpty {
-                Text("No grounds yet. Add the ones you play at and they can be picked when a fixture is scheduled.")
+                Text(t("cl.no_grounds_yet_add_the_ones_you_play_a"))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -228,10 +228,10 @@ struct GroundsSection: View {
                 }
             }
             if canEdit {
-                Button(action: onAdd) { Label("Add a ground", systemImage: "plus") }
+                Button(action: onAdd) { Label(t("cl.add_a_ground"), systemImage: "plus") }
             }
         } header: {
-            Text("Grounds")
+            Text(t("cl.grounds"))
         }
     }
 
@@ -255,8 +255,8 @@ struct AddGroundSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Highbury Fields", text: $name)
-                    TextField("Highbury Fields, London N5 1AR", text: $address, axis: .vertical)
+                    TextField(t("cl.highbury_fields"), text: $name)
+                    TextField(t("cl.highbury_fields_london_n5_1ar"), text: $address, axis: .vertical)
                         .textContentType(.fullStreetAddress)
                 } footer: {
                     Text("It can be picked whenever a fixture is scheduled, and players get a map to it.")
@@ -265,12 +265,12 @@ struct AddGroundSheet: View {
                     Text(error).foregroundStyle(FishersTheme.unavailable)
                 }
             }
-            .navigationTitle("Add a ground")
+            .navigationTitle(t("cl.add_a_ground"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { Task { await add() } }
+                    Button(t("sc.add")) { Task { await add() } }
                         .bold()
                         .disabled(busy || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -345,22 +345,22 @@ struct PublicPageEditorView: View {
                 }
 
                 Section("About the club") {
-                    TextField("Sunday cricket in north London since 1974.", text: optional(binding.tagline))
-                    TextField("Who you are, where you play, who you are looking for.", text: optional(binding.about), axis: .vertical)
+                    TextField(t("cl.sunday_cricket_in_north_london_since_1"), text: optional(binding.tagline))
+                    TextField(t("cl.who_you_are_where_you_play_who_you_are"), text: optional(binding.about), axis: .vertical)
                         .lineLimit(3...8)
                 }
 
                 Section("Details") {
                     TextField("Ground — Highbury Fields, London N5", text: optional(binding.ground))
                     TextField("Founded — 1974", text: $founded).keyboardType(.numberPad)
-                    TextField("Email for new players", text: optional(binding.contactEmail))
+                    TextField(t("cl.email_for_new_players"), text: optional(binding.contactEmail))
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                 }
 
                 Section {
                     Picker("Lead with", selection: binding.iconPlayerId) {
-                        Text("Nobody for now").tag(UUID?.none)
+                        Text(t("cl.nobody_for_now")).tag(UUID?.none)
                         ForEach(members.filter(\.isActive)) { Text($0.name).tag(Optional($0.userId)) }
                     }
                 } footer: {
@@ -391,7 +391,7 @@ struct PublicPageEditorView: View {
                 ProgressView()
             }
         }
-        .navigationTitle("Public page")
+        .navigationTitle(t("cl.public_page"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }

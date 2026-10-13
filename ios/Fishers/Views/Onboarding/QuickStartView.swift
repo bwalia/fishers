@@ -52,7 +52,7 @@ struct QuickStartView: View {
 
                     if asksPhone {
                         question("Your mobile number", note: "So your captain can reach you on match day. Only your clubs see it.") {
-                            TextField("07700 900123", text: $phone)
+                            TextField(t("cl.07700_900123"), text: $phone)
                                 .keyboardType(.phonePad)
                                 .textContentType(.telephoneNumber)
                                 .font(FishersTheme.body)
@@ -78,7 +78,7 @@ struct QuickStartView: View {
                         Task { await finish() }
                     } label: {
                         Group {
-                            if saving { ProgressView() } else { Text("Continue").font(FishersTheme.headline) }
+                            if saving { ProgressView() } else { Text(t("le.continue")).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
@@ -86,7 +86,7 @@ struct QuickStartView: View {
                     .controlSize(.large)
                     .disabled(saving || sports.isEmpty)
 
-                    Button("Skip for now") { Task { await skip() } }
+                    Button(t("rest.skip_for_now")) { Task { await skip() } }
                         .font(FishersTheme.subhead.weight(.semibold))
                         .frame(minHeight: FishersTheme.minTap)
                         .disabled(saving)
@@ -206,7 +206,7 @@ struct WelcomeShareSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: onDone)
+                    Button(t("ev.done"), action: onDone)
                 }
             }
         }

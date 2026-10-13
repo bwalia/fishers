@@ -41,15 +41,15 @@ struct WorldMatchView: View {
                     }
                     if detail.innings.isEmpty {
                         Section {
-                            Text("Not a ball bowled yet.").font(.headline)
-                            Text("The card will fill in once the match is under way.")
+                            Text(t("sr.not_a_ball_bowled_yet")).font(.headline)
+                            Text(t("sr.the_card_will_fill_in_once_the_match_i"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
                 } else {
                     Section {
-                        Text("No scorecard for this match yet.").font(.headline)
+                        Text(t("sr.no_scorecard_for_this_match_yet")).font(.headline)
                         Text("If it has not started, there is nothing to show.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -60,7 +60,7 @@ struct WorldMatchView: View {
         }
         .listStyle(.insetGrouped)
         .fishersList()
-        .navigationTitle("Scorecard")
+        .navigationTitle(t("ld.scorecard"))
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task {
@@ -132,9 +132,9 @@ struct WorldMatchView: View {
             ForEach(d.battingNow) { CreaseRow(role: "Batting", player: $0) }
             ForEach(d.bowlingNow) { CreaseRow(role: "Bowling", player: $0) }
         } header: {
-            Text("At the crease")
+            Text(t("sc.at_the_crease"))
         } footer: {
-            Text("Who is in, and who is bowling at them, right now.")
+            Text(t("sr.who_is_in_and_who_is_bowling_at_them_r"))
         }
     }
 

@@ -40,7 +40,7 @@ struct UmpiringView: View {
             }
 
             if isMine {
-                Toggle("I umpire", isOn: Binding(
+                Toggle(t("sr.i_umpire"), isOn: Binding(
                     get: { p.umpires },
                     set: { on in Task { await save(umpires: on) } }
                 ))
@@ -48,14 +48,14 @@ struct UmpiringView: View {
 
                 if p.umpires {
                     if editingNote {
-                        TextField("Level 1 ECB · club matches only", text: $note)
+                        TextField(t("sr.level_1_ecb_club_matches_only"), text: $note)
                             .textInputAutocapitalization(.sentences)
                         HStack {
-                            Button("Save") {
+                            Button(t("lc.save")) {
                                 Task { await save(note: .some(note.trimmed.isEmpty ? nil : note.trimmed)) }
                             }
                             .disabled(saving)
-                            Button("Cancel") { editingNote = false }
+                            Button(t("sc.cancel")) { editingNote = false }
                                 .foregroundStyle(.secondary)
                         }
                     } else {
@@ -66,7 +66,7 @@ struct UmpiringView: View {
                     }
                 }
             } else if p.umpires {
-                Label("Will stand", systemImage: "checkmark.seal")
+                Label(t("sr.will_stand"), systemImage: "checkmark.seal")
                     .foregroundStyle(FishersTheme.available)
             }
 
@@ -74,7 +74,7 @@ struct UmpiringView: View {
                 Text(text).foregroundStyle(.secondary)
             }
         } header: {
-            Text("Umpiring")
+            Text(t("sr.umpiring"))
         } footer: {
             if p.matches == 0 && p.reviews.isEmpty {
                 Text(isMine

@@ -35,7 +35,7 @@ struct EventDetailView: View {
                         NavigationLink {
                             EventTicketsView(eventId: eventId, canManage: roleInfo?.isSecretary ?? false)
                         } label: {
-                            Label("Tickets", systemImage: "ticket")
+                            Label(t("ev.tickets"), systemImage: "ticket")
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 6)
                         }

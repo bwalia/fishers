@@ -106,17 +106,17 @@ struct WagonWheelPicker: View {
                 Spacer(minLength: 0)
             }
             .padding(.vertical)
-            .navigationTitle("Where did it go?")
+            .navigationTitle(t("sc.where_did_it_go"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Skip") {
+                    Button(t("score.skip")) {
                         onSkip()
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(t("lc.save")) {
                         if let angle {
                             onSave(ShotRecord(angle: angle, kind: kind, reach: reach))
                         } else {

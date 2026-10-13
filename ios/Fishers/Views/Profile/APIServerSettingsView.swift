@@ -78,7 +78,7 @@ struct APIServerSettingsView: View {
             }
 
             Section {
-                Button("Save") { save() }
+                Button(t("lc.save")) { save() }
                     .fontWeight(.semibold)
                 Button("Reset to default") { reset() }
                 if AppConfig.storedAPIOverride != nil {

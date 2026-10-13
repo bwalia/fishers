@@ -211,7 +211,7 @@ struct TournamentView: View {
                 // the table and the history still add up.
                 .swipeActions(edge: .trailing) {
                     if entrant.entry == .accepted {
-                        Button("Withdraw", role: .destructive) {
+                        Button(t("tn.withdraw"), role: .destructive) {
                             Task {
                                 try? await FishersAPI.withdrawEntrant(entrant.id)
                                 await store.load()
@@ -274,7 +274,7 @@ struct TournamentView: View {
                 Text(notes).font(FishersTheme.footnote)
             }
         } header: {
-            Text("The rules")
+            Text(t("tn.the_rules"))
         } footer: {
             Text(
                 block.conditions == nil
@@ -361,7 +361,7 @@ private struct SetUpSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Generate") {
@@ -408,10 +408,10 @@ private struct AddEntrantsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button(t("sc.add")) {
                         let names = text.split(separator: "\n").map(String.init)
                         dismiss()
                         Task { await store.addEntrants(names) }
@@ -449,14 +449,14 @@ private struct ResultSheet: View {
                     Section("Recorded") { Text(score) }
                 }
             }
-            .navigationTitle("Result")
+            .navigationTitle(t("sc.result"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(t("lc.save")) {
                         let home = Int(homeScore) ?? 0
                         let away = Int(awayScore) ?? 0
                         dismiss()

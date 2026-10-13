@@ -183,7 +183,7 @@ private struct RosterList: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Email or mobile number", text: $newIdentifier)
+                    TextField(t("cl.email_or_mobile_number"), text: $newIdentifier)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
@@ -218,7 +218,7 @@ private struct RosterList: View {
                     Text("An invite link works for somebody with no \(Brand.name) account. It joins them to the club once they sign up, and can only be used once.")
                 }
                 Section {
-                    TextField("Paste the link they sent you", text: $pastedLink)
+                    TextField(t("rest.paste_the_link_they_sent_you"), text: $pastedLink)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     if let token = SharedPlayerCard.token(in: pastedLink) {
@@ -242,13 +242,13 @@ private struct RosterList: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(t("sc.cancel")) {
                         isAdding = false
                         store.invite = nil
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button(t("sc.add")) {
                         let identifier = trimmedIdentifier
                         let role = newRole
                         isAdding = false
@@ -345,14 +345,14 @@ private struct RoleSheet: View {
                     }
                 }
             }
-            .navigationTitle("Role")
+            .navigationTitle(t("cl.role"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(t("lc.save")) {
                         onSet(role)
                         dismiss()
                     }
@@ -365,11 +365,11 @@ private struct RoleSheet: View {
                 isPresented: $confirmRemove,
                 titleVisibility: .visible
             ) {
-                Button("Remove", role: .destructive) {
+                Button(t("cl.remove"), role: .destructive) {
                     onRemove()
                     dismiss()
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(t("sc.cancel"), role: .cancel) {}
             } message: {
                 Text("Their past availability, fees and appearances stay on record.")
             }
@@ -425,13 +425,13 @@ private struct PolicyForm: View {
                         value: binding(\.feeChaseMaxReminders), in: 0...10
                     )
                 } header: {
-                    Text("Match fees")
+                    Text(t("lb.match_fees"))
                 } footer: {
                     Text("Then daily until they pay or the cap is reached.")
                 }
 
                 if store.isSaving {
-                    Section { HStack { ProgressView(); Text("Saving…") } }
+                    Section { HStack { ProgressView(); Text(t("la.saving")) } }
                 }
             } else if store.isLoading {
                 Section { ProgressView() }
@@ -507,7 +507,7 @@ private struct FeesList: View {
                                 Task { await store.chaseFees() }
                             } label: {
                                 if store.isChasing {
-                                    HStack { ProgressView(); Text("Sending…") }
+                                    HStack { ProgressView(); Text(t("fp.sending")) }
                                 } else {
                                     Label("Send reminders now", systemImage: "envelope.badge")
                                 }

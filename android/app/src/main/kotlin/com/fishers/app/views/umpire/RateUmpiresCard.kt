@@ -1,5 +1,7 @@
 package com.fishers.app.views.umpire
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,9 +58,8 @@ fun RateUmpiresCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("How was the umpiring?", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "It goes on their profile, with your name on it. One review each — you can change it later.",
+            Text(t("sr.how_was_the_umpiring"), style = MaterialTheme.typography.titleMedium)
+            Text(t("sr.it_goes_on_their_profile_with_your_nam"),
                 style = MaterialTheme.typography.bodyMedium,
             )
             state.umpires.forEachIndexed { index, umpire ->
@@ -97,7 +98,7 @@ private fun RateOne(
         ) {
             Text(umpire.name, fontWeight = FontWeight.SemiBold)
             if (umpire.myRating != null) {
-                Text("Your review", style = MaterialTheme.typography.labelMedium)
+                Text(t("sr.your_review"), style = MaterialTheme.typography.labelMedium)
             }
         }
 
@@ -107,7 +108,7 @@ private fun RateOne(
             value = comment,
             onValueChange = { comment = it },
             label = { Text("Anything to add?") },
-            placeholder = { Text("Gave everything, explained the wides…") },
+            placeholder = { Text(t("sr.gave_everything_explained_the_wides")) },
             minLines = 2,
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),
@@ -121,7 +122,7 @@ private fun RateOne(
                 Text(if (umpire.myRating == null) "Submit" else "Update")
             }
             if (umpire.myRating != null) {
-                TextButton(onClick = onWithdraw, enabled = !busy) { Text("Remove") }
+                TextButton(onClick = onWithdraw, enabled = !busy) { Text(t("cl.remove")) }
             }
         }
     }
@@ -182,7 +183,7 @@ fun PendingUmpireReviewsCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Waiting on you", style = MaterialTheme.typography.titleMedium)
+            Text(t("sr.waiting_on_you"), style = MaterialTheme.typography.titleMedium)
             Text(
                 "You played in these. Say how the umpiring went — it goes on their profile, with your name on it.",
                 style = MaterialTheme.typography.bodyMedium,

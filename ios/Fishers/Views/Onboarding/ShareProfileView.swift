@@ -64,7 +64,7 @@ struct ShareProfileView: View {
                     Task { await getLink() }
                 } label: {
                     Group {
-                        if busy { ProgressView() } else { Label("Get my profile link", systemImage: "link") }
+                        if busy { ProgressView() } else { Label(t("le.get_my_profile_link"), systemImage: "link") }
                     }
                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                 }

@@ -1,5 +1,7 @@
 package com.fishers.app.views.shop
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,7 +52,7 @@ fun MarketplaceScreen(
         OutlinedTextField(
             value = state.search,
             onValueChange = onSearch,
-            label = { Text("Search") },
+            label = { Text(t("rest.search")) },
             placeholder = { Text("Bats, pads, a club shirt") },
             singleLine = true,
             modifier = Modifier
@@ -171,8 +173,7 @@ private fun ListingRow(product: Product, onClick: () -> Unit) {
         }
 
         if (product.isSold) {
-            Text(
-                "Sold",
+            Text(t("le.sold"),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )

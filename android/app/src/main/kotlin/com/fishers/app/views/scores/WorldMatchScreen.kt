@@ -1,5 +1,7 @@
 package com.fishers.app.views.scores
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -239,9 +241,8 @@ private fun Crease(batting: List<CurrentPlayer>, bowling: List<CurrentPlayer>) {
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text("At the crease", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-        Text(
-            "Who is in, and who is bowling at them, right now.",
+        Text(t("sc.at_the_crease"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Text(t("sr.who_is_in_and_who_is_bowling_at_them_r"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -360,7 +361,7 @@ private fun InningsCard(innings: Innings, title: String) {
         innings.extras.total?.let { total ->
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             Row {
-                Text("Extras", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(t("la.extras"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 innings.extras.breakdown?.let {
                     Text(
                         " ($it)",

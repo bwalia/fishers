@@ -1,5 +1,7 @@
 package com.fishers.app.views.auth
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -98,7 +100,7 @@ fun AuthScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Your name") },
+                    label = { Text(t("rest.your_name")) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -121,7 +123,7 @@ fun AuthScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
+                label = { Text(t("cl.password")) },
                 supportingText = {
                     if (signingUp) Text("Eight characters or more.")
                 },

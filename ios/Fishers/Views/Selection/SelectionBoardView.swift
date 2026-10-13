@@ -180,7 +180,7 @@ struct SelectionBoardView: View {
                         Label("Move reserves up into empty places", systemImage: "arrow.up.circle")
                     }
                 } header: {
-                    Text("Reserves")
+                    Text(t("ev.reserves"))
                 }
             }
         }
@@ -237,7 +237,7 @@ struct SelectionBoardView: View {
 
     private var publishBar: some View {
         HStack(spacing: 12) {
-            Button("Save") {
+            Button(t("lc.save")) {
                 Task { await store.saveWithoutPublishing() }
             }
             .buttonStyle(.bordered)
@@ -272,7 +272,7 @@ struct SelectionBoardView: View {
                     TextField("e.g. ground unplayable after Friday's rain", text: $statusNote, axis: .vertical)
                         .lineLimit(2...4)
                 } header: {
-                    Text("Reason")
+                    Text(t("sc.reason"))
                 } footer: {
                     Text("Posted to the club thread and pushed to everyone in the squad.")
                 }
@@ -281,7 +281,7 @@ struct SelectionBoardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { isChangingStatus = false }
+                    Button(t("sc.cancel")) { isChangingStatus = false }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Announce") {

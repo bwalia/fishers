@@ -25,7 +25,7 @@ struct DeleteAccountView: View {
             }
 
             Section {
-                SecureField("Your password", text: $password)
+                SecureField(t("cl.your_password"), text: $password)
                     .textContentType(.password)
             } footer: {
                 Text("Leave blank if you sign in with Google.")
@@ -44,7 +44,7 @@ struct DeleteAccountView: View {
                     if busy {
                         ProgressView()
                     } else {
-                        Text("Delete my account")
+                        Text(t("ld.delete_my_account"))
                     }
                 }
                 .disabled(busy)
@@ -52,14 +52,14 @@ struct DeleteAccountView: View {
                 Text("This cannot be undone.")
             }
         }
-        .navigationTitle("Delete account")
+        .navigationTitle(t("cl.delete_account"))
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             "Delete your \(Brand.name) account?",
             isPresented: $confirming,
             titleVisibility: .visible
         ) {
-            Button("Delete account", role: .destructive) { Task { await remove() } }
+            Button(t("cl.delete_account"), role: .destructive) { Task { await remove() } }
             Button("Keep my account", role: .cancel) {}
         } message: {
             Text("This cannot be undone.")

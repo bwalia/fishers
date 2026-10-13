@@ -50,7 +50,7 @@ struct ManOfTheMatchCard: View {
             Image(systemName: "star.circle.fill")
                 .foregroundStyle(FishersTheme.accent400)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Man of the match")
+                Text(t("sr.man_of_the_match"))
                     .font(.subheadline.weight(.semibold))
                 if let view = store.view {
                     Text(view.poll.title)
@@ -86,7 +86,7 @@ struct ManOfTheMatchCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
-            Text("Only the two clubs who played can vote.")
+            Text(t("le.only_the_two_clubs_who_played_can_vote"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -169,7 +169,7 @@ struct ManOfTheMatchCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } else {
-            Text("Voting closed with nobody voted for.")
+            Text(t("sr.voting_closed_with_nobody_voted_for"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -100,6 +100,42 @@ ${natives}
 `;
 }
 
+function kotlin(rows, keyCount) {
+  const cases = rows
+    .map((r) => `    ${r.id.toUpperCase()}("${r.id}", ${JSON.stringify(r.native)}),`)
+    .join("\n");
+  return `// Generated from web/src/lib/i18n/ by tools/i18n. Do not edit.
+//
+// ${keyCount} keys per language. The words are in assets/strings/; only the
+// list of languages needs to be code, because it is what the picker iterates
+// and what \`Language.from\` validates.
+
+package com.fishers.app.i18n
+
+/** A language the product speaks. */
+enum class Language(val code: String, val native: String) {
+${cases}
+    ;
+
+    companion object {
+        /** The language this build falls back to, per key. */
+        val fallback = EN
+
+        /**
+         * A language from anything untrusted — a saved preference, a system
+         * locale tag. "pa-Guru-IN" and "pa_IN" are both Punjabi as far as this
+         * product cares, which is what the web's \`localeFrom\` does too.
+         */
+        fun from(tag: String?): Language {
+            if (tag.isNullOrBlank()) return fallback
+            val base = tag.trim().lowercase().split('-', '_').first()
+            return entries.firstOrNull { it.code == base } ?: fallback
+        }
+    }
+}
+`;
+}
+
 function main(argv) {
   const check = argv.includes("--check");
   const rows = locales();
@@ -112,6 +148,27 @@ function main(argv) {
       {
         path: join(repoRoot, "ios", "Fishers", "Strings", "Generated", "Language.generated.swift"),
         contents: swift(rows, Object.keys(dicts.en).length),
+      },
+      // Android gets the same tables, as assets rather than string resources.
+      // res/values-pa/ would be the idiomatic home, but the dictionary's keys
+      // are dotted and its placeholders are named — turning `{n}` into `%1$s`
+      // loses the name and the ordering, and `.one`/`.other` into <plurals>
+      // means two sets of plural rules to keep agreeing. One dialect across
+      // three platforms is worth more here than res/ conventions.
+      //
+      // ponytail: the cost is no per-app language in Android's own settings.
+      // The in-app picker covers two languages; if the list grows or the Play
+      // listing needs them, generate res/values-<lang>/ alongside these.
+      ...rows.map((r) => ({
+        path: join(repoRoot, "android", "app", "src", "main", "assets", "strings", `${r.id}.json`),
+        contents: table(dicts[r.id]),
+      })),
+      {
+        path: join(
+          repoRoot, "android", "app", "src", "main", "kotlin", "com", "fishers", "app",
+          "i18n", "Language.generated.kt",
+        ),
+        contents: kotlin(rows, Object.keys(dicts.en).length),
       },
     ];
 

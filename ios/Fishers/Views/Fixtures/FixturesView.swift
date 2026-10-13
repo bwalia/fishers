@@ -32,7 +32,7 @@ struct FixturesView: View {
                 }
             }
             .background(FishersTheme.mist.ignoresSafeArea())
-            .navigationTitle("Fixtures")
+            .navigationTitle(t("ev.fixtures"))
             .navigationDestination(for: FixtureRoute.self) { EventDetailView(eventId: $0.eventId) }
             .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }
         }
@@ -154,9 +154,9 @@ struct FixturesListPane: View {
                     .padding(.vertical, 4)
                 } header: {
                     HStack {
-                        Text("How fixtures work")
+                        Text(t("ev.how_fixtures_work"))
                         Spacer()
-                        Button("Got it") { guideDismissed = true }
+                        Button(t("ev.got_it")) { guideDismissed = true }
                             .font(FishersTheme.footnote)
                             .textCase(nil)
                     }
@@ -219,7 +219,7 @@ struct FixturesListPane: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Picker("Club", selection: $clubFilter) {
-                            Text("All clubs").tag(UUID?.none)
+                            Text(t("ev.all_clubs")).tag(UUID?.none)
                             ForEach(clubs, id: \.0) { Text($0.1).tag(Optional($0.0)) }
                         }
                     } label: {
@@ -423,12 +423,12 @@ struct ScheduleMatchSheet: View {
                             .foregroundStyle(.secondary)
                     } else {
                         Picker("Ground", selection: $venueId) {
-                            Text("Not decided yet").tag(UUID?.none)
+                            Text(t("ev.not_decided_yet")).tag(UUID?.none)
                             ForEach(venues) { Text($0.name).tag(Optional($0.id)) }
                         }
                     }
                 } header: {
-                    Text("Where")
+                    Text(t("ev.where"))
                 }
 
                 Section {
@@ -438,7 +438,7 @@ struct ScheduleMatchSheet: View {
                         LabeledContent("Opposition", value: theirName.isEmpty ? "Choose…" : theirName)
                     }
                 } header: {
-                    Text("The opposition")
+                    Text(t("ev.the_opposition"))
                 } footer: {
                     Text(opponent != nil
                          ? "\(opponent!.clubName) are on \(Brand.name) — their players get asked too."
@@ -458,7 +458,7 @@ struct ScheduleMatchSheet: View {
                         Task { await schedule() }
                     } label: {
                         Group {
-                            if busy { ProgressView() } else { Text("Schedule and ask who is available").font(FishersTheme.headline) }
+                            if busy { ProgressView() } else { Text(t("ld.schedule_and_ask_who_is_available")).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
@@ -473,10 +473,10 @@ struct ScheduleMatchSheet: View {
                     }
                 }
             }
-            .navigationTitle("Schedule a match")
+            .navigationTitle(t("ev.schedule_a_match"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }
             }
             .sheet(isPresented: $picking) {
                 OppositionPickerView { name, identity in

@@ -34,7 +34,7 @@ struct OppositionPickerView: View {
 
                 Section("Search by name") {
                     HStack {
-                        TextField("Club or team", text: $query)
+                        TextField(t("rest.club_or_team"), text: $query)
                             .autocorrectionDisabled()
                             .onSubmit { Task { await search() } }
                         if isSearching { ProgressView() }
@@ -95,7 +95,7 @@ struct OppositionPickerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
             }
             .onChange(of: query) { _, _ in Task { await search() } }
@@ -116,7 +116,7 @@ struct OppositionPickerView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { isScanning = false }
+                            Button(t("sc.cancel")) { isScanning = false }
                         }
                     }
                 }

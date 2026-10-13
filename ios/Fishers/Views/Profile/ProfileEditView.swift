@@ -77,11 +77,11 @@ struct ProfileEditView: View {
                     Text("Reliability is worked out by the server from your attendance and payments — it can't be edited here.")
                 }
             }
-            .navigationTitle("Edit profile")
+            .navigationTitle(t("cl.edit_profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if isSaving {
@@ -89,7 +89,7 @@ struct ProfileEditView: View {
                     } else {
                         // Whatever is filled in saves — a profile is finished
                         // a bit at a time, not all at once.
-                        Button("Save") { save() }
+                        Button(t("lc.save")) { save() }
                             .disabled(!form.isNameValid)
                     }
                 }

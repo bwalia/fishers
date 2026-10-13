@@ -133,7 +133,7 @@ struct ChatThreadView: View {
 
     private var composer: some View {
         HStack(spacing: 10) {
-            TextField("Message", text: $draft, axis: .vertical)
+            TextField(t("rest.message"), text: $draft, axis: .vertical)
                 .lineLimit(1...4)
                 .textFieldStyle(.roundedBorder)
             Button {
@@ -253,7 +253,7 @@ private struct ProposalCard: View {
                 Button("Apply", action: onApply)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                Button("Dismiss", action: onDismiss)
+                Button(t("rest.dismiss"), action: onDismiss)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }

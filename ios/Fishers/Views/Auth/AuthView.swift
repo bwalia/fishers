@@ -117,7 +117,7 @@ struct AuthView: View {
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            SecureField("Password", text: $password)
+                            SecureField(t("cl.password"), text: $password)
                                 .font(FishersTheme.body)
                                 .padding(.horizontal, 14)
                                 .frame(minHeight: FishersTheme.minTap)

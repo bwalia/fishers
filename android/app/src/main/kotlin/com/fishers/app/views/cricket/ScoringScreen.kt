@@ -1,5 +1,7 @@
 package com.fishers.app.views.cricket
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,7 +64,7 @@ fun ScoringScreen(
 
         if (state.canScore) {
             HorizontalDivider()
-            Text("Runs", style = MaterialTheme.typography.labelLarge)
+            Text(t("cl.runs"), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0, 1, 2, 3, 4, 6).forEach { n ->
                     Button(onClick = { onRuns(n) }, modifier = Modifier.weight(1f)) {
@@ -71,7 +73,7 @@ fun ScoringScreen(
                 }
             }
 
-            Text("Extras", style = MaterialTheme.typography.labelLarge)
+            Text(t("la.extras"), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("wide" to "Wide", "no_ball" to "No ball",
                     "bye" to "Bye", "leg_bye" to "Leg bye").forEach { (wire, label) ->

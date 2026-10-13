@@ -1,5 +1,7 @@
 package com.fishers.app.views.shop
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -113,8 +115,7 @@ private fun Header(listing: MarketListing) {
                 fontWeight = FontWeight.Bold,
             )
             if (product.negotiable) {
-                Text(
-                    "or near offer",
+                Text(t("sh.or_near_offer"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     modifier = Modifier.padding(bottom = 4.dp),
@@ -145,7 +146,7 @@ private fun BuyerPanel(
         if (state.reserved) {
             Card(colors = CardDefaults.cardColors(MaterialTheme.colorScheme.primaryContainer)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Reserved for you.", style = MaterialTheme.typography.titleSmall)
+                    Text(t("sh.reserved_for_you"), style = MaterialTheme.typography.titleSmall)
                     Text(
                         "The seller has been told. Arrange collection with them and pay them " +
                             "directly — nothing has been taken online.",
@@ -206,8 +207,7 @@ private fun BuyerPanel(
                 }
             }
             Column {
-                Text(
-                    "Sold by",
+                Text(t("sh.sold_by"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
@@ -249,13 +249,12 @@ private fun OwnerPanel(listing: MarketListing) {
         AssistChip(
             onClick = {},
             enabled = false,
-            label = { Text("This is your listing") },
+            label = { Text(t("sh.this_is_your_listing")) },
             colors = AssistChipDefaults.assistChipColors(
                 disabledLabelColor = MaterialTheme.colorScheme.primary,
             ),
         )
-        Text(
-            "This is exactly how buyers see it.",
+        Text(t("sh.this_is_exactly_how_buyers_see_it"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
@@ -389,8 +388,7 @@ private fun Gallery(photos: List<String>, title: String) {
             modifier = Modifier.fillMaxWidth().height(200.dp),
         ) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text(
-                    "No photograph",
+                Text(t("sh.no_photograph"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
