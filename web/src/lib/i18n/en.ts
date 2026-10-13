@@ -2614,7 +2614,7 @@ export const en = {
   "cl.pound_member_optional": "£ member (optional)",
   "cl.all_clubs_back": "← All clubs",
   "cl.role_explainer": "{allowed} {run}, not whether they play. Everybody here is picked from for a side, the secretary included — and the levels stack, so a secretary already has a captain’s powers. Captain your own side as well? Choose {both}.",
-  "cl.public_url_preview": "fishers.cloud/c/{slug}",
+  "cl.public_url_preview": "{domain}/c/{slug}",
   "cl.ground": "Ground",
   "cl.one_thing_first_confirm": "One thing first — confirm it’s you",
   "tn.host_has_invited_you": "{host} has invited you",
@@ -3146,6 +3146,14 @@ export const en = {
   "sc.the_scorers_award": "The scorer's award",
   "sc.anything_to_add": "Anything to add?",
   "sc.you_played_in_these_umpiring": "You played in these. Say how the umpiring went — it goes on their profile, with your name on it.",
+
+  // MARK: The last of them — the marketplace notes and the small labels
+  "sh.seller_has_been_told": "The seller has been told. Arrange collection with them and pay them directly — nothing has been taken online.",
+  "sh.nothing_paid_online": "Nothing is paid online. Reserving tells the seller you want it; you settle up when you collect.",
+  "sh.no_photographs_advice": "It has no photographs. A listing without one is usually scrolled past — adding a couple is the single thing most likely to sell it.",
+  "rest.batting_caption": "batting",
+  "rest.main_sport_badge": "MAIN",
+  "rest.reliability_short": "rel",
 
 } as const;
 

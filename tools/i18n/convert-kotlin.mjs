@@ -33,6 +33,7 @@ for (const file of files) {
   // built at runtime and needs a key with a placeholder — a wording decision,
   // not a substitution.
   let after = before.replace(/\bText\(\s*"([^"\\$]{2,})"/g, (whole, text) => {
+    if (!/\p{L}/u.test(text)) return whole;
     const key = keyFor.get(plain(text));
     if (!key) { skipped.add(text); return whole; }
     replaced += 1;

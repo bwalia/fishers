@@ -391,7 +391,7 @@ struct ReliabilityRing: View {
             VStack(spacing: 0) {
                 Text(reliability.band == .unproven ? "–" : "\(reliability.score)")
                     .font(.system(size: size * 0.32, weight: .bold, design: .rounded))
-                Text("rel")
+                Text(t("rest.reliability_short"))
                     .font(.system(size: size * 0.15))
                     .foregroundStyle(.secondary)
             }

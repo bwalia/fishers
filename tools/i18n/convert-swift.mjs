@@ -69,6 +69,10 @@ for (const file of files) {
     // would have to think about.
     const pattern = new RegExp(String.raw`\b${call}\(\s*"([^"\\]{2,})"`, "g");
     after = after.replace(pattern, (whole, text) => {
+      // Punctuation on its own is not a word. `Text("· " + t(…))` keeps the
+      // separator in the source, where it belongs, and should not be counted
+      // as something still to translate.
+      if (!/\p{L}/u.test(text)) return whole;
       const key = keyFor.get(plain(text));
       if (!key) {
         if (!skipped.has(text)) skipped.set(text, 0);

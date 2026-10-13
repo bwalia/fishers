@@ -270,7 +270,7 @@ private fun Side(
                 // In words, so it survives a screen reader and a colour-blind
                 // reader alike.
                 Text(
-                    "batting",
+                    t("rest.batting_caption"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

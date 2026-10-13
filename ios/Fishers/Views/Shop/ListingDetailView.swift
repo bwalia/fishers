@@ -106,10 +106,7 @@ struct ListingDetailView: View {
                     Label(t("sh.reserved_for_you"), systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(FishersTheme.pitch)
-                    Text(
-                        "The seller has been told. Arrange collection with them and pay them "
-                            + "directly — nothing has been taken online."
-                    )
+                    Text(t("sh.seller_has_been_told"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 }
@@ -141,11 +138,7 @@ struct ListingDetailView: View {
                 .controlSize(.large)
                 .disabled(asking)
 
-                Label(
-                    "Nothing is paid online. Reserving tells the seller you want it; you settle up "
-                        + "when you collect.",
-                    systemImage: "lock"
-                )
+                Label(t("sh.nothing_paid_online"), systemImage: "lock")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             }
@@ -336,10 +329,7 @@ private struct OwnerPanel: View {
             // Editing lives on the web for now, so this says so rather than
             // offering a button that would go nowhere.
             if (listing.product.photos?.count ?? 0) == 0 {
-                Text(
-                    "It has no photographs. A listing without one is usually scrolled past — "
-                        + "adding a couple is the single thing most likely to sell it."
-                )
+                Text(t("sh.no_photographs_advice"))
                 .font(.footnote)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)

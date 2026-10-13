@@ -2601,7 +2601,7 @@ export const pa: Dict = {
   "cl.pound_member_optional": "£ ਮੈਂਬਰ (ਮਰਜ਼ੀ ਨਾਲ)",
   "cl.all_clubs_back": "← ਸਾਰੇ ਕਲੱਬ",
   "cl.role_explainer": "{allowed} {run}, ਇਹ ਨਹੀਂ ਕਿ ਉਹ ਖੇਡਦੇ ਹਨ ਜਾਂ ਨਹੀਂ। ਟੀਮ ਲਈ ਇੱਥੇ ਹਰ ਕਿਸੇ ਵਿੱਚੋਂ ਚੋਣ ਹੁੰਦੀ ਹੈ, ਸਕੱਤਰ ਵੀ ਸ਼ਾਮਲ — ਅਤੇ ਪੱਧਰ ਇੱਕ-ਦੂਜੇ ਉੱਤੇ ਚੜ੍ਹਦੇ ਹਨ, ਸੋ ਸਕੱਤਰ ਕੋਲ ਕਪਤਾਨ ਦੇ ਅਧਿਕਾਰ ਪਹਿਲਾਂ ਹੀ ਹੁੰਦੇ ਹਨ। ਆਪਣੀ ਟੀਮ ਦੀ ਕਪਤਾਨੀ ਵੀ ਕਰਨੀ ਹੈ? {both} ਚੁਣੋ।",
-  "cl.public_url_preview": "fishers.cloud/c/{slug}",
+  "cl.public_url_preview": "{domain}/c/{slug}",
   "cl.ground": "ਮੈਦਾਨ",
   "cl.one_thing_first_confirm": "ਪਹਿਲਾਂ ਇੱਕ ਗੱਲ — ਪੁਸ਼ਟੀ ਕਰੋ ਕਿ ਇਹ ਤੁਸੀਂ ਹੀ ਹੋ",
   "tn.host_has_invited_you": "{host} ਨੇ ਤੁਹਾਨੂੰ ਸੱਦਿਆ ਹੈ",
@@ -3133,5 +3133,13 @@ export const pa: Dict = {
   "sc.the_scorers_award": "ਸਕੋਰਰ ਦਾ ਇਨਾਮ",
   "sc.anything_to_add": "ਕੁਝ ਹੋਰ ਕਹਿਣਾ ਹੈ?",
   "sc.you_played_in_these_umpiring": "ਤੁਸੀਂ ਇਹਨਾਂ ਵਿੱਚ ਖੇਡੇ ਸੀ। ਦੱਸੋ ਅੰਪਾਇਰਿੰਗ ਕਿਵੇਂ ਰਹੀ — ਇਹ ਉਹਨਾਂ ਦੇ ਪ੍ਰੋਫ਼ਾਈਲ ਉੱਤੇ ਤੁਹਾਡੇ ਨਾਂ ਨਾਲ ਜਾਂਦਾ ਹੈ।",
+
+  // MARK: The last of them — the marketplace notes and the small labels
+  "sh.seller_has_been_told": "ਵੇਚਣ ਵਾਲੇ ਨੂੰ ਦੱਸ ਦਿੱਤਾ ਗਿਆ ਹੈ। ਲੈਣ ਦਾ ਪ੍ਰਬੰਧ ਉਹਨਾਂ ਨਾਲ ਕਰੋ ਤੇ ਸਿੱਧਾ ਉਹਨਾਂ ਨੂੰ ਭੁਗਤਾਨ ਕਰੋ — ਆਨਲਾਈਨ ਕੁਝ ਨਹੀਂ ਲਿਆ ਗਿਆ।",
+  "sh.nothing_paid_online": "ਆਨਲਾਈਨ ਕੁਝ ਨਹੀਂ ਦਿੱਤਾ ਜਾਂਦਾ। ਰਾਖਵਾਂ ਕਰਨ ਨਾਲ ਵੇਚਣ ਵਾਲੇ ਨੂੰ ਪਤਾ ਲੱਗਦਾ ਹੈ ਕਿ ਤੁਸੀਂ ਇਹ ਚਾਹੁੰਦੇ ਹੋ; ਹਿਸਾਬ ਲੈਣ ਵੇਲੇ ਹੁੰਦਾ ਹੈ।",
+  "sh.no_photographs_advice": "ਇਸ ਦੀ ਕੋਈ ਤਸਵੀਰ ਨਹੀਂ। ਤਸਵੀਰ ਤੋਂ ਬਿਨਾਂ ਇਸ਼ਤਿਹਾਰ ਨੂੰ ਆਮ ਤੌਰ ਉੱਤੇ ਲੰਘਾ ਦਿੱਤਾ ਜਾਂਦਾ ਹੈ — ਦੋ-ਚਾਰ ਜੋੜਨਾ ਹੀ ਉਹ ਇੱਕ ਗੱਲ ਹੈ ਜੋ ਇਸ ਨੂੰ ਵਿਕਵਾ ਸਕਦੀ ਹੈ।",
+  "rest.batting_caption": "ਬੱਲੇਬਾਜ਼ੀ",
+  "rest.main_sport_badge": "ਮੁੱਖ",
+  "rest.reliability_short": "ਭਰੋਸਾ",
 
 };

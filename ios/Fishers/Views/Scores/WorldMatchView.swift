@@ -208,7 +208,7 @@ private struct ScoreSummaryRow: View {
         HStack {
             Text(name).font(.subheadline.weight(batting ? .bold : .regular)).lineLimit(1)
             if batting {
-                Text("· batting").font(.caption2).foregroundStyle(.secondary)
+                Text("· " + t("rest.batting_caption")).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 0) {
@@ -248,7 +248,7 @@ private struct InningsSection: View {
             ForEach(innings.batting) { BatRow(row: $0) }
             if let total = innings.extras.total {
                 HStack {
-                    Text("WorldExtras").font(.subheadline.weight(.semibold))
+                    Text(t("sc.extras")).font(.subheadline.weight(.semibold))
                     if let b = innings.extras.breakdown {
                         Text("(\(b))").font(.caption).foregroundStyle(.secondary)
                     }

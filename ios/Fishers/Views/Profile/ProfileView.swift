@@ -316,7 +316,7 @@ struct ProfileView: View {
                     Label(sport.label, systemImage: sport.systemImage)
                 }
                 if session.user?.primarySport == profile.sport {
-                    Text("MAIN")
+                    Text(t("rest.main_sport_badge"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.tint)
                 }

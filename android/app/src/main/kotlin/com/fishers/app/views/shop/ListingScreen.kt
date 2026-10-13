@@ -148,8 +148,7 @@ private fun BuyerPanel(
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(t("sh.reserved_for_you"), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "The seller has been told. Arrange collection with them and pay them " +
-                            "directly — nothing has been taken online.",
+                        t("sh.seller_has_been_told"),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -182,8 +181,7 @@ private fun BuyerPanel(
                 )
             }
             Text(
-                "Nothing is paid online. Reserving tells the seller you want it; you settle up " +
-                    "when you collect.",
+                t("sh.nothing_paid_online"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
@@ -273,8 +271,7 @@ private fun OwnerPanel(listing: MarketListing) {
         if (listing.photos.isEmpty()) {
             Card(colors = CardDefaults.cardColors(MaterialTheme.colorScheme.secondaryContainer)) {
                 Text(
-                    "It has no photographs. A listing without one is usually scrolled past — " +
-                        "adding a couple is the single thing most likely to sell it.",
+                    t("sh.no_photographs_advice"),
                     Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodySmall,
                 )

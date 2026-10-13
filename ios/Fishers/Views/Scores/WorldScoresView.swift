@@ -216,7 +216,7 @@ private struct ScoreRow: View {
                 if batting {
                     // In words, so it survives a screen reader and a
                     // colour-blind reader alike.
-                    Text("batting").font(.caption2).foregroundStyle(.secondary)
+                    Text(t("rest.batting_caption")).font(.caption2).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 8)
