@@ -65,10 +65,10 @@ struct ClubListFilters: Equatable {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .secretary: return "Secretary"
-            case .captain: return "Captain"
-            case .viceCaptain: return "Vice captain"
-            case .member: return "Member"
+            case .secretary: return tr("Secretary")
+            case .captain: return tr("Captain")
+            case .viceCaptain: return tr("Vice captain")
+            case .member: return tr("Member")
             }
         }
     }
@@ -78,9 +78,9 @@ struct ClubListFilters: Equatable {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .name: return "Name A–Z"
-            case .recent: return "Recently joined"
-            case .members: return "Most members"
+            case .name: return tr("Name A–Z")
+            case .recent: return tr("Recently joined")
+            case .members: return tr("Most members")
             }
         }
     }
@@ -125,7 +125,7 @@ struct RoleChoice: Hashable, Identifiable {
     var id: String { role.rawValue + (isCaptain ? "+captain" : "") }
 
     var label: String {
-        isCaptain ? "Secretary & captain" : role.displayName
+        isCaptain ? tr("Secretary & captain") : role.displayName
     }
 
     var shortLabel: String { isCaptain ? "SEC · C" : role.shortLabel }
@@ -238,10 +238,10 @@ struct ClubSetupStep: Identifiable, Equatable {
 
     var title: String {
         switch kind {
-        case .players: return "Add your players"
-        case .team: return "Add a team"
-        case .captain: return "Name a captain"
-        case .ground: return "Add your ground"
+        case .players: return tr("Add your players")
+        case .team: return tr("Add a team")
+        case .captain: return tr("Name a captain")
+        case .ground: return tr("Add your ground")
         }
     }
 

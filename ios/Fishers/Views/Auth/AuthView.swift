@@ -22,7 +22,7 @@ struct AuthView: View {
     enum Method: String, CaseIterable, Identifiable {
         case email, phone
         var id: String { rawValue }
-        var label: String { self == .email ? "Email" : "Mobile number" }
+        var label: String { self == .email ? tr("Email") : tr("Mobile number") }
 
         /// Whether a value is plausibly the thing this method asks for.
         ///
@@ -84,7 +84,7 @@ struct AuthView: View {
                                 field("Name", text: $name, field: .name)
                                     .textContentType(.name)
 
-                                Picker("Register with", selection: $method) {
+                                Picker(tr("Register with"), selection: $method) {
                                     ForEach(Method.allCases) { Text($0.label).tag($0) }
                                 }
                                 .pickerStyle(.segmented)

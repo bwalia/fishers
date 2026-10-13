@@ -112,7 +112,7 @@ struct SelectableChip: View {
                 if let systemImage {
                     Image(systemName: systemImage)
                 }
-                Text(title)
+                Text(tr(title))
             }
             .font(.subheadline.weight(.medium))
             .padding(.horizontal, 12)
@@ -281,7 +281,9 @@ struct StatFieldRow: View {
                 Picker(field.label, selection: $value) {
                     Text(t("rest.not_set")).tag("")
                     ForEach(options, id: \.self) { option in
-                        Text(option).tag(option)
+                        // The tag stays English: it is what is stored on the
+                        // profile and sent to the API. Only the row is drawn.
+                        Text(tr(option)).tag(option)
                     }
                 }
                 .pickerStyle(.menu)
@@ -430,9 +432,9 @@ struct ReliabilityCard: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-            MeterRow(label: "Turned up when going", value: reliability.attendanceRate)
-            MeterRow(label: "Answered the invite", value: reliability.responseRate)
-            MeterRow(label: "Paid match fees", value: reliability.paymentRate)
+            MeterRow(label: tr("Turned up when going"), value: reliability.attendanceRate)
+            MeterRow(label: tr("Answered the invite"), value: reliability.responseRate)
+            MeterRow(label: tr("Paid match fees"), value: reliability.paymentRate)
             HStack {
                 Text(t("rest.late_drop_outs"))
                 Spacer()

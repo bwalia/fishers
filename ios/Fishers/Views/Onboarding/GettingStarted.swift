@@ -40,8 +40,8 @@ enum GettingStartedGuide {
         if f.canVerify {
             steps.append(GuideStep(
                 id: "verify",
-                title: "Confirm it's you",
-                detail: "Proves it's really you. Clubs are only started, and invites only accepted, by confirmed accounts.",
+                title: tr("Confirm it's you"),
+                detail: tr("Proves it's really you. Clubs are only started, and invites only accepted, by confirmed accounts."),
                 done: f.user.isVerified,
                 action: .verify
             ))
@@ -51,41 +51,41 @@ enum GettingStartedGuide {
         case .secretary:
             steps += [
                 GuideStep(
-                    id: "club", title: "Start your club",
-                    detail: "Its name and sport. You become the secretary — you run the teams, fixtures and who's in.",
+                    id: "club", title: tr("Start your club"),
+                    detail: tr("Its name and sport. You become the secretary — you run the teams, fixtures and who's in."),
                     done: f.ownClub != nil, action: .startClub
                 ),
                 GuideStep(
-                    id: "team", title: "Add your first team",
-                    detail: "A 1st XI, a Sunday side, the juniors — each team gets its own squad and fixtures.",
+                    id: "team", title: tr("Add your first team"),
+                    detail: tr("A 1st XI, a Sunday side, the juniors — each team gets its own squad and fixtures."),
                     done: f.teamCount > 0, action: .addTeam
                 ),
                 GuideStep(
-                    id: "players", title: "Invite your players",
-                    detail: "Add people by email or mobile number, or from the profile link a player sends you.",
+                    id: "players", title: tr("Invite your players"),
+                    detail: tr("Add people by email or mobile number, or from the profile link a player sends you."),
                     done: f.members.count > 1, action: .invitePlayers
                 ),
                 GuideStep(
-                    id: "captain", title: "Name a captain",
-                    detail: "Give one member the captain role — or, if you captain the side yourself, say so. Captains pick the side and run the scorebook.",
+                    id: "captain", title: tr("Name a captain"),
+                    detail: tr("Give one member the captain role — or, if you captain the side yourself, say so. Captains pick the side and run the scorebook."),
                     done: f.members.contains { $0.role == .teamCaptain || $0.isCaptain == true },
                     action: .chooseCaptain
                 ),
                 GuideStep(
-                    id: "fixture", title: "Schedule your first fixture",
-                    detail: "Who, where and when. Players mark themselves available and the captain picks the side.",
+                    id: "fixture", title: tr("Schedule your first fixture"),
+                    detail: tr("Who, where and when. Players mark themselves available and the captain picks the side."),
                     done: f.eventCount > 0, action: .scheduleFixture
                 ),
             ]
         case .player:
             steps += [
                 GuideStep(
-                    id: "share", title: "Send your profile to your club secretary",
-                    detail: "They open your link and invite you in. No need for them to type your details.",
+                    id: "share", title: tr("Send your profile to your club secretary"),
+                    detail: tr("They open your link and invite you in. No need for them to type your details."),
                     done: f.sharedOnce || f.inviteCount > 0 || f.clubCount > 0, action: .shareProfile
                 ),
                 GuideStep(
-                    id: "join", title: "Accept your club's invite",
+                    id: "join", title: tr("Accept your club's invite"),
                     detail: f.inviteCount > 0
                         ? "It's waiting at the top of this screen — check it's your club, then tap Accept."
                         : "When your secretary invites you, it appears at the top of this screen, ready to accept.",

@@ -33,7 +33,7 @@ struct VerifyContactView: View {
             }
 
             if status.channels.count > 1 {
-                Picker("Confirm by", selection: $channel) {
+                Picker(tr("Confirm by"), selection: $channel) {
                     ForEach(status.channels) { Text($0 == .email ? "Email" : "Phone").tag($0) }
                 }
                 .pickerStyle(.segmented)

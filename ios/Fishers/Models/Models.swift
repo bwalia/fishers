@@ -210,9 +210,9 @@ enum AvailabilityStatus: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .available: return "Available"
-        case .unavailable: return "Unavailable"
-        case .maybe: return "Maybe"
+        case .available: return tr("Available")
+        case .unavailable: return tr("Unavailable")
+        case .maybe: return tr("Maybe")
         }
     }
 

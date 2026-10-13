@@ -144,7 +144,7 @@ struct SelectionBoardView: View {
     private func squadSection(_ board: SelectionBoard) -> some View {
         Group {
             if !store.selected.isEmpty {
-                Section("Squad") {
+                Section(tr("Squad")) {
                     ForEach(store.selected, id: \.self) { userId in
                         if let candidate = board.candidates.first(where: { $0.userId == userId }) {
                             CandidateRow(
@@ -212,7 +212,7 @@ struct SelectionBoardView: View {
         let out = board.candidates.filter { $0.availability == .unavailable }
         return Group {
             if !out.isEmpty {
-                Section("Said no") {
+                Section(tr("Said no")) {
                     ForEach(out) { candidate in
                         HStack {
                             Text(candidate.name)
@@ -260,8 +260,8 @@ struct SelectionBoardView: View {
     private var statusSheet: some View {
         NavigationStack {
             Form {
-                Section("What's happening") {
-                    Picker("Status", selection: $newStatus) {
+                Section(tr("What's happening")) {
+                    Picker(tr("Status"), selection: $newStatus) {
                         Text(t("ld.postponed")).tag("postponed")
                         Text(t("ld.cancelled")).tag("cancelled")
                         Text(t("ld.back_on_action")).tag("scheduled")

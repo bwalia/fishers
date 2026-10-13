@@ -23,8 +23,8 @@ struct TournamentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("View", selection: $tab) {
-                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
+            Picker(tr("View"), selection: $tab) {
+                ForEach(Tab.allCases, id: \.self) { Text(tr($0.rawValue)) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -170,7 +170,7 @@ struct TournamentView: View {
             }
         }
         if !store.knockoutFixtures.isEmpty {
-            Section("Knockout") {
+            Section(tr("Knockout")) {
                 ForEach(store.knockoutFixtures) { row in
                     HStack {
                         Text(row.fixtureLine).font(.subheadline)
@@ -335,8 +335,8 @@ private struct SetUpSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Format") {
-                    Picker("Format", selection: $format) {
+                Section(tr("Format")) {
+                    Picker(tr("Format"), selection: $format) {
                         ForEach([TournamentFormat.roundRobin, .groupsKnockout, .knockout], id: \.self) {
                             Text($0.label).tag($0)
                         }
@@ -446,7 +446,7 @@ private struct ResultSheet: View {
                     }
                 }
                 if let score = row.scoreLine {
-                    Section("Recorded") { Text(score) }
+                    Section(tr("Recorded")) { Text(score) }
                 }
             }
             .navigationTitle(t("sc.result"))

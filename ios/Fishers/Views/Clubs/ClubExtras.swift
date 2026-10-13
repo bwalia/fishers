@@ -28,10 +28,10 @@ struct ClubWelcomeSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 10) {
-                row(number: nil, title: "Create your club", detail: nil, current: false)
-                row(number: 2, title: "Add your players",
-                    detail: "By email or mobile number, or from a profile link a player sends you.", current: true)
-                row(number: 3, title: "Start your first match", detail: nil, current: false)
+                row(number: nil, title: tr("Create your club"), detail: nil, current: false)
+                row(number: 2, title: tr("Add your players"),
+                    detail: tr("By email or mobile number, or from a profile link a player sends you."), current: true)
+                row(number: 3, title: tr("Start your first match"), detail: nil, current: false)
             }
             .padding(.vertical, FishersTheme.space1)
 
@@ -150,7 +150,7 @@ struct AddTeamSheet: View {
             Form {
                 Section {
                     TextField(t("cl.1st_xi"), text: $name)
-                    Picker("Sport", selection: $sport) {
+                    Picker(tr("Sport"), selection: $sport) {
                         ForEach(club.sportTypes.isEmpty ? ["cricket"] : club.sportTypes, id: \.self) {
                             Text($0.capitalized).tag($0)
                         }
@@ -326,7 +326,7 @@ struct PublicPageEditorView: View {
                         Spacer()
                         if binding.wrappedValue.publicPage, let slug = binding.wrappedValue.slug {
                             let url = AppConfig.webBaseURL.appending(path: "c/\(slug)")
-                            Link("View", destination: url).buttonStyle(.borderless)
+                            Link(tr("View"), destination: url).buttonStyle(.borderless)
                             ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
                                 .buttonStyle(.borderless)
                         }
@@ -335,7 +335,7 @@ struct PublicPageEditorView: View {
                     Text(t("cl.public_page_blurb_long"))
                 }
 
-                Section("Web address") {
+                Section(tr("Web address")) {
                     TextField(suggested, text: $slug)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -344,13 +344,13 @@ struct PublicPageEditorView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("About the club") {
+                Section(tr("About the club")) {
                     TextField(t("cl.sunday_cricket_in_north_london_since_1"), text: optional(binding.tagline))
                     TextField(t("cl.who_you_are_where_you_play_who_you_are"), text: optional(binding.about), axis: .vertical)
                         .lineLimit(3...8)
                 }
 
-                Section("Details") {
+                Section(tr("Details")) {
                     TextField(t("cl.ground_example"), text: optional(binding.ground))
                     TextField(t("cl.founded_example"), text: $founded).keyboardType(.numberPad)
                     TextField(t("cl.email_for_new_players"), text: optional(binding.contactEmail))
@@ -359,7 +359,7 @@ struct PublicPageEditorView: View {
                 }
 
                 Section {
-                    Picker("Lead with", selection: binding.iconPlayerId) {
+                    Picker(tr("Lead with"), selection: binding.iconPlayerId) {
                         Text(t("cl.nobody_for_now")).tag(UUID?.none)
                         ForEach(members.filter(\.isActive)) { Text($0.name).tag(Optional($0.userId)) }
                     }
@@ -494,12 +494,12 @@ struct SharedPlayerCardView: View {
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Section("Invite them to") {
-                        Picker("Club", selection: $clubId) {
+                    Section(tr("Invite them to")) {
+                        Picker(tr("Club"), selection: $clubId) {
                             ForEach(places) { Text($0.club.name).tag(Optional($0.id)) }
                         }
                         if let place {
-                            Picker("Team", selection: $teamId) {
+                            Picker(tr("Team"), selection: $teamId) {
                                 if place.canInviteToClub { Text(t("cl.the_club_as_a_whole")).tag(UUID?.none) }
                                 ForEach(place.teams) { Text($0.name).tag(Optional($0.id)) }
                             }

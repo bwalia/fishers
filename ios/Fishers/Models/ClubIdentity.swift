@@ -61,7 +61,7 @@ struct MatchOfficialRow: Codable, Identifiable, Equatable {
 
     var isUmpire: Bool { role == "umpire" }
 
-    var label: String { isUmpire ? "Umpire" : "Scorer" }
+    var label: String { isUmpire ? tr("Umpire") : tr("Scorer") }
 }
 
 /// One change of hands in the scoring book.
@@ -86,9 +86,9 @@ struct ScorerHandover: Codable, Identifiable, Equatable {
     /// "Ravi handed the book to Sam", or the blunter version.
     var summary: String {
         switch reason {
-        case "override":
+        case tr("override"):
             return "\(actedByName) took the book" + (fromName.map { " from \($0)" } ?? "")
-        case "claim":
+        case tr("claim"):
             return "\(toName) picked up the book"
         default:
             return "\(fromName ?? "Someone") handed the book to \(toName)"

@@ -11,7 +11,7 @@ enum CricketMatchStatus: String, Codable, Hashable {
 
 enum TossDecision: String, Codable, Hashable, CaseIterable {
     case bat, bowl
-    var label: String { self == .bat ? "Bat" : "Bowl" }
+    var label: String { self == .bat ? tr("Bat") : tr("Bowl") }
 }
 
 enum MatchSide: String, Codable, Hashable, CaseIterable {
@@ -33,18 +33,18 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .bowled: return "Bowled"
-        case .caught: return "Caught"
-        case .lbw: return "LBW"
-        case .runOut: return "Run out"
-        case .stumped: return "Stumped"
-        case .hitWicket: return "Hit wicket"
-        case .retired: return "Retired out"
-        case .retiredHurt: return "Retired hurt"
-        case .obstructingTheField: return "Obstructing the field"
-        case .hitTheBallTwice: return "Hit the ball twice"
-        case .timedOut: return "Timed out"
-        case .other: return "Other"
+        case .bowled: return tr("Bowled")
+        case .caught: return tr("Caught")
+        case .lbw: return tr("LBW")
+        case .runOut: return tr("Run out")
+        case .stumped: return tr("Stumped")
+        case .hitWicket: return tr("Hit wicket")
+        case .retired: return tr("Retired out")
+        case .retiredHurt: return tr("Retired hurt")
+        case .obstructingTheField: return tr("Obstructing the field")
+        case .hitTheBallTwice: return tr("Hit the ball twice")
+        case .timedOut: return tr("Timed out")
+        case .other: return tr("Other")
         }
     }
 
@@ -106,11 +106,11 @@ enum ExtraKind: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .wide: return "Wide"
-        case .noBall: return "No ball"
-        case .bye: return "Bye"
-        case .legBye: return "Leg bye"
-        case .penalty: return "Penalty"
+        case .wide: return tr("Wide")
+        case .noBall: return tr("No ball")
+        case .bye: return tr("Bye")
+        case .legBye: return tr("Leg bye")
+        case .penalty: return tr("Penalty")
         }
     }
 
@@ -128,10 +128,10 @@ enum ExtraKind: String, Codable, CaseIterable, Identifiable {
     /// no-balls, and "runs run" for byes and leg byes.
     var footnote: String {
         switch self {
-        case .wide: return "1 for the wide, plus any run."
-        case .noBall: return "1 for the no ball, plus runs off the bat."
-        case .bye, .legBye: return "Counts as a legal ball."
-        case .penalty: return "Five penalty runs, no ball bowled."
+        case .wide: return tr("1 for the wide, plus any run.")
+        case .noBall: return tr("1 for the no ball, plus runs off the bat.")
+        case .bye, .legBye: return tr("Counts as a legal ball.")
+        case .penalty: return tr("Five penalty runs, no ball bowled.")
         }
     }
 }
@@ -163,10 +163,10 @@ struct MatchOfficials: Codable, Equatable {
     var summary: String {
         var parts: [String] = []
         if !umpires.isEmpty {
-            parts.append("Umpires: " + umpires.map(\.name).joined(separator: ", "))
+            parts.append(tr("Umpires: ") + umpires.map(\.name).joined(separator: ", "))
         }
         if !scorers.isEmpty {
-            parts.append("Scorers: " + scorers.map(\.name).joined(separator: ", "))
+            parts.append(tr("Scorers: ") + scorers.map(\.name).joined(separator: ", "))
         }
         return parts.joined(separator: " · ")
     }
@@ -180,9 +180,9 @@ enum GroundType: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .open: return "Open ground"
-        case .boxed: return "Boxed / caged"
-        case .indoor: return "Indoor"
+        case .open: return tr("Open ground")
+        case .boxed: return tr("Boxed / caged")
+        case .indoor: return tr("Indoor")
         }
     }
 
@@ -196,9 +196,9 @@ enum GroundType: String, Codable, CaseIterable, Identifiable {
 
     var blurb: String {
         switch self {
-        case .open: return "Full boundary, normal outfield."
-        case .boxed: return "Caged or netted — walls are in play."
-        case .indoor: return "Indoor centre rules."
+        case .open: return tr("Full boundary, normal outfield.")
+        case .boxed: return tr("Caged or netted — walls are in play.")
+        case .indoor: return tr("Indoor centre rules.")
         }
     }
 }
@@ -211,11 +211,11 @@ enum BallType: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .red: return "Red leather"
-        case .white: return "White leather"
-        case .pink: return "Pink leather"
-        case .tennis: return "Tennis"
-        case .tape: return "Tape ball"
+        case .red: return tr("Red leather")
+        case .white: return tr("White leather")
+        case .pink: return tr("Pink leather")
+        case .tennis: return tr("Tennis")
+        case .tape: return tr("Tape ball")
         }
     }
 
@@ -395,19 +395,19 @@ enum ShotKind: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .drive: return "Drive"
-        case .cut: return "Cut"
-        case .pull: return "Pull"
-        case .hook: return "Hook"
-        case .sweep: return "Sweep"
-        case .reverseSweep: return "Reverse sweep"
-        case .glance: return "Glance"
-        case .flick: return "Flick"
-        case .loft: return "Loft"
-        case .defence: return "Defence"
-        case .edge: return "Edge"
-        case .leave: return "Leave"
-        case .other: return "Other"
+        case .drive: return tr("Drive")
+        case .cut: return tr("Cut")
+        case .pull: return tr("Pull")
+        case .hook: return tr("Hook")
+        case .sweep: return tr("Sweep")
+        case .reverseSweep: return tr("Reverse sweep")
+        case .glance: return tr("Glance")
+        case .flick: return tr("Flick")
+        case .loft: return tr("Loft")
+        case .defence: return tr("Defence")
+        case .edge: return tr("Edge")
+        case .leave: return tr("Leave")
+        case .other: return tr("Other")
         }
     }
 

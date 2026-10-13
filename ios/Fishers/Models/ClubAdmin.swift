@@ -224,20 +224,20 @@ enum SelectionAutonomy: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .off: return "Off"
-        case .suggest: return "Suggests"
-        case .autoPublish: return "Publishes"
+        case .off: return tr("Off")
+        case .suggest: return tr("Suggests")
+        case .autoPublish: return tr("Publishes")
         }
     }
 
     var blurb: String {
         switch self {
         case .off:
-            return "The assistant does not pick sides. Captains use the ranking instead."
+            return tr("The assistant does not pick sides. Captains use the ranking instead.")
         case .suggest:
-            return "The assistant proposes a side; a captain publishes it."
+            return tr("The assistant proposes a side; a captain publishes it.")
         case .autoPublish:
-            return "The assistant names and announces the side on its own."
+            return tr("The assistant names and announces the side on its own.")
         }
     }
 }

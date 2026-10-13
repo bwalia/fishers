@@ -27,7 +27,7 @@ final class CricketSyncService: ObservableObject {
                 self?.pathChanged(online)
             }
         }
-        monitor.start(queue: DispatchQueue(label: "fishers.cricket.sync"))
+        monitor.start(queue: DispatchQueue(label: tr("fishers.cricket.sync")))
         // Whatever last weekend's match left behind goes up now. The path
         // handler cannot do this: it fires with `.satisfied` on a launch that
         // is already online, and `isOnline` starts true, so the old

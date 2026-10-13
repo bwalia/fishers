@@ -49,7 +49,7 @@ struct PeoplePickerView: View {
                 .foregroundStyle(.secondary)
         } else {
             if shown.count > 1 {
-                Picker("Team", selection: Binding(
+                Picker(tr("Team"), selection: Binding(
                     get: { active?.label ?? "" },
                     set: { tab = $0; filter = "" }
                 )) {

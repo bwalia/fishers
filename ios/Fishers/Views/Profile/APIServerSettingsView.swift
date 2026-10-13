@@ -57,7 +57,7 @@ struct APIServerSettingsView: View {
                 Text("In use now: \(resolved). Open live screens again after changing — an open score stream keeps its old host until you leave it.")
             }
 
-            Section("Quick picks") {
+            Section(tr("Quick picks")) {
                 ForEach(visiblePresets, id: \.1) { label, url in
                     presetButton(label, url)
                 }

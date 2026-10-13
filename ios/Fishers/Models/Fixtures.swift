@@ -10,9 +10,9 @@ enum FixtureAnswer: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .going: return "Available"
-        case .maybe: return "Maybe"
-        case .notGoing: return "Can't play"
+        case .going: return tr("Available")
+        case .maybe: return tr("Maybe")
+        case .notGoing: return tr("Can't play")
         }
     }
 

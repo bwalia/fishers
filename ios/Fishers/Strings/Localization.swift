@@ -70,6 +70,51 @@ enum Strings {
         return out
     }
 
+    /// The language to use when nobody says.
+    ///
+    /// `LanguageStore` is the observable SwiftUI watches, and it is
+    /// `@MainActor`. Strings are needed off the main actor too — a model's
+    /// computed label, a formatter — so the value lives here behind a lock
+    /// rather than behind an actor, and `t()` works from anywhere. It is
+    /// written only when somebody uses the picker.
+    private static let languageLock = NSLock()
+    nonisolated(unsafe) private static var chosen: Language = .fallback
+
+    static var current: Language {
+        languageLock.lock()
+        defer { languageLock.unlock() }
+        return chosen
+    }
+
+    static func setCurrent(_ language: Language) {
+        languageLock.lock()
+        chosen = language
+        languageLock.unlock()
+    }
+
+    /// English text back to the key that holds it, for `tr`.
+    private static let keyForEnglish: [String: String] = {
+        var out: [String: String] = [:]
+        for (key, text) in tables[.fallback] ?? [:] {
+            let plain = Self.plain(text)
+            // Shortest key wins, so the general one is found rather than a
+            // screen-specific duplicate — the rule the converters use.
+            if let existing = out[plain], existing.count <= key.count { continue }
+            out[plain] = key
+        }
+        return out
+    }()
+
+    /// Typographic punctuation in the dictionary, straight in the source.
+    static func plain(_ s: String) -> String {
+        s.replacingOccurrences(of: "\u{2019}", with: "'")
+            .replacingOccurrences(of: "\u{2018}", with: "'")
+            .replacingOccurrences(of: "\u{201C}", with: "\"")
+            .replacingOccurrences(of: "\u{201D}", with: "\"")
+    }
+
+    static func key(forEnglish english: String) -> String? { keyForEnglish[plain(english)] }
+
     /// Every key the tables carry, for the test that checks what the app asks
     /// for against what exists.
     static func keys(for language: Language) -> Set<String> {
@@ -96,7 +141,10 @@ final class LanguageStore: ObservableObject {
     private static let key = "FishersLanguage"
 
     @Published private(set) var language: Language {
-        didSet { UserDefaults.standard.set(language.rawValue, forKey: Self.key) }
+        didSet {
+            UserDefaults.standard.set(language.rawValue, forKey: Self.key)
+            Strings.setCurrent(language)
+        }
     }
 
     init() {
@@ -106,6 +154,8 @@ final class LanguageStore: ObservableObject {
         } else {
             language = Self.fromSystem()
         }
+        // `didSet` does not fire for a value assigned in `init`.
+        Strings.setCurrent(language)
     }
 
     /// What the phone is already set to, for somebody who has never opened the
@@ -136,22 +186,39 @@ final class LanguageStore: ObservableObject {
 }
 
 
-/// `t("nav.home")` — the same call the web makes, from anywhere.
+
+/// `t("nav.home")` from anywhere — a view, a view model, a formatter.
 ///
-/// Reads the shared store rather than taking one, so converting a screen is
-/// replacing the literal and nothing else. SwiftUI is not watching this, so it
-/// does not redraw by itself: `FishersApp` gives the root an `.id(language)`,
-/// which rebuilds the tree when the language changes.
-///
-/// ponytail: rebuilding the tree also resets navigation and scroll position.
-/// That is the right trade for a deliberate, rare action — and the web's
-/// `router.refresh()` is no gentler. If it ever needs to be seamless, the
-/// answer is `@EnvironmentObject` in each view rather than a smarter global.
-@MainActor
+/// Not `@MainActor`: a model's computed label needs a string too, and making
+/// every one of those main-actor bound to read a dictionary would be the tail
+/// wagging the dog. `Strings.current` is lock-guarded for exactly this.
 func t(
     _ key: String,
     count: Int? = nil,
     vars: [String: CustomStringConvertible] = [:]
 ) -> String {
-    Strings.t(key, language: LanguageStore.shared.language, count: count, vars: vars)
+    Strings.t(key, language: Strings.current, count: count, vars: vars)
+}
+
+/// Translate a string by its English text rather than by a key.
+///
+/// For the places where the literal is also a *value*: a position stored on a
+/// profile, an enum's backing string, a filter that is compared by equality.
+/// There, swapping the literal for a key would change what gets saved and
+/// sent, so the English stays and only what is drawn goes through here.
+///
+///     SelectableChip(title: tr(option), isSelected: position == option)
+///                           ^ drawn               ^ stored, still English
+///
+/// Text it does not know comes back unchanged, which makes this safe in three
+/// useful ways: a string the dictionary has not got yet reads in English
+/// rather than showing a key, wrapping a site is never a regression, and
+/// passing already-translated text through does nothing.
+func tr(_ english: String, vars: [String: CustomStringConvertible] = [:]) -> String {
+    guard let key = Strings.key(forEnglish: english) else {
+        var out = english
+        for (name, value) in vars { out = out.replacingOccurrences(of: "{\(name)}", with: value.description) }
+        return out
+    }
+    return t(key, vars: vars)
 }

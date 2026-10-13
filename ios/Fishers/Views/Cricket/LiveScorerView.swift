@@ -9,9 +9,9 @@ enum WagonWheelMode: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .off: return "Off"
-        case .boundaries: return "Boundaries"
-        case .everyScoringShot: return "Every shot"
+        case .off: return tr("Off")
+        case .boundaries: return tr("Boundaries")
+        case .everyScoringShot: return tr("Every shot")
         }
     }
 
@@ -173,8 +173,7 @@ struct LiveScorerView: View {
                     }
             }
         }
-        .confirmationDialog(
-            "End the innings here?",
+        .confirmationDialog(tr("End the innings here?"),
             isPresented: $confirmEndInnings,
             titleVisibility: .visible
         ) {
@@ -223,7 +222,7 @@ struct LiveScorerView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("Wagon wheel", selection: $wheelModeRaw) {
+                    Picker(tr("Wagon wheel"), selection: $wheelModeRaw) {
                         ForEach(WagonWheelMode.allCases) { mode in
                             Text(mode.label).tag(mode.rawValue)
                         }
@@ -843,7 +842,7 @@ private struct ExtrasSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Type", selection: $kind) {
+                    Picker(tr("Type"), selection: $kind) {
                         ForEach(ExtraKind.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
@@ -857,7 +856,7 @@ private struct ExtrasSheet: View {
                         Toggle(t("sc.went_to_the_boundary"), isOn: $boundary)
                             .disabled(runs < 4)
                         if kind == .noBall {
-                            Picker("Those runs came", selection: $offTheBat) {
+                            Picker(tr("Those runs came"), selection: $offTheBat) {
                                 Text(t("sc.off_the_bat")).tag(true)
                                 Text(t("sc.as_byes")).tag(false)
                             }
@@ -937,18 +936,18 @@ private struct ExtrasSheet: View {
         switch kind {
         case .wide:
             return runs == 0
-                ? "One run for the wide."
+                ? tr("One run for the wide.")
                 : "One for the wide plus \(runs) run — \(totalRuns) to the side, all wides."
         case .noBall where offTheBat:
             return runs == 0
-                ? "One run for the no ball."
+                ? tr("One run for the no ball.")
                 : "One for the no ball plus \(runs) off the bat — the batter gets \(runs)."
         case .noBall:
             return "One for the no ball plus \(runs) bye\(runs == 1 ? "" : "s"). Only the no ball is charged to the bowler."
         case .bye, .legBye:
-            return "A legal ball. Nothing against the bowler, nothing to the batter."
+            return tr("A legal ball. Nothing against the bowler, nothing to the batter.")
         case .penalty:
-            return "Five penalty runs. No ball is bowled."
+            return tr("Five penalty runs. No ball is bowled.")
         }
     }
 
@@ -989,8 +988,8 @@ private struct RevisedOversSheet: View {
         NavigationStack {
             Form {
                 if store.state.innings.count > 1 {
-                    Section("Which innings") {
-                        Picker("Innings", selection: $inningsIndex) {
+                    Section(tr("Which innings")) {
+                        Picker(tr("Innings"), selection: $inningsIndex) {
                             ForEach(Array(store.state.innings.enumerated()), id: \.offset) { index, inn in
                                 Text(store.state.name(for: inn.batting)).tag(index)
                             }
@@ -1080,8 +1079,8 @@ private struct WicketSheet: View {
                         .foregroundStyle(FishersTheme.maybe)
                     }
                 }
-                Section("How") {
-                    Picker("Dismissal", selection: $kind) {
+                Section(tr("How")) {
+                    Picker(tr("Dismissal"), selection: $kind) {
                         ForEach(allowedKinds) { Text($0.label).tag($0) }
                     }
                 }
@@ -1095,8 +1094,8 @@ private struct WicketSheet: View {
                 }
 
                 if kind.canDismissNonStriker {
-                    Section("Who is out") {
-                        Picker("Batter", selection: $outIsStriker) {
+                    Section(tr("Who is out")) {
+                        Picker(tr("Batter"), selection: $outIsStriker) {
                             Text(strikerName).tag(true)
                             Text(nonStrikerName).tag(false)
                         }
@@ -1114,7 +1113,7 @@ private struct WicketSheet: View {
 
                 if kind.needsFielder {
                     Section(fielderLabel) {
-                        Picker("Fielder", selection: $fielderId) {
+                        Picker(tr("Fielder"), selection: $fielderId) {
                             Text("—").tag(UUID?.none)
                             ForEach(fielders) { Text($0.name).tag(UUID?.some($0.id)) }
                         }
@@ -1127,7 +1126,7 @@ private struct WicketSheet: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker("In next", selection: $newBatterId) {
+                        Picker(tr("In next"), selection: $newBatterId) {
                             Text("—").tag(UUID?.none)
                             ForEach(nextIn) { Text($0.name).tag(UUID?.some($0.id)) }
                             ForEach(resuming) {
@@ -1275,7 +1274,7 @@ private struct BowlerSheet: View {
                 }
 
                 if !unavailable.isEmpty {
-                    Section("Cannot bowl this over") {
+                    Section(tr("Cannot bowl this over")) {
                         ForEach(unavailable, id: \.0.id) { player, reason in
                             row(player, reason: reason)
                         }
@@ -1368,11 +1367,11 @@ private struct SecondInningsSheet: View {
                             .font(.subheadline.weight(.semibold))
                     }
                 }
-                Section("Opening pair") {
+                Section(tr("Opening pair")) {
                     picker("Striker", $strikerId, batters)
                     picker("Non-striker", $nonStrikerId, batters)
                 }
-                Section("Opening bowler") {
+                Section(tr("Opening bowler")) {
                     picker("Bowler", $bowlerId, bowlersAvailable)
                 }
                 if let message {
@@ -1456,7 +1455,7 @@ private struct HandoverSheet: View {
             people.filter { seen.insert($0.id).inserted }
         }
         return [
-            .init(label: "Umpires",
+            .init(label: tr("Umpires"),
                   people: take(officials.map { .init(id: $0.userId, name: $0.name, note: $0.label) })),
             .init(label: squads?.home.teamName ?? "Home",
                   people: take((squads?.home.players ?? []).map { .init(id: $0.id, name: $0.name) })),
@@ -1504,7 +1503,7 @@ private struct HandoverSheet: View {
                 }
 
                 if !trail.isEmpty {
-                    Section("Who has had it") {
+                    Section(tr("Who has had it")) {
                         ForEach(trail) { entry in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(entry.summary)
@@ -1690,7 +1689,7 @@ private struct AwardSheet: View {
                     }
                 }
                 if !others.isEmpty {
-                    Section("Did not feature") {
+                    Section(tr("Did not feature")) {
                         ForEach(others) { player in
                             row(id: player.id, name: player.name, detail: nil, suggested: false)
                         }
@@ -1785,11 +1784,11 @@ private struct SuperOverSheet: View {
                     Text(t("sc.second_batting_side_opens_super_over"))
                 }
 
-                Section("Openers") {
+                Section(tr("Openers")) {
                     picker("Striker", $strikerId, batters)
                     picker("Non-striker", $nonStrikerId, batters)
                 }
-                Section("Bowler") {
+                Section(tr("Bowler")) {
                     picker("Bowler", $bowlerId, bowlers)
                 }
 
@@ -1882,7 +1881,7 @@ private struct PenaltySheet: View {
                 }
 
                 Section {
-                    Picker("To", selection: $toSide) {
+                    Picker(tr("To"), selection: $toSide) {
                         Text(store.state.homeName).tag(MatchSide.home)
                         Text(store.state.awayName).tag(MatchSide.away)
                     }
@@ -1893,9 +1892,9 @@ private struct PenaltySheet: View {
                     Text(sideFootnote)
                 }
 
-                Section("What for") {
-                    Picker("Reason", selection: $reason) {
-                        ForEach(PenaltyReason.allCases) { Text($0.rawValue).tag($0) }
+                Section(tr("What for")) {
+                    Picker(tr("Reason"), selection: $reason) {
+                        ForEach(PenaltyReason.allCases) { Text(tr($0.rawValue)).tag($0) }
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
@@ -1972,7 +1971,7 @@ private struct BallCorrectionSheet: View {
                 if recent.isEmpty {
                     Text(t("sc.nothing_bowled_yet")).foregroundStyle(.secondary)
                 } else {
-                    Section("Recent balls") {
+                    Section(tr("Recent balls")) {
                         ForEach(recent, id: \.offset) { entry in
                             Button {
                                 confirming = entry.offset

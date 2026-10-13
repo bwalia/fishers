@@ -50,7 +50,7 @@ struct CareerStatsView: View {
                 Text(discipline.title)
             }
 
-            Section("Best of it") {
+            Section(tr("Best of it")) {
                 ForEach(highlights, id: \.label) { item in
                     LabeledContent {
                         Text(item.value).font(FishersTheme.figure(.title3))
@@ -72,7 +72,7 @@ struct CareerStatsView: View {
     // MARK: Pieces
 
     private var seasonPicker: some View {
-        Picker("Season", selection: $season) {
+        Picker(tr("Season"), selection: $season) {
             Text(t("cl.all")).tag(Int?.none)
             ForEach(years, id: \.self) { year in
                 Text(String(year)).tag(Int?.some(year))

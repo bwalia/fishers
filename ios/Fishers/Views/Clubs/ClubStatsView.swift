@@ -36,7 +36,7 @@ struct ClubStatsView: View {
                         }
                     }
                 }
-                Section("Batting") {
+                Section(tr("Batting")) {
                     ForEach(board.topBatters) { p in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
@@ -53,7 +53,7 @@ struct ClubStatsView: View {
                         .padding(.vertical, 2)
                     }
                 }
-                Section("Bowling") {
+                Section(tr("Bowling")) {
                     ForEach(board.topBowlers.filter { $0.oversBowled > 0 }) { p in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {

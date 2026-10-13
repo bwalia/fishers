@@ -9,11 +9,11 @@ enum TournamentFormat: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .none: return "No structure"
-        case .roundRobin: return "Round robin"
-        case .groupsKnockout: return "Groups + knockout"
-        case .knockout: return "Straight knockout"
-        case .ladder: return "Ladder"
+        case .none: return tr("No structure")
+        case .roundRobin: return tr("Round robin")
+        case .groupsKnockout: return tr("Groups + knockout")
+        case .knockout: return tr("Straight knockout")
+        case .ladder: return tr("Ladder")
         }
     }
 }
@@ -99,10 +99,10 @@ enum EntryStatus: String, Codable, Equatable {
 
     var label: String {
         switch self {
-        case .invited: return "Asked"
-        case .accepted: return "In"
-        case .declined: return "Declined"
-        case .withdrawn: return "Withdrawn"
+        case .invited: return tr("Asked")
+        case .accepted: return tr("In")
+        case .declined: return tr("Declined")
+        case .withdrawn: return tr("Withdrawn")
         }
     }
 }

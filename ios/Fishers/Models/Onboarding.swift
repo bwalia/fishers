@@ -9,8 +9,8 @@ enum RoleIntent: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .secretary: return "I run a club"
-        case .player: return "I play for a club"
+        case .secretary: return tr("I run a club")
+        case .player: return tr("I play for a club")
         }
     }
 

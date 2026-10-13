@@ -20,7 +20,7 @@ struct ShopView: View {
     var body: some View {
         List {
             Section {
-                Picker("Condition", selection: $condition) {
+                Picker(tr("Condition"), selection: $condition) {
                     Text(t("rest.everything")).tag(String?.none)
                     Text(t("lc.second_hand")).tag(String?.some("used"))
                     Text(t("lc.brand_new")).tag(String?.some("new"))
@@ -47,7 +47,7 @@ struct ShopView: View {
         }
         .listStyle(.insetGrouped)
         .fishersList()
-        .searchable(text: $search, prompt: "Bats, pads, a club shirt")
+        .searchable(text: $search, prompt: tr("Bats, pads, a club shirt"))
         .navigationTitle(t("sh.kit_for_sale"))
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

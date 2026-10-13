@@ -18,18 +18,18 @@ struct ProfileStrength: Equatable {
     init(_ user: PublicUser) {
         let main = user.primaryProfile
         items = [
-            Item(id: "name", title: "Your name", weight: 10, done: !user.name.trimmingCharacters(in: .whitespaces).isEmpty),
-            Item(id: "sport", title: "What you play", weight: 15, done: main != nil),
-            Item(id: "phone", title: "Your mobile number", weight: 10, done: user.phone?.nonEmpty != nil),
-            Item(id: "photo", title: "A photo", weight: 15, done: user.avatarUrl?.nonEmpty != nil),
-            Item(id: "standard", title: "The standard you play at", weight: 15, done: main?.tier != nil),
-            Item(id: "position", title: "Your position", weight: 10, done: main?.position?.nonEmpty != nil),
+            Item(id: "name", title: tr("Your name"), weight: 10, done: !user.name.trimmingCharacters(in: .whitespaces).isEmpty),
+            Item(id: "sport", title: tr("What you play"), weight: 15, done: main != nil),
+            Item(id: "phone", title: tr("Your mobile number"), weight: 10, done: user.phone?.nonEmpty != nil),
+            Item(id: "photo", title: tr("A photo"), weight: 15, done: user.avatarUrl?.nonEmpty != nil),
+            Item(id: "standard", title: tr("The standard you play at"), weight: 15, done: main?.tier != nil),
+            Item(id: "position", title: tr("Your position"), weight: 10, done: main?.position?.nonEmpty != nil),
             // Same order and weights as the API's count, so both say the same next thing.
-            Item(id: "verified", title: "A confirmed email or number", weight: 10, done: user.isVerified),
-            Item(id: "area", title: "Where you're based", weight: 5,
+            Item(id: "verified", title: tr("A confirmed email or number"), weight: 10, done: user.isVerified),
+            Item(id: "area", title: tr("Where you're based"), weight: 5,
                  done: user.location?.area?.nonEmpty != nil || user.location?.postcode?.nonEmpty != nil),
-            Item(id: "travel", title: "How you get to games", weight: 5, done: user.location?.transport != nil),
-            Item(id: "emergency", title: "An emergency contact", weight: 5, done: user.emergencyContact?.nonEmpty != nil),
+            Item(id: "travel", title: tr("How you get to games"), weight: 5, done: user.location?.transport != nil),
+            Item(id: "emergency", title: tr("An emergency contact"), weight: 5, done: user.emergencyContact?.nonEmpty != nil),
         ]
     }
 

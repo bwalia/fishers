@@ -209,7 +209,7 @@ struct CalendarPane: View {
             Text("Set every one of a weekday in \(vm.month.formatted(.dateTime.month(.wide))) at once, then change the odd day above.")
                 .font(FishersTheme.footnote)
                 .foregroundStyle(.secondary)
-            Picker("Weekday", selection: $bulkWeekday) {
+            Picker(tr("Weekday"), selection: $bulkWeekday) {
                 ForEach(weekdayOrder, id: \.0) { Text($0.1).tag($0.0) }
             }
             .pickerStyle(.menu)

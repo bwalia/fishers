@@ -91,7 +91,7 @@ struct NotificationsView: View {
         .onChange(of: search) { _, _ in Task { await debouncedReload() } }
         .onChange(of: kind) { _, _ in Task { await reload() } }
         .onChange(of: unreadOnly) { _, _ in Task { await reload() } }
-        .alert("Something went wrong", isPresented: .constant(message != nil)) {
+        .alert(tr("Something went wrong"), isPresented: .constant(message != nil)) {
             Button(t("rest.ok")) { message = nil }
         } message: {
             Text(message ?? "")
@@ -114,7 +114,7 @@ struct NotificationsView: View {
         // Only what this person has actually been sent, so the picker never
         // offers a filter that returns nothing.
         if !kinds.isEmpty {
-            Picker("Kind", selection: $kind) {
+            Picker(tr("Kind"), selection: $kind) {
                 Text(t("rest.everything")).tag("")
                 ForEach(kinds, id: \.self) { Text(label(for: $0)).tag($0) }
             }

@@ -84,7 +84,7 @@ struct ClubsTeamsView: View {
                         }
                     }
 
-                    Section("How clubs work") {
+                    Section(tr("How clubs work")) {
                         ForEach(Array(Self.howClubsWork.enumerated()), id: \.offset) { index, item in
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
@@ -110,7 +110,7 @@ struct ClubsTeamsView: View {
             .fishersList()
             .overlay { if !loaded { ProgressView() } }
             .navigationTitle(t("nav.clubs"))
-            .searchable(text: $search, prompt: "Search by name or description")
+            .searchable(text: $search, prompt: tr("Search by name or description"))
             .navigationDestination(for: ClubRoute.self) { route in
                 ClubDetailView(club: route.club, welcome: route.welcome)
             }
@@ -155,20 +155,20 @@ struct ClubsTeamsView: View {
 
     private var filterMenu: some View {
         Menu {
-            Picker("Your role", selection: $filters.role) {
+            Picker(tr("Your role"), selection: $filters.role) {
                 Text(t("cl.all_roles")).tag(ClubListFilters.Role?.none)
                 ForEach(ClubListFilters.Role.allCases) { Text($0.label).tag(Optional($0)) }
             }
-            Picker("Sport", selection: $filters.sport) {
+            Picker(tr("Sport"), selection: $filters.sport) {
                 Text(t("cl.all_sports")).tag(String?.none)
                 ForEach(Self.sports, id: \.self) { Text($0.capitalized).tag(Optional($0)) }
             }
-            Picker("Public page", selection: $filters.publicPage) {
+            Picker(tr("Public page"), selection: $filters.publicPage) {
                 Text(t("cl.any_public_page")).tag(Bool?.none)
                 Text(t("cl.page_published")).tag(Optional(true))
                 Text(t("cl.no_public_page")).tag(Optional(false))
             }
-            Picker("Sort by", selection: $filters.sort) {
+            Picker(tr("Sort by"), selection: $filters.sort) {
                 ForEach(ClubListFilters.Sort.allCases) { Text($0.label).tag($0) }
             }
         } label: {
@@ -427,10 +427,10 @@ struct NewClubSheet: View {
                 }
 
                 Section {
-                    visibilityOption(isPublic: false, title: "Invite only", icon: "lock",
-                                     detail: "Kept out of search. Players join with an invite.")
-                    visibilityOption(isPublic: true, title: "Anyone can find it", icon: "person.2",
-                                     detail: "Other clubs can find you by name when they arrange a match.")
+                    visibilityOption(isPublic: false, title: tr("Invite only"), icon: "lock",
+                                     detail: tr("Kept out of search. Players join with an invite."))
+                    visibilityOption(isPublic: true, title: tr("Anyone can find it"), icon: "person.2",
+                                     detail: tr("Other clubs can find you by name when they arrange a match."))
                 } header: {
                     Text(t("cl.step_who_can_find"))
                 }
@@ -605,7 +605,7 @@ struct ClubDetailView: View {
             }
 
             if isCricket {
-                Section("Season stats") {
+                Section(tr("Season stats")) {
                     NavigationLink {
                         ClubStatsView(clubId: club.id, clubName: club.name)
                     } label: {
@@ -695,7 +695,7 @@ struct ClubDetailView: View {
                 Text(t("cl.tournament_vs_tour"))
             }
 
-            Section("Fixtures & nets") {
+            Section(tr("Fixtures & nets")) {
                 ForEach(events) { event in
                     NavigationLink(value: event) {
                         EventRow(event: event)
@@ -745,7 +745,7 @@ struct ClubDetailView: View {
         .sheet(isPresented: $addingGround) {
             AddGroundSheet(clubId: club.id) { Task { await load() } }
         }
-        .alert("New tournament or tour", isPresented: $isCreatingTournament) {
+        .alert(tr("New tournament or tour"), isPresented: $isCreatingTournament) {
             TextField(t("cl.tournament_name_example"), text: $newTournamentName)
             Button(t("cl.create")) {
                 let name = newTournamentName

@@ -52,7 +52,7 @@ struct LiveFixtureRow: View {
             fixture: CricketFixtureRow(
                 eventId: UUID(),
                 clubId: UUID(),
-                title: "Saturday League",
+                title: tr("Saturday League"),
                 startAt: .now,
                 eventStatus: "scheduled",
                 matchId: UUID(),

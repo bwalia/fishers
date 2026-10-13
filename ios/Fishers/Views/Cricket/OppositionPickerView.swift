@@ -32,7 +32,7 @@ struct OppositionPickerView: View {
                     Text(t("sc.qr_under_clubs"))
                 }
 
-                Section("Search by name") {
+                Section(tr("Search by name")) {
                     HStack {
                         TextField(t("rest.club_or_team"), text: $query)
                             .autocorrectionDisabled()

@@ -135,10 +135,10 @@ struct WagonWheelPicker: View {
     private var headline: String {
         let outcome: String
         switch runs {
-        case 6: outcome = "SIX"
-        case 4: outcome = "FOUR"
-        case 0: outcome = "no run"
-        case 1: outcome = "1 run"
+        case 6: outcome = tr("SIX")
+        case 4: outcome = tr("FOUR")
+        case 0: outcome = tr("no run")
+        case 1: outcome = tr("1 run")
         default: outcome = "\(runs) runs"
         }
         return "\(batterName) — \(outcome)"

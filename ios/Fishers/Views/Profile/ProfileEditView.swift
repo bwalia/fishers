@@ -41,7 +41,7 @@ struct ProfileEditView: View {
                     }
                 }
 
-                Section("Level, league & stats") {
+                Section(tr("Level, league & stats")) {
                     ForEach(form.selectedSports) { sport in
                         NavigationLink {
                             SportDetailForm(sport: sport, form: form)

@@ -100,7 +100,7 @@ struct ScoreHubPane: View {
             }
 
             if !phoneMatches.isEmpty {
-                Section("On this phone") {
+                Section(tr("On this phone")) {
                     ForEach(phoneMatches, id: \.matchId) { match in
                         Button {
                             resumeMatchId = match.matchId
@@ -112,8 +112,8 @@ struct ScoreHubPane: View {
             }
 
             Section {
-                Picker("Which fixtures", selection: $query.state) {
-                    ForEach(StateFilter.allCases) { Text($0.rawValue).tag($0) }
+                Picker(tr("Which fixtures"), selection: $query.state) {
+                    ForEach(StateFilter.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
@@ -134,7 +134,7 @@ struct ScoreHubPane: View {
                 HStack {
                     if total > 0 { Text("\(rows.count) of \(total)") }
                     Spacer()
-                    Picker("Order", selection: $query.newestFirst) {
+                    Picker(tr("Order"), selection: $query.newestFirst) {
                         Text(t("ld.soonest_first")).tag(false)
                         Text(t("ld.newest_first")).tag(true)
                     }
@@ -158,7 +158,7 @@ struct ScoreHubPane: View {
             }
         }
         .fishersList()
-        .searchable(text: $typed, prompt: "Search fixtures or teams")
+        .searchable(text: $typed, prompt: tr("Search fixtures or teams"))
         .overlay { if !loaded { ProgressView() } }
         .task(id: typed) {
             // One request per pause in typing, not per keystroke.
@@ -432,9 +432,9 @@ struct QuickMatchSheet: View {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .friendly: return "Friendly"
-            case .league_match: return "League"
-            case .social: return "Social"
+            case .friendly: return tr("Friendly")
+            case .league_match: return tr("League")
+            case .social: return tr("Social")
             }
         }
     }
@@ -466,12 +466,12 @@ struct QuickMatchSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Your side") {
-                    Picker("Club", selection: $clubId) {
+                Section(tr("Your side")) {
+                    Picker(tr("Club"), selection: $clubId) {
                         ForEach(clubs) { Text($0.name).tag(Optional($0.id)) }
                     }
                     if !teams.isEmpty {
-                        Picker("Team", selection: $teamId) {
+                        Picker(tr("Team"), selection: $teamId) {
                             Text(t("rest.the_club")).tag(UUID?.none)
                             ForEach(teams) { Text($0.name).tag(Optional($0.id)) }
                         }
@@ -491,8 +491,8 @@ struct QuickMatchSheet: View {
                          ?? "Find them by their code or name, or just type who turned up. Works offline if you type the name.")
                 }
 
-                Section("Kind of match") {
-                    Picker("Kind", selection: $kind) {
+                Section(tr("Kind of match")) {
+                    Picker(tr("Kind"), selection: $kind) {
                         ForEach(Kind.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)

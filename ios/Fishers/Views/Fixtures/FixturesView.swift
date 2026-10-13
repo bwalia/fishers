@@ -18,8 +18,8 @@ struct FixturesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Show", selection: $mode) {
-                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                Picker(tr("Show"), selection: $mode) {
+                    ForEach(Mode.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
@@ -176,8 +176,8 @@ struct FixturesListPane: View {
             }
 
             Section {
-                Picker("Which fixtures", selection: $show) {
-                    ForEach(Show.allCases) { Text($0.rawValue).tag($0) }
+                Picker(tr("Which fixtures"), selection: $show) {
+                    ForEach(Show.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
@@ -218,7 +218,7 @@ struct FixturesListPane: View {
             if clubs.count > 1 {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Picker("Club", selection: $clubFilter) {
+                        Picker(tr("Club"), selection: $clubFilter) {
                             Text(t("ev.all_clubs")).tag(UUID?.none)
                             ForEach(clubs, id: \.0) { Text($0.1).tag(Optional($0.0)) }
                         }
@@ -410,8 +410,8 @@ struct ScheduleMatchSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Your side") {
-                    Picker("Club", selection: $clubId) {
+                Section(tr("Your side")) {
+                    Picker(tr("Club"), selection: $clubId) {
                         ForEach(clubs) { Text($0.name).tag(Optional($0.id)) }
                     }
                 }
@@ -422,7 +422,7 @@ struct ScheduleMatchSheet: View {
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker("Ground", selection: $venueId) {
+                        Picker(tr("Ground"), selection: $venueId) {
                             Text(t("ev.not_decided_yet")).tag(UUID?.none)
                             ForEach(venues) { Text($0.name).tag(Optional($0.id)) }
                         }
@@ -445,7 +445,7 @@ struct ScheduleMatchSheet: View {
                          : "A club on \(Brand.name) gets asked as well. Otherwise only your side is.")
                 }
 
-                Section("When") {
+                Section(tr("When")) {
                     DatePicker("Date and time", selection: $start, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
                 }
 

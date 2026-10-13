@@ -46,7 +46,7 @@ struct ProfileView: View {
                     ProfileStrengthSection(user: user, onComplete: { isEditing = true }, offersReminder: false)
 
                     Section {
-                        Picker("Section", selection: $tab) {
+                        Picker(tr("Section"), selection: $tab) {
                             ForEach(Tab.allCases) { Text($0.title).tag($0) }
                         }
                         .pickerStyle(.segmented)
@@ -118,7 +118,7 @@ struct ProfileView: View {
         }
 
         if let achievements = stats?.achievements, !achievements.isEmpty {
-            Section("Honours") {
+            Section(tr("Honours")) {
                 ForEach(achievements) { award in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(award.title).font(FishersTheme.headline)
@@ -131,7 +131,7 @@ struct ProfileView: View {
         }
 
         if let reliability = user.reliability {
-            Section("Reliability") {
+            Section(tr("Reliability")) {
                 ReliabilityCard(reliability: reliability)
                     .padding(.vertical, 4)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -152,7 +152,7 @@ struct ProfileView: View {
 
         contactSection(user)
 
-        Section("Club shop") {
+        Section(tr("Club shop")) {
             NavigationLink {
                 ShopView()
             } label: {
@@ -172,7 +172,7 @@ struct ProfileView: View {
             Text(t("cl.secretary_can_invite_you"))
         }
 
-        Section("Account") {
+        Section(tr("Account")) {
             if !user.isVerified {
                 NavigationLink {
                     VerifyAccountScreen()
@@ -327,7 +327,7 @@ struct ProfileView: View {
     // MARK: - Location / contact
 
     private func locationSection(_ location: PlayerLocation) -> some View {
-        Section("Travel & logistics") {
+        Section(tr("Travel & logistics")) {
             if let summary = location.summary {
                 LabeledContent("Based", value: summary)
             }
@@ -354,7 +354,7 @@ struct ProfileView: View {
     }
 
     private func contactSection(_ user: PublicUser) -> some View {
-        Section("Contact") {
+        Section(tr("Contact")) {
             if let phone = user.phone {
                 LabeledContent("Mobile", value: phone)
             }
