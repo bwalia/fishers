@@ -13,9 +13,11 @@ const repoRoot = join(here, "..", "..");
 const appDir = join(repoRoot, "android", "app", "src", "main", "kotlin");
 
 const { en } = await import(join(repoRoot, "web", "src", "lib", "i18n", "en.ts"));
+// Typographic in the dictionary, straight in the source — see convert-swift.mjs.
+const plain = (s) => s.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
 const keyFor = new Map();
 for (const key of Object.keys(en).sort((a, b) => a.length - b.length || a.localeCompare(b))) {
-  if (typeof en[key] === "string" && !keyFor.has(en[key])) keyFor.set(en[key], key);
+  if (typeof en[key] === "string" && !keyFor.has(plain(en[key]))) keyFor.set(plain(en[key]), key);
 }
 
 const files = execSync(`find "${appDir}" -name '*.kt'`, { encoding: "utf8" })
@@ -31,7 +33,7 @@ for (const file of files) {
   // built at runtime and needs a key with a placeholder — a wording decision,
   // not a substitution.
   let after = before.replace(/\bText\(\s*"([^"\\$]{2,})"/g, (whole, text) => {
-    const key = keyFor.get(text);
+    const key = keyFor.get(plain(text));
     if (!key) { skipped.add(text); return whole; }
     replaced += 1;
     return `Text(t(${JSON.stringify(key)})`;

@@ -131,7 +131,7 @@ struct OptionMenu<Option: LabeledOption>: View where Option.AllCases: RandomAcce
 
     var body: some View {
         Picker(title, selection: $selection) {
-            Text("Not set").tag(Option?.none)
+            Text(t("rest.not_set")).tag(Option?.none)
             ForEach(Array(Option.allCases)) { option in
                 Text(option.label).tag(Option?.some(option))
             }
@@ -279,7 +279,7 @@ struct StatFieldRow: View {
             switch field.kind {
             case .choice(let options):
                 Picker(field.label, selection: $value) {
-                    Text("Not set").tag("")
+                    Text(t("rest.not_set")).tag("")
                     ForEach(options, id: \.self) { option in
                         Text(option).tag(option)
                     }
@@ -434,7 +434,7 @@ struct ReliabilityCard: View {
             MeterRow(label: "Answered the invite", value: reliability.responseRate)
             MeterRow(label: "Paid match fees", value: reliability.paymentRate)
             HStack {
-                Text("Late drop-outs")
+                Text(t("rest.late_drop_outs"))
                 Spacer()
                 Text("\(reliability.lateCancellations)")
                     .foregroundStyle(reliability.lateCancellations > 0 ? .orange : .secondary)

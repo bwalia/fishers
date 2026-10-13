@@ -30,7 +30,7 @@ struct QuickStartView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Hi \(firstName)")
                             .font(FishersTheme.display)
-                        Text("Two quick things and you're in. Everything else can wait until you have a minute.")
+                        Text(t("rest.two_quick_things"))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -184,9 +184,9 @@ struct WelcomeShareSheet: View {
                             .font(.system(size: 44))
                             .foregroundStyle(FishersTheme.pitch)
                             .accessibilityHidden(true)
-                        Text("You're in. Now get picked.")
+                        Text(t("fin.youre_in_now_get_picked"))
                             .font(FishersTheme.title)
-                        Text("Send your profile link to your club's secretary or captain — on WhatsApp is fine. They add you in one tap, and your fixtures show up here.")
+                        Text(t("fin.send_your_profile_link"))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -199,7 +199,7 @@ struct WelcomeShareSheet: View {
                     ShareProfileView(userId: userId)
                         .padding(.vertical, 4)
                 } footer: {
-                    Text("They see your name, photo and what you play — not your email or number.")
+                    Text(t("fin.they_see_name_photo"))
                 }
             }
             .fishersList()

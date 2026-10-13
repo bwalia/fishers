@@ -229,8 +229,7 @@ private fun BuyerPanel(
         // otherwise, so there is nothing here to forget to hide.
         if (listing.sellerPhone != null || listing.sellerEmail != null) {
             Column {
-                Text(
-                    "Happy to be contacted directly",
+                Text(t("sh.happy_to_be_contacted"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
@@ -283,8 +282,7 @@ private fun OwnerPanel(listing: MarketListing) {
         }
         // Editing a listing is on the web for now, so this says where rather
         // than offering a button that would go nowhere.
-        Text(
-            "Change the price, add photographs or mark it sold on the website.",
+        Text(t("sh.change_price_on_website"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )

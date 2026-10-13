@@ -1,5 +1,7 @@
 package com.fishers.app.views.scores
 
+import com.fishers.app.i18n.t
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,9 +74,8 @@ fun WorldScoresScreen(
     if (scores == null || !scores.enabled) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("World scores aren't switched on here.", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    "They run only where a score feed is configured.",
+                Text(t("sr.world_scores_not_on"), style = MaterialTheme.typography.titleSmall)
+                Text(t("rest.only_where_feed_configured"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

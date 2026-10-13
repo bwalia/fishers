@@ -342,7 +342,7 @@ struct FixtureRow: View {
                                 tag(fixture.status.capitalized, FishersTheme.unavailable)
                             }
                             if clashes {
-                                Label("Clashes with another you're playing", systemImage: "exclamationmark.triangle.fill")
+                                Label(t("ev.clashes_with_another"), systemImage: "exclamationmark.triangle.fill")
                                     .font(FishersTheme.caption)
                                     .foregroundStyle(FishersTheme.maybe)
                             }
@@ -418,7 +418,7 @@ struct ScheduleMatchSheet: View {
 
                 Section {
                     if venues.isEmpty {
-                        Text("No grounds saved for this club yet. Add them on the club's page and they show up here.")
+                        Text(t("ev.no_grounds_saved_plain"))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     } else {

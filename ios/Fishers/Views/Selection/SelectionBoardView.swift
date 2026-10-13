@@ -34,7 +34,7 @@ struct SelectionBoardView: View {
             }
         }
         .fishersList()
-        .navigationTitle("Selection")
+        .navigationTitle(t("ld.selection"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -42,20 +42,20 @@ struct SelectionBoardView: View {
                     Button {
                         Task { await store.suggest() }
                     } label: {
-                        Label("Suggest from ranking", systemImage: "list.number")
+                        Label(t("ld.suggest_from_ranking"), systemImage: "list.number")
                     }
                     if store.board?.isAssistantAvailable ?? false {
                         Button {
                             Task { await store.askAssistant() }
                         } label: {
-                            Label("Let the assistant pick", systemImage: "sparkles")
+                            Label(t("ld.let_the_assistant_pick"), systemImage: "sparkles")
                         }
                     }
                     Divider()
                     Button {
                         isChangingStatus = true
                     } label: {
-                        Label("Delay or call off", systemImage: "cloud.rain.fill")
+                        Label(t("ld.delay_or_call_off"), systemImage: "cloud.rain.fill")
                     }
                 } label: {
                     if store.isThinking {
@@ -132,7 +132,7 @@ struct SelectionBoardView: View {
                         .foregroundStyle(.secondary)
                 }
                 if proposal.published {
-                    Label("Published to the squad", systemImage: "checkmark.circle.fill")
+                    Label(t("ld.published_to_the_squad"), systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(FishersTheme.available)
                 }
@@ -177,7 +177,7 @@ struct SelectionBoardView: View {
                             await store.load()
                         }
                     } label: {
-                        Label("Move reserves up into empty places", systemImage: "arrow.up.circle")
+                        Label(t("ld.move_reserves_up"), systemImage: "arrow.up.circle")
                     }
                 } header: {
                     Text(t("ev.reserves"))
@@ -202,9 +202,9 @@ struct SelectionBoardView: View {
                 )
             }
         } header: {
-            Text("Available — best first")
+            Text(t("ld.available_best_first"))
         } footer: {
-            Text("Tap to pick. Once the squad is full, taps add reserves.")
+            Text(t("ld.tap_to_pick"))
         }
     }
 
@@ -217,7 +217,7 @@ struct SelectionBoardView: View {
                         HStack {
                             Text(candidate.name)
                             Spacer()
-                            Text("unavailable")
+                            Text(t("ld.unavailable"))
                                 .font(.caption)
                                 .foregroundStyle(FishersTheme.unavailable)
                         }
@@ -247,7 +247,7 @@ struct SelectionBoardView: View {
                 if store.isPublishing {
                     ProgressView().frame(maxWidth: .infinity)
                 } else {
-                    Text("Publish squad").frame(maxWidth: .infinity)
+                    Text(t("ld.publish_squad")).frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -262,29 +262,29 @@ struct SelectionBoardView: View {
             Form {
                 Section("What's happening") {
                     Picker("Status", selection: $newStatus) {
-                        Text("Postponed").tag("postponed")
-                        Text("Cancelled").tag("cancelled")
-                        Text("Back on").tag("scheduled")
+                        Text(t("ld.postponed")).tag("postponed")
+                        Text(t("ld.cancelled")).tag("cancelled")
+                        Text(t("ld.back_on_action")).tag("scheduled")
                     }
                     .pickerStyle(.segmented)
                 }
                 Section {
-                    TextField("e.g. ground unplayable after Friday's rain", text: $statusNote, axis: .vertical)
+                    TextField(t("ld.ground_unplayable_example"), text: $statusNote, axis: .vertical)
                         .lineLimit(2...4)
                 } header: {
                     Text(t("sc.reason"))
                 } footer: {
-                    Text("Posted to the club thread and pushed to everyone in the squad.")
+                    Text(t("ld.posted_to_club_thread"))
                 }
             }
-            .navigationTitle("Delay or call off")
+            .navigationTitle(t("ld.delay_or_call_off"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(t("sc.cancel")) { isChangingStatus = false }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Announce") {
+                    Button(t("ld.announce")) {
                         let status = newStatus
                         let note = statusNote.isEmpty ? nil : statusNote
                         isChangingStatus = false

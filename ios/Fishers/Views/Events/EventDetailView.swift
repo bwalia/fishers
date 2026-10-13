@@ -21,7 +21,7 @@ struct EventDetailView: View {
                 if let event {
                     header(event)
                     if showingCached {
-                        Label("Saved on this phone — will refresh when online", systemImage: "wifi.slash")
+                        Label(t("ev.saved_on_this_phone"), systemImage: "wifi.slash")
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -46,7 +46,7 @@ struct EventDetailView: View {
                         NavigationLink {
                             SelectionBoardView(eventId: eventId)
                         } label: {
-                            Label("Selection board", systemImage: "person.3.sequence.fill")
+                            Label(t("ev.selection_board"), systemImage: "person.3.sequence.fill")
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 6)
                         }
@@ -66,7 +66,7 @@ struct EventDetailView: View {
         .overlay(alignment: .top) {
             if let match = existingCricket { MomentsBanner(state: match.state) }
         }
-        .navigationTitle("Event")
+        .navigationTitle(t("ev.event"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         // Every ball, the toss, the result — as the scorer records them.
@@ -93,7 +93,7 @@ struct EventDetailView: View {
                     NavigationLink {
                         FollowedScorecardView(match: match)
                     } label: {
-                        Label("Full scorecard", systemImage: "list.bullet.rectangle")
+                        Label(t("ev.full_scorecard"), systemImage: "list.bullet.rectangle")
                             .font(FishersTheme.subhead)
                     }
                 }
@@ -118,7 +118,7 @@ struct EventDetailView: View {
                     .tint(FishersTheme.pitch)
                     .accessibilityLabel(scoringButtonTitle)
                 } else if existingCricket == nil && !hasLocalMatch {
-                    Text("Captains, club secretaries and assigned scorers can score this match.")
+                    Text(t("ev.who_can_score_this"))
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -169,18 +169,18 @@ struct EventDetailView: View {
                 }
                 if me.state != .confirmed {
                     HStack {
-                        Button("I'm playing") { Task { await respond(true) } }
+                        Button(t("ev.im_playing")) { Task { await respond(true) } }
                             .buttonStyle(.borderedProminent)
                             .tint(FishersTheme.available)
-                        Button("Can't make it") { Task { await respond(false) } }
+                        Button(t("ev.cant_make_it")) { Task { await respond(false) } }
                             .buttonStyle(.bordered)
                     }
                     .disabled(isResponding)
                 } else {
-                    Label("You're confirmed", systemImage: "checkmark.seal.fill")
+                    Label(t("ev.youre_confirmed"), systemImage: "checkmark.seal.fill")
                         .font(.subheadline)
                         .foregroundStyle(FishersTheme.available)
-                    Button("Actually, I can't make it") { Task { await respond(false) } }
+                    Button(t("ev.actually_i_cant_make_it")) { Task { await respond(false) } }
                         .font(.footnote)
                         .buttonStyle(.plain)
                         .foregroundStyle(FishersTheme.unavailable)
@@ -299,7 +299,7 @@ struct EventDetailView: View {
 
     private var attendeesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Attendees")
+            Text(t("ev.attendees"))
                 .font(.headline)
             ForEach(attendees) { a in
                 HStack {

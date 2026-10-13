@@ -53,7 +53,7 @@ fun MarketplaceScreen(
             value = state.search,
             onValueChange = onSearch,
             label = { Text(t("rest.search")) },
-            placeholder = { Text("Bats, pads, a club shirt") },
+            placeholder = { Text(t("sh.bats_pads_a_club_shirt")) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()

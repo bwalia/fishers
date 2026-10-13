@@ -106,7 +106,7 @@ struct ManOfTheMatchCard: View {
             // get a 403, which the card shows as the sentence the API sent —
             // better than hiding the button behind this app's own guess at
             // who counts as a captain, which is the server's call to make.
-            Button("Close the vote") {
+            Button(t("sc.close_the_vote")) {
                 Task { await store.close() }
             }
             .font(.caption2.weight(.semibold))
@@ -159,7 +159,7 @@ struct ManOfTheMatchCard: View {
             // Nobody is recorded as the winner when the vote ties: choosing
             // between two players who drew is a captain's call.
             VStack(alignment: .leading, spacing: 4) {
-                Label("A tie", systemImage: "equal.circle.fill")
+                Label(t("sc.a_tie"), systemImage: "equal.circle.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(FishersTheme.maybe)
                 Text(view.tiedAtTheTop.map(\.displayName).formatted(.list(type: .and))

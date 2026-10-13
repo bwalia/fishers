@@ -184,7 +184,7 @@ struct PendingUmpireReviewsView: View {
                 Text(match.matchTitle)
             } footer: {
                 if match.id == pending.first?.id {
-                    Text("You played in these. It goes on their profile, with your name on it.")
+                    Text(t("sc.you_played_in_these"))
                 }
             }
         }

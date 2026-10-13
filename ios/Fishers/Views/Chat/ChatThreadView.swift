@@ -70,7 +70,7 @@ struct ChatThreadView: View {
                     if store.isThinking {
                         ProgressView()
                     } else {
-                        Label("Ask assistant", systemImage: "sparkles")
+                        Label(t("cl.ask_assistant"), systemImage: "sparkles")
                     }
                 }
                 .disabled(store.isThinking)
@@ -117,7 +117,7 @@ struct ChatThreadView: View {
 
     private var proposalsHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Suggestions")
+            Text(t("cl.suggestions"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             ForEach(store.pendingProposals) { proposal in
@@ -250,7 +250,7 @@ private struct ProposalCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Button("Apply", action: onApply)
+                Button(t("sc.apply"), action: onApply)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 Button(t("rest.dismiss"), action: onDismiss)

@@ -82,7 +82,7 @@ struct ScoreHubPane: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(t("sr.two_sides_right_now"))
                             .font(FishersTheme.headline)
-                        Text("No fixture needed — name the teams and start scoring. Works with no signal; syncs when you are back online.")
+                        Text(t("sc.no_fixture_needed"))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                         Button {
@@ -507,7 +507,7 @@ struct QuickMatchSheet: View {
                         Task { await start() }
                     } label: {
                         Group {
-                            if busy { ProgressView() } else { Text("Start scoring").font(FishersTheme.headline) }
+                            if busy { ProgressView() } else { Text(t("sc.start_scoring")).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }

@@ -50,7 +50,7 @@ struct WorldMatchView: View {
                 } else {
                     Section {
                         Text(t("sr.no_scorecard_for_this_match_yet")).font(.headline)
-                        Text("If it has not started, there is nothing to show.")
+                        Text(t("rest.not_started_nothing_to_show"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -258,7 +258,7 @@ private struct InningsSection: View {
             }
             if !innings.fallOfWickets.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("FALL OF WICKETS")
+                    Text(t("rest.fall_of_wickets"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.secondary)
                     Text(

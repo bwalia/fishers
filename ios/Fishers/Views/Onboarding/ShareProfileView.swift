@@ -44,7 +44,7 @@ struct ShareProfileView: View {
                     .buttonStyle(.bordered)
 
                     ShareLink(item: link, message: Text(message(link))) {
-                        Label("Share", systemImage: "square.and.arrow.up")
+                        Label(t("sc.share"), systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
                     .buttonStyle(.borderedProminent)
@@ -53,7 +53,7 @@ struct ShareProfileView: View {
 
                 if let whatsapp = whatsAppURL(link) {
                     Link(destination: whatsapp) {
-                        Label("Send on WhatsApp", systemImage: "message")
+                        Label(t("fin.send_on_whatsapp"), systemImage: "message")
                             .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
                     .buttonStyle(.bordered)

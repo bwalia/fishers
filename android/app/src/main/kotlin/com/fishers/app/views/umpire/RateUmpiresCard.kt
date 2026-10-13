@@ -107,7 +107,7 @@ private fun RateOne(
         OutlinedTextField(
             value = comment,
             onValueChange = { comment = it },
-            label = { Text("Anything to add?") },
+            label = { Text(t("sc.anything_to_add")) },
             placeholder = { Text(t("sr.gave_everything_explained_the_wides")) },
             minLines = 2,
             enabled = !busy,
@@ -184,8 +184,7 @@ fun PendingUmpireReviewsCard(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(t("sr.waiting_on_you"), style = MaterialTheme.typography.titleMedium)
-            Text(
-                "You played in these. Say how the umpiring went — it goes on their profile, with your name on it.",
+            Text(t("sc.you_played_in_these_umpiring"),
                 style = MaterialTheme.typography.bodyMedium,
             )
             state.matches.forEachIndexed { index, match ->

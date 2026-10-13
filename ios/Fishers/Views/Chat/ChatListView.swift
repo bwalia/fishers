@@ -21,7 +21,7 @@ struct ChatListView: View {
                     ContentUnavailableView(
                         "No chats yet",
                         systemImage: "bubble.left.and.bubble.right",
-                        description: Text("Start a thread for your club — availability and squads get sorted here.")
+                        description: Text(t("cl.start_a_thread_for_your_club"))
                     )
                 }
                 ForEach(store.conversations) { conversation in
@@ -110,7 +110,7 @@ struct ChatListView: View {
         NavigationStack {
             Form {
                 Section("Thread") {
-                    TextField("e.g. 1st XI match chat", text: $newTitle)
+                    TextField(t("cl.first_xi_chat_example"), text: $newTitle)
                 }
                 if !clubContext.clubs.isEmpty {
                     Section("Club") {
@@ -125,7 +125,7 @@ struct ChatListView: View {
                     }
                 } else {
                     Section {
-                        Text("Create a club first — threads belong to a club so the assistant knows the roster.")
+                        Text(t("cl.create_a_club_first"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

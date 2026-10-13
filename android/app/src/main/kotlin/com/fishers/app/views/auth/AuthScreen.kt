@@ -110,8 +110,8 @@ fun AuthScreen(
             OutlinedTextField(
                 value = identifier,
                 onValueChange = { identifier = it },
-                label = { Text("Email or mobile") },
-                supportingText = { Text("Either works — the server sorts out which.") },
+                label = { Text(t("rest.email_or_mobile")) },
+                supportingText = { Text(t("rest.either_works_server_sorts")) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(
@@ -125,7 +125,7 @@ fun AuthScreen(
                 onValueChange = { password = it },
                 label = { Text(t("cl.password")) },
                 supportingText = {
-                    if (signingUp) Text("Eight characters or more.")
+                    if (signingUp) Text(t("rest.eight_characters_or_more"))
                 },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -137,7 +137,7 @@ fun AuthScreen(
             )
 
             if (signingUp) {
-                Text("What brings you here?", style = MaterialTheme.typography.titleSmall)
+                Text(t("rest.what_brings_you_here"), style = MaterialTheme.typography.titleSmall)
                 Column(Modifier.selectableGroup()) {
                     RoleIntent.entries.forEach { option ->
                         RoleOption(

@@ -175,7 +175,7 @@ struct ListingDetailView: View {
             // out otherwise, so there is nothing here to forget to hide.
             if listing.sellerPhone != nil || listing.sellerEmail != nil {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Happy to be contacted directly")
+                    Text(t("sh.happy_to_be_contacted"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let phone = listing.sellerPhone, let url = URL(string: "tel:\(phone)") {

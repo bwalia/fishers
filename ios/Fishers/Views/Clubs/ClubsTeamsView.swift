@@ -53,7 +53,7 @@ struct ClubsTeamsView: View {
                         }
                         if loaded && rows.isEmpty && filters.isFiltered {
                             ContentUnavailableView {
-                                Label("No clubs match", systemImage: "magnifyingglass")
+                                Label(t("cl.no_clubs_match"), systemImage: "magnifyingglass")
                             } actions: {
                                 Button(t("cl.clear_filters")) { clearFilters() }
                             }
@@ -75,12 +75,12 @@ struct ClubsTeamsView: View {
                             NavigationLink {
                                 ShareProfileScreen(userId: user.id)
                             } label: {
-                                Label("Send my profile to another club", systemImage: "link")
+                                Label(t("cl.send_profile_to_another_club"), systemImage: "link")
                             }
                         } header: {
                             Text(t("cl.your_player_profile"))
                         } footer: {
-                            Text("A club's secretary can invite you straight from your profile link.")
+                            Text(t("cl.secretary_can_invite_you"))
                         }
                     }
 
@@ -181,13 +181,13 @@ struct ClubsTeamsView: View {
     @ViewBuilder
     private func rowMenu(_ row: ClubMembershipRow) -> some View {
         if let url = row.publicPageURL {
-            Link(destination: url) { Label("View public page", systemImage: "safari") }
-            ShareLink(item: url) { Label("Share public page", systemImage: "square.and.arrow.up") }
+            Link(destination: url) { Label(t("cl.view_public_page"), systemImage: "safari") }
+            ShareLink(item: url) { Label(t("cl.share_public_page"), systemImage: "square.and.arrow.up") }
         } else if row.role.isSecretary {
             NavigationLink {
                 PublicPageEditorView(club: row.club)
             } label: {
-                Label("Set up public page", systemImage: "globe")
+                Label(t("cl.set_up_public_page"), systemImage: "globe")
             }
         }
     }
@@ -195,7 +195,7 @@ struct ClubsTeamsView: View {
     private var emptyState: some View {
         Section {
             VStack(alignment: .leading, spacing: FishersTheme.space2) {
-                Text("You're not in a club yet").font(FishersTheme.title)
+                Text(t("cl.not_in_a_club_yet")).font(FishersTheme.title)
                 Text(t("cl.start_your_own_or_get_invited_into_the"))
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 8) {
@@ -398,7 +398,7 @@ struct NewClubSheet: View {
                             .textInputAutocapitalization(.words)
                     }
                 } header: {
-                    Text("1 · Club name")
+                    Text(t("cl.step_club_name"))
                 } footer: {
                     Text(t("cl.how_your_players_and_the_clubs_you_pla"))
                 }
@@ -421,7 +421,7 @@ struct NewClubSheet: View {
                         .accessibilityAddTraits(sports.contains(sport) ? .isSelected : [])
                     }
                 } header: {
-                    Text("2 · Sports played")
+                    Text(t("cl.step_sports_played"))
                 } footer: {
                     Text(t("cl.pick_every_one_you_play_teams_are_set"))
                 }
@@ -432,15 +432,15 @@ struct NewClubSheet: View {
                     visibilityOption(isPublic: true, title: "Anyone can find it", icon: "person.2",
                                      detail: "Other clubs can find you by name when they arrange a match.")
                 } header: {
-                    Text("3 · Who can find it")
+                    Text(t("cl.step_who_can_find"))
                 }
 
                 Section {
                     TextField(t("cl.sunday_friendlies_hemel_hempstead"), text: $blurb, axis: .vertical)
                         .lineLimit(2...5)
-                    Toggle("A friend group, not a club", isOn: $isInformal)
+                    Toggle(t("cl.friend_group_not_a_club"), isOn: $isInformal)
                 } header: {
-                    Text("4 · Description (optional)")
+                    Text(t("cl.step_description"))
                 } footer: {
                     Text(t("cl.where_and_when_you_play_it_shows_on_th"))
                 }
@@ -454,7 +454,7 @@ struct NewClubSheet: View {
                             Task { await create() }
                         }
                     } header: {
-                        Label("One thing first — confirm it's you", systemImage: "checkmark.shield")
+                        Label(t("cl.confirm_its_you_first"), systemImage: "checkmark.shield")
                     }
                 } else if let message {
                     Text(message).foregroundStyle(FishersTheme.unavailable)
@@ -609,7 +609,7 @@ struct ClubDetailView: View {
                     NavigationLink {
                         ClubStatsView(clubId: club.id, clubName: club.name)
                     } label: {
-                        Label("Runs, wickets & Play-Cricket", systemImage: "chart.bar")
+                        Label(t("cl.runs_wickets_play_cricket"), systemImage: "chart.bar")
                     }
                 }
             }
@@ -626,7 +626,7 @@ struct ClubDetailView: View {
 
             Section {
                 if teams.isEmpty {
-                    Text("No teams yet. A club can run without them — teams are for a 1st XI and a 2nd XI keeping separate squads.")
+                    Text(t("cl.no_teams_yet_explainer"))
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                 } else {
@@ -655,21 +655,21 @@ struct ClubDetailView: View {
                         Label(t("cl.your_public_page"), systemImage: "globe")
                     }
                 } else {
-                    Label("The secretary sets up the club's public page.", systemImage: "globe")
+                    Label(t("cl.secretary_sets_up_public_page"), systemImage: "globe")
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                 }
             } header: {
                 Text(t("cl.public_page"))
             } footer: {
-                Text("A page anyone can open — no login: your record, top players and next fixtures.")
+                Text(t("cl.public_page_blurb"))
             }
 
             EntryInvitationsSection(invitations: entryInvitations) { await load() }
 
             Section {
                 if blocks.isEmpty {
-                    Text("No tournaments or tours yet")
+                    Text(t("cl.no_tournaments_yet"))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(blocks) { block in
@@ -687,12 +687,12 @@ struct ClubDetailView: View {
                         }
                     }
                 }
-                Button("New tournament or tour") { isCreatingTournament = true }
+                Button(t("cl.new_tournament_or_tour")) { isCreatingTournament = true }
                     .font(.subheadline)
             } header: {
-                Text("Tournaments & tours")
+                Text(t("cl.tournaments_and_tours"))
             } footer: {
-                Text("A tournament carries its own entrants, pitches and table; a tour carries the travel details.")
+                Text(t("cl.tournament_vs_tour"))
             }
 
             Section("Fixtures & nets") {
@@ -746,7 +746,7 @@ struct ClubDetailView: View {
             AddGroundSheet(clubId: club.id) { Task { await load() } }
         }
         .alert("New tournament or tour", isPresented: $isCreatingTournament) {
-            TextField("e.g. Lords T20 Festival", text: $newTournamentName)
+            TextField(t("cl.tournament_name_example"), text: $newTournamentName)
             Button(t("cl.create")) {
                 let name = newTournamentName
                 newTournamentName = ""
@@ -763,12 +763,12 @@ struct ClubDetailView: View {
                     NavigationLink {
                         ClubQRView(club: club)
                     } label: {
-                        Label("QR code", systemImage: "qrcode")
+                        Label(t("cl.qr_code"), systemImage: "qrcode")
                     }
                     NavigationLink {
                         ClubAdminView(club: club, role: role)
                     } label: {
-                        Label("Manage club", systemImage: "person.2.badge.gearshape")
+                        Label(t("cl.manage_club"), systemImage: "person.2.badge.gearshape")
                     }
                     if isSecretary {
                         if setupHidden && setup.contains(where: { !$0.done }) {
@@ -776,10 +776,10 @@ struct ClubDetailView: View {
                                 setupHidden = false
                                 UserDefaults.standard.set(false, forKey: setupKey)
                             } label: {
-                                Label("Show club setup", systemImage: "sparkles")
+                                Label(t("cl.show_club_setup"), systemImage: "sparkles")
                             }
                         }
-                        Button("Add sample fixtures") {
+                        Button(t("cl.add_sample_fixtures")) {
                             Task { await seedSampleFixtures() }
                         }
                     }

@@ -306,7 +306,7 @@ struct WagonWheelChart: View {
             .aspectRatio(1, contentMode: .fit)
 
             if shots.isEmpty {
-                Text("No shots recorded yet.")
+                Text(t("sc.no_shots_recorded_yet"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

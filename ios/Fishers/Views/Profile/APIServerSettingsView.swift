@@ -39,20 +39,20 @@ struct APIServerSettingsView: View {
         Form {
             if AppConfig.environmentPinsAPI {
                 Section {
-                    Text("This launch is pinned by FISHERS_API_URL in the environment. Saving below stores a preference, but it will not apply until that env var is cleared.")
+                    Text(t("rest.launch_pinned_by_env"))
                         .font(.footnote)
                         .foregroundStyle(FishersTheme.maybe)
                 }
             }
 
             Section {
-                TextField("https://… or http://192.168.…", text: $draft)
+                TextField(t("rest.url_placeholder"), text: $draft)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
                     .textContentType(.URL)
             } header: {
-                Text("API base URL")
+                Text(t("rest.api_base_url"))
             } footer: {
                 Text("In use now: \(resolved). Open live screens again after changing — an open score stream keeps its old host until you leave it.")
             }
@@ -80,14 +80,14 @@ struct APIServerSettingsView: View {
             Section {
                 Button(t("lc.save")) { save() }
                     .fontWeight(.semibold)
-                Button("Reset to default") { reset() }
+                Button(t("rest.reset_to_default")) { reset() }
                 if AppConfig.storedAPIOverride != nil {
                     LabeledContent("Saved override", value: AppConfig.storedAPIOverride ?? "")
                         .font(.footnote)
                 }
             }
         }
-        .navigationTitle("API server")
+        .navigationTitle(t("rest.api_server"))
         .navigationBarTitleDisplayMode(.inline)
         .tint(FishersTheme.accent)
         .onAppear { refreshResolved() }

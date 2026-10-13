@@ -103,7 +103,7 @@ struct CricketScorecardView: View {
             if let innings = selectedInnings {
                 Section {
                     Picker("Batter", selection: $wheelBatter) {
-                        Text("Whole innings").tag(UUID?.none)
+                        Text(t("sc.whole_innings")).tag(UUID?.none)
                         ForEach(innings.batters.filter(\.hasBatted)) { batter in
                             Text(state.name(for: batter.playerId)).tag(UUID?.some(batter.playerId))
                         }
@@ -113,7 +113,7 @@ struct CricketScorecardView: View {
                     WagonWheelChart(state: state, innings: innings, batterId: wheelBatter)
                         .padding(.vertical, 8)
                 } footer: {
-                    Text("Shots the scorer plotted. Boundaries reach the rope.")
+                    Text(t("sc.shots_the_scorer_plotted"))
                 }
                 if let batter = wheelBatter,
                    let stats = innings.batters.first(where: { $0.playerId == batter }) {
@@ -124,7 +124,7 @@ struct CricketScorecardView: View {
                     }
                 }
             } else {
-                Text("No innings yet.").foregroundStyle(.secondary)
+                Text(t("sc.no_innings_yet")).foregroundStyle(.secondary)
             }
         }
         .listStyle(.insetGrouped)
@@ -170,7 +170,7 @@ struct CricketScorecardView: View {
                     }
                 }
             } else {
-                Text("Nothing bowled yet.").foregroundStyle(.secondary)
+                Text(t("sc.nothing_bowled_yet")).foregroundStyle(.secondary)
             }
         }
         .listStyle(.plain)
@@ -203,7 +203,7 @@ struct CricketScorecardView: View {
                         value: String(format: "%.1f%% of %.1f%%", dls.resourcesUsed, dls.resourcesSecond)
                     )
                 } header: {
-                    Text("Duckworth–Lewis–Stern")
+                    Text(t("sc.duckworth_lewis_stern"))
                 } footer: {
                     Text("\(dls.summary). \(dls.methodLabel).")
                 }
@@ -250,7 +250,7 @@ struct CricketScorecardView: View {
                 } header: {
                     Text(t("sc.player_of_the_match"))
                 } footer: {
-                    Text("Worked out from the card. The scorer can give it to someone else.")
+                    Text(t("sc.worked_out_from_the_card"))
                 }
             }
 
@@ -267,7 +267,7 @@ struct CricketScorecardView: View {
                 } header: {
                     Text(t("sc.fighter_of_the_match"))
                 } footer: {
-                    Text("The best game in the losing side — worked out from the card, not awarded by anyone.")
+                    Text(t("sc.best_in_losing_side"))
                 }
             }
 
@@ -286,7 +286,7 @@ struct CricketScorecardView: View {
 
             if state.innings.isEmpty {
                 Section {
-                    Text("No scoring yet.")
+                    Text(t("sc.no_scoring_yet"))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -520,7 +520,7 @@ struct CricketScorecardView: View {
             }
             if innings.partnershipBalls > 0 && !innings.complete {
                 HStack {
-                    Text("Unbroken")
+                    Text(t("sc.unbroken"))
                         .font(.caption.weight(.bold))
                         .frame(width: 56, alignment: .leading)
                     Spacer()

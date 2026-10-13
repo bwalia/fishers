@@ -102,8 +102,8 @@ struct WorldScoresView: View {
             Image(systemName: "sportscourt")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
-            Text("World scores aren't switched on here.").font(.headline)
-            Text("They run only where a score feed is configured.")
+            Text(t("sr.world_scores_not_on")).font(.headline)
+            Text(t("rest.only_where_feed_configured"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -277,7 +277,7 @@ struct WorldScoresSection: View {
                     NavigationLink {
                         WorldScoresView()
                     } label: {
-                        Text("All cricket scores").font(.subheadline.weight(.medium))
+                        Text(t("rest.all_cricket_scores")).font(.subheadline.weight(.medium))
                     }
                 } header: {
                     Text(t("sr.around_the_world"))

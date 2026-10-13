@@ -45,7 +45,7 @@ struct EntryInvitationsSection: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
 
-                            Button("Decline") {
+                            Button(t("ev.decline")) {
                                 Task { await answer(invitation, .declined) }
                             }
                             .buttonStyle(.bordered)

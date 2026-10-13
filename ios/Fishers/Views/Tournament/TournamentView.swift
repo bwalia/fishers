@@ -48,16 +48,16 @@ struct TournamentView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { isAddingEntrants = true } label: {
-                        Label("Add entrants", systemImage: "person.badge.plus")
+                        Label(t("tn.add_entrants"), systemImage: "person.badge.plus")
                     }
                     Button { isSettingUp = true } label: {
-                        Label("Generate fixtures", systemImage: "square.grid.3x3.fill")
+                        Label(t("tn.generate_fixtures"), systemImage: "square.grid.3x3.fill")
                     }
                     if !store.standings.isEmpty {
                         Button {
                             Task { await store.buildKnockout(perGroup: 2) }
                         } label: {
-                            Label("Draw the knockout", systemImage: "trophy.fill")
+                            Label(t("tn.draw_the_knockout"), systemImage: "trophy.fill")
                         }
                     }
                 } label: {
@@ -88,7 +88,7 @@ struct TournamentView: View {
             ContentUnavailableView(
                 "No fixtures yet",
                 systemImage: "square.grid.3x3",
-                description: Text("Add the entrants, then generate the fixtures.")
+                description: Text(t("tn.add_entrants_then_generate"))
             )
         }
         ForEach(store.scheduleByDay, id: \.day) { day in
@@ -114,7 +114,7 @@ struct TournamentView: View {
                                         Text("Group \(group)")
                                     }
                                     if row.stage == "knockout" {
-                                        Text("Knockout")
+                                        Text(t("tn.knockout"))
                                     }
                                     if let round = row.round, row.stage == "group" {
                                         Text("R\(round)")
@@ -145,7 +145,7 @@ struct TournamentView: View {
             ContentUnavailableView(
                 "No results yet",
                 systemImage: "list.number",
-                description: Text("The table fills in as results are recorded.")
+                description: Text(t("tn.table_fills_as_results"))
             )
         }
         ForEach(store.groups, id: \.self) { group in
@@ -346,25 +346,25 @@ private struct SetUpSheet: View {
                     }
                 }
                 Section {
-                    TextField("Pitches or courts, comma separated", text: $courts)
+                    TextField(t("tn.pitches_comma_separated"), text: $courts)
                     DatePicker("First match", selection: $firstStart)
                     Stepper("Match length: \(matchMinutes) min", value: $matchMinutes, in: 20...480, step: 10)
                     Stepper("Gap between: \(gapMinutes) min", value: $gapMinutes, in: 0...120, step: 5)
                     Stepper("Rounds per pitch: \(rounds)", value: $rounds, in: 1...20)
                 } header: {
-                    Text("The grid")
+                    Text(t("tn.the_grid"))
                 } footer: {
                     Text("\(courtList.count * rounds) slots for \(entrantCount) entrants. Anything that doesn't fit is reported rather than dropped.")
                 }
             }
-            .navigationTitle("Generate fixtures")
+            .navigationTitle(t("tn.generate_fixtures"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(t("sc.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Generate") {
+                    Button(t("tn.generate")) {
                         let courts = courtList
                         dismiss()
                         Task {
@@ -398,13 +398,13 @@ private struct AddEntrantsSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("One club per line, strongest first", text: $text, axis: .vertical)
+                    TextField(t("tn.one_club_per_line"), text: $text, axis: .vertical)
                         .lineLimit(6...14)
                 } footer: {
-                    Text("Visiting clubs don't need an account here — a name is enough. Order sets the seeding.")
+                    Text(t("tn.visiting_clubs_no_account"))
                 }
             }
-            .navigationTitle("Add entrants")
+            .navigationTitle(t("tn.add_entrants"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

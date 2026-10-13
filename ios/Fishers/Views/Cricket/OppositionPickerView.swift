@@ -20,7 +20,7 @@ struct OppositionPickerView: View {
                     Button {
                         isScanning = true
                     } label: {
-                        Label("Scan their QR code", systemImage: "qrcode.viewfinder")
+                        Label(t("sc.scan_their_qr_code"), systemImage: "qrcode.viewfinder")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
@@ -29,7 +29,7 @@ struct OppositionPickerView: View {
                     .tint(FishersTheme.accent)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 } footer: {
-                    Text("Every club and team has one. Theirs is under Clubs → their club → QR code.")
+                    Text(t("sc.qr_under_clubs"))
                 }
 
                 Section("Search by name") {
@@ -62,7 +62,7 @@ struct OppositionPickerView: View {
                         .buttonStyle(.plain)
                     }
                     if !query.isEmpty && results.isEmpty && !isSearching {
-                        Text("Nothing found. Type their name below instead.")
+                        Text(t("sc.nothing_found_type_name"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -70,9 +70,9 @@ struct OppositionPickerView: View {
 
                 Section {
                     HStack {
-                        TextField("Opposition name", text: $typedName)
+                        TextField(t("sc.opposition_name"), text: $typedName)
                             .textInputAutocapitalization(.words)
-                        Button("Use") {
+                        Button(t("sc.use")) {
                             let name = typedName.trimmingCharacters(in: .whitespaces)
                             guard !name.isEmpty else { return }
                             onPick(name, nil)
@@ -81,7 +81,7 @@ struct OppositionPickerView: View {
                         .disabled(typedName.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 } header: {
-                    Text("Or just type it")
+                    Text(t("sc.or_just_type_it"))
                 } footer: {
                     Text("A scratch side that isn't on \(Brand.name) is only a name — that is fine.")
                 }
@@ -91,7 +91,7 @@ struct OppositionPickerView: View {
                 }
             }
             .fishersList()
-            .navigationTitle("Opposition")
+            .navigationTitle(t("sc.opposition"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -112,7 +112,7 @@ struct OppositionPickerView: View {
                         }
                     )
                     .ignoresSafeArea()
-                    .navigationTitle("Point at their code")
+                    .navigationTitle(t("sc.point_at_their_code"))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {

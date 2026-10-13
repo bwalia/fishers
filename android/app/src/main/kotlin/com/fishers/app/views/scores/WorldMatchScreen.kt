@@ -395,8 +395,7 @@ private fun InningsCard(innings: Innings, title: String) {
 @Composable
 private fun BatHead() {
     Row {
-        Text(
-            "BATTER",
+        Text(t("sc.batter_caps"),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),

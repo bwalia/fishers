@@ -92,7 +92,7 @@ struct NotificationsView: View {
         .onChange(of: kind) { _, _ in Task { await reload() } }
         .onChange(of: unreadOnly) { _, _ in Task { await reload() } }
         .alert("Something went wrong", isPresented: .constant(message != nil)) {
-            Button("OK") { message = nil }
+            Button(t("rest.ok")) { message = nil }
         } message: {
             Text(message ?? "")
         }

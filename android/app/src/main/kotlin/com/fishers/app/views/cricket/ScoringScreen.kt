@@ -83,10 +83,9 @@ fun ScoringScreen(
                 }
             }
 
-            TextButton(onClick = onUndo) { Text("Undo the last ball") }
+            TextButton(onClick = onUndo) { Text(t("sc.undo_the_last_ball")) }
         } else if (state.match?.canScore == false) {
-            Text(
-                "Somebody else has the book.",
+            Text(t("sc.somebody_else_has_the_book"),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),

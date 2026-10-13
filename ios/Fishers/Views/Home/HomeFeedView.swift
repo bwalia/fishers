@@ -55,7 +55,7 @@ struct HomeFeedView: View {
                     } header: {
                         Text("How will you use \(Brand.name)?")
                     } footer: {
-                        Text("We'll show you exactly what to do next. You can switch later.")
+                        Text(t("rest.well_show_you_what_next"))
                     }
                 }
 
@@ -153,7 +153,7 @@ struct HomeFeedView: View {
                             .tracking(0.8)
                     } footer: {
                         if upcoming.isEmpty {
-                            Text("Nothing in the diary yet.")
+                            Text(t("ev.nothing_in_the_diary_yet"))
                                 .font(FishersTheme.footnote)
                         }
                     }

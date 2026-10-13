@@ -35,10 +35,18 @@ const { en } = await import(join(repoRoot, "web", "src", "lib", "i18n", "en.ts")
  * general one ("nav.home" over "onb.step.home_tab"), and a general key is the
  * safer thing to reach for from a screen this script cannot see.
  */
+/**
+ * Apostrophes and quotes are typographic in the dictionary and straight in the
+ * Swift. Matching on the normalised form means "You're in." finds the key whose
+ * value is "You’re in." — and the app then shows the typographic one, which is
+ * what the website has always shown. Same product, same punctuation.
+ */
+const plain = (s) => s.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+
 const keyFor = new Map();
 for (const key of Object.keys(en).sort((a, b) => a.length - b.length || a.localeCompare(b))) {
   const text = en[key];
-  if (typeof text === "string" && !keyFor.has(text)) keyFor.set(text, key);
+  if (typeof text === "string" && !keyFor.has(plain(text))) keyFor.set(plain(text), key);
 }
 
 const files = execSync(`find "${appDir}" -name '*.swift'`, { encoding: "utf8" })
@@ -61,7 +69,7 @@ for (const file of files) {
     // would have to think about.
     const pattern = new RegExp(String.raw`\b${call}\(\s*"([^"\\]{2,})"`, "g");
     after = after.replace(pattern, (whole, text) => {
-      const key = keyFor.get(text);
+      const key = keyFor.get(plain(text));
       if (!key) {
         if (!skipped.has(text)) skipped.set(text, 0);
         skipped.set(text, skipped.get(text) + 1);
