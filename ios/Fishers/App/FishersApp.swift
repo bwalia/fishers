@@ -14,6 +14,9 @@ struct FishersApp: App {
 
     @StateObject private var session = SessionStore()
     @StateObject private var clubContext = ClubContextStore()
+    /// The reader's language. Owned here so changing it redraws the whole app
+    /// at once, the way the web's provider does.
+    @StateObject private var language = LanguageStore()
 
     private let cricketContainer: ModelContainer = {
         let schema = Schema([LocalCricketMatch.self, LocalScoringEvent.self])
@@ -38,6 +41,7 @@ struct FishersApp: App {
             RootView()
                 .environmentObject(session)
                 .environmentObject(clubContext)
+                .environmentObject(language)
                 .modelContainer(cricketContainer)
                 .tint(FishersTheme.accent)
                 .task {

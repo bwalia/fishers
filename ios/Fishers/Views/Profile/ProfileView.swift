@@ -8,6 +8,7 @@ import SwiftUI
 /// told us about themselves.
 struct ProfileView: View {
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var language: LanguageStore
     @State private var tab: Tab = .overview
     @State private var isEditing = false
     @State private var confirmSignOut = false
@@ -190,6 +191,17 @@ struct ProfileView: View {
                 ForEach(RoleIntent.allCases) { Text($0.title).tag(Optional($0)) }
             } label: {
                 Label("Getting-started guide", systemImage: "sparkles")
+            }
+            // In its own script and never translated — a picker offering
+            // "Punjabi" in English is no use to the person who needs it. The
+            // same reasoning, and the same list, as the web's.
+            Picker(selection: Binding(
+                get: { language.language },
+                set: { language.set($0) }
+            )) {
+                ForEach(Language.allCases) { Text($0.native).tag($0) }
+            } label: {
+                Label(language.t("lang.label"), systemImage: "globe")
             }
             NavigationLink {
                 APIServerSettingsView()
