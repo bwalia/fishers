@@ -54,7 +54,7 @@ struct CricketScorecardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker(tr("View"), selection: $tab) {
+            Picker(tr(tr("View")), selection: $tab) {
                 ForEach(Tab.allCases) { Text(tr($0.rawValue)).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -86,7 +86,7 @@ struct CricketScorecardView: View {
     @ViewBuilder
     private var inningsPicker: some View {
         if state.innings.count > 1 {
-            Picker(tr("Innings"), selection: $inningsIndex) {
+            Picker(tr(tr("Innings")), selection: $inningsIndex) {
                 ForEach(Array(state.innings.enumerated()), id: \.offset) { index, inn in
                     Text(state.name(for: inn.batting)).tag(index)
                 }
@@ -102,8 +102,8 @@ struct CricketScorecardView: View {
             }
             if let innings = selectedInnings {
                 Section {
-                    Picker(tr("Batter"), selection: $wheelBatter) {
-                        Text(t("sc.whole_innings")).tag(UUID?.none)
+                    Picker(tr(tr("Batter")), selection: $wheelBatter) {
+                        Text(t(tr("sc.whole_innings"))).tag(UUID?.none)
                         ForEach(innings.batters.filter(\.hasBatted)) { batter in
                             Text(state.name(for: batter.playerId)).tag(UUID?.some(batter.playerId))
                         }
@@ -113,18 +113,18 @@ struct CricketScorecardView: View {
                     WagonWheelChart(state: state, innings: innings, batterId: wheelBatter)
                         .padding(.vertical, 8)
                 } footer: {
-                    Text(t("sc.shots_the_scorer_plotted"))
+                    Text(t(tr("sc.shots_the_scorer_plotted")))
                 }
                 if let batter = wheelBatter,
                    let stats = innings.batters.first(where: { $0.playerId == batter }) {
                     Section("\(state.name(for: batter))") {
                         LabeledContent("Runs", value: "\(stats.runs) (\(stats.balls))")
                         LabeledContent("Boundaries", value: "\(stats.fours)x4, \(stats.sixes)x6")
-                        LabeledContent("Strike rate", value: String(format: "%.1f", stats.strikeRate))
+                        LabeledContent(tr("Strike rate"), value: String(format: "%.1f", stats.strikeRate))
                     }
                 }
             } else {
-                Text(t("sc.no_innings_yet")).foregroundStyle(.secondary)
+                Text(t(tr("sc.no_innings_yet"))).foregroundStyle(.secondary)
             }
         }
         .listStyle(.insetGrouped)
@@ -170,7 +170,7 @@ struct CricketScorecardView: View {
                     }
                 }
             } else {
-                Text(t("sc.nothing_bowled_yet")).foregroundStyle(.secondary)
+                Text(t(tr("sc.nothing_bowled_yet"))).foregroundStyle(.secondary)
             }
         }
         .listStyle(.plain)
@@ -199,17 +199,17 @@ struct CricketScorecardView: View {
                     LabeledContent("Par now", value: "\(dls.par)")
                     LabeledContent("Target", value: "\(dls.target)")
                     LabeledContent(
-                        "Resources used",
-                        value: String(format: "%.1f%% of %.1f%%", dls.resourcesUsed, dls.resourcesSecond)
+                        tr("Resources used"),
+                        value: String(format: tr("%.1f%% of %.1f%%"), dls.resourcesUsed, dls.resourcesSecond)
                     )
                 } header: {
-                    Text(t("sc.duckworth_lewis_stern"))
+                    Text(t(tr("sc.duckworth_lewis_stern")))
                 } footer: {
                     Text("\(dls.summary). \(dls.methodLabel).")
                 }
             }
 
-            Section(tr("Conditions")) {
+            Section(tr(tr("Conditions"))) {
                 Text(state.conditions.summary)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -234,7 +234,7 @@ struct CricketScorecardView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(FishersTheme.maybe)
                 } header: {
-                    Text(t("sc.player_of_the_match"))
+                    Text(t(tr("sc.player_of_the_match")))
                 }
             } else if let top = state.impact.first {
                 Section {
@@ -248,9 +248,9 @@ struct CricketScorecardView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text(t("sc.player_of_the_match"))
+                    Text(t(tr("sc.player_of_the_match")))
                 } footer: {
-                    Text(t("sc.worked_out_from_the_card"))
+                    Text(t(tr("sc.worked_out_from_the_card")))
                 }
             }
 
@@ -265,9 +265,9 @@ struct CricketScorecardView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text(t("sc.fighter_of_the_match"))
+                    Text(t(tr("sc.fighter_of_the_match")))
                 } footer: {
-                    Text(t("sc.best_in_losing_side"))
+                    Text(t(tr("sc.best_in_losing_side")))
                 }
             }
 
@@ -286,7 +286,7 @@ struct CricketScorecardView: View {
 
             if state.innings.isEmpty {
                 Section {
-                    Text(t("sc.no_scoring_yet"))
+                    Text(t(tr("sc.no_scoring_yet")))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -350,7 +350,7 @@ struct CricketScorecardView: View {
             compare("Best stand", "\(home.bestPartnership)", "\(away.bestPartnership)")
             compare("Extras", "\(home.extras)", "\(away.extras)")
         } header: {
-            Text(t("sc.how_the_game_went"))
+            Text(t(tr("sc.how_the_game_went")))
         }
     }
 
@@ -389,8 +389,8 @@ struct CricketScorecardView: View {
                 Group {
                     Text("R").frame(width: 30, alignment: .trailing)
                     Text("B").frame(width: 30, alignment: .trailing)
-                    Text(t("sh.col_fours")).frame(width: 26, alignment: .trailing)
-                    Text(t("sh.col_sixes")).frame(width: 26, alignment: .trailing)
+                    Text(t(tr("sh.col_fours"))).frame(width: 26, alignment: .trailing)
+                    Text(t(tr("sh.col_sixes"))).frame(width: 26, alignment: .trailing)
                     Text(t("cl.sr")).frame(width: 46, alignment: .trailing)
                 }
             }
@@ -439,7 +439,7 @@ struct CricketScorecardView: View {
                     Text("\(batter.balls)").frame(width: 30, alignment: .trailing)
                     Text("\(batter.fours)").frame(width: 26, alignment: .trailing)
                     Text("\(batter.sixes)").frame(width: 26, alignment: .trailing)
-                    Text(batter.balls == 0 ? "—" : String(format: "%.1f", batter.strikeRate))
+                    Text(batter.balls == 0 ? "—tr(" : String(format: ")%.1f", batter.strikeRate))
                         .frame(width: 46, alignment: .trailing)
                 }
                 .font(.caption.monospacedDigit())
@@ -500,7 +500,7 @@ struct CricketScorecardView: View {
     // MARK: Fall of wickets and partnerships
 
     private func fallSection(_ innings: InningsState) -> some View {
-        Section(tr("Fall of wickets")) {
+        Section(tr(tr("Fall of wickets"))) {
             ForEach(Array(innings.fall.enumerated()), id: \.offset) { index, fall in
                 HStack {
                     Text("\(index + 1)-\(fall.score)")
@@ -567,7 +567,7 @@ struct CricketScorecardView: View {
                         Text("\(bowler.maidens)").frame(width: 24, alignment: .trailing)
                         Text("\(bowler.runs)").frame(width: 30, alignment: .trailing)
                         Text("\(bowler.wickets)").frame(width: 24, alignment: .trailing).bold()
-                        Text(bowler.balls == 0 ? "—" : String(format: "%.2f", bowler.economy))
+                        Text(bowler.balls == 0 ? "—tr(" : String(format: ")%.2f", bowler.economy))
                             .frame(width: 44, alignment: .trailing)
                     }
                     .font(.caption.monospacedDigit())
@@ -613,7 +613,7 @@ struct CricketScoreSummary: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(FishersTheme.accent)
             } else if state.innings.isEmpty {
-                Text(t("sr.not_started"))
+                Text(t(tr("sr.not_started")))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

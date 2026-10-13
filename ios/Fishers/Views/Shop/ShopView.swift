@@ -20,10 +20,10 @@ struct ShopView: View {
     var body: some View {
         List {
             Section {
-                Picker(tr("Condition"), selection: $condition) {
+                Picker(tr(tr("Condition")), selection: $condition) {
                     Text(t("rest.everything")).tag(String?.none)
-                    Text(t("lc.second_hand")).tag(String?.some("used"))
-                    Text(t("lc.brand_new")).tag(String?.some("new"))
+                    Text(t(tr("lc.second_hand"))).tag(String?.some("used"))
+                    Text(t(tr("lc.brand_new"))).tag(String?.some("new"))
                 }
                 .pickerStyle(.segmented)
                 .listRowSeparator(.hidden)
@@ -48,7 +48,7 @@ struct ShopView: View {
         .listStyle(.insetGrouped)
         .fishersList()
         .searchable(text: $search, prompt: tr("Bats, pads, a club shirt"))
-        .navigationTitle(t("sh.kit_for_sale"))
+        .navigationTitle(t(tr("sh.kit_for_sale")))
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
@@ -70,12 +70,12 @@ struct ShopView: View {
             Image(systemName: "bag")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
-            Text(search.isEmpty ? "Nothing is for sale yet." : "Nothing matched that.")
+            Text(search.isEmpty ? tr("Nothing is for sale yet.") : tr("Nothing matched that."))
                 .font(.headline)
             Text(
                 search.isEmpty
-                    ? "When a club lists a bat or a spare set of pads, it turns up here."
-                    : "Try a shorter search, or look through everything."
+                    ? tr("When a club lists a bat or a spare set of pads, it turns up here.")
+                    : tr("Try a shorter search, or look through everything.")
             )
             .font(.footnote)
             .foregroundStyle(.secondary)

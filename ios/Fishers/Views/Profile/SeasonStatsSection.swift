@@ -13,7 +13,7 @@ struct SeasonStatsSection: View {
             if isLoading && meStats == nil {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text(t("rest.loading_season_stats"))
+                    Text(t(tr("rest.loading_season_stats")))
                         .foregroundStyle(.secondary)
                 }
             } else if let season = meStats?.seasons.first {
@@ -23,12 +23,12 @@ struct SeasonStatsSection: View {
                     Text(errorMessage)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Button(t("rest.try_again")) {
+                    Button(t(tr("rest.try_again"))) {
                         Task { await load() }
                     }
                 }
             } else {
-                Text(t("rest.no_season_stats_yet"))
+                Text(t(tr("rest.no_season_stats_yet")))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -63,15 +63,15 @@ struct SeasonStatsSection: View {
                 ForEach(meStats.links.filter { $0.profileURL != nil }) { link in
                     if let url = link.profileURL {
                         Link(destination: url) {
-                            Label(link.displayName ?? "Play-Cricket profile", systemImage: "sportscourt")
+                            Label(link.displayName ?? tr("Play-Cricket profile"), systemImage: "sportscourt")
                         }
                     }
                 }
             }
         } header: {
-            Text(t("cl.season_stats"))
+            Text(t(tr("cl.season_stats")))
         } footer: {
-            Text(t("rest.play_cricket_season_board"))
+            Text(t(tr("rest.play_cricket_season_board")))
         }
         .task { await load() }
     }
@@ -88,21 +88,21 @@ struct SeasonStatsSection: View {
         .accessibilityLabel("Season \(season.seasonYear): \(season.runs) runs, \(season.wickets) wickets, \(season.matches) matches")
 
         if let avg = season.battingAverage {
-            LabeledContent("Batting avg", value: String(format: "%.1f", avg))
+            LabeledContent(tr("Batting avg"), value: String(format: "%.1f", avg))
         }
         if let bowl = season.bowlingAverage {
-            LabeledContent("Bowling avg", value: String(format: "%.1f", bowl))
+            LabeledContent(tr("Bowling avg"), value: String(format: "%.1f", bowl))
         }
         if let highScore = season.highScore {
             LabeledContent("High score", value: "\(highScore)")
         }
         if let clubName = season.clubName {
-            LabeledContent("Club", value: clubName)
+            LabeledContent(tr("Club"), value: clubName)
         }
         LabeledContent("Season", value: "\(season.seasonYear)")
         if let url = season.playCricketURL {
             Link(destination: url) {
-                Label(t("rest.view_on_play_cricket"), systemImage: "arrow.up.right.square")
+                Label(t(tr("rest.view_on_play_cricket")), systemImage: "arrow.up.right.square")
             }
         }
     }

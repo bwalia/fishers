@@ -40,7 +40,7 @@ struct UmpiringView: View {
             }
 
             if isMine {
-                Toggle(t("sr.i_umpire"), isOn: Binding(
+                Toggle(t(tr("sr.i_umpire")), isOn: Binding(
                     get: { p.umpires },
                     set: { on in Task { await save(umpires: on) } }
                 ))
@@ -48,7 +48,7 @@ struct UmpiringView: View {
 
                 if p.umpires {
                     if editingNote {
-                        TextField(t("sr.level_1_ecb_club_matches_only"), text: $note)
+                        TextField(t(tr("sr.level_1_ecb_club_matches_only")), text: $note)
                             .textInputAutocapitalization(.sentences)
                         HStack {
                             Button(t("lc.save")) {
@@ -59,14 +59,14 @@ struct UmpiringView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        Button(p.note == nil ? "Add a note for captains" : "Edit note") {
+                        Button(p.note == nil ? tr("Add a note for captains") : tr("Edit note")) {
                             note = p.note ?? ""
                             editingNote = true
                         }
                     }
                 }
             } else if p.umpires {
-                Label(t("sr.will_stand"), systemImage: "checkmark.seal")
+                Label(t(tr("sr.will_stand")), systemImage: "checkmark.seal")
                     .foregroundStyle(FishersTheme.available)
             }
 
@@ -78,13 +78,13 @@ struct UmpiringView: View {
         } footer: {
             if p.matches == 0 && p.reviews.isEmpty {
                 Text(isMine
-                     ? "Ask your captain to name you as umpire and it starts counting."
+                     ? tr("Ask your captain to name you as umpire and it starts counting.")
                      : "\(name ?? "They") have not umpired a match here yet.")
             }
         }
 
         if p.ratingCount > 0 {
-            Section(tr("How the ratings fall")) {
+            Section(tr(tr("How the ratings fall"))) {
                 ForEach((1...5).reversed(), id: \.self) { n in
                     HStack {
                         Text("\(n)").monospacedDigit().frame(width: 16, alignment: .trailing)
@@ -104,7 +104,7 @@ struct UmpiringView: View {
         }
 
         if !p.reviews.isEmpty {
-            Section(tr("What the players said")) {
+            Section(tr(tr("What the players said"))) {
                 ForEach(p.reviews) { review in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 8) {

@@ -38,7 +38,7 @@ struct ShareProfileView: View {
                         copied = true
                         shared()
                     } label: {
-                        Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        Label(copied ? tr("Copied") : tr("Copy"), systemImage: copied ? tr("checkmark") : "doc.on.doc")
                             .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
                     .buttonStyle(.bordered)
@@ -53,7 +53,7 @@ struct ShareProfileView: View {
 
                 if let whatsapp = whatsAppURL(link) {
                     Link(destination: whatsapp) {
-                        Label(t("fin.send_on_whatsapp"), systemImage: "message")
+                        Label(t(tr("fin.send_on_whatsapp")), systemImage: "message")
                             .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
                     .buttonStyle(.bordered)
@@ -64,7 +64,7 @@ struct ShareProfileView: View {
                     Task { await getLink() }
                 } label: {
                     Group {
-                        if busy { ProgressView() } else { Label(t("le.get_my_profile_link"), systemImage: "link") }
+                        if busy { ProgressView() } else { Label(t(tr("le.get_my_profile_link")), systemImage: "link") }
                     }
                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                 }

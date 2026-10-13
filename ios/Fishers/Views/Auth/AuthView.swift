@@ -56,21 +56,21 @@ struct AuthView: View {
                         .padding(.top, FishersTheme.space3)
 
                     VStack(alignment: .leading, spacing: FishersTheme.space2) {
-                        Text(mode == .login ? "Welcome back" : "Join your club")
+                        Text(mode == .login ? tr("Welcome back") : tr("Join your club"))
                             .font(FishersTheme.title)
                             .tracking(-0.3)
                             .foregroundStyle(.primary)
 
                         Text(mode == .login
-                             ? "Sign in to see fixtures, chats and selection."
-                             : "Create an account — you can be in a match within a minute.")
+                             ? tr("Sign in to see fixtures, chats and selection.")
+                             : tr("Create an account — you can be in a match within a minute."))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
 
                         if mode == .signup {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(t("rest.im_here_to"))
+                                Text(t(tr("rest.im_here_to")))
                                     .font(FishersTheme.subhead.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                 RoleChooserView(selection: $role, compact: true)
@@ -84,7 +84,7 @@ struct AuthView: View {
                                 field("Name", text: $name, field: .name)
                                     .textContentType(.name)
 
-                                Picker(tr("Register with"), selection: $method) {
+                                Picker(tr(tr("Register with")), selection: $method) {
                                     ForEach(Method.allCases) { Text($0.label).tag($0) }
                                 }
                                 .pickerStyle(.segmented)
@@ -111,8 +111,8 @@ struct AuthView: View {
                             }
                             if mode == .signup, !trimmedIdentifier.isEmpty, !identifierLooksRight {
                                 Text(method == .email
-                                     ? "That does not look like an email address."
-                                     : "That does not look like a mobile number.")
+                                     ? tr("That does not look like an email address.")
+                                     : tr("That does not look like a mobile number."))
                                     .font(FishersTheme.footnote)
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -134,7 +134,7 @@ struct AuthView: View {
                                 if session.isLoading {
                                     ProgressView()
                                 } else {
-                                    Text(mode == .login ? "Sign in" : "Create account")
+                                    Text(mode == .login ? tr("Sign in") : tr("Create account"))
                                         .font(FishersTheme.headline)
                                 }
                             }
@@ -145,7 +145,7 @@ struct AuthView: View {
                         .controlSize(.large)
                         .disabled(session.isLoading || !canSubmit)
 
-                        Button(mode == .login ? "Need an account? Sign up" : "Have an account? Sign in") {
+                        Button(mode == .login ? tr("Need an account? Sign up") : tr("Have an account? Sign in")) {
                             withAnimation(.snappy) {
                                 mode = mode == .login ? .signup : .login
                             }
@@ -201,7 +201,7 @@ struct AuthView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "g.circle.fill")
                                 .font(.title3)
-                            Text(mode == .signup ? "Sign up with Google" : "Continue with Google")
+                            Text(mode == .signup ? tr("Sign up with Google") : tr("Continue with Google"))
                                 .font(FishersTheme.headline)
                         }
                         .frame(maxWidth: .infinity)
@@ -213,7 +213,7 @@ struct AuthView: View {
                 }
                 HStack {
                     Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)
-                    Text(t("rest.or_with_email"))
+                    Text(t(tr("rest.or_with_email")))
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                     Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)

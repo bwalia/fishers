@@ -20,7 +20,7 @@ struct OppositionPickerView: View {
                     Button {
                         isScanning = true
                     } label: {
-                        Label(t("sc.scan_their_qr_code"), systemImage: "qrcode.viewfinder")
+                        Label(t(tr("sc.scan_their_qr_code")), systemImage: "qrcode.viewfinder")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
@@ -29,12 +29,12 @@ struct OppositionPickerView: View {
                     .tint(FishersTheme.accent)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 } footer: {
-                    Text(t("sc.qr_under_clubs"))
+                    Text(t(tr("sc.qr_under_clubs")))
                 }
 
-                Section(tr("Search by name")) {
+                Section(tr(tr("Search by name"))) {
                     HStack {
-                        TextField(t("rest.club_or_team"), text: $query)
+                        TextField(t(tr("rest.club_or_team")), text: $query)
                             .autocorrectionDisabled()
                             .onSubmit { Task { await search() } }
                         if isSearching { ProgressView() }
@@ -62,7 +62,7 @@ struct OppositionPickerView: View {
                         .buttonStyle(.plain)
                     }
                     if !query.isEmpty && results.isEmpty && !isSearching {
-                        Text(t("sc.nothing_found_type_name"))
+                        Text(t(tr("sc.nothing_found_type_name")))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -70,7 +70,7 @@ struct OppositionPickerView: View {
 
                 Section {
                     HStack {
-                        TextField(t("sc.opposition_name"), text: $typedName)
+                        TextField(t(tr("sc.opposition_name")), text: $typedName)
                             .textInputAutocapitalization(.words)
                         Button(t("sc.use")) {
                             let name = typedName.trimmingCharacters(in: .whitespaces)
@@ -81,7 +81,7 @@ struct OppositionPickerView: View {
                         .disabled(typedName.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 } header: {
-                    Text(t("sc.or_just_type_it"))
+                    Text(t(tr("sc.or_just_type_it")))
                 } footer: {
                     Text("A scratch side that isn't on \(Brand.name) is only a name — that is fine.")
                 }
@@ -112,7 +112,7 @@ struct OppositionPickerView: View {
                         }
                     )
                     .ignoresSafeArea()
-                    .navigationTitle(t("sc.point_at_their_code"))
+                    .navigationTitle(t(tr("sc.point_at_their_code")))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {

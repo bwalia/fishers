@@ -83,6 +83,43 @@ final class StringsTests: XCTestCase {
         XCTAssertEqual(Language.fallback, .en)
     }
 
+    /// The other half of the story, and the one that was missing: a string
+    /// can be in the dictionary and still reach the screen in English, because
+    /// the place it is written was never wrapped. These are the exact lines
+    /// from the sign-in screen, which was reported as still English after it
+    /// had been called done.
+    func testTheSignInScreenComesBackInPunjabi() {
+        Strings.setCurrent(.pa)
+        defer { Strings.setCurrent(.en) }
+        for english in [
+            "Welcome back",
+            "Join your club",
+            "Sign in to see fixtures, chats and selection.",
+            "Need an account? Sign up",
+        ] {
+            let said = tr(english)
+            XCTAssertNotEqual(said, english, "\(english) is still English")
+            XCTAssertTrue(
+                said.unicodeScalars.contains { (0x0A00...0x0A7F).contains($0.value) },
+                "\(english) -> \(said), which is not Gurmukhi"
+            )
+        }
+    }
+
+    /// `tr` has to be safe to apply anywhere, which means three things.
+    func testTranslateByEnglishIsSafeToApplyAnywhere() {
+        Strings.setCurrent(.pa)
+        defer { Strings.setCurrent(.en) }
+        // Text it does not know comes back untouched, so a site can be wrapped
+        // before the words are written.
+        XCTAssertEqual(tr("Something nobody has translated yet"), "Something nobody has translated yet")
+        // It is idempotent: wrapping already-translated text does nothing.
+        let once = tr("Welcome back")
+        XCTAssertEqual(tr(once), once)
+        // And a stored value is never what is drawn.
+        XCTAssertNotEqual(tr("Welcome back"), "Welcome back")
+    }
+
     /// The real guard: every key the app asks for has to exist. Without this a
     /// typo is a screen that quietly renders `profile.lsat_match`.
     func testEveryKeyTheAppAsksForExists() throws {

@@ -50,7 +50,7 @@ struct ManOfTheMatchCard: View {
             Image(systemName: "star.circle.fill")
                 .foregroundStyle(FishersTheme.accent400)
             VStack(alignment: .leading, spacing: 1) {
-                Text(t("sr.man_of_the_match"))
+                Text(t(tr("sr.man_of_the_match")))
                     .font(.subheadline.weight(.semibold))
                 if let view = store.view {
                     Text(view.poll.title)
@@ -61,7 +61,7 @@ struct ManOfTheMatchCard: View {
             }
             Spacer()
             if let view = store.view {
-                Text(view.poll.isOpen ? closingLabel(view.poll.closesAt) : "Closed")
+                Text(view.poll.isOpen ? closingLabel(view.poll.closesAt) : tr("Closed"))
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
@@ -80,13 +80,13 @@ struct ManOfTheMatchCard: View {
     private func ballot(_ view: MotmPollView) -> some View {
         if view.canVote {
             Text(view.myVote == nil
-                 ? "Who was your man of the match? Tap a name — you can change it until voting closes."
-                 : "Your vote is in. Tap another name to change it, or the same one to take it back.")
+                 ? tr("Who was your man of the match? Tap a name — you can change it until voting closes.")
+                 : tr("Your vote is in. Tap another name to change it, or the same one to take it back."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
-            Text(t("le.only_the_two_clubs_who_played_can_vote"))
+            Text(t(tr("le.only_the_two_clubs_who_played_can_vote")))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -106,7 +106,7 @@ struct ManOfTheMatchCard: View {
             // get a 403, which the card shows as the sentence the API sent —
             // better than hiding the button behind this app's own guess at
             // who counts as a captain, which is the server's call to make.
-            Button(t("sc.close_the_vote")) {
+            Button(t(tr("sc.close_the_vote"))) {
                 Task { await store.close() }
             }
             .font(.caption2.weight(.semibold))
@@ -159,17 +159,17 @@ struct ManOfTheMatchCard: View {
             // Nobody is recorded as the winner when the vote ties: choosing
             // between two players who drew is a captain's call.
             VStack(alignment: .leading, spacing: 4) {
-                Label(t("sc.a_tie"), systemImage: "equal.circle.fill")
+                Label(t(tr("sc.a_tie")), systemImage: "equal.circle.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(FishersTheme.maybe)
                 Text(view.tiedAtTheTop.map(\.displayName).formatted(.list(type: .and))
-                     + " finished level. A captain picks.")
+                     + tr(" finished level. A captain picks."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         } else {
-            Text(t("sr.voting_closed_with_nobody_voted_for"))
+            Text(t(tr("sr.voting_closed_with_nobody_voted_for")))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

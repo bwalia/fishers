@@ -17,18 +17,18 @@ struct DeleteAccountView: View {
     var body: some View {
         Form {
             Section {
-                Text(t("rest.deleting_removes"))
-                Text(t("rest.scorecards_stay_unnamed"))
+                Text(t(tr("rest.deleting_removes")))
+                Text(t(tr("rest.scorecards_stay_unnamed")))
                     .foregroundStyle(.secondary)
             } header: {
-                Text(t("rest.what_happens"))
+                Text(t(tr("rest.what_happens")))
             }
 
             Section {
-                SecureField(t("cl.your_password"), text: $password)
+                SecureField(t(tr("cl.your_password")), text: $password)
                     .textContentType(.password)
             } footer: {
-                Text(t("rest.leave_blank_if_google"))
+                Text(t(tr("rest.leave_blank_if_google")))
             }
 
             if let errorMessage {
@@ -44,25 +44,25 @@ struct DeleteAccountView: View {
                     if busy {
                         ProgressView()
                     } else {
-                        Text(t("ld.delete_my_account"))
+                        Text(t(tr("ld.delete_my_account")))
                     }
                 }
                 .disabled(busy)
             } footer: {
-                Text(t("rest.cannot_be_undone"))
+                Text(t(tr("rest.cannot_be_undone")))
             }
         }
-        .navigationTitle(t("cl.delete_account"))
+        .navigationTitle(t(tr("cl.delete_account")))
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             "Delete your \(Brand.name) account?",
             isPresented: $confirming,
             titleVisibility: .visible
         ) {
-            Button(t("cl.delete_account"), role: .destructive) { Task { await remove() } }
-            Button(t("rest.keep_my_account"), role: .cancel) {}
+            Button(t(tr("cl.delete_account")), role: .destructive) { Task { await remove() } }
+            Button(t(tr("rest.keep_my_account")), role: .cancel) {}
         } message: {
-            Text(t("rest.cannot_be_undone"))
+            Text(t(tr("rest.cannot_be_undone")))
         }
     }
 

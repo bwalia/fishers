@@ -50,7 +50,7 @@ struct ListingDetailView: View {
             }
         }
         .background(FishersTheme.mist)
-        .navigationTitle(listing?.product.name ?? "Listing")
+        .navigationTitle(listing?.product.name ?? tr("Listing"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .navigationDestination(item: $openThread) { conversation in
@@ -81,15 +81,15 @@ struct ListingDetailView: View {
                     .font(.largeTitle.bold())
                     .monospacedDigit()
                 if listing.product.negotiable == true {
-                    Text(t("sh.or_near_offer"))
+                    Text(t(tr("sh.or_near_offer")))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
 
             Label(
-                listing.product.isSold ? "Sold — no longer available" : listing.product.availability,
-                systemImage: listing.product.isSold ? "clock" : "checkmark"
+                listing.product.isSold ? tr("Sold — no longer available") : listing.product.availability,
+                systemImage: listing.product.isSold ? tr("clock") : tr("checkmark")
             )
             .font(.subheadline)
             .foregroundStyle(listing.product.isSold ? FishersTheme.red600 : FishersTheme.pitch)
@@ -103,10 +103,10 @@ struct ListingDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             if reserved {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(t("sh.reserved_for_you"), systemImage: "checkmark.circle.fill")
+                    Label(t(tr("sh.reserved_for_you")), systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(FishersTheme.pitch)
-                    Text(t("sh.seller_has_been_told"))
+                    Text(t(tr("sh.seller_has_been_told")))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 }
@@ -117,7 +117,7 @@ struct ListingDetailView: View {
                 Button {
                     Task { await reserve(listing) }
                 } label: {
-                    Text(listing.product.isSold ? "Already gone" : reserving ? "Reserving…" : "Reserve it")
+                    Text(listing.product.isSold ? tr("Already gone") : reserving ? tr("Reserving…") : tr("Reserve it"))
                         .frame(maxWidth: .infinity, minHeight: 28)
                 }
                 .buttonStyle(.borderedProminent)
@@ -128,8 +128,8 @@ struct ListingDetailView: View {
                     Task { await ask(listing) }
                 } label: {
                     Label(
-                        asking ? "Opening…"
-                            : listing.product.negotiable == true ? "Make an offer" : "Ask a question",
+                        asking ? tr("Opening…")
+                            : listing.product.negotiable == true ? tr("Make an offer") : tr("Ask a question"),
                         systemImage: "bubble.left.and.bubble.right"
                     )
                     .frame(maxWidth: .infinity, minHeight: 28)
@@ -138,7 +138,7 @@ struct ListingDetailView: View {
                 .controlSize(.large)
                 .disabled(asking)
 
-                Label(t("sh.nothing_paid_online"), systemImage: "lock")
+                Label(t(tr("sh.nothing_paid_online")), systemImage: "lock")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             }
@@ -155,7 +155,7 @@ struct ListingDetailView: View {
                             .foregroundStyle(.white)
                     )
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(t("sh.sold_by")).font(.caption).foregroundStyle(.secondary)
+                    Text(t(tr("sh.sold_by"))).font(.caption).foregroundStyle(.secondary)
                     Text(listing.sellerName ?? listing.clubName).font(.subheadline.bold())
                     if listing.sellerName != nil {
                         Text(listing.clubName).font(.caption).foregroundStyle(.secondary)
@@ -168,7 +168,7 @@ struct ListingDetailView: View {
             // out otherwise, so there is nothing here to forget to hide.
             if listing.sellerPhone != nil || listing.sellerEmail != nil {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(t("sh.happy_to_be_contacted"))
+                    Text(t(tr("sh.happy_to_be_contacted")))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let phone = listing.sellerPhone, let url = URL(string: "tel:\(phone)") {
@@ -192,8 +192,8 @@ struct ListingDetailView: View {
             } else {
                 Text(
                     listing.mine
-                        ? "No description was written. Adding one helps it sell."
-                        : "No description was written. Ask the seller if you need to know more."
+                        ? tr("No description was written. Adding one helps it sell.")
+                        : tr("No description was written. Ask the seller if you need to know more.")
                 )
                 .foregroundStyle(.secondary)
             }
@@ -217,7 +217,7 @@ struct ListingDetailView: View {
                     Text(listing.clubName).font(.subheadline.bold())
                     Text(
                         listing.product.collectionNote
-                            ?? "The seller has not said where yet — ask them before you travel."
+                            ?? tr("The seller has not said where yet — ask them before you travel.")
                     )
                     .font(.subheadline)
                 }
@@ -295,14 +295,14 @@ private struct OwnerPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(t("sh.this_is_your_listing"), systemImage: "checkmark.circle")
+            Label(t(tr("sh.this_is_your_listing")), systemImage: "checkmark.circle")
                 .font(.subheadline.bold())
                 .foregroundStyle(FishersTheme.pitch)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(FishersTheme.pitch.opacity(0.12), in: Capsule())
 
-            Text(t("sh.this_is_exactly_how_buyers_see_it"))
+            Text(t(tr("sh.this_is_exactly_how_buyers_see_it")))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
@@ -314,13 +314,13 @@ private struct OwnerPanel: View {
 
             if let asked = listing.enquiries, asked > 0 {
                 Label(
-                    asked == 1 ? "One person has asked about it — the message is in Chats."
+                    asked == 1 ? tr("One person has asked about it — the message is in Chats.")
                         : "\(asked) people have asked about it. The conversations are in Chats.",
                     systemImage: "bubble.left.and.bubble.right"
                 )
                 .font(.footnote)
             } else {
-                Label(t("sh.nobody_has_asked_about_it_yet_question"),
+                Label(t(tr("sh.nobody_has_asked_about_it_yet_question")),
                       systemImage: "bubble.left.and.bubble.right")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -329,7 +329,7 @@ private struct OwnerPanel: View {
             // Editing lives on the web for now, so this says so rather than
             // offering a button that would go nowhere.
             if (listing.product.photos?.count ?? 0) == 0 {
-                Text(t("sh.no_photographs_advice"))
+                Text(t(tr("sh.no_photographs_advice")))
                 .font(.footnote)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -362,7 +362,7 @@ private struct Gallery: View {
                 .overlay(
                     VStack(spacing: 6) {
                         Image(systemName: "camera").font(.largeTitle)
-                        Text(t("sh.no_photograph")).font(.footnote)
+                        Text(t(tr("sh.no_photograph"))).font(.footnote)
                     }
                     .foregroundStyle(.secondary)
                 )

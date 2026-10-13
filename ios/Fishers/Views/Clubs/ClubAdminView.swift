@@ -33,7 +33,7 @@ struct ClubAdminView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker(tr("View"), selection: $tab) {
+            Picker(tr(tr("View")), selection: $tab) {
                 ForEach(Tab.allCases) { Text(tr($0.rawValue)).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -46,11 +46,11 @@ struct ClubAdminView: View {
             case .fees: FeesList(store: store, canChase: role?.isCaptain ?? false)
             }
         }
-        .navigationTitle(t("cl.manage_club"))
+        .navigationTitle(t(tr("cl.manage_club")))
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
         .refreshable { await store.load() }
-        .alert(tr("Something went wrong"), isPresented: store.errorBinding) {
+        .alert(tr(tr("Something went wrong")), isPresented: store.errorBinding) {
             Button(t("rest.ok"), role: .cancel) { store.errorMessage = nil }
         } message: {
             Text(store.errorMessage ?? "")
@@ -76,7 +76,7 @@ private struct RosterList: View {
         List {
             if !canManage {
                 Section {
-                    Label(t("cl.only_secretary_changes_roles"),
+                    Label(t(tr("cl.only_secretary_changes_roles")),
                         systemImage: "info.circle"
                     )
                     .font(.footnote)
@@ -97,7 +97,7 @@ private struct RosterList: View {
 
             let former = store.members.filter { !$0.isActive }
             if !former.isEmpty {
-                Section(tr("No longer in the club")) {
+                Section(tr(tr("No longer in the club"))) {
                     ForEach(former) { member in
                         Text(member.name).foregroundStyle(.secondary)
                     }
@@ -108,7 +108,7 @@ private struct RosterList: View {
                 ContentUnavailableView(
                     "No members yet",
                     systemImage: "person.3",
-                    description: Text(t("cl.add_players_by_signup_email"))
+                    description: Text(t(tr("cl.add_players_by_signup_email")))
                 )
             }
         }
@@ -182,16 +182,16 @@ private struct RosterList: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(t("cl.email_or_mobile_number"), text: $newIdentifier)
+                    TextField(t(tr("cl.email_or_mobile_number")), text: $newIdentifier)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
-                    Text(t("cl.whatever_they_signed_up_with"))
+                    Text(t(tr("cl.whatever_they_signed_up_with")))
                 }
-                Section(tr("Role")) {
-                    Picker(tr("Role"), selection: $newRole) {
+                Section(tr(tr("Role"))) {
+                    Picker(tr(tr("Role")), selection: $newRole) {
                         ForEach(ClubRole.appointable, id: \.self) { role in
                             Text(role.displayName).tag(role)
                         }
@@ -203,7 +203,7 @@ private struct RosterList: View {
                     Button {
                         Task { await store.makeInvite(email: trimmedIdentifier) }
                     } label: {
-                        Label(t("cl.make_an_invite_link_instead"), systemImage: "link")
+                        Label(t(tr("cl.make_an_invite_link_instead")), systemImage: "link")
                     }
                     if let invite = store.invite,
                        let url = invite.url(webBase: AppConfig.webBaseURL.absoluteString) {
@@ -217,14 +217,14 @@ private struct RosterList: View {
                     Text("An invite link works for somebody with no \(Brand.name) account. It joins them to the club once they sign up, and can only be used once.")
                 }
                 Section {
-                    TextField(t("rest.paste_the_link_they_sent_you"), text: $pastedLink)
+                    TextField(t(tr("rest.paste_the_link_they_sent_you")), text: $pastedLink)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     if let token = SharedPlayerCard.token(in: pastedLink) {
                         NavigationLink {
                             SharedPlayerCardView(token: token, preferredClubId: club.id)
                         } label: {
-                            Label(t("cl.open_their_profile"), systemImage: "person.crop.rectangle")
+                            Label(t(tr("cl.open_their_profile")), systemImage: "person.crop.rectangle")
                         }
                     } else if !pastedLink.isEmpty {
                         Text("That isn't a \(Brand.name) profile link — it looks like …/p/ followed by letters and numbers.")
@@ -232,12 +232,12 @@ private struct RosterList: View {
                             .foregroundStyle(FishersTheme.unavailable)
                     }
                 } header: {
-                    Text(t("cl.got_a_profile_link"))
+                    Text(t(tr("cl.got_a_profile_link")))
                 } footer: {
-                    Text(t("cl.open_card_pick_club_send"))
+                    Text(t(tr("cl.open_card_pick_club_send")))
                 }
             }
-            .navigationTitle(t("cl.add_a_member"))
+            .navigationTitle(t(tr("cl.add_a_member")))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -335,11 +335,11 @@ private struct RoleSheet: View {
                 } header: {
                     Text(member.name)
                 } footer: {
-                    Text(t("cl.must_keep_one_secretary"))
+                    Text(t(tr("cl.must_keep_one_secretary")))
                 }
 
                 Section {
-                    Button(t("cl.remove_from_the_club_action"), role: .destructive) {
+                    Button(t(tr("cl.remove_from_the_club_action")), role: .destructive) {
                         confirmRemove = true
                     }
                 }
@@ -370,7 +370,7 @@ private struct RoleSheet: View {
                 }
                 Button(t("sc.cancel"), role: .cancel) {}
             } message: {
-                Text(t("cl.past_record_stays"))
+                Text(t(tr("cl.past_record_stays")))
             }
         }
     }
@@ -386,7 +386,7 @@ private struct PolicyForm: View {
         Form {
             if let settings = store.settings {
                 Section {
-                    Picker(tr("The assistant"), selection: autonomy) {
+                    Picker(tr(tr("The assistant")), selection: autonomy) {
                         ForEach(SelectionAutonomy.allCases) { option in
                             Text(option.label).tag(option)
                         }
@@ -396,7 +396,7 @@ private struct PolicyForm: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Text(t("cl.squad_selection"))
+                    Text(t(tr("cl.squad_selection")))
                 }
 
                 Section {
@@ -409,9 +409,9 @@ private struct PolicyForm: View {
                         value: binding(\.dropLeadHours), in: 0...168, step: 6
                     )
                 } header: {
-                    Text(t("cl.chasing_the_squad"))
+                    Text(t(tr("cl.chasing_the_squad")))
                 } footer: {
-                    Text(t("cl.reconfirm_then_reserve"))
+                    Text(t(tr("cl.reconfirm_then_reserve")))
                 }
 
                 Section {
@@ -424,9 +424,9 @@ private struct PolicyForm: View {
                         value: binding(\.feeChaseMaxReminders), in: 0...10
                     )
                 } header: {
-                    Text(t("lb.match_fees"))
+                    Text(t(tr("lb.match_fees")))
                 } footer: {
-                    Text(t("cl.then_daily_until_paid"))
+                    Text(t(tr("cl.then_daily_until_paid")))
                 }
 
                 if store.isSaving {
@@ -468,7 +468,7 @@ private struct FeesList: View {
         List {
             if let fees = store.fees {
                 Section {
-                    LabeledContent("Outstanding") {
+                    LabeledContent(tr("Outstanding")) {
                         Text(String(format: "£%.2f", Double(fees.totalCents) / 100))
                             .font(.headline.monospacedDigit())
                     }
@@ -476,11 +476,11 @@ private struct FeesList: View {
                 }
                 if fees.owed.isEmpty {
                     Section {
-                        Label(t("cl.everyone_has_paid"), systemImage: "checkmark.seal.fill")
+                        Label(t(tr("cl.everyone_has_paid")), systemImage: "checkmark.seal.fill")
                             .foregroundStyle(FishersTheme.available)
                     }
                 } else {
-                    Section(tr("Who owes")) {
+                    Section(tr(tr("Who owes"))) {
                         ForEach(fees.owed) { fee in
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
@@ -508,12 +508,12 @@ private struct FeesList: View {
                                 if store.isChasing {
                                     HStack { ProgressView(); Text(t("fp.sending")) }
                                 } else {
-                                    Label(t("cl.send_reminders_now"), systemImage: "envelope.badge")
+                                    Label(t(tr("cl.send_reminders_now")), systemImage: "envelope.badge")
                                 }
                             }
                             .disabled(store.isChasing)
                         } footer: {
-                            Text(t("cl.scheduler_does_this_itself"))
+                            Text(t(tr("cl.scheduler_does_this_itself")))
                         }
                     }
                 }

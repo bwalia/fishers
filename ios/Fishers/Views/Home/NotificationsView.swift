@@ -36,8 +36,8 @@ struct NotificationsView: View {
                     systemImage: "bell",
                     description: Text(
                         filtered
-                            ? "Try a different filter."
-                            : "You'll be told here when a captain proposes terms or somebody invites you."
+                            ? tr("Try a different filter.")
+                            : tr("You'll be told here when a captain proposes terms or somebody invites you.")
                     )
                 )
             }
@@ -71,7 +71,7 @@ struct NotificationsView: View {
         .toolbar {
             if unread > 0 {
                 ToolbarItem(placement: .primaryAction) {
-                    Button(t("rest.mark_all_read")) {
+                    Button(t(tr("rest.mark_all_read"))) {
                         Task {
                             try? await FishersAPI.markNotificationRead(id: nil)
                             await reload()
@@ -91,7 +91,7 @@ struct NotificationsView: View {
         .onChange(of: search) { _, _ in Task { await debouncedReload() } }
         .onChange(of: kind) { _, _ in Task { await reload() } }
         .onChange(of: unreadOnly) { _, _ in Task { await reload() } }
-        .alert(tr("Something went wrong"), isPresented: .constant(message != nil)) {
+        .alert(tr(tr("Something went wrong")), isPresented: .constant(message != nil)) {
             Button(t("rest.ok")) { message = nil }
         } message: {
             Text(message ?? "")
@@ -114,13 +114,13 @@ struct NotificationsView: View {
         // Only what this person has actually been sent, so the picker never
         // offers a filter that returns nothing.
         if !kinds.isEmpty {
-            Picker(tr("Kind"), selection: $kind) {
+            Picker(tr(tr("Kind")), selection: $kind) {
                 Text(t("rest.everything")).tag("")
                 ForEach(kinds, id: \.self) { Text(label(for: $0)).tag($0) }
             }
         }
 
-        Toggle(t("rest.unread_only"), isOn: $unreadOnly)
+        Toggle(t(tr("rest.unread_only")), isOn: $unreadOnly)
     }
 
     private func label(for kind: String) -> String {

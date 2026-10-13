@@ -47,9 +47,9 @@ struct EventTicketsView: View {
                 if let mine {
                     Section {
                         LabeledContent("Places", value: "\(mine.places)")
-                        if let names = mine.guestNames { LabeledContent("Bringing", value: names) }
-                        LabeledContent("To pay", value: money(mine.amountCents))
-                        LabeledContent("Status", value: mine.status.capitalized)
+                        if let names = mine.guestNames { LabeledContent(tr("Bringing"), value: names) }
+                        LabeledContent(tr("To pay"), value: money(mine.amountCents))
+                        LabeledContent(tr("Status"), value: mine.status.capitalized)
                         if !mine.isPaid {
                             Button {
                                 act("pay", "Payment opened — your club confirms it once it clears.") {
@@ -62,28 +62,28 @@ struct EventTicketsView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(busy != nil)
                         }
-                        Button(t("le.cancel_my_place"), role: .destructive) {
+                        Button(t(tr("le.cancel_my_place")), role: .destructive) {
                             act("cancel", "Booking cancelled.") { _ = try await FishersAPI.cancelTicket(mine.id) }
                         }
                         .disabled(busy != nil)
                     } header: {
-                        Text(t("ev.you_are_booked"))
+                        Text(t(tr("ev.you_are_booked")))
                     }
                 } else {
                     Section {
                         if let left, left <= 0 {
-                            Text(t("ev.sold_out_ask_your_secretary_whether_th")).foregroundStyle(.secondary)
+                            Text(t(tr("ev.sold_out_ask_your_secretary_whether_th"))).foregroundStyle(.secondary)
                         } else {
                             let allowed = summary.guestsAllowed ?? 0
                             if allowed > 0 {
                                 Stepper("Bringing \(guests) \(guests == 1 ? "guest" : "guests")", value: $guests, in: 0...allowed)
                                 if guests > 0 {
-                                    TextField(t("ev.names_so_the_table_plan_works"), text: $guestNames)
+                                    TextField(t(tr("ev.names_so_the_table_plan_works")), text: $guestNames)
                                 }
                             } else {
-                                Text(t("ev.members_only_no_guests_at_this_one")).font(FishersTheme.footnote).foregroundStyle(.secondary)
+                                Text(t(tr("ev.members_only_no_guests_at_this_one"))).font(FishersTheme.footnote).foregroundStyle(.secondary)
                             }
-                            TextField(t("ev.anything_the_club_should_know"), text: $notes)
+                            TextField(t(tr("ev.anything_the_club_should_know")), text: $notes)
                             Button {
                                 let places = 1 + guests
                                 act("book", "Booked \(places) \(places == 1 ? "place" : "places").") {
@@ -101,7 +101,7 @@ struct EventTicketsView: View {
                             .disabled(busy != nil)
                         }
                     } header: {
-                        Text(t("ev.book_a_place"))
+                        Text(t(tr("ev.book_a_place")))
                     }
                 }
 
@@ -112,13 +112,13 @@ struct EventTicketsView: View {
                 if booking.insider {
                     Section {
                         if booking.tickets.isEmpty {
-                            Text(t("ev.nobody_yet_be_the_first")).foregroundStyle(.secondary)
+                            Text(t(tr("ev.nobody_yet_be_the_first"))).foregroundStyle(.secondary)
                         }
                         ForEach(booking.tickets) { ticket in
                             HStack(spacing: 12) {
                                 AvatarView(name: ticket.name ?? "A member", size: 32)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(ticket.name ?? "A member")
+                                    Text(ticket.name ?? tr("A member"))
                                         .strikethrough(ticket.status == "cancelled")
                                     if ticket.guests > 0 {
                                         Text("+\(ticket.guests)\(ticket.guestNames.map { " — \($0)" } ?? "")")
@@ -157,7 +157,7 @@ struct EventTicketsView: View {
             }
         }
         .fishersList()
-        .navigationTitle(booking?.summary.title ?? "Tickets")
+        .navigationTitle(booking?.summary.title ?? tr("Tickets"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }

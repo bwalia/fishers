@@ -44,7 +44,7 @@ struct PendingInvitesSection: View {
                 }
             } header: {
                 HStack {
-                    Text(t("rest.waiting_for_you")).font(FishersTheme.overline).tracking(0.8)
+                    Text(t(tr("rest.waiting_for_you"))).font(FishersTheme.overline).tracking(0.8)
                     Spacer()
                     Text("\(invites.count)")
                         .font(FishersTheme.caption)
@@ -57,8 +57,8 @@ struct PendingInvitesSection: View {
                     Text(error).foregroundStyle(FishersTheme.unavailable)
                 } else {
                     Text(invites.count == 1
-                         ? "Somebody has invited you. Accepting puts you straight in."
-                         : "People have invited you. Accepting puts you straight in.")
+                         ? tr("Somebody has invited you. Accepting puts you straight in.")
+                         : tr("People have invited you. Accepting puts you straight in."))
                 }
             }
         }

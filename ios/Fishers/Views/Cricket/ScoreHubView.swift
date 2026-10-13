@@ -80,15 +80,15 @@ struct ScoreHubPane: View {
             if !startable.isEmpty {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(t("sr.two_sides_right_now"))
+                        Text(t(tr("sr.two_sides_right_now")))
                             .font(FishersTheme.headline)
-                        Text(t("sc.no_fixture_needed"))
+                        Text(t(tr("sc.no_fixture_needed")))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                         Button {
                             starting = true
                         } label: {
-                            Label(t("sr.start_a_match_now"), systemImage: "plus")
+                            Label(t(tr("sr.start_a_match_now")), systemImage: "plus")
                                 .font(FishersTheme.headline)
                                 .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                         }
@@ -100,7 +100,7 @@ struct ScoreHubPane: View {
             }
 
             if !phoneMatches.isEmpty {
-                Section(tr("On this phone")) {
+                Section(tr(tr("On this phone"))) {
                     ForEach(phoneMatches, id: \.matchId) { match in
                         Button {
                             resumeMatchId = match.matchId
@@ -112,7 +112,7 @@ struct ScoreHubPane: View {
             }
 
             Section {
-                Picker(tr("Which fixtures"), selection: $query.state) {
+                Picker(tr(tr("Which fixtures")), selection: $query.state) {
                     ForEach(StateFilter.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -134,9 +134,9 @@ struct ScoreHubPane: View {
                 HStack {
                     if total > 0 { Text("\(rows.count) of \(total)") }
                     Spacer()
-                    Picker(tr("Order"), selection: $query.newestFirst) {
-                        Text(t("ld.soonest_first")).tag(false)
-                        Text(t("ld.newest_first")).tag(true)
+                    Picker(tr(tr("Order")), selection: $query.newestFirst) {
+                        Text(t(tr("ld.soonest_first"))).tag(false)
+                        Text(t(tr("ld.newest_first"))).tag(true)
                     }
                     .pickerStyle(.menu)
                     .textCase(nil)
@@ -347,7 +347,7 @@ private struct LocalMatchRow: View {
                 .lineLimit(2)
                 .foregroundStyle(.primary)
             HStack(spacing: 6) {
-                Text(match.hasPendingWork ? "Waiting to sync" : "On this phone")
+                Text(match.hasPendingWork ? tr("Waiting to sync") : tr("On this phone"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(match.hasPendingWork ? FishersTheme.unavailable : .secondary)
                     .padding(.horizontal, 8)
@@ -403,7 +403,7 @@ struct ScoreFixtureRow: View {
                         .background(FishersTheme.raised, in: Capsule())
                 }
                 if fixture.hasScorer, fixture.matchStatus == "live" {
-                    Text(t("sr.being_scored"))
+                    Text(t(tr("sr.being_scored")))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -466,13 +466,13 @@ struct QuickMatchSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(tr("Your side")) {
-                    Picker(tr("Club"), selection: $clubId) {
+                Section(tr(tr("Your side"))) {
+                    Picker(tr(tr("Club")), selection: $clubId) {
                         ForEach(clubs) { Text($0.name).tag(Optional($0.id)) }
                     }
                     if !teams.isEmpty {
-                        Picker(tr("Team"), selection: $teamId) {
-                            Text(t("rest.the_club")).tag(UUID?.none)
+                        Picker(tr(tr("Team")), selection: $teamId) {
+                            Text(t(tr("rest.the_club"))).tag(UUID?.none)
                             ForEach(teams) { Text($0.name).tag(Optional($0.id)) }
                         }
                     }
@@ -482,17 +482,17 @@ struct QuickMatchSheet: View {
                     Button {
                         picking = true
                     } label: {
-                        LabeledContent("Opposition", value: awayName.isEmpty ? "Choose…" : awayName)
+                        LabeledContent(tr("Opposition"), value: awayName.isEmpty ? tr("Choose…") : awayName)
                     }
                 } header: {
-                    Text(t("ev.the_opposition"))
+                    Text(t(tr("ev.the_opposition")))
                 } footer: {
                     Text(opponent.map { "\($0.clubName) are on \(Brand.name) — their captain can name their own eleven." }
-                         ?? "Find them by their code or name, or just type who turned up. Works offline if you type the name.")
+                         ?? tr("Find them by their code or name, or just type who turned up. Works offline if you type the name."))
                 }
 
-                Section(tr("Kind of match")) {
-                    Picker(tr("Kind"), selection: $kind) {
+                Section(tr(tr("Kind of match"))) {
+                    Picker(tr(tr("Kind")), selection: $kind) {
                         ForEach(Kind.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
@@ -507,7 +507,7 @@ struct QuickMatchSheet: View {
                         Task { await start() }
                     } label: {
                         Group {
-                            if busy { ProgressView() } else { Text(t("sc.start_scoring")).font(FishersTheme.headline) }
+                            if busy { ProgressView() } else { Text(t(tr("sc.start_scoring"))).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
@@ -519,7 +519,7 @@ struct QuickMatchSheet: View {
                     if let missing { Text("Still needed: \(missing).") }
                 }
             }
-            .navigationTitle(t("cl.start_a_match"))
+            .navigationTitle(t(tr("cl.start_a_match")))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }

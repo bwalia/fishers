@@ -21,7 +21,7 @@ struct EventDetailView: View {
                 if let event {
                     header(event)
                     if showingCached {
-                        Label(t("ev.saved_on_this_phone"), systemImage: "wifi.slash")
+                        Label(t(tr("ev.saved_on_this_phone")), systemImage: "wifi.slash")
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -46,7 +46,7 @@ struct EventDetailView: View {
                         NavigationLink {
                             SelectionBoardView(eventId: eventId)
                         } label: {
-                            Label(t("ev.selection_board"), systemImage: "person.3.sequence.fill")
+                            Label(t(tr("ev.selection_board")), systemImage: "person.3.sequence.fill")
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 6)
                         }
@@ -93,7 +93,7 @@ struct EventDetailView: View {
                     NavigationLink {
                         FollowedScorecardView(match: match)
                     } label: {
-                        Label(t("ev.full_scorecard"), systemImage: "list.bullet.rectangle")
+                        Label(t(tr("ev.full_scorecard")), systemImage: "list.bullet.rectangle")
                             .font(FishersTheme.subhead)
                     }
                 }
@@ -118,7 +118,7 @@ struct EventDetailView: View {
                     .tint(FishersTheme.pitch)
                     .accessibilityLabel(scoringButtonTitle)
                 } else if existingCricket == nil && !hasLocalMatch {
-                    Text(t("ev.who_can_score_this"))
+                    Text(t(tr("ev.who_can_score_this")))
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -169,18 +169,18 @@ struct EventDetailView: View {
                 }
                 if me.state != .confirmed {
                     HStack {
-                        Button(t("ev.im_playing")) { Task { await respond(true) } }
+                        Button(t(tr("ev.im_playing"))) { Task { await respond(true) } }
                             .buttonStyle(.borderedProminent)
                             .tint(FishersTheme.available)
-                        Button(t("ev.cant_make_it")) { Task { await respond(false) } }
+                        Button(t(tr("ev.cant_make_it"))) { Task { await respond(false) } }
                             .buttonStyle(.bordered)
                     }
                     .disabled(isResponding)
                 } else {
-                    Label(t("ev.youre_confirmed"), systemImage: "checkmark.seal.fill")
+                    Label(t(tr("ev.youre_confirmed")), systemImage: "checkmark.seal.fill")
                         .font(.subheadline)
                         .foregroundStyle(FishersTheme.available)
-                    Button(t("ev.actually_i_cant_make_it")) { Task { await respond(false) } }
+                    Button(t(tr("ev.actually_i_cant_make_it"))) { Task { await respond(false) } }
                         .font(.footnote)
                         .buttonStyle(.plain)
                         .foregroundStyle(FishersTheme.unavailable)
@@ -312,7 +312,7 @@ struct EventDetailView: View {
                         }
                     }
                     Spacer()
-                    Text(a.status.rawValue.replacingOccurrences(of: "_", with: " "))
+                    Text(a.status.rawValue.replacingOccurrences(of: "_tr(", with: ") "))
                         .font(.caption.weight(.semibold))
                     if a.paid {
                         Image(systemName: "checkmark.seal.fill")

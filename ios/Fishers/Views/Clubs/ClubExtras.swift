@@ -19,9 +19,9 @@ struct ClubWelcomeSheet: View {
                 .background(FishersTheme.pitch, in: Circle())
                 .padding(.top, FishersTheme.space3)
                 .accessibilityHidden(true)
-            Text(t("cl.club_created")).font(FishersTheme.overline).tracking(0.8).foregroundStyle(FishersTheme.pitch)
+            Text(t(tr("cl.club_created"))).font(FishersTheme.overline).tracking(0.8).foregroundStyle(FishersTheme.pitch)
             Text("\(clubName) is ready").font(FishersTheme.display).multilineTextAlignment(.center)
-            Text(t("cl.you_are_its_secretary"))
+            Text(t(tr("cl.you_are_its_secretary")))
                 .font(FishersTheme.subhead)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -40,12 +40,12 @@ struct ClubWelcomeSheet: View {
             Button {
                 onAddPlayers()
             } label: {
-                Label(t("lb.add_players"), systemImage: "person.badge.plus")
+                Label(t(tr("lb.add_players")), systemImage: "person.badge.plus")
                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            Button(t("cl.ill_do_it_later")) { dismiss() }
+            Button(t(tr("cl.ill_do_it_later"))) { dismiss() }
                 .frame(minHeight: FishersTheme.minTap)
         }
         .padding(.horizontal, FishersTheme.space3)
@@ -94,7 +94,7 @@ struct TeamRosterView: View {
                     ContentUnavailableView(
                         "Nobody in this team yet",
                         systemImage: "person.3",
-                        description: Text(t("cl.secretary_or_captain_adds"))
+                        description: Text(t(tr("cl.secretary_or_captain_adds")))
                     )
                 } else {
                     Section("\(members.count) in the squad") {
@@ -122,7 +122,7 @@ struct TeamRosterView: View {
                     }
                 }
             } else if failed {
-                Text(t("cl.could_not_load_this_team")).foregroundStyle(.secondary)
+                Text(t(tr("cl.could_not_load_this_team"))).foregroundStyle(.secondary)
             } else {
                 ProgressView()
             }
@@ -149,20 +149,20 @@ struct AddTeamSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(t("cl.1st_xi"), text: $name)
-                    Picker(tr("Sport"), selection: $sport) {
+                    TextField(t(tr("cl.1st_xi")), text: $name)
+                    Picker(tr(tr("Sport")), selection: $sport) {
                         ForEach(club.sportTypes.isEmpty ? ["cricket"] : club.sportTypes, id: \.self) {
                             Text($0.capitalized).tag($0)
                         }
                     }
                 } footer: {
-                    Text(t("cl.each_team_own_squad"))
+                    Text(t(tr("cl.each_team_own_squad")))
                 }
                 if let error {
                     Text(error).foregroundStyle(FishersTheme.unavailable)
                 }
             }
-            .navigationTitle(t("lb.add_a_team"))
+            .navigationTitle(t(tr("lb.add_a_team")))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }
@@ -202,7 +202,7 @@ struct GroundsSection: View {
     var body: some View {
         Section {
             if venues.isEmpty {
-                Text(t("cl.no_grounds_yet_add_the_ones_you_play_a"))
+                Text(t(tr("cl.no_grounds_yet_add_the_ones_you_play_a")))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -228,7 +228,7 @@ struct GroundsSection: View {
                 }
             }
             if canEdit {
-                Button(action: onAdd) { Label(t("cl.add_a_ground"), systemImage: "plus") }
+                Button(action: onAdd) { Label(t(tr("cl.add_a_ground")), systemImage: "plus") }
             }
         } header: {
             Text(t("cl.grounds"))
@@ -255,17 +255,17 @@ struct AddGroundSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(t("cl.highbury_fields"), text: $name)
-                    TextField(t("cl.highbury_fields_london_n5_1ar"), text: $address, axis: .vertical)
+                    TextField(t(tr("cl.highbury_fields")), text: $name)
+                    TextField(t(tr("cl.highbury_fields_london_n5_1ar")), text: $address, axis: .vertical)
                         .textContentType(.fullStreetAddress)
                 } footer: {
-                    Text(t("cl.ground_picked_per_fixture"))
+                    Text(t(tr("cl.ground_picked_per_fixture")))
                 }
                 if let error {
                     Text(error).foregroundStyle(FishersTheme.unavailable)
                 }
             }
-            .navigationTitle(t("cl.add_a_ground"))
+            .navigationTitle(t(tr("cl.add_a_ground")))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }
@@ -320,22 +320,22 @@ struct PublicPageEditorView: View {
             if let binding = Binding($page) {
                 Section {
                     HStack {
-                        Label(binding.wrappedValue.publicPage ? "Live" : "Not published",
+                        Label(binding.wrappedValue.publicPage ? tr("Live") : tr("Not published"),
                               systemImage: binding.wrappedValue.publicPage ? "checkmark.circle.fill" : "circle.dashed")
                             .foregroundStyle(binding.wrappedValue.publicPage ? FishersTheme.pitch : .secondary)
                         Spacer()
                         if binding.wrappedValue.publicPage, let slug = binding.wrappedValue.slug {
                             let url = AppConfig.webBaseURL.appending(path: "c/\(slug)")
-                            Link(tr("View"), destination: url).buttonStyle(.borderless)
+                            Link(tr(tr("View")), destination: url).buttonStyle(.borderless)
                             ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
                                 .buttonStyle(.borderless)
                         }
                     }
                 } footer: {
-                    Text(t("cl.public_page_blurb_long"))
+                    Text(t(tr("cl.public_page_blurb_long")))
                 }
 
-                Section(tr("Web address")) {
+                Section(tr(tr("Web address"))) {
                     TextField(suggested, text: $slug)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -344,27 +344,27 @@ struct PublicPageEditorView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section(tr("About the club")) {
-                    TextField(t("cl.sunday_cricket_in_north_london_since_1"), text: optional(binding.tagline))
-                    TextField(t("cl.who_you_are_where_you_play_who_you_are"), text: optional(binding.about), axis: .vertical)
+                Section(tr(tr("About the club"))) {
+                    TextField(t(tr("cl.sunday_cricket_in_north_london_since_1")), text: optional(binding.tagline))
+                    TextField(t(tr("cl.who_you_are_where_you_play_who_you_are")), text: optional(binding.about), axis: .vertical)
                         .lineLimit(3...8)
                 }
 
-                Section(tr("Details")) {
-                    TextField(t("cl.ground_example"), text: optional(binding.ground))
-                    TextField(t("cl.founded_example"), text: $founded).keyboardType(.numberPad)
-                    TextField(t("cl.email_for_new_players"), text: optional(binding.contactEmail))
+                Section(tr(tr("Details"))) {
+                    TextField(t(tr("cl.ground_example")), text: optional(binding.ground))
+                    TextField(t(tr("cl.founded_example")), text: $founded).keyboardType(.numberPad)
+                    TextField(t(tr("cl.email_for_new_players")), text: optional(binding.contactEmail))
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                 }
 
                 Section {
-                    Picker(tr("Lead with"), selection: binding.iconPlayerId) {
-                        Text(t("cl.nobody_for_now")).tag(UUID?.none)
+                    Picker(tr(tr("Lead with")), selection: binding.iconPlayerId) {
+                        Text(t(tr("cl.nobody_for_now"))).tag(UUID?.none)
                         ForEach(members.filter(\.isActive)) { Text($0.name).tag(Optional($0.userId)) }
                     }
                 } footer: {
-                    Text(t("cl.front_page_player"))
+                    Text(t(tr("cl.front_page_player")))
                 }
 
                 if let error {
@@ -375,13 +375,13 @@ struct PublicPageEditorView: View {
                     Button {
                         Task { await save(publish: nil) }
                     } label: {
-                        Text(saved ? "Saved" : "Save").frame(maxWidth: .infinity)
+                        Text(saved ? tr("Saved") : tr("Save")).frame(maxWidth: .infinity)
                     }
                     .disabled(busy)
                     Button {
                         Task { await save(publish: !binding.wrappedValue.publicPage) }
                     } label: {
-                        Text(binding.wrappedValue.publicPage ? "Take it offline" : "Publish it").frame(maxWidth: .infinity)
+                        Text(binding.wrappedValue.publicPage ? tr("Take it offline") : tr("Publish it")).frame(maxWidth: .infinity)
                     }
                     .disabled(busy)
                 }
@@ -391,7 +391,7 @@ struct PublicPageEditorView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(t("cl.public_page"))
+        .navigationTitle(t(tr("cl.public_page")))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }
@@ -480,7 +480,7 @@ struct SharedPlayerCardView: View {
                     }
                     .padding(.vertical, 4)
                 } footer: {
-                    Text(t("cl.no_contact_details_yet"))
+                    Text(t(tr("cl.no_contact_details_yet")))
                 }
 
                 if let sent {
@@ -490,17 +490,17 @@ struct SharedPlayerCardView: View {
                     }
                 } else if places.isEmpty {
                     Section {
-                        Text(t("cl.cannot_invite_anyone_yet"))
+                        Text(t(tr("cl.cannot_invite_anyone_yet")))
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Section(tr("Invite them to")) {
-                        Picker(tr("Club"), selection: $clubId) {
+                    Section(tr(tr("Invite them to"))) {
+                        Picker(tr(tr("Club")), selection: $clubId) {
                             ForEach(places) { Text($0.club.name).tag(Optional($0.id)) }
                         }
                         if let place {
-                            Picker(tr("Team"), selection: $teamId) {
-                                if place.canInviteToClub { Text(t("cl.the_club_as_a_whole")).tag(UUID?.none) }
+                            Picker(tr(tr("Team")), selection: $teamId) {
+                                if place.canInviteToClub { Text(t(tr("cl.the_club_as_a_whole"))).tag(UUID?.none) }
                                 ForEach(place.teams) { Text($0.name).tag(Optional($0.id)) }
                             }
                         }
@@ -508,7 +508,7 @@ struct SharedPlayerCardView: View {
                             Task { await invite() }
                         } label: {
                             Group {
-                                if busy { ProgressView() } else { Label(t("cl.send_the_invite"), systemImage: "paperplane") }
+                                if busy { ProgressView() } else { Label(t(tr("cl.send_the_invite")), systemImage: "paperplane") }
                             }
                             .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                         }
@@ -518,7 +518,7 @@ struct SharedPlayerCardView: View {
                 }
             } else if let error {
                 ContentUnavailableView {
-                    Label(t("cl.this_link_didnt_work"), systemImage: "link")
+                    Label(t(tr("cl.this_link_didnt_work")), systemImage: "link")
                 } description: {
                     Text("\(error). Ask the player to send you their link again.")
                 }
@@ -530,7 +530,7 @@ struct SharedPlayerCardView: View {
             }
         }
         .fishersList()
-        .navigationTitle(t("cl.player_profile"))
+        .navigationTitle(t(tr("cl.player_profile")))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .onChange(of: clubId) { _, id in

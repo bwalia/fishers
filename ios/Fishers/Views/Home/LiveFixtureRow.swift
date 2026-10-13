@@ -23,7 +23,7 @@ struct LiveFixtureRow: View {
                 } else {
                     // A match can be live before a ball is bowled — during the
                     // toss and team sheets — and "0/0" would be a lie about it.
-                    Text(t("sr.not_started"))
+                    Text(t(tr("sr.not_started")))
                         .font(FishersTheme.subhead)
                         .foregroundStyle(.secondary)
                 }
@@ -31,7 +31,7 @@ struct LiveFixtureRow: View {
                 // Whether *you* may score it is EventDetailView's answer to
                 // give; this only says whether anyone is on it, which is what
                 // decides if the book is being kept at all.
-                Text(fixture.hasScorer ? "Being scored" : "No scorer yet")
+                Text(fixture.hasScorer ? tr("Being scored") : tr("No scorer yet"))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(fixture.hasScorer ? .secondary : FishersTheme.maybe)
             }

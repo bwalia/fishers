@@ -46,7 +46,7 @@ struct ProfileView: View {
                     ProfileStrengthSection(user: user, onComplete: { isEditing = true }, offersReminder: false)
 
                     Section {
-                        Picker(tr("Section"), selection: $tab) {
+                        Picker(tr(tr("Section")), selection: $tab) {
                             ForEach(Tab.allCases) { Text($0.title).tag($0) }
                         }
                         .pickerStyle(.segmented)
@@ -79,10 +79,10 @@ struct ProfileView: View {
                 ProfileEditView(user: session.user)
             }
             .confirmationDialog("Sign out of \(Brand.name)?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                Button(t("nav.sign_out"), role: .destructive) { session.signOut() }
+                Button(t(tr("nav.sign_out")), role: .destructive) { session.signOut() }
                 Button(t("sc.cancel"), role: .cancel) {}
             } message: {
-                Text(t("rest.sign_back_in_anytime"))
+                Text(t(tr("rest.sign_back_in_anytime")))
             }
             .task {
                 await session.refreshProfile()
@@ -106,10 +106,10 @@ struct ProfileView: View {
     @ViewBuilder
     private func overview(_ user: PublicUser) -> some View {
         Section("About \(user.name.split(separator: " ").first.map(String.init) ?? user.name)") {
-            LabeledContent("Email", value: user.email ?? "—")
-            LabeledContent("Mobile", value: user.phone ?? "—")
+            LabeledContent(tr("Email"), value: user.email ?? "—")
+            LabeledContent(tr("Mobile"), value: user.phone ?? "—")
             if let emergency = user.emergencyContact {
-                LabeledContent("In an emergency", value: emergency)
+                LabeledContent(tr("In an emergency"), value: emergency)
             }
         }
 
@@ -118,7 +118,7 @@ struct ProfileView: View {
         }
 
         if let achievements = stats?.achievements, !achievements.isEmpty {
-            Section(tr("Honours")) {
+            Section(tr(tr("Honours"))) {
                 ForEach(achievements) { award in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(award.title).font(FishersTheme.headline)
@@ -131,7 +131,7 @@ struct ProfileView: View {
         }
 
         if let reliability = user.reliability {
-            Section(tr("Reliability")) {
+            Section(tr(tr("Reliability"))) {
                 ReliabilityCard(reliability: reliability)
                     .padding(.vertical, 4)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -152,11 +152,11 @@ struct ProfileView: View {
 
         contactSection(user)
 
-        Section(tr("Club shop")) {
+        Section(tr(tr("Club shop"))) {
             NavigationLink {
                 ShopView()
             } label: {
-                Label(t("rest.browse_kit_and_food"), systemImage: "bag")
+                Label(t(tr("rest.browse_kit_and_food")), systemImage: "bag")
             }
         }
 
@@ -164,20 +164,20 @@ struct ProfileView: View {
             NavigationLink {
                 ShareProfileScreen(userId: user.id)
             } label: {
-                Label(t("rest.send_my_profile_to_a_club"), systemImage: "link")
+                Label(t(tr("rest.send_my_profile_to_a_club")), systemImage: "link")
             }
         } header: {
-            Text(t("rest.joining_a_club"))
+            Text(t(tr("rest.joining_a_club")))
         } footer: {
-            Text(t("cl.secretary_can_invite_you"))
+            Text(t(tr("cl.secretary_can_invite_you")))
         }
 
-        Section(tr("Account")) {
+        Section(tr(tr("Account"))) {
             if !user.isVerified {
                 NavigationLink {
                     VerifyAccountScreen()
                 } label: {
-                    Label(t("rest.confirm_email_or_phone"), systemImage: "checkmark.shield")
+                    Label(t(tr("rest.confirm_email_or_phone")), systemImage: "checkmark.shield")
                         .foregroundStyle(FishersTheme.maybe)
                 }
             }
@@ -190,7 +190,7 @@ struct ProfileView: View {
             )) {
                 ForEach(RoleIntent.allCases) { Text($0.title).tag(Optional($0)) }
             } label: {
-                Label(t("rest.getting_started_guide"), systemImage: "sparkles")
+                Label(t(tr("rest.getting_started_guide")), systemImage: "sparkles")
             }
             // In its own script and never translated — a picker offering
             // "Punjabi" in English is no use to the person who needs it. The
@@ -207,13 +207,13 @@ struct ProfileView: View {
                 APIServerSettingsView()
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Label(t("rest.api_server"), systemImage: "network")
+                    Label(t(tr("rest.api_server")), systemImage: "network")
                     Text(AppConfig.displayHost)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            Button(t("nav.sign_out"), role: .destructive) {
+            Button(t(tr("nav.sign_out")), role: .destructive) {
                 confirmSignOut = true
             }
         }
@@ -221,17 +221,17 @@ struct ProfileView: View {
         Section {
             // App Store Connect wants a policy anybody can read without an
             // account, so it lives on the web host rather than in here.
-            Link(destination: AppConfig.webBaseURL.appendingPathComponent("privacy")) {
+            Link(destination: AppConfig.webBaseURL.appendingPathComponent(tr("privacy"))) {
                 Label(t("rest.privacy"), systemImage: "hand.raised")
             }
             NavigationLink {
                 DeleteAccountView()
             } label: {
-                Label(t("cl.delete_account"), systemImage: "person.crop.circle.badge.xmark")
+                Label(t(tr("cl.delete_account")), systemImage: "person.crop.circle.badge.xmark")
                     .foregroundStyle(FishersTheme.unavailable)
             }
         } footer: {
-            Text(t("rest.deleting_removes_everything"))
+            Text(t(tr("rest.deleting_removes_everything")))
         }
     }
 
@@ -270,7 +270,7 @@ struct ProfileView: View {
     private func sportSection(_ profile: SportProfile) -> some View {
         Section {
             if let tier = profile.tier {
-                LabeledContent("Level", value: tier.label)
+                LabeledContent(tr("Level"), value: tier.label)
                 if let next = tier.next {
                     Label("Working towards \(next.label)", systemImage: "arrow.up.right")
                         .font(.caption)
@@ -278,13 +278,13 @@ struct ProfileView: View {
                 }
             }
             if let position = profile.position {
-                LabeledContent("Position", value: position)
+                LabeledContent(tr("Position"), value: position)
             }
             if let team = profile.teamName {
-                LabeledContent("Team", value: team)
+                LabeledContent(tr("Team"), value: team)
             }
             if let division = profile.division {
-                LabeledContent("Division") {
+                LabeledContent(tr("Division")) {
                     HStack(spacing: 6) {
                         Text(division.label)
                         if let target = profile.target, target.rank > division.rank {
@@ -302,7 +302,7 @@ struct ProfileView: View {
                 }
             }
             if let age = profile.ageBand {
-                LabeledContent("Age group", value: age.label)
+                LabeledContent(tr("Age group"), value: age.label)
             }
             if let years = profile.yearsPlaying, years > 0 {
                 LabeledContent("Years playing", value: "\(years)")
@@ -316,7 +316,7 @@ struct ProfileView: View {
                     Label(sport.label, systemImage: sport.systemImage)
                 }
                 if session.user?.primarySport == profile.sport {
-                    Text(t("rest.main_sport_badge"))
+                    Text(t(tr("rest.main_sport_badge")))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.tint)
                 }
@@ -327,15 +327,15 @@ struct ProfileView: View {
     // MARK: - Location / contact
 
     private func locationSection(_ location: PlayerLocation) -> some View {
-        Section(tr("Travel & logistics")) {
+        Section(tr(tr("Travel & logistics"))) {
             if let summary = location.summary {
-                LabeledContent("Based", value: summary)
+                LabeledContent(tr("Based"), value: summary)
             }
             if let radius = location.travelRadiusMiles {
                 LabeledContent("Will travel", value: "\(radius) miles")
             }
             if let transport = location.transport {
-                LabeledContent("Transport") {
+                LabeledContent(tr("Transport")) {
                     Label(transport.label, systemImage: transport.systemImage)
                 }
                 if transport.offersLifts, let seats = location.spareSeats, seats > 0 {
@@ -343,7 +343,7 @@ struct ProfileView: View {
                 }
             }
             if !location.weekdays.isEmpty {
-                LabeledContent("Usual days", value: location.weekdays.map(\.shortLabel).joined(separator: ", "))
+                LabeledContent(tr("Usual days"), value: location.weekdays.map(\.shortLabel).joined(separator: ", "))
             }
             if let notes = location.notes {
                 Text(notes)
@@ -354,12 +354,12 @@ struct ProfileView: View {
     }
 
     private func contactSection(_ user: PublicUser) -> some View {
-        Section(tr("Contact")) {
+        Section(tr(tr("Contact"))) {
             if let phone = user.phone {
-                LabeledContent("Mobile", value: phone)
+                LabeledContent(tr("Mobile"), value: phone)
             }
             if let emergency = user.emergencyContact {
-                LabeledContent("Emergency", value: emergency)
+                LabeledContent(tr("Emergency"), value: emergency)
             }
         }
     }
@@ -376,11 +376,11 @@ struct ShareProfileScreen: View {
                 ShareProfileView(userId: userId)
                     .padding(.vertical, 4)
             } footer: {
-                Text(t("rest.drop_it_in_whatsapp"))
+                Text(t(tr("rest.drop_it_in_whatsapp")))
             }
         }
         .fishersList()
-        .navigationTitle(t("rest.your_profile_link"))
+        .navigationTitle(t(tr("rest.your_profile_link")))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -402,17 +402,17 @@ struct VerifyAccountScreen: View {
                     }
                     .padding(.vertical, 4)
                 } else if failed || (status != nil && status?.canVerify == false) {
-                    Text(t("rest.codes_cannot_be_sent"))
+                    Text(t(tr("rest.codes_cannot_be_sent")))
                         .foregroundStyle(.secondary)
                 } else {
                     ProgressView()
                 }
             } footer: {
-                Text(t("rest.starting_club_needs_confirmed"))
+                Text(t(tr("rest.starting_club_needs_confirmed")))
             }
         }
         .fishersList()
-        .navigationTitle(t("rest.confirm_its_you"))
+        .navigationTitle(t(tr("rest.confirm_its_you")))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             do { status = try await FishersAPI.verificationStatus() } catch { failed = true }

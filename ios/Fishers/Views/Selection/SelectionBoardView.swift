@@ -42,20 +42,20 @@ struct SelectionBoardView: View {
                     Button {
                         Task { await store.suggest() }
                     } label: {
-                        Label(t("ld.suggest_from_ranking"), systemImage: "list.number")
+                        Label(t(tr("ld.suggest_from_ranking")), systemImage: "list.number")
                     }
                     if store.board?.isAssistantAvailable ?? false {
                         Button {
                             Task { await store.askAssistant() }
                         } label: {
-                            Label(t("ld.let_the_assistant_pick"), systemImage: "sparkles")
+                            Label(t(tr("ld.let_the_assistant_pick")), systemImage: "sparkles")
                         }
                     }
                     Divider()
                     Button {
                         isChangingStatus = true
                     } label: {
-                        Label(t("ld.delay_or_call_off"), systemImage: "cloud.rain.fill")
+                        Label(t(tr("ld.delay_or_call_off")), systemImage: "cloud.rain.fill")
                     }
                 } label: {
                     if store.isThinking {
@@ -111,8 +111,8 @@ struct SelectionBoardView: View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 Label(
-                    proposal.isFromAssistant ? "The assistant's side" : "The ranking's side",
-                    systemImage: proposal.isFromAssistant ? "sparkles" : "list.number"
+                    proposal.isFromAssistant ? tr("The assistant's side") : tr("The ranking's side"),
+                    systemImage: proposal.isFromAssistant ? tr("sparkles") : "list.number"
                 )
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(FishersTheme.accent)
@@ -132,7 +132,7 @@ struct SelectionBoardView: View {
                         .foregroundStyle(.secondary)
                 }
                 if proposal.published {
-                    Label(t("ld.published_to_the_squad"), systemImage: "checkmark.circle.fill")
+                    Label(t(tr("ld.published_to_the_squad")), systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(FishersTheme.available)
                 }
@@ -144,7 +144,7 @@ struct SelectionBoardView: View {
     private func squadSection(_ board: SelectionBoard) -> some View {
         Group {
             if !store.selected.isEmpty {
-                Section(tr("Squad")) {
+                Section(tr(tr("Squad"))) {
                     ForEach(store.selected, id: \.self) { userId in
                         if let candidate = board.candidates.first(where: { $0.userId == userId }) {
                             CandidateRow(
@@ -177,7 +177,7 @@ struct SelectionBoardView: View {
                             await store.load()
                         }
                     } label: {
-                        Label(t("ld.move_reserves_up"), systemImage: "arrow.up.circle")
+                        Label(t(tr("ld.move_reserves_up")), systemImage: "arrow.up.circle")
                     }
                 } header: {
                     Text(t("ev.reserves"))
@@ -202,9 +202,9 @@ struct SelectionBoardView: View {
                 )
             }
         } header: {
-            Text(t("ld.available_best_first"))
+            Text(t(tr("ld.available_best_first")))
         } footer: {
-            Text(t("ld.tap_to_pick"))
+            Text(t(tr("ld.tap_to_pick")))
         }
     }
 
@@ -212,7 +212,7 @@ struct SelectionBoardView: View {
         let out = board.candidates.filter { $0.availability == .unavailable }
         return Group {
             if !out.isEmpty {
-                Section(tr("Said no")) {
+                Section(tr(tr("Said no"))) {
                     ForEach(out) { candidate in
                         HStack {
                             Text(candidate.name)
@@ -247,7 +247,7 @@ struct SelectionBoardView: View {
                 if store.isPublishing {
                     ProgressView().frame(maxWidth: .infinity)
                 } else {
-                    Text(t("ld.publish_squad")).frame(maxWidth: .infinity)
+                    Text(t(tr("ld.publish_squad"))).frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -260,24 +260,24 @@ struct SelectionBoardView: View {
     private var statusSheet: some View {
         NavigationStack {
             Form {
-                Section(tr("What's happening")) {
-                    Picker(tr("Status"), selection: $newStatus) {
+                Section(tr(tr("What's happening"))) {
+                    Picker(tr(tr("Status")), selection: $newStatus) {
                         Text(t("ld.postponed")).tag("postponed")
                         Text(t("ld.cancelled")).tag("cancelled")
-                        Text(t("ld.back_on_action")).tag("scheduled")
+                        Text(t(tr("ld.back_on_action"))).tag("scheduled")
                     }
                     .pickerStyle(.segmented)
                 }
                 Section {
-                    TextField(t("ld.ground_unplayable_example"), text: $statusNote, axis: .vertical)
+                    TextField(t(tr("ld.ground_unplayable_example")), text: $statusNote, axis: .vertical)
                         .lineLimit(2...4)
                 } header: {
                     Text(t("sc.reason"))
                 } footer: {
-                    Text(t("ld.posted_to_club_thread"))
+                    Text(t(tr("ld.posted_to_club_thread")))
                 }
             }
-            .navigationTitle(t("ld.delay_or_call_off"))
+            .navigationTitle(t(tr("ld.delay_or_call_off")))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -327,7 +327,7 @@ private struct CandidateRow: View {
                         .frame(width: 9, height: 9)
                 }
                 if let role {
-                    Text(role == .selected ? "IN" : "RES")
+                    Text(role == .selected ? tr("IN") : tr("RES"))
                         .font(.caption2.weight(.bold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)

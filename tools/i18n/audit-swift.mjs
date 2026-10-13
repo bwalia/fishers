@@ -85,6 +85,24 @@ console.log("Worst files:");
 for (const [file, n] of [...byFile].sort((a, b) => b[1] - a[1]).slice(0, 15)) {
   console.log(`  ${String(n).padStart(4)}  ${file}`);
 }
+/**
+ * A ratchet, not a target.
+ *
+ * The count may fall and must never rise. It exists because "nothing left in
+ * English" has been claimed twice from a tool that only looked at part of the
+ * app, and a number in CI is harder to fool than a claim in a commit message.
+ */
+const cap = process.argv.find((a) => a.startsWith("--max="));
+if (cap) {
+  const max = Number(cap.slice("--max=".length));
+  if (findings.length > max) {
+    console.error(`\nThat is ${findings.length - max} more than the agreed ${max}.`);
+    console.error("Wrap them (tools/i18n/wrap-calls.mjs) or lower the cap if you have.");
+    process.exit(1);
+  }
+  console.log(`\nWithin the cap of ${max}.`);
+}
+
 if (process.argv.includes("--list")) {
   console.log("\n--- every one ---");
   for (const [text, where] of [...byText].sort((a, b) => b[1].length - a[1].length)) {

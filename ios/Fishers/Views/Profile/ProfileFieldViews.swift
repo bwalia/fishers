@@ -131,7 +131,7 @@ struct OptionMenu<Option: LabeledOption>: View where Option.AllCases: RandomAcce
 
     var body: some View {
         Picker(title, selection: $selection) {
-            Text(t("rest.not_set")).tag(Option?.none)
+            Text(t(tr("rest.not_set"))).tag(Option?.none)
             ForEach(Array(Option.allCases)) { option in
                 Text(option.label).tag(Option?.some(option))
             }
@@ -279,7 +279,7 @@ struct StatFieldRow: View {
             switch field.kind {
             case .choice(let options):
                 Picker(field.label, selection: $value) {
-                    Text(t("rest.not_set")).tag("")
+                    Text(t(tr("rest.not_set"))).tag("")
                     ForEach(options, id: \.self) { option in
                         // The tag stays English: it is what is stored on the
                         // profile and sent to the API. Only the row is drawn.
@@ -393,7 +393,7 @@ struct ReliabilityRing: View {
             VStack(spacing: 0) {
                 Text(reliability.band == .unproven ? "–" : "\(reliability.score)")
                     .font(.system(size: size * 0.32, weight: .bold, design: .rounded))
-                Text(t("rest.reliability_short"))
+                Text(t(tr("rest.reliability_short")))
                     .font(.system(size: size * 0.15))
                     .foregroundStyle(.secondary)
             }
@@ -436,7 +436,7 @@ struct ReliabilityCard: View {
             MeterRow(label: tr("Answered the invite"), value: reliability.responseRate)
             MeterRow(label: tr("Paid match fees"), value: reliability.paymentRate)
             HStack {
-                Text(t("rest.late_drop_outs"))
+                Text(t(tr("rest.late_drop_outs")))
                 Spacer()
                 Text("\(reliability.lateCancellations)")
                     .foregroundStyle(reliability.lateCancellations > 0 ? .orange : .secondary)

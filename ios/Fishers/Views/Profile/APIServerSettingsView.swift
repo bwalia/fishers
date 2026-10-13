@@ -39,25 +39,25 @@ struct APIServerSettingsView: View {
         Form {
             if AppConfig.environmentPinsAPI {
                 Section {
-                    Text(t("rest.launch_pinned_by_env"))
+                    Text(t(tr("rest.launch_pinned_by_env")))
                         .font(.footnote)
                         .foregroundStyle(FishersTheme.maybe)
                 }
             }
 
             Section {
-                TextField(t("rest.url_placeholder"), text: $draft)
+                TextField(t(tr("rest.url_placeholder")), text: $draft)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
                     .textContentType(.URL)
             } header: {
-                Text(t("rest.api_base_url"))
+                Text(t(tr("rest.api_base_url")))
             } footer: {
                 Text("In use now: \(resolved). Open live screens again after changing — an open score stream keeps its old host until you leave it.")
             }
 
-            Section(tr("Quick picks")) {
+            Section(tr(tr("Quick picks"))) {
                 ForEach(visiblePresets, id: \.1) { label, url in
                     presetButton(label, url)
                 }
@@ -80,14 +80,14 @@ struct APIServerSettingsView: View {
             Section {
                 Button(t("lc.save")) { save() }
                     .fontWeight(.semibold)
-                Button(t("rest.reset_to_default")) { reset() }
+                Button(t(tr("rest.reset_to_default"))) { reset() }
                 if AppConfig.storedAPIOverride != nil {
-                    LabeledContent("Saved override", value: AppConfig.storedAPIOverride ?? "")
+                    LabeledContent(tr("Saved override"), value: AppConfig.storedAPIOverride ?? "")
                         .font(.footnote)
                 }
             }
         }
-        .navigationTitle(t("rest.api_server"))
+        .navigationTitle(t(tr("rest.api_server")))
         .navigationBarTitleDisplayMode(.inline)
         .tint(FishersTheme.accent)
         .onAppear { refreshResolved() }

@@ -54,6 +54,13 @@ jobs:
         working-directory: .
         run: node tools/i18n/index.mjs --check
 
+      # A ratchet. It may fall and must never rise. "Nothing left in English"
+      # was claimed twice from a tool that only looked at part of the app; a
+      # number here is harder to fool than a sentence in a commit message.
+      - name: No new English hardcoded into the app
+        working-directory: .
+        run: node tools/i18n/audit-swift.mjs --max=783
+
       - name: Generate Xcode project
         run: xcodegen generate
 

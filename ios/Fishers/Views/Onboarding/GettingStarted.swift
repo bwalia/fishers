@@ -161,7 +161,7 @@ struct GettingStartedSection: View {
                     .textCase(.uppercase)
                     .foregroundStyle(FishersTheme.pitch)
 
-                    Text(role == .secretary ? "Let's set up your club" : "Let's get you into your club")
+                    Text(role == .secretary ? tr("Let's set up your club") : tr("Let's get you into your club"))
                         .font(FishersTheme.title)
                     Text("\(doneCount) of \(steps.count) done — \(steps.count - doneCount) to go.")
                         .font(FishersTheme.subhead)
@@ -186,8 +186,8 @@ struct GettingStartedSection: View {
                     }
                 } label: {
                     Text(role == .secretary
-                         ? "Here to play, not to run a club? Switch to the player guide"
-                         : "Running a club instead? Switch to the secretary guide")
+                         ? tr("Here to play, not to run a club? Switch to the player guide")
+                         : tr("Running a club instead? Switch to the secretary guide"))
                         .font(FishersTheme.footnote)
                         .frame(minHeight: FishersTheme.minTap)
                 }
@@ -260,7 +260,7 @@ struct GettingStartedSection: View {
                 NavigationLink {
                     ClubDetailView(club: ownClub)
                 } label: {
-                    Label(step.action == .addTeam ? "Add a team" : "Schedule a match",
+                    Label(step.action == .addTeam ? tr("Add a team") : tr("Schedule a match"),
                           systemImage: step.action == .addTeam ? "person.3" : "calendar.badge.plus")
                         .font(FishersTheme.headline)
                 }
@@ -270,8 +270,8 @@ struct GettingStartedSection: View {
                 NavigationLink {
                     ClubAdminView(club: ownClub, role: ownClubRole)
                 } label: {
-                    Label(step.action == .invitePlayers ? "Invite players" : "Choose a captain",
-                          systemImage: step.action == .invitePlayers ? "person.badge.plus" : "star")
+                    Label(step.action == .invitePlayers ? tr("Invite players") : tr("Choose a captain"),
+                          systemImage: step.action == .invitePlayers ? "person.badge.plus" : tr("star"))
                         .font(FishersTheme.headline)
                 }
             }

@@ -18,7 +18,7 @@ struct FixturesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker(tr("Show"), selection: $mode) {
+                Picker(tr(tr("Show")), selection: $mode) {
                     ForEach(Mode.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -154,9 +154,9 @@ struct FixturesListPane: View {
                     .padding(.vertical, 4)
                 } header: {
                     HStack {
-                        Text(t("ev.how_fixtures_work"))
+                        Text(t(tr("ev.how_fixtures_work")))
                         Spacer()
-                        Button(t("ev.got_it")) { guideDismissed = true }
+                        Button(t(tr("ev.got_it"))) { guideDismissed = true }
                             .font(FishersTheme.footnote)
                             .textCase(nil)
                     }
@@ -176,7 +176,7 @@ struct FixturesListPane: View {
             }
 
             Section {
-                Picker(tr("Which fixtures"), selection: $show) {
+                Picker(tr(tr("Which fixtures")), selection: $show) {
                     ForEach(Show.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -204,11 +204,11 @@ struct FixturesListPane: View {
 
             if fixtures != nil && shown.isEmpty {
                 ContentUnavailableView {
-                    Label(show == .unanswered ? "Nothing to answer" : "No fixtures", systemImage: "calendar")
+                    Label(show == .unanswered ? tr("Nothing to answer") : tr("No fixtures"), systemImage: "calendar")
                 } description: {
                     Text(show == .unanswered
-                         ? "You've answered every upcoming fixture."
-                         : show == .past ? "No fixtures in the last four months." : "Nothing in the diary for your clubs yet.")
+                         ? tr("You've answered every upcoming fixture.")
+                         : show == .past ? tr("No fixtures in the last four months.") : tr("Nothing in the diary for your clubs yet."))
                 }
             }
         }
@@ -218,8 +218,8 @@ struct FixturesListPane: View {
             if clubs.count > 1 {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Picker(tr("Club"), selection: $clubFilter) {
-                            Text(t("ev.all_clubs")).tag(UUID?.none)
+                        Picker(tr(tr("Club")), selection: $clubFilter) {
+                            Text(t(tr("ev.all_clubs"))).tag(UUID?.none)
                             ForEach(clubs, id: \.0) { Text($0.1).tag(Optional($0.0)) }
                         }
                     } label: {
@@ -342,7 +342,7 @@ struct FixtureRow: View {
                                 tag(fixture.status.capitalized, FishersTheme.unavailable)
                             }
                             if clashes {
-                                Label(t("ev.clashes_with_another"), systemImage: "exclamationmark.triangle.fill")
+                                Label(t(tr("ev.clashes_with_another")), systemImage: "exclamationmark.triangle.fill")
                                     .font(FishersTheme.caption)
                                     .foregroundStyle(FishersTheme.maybe)
                             }
@@ -358,7 +358,7 @@ struct FixtureRow: View {
             .buttonStyle(.plain)
 
             if isPast || fixture.isCancelled {
-                Label(fixture.saidLabel, systemImage: answer?.systemImage ?? "circle")
+                Label(fixture.saidLabel, systemImage: answer?.systemImage ?? tr("circle"))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -410,20 +410,20 @@ struct ScheduleMatchSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(tr("Your side")) {
-                    Picker(tr("Club"), selection: $clubId) {
+                Section(tr(tr("Your side"))) {
+                    Picker(tr(tr("Club")), selection: $clubId) {
                         ForEach(clubs) { Text($0.name).tag(Optional($0.id)) }
                     }
                 }
 
                 Section {
                     if venues.isEmpty {
-                        Text(t("ev.no_grounds_saved_plain"))
+                        Text(t(tr("ev.no_grounds_saved_plain")))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker(tr("Ground"), selection: $venueId) {
-                            Text(t("ev.not_decided_yet")).tag(UUID?.none)
+                        Picker(tr(tr("Ground")), selection: $venueId) {
+                            Text(t(tr("ev.not_decided_yet"))).tag(UUID?.none)
                             ForEach(venues) { Text($0.name).tag(Optional($0.id)) }
                         }
                     }
@@ -435,17 +435,17 @@ struct ScheduleMatchSheet: View {
                     Button {
                         picking = true
                     } label: {
-                        LabeledContent("Opposition", value: theirName.isEmpty ? "Choose…" : theirName)
+                        LabeledContent(tr("Opposition"), value: theirName.isEmpty ? tr("Choose…") : theirName)
                     }
                 } header: {
-                    Text(t("ev.the_opposition"))
+                    Text(t(tr("ev.the_opposition")))
                 } footer: {
                     Text(opponent != nil
                          ? "\(opponent!.clubName) are on \(Brand.name) — their players get asked too."
                          : "A club on \(Brand.name) gets asked as well. Otherwise only your side is.")
                 }
 
-                Section(tr("When")) {
+                Section(tr(tr("When"))) {
                     DatePicker("Date and time", selection: $start, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
                 }
 
@@ -458,7 +458,7 @@ struct ScheduleMatchSheet: View {
                         Task { await schedule() }
                     } label: {
                         Group {
-                            if busy { ProgressView() } else { Text(t("ld.schedule_and_ask_who_is_available")).font(FishersTheme.headline) }
+                            if busy { ProgressView() } else { Text(t(tr("ld.schedule_and_ask_who_is_available"))).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
@@ -473,7 +473,7 @@ struct ScheduleMatchSheet: View {
                     }
                 }
             }
-            .navigationTitle(t("ev.schedule_a_match"))
+            .navigationTitle(t(tr("ev.schedule_a_match")))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }

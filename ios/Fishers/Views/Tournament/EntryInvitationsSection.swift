@@ -67,7 +67,7 @@ struct EntryInvitationsSection: View {
                 }
             } header: {
                 HStack {
-                    Text(t("tn.you_have_been_asked")).font(FishersTheme.overline).tracking(0.8)
+                    Text(t(tr("tn.you_have_been_asked"))).font(FishersTheme.overline).tracking(0.8)
                     Spacer()
                     Text("\(invitations.count)").font(FishersTheme.caption)
                 }
@@ -76,8 +76,8 @@ struct EntryInvitationsSection: View {
                 // otherwise would leave a club thinking its place was safe.
                 Text(
                     invitations.contains(where: { ($0.entryFeeCents ?? 0) > 0 })
-                        ? "Accepting holds your place. Where there is an entry fee your side is in the draw once it is settled — pay it on the web, or the host will record it."
-                        : "Accepting puts your side in the draw. Declining tells them now, while they can still find somebody else."
+                        ? tr("Accepting holds your place. Where there is an entry fee your side is in the draw once it is settled — pay it on the web, or the host will record it.")
+                        : tr("Accepting puts your side in the draw. Declining tells them now, while they can still find somebody else.")
                 )
             }
         }

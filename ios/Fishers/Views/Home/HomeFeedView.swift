@@ -55,7 +55,7 @@ struct HomeFeedView: View {
                     } header: {
                         Text("How will you use \(Brand.name)?")
                     } footer: {
-                        Text(t("rest.well_show_you_what_next"))
+                        Text(t(tr("rest.well_show_you_what_next")))
                     }
                 }
 
@@ -92,7 +92,7 @@ struct HomeFeedView: View {
 
                 if clubContext.clubs.count > 1 {
                     Section {
-                        Picker(tr("Club"), selection: Binding(
+                        Picker(tr(tr("Club")), selection: Binding(
                             get: { clubContext.activeClubId },
                             set: { if let id = $0 { clubContext.select(id) } }
                         )) {
@@ -127,7 +127,7 @@ struct HomeFeedView: View {
                         }
                     } header: {
                         HStack {
-                            Text(t("rest.in_progress"))
+                            Text(t(tr("rest.in_progress")))
                                 .font(FishersTheme.overline)
                                 .tracking(0.8)
                             Spacer()
@@ -153,7 +153,7 @@ struct HomeFeedView: View {
                             .tracking(0.8)
                     } footer: {
                         if upcoming.isEmpty {
-                            Text(t("ev.nothing_in_the_diary_yet"))
+                            Text(t(tr("ev.nothing_in_the_diary_yet")))
                                 .font(FishersTheme.footnote)
                         }
                     }
@@ -348,7 +348,7 @@ struct EventRow: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
 
-                Text(event.eventSubtype.replacingOccurrences(of: "_", with: " ").capitalized)
+                Text(event.eventSubtype.replacingOccurrences(of: "_tr(", with: ") ").capitalized)
                     .font(FishersTheme.overline)
                     .tracking(0.7)
                     .textCase(.uppercase)

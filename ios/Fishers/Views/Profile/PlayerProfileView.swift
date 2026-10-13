@@ -55,7 +55,7 @@ struct PlayerProfileView: View {
             }
 
             if !honours.isEmpty {
-                Section(tr("Honours")) {
+                Section(tr(tr("Honours"))) {
                     ForEach(honours) { award in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(award.title).font(FishersTheme.headline)
@@ -72,14 +72,14 @@ struct PlayerProfileView: View {
             UmpiringView(userId: userId, name: player?.name ?? knownName)
 
             if let clubs = player?.sharedClubs, !clubs.isEmpty {
-                Section(tr("You both play for")) {
+                Section(tr(tr("You both play for"))) {
                     ForEach(clubs, id: \.self) { Text($0) }
                 }
             }
         }
         .listStyle(.insetGrouped)
         .fishersList()
-        .navigationTitle(player?.name ?? knownName ?? "Player")
+        .navigationTitle(player?.name ?? knownName ?? tr("Player"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }
@@ -131,7 +131,7 @@ struct PlayerProfileView: View {
     }
 
     private var careerSection: some View {
-        Section(tr("Career")) {
+        Section(tr(tr("Career"))) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                       spacing: FishersTheme.space2) {
                 figure("Matches", String(totals.matches))
@@ -145,7 +145,7 @@ struct PlayerProfileView: View {
     }
 
     private var seasonSection: some View {
-        Section(tr("Season by season")) {
+        Section(tr(tr("Season by season"))) {
             ForEach(seasons) { row in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
