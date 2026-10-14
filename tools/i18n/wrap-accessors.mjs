@@ -86,7 +86,7 @@ for (const file of files) {
     if (end < 0) continue;   // not a shape we understand; leave it alone
     for (let j = i; j <= end; j++) {
       if (/^\s*(\/\/|\*)/.test(out[j])) continue;
-      if (interpolated(out[j]) || rawValue(out[j])) continue;
+      if (/\\\([^)]*"/.test(out[j]) || rawValue(out[j])) continue;
       // Walk the literals rather than pattern-matching the line, for the same
       // reason wrap-calls does: a pattern can match the gap between two
       // adjacent literals. It also lets the one already inside `tr(` be seen
@@ -104,6 +104,8 @@ for (const file of files) {
         const before = line.slice(at, open);
         const skip =
           body.length < 2 ||
+          // `"\(season.seasonYear)"` is a value rendered as text, not words.
+          body.includes("\\(") ||
           !/[A-Za-z]{2,}/.test(body) ||
           (/^[a-z0-9.]+$/.test(body) && body.includes(".")) ||
           /\b(t|tr)\($/.test(before) ||

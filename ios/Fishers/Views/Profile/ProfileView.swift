@@ -305,7 +305,7 @@ struct ProfileView: View {
                 LabeledContent(tr("Age group"), value: age.label)
             }
             if let years = profile.yearsPlaying, years > 0 {
-                LabeledContent("Years playing", value: "\(years)")
+                LabeledContent(tr("Years playing"), value: "\(years)")
             }
             ForEach(SportStats.summary(for: profile), id: \.label) { stat in
                 LabeledContent(stat.label, value: stat.value)
@@ -332,14 +332,14 @@ struct ProfileView: View {
                 LabeledContent(tr("Based"), value: summary)
             }
             if let radius = location.travelRadiusMiles {
-                LabeledContent("Will travel", value: "\(radius) miles")
+                LabeledContent(tr("Will travel"), value: "\(radius) miles")
             }
             if let transport = location.transport {
                 LabeledContent(tr("Transport")) {
                     Label(transport.label, systemImage: transport.systemImage)
                 }
                 if transport.offersLifts, let seats = location.spareSeats, seats > 0 {
-                    LabeledContent("Spare seats", value: "\(seats)")
+                    LabeledContent(tr("Spare seats"), value: "\(seats)")
                 }
             }
             if !location.weekdays.isEmpty {

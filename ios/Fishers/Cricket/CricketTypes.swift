@@ -350,7 +350,7 @@ struct MatchConditions: Codable, Equatable, Hashable {
 
     /// "20 overs · 4 per bowler · white leather · open ground"
     var summary: String {
-        let perBowler = oversPerBowler == 0 ? "no bowler limit" : "\(oversPerBowler) per bowler"
+        let perBowler = oversPerBowler == 0 ? tr("no bowler limit") : "\(oversPerBowler) per bowler"
         var summary = "\(oversLimit) overs · \(perBowler) · \(ball.label.lowercased()) · \(ground.label.lowercased())"
         if powerplayOvers > 0 {
             summary += t("sc.n_over_powerplay", vars: ["n": powerplayOvers])
@@ -1652,21 +1652,21 @@ struct MatchState: Codable, Equatable {
         }
         switch batter.dismissal {
         case .bowled:
-            return bowler.map { "b \($0)" } ?? "bowled"
+            return bowler.map { "b \($0)" } ?? tr("bowled")
         case .caught:
             if let f = fielder, let b = bowler { return "c \(f) b \(b)" }
             if let b = bowler { return "c & b \(b)" }
             return tr("caught")
         case .lbw:
-            return bowler.map { "lbw b \($0)" } ?? "lbw"
+            return bowler.map { "lbw b \($0)" } ?? tr("lbw")
         case .stumped:
             if let f = fielder, let b = bowler { return "st \(f) b \(b)" }
             if let b = bowler { return "st b \(b)" }
             return tr("stumped")
         case .hitWicket:
-            return bowler.map { "hit wicket b \($0)" } ?? "hit wicket"
+            return bowler.map { "hit wicket b \($0)" } ?? tr("hit wicket")
         case .runOut:
-            return fielder.map { "run out (\($0))" } ?? "run out"
+            return fielder.map { "run out (\($0))" } ?? tr("run out")
         case .retired:
             return tr("retired out")
         case .retiredHurt:

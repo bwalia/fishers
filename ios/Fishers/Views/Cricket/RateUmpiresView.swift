@@ -114,7 +114,7 @@ private struct RateOne: View {
             error = nil
             await onSaved()
         } catch {
-            self.error = "Could not save that"
+            self.error = tr("Could not save that")
         }
     }
 
@@ -129,7 +129,7 @@ private struct RateOne: View {
             error = nil
             await onSaved()
         } catch {
-            self.error = "Could not remove that"
+            self.error = tr("Could not remove that")
         }
     }
 }
@@ -157,7 +157,7 @@ private struct StarPicker: View {
                 .accessibilityLabel(t("rest.n_out_of_5", vars: ["n": n]))
                 .accessibilityAddTraits(n == value ? .isSelected : [])
             }
-            Text(value > 0 ? "\(value) / 5" : "Not rated")
+            Text(value > 0 ? "\(value) / 5" : tr("Not rated"))
                 .font(FishersTheme.caption)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()

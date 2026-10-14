@@ -923,7 +923,7 @@ private struct ExtrasSheet: View {
 
     private var runsLabel: String {
         switch kind {
-        case .wide, .noBall: return runs == 0 ? "None" : "\(runs)"
+        case .wide, .noBall: return runs == 0 ? tr("None") : "\(runs)"
         default: return "\(runs)"
         }
     }
@@ -1416,7 +1416,7 @@ private struct SecondInningsSheet: View {
 
     private func start() {
         guard let s = strikerId, let ns = nonStrikerId, let b = bowlerId, s != ns else {
-            message = "Pick two different batters and a bowler."
+            message = tr("Pick two different batters and a bowler.")
             return
         }
         if store.append(.inningsStarted(
@@ -1832,7 +1832,7 @@ private struct SuperOverSheet: View {
 
     private func start() {
         guard let s = strikerId, let ns = nonStrikerId, let b = bowlerId, s != ns else {
-            message = "Pick two different batters and a bowler."
+            message = tr("Pick two different batters and a bowler.")
             return
         }
         let next = UInt8(store.state.innings.count)

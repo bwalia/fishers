@@ -103,7 +103,7 @@ struct EntryInvitationsSection: View {
             _ = try await FishersAPI.respondToEntry(entrantId: invitation.entrantId, status: status)
             await onAnswered()
         } catch {
-            self.error = "Could not send that answer. Try again in a moment."
+            self.error = tr("Could not send that answer. Try again in a moment.")
         }
     }
 }

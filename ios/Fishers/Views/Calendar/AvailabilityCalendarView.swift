@@ -14,7 +14,7 @@ struct CalendarPane: View {
     private let weekdays = ["M", "T", "W", "T", "F", "S", "S"]
     /// Monday-first, as the grid is, in Calendar's 1 = Sunday numbering.
     private let weekdayOrder: [(Int, String)] = [
-        (2, "Mondays"), (3, "Tuesdays"), (4, "Wednesdays"), (5, "Thursdays"), (6, "Fridays"), (7, "Saturdays"), (1, "Sundays"),
+        (2, tr("Mondays")), (3, tr("Tuesdays")), (4, tr("Wednesdays")), (5, tr("Thursdays")), (6, tr("Fridays")), (7, tr("Saturdays")), (1, tr("Sundays")),
     ]
 
     var body: some View {

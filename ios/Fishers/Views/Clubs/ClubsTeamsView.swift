@@ -60,7 +60,7 @@ struct ClubsTeamsView: View {
                         }
                     } header: {
                         HStack {
-                            Text(total == 1 ? "1 club" : "\(total) clubs")
+                            Text(total == 1 ? tr("1 club") : "\(total) clubs")
                             Spacer()
                             if filters.isFiltered {
                                 Button(t("cl.clear_filters")) { clearFilters() }

@@ -144,7 +144,7 @@ struct OppositionPickerView: View {
             onPick(identity.displayName, identity)
             dismiss()
         } catch {
-            message = "That code isn't one of ours. Try searching by name."
+            message = tr("That code isn't one of ours. Try searching by name.")
         }
     }
 }

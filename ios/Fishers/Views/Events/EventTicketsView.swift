@@ -29,7 +29,7 @@ struct EventTicketsView: View {
 
                 Section {
                     HStack(spacing: 8) {
-                        figure("Coming", "\(summary.headcount)")
+                        figure(tr("Coming"), "\(summary.headcount)")
                         figure(tr("Places left"), left.map(String.init) ?? "—")
                         figure(tr("Each"), summary.ticketPriceCents.map(money) ?? tr("Free"))
                     }
@@ -46,7 +46,7 @@ struct EventTicketsView: View {
 
                 if let mine {
                     Section {
-                        LabeledContent("Places", value: "\(mine.places)")
+                        LabeledContent(tr("Places"), value: "\(mine.places)")
                         if let names = mine.guestNames { LabeledContent(tr("Bringing"), value: names) }
                         LabeledContent(tr("To pay"), value: money(mine.amountCents))
                         LabeledContent(tr("Status"), value: mine.status.capitalized)
@@ -56,7 +56,7 @@ struct EventTicketsView: View {
                                     _ = try await FishersAPI.payTicket(mine.id)
                                 }
                             } label: {
-                                Text(busy == "pay" ? "Opening…" : "Pay \(money(mine.amountCents))")
+                                Text(busy == tr("pay") ? tr("Opening…") : "Pay \(money(mine.amountCents))")
                                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                             }
                             .buttonStyle(.borderedProminent)

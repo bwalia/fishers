@@ -80,7 +80,7 @@ struct PendingInvitesSection: View {
             await onAccepted()
         } catch let api as APIError where api.isUnverified {
             // The code goes in on this same screen, in the guide below.
-            error = "Confirm your email or phone number first — the code is in the getting-started steps."
+            error = tr("Confirm your email or phone number first — the code is in the getting-started steps.")
         } catch {
             self.error = (error as? APIError)?.friendlyMessage ?? error.localizedDescription
         }

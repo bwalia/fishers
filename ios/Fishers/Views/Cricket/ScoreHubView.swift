@@ -261,7 +261,7 @@ struct ScoreHubPane: View {
                 page = 1
                 hasMore = false
                 showingCached = true
-                message = "Showing fixtures saved on this phone — will refresh when you are back online."
+                message = tr("Showing fixtures saved on this phone — will refresh when you are back online.")
             } else {
                 message = (error as? APIError)?.friendlyMessage ?? error.localizedDescription
                 showingCached = false
@@ -583,7 +583,7 @@ struct QuickMatchSheet: View {
                 self.error = api.friendlyMessage
                 return
             } catch {
-                self.error = "Could not start the match"
+                self.error = tr("Could not start the match")
                 return
             }
         }

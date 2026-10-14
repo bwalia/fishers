@@ -33,6 +33,7 @@ const CALLS = [
   "stat", "figure", "tile", "metric", "pill", "ClubCrest",
   "Stat", "question", "Row", "badge", "row", "Chip", "Pill", "Banner", "Hint",
   "Block", "Spec", "Step", "rsvpButton", "playerPicker", "compare", "Section",
+  "field", "Item", "Preset",
 ];
 
 /**
@@ -41,6 +42,13 @@ const CALLS = [
  * never see it; but it goes on screen a moment later.
  */
 const FALLBACK = /(\?\?\s*)"([^"\\]{2,})"/g;
+
+/**
+ * `message = "Saved."` and `self.error = "That did not work."` — a sentence on
+ * its way to a view, assigned rather than drawn, so no call-shaped pass sees
+ * it. Only these two names: anything else assigned a literal might be a value.
+ */
+const ASSIGNED = /\b((?:self\.)?(?:message|errorMessage|error|banner|note|status)\s*=\s*)"([^"\\]{2,})"/g;
 const opener = new RegExp(String.raw`\b(${CALLS.join("|")})\(`, "g");
 
 let wrapped = 0, changed = 0;
@@ -72,7 +80,12 @@ for (const file of files) {
     const span = text.slice(openAt, closeAt + 1);
     // One line at a time inside the call, so the two refusals still apply.
     const rewritten = span.split("\n").map((line) => {
-      if (line.includes("\\(")) return line;                 // interpolation
+      // Only refuse a line whose interpolation contains a quote — that is
+      // where the walker cannot tell a literal's end, and it is what made
+      // `"str("` out of `\\(runs == 1 ? "" : "s")`. A line like
+      // `LabeledContent("Season", value: "\\(year)")` walks safely: the label
+      // is an ordinary literal, and the interpolated one is skipped below.
+      if (/\\\([^)]*"/.test(line)) return line;
       if (/\bcase\s+\w+\s*=\s*"/.test(line)) return line;    // a raw value
       if (/^\s*(\/\/|\*)/.test(line)) return line;           // a comment
       // Walk the line's literals in order rather than matching a pattern
@@ -94,6 +107,8 @@ for (const file of files) {
         const named = /(\w+):\s*$/.exec(before);
         const skip =
           body.length < 2 ||
+          // `"\(season.seasonYear)"` is a value rendered as text, not words.
+          body.includes("\\(") ||
           !/[A-Za-z]{2,}/.test(body) ||
           (/^[a-z0-9.]+$/.test(body) && body.includes(".")) ||
           (named && /^(systemImage|systemName|key|id|value|tag|of|with|separator|format)$/.test(named[1])) ||
@@ -125,13 +140,19 @@ for (const file of files) {
 
   out = out.split("\n").map((line) => {
     // Interpolation and comments, same two refusals as everywhere else.
-    if (line.includes("\\(") || /^\s*(\/\/|\*)/.test(line)) return line;
-    return line.replace(FALLBACK, (whole, op, body) => {
+    // Only refuse a line whose interpolation contains a quote — that is the
+    // case where the walker cannot tell where a literal ends, and it is what
+    // produced `"str("` from `\(runs == 1 ? "" : "s")`. A line like
+    // `LabeledContent("Season", value: "\(year)")` is safe to walk: the label
+    // is an ordinary literal and the interpolated one is skipped below.
+    if (/\\\([^)]*"/.test(line) || /^\s*(\/\/|\*)/.test(line)) return line;
+    const wrap = (whole, op, body) => {
       if (!/[A-Za-z]{2,}/.test(body)) return whole;
-      if (/^[a-z0-9.]+$/.test(body) && body.includes(".")) return whole;
+      if (/^[a-z0-9._]+$/.test(body) && !/\s/.test(body)) return whole;
       wrapped += 1;
       return `${op}tr(${JSON.stringify(body)})`;
-    });
+    };
+    return line.replace(FALLBACK, wrap).replace(ASSIGNED, wrap);
   }).join("\n");
 
   if (out !== before) {

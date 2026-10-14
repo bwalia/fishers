@@ -80,7 +80,7 @@ struct ChatListView: View {
                 }
                 if conversation.pendingProposals > 0 {
                     Label(
-                        "\(conversation.pendingProposals) suggestion\(conversation.pendingProposals == 1 ? "" : "s") to review",
+                        t("cl.n_suggestions_to_review", count: conversation.pendingProposals, vars: ["n": conversation.pendingProposals]),
                         systemImage: "sparkles"
                     )
                     .font(.caption.weight(.semibold))

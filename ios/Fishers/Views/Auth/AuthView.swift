@@ -81,7 +81,7 @@ struct AuthView: View {
 
                         VStack(spacing: 12) {
                             if mode == .signup {
-                                field("Name", text: $name, field: .name)
+                                field(tr("Name"), text: $name, field: .name)
                                     .textContentType(.name)
 
                                 Picker(tr("Register with"), selection: $method) {
@@ -95,12 +95,12 @@ struct AuthView: View {
                                 .onChange(of: method) { _, _ in identifier = "" }
                             }
                             if mode == .signup && method == .phone {
-                                field("Mobile number", text: $identifier, field: .identifier)
+                                field(tr("Mobile number"), text: $identifier, field: .identifier)
                                     .textContentType(.telephoneNumber)
                                     .keyboardType(.phonePad)
                             } else {
                                 field(
-                                    mode == .login ? "Email or mobile number" : "Email",
+                                    mode == .login ? tr("Email or mobile number") : tr("Email"),
                                     text: $identifier,
                                     field: .identifier
                                 )
@@ -288,7 +288,7 @@ struct AuthView: View {
                   let token = String(data: tokenData, encoding: .utf8),
                   !token.isEmpty
             else {
-                session.errorMessage = "Apple sign-in did not return a token — try again"
+                session.errorMessage = tr("Apple sign-in did not return a token — try again")
                 return
             }
             var nameParts: [String] = []
@@ -307,7 +307,7 @@ struct AuthView: View {
     private func socialGoogle() async {
         do {
             guard let googleConfig else {
-                session.errorMessage = "Google sign-in is not set up on this server"
+                session.errorMessage = tr("Google sign-in is not set up on this server")
                 return
             }
             let credential = try await SocialAuth.signInWithGoogle(config: googleConfig)

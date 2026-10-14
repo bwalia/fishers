@@ -98,10 +98,26 @@ for (const file of files) {
     // looks the same to a careless pattern, and flagging it would bury the
     // real one. This check has now been wrong in both directions, so it is
     // written to say exactly what it means.
-    for (const m of line.matchAll(/"([^"\\]*)"/g)) {
-      if (/tr\(|String\(format:/.test(m[1])) {
-        mangled.push(`${relative(repoRoot, file)}:${i + 1}  wrapped across two literals: ${m[0]}`);
+    // Walk the literals with escapes honoured. A regex of `"([^"\\]*)"` skips
+    // any literal containing a backslash — so on
+    // `bowler.map { "b \\($0)" } ?? tr("bowled")` it skipped the first and
+    // matched the *gap*, reporting a correct line as damage. The walker is
+    // the same one the wrappers use, for the same reason.
+    let at = 0;
+    while (at < line.length) {
+      const open = line.indexOf('"', at);
+      if (open < 0) break;
+      let close = open + 1;
+      while (close < line.length && !(line[close] === '"' && line[close - 1] !== "\\")) close += 1;
+      if (close >= line.length) break;
+      const body = line.slice(open + 1, close);
+      // `tr(` inside a literal is the whole signature. `String(format:` is
+      // not: an interpolated string legitimately contains it, and the walker
+      // stops at the quote inside the interpolation.
+      if (/tr\(/.test(body)) {
+        mangled.push(`${relative(repoRoot, file)}:${i + 1}  wrapped across two literals: "${body}"`);
       }
+      at = close + 1;
     }
     // A key sent through the English translator. It works by accident — `tr`
     // does not know the key, so it hands it back and `t` looks it up — but it

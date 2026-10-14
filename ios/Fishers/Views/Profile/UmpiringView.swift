@@ -35,7 +35,7 @@ struct UmpiringView: View {
     private func content(_ p: UmpireProfile) -> some View {
         Section {
             HStack(spacing: FishersTheme.space3) {
-                figure("\(p.matches)", p.matches == 1 ? "match umpired" : "matches umpired")
+                figure("\(p.matches)", p.matches == 1 ? tr("match umpired") : tr("matches umpired"))
                 figure(p.ratingAverage.map { String(format: "%.1f", $0) } ?? "—", p.ratingLine)
             }
 
@@ -142,7 +142,7 @@ struct UmpiringView: View {
                 : try await FishersAPI.umpiring(of: userId!)
             note = profile?.note ?? ""
         } catch {
-            self.error = "Could not load the umpiring record"
+            self.error = tr("Could not load the umpiring record")
         }
     }
 
@@ -153,7 +153,7 @@ struct UmpiringView: View {
             profile = try await FishersAPI.setUmpiring(umpires: umpires, note: note)
             editingNote = false
         } catch {
-            self.error = "Could not save that"
+            self.error = tr("Could not save that")
         }
     }
 }

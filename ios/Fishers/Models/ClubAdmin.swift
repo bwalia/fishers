@@ -105,7 +105,7 @@ struct AppNotification: Codable, Identifiable, Equatable {
     /// One line of plain English. A player is not going to read
     /// `match_terms_proposed`. The same words the web uses.
     var line: String {
-        let sides = "\(payload["home_name"] ?? "A side") v \(payload["away_name"] ?? "another")"
+        let sides = t("cl.sides_v_sides", vars: ["home": payload["home_name"] ?? t("cl.a_side"), tr("away"): payload["away_name"] ?? t("cl.another_side")])
         switch type {
         case tr("match_terms_proposed"):
             return "\(sides) — the other captain has proposed the terms. Tap to agree."
@@ -116,7 +116,7 @@ struct AppNotification: Codable, Identifiable, Equatable {
         case tr("match_book_handed_over"):
             return "\(sides) — you have the book. You're scoring from the next ball."
         case tr("fixture_scheduled"):
-            return "\(payload["title"] ?? "A fixture") — can you play?"
+            return t("cl.can_you_play_title", vars: ["title": payload["title"] ?? t("cl.a_fixture")])
         case tr("player_responded"):
             return "\(payload["player"] ?? "A player") answered for \(payload["title"] ?? "a fixture")."
         case tr("invite"):

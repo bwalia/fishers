@@ -418,7 +418,7 @@ struct CricketScoringFlowView: View {
         let name = captainName.trimmingCharacters(in: .whitespaces)
         agreeingSide = nil
         guard !name.isEmpty else {
-            message = "Put a name against the agreement."
+            message = tr("Put a name against the agreement.")
             return
         }
         guard store.append(.conditionsAgreed(side: side, captainName: name)) else {
@@ -672,7 +672,7 @@ struct CricketScoringFlowView: View {
 
     private func startMatch() async {
         guard canScore else {
-            message = "You need scoring permission (captain, secretary or assigned scorer)."
+            message = tr("You need scoring permission (captain, secretary or assigned scorer).")
             return
         }
         booting = true

@@ -194,7 +194,7 @@ struct HomeFeedView: View {
                             .foregroundStyle(FishersTheme.accent, .primary)
                     }
                     .accessibilityLabel(
-                        unread > 0 ? "\(unread) unread notifications" : "Notifications"
+                        unread > 0 ? "\(unread) unread notifications" : tr("Notifications")
                     )
                 }
                 ToolbarItem(placement: .topBarTrailing) {

@@ -263,7 +263,7 @@ struct EventDetailView: View {
             Task {
                 do {
                     try await FishersAPI.rsvp(eventId: eventId, status: status)
-                    message = "RSVP updated"
+                    message = tr("RSVP updated")
                     await load()
                 } catch {
                     message = error.localizedDescription
@@ -356,7 +356,7 @@ struct EventDetailView: View {
                 attendees = []
                 roleInfo = OfflineCache.loadRole(clubId: cached.clubId)
                 showingCached = true
-                message = "Showing the fixture saved on this phone."
+                message = tr("Showing the fixture saved on this phone.")
             } else {
                 message = error.localizedDescription
             }

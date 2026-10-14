@@ -3762,4 +3762,28 @@ export const pa: Dict = {
   "sc.non_striker_pick": "ਨਾਨ-ਸਟ੍ਰਾਈਕਰ",
   "sc.bowler_pick": "ਗੇਂਦਬਾਜ਼",
 
+  // MARK: Career figures, the notification lines, the weekday rows
+  "rest.innings_stat": "ਪਾਰੀਆਂ",
+  "rest.average_stat": "ਔਸਤ",
+  "rest.strike_rate_stat": "ਸਟ੍ਰਾਈਕ ਰੇਟ",
+  "rest.economy_stat": "ਇਕਾਨਮੀ",
+  "rest.highest_score_stat": "ਸਭ ਤੋਂ ਵੱਡਾ ਸਕੋਰ",
+  "rest.most_runs_in_a_season": "ਇੱਕ ਸੀਜ਼ਨ ਵਿੱਚ ਸਭ ਤੋਂ ਵੱਧ ਦੌੜਾਂ",
+  "rest.best_average": "ਸਭ ਤੋਂ ਵਧੀਆ ਔਸਤ",
+  "rest.most_wickets_in_a_season": "ਇੱਕ ਸੀਜ਼ਨ ਵਿੱਚ ਸਭ ਤੋਂ ਵੱਧ ਵਿਕਟਾਂ",
+  "rest.best_economy": "ਸਭ ਤੋਂ ਵਧੀਆ ਇਕਾਨਮੀ",
+  "rest.most_maidens": "ਸਭ ਤੋਂ ਵੱਧ ਮੇਡਨ",
+  "cl.a_side": "ਇੱਕ ਟੀਮ",
+  "cl.a_fixture": "ਇੱਕ ਮੈਚ",
+  "cl.a_player": "ਇੱਕ ਖਿਡਾਰੀ",
+  "cl.sides_v_sides": "{home} ਬਨਾਮ {away}",
+  "cl.can_you_play_title": "{title} — ਕੀ ਤੁਸੀਂ ਖੇਡ ਸਕਦੇ ਹੋ?",
+  "cl.n_suggestions.one": "{n} ਸੁਝਾਅ",
+  "cl.n_suggestions.other": "{n} ਸੁਝਾਅ",
+
+  // MARK: Two more
+  "cl.another_side": "ਕੋਈ ਹੋਰ",
+  "cl.n_suggestions_to_review.one": "ਵੇਖਣ ਲਈ {n} ਸੁਝਾਅ",
+  "cl.n_suggestions_to_review.other": "ਵੇਖਣ ਲਈ {n} ਸੁਝਾਅ",
+
 };

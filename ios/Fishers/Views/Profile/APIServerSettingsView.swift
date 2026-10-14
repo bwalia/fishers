@@ -20,11 +20,11 @@ struct APIServerSettingsView: View {
     private var visiblePresets: [(String, String)] {
         var items: [(String, String)] = []
         if let lan = AppConfig.lanAPIBase {
-            items.append(("This Mac (Wi‑Fi)", lan.absoluteString))
+            items.append((tr("This Mac (Wi‑Fi)"), lan.absoluteString))
         }
         #if targetEnvironment(simulator)
         if let build = AppConfig.buildAPIBase, build.host == "127.0.0.1" {
-            items.append(("Simulator loopback", build.absoluteString))
+            items.append((tr("Simulator loopback"), build.absoluteString))
         }
         #endif
         // This brand's rings, not Fishers'. A preset naming another brand's

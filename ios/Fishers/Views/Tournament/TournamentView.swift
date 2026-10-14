@@ -249,7 +249,7 @@ struct TournamentView: View {
         ].compactMap { $0 }
 
         Section {
-            LabeledContent("Players a side", value: "\(block.side)")
+            LabeledContent(tr("Players a side"), value: "\(block.side)")
             if let age = block.ageGroup, age != "open" {
                 LabeledContent(tr("Age group"), value: age.uppercased())
             }
@@ -260,14 +260,14 @@ struct TournamentView: View {
                 Text(rule).font(FishersTheme.footnote).foregroundStyle(.secondary)
             }
             if let c = block.conditions {
-                LabeledContent("Overs", value: "\(c.oversLimit)")
+                LabeledContent(tr("Overs"), value: "\(c.oversLimit)")
                 LabeledContent(
                     tr("Most per bowler"),
-                    value: c.oversPerBowler == 0 ? "No limit" : "\(c.oversPerBowler)"
+                    value: c.oversPerBowler == 0 ? tr("No limit") : "\(c.oversPerBowler)"
                 )
                 LabeledContent(tr("Ball"), value: c.ball.label)
                 if c.powerplayOvers > 0 {
-                    LabeledContent("Powerplay", value: "\(c.powerplayOvers) overs")
+                    LabeledContent(tr("Powerplay"), value: "\(c.powerplayOvers) overs")
                 }
             }
             if let notes = block.rulesNotes, !notes.isEmpty {

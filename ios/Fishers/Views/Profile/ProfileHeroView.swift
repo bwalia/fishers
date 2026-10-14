@@ -123,7 +123,7 @@ struct ProfileHeroView: View {
         }
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
-                error = "That photo could not be read."
+                error = tr("That photo could not be read.")
                 return
             }
             onPhotoChanged(try await FishersAPI.uploadAvatar(data, mimeType: mimeType(of: data)))

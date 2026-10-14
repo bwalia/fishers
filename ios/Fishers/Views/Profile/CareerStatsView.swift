@@ -87,13 +87,13 @@ struct CareerStatsView: View {
         let totals = Totals(shown)
         let cells: [(String, String)] = discipline == .batting
             ? [("Runs", String(totals.runs)),
-               ("Innings", String(totals.battingInnings)),
-               ("Average", fmt(totals.battingAverage)),
-               ("Strike rate", fmt(totals.strikeRate))]
+               (tr("Innings"), String(totals.battingInnings)),
+               (tr("Average"), fmt(totals.battingAverage)),
+               (tr("Strike rate"), fmt(totals.strikeRate))]
             : [("Wickets", String(totals.wickets)),
                ("Overs", fmt(totals.overs, places: 1)),
                ("Average", fmt(totals.bowlingAverage)),
-               ("Economy", fmt(totals.economy))]
+               (tr("Economy"), fmt(totals.economy))]
 
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                          spacing: FishersTheme.space2) {
@@ -167,20 +167,20 @@ struct CareerStatsView: View {
             let most = best { Double($0.runs) }
             let avg = best { $0.battingAverage }
             return [
-                ("Highest score", hs?.highScore.map(String.init) ?? "—", hs?.seasonYear),
-                ("Most runs in a season", most.map { String($0.runs) } ?? "—", most?.seasonYear),
-                ("Best average", fmt(avg?.battingAverage), avg?.seasonYear),
+                (tr("Highest score"), hs?.highScore.map(String.init) ?? "—", hs?.seasonYear),
+                (tr("Most runs in a season"), most.map { String($0.runs) } ?? "—", most?.seasonYear),
+                (tr("Best average"), fmt(avg?.battingAverage), avg?.seasonYear),
             ]
         }
         let wkts = best { Double($0.wickets) }
         let econ = best { $0.oversBowled > 0 ? -Double($0.bowlingRuns) / $0.oversBowled : nil }
         let maidens = best { Double($0.maidens) }
         return [
-            ("Most wickets in a season", wkts.map { String($0.wickets) } ?? "—", wkts?.seasonYear),
-            ("Best economy",
+            (tr("Most wickets in a season"), wkts.map { String($0.wickets) } ?? "—", wkts?.seasonYear),
+            (tr("Best economy"),
              fmt(econ.flatMap { $0.oversBowled > 0 ? Double($0.bowlingRuns) / $0.oversBowled : nil }),
              econ?.seasonYear),
-            ("Most maidens", maidens.map { String($0.maidens) } ?? "—", maidens?.seasonYear),
+            (tr("Most maidens"), maidens.map { String($0.maidens) } ?? "—", maidens?.seasonYear),
         ]
     }
 

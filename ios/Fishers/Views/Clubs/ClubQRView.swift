@@ -64,7 +64,7 @@ struct ClubQRView: View {
                     }
                     Button {
                         UIPasteboard.general.string = shown.payload
-                        message = "Copied."
+                        message = tr("Copied.")
                     } label: {
                         Label(t("cl.copy_the_link"), systemImage: "doc.on.doc")
                     }
@@ -117,7 +117,7 @@ struct ClubQRView: View {
         do {
             code = try await FishersAPI.rotateClubQRCode(clubId: club.id)
             selectedTeamId = nil
-            message = "New code minted. The old one no longer works."
+            message = tr("New code minted. The old one no longer works.")
         } catch {
             message = error.localizedDescription
         }

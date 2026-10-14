@@ -472,7 +472,7 @@ private struct FeesList: View {
                         Text(String(format: "£%.2f", Double(fees.totalCents) / 100))
                             .font(.headline.monospacedDigit())
                     }
-                    LabeledContent("People", value: "\(fees.count)")
+                    LabeledContent(tr("People"), value: "\(fees.count)")
                 }
                 if fees.owed.isEmpty {
                     Section {

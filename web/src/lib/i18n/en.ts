@@ -3775,6 +3775,30 @@ export const en = {
   "sc.non_striker_pick": "Non-striker",
   "sc.bowler_pick": "Bowler",
 
+  // MARK: Career figures, the notification lines, the weekday rows
+  "rest.innings_stat": "Innings",
+  "rest.average_stat": "Average",
+  "rest.strike_rate_stat": "Strike rate",
+  "rest.economy_stat": "Economy",
+  "rest.highest_score_stat": "Highest score",
+  "rest.most_runs_in_a_season": "Most runs in a season",
+  "rest.best_average": "Best average",
+  "rest.most_wickets_in_a_season": "Most wickets in a season",
+  "rest.best_economy": "Best economy",
+  "rest.most_maidens": "Most maidens",
+  "cl.a_side": "A side",
+  "cl.a_fixture": "A fixture",
+  "cl.a_player": "A player",
+  "cl.sides_v_sides": "{home} v {away}",
+  "cl.can_you_play_title": "{title} — can you play?",
+  "cl.n_suggestions.one": "{n} suggestion",
+  "cl.n_suggestions.other": "{n} suggestions",
+
+  // MARK: Two more
+  "cl.another_side": "another",
+  "cl.n_suggestions_to_review.one": "{n} suggestion to review",
+  "cl.n_suggestions_to_review.other": "{n} suggestions to review",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

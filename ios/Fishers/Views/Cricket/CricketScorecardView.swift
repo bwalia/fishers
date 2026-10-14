@@ -118,8 +118,8 @@ struct CricketScorecardView: View {
                 if let batter = wheelBatter,
                    let stats = innings.batters.first(where: { $0.playerId == batter }) {
                     Section("\(state.name(for: batter))") {
-                        LabeledContent("Runs", value: "\(stats.runs) (\(stats.balls))")
-                        LabeledContent("Boundaries", value: "\(stats.fours)x4, \(stats.sixes)x6")
+                        LabeledContent(tr("Runs"), value: "\(stats.runs) (\(stats.balls))")
+                        LabeledContent(tr("Boundaries"), value: "\(stats.fours)x4, \(stats.sixes)x6")
                         LabeledContent(tr("Strike rate"), value: String(format: "%.1f", stats.strikeRate))
                     }
                 }
@@ -196,8 +196,8 @@ struct CricketScorecardView: View {
 
             if let dls {
                 Section {
-                    LabeledContent("Par now", value: "\(dls.par)")
-                    LabeledContent("Target", value: "\(dls.target)")
+                    LabeledContent(tr("Par now"), value: "\(dls.par)")
+                    LabeledContent(tr("Target"), value: "\(dls.target)")
                     LabeledContent(
                         tr("Resources used"),
                         value: String(format: tr("%.1f%% of %.1f%%"), dls.resourcesUsed, dls.resourcesSecond)
@@ -318,7 +318,7 @@ struct CricketScorecardView: View {
             .foregroundStyle(.secondary)
             .lineLimit(1)
 
-            compare("Score", "\(home.runs)/\(home.wickets)", "\(away.runs)/\(away.wickets)")
+            compare(tr("Score"), "\(home.runs)/\(home.wickets)", "\(away.runs)/\(away.wickets)")
             compare(tr("Overs"), home.overs, away.overs)
             compare(tr("Run rate"), rate(home.runRate), rate(away.runRate))
             compare(
@@ -326,8 +326,8 @@ struct CricketScorecardView: View {
                 "\(home.dots) · \(percent(home.dotPercent))",
                 "\(away.dots) · \(percent(away.dotPercent))"
             )
-            compare("Fours", "\(home.fours)", "\(away.fours)")
-            compare("Sixes", "\(home.sixes)", "\(away.sixes)")
+            compare(tr("Fours"), "\(home.fours)", "\(away.fours)")
+            compare(tr("Sixes"), "\(home.sixes)", "\(away.sixes)")
             compare(
                 tr("In boundaries"),
                 "\(home.boundaryRuns) · \(percent(home.boundaryPercent))",
@@ -344,11 +344,11 @@ struct CricketScorecardView: View {
                     )
                 }
             }
-            compare("Top order 1-3", "\(home.topOrder)", "\(away.topOrder)")
-            compare("Middle order 4-7", "\(home.middleOrder)", "\(away.middleOrder)")
-            compare("Lower order 8+", "\(home.lowerOrder)", "\(away.lowerOrder)")
-            compare("Best stand", "\(home.bestPartnership)", "\(away.bestPartnership)")
-            compare("Extras", "\(home.extras)", "\(away.extras)")
+            compare(tr("Top order 1-3"), "\(home.topOrder)", "\(away.topOrder)")
+            compare(tr("Middle order 4-7"), "\(home.middleOrder)", "\(away.middleOrder)")
+            compare(tr("Lower order 8+"), "\(home.lowerOrder)", "\(away.lowerOrder)")
+            compare(tr("Best stand"), "\(home.bestPartnership)", "\(away.bestPartnership)")
+            compare(tr("Extras"), "\(home.extras)", "\(away.extras)")
         } header: {
             Text(t("sc.how_the_game_went"))
         }

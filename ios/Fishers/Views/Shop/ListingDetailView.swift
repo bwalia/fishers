@@ -279,7 +279,7 @@ struct ListingDetailView: View {
             await chat.loadConversations()
             openThread = chat.conversations.first { $0.id == started.conversationId }
             if openThread == nil {
-                error = "The conversation was opened, but it has not arrived in Chats yet."
+                error = tr("The conversation was opened, but it has not arrived in Chats yet.")
             } else {
                 error = nil
             }
@@ -307,8 +307,8 @@ private struct OwnerPanel: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
-                Stat("People asking", "\(listing.enquiries ?? 0)")
-                Stat("Photographs", "\(listing.product.photos?.count ?? 0)")
+                Stat(tr("People asking"), "\(listing.enquiries ?? 0)")
+                Stat(tr("Photographs"), "\(listing.product.photos?.count ?? 0)")
                 Stat(tr("Visible to"), listing.product.listedPublicly == true ? tr("Every club") : tr("Your club"))
             }
 
