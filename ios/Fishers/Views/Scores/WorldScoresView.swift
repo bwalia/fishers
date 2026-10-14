@@ -21,22 +21,22 @@ struct WorldScoresView: View {
             } else if let scores, scores.enabled {
                 freshnessNote(scores)
                 section(
-                    "Being played now",
-                    note: "Matches in progress, including the intervals.",
+                    tr("Being played now"),
+                    note: tr("Matches in progress, including the intervals."),
                     matches: scores.live,
-                    empty: "Nothing is being played at the moment."
+                    empty: tr("Nothing is being played at the moment.")
                 )
                 section(
-                    "Coming up",
-                    note: "Due to start soon.",
+                    tr("Coming up"),
+                    note: tr("Due to start soon."),
                     matches: scores.upcoming,
-                    empty: "No fixtures listed for the next few days."
+                    empty: tr("No fixtures listed for the next few days.")
                 )
                 section(
-                    "Recent results",
-                    note: "Matches that have finished.",
+                    tr("Recent results"),
+                    note: tr("Matches that have finished."),
                     matches: scores.recent,
-                    empty: "No results yet."
+                    empty: tr("No results yet.")
                 )
             } else {
                 offState

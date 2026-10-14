@@ -51,8 +51,29 @@ for (const file of files) {
   lines.forEach((line, i) => {
     // Skip comments and the doc-comment prose that fills this codebase.
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
-    for (const m of line.matchAll(/"([^"\\]{2,})"/g)) {
+    // Walk the literals with escapes honoured, the same way the wrappers and
+    // the guard do. The regex this replaced — `"([^"\\]{2,})"` — skips any
+    // literal containing a backslash and then matches the *gap* to the next
+    // one, so a line like `t("k", vars: ["n": n])` reported `", vars: ["` as a
+    // string still in English. That inflated this count by about a quarter.
+    const literals = [];
+    for (let at = 0; at < line.length; ) {
+      const open = line.indexOf('"', at);
+      if (open < 0) break;
+      let close = open + 1;
+      while (close < line.length && !(line[close] === '"' && line[close - 1] !== "\\")) close += 1;
+      if (close >= line.length) break;
+      literals.push({ body: line.slice(open + 1, close), index: open });
+      at = close + 1;
+    }
+    for (const m of literals.map((l) => ({ 1: l.body, index: l.index, 0: `"${l.body}"` }))) {
       const text = m[1];
+      if (text.length < 2) continue;
+      // A literal with interpolation in it is a sentence built at runtime.
+      // Those are counted by tools/i18n/interpolated.mjs, which reports the
+      // ones in a drawn position — and reports none. Counting them here as
+      // well would be the same work twice, under a name that does not fit.
+      if (text.includes("\\(")) continue;
       // Must contain a word a person would read.
       if (!/[A-Za-z]{2,}/.test(text)) continue;
       // Pure identifiers: no space, all lowercase or dotted — keys, not copy.
@@ -89,6 +110,10 @@ for (const file of files) {
 const mangled = [];
 for (const file of files) {
   readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+    // A comment explaining one of these is not one of these. The note above
+    // ClubAdmin's switch quotes `case tr("invite")` to say why it is wrong,
+    // and this check reported it as the thing it warns about.
+    if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
     // The signature is a *string literal* that contains a call. Looking for
     // `tr(` with a word boundary misses the real case, because the corruption
     // reads `"_tr("` and `_` is a word character — which is how this check

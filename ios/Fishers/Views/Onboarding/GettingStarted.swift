@@ -87,8 +87,8 @@ enum GettingStartedGuide {
                 GuideStep(
                     id: "join", title: tr("Accept your club's invite"),
                     detail: f.inviteCount > 0
-                        ? "It's waiting at the top of this screen — check it's your club, then tap Accept."
-                        : "When your secretary invites you, it appears at the top of this screen, ready to accept.",
+                        ? tr("It's waiting at the top of this screen — check it's your club, then tap Accept.")
+                        : tr("When your secretary invites you, it appears at the top of this screen, ready to accept."),
                     done: f.clubCount > 0, action: .acceptInvite
                 ),
             ]
@@ -153,7 +153,7 @@ struct GettingStartedSection: View {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     Label(
-                        "Getting started · \(role == .secretary ? "Club secretary" : "Player")",
+                        t("cl.getting_started_role", vars: ["role": role == .secretary ? t("cl.club_secretary_role") : t("cl.player_role")]),
                         systemImage: "sparkles"
                     )
                     .font(FishersTheme.overline)

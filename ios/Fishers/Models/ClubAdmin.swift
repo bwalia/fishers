@@ -106,8 +106,8 @@ struct AppNotification: Codable, Identifiable, Equatable {
     /// `match_terms_proposed`. The same words the web uses.
     var line: String {
         let sides = t("cl.sides_v_sides", vars: [
-            "home": payload["home_name"] ?? t("cl.a_side"),
-            "away": payload["away_name"] ?? t("cl.another_side"),
+            tr("home"): payload["home_name"] ?? t("cl.a_side"),
+            tr("away"): payload["away_name"] ?? t("cl.another_side"),
         ])
         // `type` is what the API sent. It is matched, never translated — a
         // `case tr("invite")` matches in English and never in Punjabi, which
@@ -125,8 +125,8 @@ struct AppNotification: Codable, Identifiable, Equatable {
             return t("cl.can_you_play_title", vars: ["title": payload["title"] ?? t("cl.a_fixture")])
         case "player_responded":
             return t("cl.notif_player_responded", vars: [
-                "player": payload["player"] ?? t("cl.a_player"),
-                "title": payload["title"] ?? t("cl.notif_a_fixture_lower"),
+                tr("player"): payload["player"] ?? t("cl.a_player"),
+                tr("title"): payload["title"] ?? t("cl.notif_a_fixture_lower"),
             ])
         case "invite":
             let from = payload["inviter"].map { t("cl.notif_inviter", vars: ["name": $0]) } ?? ""
@@ -144,8 +144,8 @@ struct AppNotification: Codable, Identifiable, Equatable {
         case "invite_accepted":
             let into = payload["team_name"] ?? payload["event_title"] ?? payload["club_name"] ?? tr("the club")
             return t("cl.notif_accepted_theyre_in", vars: [
-                "player": payload["player"] ?? t("cl.a_player"),
-                "into": into,
+                tr("player"): payload["player"] ?? t("cl.a_player"),
+                tr("into"): into,
             ])
         default:
             return type.replacingOccurrences(of: "_", with: " ")

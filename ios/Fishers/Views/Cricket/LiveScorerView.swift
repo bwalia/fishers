@@ -318,7 +318,7 @@ struct LiveScorerView: View {
                         .background(FishersTheme.seam.opacity(0.15), in: Capsule())
                 } else if inn.inPowerplay {
                     Label(
-                        "POWERPLAY — \(inn.powerplayOversLeft) over\(inn.powerplayOversLeft == 1 ? "" : "s") left",
+                        t("sc.powerplay_n_overs_banner", count: Int(inn.powerplayOversLeft), vars: ["n": inn.powerplayOversLeft]),
                         systemImage: "circle.dashed"
                     )
                     .font(.caption.weight(.bold))
@@ -1916,7 +1916,7 @@ private struct PenaltySheet: View {
                             : reason.rawValue
                         _ = store.append(.penaltyRuns(
                             runs: UInt8(runs),
-                            reason: text.isEmpty ? "Penalty" : text,
+                            reason: text.isEmpty ? tr("Penalty") : text,
                             toSide: toSide
                         ))
                         dismiss()

@@ -79,7 +79,7 @@ struct UmpiringView: View {
             if p.matches == 0 && p.reviews.isEmpty {
                 Text(isMine
                      ? tr("Ask your captain to name you as umpire and it starts counting.")
-                     : "\(name ?? "They") have not umpired a match here yet.")
+                     : t("rest.have_not_umpired_yet", vars: ["name": name ?? t("rest.they_pronoun")]))
             }
         }
 

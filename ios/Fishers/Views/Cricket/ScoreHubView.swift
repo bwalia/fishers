@@ -373,7 +373,7 @@ struct ScoreFixtureRow: View {
 
     private var status: (label: String, tint: Color) {
         switch fixture.matchStatus {
-        case "live": return ("Live", FishersTheme.seam)
+        case "live": return (tr("Live"), FishersTheme.seam)
         case "complete", "published": return ("Finished", FishersTheme.pitch)
         case nil: return ("Not started", .secondary)
         case let other?: return (other.replacingOccurrences(of: "_", with: " ").capitalized, FishersTheme.accent)

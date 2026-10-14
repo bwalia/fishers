@@ -201,9 +201,9 @@ struct CricketScoringFlowView: View {
                 Text(t("sc.format"))
             } footer: {
                 Text(t("sc.usual_allocation_and_powerplay", vars: [
-                    "perBowler": MatchConditions.standardOversPerBowler(conditions.oversLimit),
-                    "overs": conditions.oversLimit,
-                    "powerplay": MatchConditions.standardPowerplay(conditions.oversLimit),
+                    tr("perBowler"): MatchConditions.standardOversPerBowler(conditions.oversLimit),
+                    tr("overs"): conditions.oversLimit,
+                    tr("powerplay"): MatchConditions.standardPowerplay(conditions.oversLimit),
                 ]))
             }
 

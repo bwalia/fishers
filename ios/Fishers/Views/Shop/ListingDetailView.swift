@@ -228,9 +228,9 @@ struct ListingDetailView: View {
             Block(tr("How buying works")) {
                 VStack(alignment: .leading, spacing: 10) {
                     Step(1, tr("Ask anything you need to."),
-                         tr("Messages go to the seller here in the app.")
-                             + (listing.product.negotiable == true
-                                ? tr(" The price is open to offers, so say what you would pay.") : ""))
+                         listing.product.negotiable == true
+                             ? tr("Messages go to the seller here in the app. The price is open to offers, so say what you would pay.")
+                             : tr("Messages go to the seller here in the app."))
                     Step(2, tr("Reserve it."),
                          tr("That holds it for you and tells the seller — it does not charge you anything."))
                     Step(3, tr("Collect and pay in person."),

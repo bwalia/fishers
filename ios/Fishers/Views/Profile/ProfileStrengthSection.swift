@@ -41,7 +41,7 @@ struct ProfileStrengthSection: View {
                         Button {
                             Task {
                                 reminder = await ProfileReminder.requestAndSchedule(for: user)
-                                    ? "We'll remind you tomorrow evening."
+                                    ? tr("We'll remind you tomorrow evening.")
                                     : "Turn on notifications for \(Brand.name) in Settings to get a reminder."
                             }
                         } label: {

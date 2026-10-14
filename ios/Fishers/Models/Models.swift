@@ -312,9 +312,9 @@ struct Product: Codable, Identifiable, Hashable {
     var isSold: Bool { stock == 0 }
 
     var availability: String {
-        guard let stock else { return "On request" }
-        if stock == 0 { return "Sold" }
-        if stock == 1 && condition == "used" { return "One only" }
+        guard let stock else { return tr("On request") }
+        if stock == 0 { return tr("Sold") }
+        if stock == 1 && condition == "used" { return tr("One only") }
         return "\(stock) available"
     }
 

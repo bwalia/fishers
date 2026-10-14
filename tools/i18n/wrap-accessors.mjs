@@ -43,6 +43,7 @@ const DISPLAY = [
   // identifiers, SF Symbols, or somebody's actual name.
   "shortLabel", "shortTitle", "shortName", "missing", "responsibilities",
   "verb", "word", "line", "freshness", "syncLabel", "detail", "errorDescription",
+  "displayName", "availability", "greeting", "status", "reason", "wording",
 ];
 /**
  * A name that says the value is read, wherever it sits in the identifier:

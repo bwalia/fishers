@@ -43,8 +43,12 @@ struct ProfileStrength: Equatable {
         let top = missing.sorted { $0.weight > $1.weight }.prefix(3).map { $0.title.prefix(1).lowercased() + $0.title.dropFirst() }
         switch top.count {
         case 0: return ""
-        case 1: return "Add \(top[0])"
-        default: return "Add " + top.dropLast().joined(separator: ", ") + " and " + top.last!
+        case 1: return t("rest.add_one_thing", vars: ["thing": top[0]])
+        default:
+            return t("rest.add_list_and_last", vars: [
+                "list": top.dropLast().joined(separator: ", "),
+                "last": top.last!,
+            ])
         }
     }
 }

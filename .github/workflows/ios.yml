@@ -59,7 +59,21 @@ jobs:
       # number here is harder to fool than a sentence in a commit message.
       - name: No new English hardcoded into the app
         working-directory: .
-        run: node tools/i18n/audit-swift.mjs --max=251
+        run: node tools/i18n/audit-swift.mjs --max=149
+
+      # Zero, and it stays zero. A string the app can show with no entry reads
+      # in English however well the wrapping was done.
+      - name: Nothing the app can say is missing from the dictionary
+        working-directory: .
+        run: node tools/i18n/gap.mjs --strict
+
+      # And none of these may come back: a sentence built by gluing pieces
+      # together cannot be reordered by a translator.
+      - name: No sentences built at runtime in a drawn position
+        working-directory: .
+        run: |
+          n=$(node tools/i18n/interpolated.mjs | grep -oE '^[0-9]+')
+          [ "$n" = "0" ] || { node tools/i18n/interpolated.mjs --list; exit 1; }
 
       - name: Generate Xcode project
         run: xcodegen generate

@@ -148,7 +148,7 @@ enum CricketCommentary {
         case 0: return "no run"
         case 4: return "FOUR"
         case 6: return "SIX"
-        case 1: return "1 run"
+        case 1: return tr("1 run")
         default:
             if delivery.label.hasSuffix("b") || delivery.label.hasSuffix("lb") {
                 return extraPhrase(delivery.label, runs: Int(delivery.runs))

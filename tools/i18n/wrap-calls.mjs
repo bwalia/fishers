@@ -33,7 +33,7 @@ const CALLS = [
   "stat", "figure", "tile", "metric", "pill", "ClubCrest",
   "Stat", "question", "Row", "badge", "row", "Chip", "Pill", "Banner", "Hint",
   "Block", "Spec", "Step", "rsvpButton", "playerPicker", "compare", "Section",
-  "field", "Item", "Preset",
+  "field", "Item", "Preset", "DatePicker", "CreaseRow", "Toast", "EmptyState", "legend",
 ];
 
 /**
@@ -49,6 +49,22 @@ const FALLBACK = /(\?\?\s*)"([^"\\]{2,})"/g;
  * it. Only these two names: anything else assigned a literal might be a value.
  */
 const ASSIGNED = /\b((?:self\.)?(?:message|errorMessage|error|banner|note|status)\s*=\s*)"([^"\\]{2,})"/g;
+
+/**
+ * A ternary branch alone on its line:
+ *
+ *     Text(ready
+ *          ? "It's waiting at the top of this screen."
+ *          : "Your secretary will send one.")
+ *
+ * The call-shaped pass sees the span but the branch is its own line, and a
+ * line that starts with `?` or `:` has no call on it to match against.
+ *
+ * Views only. A bare string in a view is drawn; the same shape in a model or a
+ * service is as likely to be a value, and this has gone wrong four times by
+ * assuming otherwise.
+ */
+const BRANCH = /^(\s*[?:]\s*)"([^"\\]{2,})"/;
 const opener = new RegExp(String.raw`\b(${CALLS.join("|")})\(`, "g");
 
 let wrapped = 0, changed = 0;
@@ -161,7 +177,9 @@ for (const file of files) {
       wrapped += 1;
       return `${op}tr(${JSON.stringify(body)})`;
     };
-    return line.replace(FALLBACK, wrap).replace(ASSIGNED, wrap);
+    let done = line.replace(FALLBACK, wrap).replace(ASSIGNED, wrap);
+    if (file.includes("/Views/")) done = done.replace(BRANCH, wrap);
+    return done;
   }).join("\n");
 
   if (out !== before) {

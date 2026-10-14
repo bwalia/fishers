@@ -34,21 +34,18 @@ enum APIError: LocalizedError {
             return "Decode error: \(e.localizedDescription)"
             #else
             // Nothing the person did, and nothing they can fix by retrying.
-            return "\(Brand.name) sent back something this version of the app "
-                + tr("did not understand. Updating the app usually fixes it.")
+            return t("rest.decode_error_sentence", vars: ["brand": Brand.name])
             #endif
         case .unreachable(let detail):
             #if DEBUG
             return t("rest.cannot_reach_api_debug", vars: ["host": AppConfig.apiBaseURL.absoluteString, "detail": detail])
             #else
-            return "Can't reach \(Brand.name) right now. Check your connection "
-                + tr("and try again.")
+            return t("rest.cannot_reach_sentence", vars: ["brand": Brand.name])
             #endif
         case .empty:
-            return "\(Brand.name) did not send anything back. Try again."
+            return t("rest.sent_nothing_back", vars: ["brand": Brand.name])
         case .invalidURL:
-            return tr("This app is pointed at an address that is not valid. ")
-                + tr("Check Profile → API server.")
+            return tr("This app is pointed at an address that is not valid. Check Profile → API server.")
         }
     }
 

@@ -118,7 +118,7 @@ struct APIServerSettingsView: View {
             draft = url.absoluteString
             refreshResolved()
             note = AppConfig.environmentPinsAPI
-                ? "Saved, but FISHERS_API_URL still wins for this launch."
+                ? tr("Saved, but FISHERS_API_URL still wins for this launch.")
                 : "Saved. New requests use \(url.absoluteString)."
         } catch {
             errorMessage = error.localizedDescription

@@ -333,7 +333,7 @@ struct CricketScorecardView: View {
                 "\(home.boundaryRuns) · \(percent(home.boundaryPercent))",
                 "\(away.boundaryRuns) · \(percent(away.boundaryPercent))"
             )
-            ForEach(["Powerplay", "Middle", "Death"], id: \.self) { name in
+            ForEach([tr("Powerplay"), tr("Middle"), tr("Death")], id: \.self) { name in
                 let h = home.phases.first { $0.name == name }
                 let a = away.phases.first { $0.name == name }
                 if h != nil || a != nil {

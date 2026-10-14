@@ -244,7 +244,7 @@ struct TournamentView: View {
             block.maxEntrants.map { "Up to \($0) sides" },
             block.entryFeeCents.map { "£\(String(format: "%.2f", Double($0) / 100)) to enter" },
             block.guestPlayersAllowed.map {
-                $0 == 0 ? "Club members only" : "Up to \($0) guest players"
+                $0 == 0 ? t("tn.club_members_only_caps") : t("tn.up_to_n_guest_players", vars: ["n": $0])
             },
         ].compactMap { $0 }
 
@@ -347,7 +347,7 @@ private struct SetUpSheet: View {
                 }
                 Section {
                     TextField(t("tn.pitches_comma_separated"), text: $courts)
-                    DatePicker("First match", selection: $firstStart)
+                    DatePicker(tr("First match"), selection: $firstStart)
                     Stepper("Match length: \(matchMinutes) min", value: $matchMinutes, in: 20...480, step: 10)
                     Stepper("Gap between: \(gapMinutes) min", value: $gapMinutes, in: 0...120, step: 5)
                     Stepper("Rounds per pitch: \(rounds)", value: $rounds, in: 1...20)

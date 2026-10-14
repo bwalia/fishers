@@ -11,12 +11,12 @@ enum ClubRole: String, Codable {
 
     var displayName: String {
         switch self {
-        case .superAdmin: return "Super admin"
-        case .clubAdmin: return "Club secretary"
-        case .teamCaptain: return "Team captain"
-        case .teamViceCaptain: return "Vice captain"
-        case .member: return "Member"
-        case .guest: return "Guest"
+        case .superAdmin: return tr("Super admin")
+        case .clubAdmin: return tr("Club secretary")
+        case .teamCaptain: return tr("Team captain")
+        case .teamViceCaptain: return tr("Vice captain")
+        case .member: return tr("Member")
+        case .guest: return tr("Guest")
         }
     }
 

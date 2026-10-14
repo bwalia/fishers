@@ -90,9 +90,9 @@ struct CareerStatsView: View {
                (tr("Innings"), String(totals.battingInnings)),
                (tr("Average"), fmt(totals.battingAverage)),
                (tr("Strike rate"), fmt(totals.strikeRate))]
-            : [("Wickets", String(totals.wickets)),
-               ("Overs", fmt(totals.overs, places: 1)),
-               ("Average", fmt(totals.bowlingAverage)),
+            : [(tr("Wickets"), String(totals.wickets)),
+               (tr("Overs"), fmt(totals.overs, places: 1)),
+               (tr("Average"), fmt(totals.bowlingAverage)),
                (tr("Economy"), fmt(totals.economy))]
 
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),

@@ -245,7 +245,7 @@ struct ScheduleRow: Codable, Identifiable, Equatable {
     }
 
     var fixtureLine: String {
-        "\(homeName ?? "TBC") v \(awayName ?? "TBC")"
+        t("cl.sides_v_sides", vars: ["home": homeName ?? t("sc.tbc"), "away": awayName ?? t("sc.tbc")])
     }
 }
 

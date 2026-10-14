@@ -147,10 +147,10 @@ struct ClubsTeamsView: View {
     }
 
     private static let howClubsWork: [(String, String)] = [
-        ("A secretary runs the club", "Members and their roles, teams, grounds, fixtures and fees."),
-        ("Players join by invite", "Added by email or mobile, or from their profile link — then accepted here or on Home."),
-        ("Captains pick the side", "Everyone says whether they can play; the captain picks from who is available."),
-        ("Matches are scored live", "Ball by ball. Stats and the club's public page keep themselves up to date."),
+        (tr("A secretary runs the club"), tr("Members and their roles, teams, grounds, fixtures and fees.")),
+        (tr("Players join by invite"), tr("Added by email or mobile, or from their profile link — then accepted here or on Home.")),
+        (tr("Captains pick the side"), tr("Everyone says whether they can play; the captain picks from who is available.")),
+        (tr("Matches are scored live"), tr("Ball by ball. Stats and the club's public page keep themselves up to date.")),
     ]
 
     private var filterMenu: some View {

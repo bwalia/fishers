@@ -129,8 +129,8 @@ struct WorldMatchView: View {
 
     private func crease(_ d: WorldMatchDetail) -> some View {
         Section {
-            ForEach(d.battingNow) { CreaseRow(role: "Batting", player: $0) }
-            ForEach(d.bowlingNow) { CreaseRow(role: "Bowling", player: $0) }
+            ForEach(d.battingNow) { CreaseRow(role: tr("Batting"), player: $0) }
+            ForEach(d.bowlingNow) { CreaseRow(role: tr("Bowling"), player: $0) }
         } header: {
             Text(t("sc.at_the_crease"))
         } footer: {

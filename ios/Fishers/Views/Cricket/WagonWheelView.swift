@@ -311,9 +311,9 @@ struct WagonWheelChart: View {
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 14) {
-                    legend(FishersTheme.six, "Six")
-                    legend(FishersTheme.four, "Four")
-                    legend(FishersTheme.accent, "Runs")
+                    legend(FishersTheme.six, tr("Six"))
+                    legend(FishersTheme.four, tr("Four"))
+                    legend(FishersTheme.accent, tr("Runs"))
                 }
                 .font(.caption2)
             }

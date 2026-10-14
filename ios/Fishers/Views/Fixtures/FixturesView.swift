@@ -446,7 +446,7 @@ struct ScheduleMatchSheet: View {
                 }
 
                 Section(tr("When")) {
-                    DatePicker("Date and time", selection: $start, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
+                    DatePicker(tr("Date and time"), selection: $start, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
                 }
 
                 if let error {
