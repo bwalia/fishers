@@ -92,7 +92,7 @@ struct HomeFeedView: View {
 
                 if clubContext.clubs.count > 1 {
                     Section {
-                        Picker(tr(tr("Club")), selection: Binding(
+                        Picker(tr("Club"), selection: Binding(
                             get: { clubContext.activeClubId },
                             set: { if let id = $0 { clubContext.select(id) } }
                         )) {
@@ -203,7 +203,7 @@ struct HomeFeedView: View {
                     } label: {
                         Image(systemName: "bag")
                     }
-                    .accessibilityLabel("Shop")
+                    .accessibilityLabel(tr("Shop"))
                 }
             }
             .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }

@@ -26,7 +26,20 @@ const CALLS = [
   "Text", "Label", "Button", "Section", "navigationTitle", "navigationBarTitle",
   "Toggle", "TextField", "SecureField", "TextEditor", "Picker", "Stepper", "Link",
   "alert", "confirmationDialog", "SelectableChip", "Tile", "LabeledContent",
+  // A screen reader reads these aloud, so they are copy like any other.
+  "accessibilityLabel", "accessibilityValue", "accessibilityHint",
+  // Local helpers whose first argument is a caption, found by grepping the
+  // app for `func <name>(` that takes a title.
+  "stat", "figure", "tile", "metric", "pill", "ClubCrest",
+  "Stat", "question", "Row", "badge", "row", "Chip", "Pill", "Banner", "Hint",
 ];
+
+/**
+ * `?? "Could not load that."` — the sentence a view falls back to when an
+ * error carries none. It is assigned, not drawn, so the call-shaped passes
+ * never see it; but it goes on screen a moment later.
+ */
+const FALLBACK = /(\?\?\s*)"([^"\\]{2,})"/g;
 const opener = new RegExp(String.raw`\b(${CALLS.join("|")})\(`, "g");
 
 let wrapped = 0, changed = 0;
@@ -83,7 +96,11 @@ for (const file of files) {
           !/[A-Za-z]{2,}/.test(body) ||
           (/^[a-z0-9.]+$/.test(body) && body.includes(".")) ||
           (named && /^(systemImage|systemName|key|id|value|tag|of|with|separator|format)$/.test(named[1])) ||
-          /\b(t|tr)\($/.test(before);
+          /\b(t|tr)\($/.test(before) ||
+          // `payload["team_name"]` is a lookup into JSON the server sent.
+          // Wrapping it made the app search for a Punjabi key and find
+          // nothing — a bug a green build and a wrapped-count both missed.
+          /\[\s*$/.test(before);
         outLine += before + (skip ? `"${body}"` : `tr("${body}")`);
         if (!skip) wrapped += 1;
         at = close + 1;
@@ -104,6 +121,17 @@ for (const file of files) {
     opener.lastIndex = closeAt + 1;
   }
   out += text.slice(cursor);
+
+  out = out.split("\n").map((line) => {
+    // Interpolation and comments, same two refusals as everywhere else.
+    if (line.includes("\\(") || /^\s*(\/\/|\*)/.test(line)) return line;
+    return line.replace(FALLBACK, (whole, op, body) => {
+      if (!/[A-Za-z]{2,}/.test(body)) return whole;
+      if (/^[a-z0-9.]+$/.test(body) && body.includes(".")) return whole;
+      wrapped += 1;
+      return `${op}tr(${JSON.stringify(body)})`;
+    });
+  }).join("\n");
 
   if (out !== before) {
     changed += 1;

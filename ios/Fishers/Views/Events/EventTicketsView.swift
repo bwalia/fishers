@@ -30,8 +30,8 @@ struct EventTicketsView: View {
                 Section {
                     HStack(spacing: 8) {
                         figure("Coming", "\(summary.headcount)")
-                        figure("Places left", left.map(String.init) ?? "—")
-                        figure("Each", summary.ticketPriceCents.map(money) ?? "Free")
+                        figure(tr("Places left"), left.map(String.init) ?? "—")
+                        figure(tr("Each"), summary.ticketPriceCents.map(money) ?? tr("Free"))
                     }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
@@ -116,7 +116,7 @@ struct EventTicketsView: View {
                         }
                         ForEach(booking.tickets) { ticket in
                             HStack(spacing: 12) {
-                                AvatarView(name: ticket.name ?? "A member", size: 32)
+                                AvatarView(name: ticket.name ?? tr("A member"), size: 32)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(ticket.name ?? tr("A member"))
                                         .strikethrough(ticket.status == "cancelled")
@@ -193,7 +193,7 @@ struct EventTicketsView: View {
                 note = said
                 await load()
             } catch {
-                self.error = (error as? APIError)?.friendlyMessage ?? "That did not work"
+                self.error = (error as? APIError)?.friendlyMessage ?? tr("That did not work")
             }
         }
     }
@@ -202,7 +202,7 @@ struct EventTicketsView: View {
         do {
             booking = try await FishersAPI.tickets(eventId: eventId)
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not load the tickets"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not load the tickets")
         }
     }
 }

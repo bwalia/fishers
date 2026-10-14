@@ -874,7 +874,7 @@ enum FishersAPI {
         var components = URLComponents()
         components.path = "/me/clubs"
         components.queryItems = filters.queryItems(page: page, perPage: perPage)
-        return try await NetworkService.shared.request("GET", path: components.string ?? "/me/clubs")
+        return try await NetworkService.shared.request("GET", path: components.string ?? tr("/me/clubs"))
     }
 
     static func venues(clubId: UUID) async throws -> [Venue] {
@@ -1042,7 +1042,7 @@ enum FishersAPI {
             URLQueryItem(name: "to", value: iso.string(from: to)),
         ]
         // `+` in a timestamp would be read as a space; the formatter writes Z.
-        return try await NetworkService.shared.request("GET", path: components.string ?? "/events/mine")
+        return try await NetworkService.shared.request("GET", path: components.string ?? tr("/events/mine"))
     }
 
     /// A whole set of days at once — "every Saturday this month".

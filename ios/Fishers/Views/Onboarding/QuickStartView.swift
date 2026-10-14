@@ -20,7 +20,7 @@ struct QuickStartView: View {
     private var asksRole: Bool { session.user?.intent == nil }
     private var asksPhone: Bool { session.user?.phone?.nonEmpty == nil }
     private var firstName: String {
-        session.user?.name.split(separator: " ").first.map(String.init) ?? "there"
+        session.user?.name.split(separator: " ").first.map(String.init) ?? tr("there")
     }
 
     var body: some View {
@@ -37,7 +37,7 @@ struct QuickStartView: View {
                     }
 
                     if asksRole {
-                        question("I'm here to…") {
+                        question(tr("I'm here to…")) {
                             RoleChooserView(selection: $role, compact: true)
                         }
                     }
@@ -51,7 +51,7 @@ struct QuickStartView: View {
                     }
 
                     if asksPhone {
-                        question("Your mobile number", note: "So your captain can reach you on match day. Only your clubs see it.") {
+                        question(tr("Your mobile number"), note: tr("So your captain can reach you on match day. Only your clubs see it.")) {
                             TextField(t(tr("cl.07700_900123")), text: $phone)
                                 .keyboardType(.phonePad)
                                 .textContentType(.telephoneNumber)

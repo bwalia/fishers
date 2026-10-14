@@ -82,7 +82,7 @@ struct MyFixture: Codable, Identifiable, Hashable {
         case ticketPriceCents = "ticket_price_cents"
     }
 
-    var saidLabel: String { myAnswer?.said ?? "Not answered yet" }
+    var saidLabel: String { myAnswer?.said ?? tr("Not answered yet") }
 
     var systemImage: String {
         switch eventSubtype {

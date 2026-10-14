@@ -150,7 +150,7 @@ struct AddTeamSheet: View {
             Form {
                 Section {
                     TextField(t(tr("cl.1st_xi")), text: $name)
-                    Picker(tr(tr("Sport")), selection: $sport) {
+                    Picker(tr("Sport"), selection: $sport) {
                         ForEach(club.sportTypes.isEmpty ? ["cricket"] : club.sportTypes, id: \.self) {
                             Text($0.capitalized).tag($0)
                         }
@@ -172,7 +172,7 @@ struct AddTeamSheet: View {
                         .disabled(busy || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .onAppear { sport = club.sportTypes.first ?? "cricket" }
+            .onAppear { sport = club.sportTypes.first ?? tr("cricket") }
         }
     }
 
@@ -326,7 +326,7 @@ struct PublicPageEditorView: View {
                         Spacer()
                         if binding.wrappedValue.publicPage, let slug = binding.wrappedValue.slug {
                             let url = AppConfig.webBaseURL.appending(path: "c/\(slug)")
-                            Link(tr(tr("View")), destination: url).buttonStyle(.borderless)
+                            Link(tr("View"), destination: url).buttonStyle(.borderless)
                             ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
                                 .buttonStyle(.borderless)
                         }
@@ -335,7 +335,7 @@ struct PublicPageEditorView: View {
                     Text(t(tr("cl.public_page_blurb_long")))
                 }
 
-                Section(tr(tr("Web address"))) {
+                Section(tr("Web address")) {
                     TextField(suggested, text: $slug)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -344,13 +344,13 @@ struct PublicPageEditorView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section(tr(tr("About the club"))) {
+                Section(tr("About the club")) {
                     TextField(t(tr("cl.sunday_cricket_in_north_london_since_1")), text: optional(binding.tagline))
                     TextField(t(tr("cl.who_you_are_where_you_play_who_you_are")), text: optional(binding.about), axis: .vertical)
                         .lineLimit(3...8)
                 }
 
-                Section(tr(tr("Details"))) {
+                Section(tr("Details")) {
                     TextField(t(tr("cl.ground_example")), text: optional(binding.ground))
                     TextField(t(tr("cl.founded_example")), text: $founded).keyboardType(.numberPad)
                     TextField(t(tr("cl.email_for_new_players")), text: optional(binding.contactEmail))
@@ -359,7 +359,7 @@ struct PublicPageEditorView: View {
                 }
 
                 Section {
-                    Picker(tr(tr("Lead with")), selection: binding.iconPlayerId) {
+                    Picker(tr("Lead with"), selection: binding.iconPlayerId) {
                         Text(t(tr("cl.nobody_for_now"))).tag(UUID?.none)
                         ForEach(members.filter(\.isActive)) { Text($0.name).tag(Optional($0.userId)) }
                     }
@@ -429,7 +429,7 @@ struct PublicPageEditorView: View {
             slug = updated.slug ?? ""
             saved = true
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not save the page"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not save the page")
         }
     }
 }
@@ -494,12 +494,12 @@ struct SharedPlayerCardView: View {
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Section(tr(tr("Invite them to"))) {
-                        Picker(tr(tr("Club")), selection: $clubId) {
+                    Section(tr("Invite them to")) {
+                        Picker(tr("Club"), selection: $clubId) {
                             ForEach(places) { Text($0.club.name).tag(Optional($0.id)) }
                         }
                         if let place {
-                            Picker(tr(tr("Team")), selection: $teamId) {
+                            Picker(tr("Team"), selection: $teamId) {
                                 if place.canInviteToClub { Text(t(tr("cl.the_club_as_a_whole"))).tag(UUID?.none) }
                                 ForEach(place.teams) { Text($0.name).tag(Optional($0.id)) }
                             }
@@ -558,7 +558,7 @@ struct SharedPlayerCardView: View {
             clubId = start?.id
             teamId = (start?.canInviteToClub ?? true) ? nil : start?.teams.first?.id
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "That profile link did not open"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("That profile link did not open")
         }
     }
 
@@ -572,7 +572,7 @@ struct SharedPlayerCardView: View {
             let team = place.teams.first { $0.id == teamId }
             sent = team.map { "\($0.name) at \(place.club.name)" } ?? place.club.name
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not send the invite"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not send the invite")
         }
     }
 }

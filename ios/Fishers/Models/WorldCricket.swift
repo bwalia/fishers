@@ -121,10 +121,10 @@ struct WorldScores: Codable, Hashable {
     /// How old the scores are, said plainly. Under a minute is "just now"
     /// rather than "0 minutes ago", which reads like a bug.
     var freshness: String {
-        guard let asOf else { return "not loaded yet" }
+        guard let asOf else { return tr("not loaded yet") }
         let mins = Int(Date().timeIntervalSince(asOf) / 60)
-        if mins < 1 { return "just now" }
-        if mins == 1 { return "1 minute ago" }
+        if mins < 1 { return tr("just now") }
+        if mins == 1 { return tr("1 minute ago") }
         if mins < 60 { return "\(mins) minutes ago" }
         let hours = Int((Double(mins) / 60).rounded())
         return hours == 1 ? "1 hour ago" : "\(hours) hours ago"
@@ -335,10 +335,10 @@ struct WorldMatchDetailView: Codable, Hashable {
 
     /// How old the card is, said plainly.
     var freshness: String {
-        guard let detailAsOf else { return "not loaded yet" }
+        guard let detailAsOf else { return tr("not loaded yet") }
         let mins = Int(Date().timeIntervalSince(detailAsOf) / 60)
-        if mins < 1 { return "just now" }
-        if mins == 1 { return "1 minute ago" }
+        if mins < 1 { return tr("just now") }
+        if mins == 1 { return tr("1 minute ago") }
         if mins < 60 { return "\(mins) minutes ago" }
         let hours = Int((Double(mins) / 60).rounded())
         return hours == 1 ? "1 hour ago" : "\(hours) hours ago"

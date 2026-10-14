@@ -55,7 +55,7 @@ struct PlayerProfileView: View {
             }
 
             if !honours.isEmpty {
-                Section(tr(tr("Honours"))) {
+                Section(tr("Honours")) {
                     ForEach(honours) { award in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(award.title).font(FishersTheme.headline)
@@ -72,7 +72,7 @@ struct PlayerProfileView: View {
             UmpiringView(userId: userId, name: player?.name ?? knownName)
 
             if let clubs = player?.sharedClubs, !clubs.isEmpty {
-                Section(tr(tr("You both play for"))) {
+                Section(tr("You both play for")) {
                     ForEach(clubs, id: \.self) { Text($0) }
                 }
             }
@@ -87,7 +87,7 @@ struct PlayerProfileView: View {
     // MARK: Pieces
 
     private var firstName: String {
-        (player?.name ?? knownName ?? "They").split(separator: " ").first.map(String.init) ?? "They"
+        (player?.name ?? knownName ?? tr("They")).split(separator: " ").first.map(String.init) ?? tr("They")
     }
 
     private var header: some View {
@@ -131,13 +131,13 @@ struct PlayerProfileView: View {
     }
 
     private var careerSection: some View {
-        Section(tr(tr("Career"))) {
+        Section(tr("Career")) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                       spacing: FishersTheme.space2) {
-                figure("Matches", String(totals.matches))
-                figure("Runs", String(totals.runs))
-                figure("Average", fmt(totals.battingAverage))
-                figure("Wickets", String(totals.wickets))
+                figure(tr("Matches"), String(totals.matches))
+                figure(tr("Runs"), String(totals.runs))
+                figure(tr("Average"), fmt(totals.battingAverage))
+                figure(tr("Wickets"), String(totals.wickets))
             }
             .padding(.vertical, 4)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -145,7 +145,7 @@ struct PlayerProfileView: View {
     }
 
     private var seasonSection: some View {
-        Section(tr(tr("Season by season"))) {
+        Section(tr("Season by season")) {
             ForEach(seasons) { row in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -159,10 +159,10 @@ struct PlayerProfileView: View {
                             .foregroundStyle(.secondary)
                     }
                     HStack(spacing: FishersTheme.space2) {
-                        stat("Runs", String(row.runs))
-                        stat("HS", row.highScore.map(String.init) ?? "—")
-                        stat("Avg", fmt(row.battingAverage))
-                        stat("Wkts", String(row.wickets))
+                        stat(tr("Runs"), String(row.runs))
+                        stat(tr("HS"), row.highScore.map(String.init) ?? "—")
+                        stat(tr("Avg"), fmt(row.battingAverage))
+                        stat(tr("Wkts"), String(row.wickets))
                     }
                 }
                 .padding(.vertical, 2)
@@ -200,7 +200,7 @@ struct PlayerProfileView: View {
             player = try await FishersAPI.teammate(userId)
         } catch let failure {
             message = (failure as? APIError)?.friendlyMessage
-                ?? "Could not load this player."
+                ?? tr("Could not load this player.")
             return
         }
         // Neither of these is an error when empty — a new player has no

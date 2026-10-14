@@ -28,27 +28,27 @@ enum APIError: LocalizedError {
             if let message = Self.serverMessage(in: body) { return message }
             return statusSentence
         case .unauthorized:
-            return "Please sign in again."
+            return tr("Please sign in again.")
         case .decoding(let e):
             #if DEBUG
             return "Decode error: \(e.localizedDescription)"
             #else
             // Nothing the person did, and nothing they can fix by retrying.
             return "\(Brand.name) sent back something this version of the app "
-                + "did not understand. Updating the app usually fixes it."
+                + tr("did not understand. Updating the app usually fixes it.")
             #endif
         case .unreachable(let detail):
             #if DEBUG
             return "Cannot reach API at \(AppConfig.apiBaseURL.absoluteString) — is it running? (\(detail))"
             #else
             return "Can't reach \(Brand.name) right now. Check your connection "
-                + "and try again."
+                + tr("and try again.")
             #endif
         case .empty:
             return "\(Brand.name) did not send anything back. Try again."
         case .invalidURL:
-            return "This app is pointed at an address that is not valid. "
-                + "Check Profile → API server."
+            return tr("This app is pointed at an address that is not valid. ")
+                + tr("Check Profile → API server.")
         }
     }
 
@@ -97,7 +97,7 @@ enum APIError: LocalizedError {
     /// Kept because thirty-four call sites say it, and it reads well at the
     /// point of use. Now the same string `localizedDescription` gives.
     var friendlyMessage: String {
-        errorDescription ?? "Something went wrong."
+        errorDescription ?? tr("Something went wrong.")
     }
 
     /// The machine-readable reason, when the API gives one — `"unverified"`

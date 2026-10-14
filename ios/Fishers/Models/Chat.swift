@@ -74,7 +74,7 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     }
 
     var isFromAgent: Bool { kind == "agent" }
-    var authorLabel: String { senderName ?? "Assistant" }
+    var authorLabel: String { senderName ?? tr("Assistant") }
 
     /// The man-of-the-match vote this message opened, if it opened one.
     ///

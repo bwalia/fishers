@@ -35,7 +35,7 @@ struct ClubMemberDetail: Codable, Identifiable, Equatable {
     var roleChoice: RoleChoice { RoleChoice(role: role, isCaptain: isCaptain ?? false) }
 
     /// Whichever way this member can actually be reached.
-    var contact: String { email ?? phone ?? "No contact details" }
+    var contact: String { email ?? phone ?? tr("No contact details") }
 
     /// "Batter · Club standard" under the name.
     var subtitle: String {
@@ -107,19 +107,19 @@ struct AppNotification: Codable, Identifiable, Equatable {
     var line: String {
         let sides = "\(payload["home_name"] ?? "A side") v \(payload["away_name"] ?? "another")"
         switch type {
-        case "match_terms_proposed":
+        case tr("match_terms_proposed"):
             return "\(sides) — the other captain has proposed the terms. Tap to agree."
-        case "match_pick_your_xi":
+        case tr("match_pick_your_xi"):
             return "\(sides) — the toss is done. Pick your side."
-        case "match_terms_agreed":
-            return "Both captains have agreed the terms. You can do the toss."
-        case "match_book_handed_over":
+        case tr("match_terms_agreed"):
+            return tr("Both captains have agreed the terms. You can do the toss.")
+        case tr("match_book_handed_over"):
             return "\(sides) — you have the book. You're scoring from the next ball."
-        case "fixture_scheduled":
+        case tr("fixture_scheduled"):
             return "\(payload["title"] ?? "A fixture") — can you play?"
-        case "player_responded":
+        case tr("player_responded"):
             return "\(payload["player"] ?? "A player") answered for \(payload["title"] ?? "a fixture")."
-        case "invite":
+        case tr("invite"):
             let from = payload["inviter"].map { " \($0) invited you." } ?? ""
             if let team = payload["team_name"] {
                 return "\(payload["club_name"] ?? "A club") wants you in their \(team).\(from)"
@@ -128,11 +128,11 @@ struct AppNotification: Codable, Identifiable, Equatable {
                 return "You're invited: \(event).\(from)"
             }
             return "\(payload["club_name"] ?? "A club") wants you in the club.\(from)"
-        case "profile_nudge":
+        case tr("profile_nudge"):
             let percent = payload["percent"].map { " — you're \($0)% there" } ?? ""
             return "Finish your profile\(percent). Captains pick players they can see."
-        case "invite_accepted":
-            let into = payload["team_name"] ?? payload["event_title"] ?? payload["club_name"] ?? "the club"
+        case tr("invite_accepted"):
+            let into = payload["team_name"] ?? payload["event_title"] ?? payload["club_name"] ?? tr("the club")
             return "\(payload["player"] ?? "A player") accepted — they're in \(into)."
         default:
             return type.replacingOccurrences(of: "_", with: " ")

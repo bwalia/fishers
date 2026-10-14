@@ -39,8 +39,15 @@ const files = execSync(`find "${appDir}" -name '*.swift'`, { encoding: "utf8" })
   .filter((f) => !f.includes("/Generated/") && !f.endsWith("Localization.swift"));
 
 const findings = [];
+const catalogs = [];
 for (const file of files) {
-  const lines = readFileSync(file, "utf8").split("\n");
+  const source = readFileSync(file, "utf8");
+  // A catalog holds the canonical English of values that are stored and sent,
+  // translated where they are drawn. Counting those as "still in English" is
+  // true of the source and false of the screen, and the difference matters
+  // when the number is a ratchet.
+  if (source.includes("i18n:catalog")) { catalogs.push(relative(repoRoot, file)); continue; }
+  const lines = source.split("\n");
   lines.forEach((line, i) => {
     // Skip comments and the doc-comment prose that fills this codebase.
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
@@ -86,10 +93,19 @@ for (const file of files) {
     // `tr(` with a word boundary misses the real case, because the corruption
     // reads `"_tr("` and `_` is a word character — which is how this check
     // passed on the very corruption it was written for.
+    // A *literal whose body contains a call* is the signature. Matching the
+    // gap between two adjacent literals is not — `? tr("Bat") : tr("Bowl")`
+    // looks the same to a careless pattern, and flagging it would bury the
+    // real one. This check has now been wrong in both directions, so it is
+    // written to say exactly what it means.
     for (const m of line.matchAll(/"([^"\\]*)"/g)) {
-      if (/\b\w*tr\(|String\(format:|, with: $/.test(m[1])) {
-        mangled.push(`${relative(repoRoot, file)}:${i + 1}  ${m[0]}`);
+      if (/tr\(|String\(format:/.test(m[1])) {
+        mangled.push(`${relative(repoRoot, file)}:${i + 1}  wrapped across two literals: ${m[0]}`);
       }
+    }
+    // And a lookup key dressed as a caption.
+    for (const m of line.matchAll(/\[\s*tr\("[^"]*"\)\s*\]/g)) {
+      mangled.push(`${relative(repoRoot, file)}:${i + 1}  subscript key wrapped: ${m[0]}`);
     }
   });
 }
@@ -108,6 +124,9 @@ const byFile = new Map();
 for (const f of findings) byFile.set(f.file, (byFile.get(f.file) ?? 0) + 1);
 
 console.log(`${findings.length} user-readable literal(s) still in English, in ${byFile.size} file(s).`);
+if (catalogs.length) {
+  console.log(`(${catalogs.length} catalog file(s) skipped — English there is the stored value: ${catalogs.join(", ")})`);
+}
 console.log(`${byText.size} distinct.\n`);
 console.log("Worst files:");
 for (const [file, n] of [...byFile].sort((a, b) => b[1] - a[1]).slice(0, 15)) {

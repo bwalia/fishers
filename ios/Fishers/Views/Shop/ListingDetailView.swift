@@ -309,7 +309,7 @@ private struct OwnerPanel: View {
             HStack(spacing: 8) {
                 Stat("People asking", "\(listing.enquiries ?? 0)")
                 Stat("Photographs", "\(listing.product.photos?.count ?? 0)")
-                Stat("Visible to", listing.product.listedPublicly == true ? "Every club" : "Your club")
+                Stat(tr("Visible to"), listing.product.listedPublicly == true ? tr("Every club") : tr("Your club"))
             }
 
             if let asked = listing.enquiries, asked > 0 {

@@ -22,7 +22,7 @@ struct AboutForm: View {
                 }
                 .listRowBackground(Color.clear)
             }
-            Section(tr(tr("You"))) {
+            Section(tr("You")) {
                 TextField(t(tr("rest.full_name")), text: $form.name)
                     .textContentType(.name)
                 TextField(t("cl.mobile"), text: $form.phone)
@@ -63,7 +63,7 @@ struct SportsPicker: View {
                         Text(t(tr("rest.shown_first_on_profile")))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Picker(tr(tr("Main sport")), selection: $form.primarySport) {
+                        Picker(tr("Main sport"), selection: $form.primarySport) {
                             ForEach(form.selectedSports) { sport in
                                 Text(sport.label).tag(Sport?.some(sport))
                             }
@@ -96,12 +96,12 @@ struct SportDetailForm: View {
                 }
             }
 
-            Section(tr(tr("Position"))) {
+            Section(tr("Position")) {
                 PositionChips(sport: sport, position: form.binding(sport, \.position))
                     .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
             }
 
-            Section(tr(tr("Team & league"))) {
+            Section(tr("Team & league")) {
                 TextField(t(tr("rest.team_you_play_for")), text: teamNameBinding)
                 OptionMenu(title: tr("Age group"), selection: form.ageGroupBinding(sport))
                 if sport.usesDivisions {
@@ -150,7 +150,7 @@ struct LogisticsForm: View {
 
     var body: some View {
         Form {
-            Section(tr(tr("Based"))) {
+            Section(tr("Based")) {
                 TextField(t(tr("rest.area_or_town")), text: $form.area)
                 TextField(t(tr("rest.postcode_first_part")), text: $form.postcode)
                     .textInputAutocapitalization(.characters)
@@ -158,7 +158,7 @@ struct LogisticsForm: View {
             }
 
             Section {
-                Picker(tr(tr("Will travel")), selection: $form.travelRadiusMiles) {
+                Picker(tr("Will travel"), selection: $form.travelRadiusMiles) {
                     ForEach([5, 10, 15, 20, 30, 50], id: \.self) { miles in
                         Text("\(miles) miles").tag(miles)
                     }
@@ -182,7 +182,7 @@ struct LogisticsForm: View {
                 Text(t(tr("rest.availability_starting_point")))
             }
 
-            Section(tr(tr("Anything else"))) {
+            Section(tr("Anything else")) {
                 TextField(t(tr("rest.no_saturdays_example")), text: $form.logisticsNotes, axis: .vertical)
                     .lineLimit(2...4)
             }

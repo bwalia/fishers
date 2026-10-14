@@ -50,7 +50,7 @@ struct CareerStatsView: View {
                 Text(discipline.title)
             }
 
-            Section(tr(tr("Best of it"))) {
+            Section(tr("Best of it")) {
                 ForEach(highlights, id: \.label) { item in
                     LabeledContent {
                         Text(item.value).font(FishersTheme.figure(.title3))
@@ -72,7 +72,7 @@ struct CareerStatsView: View {
     // MARK: Pieces
 
     private var seasonPicker: some View {
-        Picker(tr(tr("Season")), selection: $season) {
+        Picker(tr("Season"), selection: $season) {
             Text(t("cl.all")).tag(Int?.none)
             ForEach(years, id: \.self) { year in
                 Text(String(year)).tag(Int?.some(year))
@@ -131,15 +131,15 @@ struct CareerStatsView: View {
             // sideways on a phone.
             HStack(spacing: FishersTheme.space2) {
                 if discipline == .batting {
-                    stat("Runs", String(row.runs))
-                    stat("HS", row.highScore.map(String.init) ?? "—")
-                    stat("Avg", fmt(row.battingAverage))
-                    stat("SR", fmt(row.strikeRate))
+                    stat(tr("Runs"), String(row.runs))
+                    stat(tr("HS"), row.highScore.map(String.init) ?? "—")
+                    stat(tr("Avg"), fmt(row.battingAverage))
+                    stat(tr("SR"), fmt(row.strikeRate))
                 } else {
-                    stat("Wkts", String(row.wickets))
-                    stat("Overs", fmt(row.oversBowled, places: 1))
-                    stat("Avg", fmt(row.bowlingAverage))
-                    stat("Econ", fmt(row.oversBowled > 0
+                    stat(tr("Wkts"), String(row.wickets))
+                    stat(tr("Overs"), fmt(row.oversBowled, places: 1))
+                    stat(tr("Avg"), fmt(row.bowlingAverage))
+                    stat(tr("Econ"), fmt(row.oversBowled > 0
                                      ? Double(row.bowlingRuns) / row.oversBowled : nil))
                 }
             }

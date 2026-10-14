@@ -1,5 +1,9 @@
 import Foundation
 
+// i18n:catalog — the engine throws its refusals in English and
+// `CricketEngineError.errorDescription` translates them at the boundary,
+// so the engine itself stays a plain Swift library with no view layer in it.
+
 /// On-device cricket scoring engine — mirrors `backend/domain/src/cricket/engine.rs`.
 ///
 /// State is a fold over the event log, so the device and the API always agree:

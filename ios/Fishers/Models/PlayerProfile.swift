@@ -1,5 +1,9 @@
 import Foundation
 
+// i18n:catalog — `positions` returns the values stored on a profile and
+// sent to the API. They are translated where they are drawn, by
+// `SelectableChip`. English here is the canonical form.
+
 /// Sports the app knows about. Wire format stays a plain string (`sports_played`,
 /// `Club.sportTypes`, `Team.sport`) so clubs can carry sports outside this list.
 ///
@@ -131,15 +135,15 @@ enum Division: String, CaseIterable, Identifiable, Codable, Hashable {
 
     var shortLabel: String {
         switch self {
-        case .social: return "Social"
-        case .development: return "Dev"
-        case .division5: return "Div 5"
-        case .division4: return "Div 4"
-        case .division3: return "Div 3"
-        case .division2: return "Div 2"
-        case .division1: return "Div 1"
-        case .premier: return "Prem"
-        case .county: return "County"
+        case .social: return tr("Social")
+        case .development: return tr("Dev")
+        case .division5: return tr("Div 5")
+        case .division4: return tr("Div 4")
+        case .division3: return tr("Div 3")
+        case .division2: return tr("Div 2")
+        case .division1: return tr("Div 1")
+        case .premier: return tr("Prem")
+        case .county: return tr("County")
         }
     }
 
@@ -223,13 +227,13 @@ enum Weekday: Int, CaseIterable, Identifiable, Codable, Hashable {
 
     var shortLabel: String {
         switch self {
-        case .sunday: return "Sun"
-        case .monday: return "Mon"
-        case .tuesday: return "Tue"
-        case .wednesday: return "Wed"
-        case .thursday: return "Thu"
-        case .friday: return "Fri"
-        case .saturday: return "Sat"
+        case .sunday: return tr("Sun")
+        case .monday: return tr("Mon")
+        case .tuesday: return tr("Tue")
+        case .wednesday: return tr("Wed")
+        case .thursday: return tr("Thu")
+        case .friday: return tr("Fri")
+        case .saturday: return tr("Sat")
         }
     }
 

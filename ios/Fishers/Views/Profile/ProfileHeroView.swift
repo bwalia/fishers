@@ -110,7 +110,7 @@ struct ProfileHeroView: View {
                     .contentShape(Circle())
                 }
                 .disabled(uploading)
-                .accessibilityLabel(user.avatarUrl == nil ? "Add a photo" : "Change your photo")
+                .accessibilityLabel(user.avatarUrl == nil ? tr("Add a photo") : tr("Change your photo"))
             }
     }
 
@@ -128,7 +128,7 @@ struct ProfileHeroView: View {
             }
             onPhotoChanged(try await FishersAPI.uploadAvatar(data, mimeType: mimeType(of: data)))
         } catch let failure {
-            error = (failure as? APIError)?.friendlyMessage ?? "That picture would not upload."
+            error = (failure as? APIError)?.friendlyMessage ?? tr("That picture would not upload.")
         }
     }
 

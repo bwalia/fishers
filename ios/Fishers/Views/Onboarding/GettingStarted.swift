@@ -168,7 +168,7 @@ struct GettingStartedSection: View {
                         .foregroundStyle(.secondary)
                     ProgressView(value: Double(doneCount), total: Double(steps.count))
                         .tint(FishersTheme.pitch)
-                        .accessibilityLabel("Setup progress")
+                        .accessibilityLabel(tr("Setup progress"))
                         .accessibilityValue("\(doneCount) of \(steps.count)")
                 }
                 .padding(.vertical, 4)
@@ -209,7 +209,7 @@ struct GettingStartedSection: View {
                 Spacer(minLength: 0)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityValue(step.done ? "Done" : isCurrent ? "Next" : "Later")
+            .accessibilityValue(step.done ? tr("Done") : isCurrent ? tr("Next") : tr("Later"))
 
             if isCurrent {
                 Text(step.detail)

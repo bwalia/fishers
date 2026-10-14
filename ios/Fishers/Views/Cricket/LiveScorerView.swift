@@ -173,7 +173,7 @@ struct LiveScorerView: View {
                     }
             }
         }
-        .confirmationDialog(tr(tr("End the innings here?")),
+        .confirmationDialog(tr("End the innings here?"),
             isPresented: $confirmEndInnings,
             titleVisibility: .visible
         ) {
@@ -218,11 +218,11 @@ struct LiveScorerView: View {
                     }
                 }
                 .disabled(isSharing || store.matchId == nil)
-                .accessibilityLabel("Share live scoreboard")
+                .accessibilityLabel(tr("Share live scoreboard"))
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker(tr(tr("Wagon wheel")), selection: $wheelModeRaw) {
+                    Picker(tr("Wagon wheel"), selection: $wheelModeRaw) {
                         ForEach(WagonWheelMode.allCases) { mode in
                             Text(mode.label).tag(mode.rawValue)
                         }
@@ -295,7 +295,7 @@ struct LiveScorerView: View {
                 Button { showScorecard = true } label: {
                     Image(systemName: "list.bullet.rectangle")
                 }
-                .accessibilityLabel("Full scorecard")
+                .accessibilityLabel(tr("Full scorecard"))
             }
 
             if let inn = innings {
@@ -335,7 +335,7 @@ struct LiveScorerView: View {
                         .padding(.vertical, 4)
                         .padding(.horizontal, 10)
                         .background(FishersTheme.maybe.opacity(0.15), in: Capsule())
-                        .accessibilityLabel("Free hit")
+                        .accessibilityLabel(tr("Free hit"))
                 }
                 let breaches = inn.fieldingBreaches(store.state.conditions)
                 if !breaches.isEmpty {
@@ -524,7 +524,7 @@ struct LiveScorerView: View {
             .accessibilityLabel(
                 late
                     ? "Behind the over rate by \(String(format: "%.1f", behind)) overs"
-                    : "On the over rate"
+                    : tr("On the over rate")
             )
         }
     }
@@ -619,7 +619,7 @@ struct LiveScorerView: View {
                     .frame(maxWidth: .infinity, minHeight: 56)
             }
             .buttonStyle(.bordered)
-            .accessibilityLabel("Extras")
+            .accessibilityLabel(tr("Extras"))
             HStack(spacing: 10) {
                 Button { showWicket = true } label: {
                     Text(t("sc.wicket"))
@@ -628,7 +628,7 @@ struct LiveScorerView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(FishersTheme.seam)
-                .accessibilityLabel("Wicket")
+                .accessibilityLabel(tr("Wicket"))
 
                 Button {
                     if store.append(.undoLast) {
@@ -640,7 +640,7 @@ struct LiveScorerView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(store.state.lastSeq == 0)
-                .accessibilityLabel("Undo last ball")
+                .accessibilityLabel(tr("Undo last ball"))
             }
             HStack {
                 Button(t(tr("sc.change_bowler"))) { showBowler = true }
@@ -658,7 +658,7 @@ struct LiveScorerView: View {
     @ViewBuilder
     private var bowlerGate: some View {
         if needsNewBowler, let inn = innings {
-            let last = inn.lastOverBowler.map { store.name(for: $0) } ?? "That bowler"
+            let last = inn.lastOverBowler.map { store.name(for: $0) } ?? tr("That bowler")
             Button { showBowler = true } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -676,7 +676,7 @@ struct LiveScorerView: View {
                 .background(FishersTheme.maybe.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
             }
             .buttonStyle(.plain)
-            .accessibilityHint("Choose the next bowler to carry on scoring")
+            .accessibilityHint(tr("Choose the next bowler to carry on scoring"))
         }
     }
 
@@ -799,9 +799,9 @@ struct LiveScorerView: View {
 
     private var syncLabel: String {
         switch store.syncStatus {
-        case .saved: return "Saved"
-        case .syncing: return "Syncing…"
-        case .offline: return "Offline — saved on this phone"
+        case .saved: return tr("Saved")
+        case .syncing: return tr("Syncing…")
+        case .offline: return tr("Offline — saved on this phone")
         }
     }
 
@@ -842,7 +842,7 @@ private struct ExtrasSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker(tr(tr("Type")), selection: $kind) {
+                    Picker(tr("Type"), selection: $kind) {
                         ForEach(ExtraKind.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
@@ -856,7 +856,7 @@ private struct ExtrasSheet: View {
                         Toggle(t(tr("sc.went_to_the_boundary")), isOn: $boundary)
                             .disabled(runs < 4)
                         if kind == .noBall {
-                            Picker(tr(tr("Those runs came")), selection: $offTheBat) {
+                            Picker(tr("Those runs came"), selection: $offTheBat) {
                                 Text(t(tr("sc.off_the_bat"))).tag(true)
                                 Text(t(tr("sc.as_byes"))).tag(false)
                             }
@@ -988,8 +988,8 @@ private struct RevisedOversSheet: View {
         NavigationStack {
             Form {
                 if store.state.innings.count > 1 {
-                    Section(tr(tr("Which innings"))) {
-                        Picker(tr(tr("Innings")), selection: $inningsIndex) {
+                    Section(tr("Which innings")) {
+                        Picker(tr("Innings"), selection: $inningsIndex) {
                             ForEach(Array(store.state.innings.enumerated()), id: \.offset) { index, inn in
                                 Text(store.state.name(for: inn.batting)).tag(index)
                             }
@@ -1079,8 +1079,8 @@ private struct WicketSheet: View {
                         .foregroundStyle(FishersTheme.maybe)
                     }
                 }
-                Section(tr(tr("How"))) {
-                    Picker(tr(tr("Dismissal")), selection: $kind) {
+                Section(tr("How")) {
+                    Picker(tr("Dismissal"), selection: $kind) {
                         ForEach(allowedKinds) { Text($0.label).tag($0) }
                     }
                 }
@@ -1094,8 +1094,8 @@ private struct WicketSheet: View {
                 }
 
                 if kind.canDismissNonStriker {
-                    Section(tr(tr("Who is out"))) {
-                        Picker(tr(tr("Batter")), selection: $outIsStriker) {
+                    Section(tr("Who is out")) {
+                        Picker(tr("Batter"), selection: $outIsStriker) {
                             Text(strikerName).tag(true)
                             Text(nonStrikerName).tag(false)
                         }
@@ -1113,7 +1113,7 @@ private struct WicketSheet: View {
 
                 if kind.needsFielder {
                     Section(fielderLabel) {
-                        Picker(tr(tr("Fielder")), selection: $fielderId) {
+                        Picker(tr("Fielder"), selection: $fielderId) {
                             Text("—").tag(UUID?.none)
                             ForEach(fielders) { Text($0.name).tag(UUID?.some($0.id)) }
                         }
@@ -1126,7 +1126,7 @@ private struct WicketSheet: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker(tr(tr("In next")), selection: $newBatterId) {
+                        Picker(tr("In next"), selection: $newBatterId) {
                             Text("—").tag(UUID?.none)
                             ForEach(nextIn) { Text($0.name).tag(UUID?.some($0.id)) }
                             ForEach(resuming) {
@@ -1169,11 +1169,11 @@ private struct WicketSheet: View {
     private var innings: InningsState? { store.state.currentInnings }
 
     private var strikerName: String {
-        innings?.strikerId.map { store.name(for: $0) } ?? "Striker"
+        innings?.strikerId.map { store.name(for: $0) } ?? tr("Striker")
     }
 
     private var nonStrikerName: String {
-        innings?.nonStrikerId.map { store.name(for: $0) } ?? "Non-striker"
+        innings?.nonStrikerId.map { store.name(for: $0) } ?? tr("Non-striker")
     }
 
     private var outBatterId: UUID? {
@@ -1274,7 +1274,7 @@ private struct BowlerSheet: View {
                 }
 
                 if !unavailable.isEmpty {
-                    Section(tr(tr("Cannot bowl this over"))) {
+                    Section(tr("Cannot bowl this over")) {
                         ForEach(unavailable, id: \.0.id) { player, reason in
                             row(player, reason: reason)
                         }
@@ -1367,11 +1367,11 @@ private struct SecondInningsSheet: View {
                             .font(.subheadline.weight(.semibold))
                     }
                 }
-                Section(tr(tr("Opening pair"))) {
+                Section(tr("Opening pair")) {
                     picker("Striker", $strikerId, batters)
                     picker("Non-striker", $nonStrikerId, batters)
                 }
-                Section(tr(tr("Opening bowler"))) {
+                Section(tr("Opening bowler")) {
                     picker("Bowler", $bowlerId, bowlersAvailable)
                 }
                 if let message {
@@ -1457,9 +1457,9 @@ private struct HandoverSheet: View {
         return [
             .init(label: tr("Umpires"),
                   people: take(officials.map { .init(id: $0.userId, name: $0.name, note: $0.label) })),
-            .init(label: squads?.home.teamName ?? "Home",
+            .init(label: squads?.home.teamName ?? tr("Home"),
                   people: take((squads?.home.players ?? []).map { .init(id: $0.id, name: $0.name) })),
-            .init(label: squads?.away.teamName ?? "Away",
+            .init(label: squads?.away.teamName ?? tr("Away"),
                   people: take((squads?.away.players ?? []).map { .init(id: $0.id, name: $0.name) })),
         ]
     }
@@ -1503,7 +1503,7 @@ private struct HandoverSheet: View {
                 }
 
                 if !trail.isEmpty {
-                    Section(tr(tr("Who has had it"))) {
+                    Section(tr("Who has had it")) {
                         ForEach(trail) { entry in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(entry.summary)
@@ -1689,7 +1689,7 @@ private struct AwardSheet: View {
                     }
                 }
                 if !others.isEmpty {
-                    Section(tr(tr("Did not feature"))) {
+                    Section(tr("Did not feature")) {
                         ForEach(others) { player in
                             row(id: player.id, name: player.name, detail: nil, suggested: false)
                         }
@@ -1784,11 +1784,11 @@ private struct SuperOverSheet: View {
                     Text(t(tr("sc.second_batting_side_opens_super_over")))
                 }
 
-                Section(tr(tr("Openers"))) {
+                Section(tr("Openers")) {
                     picker("Striker", $strikerId, batters)
                     picker("Non-striker", $nonStrikerId, batters)
                 }
-                Section(tr(tr("Bowler"))) {
+                Section(tr("Bowler")) {
                     picker("Bowler", $bowlerId, bowlers)
                 }
 
@@ -1881,7 +1881,7 @@ private struct PenaltySheet: View {
                 }
 
                 Section {
-                    Picker(tr(tr("To")), selection: $toSide) {
+                    Picker(tr("To"), selection: $toSide) {
                         Text(store.state.homeName).tag(MatchSide.home)
                         Text(store.state.awayName).tag(MatchSide.away)
                     }
@@ -1892,8 +1892,8 @@ private struct PenaltySheet: View {
                     Text(sideFootnote)
                 }
 
-                Section(tr(tr("What for"))) {
-                    Picker(tr(tr("Reason")), selection: $reason) {
+                Section(tr("What for")) {
+                    Picker(tr("Reason"), selection: $reason) {
                         ForEach(PenaltyReason.allCases) { Text(tr($0.rawValue)).tag($0) }
                     }
                     .pickerStyle(.inline)
@@ -1971,7 +1971,7 @@ private struct BallCorrectionSheet: View {
                 if recent.isEmpty {
                     Text(t(tr("sc.nothing_bowled_yet"))).foregroundStyle(.secondary)
                 } else {
-                    Section(tr(tr("Recent balls"))) {
+                    Section(tr("Recent balls")) {
                         ForEach(recent, id: \.offset) { entry in
                             Button {
                                 confirming = entry.offset

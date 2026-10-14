@@ -45,8 +45,8 @@ struct ClubQRView: View {
             }
 
             if !teams.isEmpty {
-                Section(tr(tr("Which side"))) {
-                    Picker(tr(tr("Side")), selection: $selectedTeamId) {
+                Section(tr("Which side")) {
+                    Picker(tr("Side"), selection: $selectedTeamId) {
                         Text(club.name).tag(UUID?.none)
                         ForEach(teams) { team in
                             Text(team.name).tag(UUID?.some(team.id))

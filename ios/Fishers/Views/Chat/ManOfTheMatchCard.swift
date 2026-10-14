@@ -255,7 +255,7 @@ private struct CandidateRow: View {
                     Image(systemName: "pencil.circle.fill")
                         .font(.caption2)
                         .foregroundStyle(FishersTheme.accent400)
-                        .accessibilityLabel("The scorer's pick")
+                        .accessibilityLabel(tr("The scorer's pick"))
                 }
                 Spacer()
                 if showsTally {

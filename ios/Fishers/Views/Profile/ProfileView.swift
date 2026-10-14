@@ -46,7 +46,7 @@ struct ProfileView: View {
                     ProfileStrengthSection(user: user, onComplete: { isEditing = true }, offersReminder: false)
 
                     Section {
-                        Picker(tr(tr("Section")), selection: $tab) {
+                        Picker(tr("Section"), selection: $tab) {
                             ForEach(Tab.allCases) { Text($0.title).tag($0) }
                         }
                         .pickerStyle(.segmented)
@@ -118,7 +118,7 @@ struct ProfileView: View {
         }
 
         if let achievements = stats?.achievements, !achievements.isEmpty {
-            Section(tr(tr("Honours"))) {
+            Section(tr("Honours")) {
                 ForEach(achievements) { award in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(award.title).font(FishersTheme.headline)
@@ -131,7 +131,7 @@ struct ProfileView: View {
         }
 
         if let reliability = user.reliability {
-            Section(tr(tr("Reliability"))) {
+            Section(tr("Reliability")) {
                 ReliabilityCard(reliability: reliability)
                     .padding(.vertical, 4)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -152,7 +152,7 @@ struct ProfileView: View {
 
         contactSection(user)
 
-        Section(tr(tr("Club shop"))) {
+        Section(tr("Club shop")) {
             NavigationLink {
                 ShopView()
             } label: {
@@ -172,7 +172,7 @@ struct ProfileView: View {
             Text(t(tr("cl.secretary_can_invite_you")))
         }
 
-        Section(tr(tr("Account"))) {
+        Section(tr("Account")) {
             if !user.isVerified {
                 NavigationLink {
                     VerifyAccountScreen()
@@ -239,10 +239,10 @@ struct ProfileView: View {
         Section {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                       spacing: FishersTheme.space2) {
-                figure("Matches", totals.matches)
-                figure("Runs", totals.runs)
-                figure("Wickets", totals.wickets)
-                figure("Catches", totals.catches)
+                figure(tr("Matches"), totals.matches)
+                figure(tr("Runs"), totals.runs)
+                figure(tr("Wickets"), totals.wickets)
+                figure(tr("Catches"), totals.catches)
             }
             .padding(.vertical, 4)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -327,7 +327,7 @@ struct ProfileView: View {
     // MARK: - Location / contact
 
     private func locationSection(_ location: PlayerLocation) -> some View {
-        Section(tr(tr("Travel & logistics"))) {
+        Section(tr("Travel & logistics")) {
             if let summary = location.summary {
                 LabeledContent(tr("Based"), value: summary)
             }
@@ -354,7 +354,7 @@ struct ProfileView: View {
     }
 
     private func contactSection(_ user: PublicUser) -> some View {
-        Section(tr(tr("Contact"))) {
+        Section(tr("Contact")) {
             if let phone = user.phone {
                 LabeledContent(tr("Mobile"), value: phone)
             }

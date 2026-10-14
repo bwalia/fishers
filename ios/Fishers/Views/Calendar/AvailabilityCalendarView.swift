@@ -65,7 +65,7 @@ struct CalendarPane: View {
             } label: {
                 Image(systemName: "chevron.left").frame(width: FishersTheme.minTap, height: FishersTheme.minTap)
             }
-            .accessibilityLabel("Previous month")
+            .accessibilityLabel(tr("Previous month"))
             Spacer()
             Text(vm.month.formatted(.dateTime.month(.wide).year()))
                 .font(FishersTheme.title)
@@ -77,7 +77,7 @@ struct CalendarPane: View {
             } label: {
                 Image(systemName: "chevron.right").frame(width: FishersTheme.minTap, height: FishersTheme.minTap)
             }
-            .accessibilityLabel("Next month")
+            .accessibilityLabel(tr("Next month"))
         }
         .padding(.horizontal)
     }
@@ -209,7 +209,7 @@ struct CalendarPane: View {
             Text("Set every one of a weekday in \(vm.month.formatted(.dateTime.month(.wide))) at once, then change the odd day above.")
                 .font(FishersTheme.footnote)
                 .foregroundStyle(.secondary)
-            Picker(tr(tr("Weekday")), selection: $bulkWeekday) {
+            Picker(tr("Weekday"), selection: $bulkWeekday) {
                 ForEach(weekdayOrder, id: \.0) { Text($0.1).tag($0.0) }
             }
             .pickerStyle(.menu)
@@ -243,7 +243,7 @@ struct CalendarPane: View {
     }
 
     private func dayLabel(_ day: Date, status: AvailabilityStatus?, marks: [MyFixture]) -> String {
-        var parts = [day.formatted(.dateTime.weekday(.wide).day().month(.wide)), status?.label ?? "not said"]
+        var parts = [day.formatted(.dateTime.weekday(.wide).day().month(.wide)), status?.label ?? tr("not said")]
         parts += marks.map { "\($0.title): \($0.saidLabel)" }
         return parts.joined(separator: ", ")
     }

@@ -84,7 +84,7 @@ struct ClubsTeamsView: View {
                         }
                     }
 
-                    Section(tr(tr("How clubs work"))) {
+                    Section(tr("How clubs work")) {
                         ForEach(Array(Self.howClubsWork.enumerated()), id: \.offset) { index, item in
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
@@ -118,7 +118,7 @@ struct ClubsTeamsView: View {
                 ToolbarItem(placement: .topBarLeading) { filterMenu }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showCreate = true } label: { Image(systemName: "plus") }
-                        .accessibilityLabel("Start a club")
+                        .accessibilityLabel(tr("Start a club"))
                 }
             }
             .sheet(isPresented: $showCreate) {
@@ -155,27 +155,27 @@ struct ClubsTeamsView: View {
 
     private var filterMenu: some View {
         Menu {
-            Picker(tr(tr("Your role")), selection: $filters.role) {
+            Picker(tr("Your role"), selection: $filters.role) {
                 Text(t(tr("cl.all_roles"))).tag(ClubListFilters.Role?.none)
                 ForEach(ClubListFilters.Role.allCases) { Text($0.label).tag(Optional($0)) }
             }
-            Picker(tr(tr("Sport")), selection: $filters.sport) {
+            Picker(tr("Sport"), selection: $filters.sport) {
                 Text(t(tr("cl.all_sports"))).tag(String?.none)
                 ForEach(Self.sports, id: \.self) { Text($0.capitalized).tag(Optional($0)) }
             }
-            Picker(tr(tr("Public page")), selection: $filters.publicPage) {
+            Picker(tr("Public page"), selection: $filters.publicPage) {
                 Text(t(tr("cl.any_public_page"))).tag(Bool?.none)
                 Text(t(tr("cl.page_published"))).tag(Optional(true))
                 Text(t(tr("cl.no_public_page"))).tag(Optional(false))
             }
-            Picker(tr(tr("Sort by")), selection: $filters.sort) {
+            Picker(tr("Sort by"), selection: $filters.sort) {
                 ForEach(ClubListFilters.Sort.allCases) { Text($0.label).tag($0) }
             }
         } label: {
             Image(systemName: filters.role != nil || filters.sport != nil || filters.publicPage != nil
                   ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-        .accessibilityLabel("Filter and sort")
+        .accessibilityLabel(tr("Filter and sort"))
     }
 
     @ViewBuilder
@@ -310,7 +310,7 @@ struct ClubRowView: View {
                         .lineLimit(1)
                     if row.publicSlug != nil {
                         Image(systemName: "globe").foregroundStyle(FishersTheme.pitch)
-                            .accessibilityLabel("Public page published")
+                            .accessibilityLabel(tr("Public page published"))
                     }
                 }
                 .font(FishersTheme.caption)
@@ -382,8 +382,8 @@ struct NewClubSheet: View {
     ]
 
     private var missing: String? {
-        if name.trimmingCharacters(in: .whitespaces).count < 2 { return "Give the club a name to continue." }
-        if sports.isEmpty { return "Pick at least one sport." }
+        if name.trimmingCharacters(in: .whitespaces).count < 2 { return tr("Give the club a name to continue.") }
+        if sports.isEmpty { return tr("Pick at least one sport.") }
         return nil
     }
 
@@ -392,7 +392,7 @@ struct NewClubSheet: View {
             Form {
                 Section {
                     HStack(spacing: 12) {
-                        ClubCrest(name: name.isEmpty ? "Your club" : name, id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, size: 48)
+                        ClubCrest(name: name.isEmpty ? tr("Your club") : name, id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, size: 48)
                         TextField("\(Brand.name) CC", text: $name)
                             .font(FishersTheme.headline)
                             .textInputAutocapitalization(.words)
@@ -605,7 +605,7 @@ struct ClubDetailView: View {
             }
 
             if isCricket {
-                Section(tr(tr("Season stats"))) {
+                Section(tr("Season stats")) {
                     NavigationLink {
                         ClubStatsView(clubId: club.id, clubName: club.name)
                     } label: {
@@ -695,7 +695,7 @@ struct ClubDetailView: View {
                 Text(t(tr("cl.tournament_vs_tour")))
             }
 
-            Section(tr(tr("Fixtures & nets"))) {
+            Section(tr("Fixtures & nets")) {
                 ForEach(events) { event in
                     NavigationLink(value: event) {
                         EventRow(event: event)
@@ -745,7 +745,7 @@ struct ClubDetailView: View {
         .sheet(isPresented: $addingGround) {
             AddGroundSheet(clubId: club.id) { Task { await load() } }
         }
-        .alert(tr(tr("New tournament or tour")), isPresented: $isCreatingTournament) {
+        .alert(tr("New tournament or tour"), isPresented: $isCreatingTournament) {
             TextField(t(tr("cl.tournament_name_example")), text: $newTournamentName)
             Button(t("cl.create")) {
                 let name = newTournamentName
@@ -829,7 +829,7 @@ struct ClubDetailView: View {
                     }
                 }
                 .disabled(step.done)
-                .accessibilityValue(step.done ? "Done" : "To do")
+                .accessibilityValue(step.done ? tr("Done") : tr("To do"))
             }
         } header: {
             HStack {

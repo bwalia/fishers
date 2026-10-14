@@ -54,7 +54,7 @@ struct CricketScorecardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker(tr(tr("View")), selection: $tab) {
+            Picker(tr("View"), selection: $tab) {
                 ForEach(Tab.allCases) { Text(tr($0.rawValue)).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -86,7 +86,7 @@ struct CricketScorecardView: View {
     @ViewBuilder
     private var inningsPicker: some View {
         if state.innings.count > 1 {
-            Picker(tr(tr("Innings")), selection: $inningsIndex) {
+            Picker(tr("Innings"), selection: $inningsIndex) {
                 ForEach(Array(state.innings.enumerated()), id: \.offset) { index, inn in
                     Text(state.name(for: inn.batting)).tag(index)
                 }
@@ -102,7 +102,7 @@ struct CricketScorecardView: View {
             }
             if let innings = selectedInnings {
                 Section {
-                    Picker(tr(tr("Batter")), selection: $wheelBatter) {
+                    Picker(tr("Batter"), selection: $wheelBatter) {
                         Text(t(tr("sc.whole_innings"))).tag(UUID?.none)
                         ForEach(innings.batters.filter(\.hasBatted)) { batter in
                             Text(state.name(for: batter.playerId)).tag(UUID?.some(batter.playerId))
@@ -209,7 +209,7 @@ struct CricketScorecardView: View {
                 }
             }
 
-            Section(tr(tr("Conditions"))) {
+            Section(tr("Conditions")) {
                 Text(state.conditions.summary)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -500,7 +500,7 @@ struct CricketScorecardView: View {
     // MARK: Fall of wickets and partnerships
 
     private func fallSection(_ innings: InningsState) -> some View {
-        Section(tr(tr("Fall of wickets"))) {
+        Section(tr("Fall of wickets")) {
             ForEach(Array(innings.fall.enumerated()), id: \.offset) { index, fall in
                 HStack {
                     Text("\(index + 1)-\(fall.score)")

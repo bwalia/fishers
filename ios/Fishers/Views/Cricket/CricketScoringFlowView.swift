@@ -171,7 +171,7 @@ struct CricketScoringFlowView: View {
             }
 
             Section {
-                Picker(tr(tr("Overs")), selection: $conditions.oversLimit) {
+                Picker(tr("Overs"), selection: $conditions.oversLimit) {
                     ForEach(Self.overPresets, id: \.self) { option in
                         Text("\(option)").tag(UInt8(option))
                     }
@@ -203,8 +203,8 @@ struct CricketScoringFlowView: View {
                 Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs — with a \(MatchConditions.standardPowerplay(conditions.oversLimit)) over powerplay. Fourteen an hour is the usual over rate. Set any of them to none for a social game.")
             }
 
-            Section(tr(tr("Ground"))) {
-                Picker(tr(tr("Ground")), selection: $conditions.ground) {
+            Section(tr("Ground")) {
+                Picker(tr("Ground"), selection: $conditions.ground) {
                     ForEach(GroundType.allCases) { ground in
                         Label(ground.label, systemImage: ground.systemImage).tag(ground)
                     }
@@ -233,8 +233,8 @@ struct CricketScoringFlowView: View {
                 Text(t(tr("sc.two_and_five_standard")))
             }
 
-            Section(tr(tr("Ball"))) {
-                Picker(tr(tr("Ball")), selection: $conditions.ball) {
+            Section(tr("Ball")) {
+                Picker(tr("Ball"), selection: $conditions.ball) {
                     ForEach(BallType.allCases) { ball in
                         Text(ball.label).tag(ball)
                     }
@@ -299,7 +299,7 @@ struct CricketScoringFlowView: View {
                 Text(t(tr("sc.change_means_agree_again")))
             }
 
-            Section(tr(tr("Captains"))) {
+            Section(tr("Captains")) {
                 agreementRow(side: .home, teamName: store.state.homeName)
                 agreementRow(side: .away, teamName: store.state.awayName)
             }
@@ -448,15 +448,15 @@ struct CricketScoringFlowView: View {
                         .foregroundStyle(FishersTheme.available)
                 }
             }
-            Section(tr(tr("Who won the toss"))) {
-                Picker(tr(tr("Winner")), selection: $tossWinner) {
+            Section(tr("Who won the toss")) {
+                Picker(tr("Winner"), selection: $tossWinner) {
                     Text(homeName).tag(MatchSide.home)
                     Text(awayName).tag(MatchSide.away)
                 }
                 .pickerStyle(.segmented)
             }
-            Section(tr(tr("And chose to"))) {
-                Picker(tr(tr("Decision")), selection: $tossDecision) {
+            Section(tr("And chose to")) {
+                Picker(tr("Decision"), selection: $tossDecision) {
                     ForEach(TossDecision.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -547,7 +547,7 @@ struct CricketScoringFlowView: View {
             } header: {
                 Text("\(store.state.name(for: batting)) opening pair")
             }
-            Section(tr(tr("Opening bowler"))) {
+            Section(tr("Opening bowler")) {
                 playerPicker("Bowler", selection: $bowlerId, from: bowlXi)
             }
             if let message {
@@ -847,22 +847,22 @@ private struct TeamSheetEditor: View {
             }
 
             if !players.isEmpty {
-                Section(tr(tr("Roles"))) {
-                    Picker(tr(tr("Captain")), selection: Binding(
+                Section(tr("Roles")) {
+                    Picker(tr("Captain"), selection: Binding(
                         get: { captain },
                         set: { captain = $0; captainChosen = true }
                     )) {
                         Text("—").tag(UUID?.none)
                         ForEach(players) { Text($0.name).tag(UUID?.some($0.id)) }
                     }
-                    Picker(tr(tr("Wicketkeeper")), selection: $keeper) {
+                    Picker(tr("Wicketkeeper"), selection: $keeper) {
                         Text("—").tag(UUID?.none)
                         ForEach(players) { Text($0.name).tag(UUID?.some($0.id)) }
                     }
                 }
             }
 
-            Section(tr(tr("Add a guest or the opposition"))) {
+            Section(tr("Add a guest or the opposition")) {
                 HStack {
                     TextField(t("cl.name"), text: $guestName)
                         .textInputAutocapitalization(.words)
@@ -873,7 +873,7 @@ private struct TeamSheetEditor: View {
             }
 
             if !available.isEmpty {
-                Section(tr(tr("From the club"))) {
+                Section(tr("From the club")) {
                     ForEach(available) { player in
                         Button {
                             players.append(player)
@@ -886,7 +886,7 @@ private struct TeamSheetEditor: View {
                                 if captains.contains(player.id) {
                                     Text("C").font(.caption2.bold())
                                         .foregroundStyle(FishersTheme.accent)
-                                        .accessibilityLabel("Captain")
+                                        .accessibilityLabel(tr("Captain"))
                                 }
                                 Spacer()
                                 Image(systemName: "plus.circle")
@@ -956,8 +956,8 @@ private struct OfficialsEditor: View {
                 }
             }
 
-            Section(tr(tr("Add"))) {
-                Picker(tr(tr("Role")), selection: $addingUmpire) {
+            Section(tr("Add")) {
+                Picker(tr("Role"), selection: $addingUmpire) {
                     Text(t(tr("sc.umpire_one"))).tag(true)
                     Text(t("la.scorer")).tag(false)
                 }
@@ -1039,7 +1039,7 @@ private struct CaptainNameSheet: View {
         NavigationStack {
             Form {
                 if !candidates.isEmpty {
-                    Section(tr(tr("Their squad"))) {
+                    Section(tr("Their squad")) {
                         if matches.isEmpty {
                             Text(t(tr("sc.nobody_in_squad_matches")))
                                 .font(.footnote)

@@ -1,5 +1,11 @@
 import Foundation
 
+// i18n:catalog — the labels and footnotes below are translated by
+// `StatField.label`/`footnote`, and the option arrays are the values
+// stored on `SportProfile.stats`, translated where they are drawn
+// (`ProfileFieldViews`). English here is the canonical form, not an
+// oversight; see tools/i18n/audit-swift.mjs.
+
 /// A single stat a player can record for a sport. The catalog below drives the
 /// stats form during profile setup, so adding a sport needs no new UI.
 struct StatField: Identifiable, Hashable {

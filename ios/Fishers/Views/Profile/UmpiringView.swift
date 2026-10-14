@@ -84,7 +84,7 @@ struct UmpiringView: View {
         }
 
         if p.ratingCount > 0 {
-            Section(tr(tr("How the ratings fall"))) {
+            Section(tr("How the ratings fall")) {
                 ForEach((1...5).reversed(), id: \.self) { n in
                     HStack {
                         Text("\(n)").monospacedDigit().frame(width: 16, alignment: .trailing)
@@ -104,7 +104,7 @@ struct UmpiringView: View {
         }
 
         if !p.reviews.isEmpty {
-            Section(tr(tr("What the players said"))) {
+            Section(tr("What the players said")) {
                 ForEach(p.reviews) { review in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 8) {

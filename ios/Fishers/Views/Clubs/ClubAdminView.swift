@@ -33,7 +33,7 @@ struct ClubAdminView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker(tr(tr("View")), selection: $tab) {
+            Picker(tr("View"), selection: $tab) {
                 ForEach(Tab.allCases) { Text(tr($0.rawValue)).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -50,7 +50,7 @@ struct ClubAdminView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
         .refreshable { await store.load() }
-        .alert(tr(tr("Something went wrong")), isPresented: store.errorBinding) {
+        .alert(tr("Something went wrong"), isPresented: store.errorBinding) {
             Button(t("rest.ok"), role: .cancel) { store.errorMessage = nil }
         } message: {
             Text(store.errorMessage ?? "")
@@ -97,7 +97,7 @@ private struct RosterList: View {
 
             let former = store.members.filter { !$0.isActive }
             if !former.isEmpty {
-                Section(tr(tr("No longer in the club"))) {
+                Section(tr("No longer in the club")) {
                     ForEach(former) { member in
                         Text(member.name).foregroundStyle(.secondary)
                     }
@@ -118,7 +118,7 @@ private struct RosterList: View {
             if canManage {
                 ToolbarItem(placement: .primaryAction) {
                     Button { isAdding = true } label: { Image(systemName: "person.badge.plus") }
-                        .accessibilityLabel("Add a member")
+                        .accessibilityLabel(tr("Add a member"))
                 }
             }
         }
@@ -190,8 +190,8 @@ private struct RosterList: View {
                 } footer: {
                     Text(t(tr("cl.whatever_they_signed_up_with")))
                 }
-                Section(tr(tr("Role"))) {
-                    Picker(tr(tr("Role")), selection: $newRole) {
+                Section(tr("Role")) {
+                    Picker(tr("Role"), selection: $newRole) {
                         ForEach(ClubRole.appointable, id: \.self) { role in
                             Text(role.displayName).tag(role)
                         }
@@ -386,7 +386,7 @@ private struct PolicyForm: View {
         Form {
             if let settings = store.settings {
                 Section {
-                    Picker(tr(tr("The assistant")), selection: autonomy) {
+                    Picker(tr("The assistant"), selection: autonomy) {
                         ForEach(SelectionAutonomy.allCases) { option in
                             Text(option.label).tag(option)
                         }
@@ -442,7 +442,7 @@ private struct PolicyForm: View {
     private var autonomy: Binding<SelectionAutonomy> {
         Binding(
             get: {
-                SelectionAutonomy(rawValue: store.settings?.selectionAutonomy ?? "suggest") ?? .suggest
+                SelectionAutonomy(rawValue: store.settings?.selectionAutonomy ?? tr("suggest")) ?? .suggest
             },
             set: { new in
                 store.mutateSettings { $0.selectionAutonomy = new.rawValue }
@@ -480,7 +480,7 @@ private struct FeesList: View {
                             .foregroundStyle(FishersTheme.available)
                     }
                 } else {
-                    Section(tr(tr("Who owes"))) {
+                    Section(tr("Who owes")) {
                         ForEach(fees.owed) { fee in
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {

@@ -401,7 +401,7 @@ struct ReliabilityRing: View {
         .frame(width: size, height: size)
         .accessibilityLabel(
             reliability.band == .unproven
-                ? "Reliability unproven, not enough games yet"
+                ? tr("Reliability unproven, not enough games yet")
                 : "Reliability \(reliability.score) out of 100, \(reliability.band.label)"
         )
     }

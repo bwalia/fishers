@@ -43,7 +43,7 @@ enum SocialAuthError: LocalizedError {
         case .notConfigured(let what): return "\(what) sign-in is not set up on this server"
         case .missingURLScheme(let scheme):
             return "This build is missing the Google URL scheme (\(scheme)) — reinstall from TestFlight"
-        case .missingToken: return "Sign-in did not return a token — try again"
+        case .missingToken: return tr("Sign-in did not return a token — try again")
         case .failed(let message): return message
         }
     }

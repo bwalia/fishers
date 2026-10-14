@@ -41,7 +41,7 @@ struct LiveFixtureRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(fixture.sides), \(fixture.score ?? "not started"), "
-                + (fixture.hasScorer ? "being scored" : "no scorer yet")
+                + (fixture.hasScorer ? tr("being scored") : tr("no scorer yet"))
         )
     }
 }

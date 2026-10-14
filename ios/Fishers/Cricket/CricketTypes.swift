@@ -116,10 +116,10 @@ enum ExtraKind: String, Codable, CaseIterable, Identifiable {
 
     var shortLabel: String {
         switch self {
-        case .wide: return "wd"
-        case .noBall: return "nb"
+        case .wide: return tr("wd")
+        case .noBall: return tr("nb")
         case .bye: return "b"
-        case .legBye: return "lb"
+        case .legBye: return tr("lb")
         case .penalty: return "p"
         }
     }
@@ -221,11 +221,11 @@ enum BallType: String, Codable, CaseIterable, Identifiable {
 
     var shortLabel: String {
         switch self {
-        case .red: return "Red"
-        case .white: return "White"
-        case .pink: return "Pink"
-        case .tennis: return "Tennis"
-        case .tape: return "Tape"
+        case .red: return tr("Red")
+        case .white: return tr("White")
+        case .pink: return tr("Pink")
+        case .tennis: return tr("Tennis")
+        case .tape: return tr("Tape")
         }
     }
 }
@@ -414,19 +414,19 @@ enum ShotKind: String, Codable, CaseIterable, Identifiable {
     /// The verb a commentator would use.
     var verb: String {
         switch self {
-        case .drive: return "driven"
-        case .cut: return "cut"
-        case .pull: return "pulled"
-        case .hook: return "hooked"
-        case .sweep: return "swept"
-        case .reverseSweep: return "reverse-swept"
-        case .glance: return "glanced"
-        case .flick: return "flicked"
-        case .loft: return "lofted"
-        case .defence: return "defended"
-        case .edge: return "edged"
-        case .leave: return "left alone"
-        case .other: return "worked away"
+        case .drive: return tr("driven")
+        case .cut: return tr("cut")
+        case .pull: return tr("pulled")
+        case .hook: return tr("hooked")
+        case .sweep: return tr("swept")
+        case .reverseSweep: return tr("reverse-swept")
+        case .glance: return tr("glanced")
+        case .flick: return tr("flicked")
+        case .loft: return tr("lofted")
+        case .defence: return tr("defended")
+        case .edge: return tr("edged")
+        case .leave: return tr("left alone")
+        case .other: return tr("worked away")
         }
     }
 
@@ -1799,9 +1799,14 @@ enum CricketEngineError: LocalizedError {
     case validation(String)
     case conflict(String)
 
+    /// The engine throws these in English, from forty-odd places, and every
+    /// one of them is read by a scorer standing at a ground. Translating here
+    /// covers all of them without the engine having to know a dictionary
+    /// exists — and `tr` returns what it was given for anything not in it, so
+    /// a message written tomorrow still reads correctly.
     var errorDescription: String? {
         switch self {
-        case .validation(let m), .conflict(let m): return m
+        case .validation(let m), .conflict(let m): return tr(m)
         }
     }
 }

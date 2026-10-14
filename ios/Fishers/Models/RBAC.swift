@@ -23,12 +23,12 @@ enum ClubRole: String, Codable {
     /// Short form for a badge.
     var shortLabel: String {
         switch self {
-        case .superAdmin: return "ADMIN"
-        case .clubAdmin: return "SEC"
-        case .teamCaptain: return "CAPT"
-        case .teamViceCaptain: return "VICE"
-        case .member: return "MEMBER"
-        case .guest: return "GUEST"
+        case .superAdmin: return tr("ADMIN")
+        case .clubAdmin: return tr("SEC")
+        case .teamCaptain: return tr("CAPT")
+        case .teamViceCaptain: return tr("VICE")
+        case .member: return tr("MEMBER")
+        case .guest: return tr("GUEST")
         }
     }
 
@@ -36,17 +36,17 @@ enum ClubRole: String, Codable {
     var responsibilities: String {
         switch self {
         case .superAdmin:
-            return "Platform administration."
+            return tr("Platform administration.")
         case .clubAdmin:
-            return "Everything: the roster, roles, teams, venues, fixtures, selection, fees and scoring."
+            return tr("Everything: the roster, roles, teams, venues, fixtures, selection, fees and scoring.")
         case .teamCaptain:
-            return "Create fixtures, invite players, pick and publish the squad, score matches."
+            return tr("Create fixtures, invite players, pick and publish the squad, score matches.")
         case .teamViceCaptain:
-            return "Help with selection, invite players to a fixture, score matches."
+            return tr("Help with selection, invite players to a fixture, score matches.")
         case .member:
-            return "Mark availability, RSVP, chat, the shop."
+            return tr("Mark availability, RSVP, chat, the shop.")
         case .guest:
-            return "The same as a member, for a one-off invitee."
+            return tr("The same as a member, for a one-off invitee.")
         }
     }
 

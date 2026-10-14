@@ -98,7 +98,7 @@ struct ShareProfileView: View {
         do {
             link = try await FishersAPI.profileShareLink()
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not make your link"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not make your link")
         }
     }
 

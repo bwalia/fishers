@@ -167,7 +167,7 @@ struct WagonWheelPicker: View {
                         record(value.location, centre: centre, radius: radius)
                     }
             )
-            .accessibilityLabel("Wagon wheel. Tap to place the shot.")
+            .accessibilityLabel(tr("Wagon wheel. Tap to place the shot."))
         }
         .aspectRatio(1, contentMode: .fit)
     }

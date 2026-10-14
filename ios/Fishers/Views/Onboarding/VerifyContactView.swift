@@ -33,7 +33,7 @@ struct VerifyContactView: View {
             }
 
             if status.channels.count > 1 {
-                Picker(tr(tr("Confirm by")), selection: $channel) {
+                Picker(tr("Confirm by"), selection: $channel) {
                     ForEach(status.channels) { Text($0 == .email ? tr("Email") : tr("Phone")).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -58,7 +58,7 @@ struct VerifyContactView: View {
                     .focused($codeFocused)
                     .frame(minHeight: FishersTheme.minTap)
                     .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .accessibilityLabel("Verification code")
+                    .accessibilityLabel(tr("Verification code"))
                     .onChange(of: code) { _, typed in
                         // Digits only, six at most — and a full code submits
                         // itself, the way the system keyboard's suggestion does.
@@ -134,7 +134,7 @@ struct VerifyContactView: View {
         do {
             onVerified(try await FishersAPI.confirmVerification(channel, code: code))
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "That code did not work"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("That code did not work")
             code = ""
             codeFocused = true
         }

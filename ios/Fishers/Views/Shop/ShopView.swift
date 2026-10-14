@@ -20,7 +20,7 @@ struct ShopView: View {
     var body: some View {
         List {
             Section {
-                Picker(tr(tr("Condition")), selection: $condition) {
+                Picker(tr("Condition"), selection: $condition) {
                     Text(t("rest.everything")).tag(String?.none)
                     Text(t(tr("lc.second_hand"))).tag(String?.some("used"))
                     Text(t(tr("lc.brand_new"))).tag(String?.some("new"))

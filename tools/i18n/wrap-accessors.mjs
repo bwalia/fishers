@@ -37,6 +37,12 @@ const dry = process.argv.includes("--dry");
 const DISPLAY = [
   "label", "title", "caption", "blurb", "summary", "hint", "footnote",
   "message", "headline", "subtitle", "explanation", "wording", "sentence", "text",
+  // Found by listing every `var …: String {` in the app and keeping the ones
+  // whose value is only ever drawn. `id`, `systemImage`, `address`, `initials`,
+  // `firstName`, `theirName` and the rest are left out on purpose: they are
+  // identifiers, SF Symbols, or somebody's actual name.
+  "shortLabel", "shortTitle", "shortName", "missing", "responsibilities",
+  "verb", "word", "line", "freshness", "syncLabel", "detail", "errorDescription",
 ];
 const decl = new RegExp(String.raw`^(\s*)(?:public |private |fileprivate |internal )?var (${DISPLAY.join("|")}): String\??\s*\{`);
 
@@ -69,14 +75,36 @@ for (const file of files) {
     for (let j = i; j <= end; j++) {
       if (/^\s*(\/\/|\*)/.test(out[j])) continue;
       if (interpolated(out[j]) || rawValue(out[j])) continue;
-      out[j] = out[j].replace(/"([^"\\]{2,})"/g, (whole, text) => {
-        if (!/[A-Za-z]{2,}/.test(text)) return whole;
-        // Already handled, or an SF Symbol.
-        if (/^[a-z0-9.]+$/.test(text) && text.includes(".")) return whole;
-        wrapped += 1;
-        touched = true;
-        return `tr(${JSON.stringify(text)})`;
-      });
+      // Walk the literals rather than pattern-matching the line, for the same
+      // reason wrap-calls does: a pattern can match the gap between two
+      // adjacent literals. It also lets the one already inside `tr(` be seen
+      // and left alone, instead of becoming `tr(tr("…"))`.
+      const line = out[j];
+      let rebuilt = "";
+      let at = 0;
+      while (at < line.length) {
+        const open = line.indexOf('"', at);
+        if (open < 0) { rebuilt += line.slice(at); break; }
+        let close = open + 1;
+        while (close < line.length && !(line[close] === '"' && line[close - 1] !== "\\")) close += 1;
+        if (close >= line.length) { rebuilt += line.slice(at); break; }
+        const body = line.slice(open + 1, close);
+        const before = line.slice(at, open);
+        const skip =
+          body.length < 2 ||
+          !/[A-Za-z]{2,}/.test(body) ||
+          (/^[a-z0-9.]+$/.test(body) && body.includes(".")) ||
+          /\b(t|tr)\($/.test(before) ||
+          // `payload["team_name"]` is a lookup into JSON the server sent.
+          // Wrapping it made the app search for a Punjabi key and find
+          // nothing — a bug a green build and a wrapped-count both missed.
+          /\[\s*$/.test(before) ||
+          /(systemImage|systemName|of|with|separator|format|forKey):\s*$/.test(before);
+        rebuilt += before + (skip ? `"${body}"` : `tr("${body}")`);
+        if (!skip) { wrapped += 1; touched = true; }
+        at = close + 1;
+      }
+      out[j] = rebuilt;
     }
   }
   if (touched) {

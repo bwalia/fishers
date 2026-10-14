@@ -109,12 +109,12 @@ struct ChatListView: View {
     private var newThreadSheet: some View {
         NavigationStack {
             Form {
-                Section(tr(tr("Thread"))) {
+                Section(tr("Thread")) {
                     TextField(t(tr("cl.first_xi_chat_example")), text: $newTitle)
                 }
                 if !clubContext.clubs.isEmpty {
-                    Section(tr(tr("Club"))) {
-                        Picker(tr(tr("Club")), selection: Binding(
+                    Section(tr("Club")) {
+                        Picker(tr("Club"), selection: Binding(
                             get: { clubContext.activeClubId },
                             set: { if let id = $0 { clubContext.select(id) } }
                         )) {
