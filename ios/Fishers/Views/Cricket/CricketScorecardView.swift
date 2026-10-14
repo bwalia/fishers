@@ -439,7 +439,7 @@ struct CricketScorecardView: View {
                     Text("\(batter.balls)").frame(width: 30, alignment: .trailing)
                     Text("\(batter.fours)").frame(width: 26, alignment: .trailing)
                     Text("\(batter.sixes)").frame(width: 26, alignment: .trailing)
-                    Text(batter.balls == 0 ? "—tr(" : String(format: ")%.1f", batter.strikeRate))
+                    Text(batter.balls == 0 ? "—" : String(format: "%.1f", batter.strikeRate))
                         .frame(width: 46, alignment: .trailing)
                 }
                 .font(.caption.monospacedDigit())
@@ -567,7 +567,7 @@ struct CricketScorecardView: View {
                         Text("\(bowler.maidens)").frame(width: 24, alignment: .trailing)
                         Text("\(bowler.runs)").frame(width: 30, alignment: .trailing)
                         Text("\(bowler.wickets)").frame(width: 24, alignment: .trailing).bold()
-                        Text(bowler.balls == 0 ? "—tr(" : String(format: ")%.2f", bowler.economy))
+                        Text(bowler.balls == 0 ? "—" : String(format: "%.2f", bowler.economy))
                             .frame(width: 44, alignment: .trailing)
                     }
                     .font(.caption.monospacedDigit())

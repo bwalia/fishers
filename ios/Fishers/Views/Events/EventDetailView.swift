@@ -312,7 +312,7 @@ struct EventDetailView: View {
                         }
                     }
                     Spacer()
-                    Text(a.status.rawValue.replacingOccurrences(of: "_tr(", with: ") "))
+                    Text(a.status.rawValue.replacingOccurrences(of: "_", with: " "))
                         .font(.caption.weight(.semibold))
                     if a.paid {
                         Image(systemName: "checkmark.seal.fill")

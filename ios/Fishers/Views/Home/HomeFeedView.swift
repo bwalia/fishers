@@ -348,7 +348,7 @@ struct EventRow: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
 
-                Text(event.eventSubtype.replacingOccurrences(of: "_tr(", with: ") ").capitalized)
+                Text(event.eventSubtype.replacingOccurrences(of: "_", with: " ").capitalized)
                     .font(FishersTheme.overline)
                     .tracking(0.7)
                     .textCase(.uppercase)

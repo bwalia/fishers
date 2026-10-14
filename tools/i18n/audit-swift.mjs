@@ -71,6 +71,34 @@ for (const file of files) {
   });
 }
 
+/**
+ * Code that got wrapped as if it were words.
+ *
+ * The wrapper once matched across two adjacent literals — `of: "_", with: " "`
+ * became `of: "_tr(", with: ") "` — which compiles, runs, and silently does
+ * the wrong thing. A green build said nothing. This is the check that would
+ * have.
+ */
+const mangled = [];
+for (const file of files) {
+  readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+    // The signature is a *string literal* that contains a call. Looking for
+    // `tr(` with a word boundary misses the real case, because the corruption
+    // reads `"_tr("` and `_` is a word character — which is how this check
+    // passed on the very corruption it was written for.
+    for (const m of line.matchAll(/"([^"\\]*)"/g)) {
+      if (/\b\w*tr\(|String\(format:|, with: $/.test(m[1])) {
+        mangled.push(`${relative(repoRoot, file)}:${i + 1}  ${m[0]}`);
+      }
+    }
+  });
+}
+if (mangled.length) {
+  console.error("Code wrapped as if it were words — a wrapper matched across two literals:");
+  for (const m of mangled) console.error(`  ${m}`);
+  process.exitCode = 1;
+}
+
 const byText = new Map();
 for (const f of findings) {
   if (!byText.has(f.text)) byText.set(f.text, []);

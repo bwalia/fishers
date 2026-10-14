@@ -61,6 +61,35 @@ for (const file of files) {
       if (line.includes("\\(")) return line;                 // interpolation
       if (/\bcase\s+\w+\s*=\s*"/.test(line)) return line;    // a raw value
       if (/^\s*(\/\/|\*)/.test(line)) return line;           // a comment
+      // Walk the line's literals in order rather than matching a pattern
+      // against it. `of: "_", with: " "` has two one-character literals, and a
+      // pattern needing two or more characters skips the first, starts at the
+      // closing quote of it, and happily matches `", with: "` — turning the
+      // call into `of: "_tr(", with: ") "`. That compiles. It is the quiet
+      // kind of wrong, and it got through a green build.
+      let outLine = "";
+      let at = 0;
+      while (at < line.length) {
+        const open = line.indexOf('"', at);
+        if (open < 0) { outLine += line.slice(at); break; }
+        let close = open + 1;
+        while (close < line.length && !(line[close] === '"' && line[close - 1] !== "\\")) close += 1;
+        if (close >= line.length) { outLine += line.slice(at); break; }
+        const body = line.slice(open + 1, close);
+        const before = line.slice(at, open);
+        const named = /(\w+):\s*$/.exec(before);
+        const skip =
+          body.length < 2 ||
+          !/[A-Za-z]{2,}/.test(body) ||
+          (/^[a-z0-9.]+$/.test(body) && body.includes(".")) ||
+          (named && /^(systemImage|systemName|key|id|value|tag|of|with|separator|format)$/.test(named[1])) ||
+          /\b(t|tr)\($/.test(before);
+        outLine += before + (skip ? `"${body}"` : `tr("${body}")`);
+        if (!skip) wrapped += 1;
+        at = close + 1;
+      }
+      return outLine;
+      // eslint-disable-next-line no-unreachable
       return line.replace(/(\w+:\s*)?"([^"\\]{2,})"/g, (whole, named, body) => {
         if (named && /^(systemImage|systemName|key|id|value|tag):\s*$/.test(named)) return whole;
         if (!/[A-Za-z]{2,}/.test(body)) return whole;
