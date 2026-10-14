@@ -303,9 +303,9 @@ struct ClubRowView: View {
                 }
                 HStack(spacing: 12) {
                     Label("\(row.memberCount)", systemImage: "person.2.fill")
-                        .accessibilityLabel("\(row.memberCount) \(row.memberCount == 1 ? "member" : "members")")
+                        .accessibilityLabel(t("cl.n_members", count: row.memberCount, vars: ["n": row.memberCount]))
                     Label("\(row.teamCount)", systemImage: "shield")
-                        .accessibilityLabel("\(row.teamCount) \(row.teamCount == 1 ? "team" : "teams")")
+                        .accessibilityLabel(t("cl.n_teams", count: row.teamCount, vars: ["n": row.teamCount]))
                     Text(row.sportTypes.map(\.capitalized).joined(separator: " · "))
                         .lineLimit(1)
                     if row.publicSlug != nil {
@@ -618,7 +618,7 @@ struct ClubDetailView: View {
                 NavigationLink {
                     ClubAdminView(club: club, role: role)
                 } label: {
-                    Label("\(members.count) \(members.count == 1 ? "member" : "members")", systemImage: "person.2")
+                    Label(t("cl.n_members", count: members.count, vars: ["n": members.count]), systemImage: "person.2")
                 }
             } header: {
                 Text(t("cl.members"))
@@ -799,8 +799,8 @@ struct ClubDetailView: View {
             let done = setup.filter(\.done).count + 1
             let total = setup.count + 1
             VStack(alignment: .leading, spacing: 6) {
-                Text("Get \(club.name) ready for its first match").font(FishersTheme.headline)
-                Text("\(done) of \(total) done — \(total - done) to go.")
+                Text(t("cl.get_ready_for_first_match", vars: ["club": club.name])).font(FishersTheme.headline)
+                Text(t("cl.n_of_m_done", vars: ["done": done, "total": total, "left": total - done]))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
                 ProgressView(value: Double(done), total: Double(total)).tint(FishersTheme.pitch)

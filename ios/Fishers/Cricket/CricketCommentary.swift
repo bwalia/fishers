@@ -164,9 +164,9 @@ enum CricketCommentary {
         if label.hasPrefix("nb") {
             return runs > 1 ? "no ball, \(runs) runs" : "no ball"
         }
-        if label.hasSuffix("lb") { return "\(runs) leg bye\(runs == 1 ? "" : "s")" }
-        if label.hasSuffix("b") { return "\(runs) bye\(runs == 1 ? "" : "s")" }
-        if label.hasSuffix("p") { return "\(runs) penalty runs" }
+        if label.hasSuffix("lb") { return t("sc.n_leg_byes", count: runs, vars: ["n": runs]) }
+        if label.hasSuffix("b") { return t("sc.n_byes", count: runs, vars: ["n": runs]) }
+        if label.hasSuffix("p") { return t("sc.n_penalty_runs", vars: ["n": runs]) }
         return label
     }
 

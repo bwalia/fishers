@@ -83,7 +83,7 @@ struct OppositionPickerView: View {
                 } header: {
                     Text(t(tr("sc.or_just_type_it")))
                 } footer: {
-                    Text("A scratch side that isn't on \(Brand.name) is only a name — that is fine.")
+                    Text(t("sc.scratch_side_only_a_name", vars: ["brand": Brand.name]))
                 }
 
                 if let message {

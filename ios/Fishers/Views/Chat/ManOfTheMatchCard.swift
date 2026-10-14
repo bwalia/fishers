@@ -148,7 +148,7 @@ struct ManOfTheMatchCard: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(winner.displayName)
                         .font(.headline)
-                    Text("\(winner.votes) of \(view.totalVotes) \(view.totalVotes == 1 ? "vote" : "votes")")
+                    Text(t("sc.n_votes", count: view.totalVotes, vars: ["won": winner.votes, "total": view.totalVotes]))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

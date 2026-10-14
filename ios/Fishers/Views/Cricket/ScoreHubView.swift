@@ -516,7 +516,7 @@ struct QuickMatchSheet: View {
                     .disabled(busy || missing != nil)
                     .listRowBackground(Color.clear)
                 } footer: {
-                    if let missing { Text("Still needed: \(missing).") }
+                    if let missing { Text(t("sc.still_needed", vars: ["what": missing])) }
                 }
             }
             .navigationTitle(t(tr("cl.start_a_match")))

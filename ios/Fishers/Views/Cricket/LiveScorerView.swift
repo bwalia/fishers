@@ -310,7 +310,7 @@ struct LiveScorerView: View {
                         .foregroundStyle(.secondary)
                 }
                 if inn.superOver {
-                    Label("SUPER OVER \(store.state.superOvers) — one over, two wickets", systemImage: "bolt.fill")
+                    Label(t("sc.super_over_n", vars: ["n": store.state.superOvers]), systemImage: "bolt.fill")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(FishersTheme.seam)
                         .padding(.vertical, 4)
@@ -326,7 +326,7 @@ struct LiveScorerView: View {
                     .padding(.vertical, 4)
                     .padding(.horizontal, 10)
                     .background(FishersTheme.pitch.opacity(0.15), in: Capsule())
-                    .accessibilityLabel("Powerplay, \(inn.powerplayOversLeft) overs left")
+                    .accessibilityLabel(t("sc.powerplay_n_overs_left", vars: ["n": inn.powerplayOversLeft]))
                 }
                 if inn.freeHit {
                     Label(t(tr("sc.free_hit_banner")), systemImage: "shield.lefthalf.filled")
@@ -382,7 +382,7 @@ struct LiveScorerView: View {
                         Button {
                             showHandover = true
                         } label: {
-                            Label("Hand the book to \(store.state.name(for: next))", systemImage: "book")
+                            Label(t("sc.hand_the_book_to", vars: ["name": store.state.name(for: next)]), systemImage: "book")
                         }
                         .buttonStyle(.bordered)
                     }
@@ -412,7 +412,7 @@ struct LiveScorerView: View {
                         .font(FishersTheme.headline)
                         .foregroundStyle(FishersTheme.pitch)
                     if let award = store.state.playerOfTheMatch {
-                        Label("Player of the match: \(store.name(for: award))", systemImage: "star.fill")
+                        Label(t("sc.player_of_the_match_is", vars: ["name": store.name(for: award)]), systemImage: "star.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(FishersTheme.maybe)
                     }
@@ -663,9 +663,9 @@ struct LiveScorerView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.triangle.2.circlepath")
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Over \(Int(inn.legalBalls) / 6) done — who bowls next?")
+                        Text(t("sc.over_n_done_who_next", vars: ["n": Int(inn.legalBalls) / 6]))
                             .font(FishersTheme.headline)
-                        Text("\(last) bowled it, and nobody bowls two in a row.")
+                        Text(t("sc.bowled_it_nobody_two_in_row", vars: ["name": last]))
                             .font(FishersTheme.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -690,7 +690,7 @@ struct LiveScorerView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(runButtonTint(runs))
-        .accessibilityLabel("\(runs) run\(runs == 1 ? "" : "s")")
+        .accessibilityLabel(t("la.over_runs", count: runs, vars: ["n": runs]))
     }
 
     private func runButtonTint(_ runs: Int) -> Color {
@@ -1267,7 +1267,7 @@ private struct BowlerSheet: View {
                     Text(t(tr("sc.can_bowl")))
                 } footer: {
                     if store.state.conditions.oversPerBowler > 0 {
-                        Text("\(store.state.conditions.oversPerBowler) overs each. Nobody bowls two overs in a row.")
+                        Text(t("sc.overs_each_no_two_in_row", vars: ["n": store.state.conditions.oversPerBowler]))
                     } else {
                         Text(t(tr("sc.no_allocation_agreed")))
                     }
@@ -1305,7 +1305,7 @@ private struct BowlerSheet: View {
                     if let reason {
                         Text(reason).font(.caption2).foregroundStyle(FishersTheme.unavailable)
                     } else if let left = store.state.oversLeftForBowler(player.id) {
-                        Text("\(left) over\(left == 1 ? "" : "s") left")
+                        Text(t("sc.n_overs_left", count: Int(left), vars: ["n": left]))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -1363,7 +1363,7 @@ private struct SecondInningsSheet: View {
             Form {
                 if let target = store.state.target {
                     Section {
-                        Text("\(store.state.name(for: batting)) need \(target) to win.")
+                        Text(t("sc.team_need_to_win", vars: ["team": store.state.name(for: batting), "runs": target]))
                             .font(.subheadline.weight(.semibold))
                     }
                 }
@@ -1779,7 +1779,7 @@ private struct SuperOverSheet: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 } header: {
-                    Text("\(store.state.name(for: batting)) bat first")
+                    Text(t("sc.team_bat_first", vars: ["team": store.state.name(for: batting)]))
                 } footer: {
                     Text(t(tr("sc.second_batting_side_opens_super_over")))
                 }

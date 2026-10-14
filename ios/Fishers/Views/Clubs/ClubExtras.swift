@@ -20,7 +20,7 @@ struct ClubWelcomeSheet: View {
                 .padding(.top, FishersTheme.space3)
                 .accessibilityHidden(true)
             Text(t(tr("cl.club_created"))).font(FishersTheme.overline).tracking(0.8).foregroundStyle(FishersTheme.pitch)
-            Text("\(clubName) is ready").font(FishersTheme.display).multilineTextAlignment(.center)
+            Text(t("cl.club_is_ready", vars: ["club": clubName])).font(FishersTheme.display).multilineTextAlignment(.center)
             Text(t(tr("cl.you_are_its_secretary")))
                 .font(FishersTheme.subhead)
                 .foregroundStyle(.secondary)
@@ -97,7 +97,7 @@ struct TeamRosterView: View {
                         description: Text(t(tr("cl.secretary_or_captain_adds")))
                     )
                 } else {
-                    Section("\(members.count) in the squad") {
+                    Section(t("cl.n_in_the_squad", vars: ["n": members.count])) {
                         ForEach(members) { member in
                             NavigationLink {
                                 PlayerProfileView(userId: member.userId, knownName: member.name)
@@ -223,7 +223,7 @@ struct GroundsSection: View {
                             Image(systemName: "map")
                         }
                         .buttonStyle(.borderless)
-                        .accessibilityLabel("Open \(venue.name) in Maps")
+                        .accessibilityLabel(t("cl.open_in_maps", vars: ["name": venue.name]))
                     }
                 }
             }
@@ -485,7 +485,7 @@ struct SharedPlayerCardView: View {
 
                 if let sent {
                     Section {
-                        Label("Invite sent to \(card.name) for \(sent). It appears for them to accept.", systemImage: "checkmark.circle.fill")
+                        Label(t("cl.invite_sent_to", vars: ["name": card.name, "what": sent]), systemImage: "checkmark.circle.fill")
                             .foregroundStyle(FishersTheme.pitch)
                     }
                 } else if places.isEmpty {
@@ -520,7 +520,7 @@ struct SharedPlayerCardView: View {
                 ContentUnavailableView {
                     Label(t(tr("cl.this_link_didnt_work")), systemImage: "link")
                 } description: {
-                    Text("\(error). Ask the player to send you their link again.")
+                    Text(t("cl.ask_for_link_again", vars: ["error": error]))
                 }
             } else {
                 ProgressView()

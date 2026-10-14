@@ -38,7 +38,7 @@ struct ClubQRView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("QR code for \(shown.identity.displayName)")
+                    .accessibilityLabel(t("cl.qr_code_for", vars: ["name": shown.identity.displayName]))
                 } else {
                     HStack { Spacer(); ProgressView(); Spacer() }
                 }

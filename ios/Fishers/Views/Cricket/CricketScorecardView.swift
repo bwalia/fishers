@@ -155,11 +155,11 @@ struct CricketScorecardView: View {
                         .padding(.vertical, 2)
                     case .overEnd(let over):
                         HStack {
-                            Text("End of over \(over.over + 1)")
+                            Text(t("sc.end_of_over_n", vars: ["n": over.over + 1]))
                                 .font(.caption.weight(.bold))
                                 .textCase(.uppercase)
                             Spacer()
-                            Text("\(over.overRuns) run\(over.overRuns == 1 ? "" : "s")")
+                            Text(t("la.over_runs", count: over.overRuns, vars: ["n": over.overRuns]))
                                 .foregroundStyle(.secondary)
                             Text("\(over.runs)/\(over.wickets)")
                                 .font(.caption.monospacedDigit().weight(.bold))
@@ -214,7 +214,7 @@ struct CricketScorecardView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 if let home = state.agreedHome, let away = state.agreedAway {
-                    Label("Agreed by \(home) and \(away)", systemImage: "checkmark.seal")
+                    Label(t("sc.agreed_by_both", vars: ["home": home, "away": away]), systemImage: "checkmark.seal")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -403,7 +403,7 @@ struct CricketScorecardView: View {
 
             let notBatted = didNotBat(innings)
             if !notBatted.isEmpty {
-                Text("Did not bat: \(notBatted.map { state.name(for: $0.playerId) }.joined(separator: ", "))")
+                Text(t("sc.did_not_bat_names", vars: ["names": notBatted.map { state.name(for: $0.playerId) }.joined(separator: ", ")]))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

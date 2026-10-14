@@ -154,7 +154,7 @@ private struct StarPicker: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("\(n) out of 5")
+                .accessibilityLabel(t("rest.n_out_of_5", vars: ["n": n]))
                 .accessibilityAddTraits(n == value ? .isSelected : [])
             }
             Text(value > 0 ? "\(value) / 5" : "Not rated")

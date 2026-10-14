@@ -157,7 +157,7 @@ private struct RosterList: View {
                     }
                 }
             }
-            .accessibilityLabel("\(member.name), \(member.role.displayName). Open their profile.")
+            .accessibilityLabel(t("cl.member_open_profile", vars: ["name": member.name, "role": member.role.displayName]))
 
             if canManage {
                 Button {
@@ -166,7 +166,7 @@ private struct RosterList: View {
                     RoleBadge(choice: member.roleChoice)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Change \(member.name)'s role, now \(member.roleChoice.label)")
+                .accessibilityLabel(t("cl.change_role_now", vars: ["name": member.name, "role": member.roleChoice.label]))
             } else {
                 RoleBadge(choice: member.roleChoice)
             }
@@ -214,7 +214,7 @@ private struct RosterList: View {
                         }
                     }
                 } footer: {
-                    Text("An invite link works for somebody with no \(Brand.name) account. It joins them to the club once they sign up, and can only be used once.")
+                    Text(t("cl.invite_link_explainer", vars: ["brand": Brand.name]))
                 }
                 Section {
                     TextField(t(tr("rest.paste_the_link_they_sent_you")), text: $pastedLink)
@@ -227,7 +227,7 @@ private struct RosterList: View {
                             Label(t(tr("cl.open_their_profile")), systemImage: "person.crop.rectangle")
                         }
                     } else if !pastedLink.isEmpty {
-                        Text("That isn't a \(Brand.name) profile link — it looks like …/p/ followed by letters and numbers.")
+                        Text(t("cl.not_a_profile_link", vars: ["brand": Brand.name]))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(FishersTheme.unavailable)
                     }
@@ -493,7 +493,7 @@ private struct FeesList: View {
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 if fee.remindersSent > 0 {
-                                    Text("\(fee.remindersSent) reminder\(fee.remindersSent == 1 ? "" : "s") sent")
+                                    Text(t("cl.n_reminders_sent", count: fee.remindersSent, vars: ["n": fee.remindersSent]))
                                         .font(.caption2)
                                         .foregroundStyle(FishersTheme.maybe)
                                 }

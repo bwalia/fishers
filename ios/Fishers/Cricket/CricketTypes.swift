@@ -353,7 +353,7 @@ struct MatchConditions: Codable, Equatable, Hashable {
         let perBowler = oversPerBowler == 0 ? "no bowler limit" : "\(oversPerBowler) per bowler"
         var summary = "\(oversLimit) overs · \(perBowler) · \(ball.label.lowercased()) · \(ground.label.lowercased())"
         if powerplayOvers > 0 {
-            summary += " · \(powerplayOvers) over powerplay"
+            summary += t("sc.n_over_powerplay", vars: ["n": powerplayOvers])
         }
         return summary
     }

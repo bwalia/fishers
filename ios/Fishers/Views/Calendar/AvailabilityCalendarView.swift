@@ -189,7 +189,7 @@ struct CalendarPane: View {
                             get: { vm.fixtures.first { $0.eventId == fixture.eventId }?.myAnswer },
                             set: { vm.setAnswer($0, for: fixture.eventId) }
                         ),
-                        title: "Can you play \(fixture.title)?"
+                        title: t("ev.can_you_play", vars: ["fixture": fixture.title])
                     )
                 }
                 .padding(12)
@@ -206,7 +206,7 @@ struct CalendarPane: View {
     private var bulk: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(t(tr("ev.your_usual_days"))).font(FishersTheme.headline)
-            Text("Set every one of a weekday in \(vm.month.formatted(.dateTime.month(.wide))) at once, then change the odd day above.")
+            Text(t("ev.set_every_weekday_in", vars: ["month": vm.month.formatted(.dateTime.month(.wide))]))
                 .font(FishersTheme.footnote)
                 .foregroundStyle(.secondary)
             Picker(tr("Weekday"), selection: $bulkWeekday) {

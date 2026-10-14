@@ -59,7 +59,7 @@ struct ClubStatsView: View {
                             HStack {
                                 Text(p.playerName ?? tr("Player"))
                                 Spacer()
-                                Text("\(p.wickets) wkt\(p.wickets == 1 ? "" : "s")")
+                                Text(t("sc.n_wickets_short", count: p.wickets, vars: ["n": p.wickets]))
                                     .font(.headline.monospacedDigit())
                             }
                             Text(bowlingLine(p))

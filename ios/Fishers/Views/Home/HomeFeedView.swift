@@ -53,7 +53,7 @@ struct HomeFeedView: View {
                         .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                         .listRowBackground(Color.clear)
                     } header: {
-                        Text("How will you use \(Brand.name)?")
+                        Text(t("rest.how_will_you_use", vars: ["brand": Brand.name]))
                     } footer: {
                         Text(t(tr("rest.well_show_you_what_next")))
                     }
@@ -363,7 +363,7 @@ struct EventRow: View {
                 Text(String(format: "£%.0f", Double(fee) / 100))
                     .font(FishersTheme.headline.monospacedDigit())
                     .foregroundStyle(.primary)
-                    .accessibilityLabel("Fee \(String(format: "£%.0f", Double(fee) / 100))")
+                    .accessibilityLabel(t("rest.fee_amount", vars: ["amount": String(format: "£%.0f", Double(fee) / 100)]))
             }
         }
         .padding(.vertical, 6)

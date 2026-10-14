@@ -316,7 +316,7 @@ struct CricketScoringFlowView: View {
                     .foregroundStyle(FishersTheme.accent)
             } footer: {
                 if !store.state.conditionsAgreed {
-                    Text("Waiting on \(waitingNames). Tap Agree next to their name once they have said yes — this is the conversation you have at the toss.")
+                    Text(t("sc.waiting_on_names", vars: ["names": waitingNames]))
                 }
             }
         }
@@ -443,7 +443,7 @@ struct CricketScoringFlowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let home = store.state.agreedHome, let away = store.state.agreedAway {
-                    Label("Agreed by \(home) and \(away)", systemImage: "checkmark.seal.fill")
+                    Label(t("sc.agreed_by_both", vars: ["home": home, "away": away]), systemImage: "checkmark.seal.fill")
                         .font(.caption)
                         .foregroundStyle(FishersTheme.available)
                 }
@@ -462,7 +462,7 @@ struct CricketScoringFlowView: View {
                 .pickerStyle(.segmented)
             }
             Section {
-                Text("\(store.state.name(for: firstInningsBatting)) bat first.")
+                Text(t("sc.team_bat_first_dot", vars: ["team": store.state.name(for: firstInningsBatting)]))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -518,7 +518,7 @@ struct CricketScoringFlowView: View {
             // One side at a time, because each captain names their own and the
             // engine now refuses to start until both sheets are in.
             VStack(spacing: 6) {
-                Text("\(umpires.count) umpire\(umpires.count == 1 ? "" : "s") appointed")
+                Text(t("sc.n_umpires_appointed", count: umpires.count, vars: ["n": umpires.count]))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 8) {
@@ -545,7 +545,7 @@ struct CricketScoringFlowView: View {
                 playerPicker("Striker", selection: $strikerId, from: batXi)
                 playerPicker("Non-striker", selection: $nonStrikerId, from: batXi)
             } header: {
-                Text("\(store.state.name(for: batting)) opening pair")
+                Text(t("sc.team_opening_pair", vars: ["team": store.state.name(for: batting)]))
             }
             Section(tr("Opening bowler")) {
                 playerPicker("Bowler", selection: $bowlerId, from: bowlXi)
@@ -841,7 +841,7 @@ private struct TeamSheetEditor: View {
                     .onMove { players.move(fromOffsets: $0, toOffset: $1) }
                 }
             } header: {
-                Text("\(title) — batting order (\(players.count))")
+                Text(t("sc.batting_order_count", vars: ["team": title, "n": players.count]))
             } footer: {
                 Text(t(tr("sc.drag_to_set_batting_order")))
             }
@@ -941,7 +941,7 @@ private struct OfficialsEditor: View {
             } header: {
                 Text("Umpires (\(umpires.count))")
             } footer: {
-                Text("An umpire who is a \(Brand.name) member can pick up the scoring, even without a club role.")
+                Text(t("sc.umpire_member_can_score", vars: ["brand": Brand.name]))
             }
 
             Section("Scorers (\(scorers.count))") {
@@ -1073,7 +1073,7 @@ private struct CaptainNameSheet: View {
                 }
             }
             .searchable(text: $search, prompt: tr("Find a player"))
-            .navigationTitle("Captain of \(teamName)")
+            .navigationTitle(t("sc.captain_of", vars: ["team": teamName]))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
