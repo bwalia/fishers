@@ -320,16 +320,16 @@ struct Product: Codable, Identifiable, Hashable {
 
     var conditionLabel: String? {
         switch condition {
-        case "used": return "Second-hand"
-        case "new": return "Brand new"
+        case tr("used"): return tr("Second-hand")
+        case tr("new"): return tr("Brand new")
         default: return nil
         }
     }
 
     var categoryLabel: String {
         switch category {
-        case "equipment": return "Equipment"
-        case "merchandise": return "Merchandise"
+        case tr("equipment"): return tr("Equipment")
+        case tr("merchandise"): return tr("Merchandise")
         default: return category.capitalized
         }
     }

@@ -148,7 +148,7 @@ struct ManOfTheMatchCard: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(winner.displayName)
                         .font(.headline)
-                    Text(t("sc.n_votes", count: view.totalVotes, vars: ["won": winner.votes, "total": view.totalVotes]))
+                    Text(t("sc.n_votes", count: view.totalVotes, vars: ["won": winner.votes, tr("total"): view.totalVotes]))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -213,7 +213,7 @@ struct ManOfTheMatchCard: View {
 
     private func closingLabel(_ closesAt: Date) -> String {
         let remaining = closesAt.timeIntervalSinceNow
-        guard remaining > 0 else { return "Closing" }
+        guard remaining > 0 else { return tr("Closing") }
         if remaining < 3600 {
             return "\(max(1, Int(remaining / 60)))m left"
         }

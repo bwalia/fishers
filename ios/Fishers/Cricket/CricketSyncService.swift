@@ -161,7 +161,7 @@ final class CricketSyncService: ObservableObject {
         guard let api = error as? APIError else { return nil }
         switch api {
         case .http(let code, _) where code == 409:
-            return "Another device is scoring this match — take over to sync from here."
+            return tr("Another device is scoring this match — take over to sync from here.")
         case .unreachable:
             return nil // ordinary offline, the chip already says so
         default:

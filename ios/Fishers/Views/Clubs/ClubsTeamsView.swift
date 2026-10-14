@@ -800,7 +800,7 @@ struct ClubDetailView: View {
             let total = setup.count + 1
             VStack(alignment: .leading, spacing: 6) {
                 Text(t("cl.get_ready_for_first_match", vars: ["club": club.name])).font(FishersTheme.headline)
-                Text(t("cl.n_of_m_done", vars: ["done": done, "total": total, "left": total - done]))
+                Text(t("cl.n_of_m_done", vars: ["done": done, tr("total"): total, tr("left"): total - done]))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
                 ProgressView(value: Double(done), total: Double(total)).tint(FishersTheme.pitch)

@@ -32,6 +32,7 @@ const CALLS = [
   // app for `func <name>(` that takes a title.
   "stat", "figure", "tile", "metric", "pill", "ClubCrest",
   "Stat", "question", "Row", "badge", "row", "Chip", "Pill", "Banner", "Hint",
+  "Block", "Spec", "Step", "rsvpButton", "playerPicker", "compare", "Section",
 ];
 
 /**

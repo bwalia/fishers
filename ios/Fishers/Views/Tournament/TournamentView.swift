@@ -354,7 +354,7 @@ private struct SetUpSheet: View {
                 } header: {
                     Text(t("tn.the_grid"))
                 } footer: {
-                    Text(t("tn.slots_for_entrants", vars: ["slots": courtList.count * rounds, "entrants": entrantCount]))
+                    Text(t("tn.slots_for_entrants", vars: ["slots": courtList.count * rounds, tr("entrants"): entrantCount]))
                 }
             }
             .navigationTitle(t("tn.generate_fixtures"))

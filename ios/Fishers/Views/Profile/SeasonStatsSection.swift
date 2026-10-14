@@ -85,7 +85,7 @@ struct SeasonStatsSection: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(t("rest.season_stats_aria", vars: ["year": season.seasonYear, "runs": season.runs, "wickets": season.wickets, "matches": season.matches]))
+        .accessibilityLabel(t("rest.season_stats_aria", vars: ["year": season.seasonYear, tr("runs"): season.runs, tr("wickets"): season.wickets, tr("matches"): season.matches]))
 
         if let avg = season.battingAverage {
             LabeledContent(tr("Batting avg"), value: String(format: "%.1f", avg))

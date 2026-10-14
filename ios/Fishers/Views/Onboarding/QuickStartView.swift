@@ -42,7 +42,7 @@ struct QuickStartView: View {
                         }
                     }
 
-                    question("What do you play?", note: sports.count > 1 ? t("rest.is_your_main_sport", vars: ["sport": sports[0].label]) : nil) {
+                    question(tr("What do you play?"), note: sports.count > 1 ? t("rest.is_your_main_sport", vars: ["sport": sports[0].label]) : nil) {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
                             ForEach(Sport.allCases) { sport in
                                 sportChip(sport)

@@ -73,7 +73,7 @@ struct WorldMatch: Codable, Identifiable, Hashable {
     /// The feed shouts TEST; a scorecard should not.
     var formatLabel: String? {
         guard let format else { return nil }
-        return format.uppercased() == "TEST" ? "Test" : format.uppercased()
+        return format.uppercased() == tr("TEST") ? tr("Test") : format.uppercased()
     }
 
     /// The side with an over count against it is the side at the crease. The
@@ -87,8 +87,8 @@ struct WorldMatch: Codable, Identifiable, Hashable {
     var startLabel: String? {
         guard let startTime else { return nil }
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_GB")
-        f.dateFormat = Calendar.current.isDateInToday(startTime) ? "HH:mm" : "EEE HH:mm"
+        f.locale = Locale(identifier: tr("en_GB"))
+        f.dateFormat = Calendar.current.isDateInToday(startTime) ? tr("HH:mm") : tr("EEE HH:mm")
         return f.string(from: startTime)
     }
 
@@ -124,10 +124,9 @@ struct WorldScores: Codable, Hashable {
         guard let asOf else { return tr("not loaded yet") }
         let mins = Int(Date().timeIntervalSince(asOf) / 60)
         if mins < 1 { return tr("just now") }
-        if mins == 1 { return tr("1 minute ago") }
-        if mins < 60 { return "\(mins) minutes ago" }
+        if mins < 60 { return t("sr.minutes_ago", count: mins, vars: ["n": mins]) }
         let hours = Int((Double(mins) / 60).rounded())
-        return hours == 1 ? "1 hour ago" : "\(hours) hours ago"
+        return t("sr.hours_ago", count: hours, vars: ["n": hours])
     }
 }
 
@@ -284,9 +283,9 @@ extension Array where Element == WorldInnings {
 
     private static func ordinalWord(_ n: Int) -> String {
         switch n {
-        case 1: return "1st"
-        case 2: return "2nd"
-        case 3: return "3rd"
+        case 1: return tr("1st")
+        case 2: return tr("2nd")
+        case 3: return tr("3rd")
         default: return "\(n)th"
         }
     }
@@ -338,9 +337,8 @@ struct WorldMatchDetailView: Codable, Hashable {
         guard let detailAsOf else { return tr("not loaded yet") }
         let mins = Int(Date().timeIntervalSince(detailAsOf) / 60)
         if mins < 1 { return tr("just now") }
-        if mins == 1 { return tr("1 minute ago") }
-        if mins < 60 { return "\(mins) minutes ago" }
+        if mins < 60 { return t("sr.minutes_ago", count: mins, vars: ["n": mins]) }
         let hours = Int((Double(mins) / 60).rounded())
-        return hours == 1 ? "1 hour ago" : "\(hours) hours ago"
+        return t("sr.hours_ago", count: hours, vars: ["n": hours])
     }
 }

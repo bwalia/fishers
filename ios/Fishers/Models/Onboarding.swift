@@ -72,7 +72,7 @@ enum VerificationChannel: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var noun: String { self == .email ? "email" : "phone number" }
     /// How the code travels, for the sentence under the field.
-    var sentVerb: String { self == .email ? "emailed" : "sent on WhatsApp" }
+    var sentVerb: String { self == .email ? tr("emailed") : tr("sent on WhatsApp") }
     var systemImage: String { self == .email ? "envelope" : "message" }
 }
 

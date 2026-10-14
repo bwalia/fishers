@@ -98,7 +98,7 @@ struct UmpiringView: View {
                             .frame(width: 32, alignment: .trailing)
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel(t("rest.n_stars_of_total", vars: ["n": n, "count": p.ratingBreakdown[n - 1], "total": p.ratingCount]))
+                    .accessibilityLabel(t("rest.n_stars_of_total", vars: ["n": n, tr("count"): p.ratingBreakdown[n - 1], tr("total"): p.ratingCount]))
                 }
             }
         }

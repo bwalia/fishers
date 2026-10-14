@@ -214,7 +214,7 @@ struct CricketScorecardView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 if let home = state.agreedHome, let away = state.agreedAway {
-                    Label(t("sc.agreed_by_both", vars: ["home": home, "away": away]), systemImage: "checkmark.seal")
+                    Label(t("sc.agreed_by_both", vars: ["home": home, tr("away"): away]), systemImage: "checkmark.seal")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -319,17 +319,17 @@ struct CricketScorecardView: View {
             .lineLimit(1)
 
             compare("Score", "\(home.runs)/\(home.wickets)", "\(away.runs)/\(away.wickets)")
-            compare("Overs", home.overs, away.overs)
-            compare("Run rate", rate(home.runRate), rate(away.runRate))
+            compare(tr("Overs"), home.overs, away.overs)
+            compare(tr("Run rate"), rate(home.runRate), rate(away.runRate))
             compare(
-                "Dot balls",
+                tr("Dot balls"),
                 "\(home.dots) · \(percent(home.dotPercent))",
                 "\(away.dots) · \(percent(away.dotPercent))"
             )
             compare("Fours", "\(home.fours)", "\(away.fours)")
             compare("Sixes", "\(home.sixes)", "\(away.sixes)")
             compare(
-                "In boundaries",
+                tr("In boundaries"),
                 "\(home.boundaryRuns) · \(percent(home.boundaryPercent))",
                 "\(away.boundaryRuns) · \(percent(away.boundaryPercent))"
             )
@@ -480,7 +480,7 @@ struct CricketScorecardView: View {
                 Text("\(innings.scoreDisplay)")
                     .bold()
                     .monospacedDigit()
-                Text(t("sc.overs_and_run_rate", vars: ["overs": innings.oversDisplay, "rr": String(format: "%.2f", innings.runRate)]))
+                Text(t("sc.overs_and_run_rate", vars: ["overs": innings.oversDisplay, tr("rr"): String(format: "%.2f", innings.runRate)]))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }

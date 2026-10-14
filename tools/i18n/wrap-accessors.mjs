@@ -44,7 +44,19 @@ const DISPLAY = [
   "shortLabel", "shortTitle", "shortName", "missing", "responsibilities",
   "verb", "word", "line", "freshness", "syncLabel", "detail", "errorDescription",
 ];
-const decl = new RegExp(String.raw`^(\s*)(?:public |private |fileprivate |internal )?var (${DISPLAY.join("|")}): String\??\s*\{`);
+/**
+ * A name that says the value is read, wherever it sits in the identifier:
+ * `scoringButtonTitle`, `headline(for:)`, `statusMessage`. Matching the whole
+ * name against a fixed list missed most of them — these are the words, and the
+ * name has to end with one so `titleId` or `labelKey` is not swept up.
+ */
+const ENDS = "(title|label|headline|caption|message|summary|blurb|note|hint|phrase|wording|sentence|text|verb|word)";
+const decl = new RegExp(
+  String.raw`^(\s*)(?:public |private |fileprivate |internal |static )*` +
+  String.raw`(?:var (?:${DISPLAY.join("|")}|\w*${ENDS})\s*:\s*String\??\s*\{` +
+  String.raw`|func (?:${DISPLAY.join("|")}|\w*${ENDS})\s*\([^)]*\)\s*->\s*String\??\s*\{)`,
+  "i",
+);
 
 let wrapped = 0, changed = 0;
 const files = execSync(`find "${appDir}" -name '*.swift'`, { encoding: "utf8" })

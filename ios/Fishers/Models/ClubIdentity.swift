@@ -126,11 +126,11 @@ struct SquadPlayer: Codable, Identifiable, Equatable {
 
     var standingLabel: String {
         switch standing {
-        case "selected": return "picked"
-        case "reserve": return "reserve"
-        case "available": return "available"
-        case "unavailable": return "said no"
-        default: return "member"
+        case tr("selected"): return tr("picked")
+        case tr("reserve"): return tr("reserve")
+        case tr("available"): return tr("available")
+        case tr("unavailable"): return tr("said no")
+        default: return tr("member")
         }
     }
 }

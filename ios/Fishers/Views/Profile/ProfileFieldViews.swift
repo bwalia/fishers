@@ -402,7 +402,7 @@ struct ReliabilityRing: View {
         .accessibilityLabel(
             reliability.band == .unproven
                 ? tr("Reliability unproven, not enough games yet")
-                : t("rest.reliability_out_of_100", vars: ["score": reliability.score, "band": reliability.band.label])
+                : t("rest.reliability_out_of_100", vars: ["score": reliability.score, tr("band"): reliability.band.label])
         )
     }
 }

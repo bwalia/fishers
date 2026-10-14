@@ -157,7 +157,7 @@ private struct RosterList: View {
                     }
                 }
             }
-            .accessibilityLabel(t("cl.member_open_profile", vars: ["name": member.name, "role": member.role.displayName]))
+            .accessibilityLabel(t("cl.member_open_profile", vars: ["name": member.name, tr("role"): member.role.displayName]))
 
             if canManage {
                 Button {
@@ -166,7 +166,7 @@ private struct RosterList: View {
                     RoleBadge(choice: member.roleChoice)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(t("cl.change_role_now", vars: ["name": member.name, "role": member.roleChoice.label]))
+                .accessibilityLabel(t("cl.change_role_now", vars: ["name": member.name, tr("role"): member.roleChoice.label]))
             } else {
                 RoleBadge(choice: member.roleChoice)
             }

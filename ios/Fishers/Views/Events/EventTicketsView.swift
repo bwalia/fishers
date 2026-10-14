@@ -94,7 +94,7 @@ struct EventTicketsView: View {
                                     )
                                 }
                             } label: {
-                                Text(busy == "book" ? t("ev.booking_ellipsis") : t("ev.book_n_places", count: 1 + guests, vars: ["n": 1 + guests]))
+                                Text(busy == tr("book") ? t("ev.booking_ellipsis") : t("ev.book_n_places", count: 1 + guests, vars: ["n": 1 + guests]))
                                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                             }
                             .buttonStyle(.borderedProminent)
@@ -121,7 +121,7 @@ struct EventTicketsView: View {
                                     Text(ticket.name ?? tr("A member"))
                                         .strikethrough(ticket.status == "cancelled")
                                     if ticket.guests > 0 {
-                                        Text(ticket.guestNames.map { t("rest.plus_n_guests_named", vars: ["n": ticket.guests, "names": $0]) } ?? t("rest.plus_n_guests", vars: ["n": ticket.guests]))
+                                        Text(ticket.guestNames.map { t("rest.plus_n_guests_named", vars: ["n": ticket.guests, tr("names"): $0]) } ?? t("rest.plus_n_guests", vars: ["n": ticket.guests]))
                                             .font(FishersTheme.footnote).foregroundStyle(.secondary)
                                     }
                                     if let notes = ticket.notes {
@@ -146,7 +146,7 @@ struct EventTicketsView: View {
                         Text(t("ev.who_is_coming_bookings", vars: ["n": summary.bookings]))
                     } footer: {
                         if canManage {
-                            Text(t("ev.taken_and_owed", vars: ["taken": money(summary.collectedCents), "owed": money(summary.outstandingCents)]))
+                            Text(t("ev.taken_and_owed", vars: ["taken": money(summary.collectedCents), tr("owed"): money(summary.outstandingCents)]))
                         }
                     }
                 }

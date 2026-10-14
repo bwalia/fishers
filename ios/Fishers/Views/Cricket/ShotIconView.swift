@@ -107,19 +107,19 @@ extension ShotKind {
     /// the bearings by heart.
     var iconHint: String {
         switch self {
-        case .drive: return "straight or cover"
-        case .cut: return "square, off side"
-        case .pull: return "square, leg side"
-        case .hook: return "up round the corner"
-        case .sweep: return "down to fine leg"
-        case .reverseSweep: return "reverse, behind point"
-        case .glance: return "tickled fine"
-        case .flick: return "off the pads"
-        case .loft: return "over the top"
-        case .defence: return "blocked"
-        case .edge: return "thick or thin"
-        case .leave: return "shouldered arms"
-        case .other: return "worked away"
+        case .drive: return tr("straight or cover")
+        case .cut: return tr("square, off side")
+        case .pull: return tr("square, leg side")
+        case .hook: return tr("up round the corner")
+        case .sweep: return tr("down to fine leg")
+        case .reverseSweep: return tr("reverse, behind point")
+        case .glance: return tr("tickled fine")
+        case .flick: return tr("off the pads")
+        case .loft: return tr("over the top")
+        case .defence: return tr("blocked")
+        case .edge: return tr("thick or thin")
+        case .leave: return tr("shouldered arms")
+        case .other: return tr("worked away")
         }
     }
 }

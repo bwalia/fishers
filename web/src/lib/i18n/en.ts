@@ -3761,6 +3761,20 @@ export const en = {
   "sc.dls_par_first_innings_cut": "{n} overs already bowled. The DLS par score updates immediately — including when the first innings was the one cut short.",
   "rest.cannot_reach_api_debug": "Cannot reach {host} — is it running? ({detail})",
 
+  // MARK: Commentary — the phrases the ball-by-ball line is built from
+  "sc.wide_n_runs": "wide, {n} runs",
+  "sc.no_ball_n_runs": "no ball, {n} runs",
+  "sc.through": "through",
+  "sc.retired_hurt_lower": "retired hurt",
+  "sc.home_default": "Home",
+  "sc.away_default": "Away",
+  "sc.powerplay_phase": "Powerplay",
+  "sc.middle_phase": "Middle",
+  "sc.death_phase": "Death",
+  "sc.striker_pick": "Striker",
+  "sc.non_striker_pick": "Non-striker",
+  "sc.bowler_pick": "Bowler",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

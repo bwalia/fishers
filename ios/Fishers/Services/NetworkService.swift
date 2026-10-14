@@ -39,7 +39,7 @@ enum APIError: LocalizedError {
             #endif
         case .unreachable(let detail):
             #if DEBUG
-            return t("rest.cannot_reach_api_debug", vars: ["host": AppConfig.apiBaseURL.absoluteString, "detail": detail])
+            return t("rest.cannot_reach_api_debug", vars: ["host": AppConfig.apiBaseURL.absoluteString, tr("detail"): detail])
             #else
             return "Can't reach \(Brand.name) right now. Check your connection "
                 + tr("and try again.")
@@ -57,17 +57,17 @@ enum APIError: LocalizedError {
     /// Every one of these is something the person can act on, or an honest
     /// admission that they cannot. A bare number is neither.
     private var statusSentence: String {
-        guard case .http(let code, _) = self else { return "Something went wrong." }
+        guard case .http(let code, _) = self else { return tr("Something went wrong.") }
         switch code {
-        case 400, 422: return "Some of what you entered was not accepted. Check it and try again."
-        case 401: return "Please sign in again."
-        case 403: return "You do not have permission to do that."
-        case 404: return "That is not here any more."
-        case 409: return "That clashes with something that already exists."
-        case 413: return "That file is too big."
-        case 429: return "Too many tries just now. Wait a moment and try again."
+        case 400, 422: return tr("Some of what you entered was not accepted. Check it and try again.")
+        case 401: return tr("Please sign in again.")
+        case 403: return tr("You do not have permission to do that.")
+        case 404: return tr("That is not here any more.")
+        case 409: return tr("That clashes with something that already exists.")
+        case 413: return tr("That file is too big.")
+        case 429: return tr("Too many tries just now. Wait a moment and try again.")
         case 500...599: return "\(Brand.name) is having trouble right now. Try again in a moment."
-        default: return "Something went wrong. Try again."
+        default: return tr("Something went wrong. Try again.")
         }
     }
 

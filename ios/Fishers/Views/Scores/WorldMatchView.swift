@@ -105,7 +105,7 @@ struct WorldMatchView: View {
                             .foregroundStyle(tab == i ? Color.white : Color.primary)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(t("sc.innings_score_aria", vars: ["innings": innings.title(at: i), "score": innings[i].score ?? t("sc.no_score")]))
+                        .accessibilityLabel(t("sc.innings_score_aria", vars: ["innings": innings.title(at: i), tr("score"): innings[i].score ?? t("sc.no_score")]))
                         .accessibilityAddTraits(tab == i ? [.isSelected, .isButton] : .isButton)
                     }
                 }

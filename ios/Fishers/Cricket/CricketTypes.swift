@@ -1642,8 +1642,8 @@ struct MatchState: Codable, Equatable {
 
     /// "c Smith b Jones", "run out (Patel)", "not out".
     func dismissalText(_ batter: BatterStats) -> String {
-        if batter.retiredHurt && !batter.out { return "retired hurt" }
-        guard batter.out else { return batter.hasBatted ? "not out" : "did not bat" }
+        if batter.retiredHurt && !batter.out { return t("sc.retired_hurt_lower") }
+        guard batter.out else { return batter.hasBatted ? tr("not out") : tr("did not bat") }
         let bowler = batter.bowlerId.map { name(for: $0) }
         // A substitute is named as one: "c sub (Patel) b Jones" is not the same
         // claim as "c Patel b Jones", and the card has always said so.
@@ -1656,29 +1656,29 @@ struct MatchState: Codable, Equatable {
         case .caught:
             if let f = fielder, let b = bowler { return "c \(f) b \(b)" }
             if let b = bowler { return "c & b \(b)" }
-            return "caught"
+            return tr("caught")
         case .lbw:
             return bowler.map { "lbw b \($0)" } ?? "lbw"
         case .stumped:
             if let f = fielder, let b = bowler { return "st \(f) b \(b)" }
             if let b = bowler { return "st b \(b)" }
-            return "stumped"
+            return tr("stumped")
         case .hitWicket:
             return bowler.map { "hit wicket b \($0)" } ?? "hit wicket"
         case .runOut:
             return fielder.map { "run out (\($0))" } ?? "run out"
         case .retired:
-            return "retired out"
+            return tr("retired out")
         case .retiredHurt:
-            return "retired hurt"
+            return tr("retired hurt")
         case .obstructingTheField:
-            return "obstructing the field"
+            return tr("obstructing the field")
         case .hitTheBallTwice:
-            return "hit the ball twice"
+            return tr("hit the ball twice")
         case .timedOut:
-            return "timed out"
+            return tr("timed out")
         case .other, nil:
-            return "out"
+            return tr("out")
         }
     }
 
@@ -1712,9 +1712,9 @@ struct DlsPar: Codable, Equatable {
     }
 
     var methodLabel: String {
-        method == "supplied_table"
-            ? "DLS (supplied resource table)"
-            : "DLS (Standard Edition approximation)"
+        method == tr("supplied_table")
+            ? tr("DLS (supplied resource table)")
+            : tr("DLS (Standard Edition approximation)")
     }
 
     /// "12 ahead of the DLS par of 84".

@@ -201,9 +201,9 @@ struct CricketScoringFlowView: View {
                 Text(t("sc.format"))
             } footer: {
                 Text(t("sc.usual_allocation_and_powerplay", vars: [
-                    "perBowler": MatchConditions.standardOversPerBowler(conditions.oversLimit),
-                    "overs": conditions.oversLimit,
-                    "powerplay": MatchConditions.standardPowerplay(conditions.oversLimit),
+                    tr("perBowler"): MatchConditions.standardOversPerBowler(conditions.oversLimit),
+                    tr("overs"): conditions.oversLimit,
+                    tr("powerplay"): MatchConditions.standardPowerplay(conditions.oversLimit),
                 ]))
             }
 
@@ -447,7 +447,7 @@ struct CricketScoringFlowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let home = store.state.agreedHome, let away = store.state.agreedAway {
-                    Label(t("sc.agreed_by_both", vars: ["home": home, "away": away]), systemImage: "checkmark.seal.fill")
+                    Label(t("sc.agreed_by_both", vars: ["home": home, tr("away"): away]), systemImage: "checkmark.seal.fill")
                         .font(.caption)
                         .foregroundStyle(FishersTheme.available)
                 }
@@ -546,13 +546,13 @@ struct CricketScoringFlowView: View {
         let bowlXi = store.state.players(for: batting.opposite)
         return Form {
             Section {
-                playerPicker("Striker", selection: $strikerId, from: batXi)
-                playerPicker("Non-striker", selection: $nonStrikerId, from: batXi)
+                playerPicker(t("sc.striker_pick"), selection: $strikerId, from: batXi)
+                playerPicker(t("sc.non_striker_pick"), selection: $nonStrikerId, from: batXi)
             } header: {
                 Text(t("sc.team_opening_pair", vars: ["team": store.state.name(for: batting)]))
             }
             Section(tr("Opening bowler")) {
-                playerPicker("Bowler", selection: $bowlerId, from: bowlXi)
+                playerPicker(t("sc.bowler_pick"), selection: $bowlerId, from: bowlXi)
             }
             if let message {
                 Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
@@ -774,7 +774,7 @@ struct CricketScoringFlowView: View {
 
     private func startInnings(batting: MatchSide) {
         guard let s = strikerId, let ns = nonStrikerId, let b = bowlerId, s != ns else {
-            message = "Pick two different batters and a bowler."
+            message = t("sc.pick_two_batters_and_bowler")
             return
         }
         if store.append(.inningsStarted(

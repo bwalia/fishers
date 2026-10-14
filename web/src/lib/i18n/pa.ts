@@ -3748,4 +3748,18 @@ export const pa: Dict = {
   "sc.dls_par_first_innings_cut": "{n} ਓਵਰ ਸੁੱਟੇ ਜਾ ਚੁੱਕੇ ਹਨ। DLS ਪਾਰ ਸਕੋਰ ਤੁਰੰਤ ਬਦਲਦਾ ਹੈ — ਉਦੋਂ ਵੀ ਜਦੋਂ ਪਹਿਲੀ ਪਾਰੀ ਹੀ ਛੋਟੀ ਕੀਤੀ ਗਈ ਸੀ।",
   "rest.cannot_reach_api_debug": "{host} ਤੱਕ ਨਹੀਂ ਪਹੁੰਚ ਸਕੇ — ਕੀ ਇਹ ਚੱਲ ਰਿਹਾ ਹੈ? ({detail})",
 
+  // MARK: Commentary — the phrases the ball-by-ball line is built from
+  "sc.wide_n_runs": "ਵਾਈਡ, {n} ਦੌੜਾਂ",
+  "sc.no_ball_n_runs": "ਨੋ ਬਾਲ, {n} ਦੌੜਾਂ",
+  "sc.through": "ਰਾਹੀਂ",
+  "sc.retired_hurt_lower": "ਜ਼ਖ਼ਮੀ ਹੋ ਕੇ ਰਿਟਾਇਰ",
+  "sc.home_default": "ਮੇਜ਼ਬਾਨ",
+  "sc.away_default": "ਮਹਿਮਾਨ",
+  "sc.powerplay_phase": "ਪਾਵਰਪਲੇ",
+  "sc.middle_phase": "ਵਿਚਕਾਰਲੇ ਓਵਰ",
+  "sc.death_phase": "ਆਖ਼ਰੀ ਓਵਰ",
+  "sc.striker_pick": "ਸਟ੍ਰਾਈਕਰ",
+  "sc.non_striker_pick": "ਨਾਨ-ਸਟ੍ਰਾਈਕਰ",
+  "sc.bowler_pick": "ਗੇਂਦਬਾਜ਼",
+
 };

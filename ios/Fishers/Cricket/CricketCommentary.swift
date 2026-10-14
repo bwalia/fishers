@@ -158,13 +158,13 @@ enum CricketCommentary {
     }
 
     private static func extraPhrase(_ label: String, runs: Int) -> String {
-        if label.hasPrefix("wd") {
-            return runs > 1 ? "wide, \(runs) runs" : "wide"
+        if label.hasPrefix(tr("wd")) {
+            return runs > 1 ? t("sc.wide_n_runs", vars: ["n": runs]) : t("outcome.wide")
         }
-        if label.hasPrefix("nb") {
-            return runs > 1 ? "no ball, \(runs) runs" : "no ball"
+        if label.hasPrefix(tr("nb")) {
+            return runs > 1 ? t("sc.no_ball_n_runs", vars: ["n": runs]) : t("outcome.no_ball")
         }
-        if label.hasSuffix("lb") { return t("sc.n_leg_byes", count: runs, vars: ["n": runs]) }
+        if label.hasSuffix(tr("lb")) { return t("sc.n_leg_byes", count: runs, vars: ["n": runs]) }
         if label.hasSuffix("b") { return t("sc.n_byes", count: runs, vars: ["n": runs]) }
         if label.hasSuffix("p") { return t("sc.n_penalty_runs", vars: ["n": runs]) }
         return label
@@ -173,9 +173,9 @@ enum CricketCommentary {
     /// "through cover", but "over long on" for a lofted shot to the rope.
     private static func preposition(for region: String) -> String {
         switch region {
-        case "long on", "long off": return "down the ground to"
-        case "fine leg", "third man": return "down to"
-        default: return "through"
+        case "long on", "long off": return t("sc.down_the_ground_to")
+        case "fine leg", "third man": return t("sc.down_to")
+        default: return t("sc.through")
         }
     }
 }

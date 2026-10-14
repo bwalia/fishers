@@ -1182,9 +1182,9 @@ private struct WicketSheet: View {
 
     private var fielderLabel: String {
         switch kind {
-        case .caught: return "Caught by"
-        case .stumped: return "Stumped by"
-        default: return "Fielder"
+        case .caught: return tr("Caught by")
+        case .stumped: return tr("Stumped by")
+        default: return tr("Fielder")
         }
     }
 
@@ -1363,7 +1363,7 @@ private struct SecondInningsSheet: View {
             Form {
                 if let target = store.state.target {
                     Section {
-                        Text(t("sc.team_need_to_win", vars: ["team": store.state.name(for: batting), "runs": target]))
+                        Text(t("sc.team_need_to_win", vars: ["team": store.state.name(for: batting), tr("runs"): target]))
                             .font(.subheadline.weight(.semibold))
                     }
                 }
@@ -1740,7 +1740,7 @@ private struct AwardSheet: View {
     }
 
     private func accessibilityLabel(name: String, detail: String?, suggested: Bool) -> String {
-        [suggested ? "Suggested" : nil, name, detail]
+        [suggested ? tr("Suggested") : nil, name, detail]
             .compactMap { $0 }
             .joined(separator: ", ")
     }
@@ -1936,7 +1936,7 @@ private struct PenaltySheet: View {
     private var sideFootnote: String {
         let batting = store.state.currentInnings?.batting
         if toSide == batting {
-            return "They go straight onto the score, and against nobody's bowling figures."
+            return tr("They go straight onto the score, and against nobody's bowling figures.")
         }
         let alreadyBatted = store.state.innings.contains { $0.batting == toSide }
         return alreadyBatted
@@ -2042,7 +2042,7 @@ private struct BallCorrectionSheet: View {
         guard let offset = confirming else { return "" }
         let count = offset + 1
         return count == 1
-            ? "Take off the last ball?"
+            ? tr("Take off the last ball?")
             : "Take off the last \(count) balls?"
     }
 

@@ -163,7 +163,7 @@ struct GettingStartedSection: View {
 
                     Text(role == .secretary ? tr("Let's set up your club") : tr("Let's get you into your club"))
                         .font(FishersTheme.title)
-                    Text(t("cl.n_of_m_done", vars: ["done": doneCount, "total": steps.count, "left": steps.count - doneCount]))
+                    Text(t("cl.n_of_m_done", vars: ["done": doneCount, tr("total"): steps.count, tr("left"): steps.count - doneCount]))
                         .font(FishersTheme.subhead)
                         .foregroundStyle(.secondary)
                     ProgressView(value: Double(doneCount), total: Double(steps.count))

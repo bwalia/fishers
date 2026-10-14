@@ -79,9 +79,9 @@ private func phaseRanges(_ inn: InningsState) -> [(String, UInt16, UInt16)] {
     let deathStart = max(total - min(deathLength, total), powerplay)
 
     var out: [(String, UInt16, UInt16)] = []
-    if powerplay > 0 { out.append(("Powerplay", 0, powerplay)) }
-    if deathStart > powerplay { out.append(("Middle", powerplay, deathStart)) }
-    if total > deathStart { out.append(("Death", deathStart, total)) }
+    if powerplay > 0 { out.append((t("sc.powerplay_phase"), 0, powerplay)) }
+    if deathStart > powerplay { out.append((t("sc.middle_phase"), powerplay, deathStart)) }
+    if total > deathStart { out.append((t("sc.death_phase"), deathStart, total)) }
     return out
 }
 

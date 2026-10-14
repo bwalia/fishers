@@ -186,7 +186,7 @@ struct ListingDetailView: View {
 
     @ViewBuilder
     private func sections(_ listing: MarketListing) -> some View {
-        Block("Description") {
+        Block(tr("Description")) {
             if let description = listing.product.description, !description.isEmpty {
                 Text(description)
             } else {
@@ -199,18 +199,18 @@ struct ListingDetailView: View {
             }
         }
 
-        Block("Details") {
+        Block(tr("Details")) {
             VStack(spacing: 8) {
-                Spec("Category", listing.product.categoryLabel)
-                if let condition = listing.product.conditionLabel { Spec("Condition", condition) }
-                if let brand = listing.product.brand { Spec("Make", brand) }
-                if let size = listing.product.size { Spec("Size", size) }
-                Spec("How many", listing.product.availability)
-                if let note = listing.product.conditionNote { Spec("Wear and damage", note) }
+                Spec(tr("Category"), listing.product.categoryLabel)
+                if let condition = listing.product.conditionLabel { Spec(tr("Condition"), condition) }
+                if let brand = listing.product.brand { Spec(tr("Make"), brand) }
+                if let size = listing.product.size { Spec(tr("Size"), size) }
+                Spec(tr("How many"), listing.product.availability)
+                if let note = listing.product.conditionNote { Spec(tr("Wear and damage"), note) }
             }
         }
 
-        Block("Where to collect it") {
+        Block(tr("Where to collect it")) {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "mappin.and.ellipse").foregroundStyle(FishersTheme.pitch)
                 VStack(alignment: .leading, spacing: 2) {
@@ -225,16 +225,16 @@ struct ListingDetailView: View {
         }
 
         if !listing.mine {
-            Block("How buying works") {
+            Block(tr("How buying works")) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Step(1, "Ask anything you need to.",
-                         "Messages go to the seller here in the app."
+                    Step(1, tr("Ask anything you need to."),
+                         tr("Messages go to the seller here in the app.")
                              + (listing.product.negotiable == true
-                                ? " The price is open to offers, so say what you would pay." : ""))
-                    Step(2, "Reserve it.",
-                         "That holds it for you and tells the seller — it does not charge you anything.")
-                    Step(3, "Collect and pay in person.",
-                         "Cash or transfer, directly to the seller. No money goes through this app.")
+                                ? tr(" The price is open to offers, so say what you would pay.") : ""))
+                    Step(2, tr("Reserve it."),
+                         tr("That holds it for you and tells the seller — it does not charge you anything."))
+                    Step(3, tr("Collect and pay in person."),
+                         tr("Cash or transfer, directly to the seller. No money goes through this app."))
                 }
             }
         }
@@ -375,7 +375,7 @@ private struct Gallery: View {
                         Color.secondary.opacity(0.1)
                     }
                     .clipped()
-                    .accessibilityLabel(t("sc.photograph_n_of_m", vars: ["title": title, "n": index + 1, "total": photos.count]))
+                    .accessibilityLabel(t("sc.photograph_n_of_m", vars: ["title": title, "n": index + 1, tr("total"): photos.count]))
                 }
             }
             .tabViewStyle(.page)

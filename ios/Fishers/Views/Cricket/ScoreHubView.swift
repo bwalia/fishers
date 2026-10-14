@@ -487,7 +487,7 @@ struct QuickMatchSheet: View {
                 } header: {
                     Text(t("ev.the_opposition"))
                 } footer: {
-                    Text(opponent.map { t("sc.opponent_on_brand_sentence", vars: ["club": $0.clubName, "brand": Brand.name]) }
+                    Text(opponent.map { t("sc.opponent_on_brand_sentence", vars: ["club": $0.clubName, tr("brand"): Brand.name]) }
                          ?? tr("Find them by their code or name, or just type who turned up. Works offline if you type the name."))
                 }
 
