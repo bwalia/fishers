@@ -109,6 +109,15 @@ for (const file of files) {
           !/[A-Za-z]{2,}/.test(body) ||
           (/^[a-z0-9.]+$/.test(body) && body.includes(".")) ||
           /\b(t|tr)\($/.test(before) ||
+          // A dictionary key: `vars: ["away": …]` names the placeholder the
+          // translation will look for. Translate the key and `{away}` is
+          // never substituted — in Punjabi only, where nobody is looking.
+          /[\[,]\s*$/.test(before) && /^\s*:/.test(line.slice(close + 1)) ||
+          // A switch pattern or a comparison: both sides have to stay the
+          // value the server sent, or the match stops happening in Punjabi.
+          /\bcase\s+$/.test(before) ||
+          /[=!]=\s*$/.test(before) ||
+          /\.(?:contains|hasPrefix|hasSuffix)\($/.test(before) ||
           // `payload["team_name"]` is a lookup into JSON the server sent.
           // Wrapping it made the app search for a Punjabi key and find
           // nothing — a bug a green build and a wrapped-count both missed.

@@ -105,7 +105,7 @@ struct WorldMatchView: View {
                             .foregroundStyle(tab == i ? Color.white : Color.primary)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(t("sc.innings_score_aria", vars: ["innings": innings.title(at: i), tr("score"): innings[i].score ?? t("sc.no_score")]))
+                        .accessibilityLabel(t("sc.innings_score_aria", vars: ["innings": innings.title(at: i), "score": innings[i].score ?? t("sc.no_score")]))
                         .accessibilityAddTraits(tab == i ? [.isSelected, .isButton] : .isButton)
                     }
                 }
@@ -143,7 +143,7 @@ struct WorldMatchView: View {
             Text(
                 v.detailAsOf == nil
                     ? tr("No scorecard loaded.")
-                    : v.summary.phase == tr("done")
+                    : v.summary.phase == "done"
                         ? "Scorecard updated \(v.freshness). This match has finished, so this is the final card."
                         : "Scorecard updated \(v.freshness). It comes from a free feed and runs a few minutes behind play."
             )

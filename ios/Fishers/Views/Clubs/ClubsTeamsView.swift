@@ -566,8 +566,8 @@ struct ClubDetailView: View {
                         Text(club.description ?? tr("No description yet."))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(club.description == nil ? .secondary : .primary)
-                        Label(club.visibility == tr("public") ? tr("Anyone can find it") : tr("Invite only"),
-                              systemImage: club.visibility == tr("public") ? "person.2" : tr("lock"))
+                        Label(club.visibility == "public" ? tr("Anyone can find it") : tr("Invite only"),
+                              systemImage: club.visibility == "public" ? "person.2" : tr("lock"))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                         if let role {
@@ -800,7 +800,7 @@ struct ClubDetailView: View {
             let total = setup.count + 1
             VStack(alignment: .leading, spacing: 6) {
                 Text(t("cl.get_ready_for_first_match", vars: ["club": club.name])).font(FishersTheme.headline)
-                Text(t("cl.n_of_m_done", vars: ["done": done, tr("total"): total, tr("left"): total - done]))
+                Text(t("cl.n_of_m_done", vars: ["done": done, "total": total, "left": total - done]))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
                 ProgressView(value: Double(done), total: Double(total)).tint(FishersTheme.pitch)

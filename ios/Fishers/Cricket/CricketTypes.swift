@@ -1712,7 +1712,7 @@ struct DlsPar: Codable, Equatable {
     }
 
     var methodLabel: String {
-        method == tr("supplied_table")
+        method == "supplied_table"
             ? tr("DLS (supplied resource table)")
             : tr("DLS (Standard Edition approximation)")
     }

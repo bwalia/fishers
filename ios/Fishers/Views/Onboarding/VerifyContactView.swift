@@ -44,7 +44,7 @@ struct VerifyContactView: View {
                 }
             }
 
-            Text(t("rest.enter_the_6_digit_code", vars: ["verb": channel.sentVerb, tr("address"): address]))
+            Text(t("rest.enter_the_6_digit_code", vars: ["verb": channel.sentVerb, "address": address]))
                 .font(FishersTheme.subhead)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

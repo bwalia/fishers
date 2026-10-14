@@ -105,35 +105,48 @@ struct AppNotification: Codable, Identifiable, Equatable {
     /// One line of plain English. A player is not going to read
     /// `match_terms_proposed`. The same words the web uses.
     var line: String {
-        let sides = t("cl.sides_v_sides", vars: ["home": payload["home_name"] ?? t("cl.a_side"), tr("away"): payload["away_name"] ?? t("cl.another_side")])
+        let sides = t("cl.sides_v_sides", vars: [
+            "home": payload["home_name"] ?? t("cl.a_side"),
+            "away": payload["away_name"] ?? t("cl.another_side"),
+        ])
+        // `type` is what the API sent. It is matched, never translated — a
+        // `case tr("invite")` matches in English and never in Punjabi, which
+        // is how 31 of these came to fall through to `default`.
         switch type {
-        case tr("match_terms_proposed"):
-            return "\(sides) — the other captain has proposed the terms. Tap to agree."
-        case tr("match_pick_your_xi"):
-            return "\(sides) — the toss is done. Pick your side."
-        case tr("match_terms_agreed"):
+        case "match_terms_proposed":
+            return t("cl.notif_terms_proposed", vars: ["sides": sides])
+        case "match_pick_your_xi":
+            return t("cl.notif_pick_your_xi", vars: ["sides": sides])
+        case "match_terms_agreed":
             return tr("Both captains have agreed the terms. You can do the toss.")
-        case tr("match_book_handed_over"):
-            return "\(sides) — you have the book. You're scoring from the next ball."
-        case tr("fixture_scheduled"):
+        case "match_book_handed_over":
+            return t("cl.notif_book_handed_over", vars: ["sides": sides])
+        case "fixture_scheduled":
             return t("cl.can_you_play_title", vars: ["title": payload["title"] ?? t("cl.a_fixture")])
-        case tr("player_responded"):
-            return "\(payload["player"] ?? "A player") answered for \(payload["title"] ?? "a fixture")."
-        case tr("invite"):
-            let from = payload["inviter"].map { " \($0) invited you." } ?? ""
+        case "player_responded":
+            return t("cl.notif_player_responded", vars: [
+                "player": payload["player"] ?? t("cl.a_player"),
+                "title": payload["title"] ?? t("cl.notif_a_fixture_lower"),
+            ])
+        case "invite":
+            let from = payload["inviter"].map { t("cl.notif_inviter", vars: ["name": $0]) } ?? ""
+            let club = payload["club_name"] ?? t("cl.notif_a_club")
             if let team = payload["team_name"] {
-                return "\(payload["club_name"] ?? "A club") wants you in their \(team).\(from)"
+                return t("cl.notif_wants_you_in_team", vars: ["club": club, "team": team, "from": from])
             }
             if let event = payload["event_title"] {
-                return "You're invited: \(event).\(from)"
+                return t("cl.notif_youre_invited_event", vars: ["event": event, "from": from])
             }
-            return "\(payload["club_name"] ?? "A club") wants you in the club.\(from)"
-        case tr("profile_nudge"):
-            let percent = payload["percent"].map { " — you're \($0)% there" } ?? ""
-            return "Finish your profile\(percent). Captains pick players they can see."
-        case tr("invite_accepted"):
+            return t("cl.notif_wants_you_in_club", vars: ["club": club, "from": from])
+        case "profile_nudge":
+            let percent = payload["percent"].map { t("cl.notif_percent_there", vars: ["percent": $0]) } ?? ""
+            return t("cl.notif_finish_profile", vars: ["percent": percent])
+        case "invite_accepted":
             let into = payload["team_name"] ?? payload["event_title"] ?? payload["club_name"] ?? tr("the club")
-            return "\(payload["player"] ?? "A player") accepted — they're in \(into)."
+            return t("cl.notif_accepted_theyre_in", vars: [
+                "player": payload["player"] ?? t("cl.a_player"),
+                "into": into,
+            ])
         default:
             return type.replacingOccurrences(of: "_", with: " ")
         }

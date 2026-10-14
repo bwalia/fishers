@@ -100,7 +100,7 @@ struct SelectionBoardView: View {
                 if let note = board.statusNote {
                     Text(note).font(.footnote).foregroundStyle(.secondary)
                 }
-                Text(t("ev.reconfirm_and_drop_hours", vars: ["confirm": board.confirmLeadHours, tr("drop"): board.dropLeadHours]))
+                Text(t("ev.reconfirm_and_drop_hours", vars: ["confirm": board.confirmLeadHours, "drop": board.dropLeadHours]))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

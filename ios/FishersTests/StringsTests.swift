@@ -120,6 +120,34 @@ final class StringsTests: XCTestCase {
         XCTAssertNotEqual(tr("Welcome back"), "Welcome back")
     }
 
+    /// Switches on values the server sent must still match in Punjabi.
+    ///
+    /// This is the one the whole suite was blind to. `case tr("invite"):`
+    /// matches in English, because `tr` hands back a string it has no entry
+    /// for — and every test runs in English. In Punjabi the same switch never
+    /// matches and the screen falls to its `default`, which for a notification
+    /// is the raw type with its underscores swapped for spaces. 31 of them had
+    /// been wrapped that way.
+    func testSwitchesOnServerValuesStillMatchInPunjabi() throws {
+        Strings.setCurrent(.pa)
+        defer { Strings.setCurrent(.en) }
+
+        let json = """
+        {"id":"\(UUID().uuidString)","type":"invite",
+         "payload":{"club_name":"Boom Blast","inviter":"Sam"},
+         "sent_at":"2026-09-14T08:00:00.123Z","read_at":null}
+        """
+        let line = try FishersJSONDecoder.make()
+            .decode(AppNotification.self, from: Data(json.utf8)).line
+
+        // The default branch would hand back the type itself, spaced out.
+        XCTAssertNotEqual(line, "invite", "the switch fell through to its default in Punjabi")
+        XCTAssertTrue(
+            line.unicodeScalars.contains { (0x0A00...0x0A7F).contains($0.value) },
+            "\(line) is not Gurmukhi — the branch was not taken"
+        )
+    }
+
     /// The real guard: every key the app asks for has to exist. Without this a
     /// typo is a screen that quietly renders `profile.lsat_match`.
     func testEveryKeyTheAppAsksForExists() throws {

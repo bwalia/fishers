@@ -339,7 +339,7 @@ struct PublicPageEditorView: View {
                     TextField(suggested, text: $slug)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    Text(t("cl.public_url_with_domain", vars: ["domain": AppConfig.webBaseURL.host() ?? Brand.domain, tr("slug"): address]))
+                    Text(t("cl.public_url_with_domain", vars: ["domain": AppConfig.webBaseURL.host() ?? Brand.domain, "slug": address]))
                         .font(.system(.footnote, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -485,7 +485,7 @@ struct SharedPlayerCardView: View {
 
                 if let sent {
                     Section {
-                        Label(t("cl.invite_sent_to", vars: ["name": card.name, tr("what"): sent]), systemImage: "checkmark.circle.fill")
+                        Label(t("cl.invite_sent_to", vars: ["name": card.name, "what": sent]), systemImage: "checkmark.circle.fill")
                             .foregroundStyle(FishersTheme.pitch)
                     }
                 } else if places.isEmpty {

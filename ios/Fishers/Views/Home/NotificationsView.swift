@@ -125,18 +125,18 @@ struct NotificationsView: View {
 
     private func label(for kind: String) -> String {
         switch kind {
-        case tr("invite"): return tr("Invitations")
-        case tr("selection_published"), tr("squad_promoted"): return tr("Squads")
-        case tr("selection_reconfirm"): return tr("Confirmations")
-        case tr("match_terms_proposed"), tr("match_terms_agreed"), tr("match_pick_your_xi"): return tr("Match setup")
-        case tr("match_book_handed_over"): return tr("Scoring")
-        case tr("fixture_scheduled"): return tr("Fixtures")
-        case tr("player_responded"): return tr("Availability")
-        case tr("invite_accepted"): return tr("Invitations")
-        case tr("profile_nudge"): return tr("Your profile")
-        case tr("match_scheduled"): return tr("Fixtures")
-        case tr("availability_request"): return tr("Availability")
-        case tr("fee_reminder"): return tr("Match fees")
+        case "invite": return tr("Invitations")
+        case "selection_published", "squad_promoted": return tr("Squads")
+        case "selection_reconfirm": return tr("Confirmations")
+        case "match_terms_proposed", tr("match_terms_agreed"), "match_pick_your_xi": return tr("Match setup")
+        case "match_book_handed_over": return tr("Scoring")
+        case "fixture_scheduled": return tr("Fixtures")
+        case "player_responded": return tr("Availability")
+        case "invite_accepted": return tr("Invitations")
+        case "profile_nudge": return tr("Your profile")
+        case "match_scheduled": return tr("Fixtures")
+        case "availability_request": return tr("Availability")
+        case "fee_reminder": return tr("Match fees")
         // A kind the app has not been taught about is still readable.
         default: return kind.replacingOccurrences(of: "_", with: " ").capitalized
         }

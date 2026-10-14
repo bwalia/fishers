@@ -163,7 +163,7 @@ struct EventDetailView: View {
                     .font(.headline)
                     .foregroundStyle(FishersTheme.accent)
                 if me.state == .selected || me.state == .confirmed {
-                    Text(t("ev.confirm_before_start", vars: ["confirm": board.confirmLeadHours, tr("drop"): board.dropLeadHours]))
+                    Text(t("ev.confirm_before_start", vars: ["confirm": board.confirmLeadHours, "drop": board.dropLeadHours]))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -237,7 +237,7 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(event.title)
                 .font(FishersTheme.title)
-            Text(t("ev.sport_and_kind", vars: ["sport": tr(event.sport.capitalized), tr("kind"): tr(event.eventSubtype.replacingOccurrences(of: "_", with: " "))]))
+            Text(t("ev.sport_and_kind", vars: ["sport": tr(event.sport.capitalized), "kind": tr(event.eventSubtype.replacingOccurrences(of: "_", with: " "))]))
                 .foregroundStyle(FishersTheme.accent)
             Text(event.startAt.formatted(date: .abbreviated, time: .shortened)
                  + " – "

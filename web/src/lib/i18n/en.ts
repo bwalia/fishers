@@ -3799,6 +3799,21 @@ export const en = {
   "cl.n_suggestions_to_review.one": "{n} suggestion to review",
   "cl.n_suggestions_to_review.other": "{n} suggestions to review",
 
+  // MARK: What a push notification says
+  "cl.notif_terms_proposed": "{sides} — the other captain has proposed the terms. Tap to agree.",
+  "cl.notif_pick_your_xi": "{sides} — the toss is done. Pick your side.",
+  "cl.notif_book_handed_over": "{sides} — you have the book. You're scoring from the next ball.",
+  "cl.notif_player_responded": "{player} answered for {title}.",
+  "cl.notif_a_fixture_lower": "a fixture",
+  "cl.notif_a_club": "A club",
+  "cl.notif_inviter": " {name} invited you.",
+  "cl.notif_wants_you_in_team": "{club} wants you in their {team}.{from}",
+  "cl.notif_youre_invited_event": "You're invited: {event}.{from}",
+  "cl.notif_wants_you_in_club": "{club} wants you in the club.{from}",
+  "cl.notif_percent_there": " — you're {percent}% there",
+  "cl.notif_finish_profile": "Finish your profile{percent}. Captains pick players they can see.",
+  "cl.notif_accepted_theyre_in": "{player} accepted — they're in {into}.",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

@@ -375,7 +375,7 @@ private struct Gallery: View {
                         Color.secondary.opacity(0.1)
                     }
                     .clipped()
-                    .accessibilityLabel(t("sc.photograph_n_of_m", vars: ["title": title, "n": index + 1, tr("total"): photos.count]))
+                    .accessibilityLabel(t("sc.photograph_n_of_m", vars: ["title": title, "n": index + 1, "total": photos.count]))
                 }
             }
             .tabViewStyle(.page)

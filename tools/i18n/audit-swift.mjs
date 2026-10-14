@@ -126,6 +126,21 @@ for (const file of files) {
     for (const m of line.matchAll(/\bt\(\s*tr\(/g)) {
       mangled.push(`${relative(repoRoot, file)}:${i + 1}  key passed through tr(): ${m[0]}`);
     }
+    // A comparison against a translated string. `case tr("invite"):` matches
+    // in English — where `tr` hands back what it was given — and never matches
+    // in Punjabi, so the whole switch silently falls to `default`. The tests
+    // run in English, which is exactly why this needs a check of its own.
+    for (const m of line.matchAll(/\bcase\s+tr\(|[=!]=\s*tr\(|\.(?:contains|hasPrefix|hasSuffix)\(tr\(/g)) {
+      mangled.push(`${relative(repoRoot, file)}:${i + 1}  compared against a translation: ${m[0]}`);
+    }
+    // A placeholder name translated into something the format string will
+    // never contain.
+    // Only in key position — after a `[` or a `,`. Without that, every
+    // ternary (`? tr("Bat") : tr("Bowl")`) looks like a dictionary key, and
+    // 106 of those drowned the one real hit.
+    for (const m of line.matchAll(/[\[,]\s*tr\("[^"]*"\):/g)) {
+      mangled.push(`${relative(repoRoot, file)}:${i + 1}  placeholder name translated: ${m[0]}`);
+    }
     // And a lookup key dressed as a caption.
     for (const m of line.matchAll(/\[\s*tr\("[^"]*"\)\s*\]/g)) {
       mangled.push(`${relative(repoRoot, file)}:${i + 1}  subscript key wrapped: ${m[0]}`);

@@ -86,9 +86,9 @@ struct ScorerHandover: Codable, Identifiable, Equatable {
     /// "Ravi handed the book to Sam", or the blunter version.
     var summary: String {
         switch reason {
-        case tr("override"):
+        case "override":
             return "\(actedByName) took the book" + (fromName.map { " from \($0)" } ?? "")
-        case tr("claim"):
+        case "claim":
             return "\(toName) picked up the book"
         default:
             return "\(fromName ?? "Someone") handed the book to \(toName)"
@@ -126,10 +126,10 @@ struct SquadPlayer: Codable, Identifiable, Equatable {
 
     var standingLabel: String {
         switch standing {
-        case tr("selected"): return tr("picked")
-        case tr("reserve"): return tr("reserve")
-        case tr("available"): return tr("available")
-        case tr("unavailable"): return tr("said no")
+        case "selected": return tr("picked")
+        case "reserve": return tr("reserve")
+        case "available": return tr("available")
+        case "unavailable": return tr("said no")
         default: return tr("member")
         }
     }

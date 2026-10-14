@@ -1363,7 +1363,7 @@ private struct SecondInningsSheet: View {
             Form {
                 if let target = store.state.target {
                     Section {
-                        Text(t("sc.team_need_to_win", vars: ["team": store.state.name(for: batting), tr("runs"): target]))
+                        Text(t("sc.team_need_to_win", vars: ["team": store.state.name(for: batting), "runs": target]))
                             .font(.subheadline.weight(.semibold))
                     }
                 }

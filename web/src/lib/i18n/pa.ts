@@ -3786,4 +3786,19 @@ export const pa: Dict = {
   "cl.n_suggestions_to_review.one": "ਵੇਖਣ ਲਈ {n} ਸੁਝਾਅ",
   "cl.n_suggestions_to_review.other": "ਵੇਖਣ ਲਈ {n} ਸੁਝਾਅ",
 
+  // MARK: What a push notification says
+  "cl.notif_terms_proposed": "{sides} — ਦੂਜੇ ਕਪਤਾਨ ਨੇ ਸ਼ਰਤਾਂ ਰੱਖੀਆਂ ਹਨ। ਸਹਿਮਤ ਹੋਣ ਲਈ ਛੂਹੋ।",
+  "cl.notif_pick_your_xi": "{sides} — ਟਾਸ ਹੋ ਗਿਆ। ਆਪਣੀ ਟੀਮ ਚੁਣੋ।",
+  "cl.notif_book_handed_over": "{sides} — ਕਿਤਾਬ ਤੁਹਾਡੇ ਕੋਲ ਹੈ। ਅਗਲੀ ਗੇਂਦ ਤੋਂ ਤੁਸੀਂ ਸਕੋਰ ਕਰ ਰਹੇ ਹੋ।",
+  "cl.notif_player_responded": "{player} ਨੇ {title} ਲਈ ਜਵਾਬ ਦਿੱਤਾ।",
+  "cl.notif_a_fixture_lower": "ਇੱਕ ਮੈਚ",
+  "cl.notif_a_club": "ਇੱਕ ਕਲੱਬ",
+  "cl.notif_inviter": " {name} ਨੇ ਤੁਹਾਨੂੰ ਸੱਦਿਆ।",
+  "cl.notif_wants_you_in_team": "{club} ਤੁਹਾਨੂੰ ਆਪਣੀ {team} ਵਿੱਚ ਚਾਹੁੰਦਾ ਹੈ।{from}",
+  "cl.notif_youre_invited_event": "ਤੁਹਾਨੂੰ ਸੱਦਾ ਹੈ: {event}।{from}",
+  "cl.notif_wants_you_in_club": "{club} ਤੁਹਾਨੂੰ ਕਲੱਬ ਵਿੱਚ ਚਾਹੁੰਦਾ ਹੈ।{from}",
+  "cl.notif_percent_there": " — ਤੁਸੀਂ {percent}% ਪਹੁੰਚ ਚੁੱਕੇ ਹੋ",
+  "cl.notif_finish_profile": "ਆਪਣਾ ਪ੍ਰੋਫ਼ਾਈਲ ਪੂਰਾ ਕਰੋ{percent}। ਕਪਤਾਨ ਉਹਨਾਂ ਨੂੰ ਚੁਣਦੇ ਹਨ ਜੋ ਦਿਸਦੇ ਹਨ।",
+  "cl.notif_accepted_theyre_in": "{player} ਨੇ ਮਨਜ਼ੂਰ ਕੀਤਾ — ਉਹ {into} ਵਿੱਚ ਹਨ।",
+
 };

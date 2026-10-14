@@ -158,13 +158,13 @@ enum CricketCommentary {
     }
 
     private static func extraPhrase(_ label: String, runs: Int) -> String {
-        if label.hasPrefix(tr("wd")) {
+        if label.hasPrefix("wd") {
             return runs > 1 ? t("sc.wide_n_runs", vars: ["n": runs]) : t("outcome.wide")
         }
-        if label.hasPrefix(tr("nb")) {
+        if label.hasPrefix("nb") {
             return runs > 1 ? t("sc.no_ball_n_runs", vars: ["n": runs]) : t("outcome.no_ball")
         }
-        if label.hasSuffix(tr("lb")) { return t("sc.n_leg_byes", count: runs, vars: ["n": runs]) }
+        if label.hasSuffix("lb") { return t("sc.n_leg_byes", count: runs, vars: ["n": runs]) }
         if label.hasSuffix("b") { return t("sc.n_byes", count: runs, vars: ["n": runs]) }
         if label.hasSuffix("p") { return t("sc.n_penalty_runs", vars: ["n": runs]) }
         return label

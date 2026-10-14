@@ -201,9 +201,9 @@ struct CricketScoringFlowView: View {
                 Text(t("sc.format"))
             } footer: {
                 Text(t("sc.usual_allocation_and_powerplay", vars: [
-                    tr("perBowler"): MatchConditions.standardOversPerBowler(conditions.oversLimit),
-                    tr("overs"): conditions.oversLimit,
-                    tr("powerplay"): MatchConditions.standardPowerplay(conditions.oversLimit),
+                    "perBowler": MatchConditions.standardOversPerBowler(conditions.oversLimit),
+                    "overs": conditions.oversLimit,
+                    "powerplay": MatchConditions.standardPowerplay(conditions.oversLimit),
                 ]))
             }
 
@@ -447,7 +447,7 @@ struct CricketScoringFlowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let home = store.state.agreedHome, let away = store.state.agreedAway {
-                    Label(t("sc.agreed_by_both", vars: ["home": home, tr("away"): away]), systemImage: "checkmark.seal.fill")
+                    Label(t("sc.agreed_by_both", vars: ["home": home, "away": away]), systemImage: "checkmark.seal.fill")
                         .font(.caption)
                         .foregroundStyle(FishersTheme.available)
                 }

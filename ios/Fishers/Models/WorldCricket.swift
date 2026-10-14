@@ -73,7 +73,7 @@ struct WorldMatch: Codable, Identifiable, Hashable {
     /// The feed shouts TEST; a scorecard should not.
     var formatLabel: String? {
         guard let format else { return nil }
-        return format.uppercased() == tr("TEST") ? tr("Test") : format.uppercased()
+        return format.uppercased() == "TEST" ? tr("Test") : format.uppercased()
     }
 
     /// The side with an over count against it is the side at the crease. The

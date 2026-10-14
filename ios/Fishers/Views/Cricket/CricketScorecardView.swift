@@ -214,7 +214,7 @@ struct CricketScorecardView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 if let home = state.agreedHome, let away = state.agreedAway {
-                    Label(t("sc.agreed_by_both", vars: ["home": home, tr("away"): away]), systemImage: "checkmark.seal")
+                    Label(t("sc.agreed_by_both", vars: ["home": home, "away": away]), systemImage: "checkmark.seal")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -480,7 +480,7 @@ struct CricketScorecardView: View {
                 Text("\(innings.scoreDisplay)")
                     .bold()
                     .monospacedDigit()
-                Text(t("sc.overs_and_run_rate", vars: ["overs": innings.oversDisplay, tr("rr"): String(format: "%.2f", innings.runRate)]))
+                Text(t("sc.overs_and_run_rate", vars: ["overs": innings.oversDisplay, "rr": String(format: "%.2f", innings.runRate)]))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
