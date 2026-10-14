@@ -13,7 +13,7 @@ struct SeasonStatsSection: View {
             if isLoading && meStats == nil {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text(t(tr("rest.loading_season_stats")))
+                    Text(t("rest.loading_season_stats"))
                         .foregroundStyle(.secondary)
                 }
             } else if let season = meStats?.seasons.first {
@@ -23,12 +23,12 @@ struct SeasonStatsSection: View {
                     Text(errorMessage)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Button(t(tr("rest.try_again"))) {
+                    Button(t("rest.try_again")) {
                         Task { await load() }
                     }
                 }
             } else {
-                Text(t(tr("rest.no_season_stats_yet")))
+                Text(t("rest.no_season_stats_yet"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -69,9 +69,9 @@ struct SeasonStatsSection: View {
                 }
             }
         } header: {
-            Text(t(tr("cl.season_stats")))
+            Text(t("cl.season_stats"))
         } footer: {
-            Text(t(tr("rest.play_cricket_season_board")))
+            Text(t("rest.play_cricket_season_board"))
         }
         .task { await load() }
     }
@@ -85,7 +85,7 @@ struct SeasonStatsSection: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Season \(season.seasonYear): \(season.runs) runs, \(season.wickets) wickets, \(season.matches) matches")
+        .accessibilityLabel(t("rest.season_stats_aria", vars: ["year": season.seasonYear, "runs": season.runs, "wickets": season.wickets, "matches": season.matches]))
 
         if let avg = season.battingAverage {
             LabeledContent(tr("Batting avg"), value: String(format: "%.1f", avg))
@@ -102,7 +102,7 @@ struct SeasonStatsSection: View {
         LabeledContent("Season", value: "\(season.seasonYear)")
         if let url = season.playCricketURL {
             Link(destination: url) {
-                Label(t(tr("rest.view_on_play_cricket")), systemImage: "arrow.up.right.square")
+                Label(t("rest.view_on_play_cricket"), systemImage: "arrow.up.right.square")
             }
         }
     }

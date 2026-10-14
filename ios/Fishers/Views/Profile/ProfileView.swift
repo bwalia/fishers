@@ -78,11 +78,11 @@ struct ProfileView: View {
             .sheet(isPresented: $isEditing) {
                 ProfileEditView(user: session.user)
             }
-            .confirmationDialog("Sign out of \(Brand.name)?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                Button(t(tr("nav.sign_out")), role: .destructive) { session.signOut() }
+            .confirmationDialog(t("rest.sign_out_of_brand", vars: ["brand": Brand.name]), isPresented: $confirmSignOut, titleVisibility: .visible) {
+                Button(t("nav.sign_out"), role: .destructive) { session.signOut() }
                 Button(t("sc.cancel"), role: .cancel) {}
             } message: {
-                Text(t(tr("rest.sign_back_in_anytime")))
+                Text(t("rest.sign_back_in_anytime"))
             }
             .task {
                 await session.refreshProfile()
@@ -105,7 +105,7 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func overview(_ user: PublicUser) -> some View {
-        Section("About \(user.name.split(separator: " ").first.map(String.init) ?? user.name)") {
+        Section(t("rest.about_person", vars: ["name": user.name.split(separator: " ").first.map(String.init) ?? user.name])) {
             LabeledContent(tr("Email"), value: user.email ?? "—")
             LabeledContent(tr("Mobile"), value: user.phone ?? "—")
             if let emergency = user.emergencyContact {
@@ -156,7 +156,7 @@ struct ProfileView: View {
             NavigationLink {
                 ShopView()
             } label: {
-                Label(t(tr("rest.browse_kit_and_food")), systemImage: "bag")
+                Label(t("rest.browse_kit_and_food"), systemImage: "bag")
             }
         }
 
@@ -164,12 +164,12 @@ struct ProfileView: View {
             NavigationLink {
                 ShareProfileScreen(userId: user.id)
             } label: {
-                Label(t(tr("rest.send_my_profile_to_a_club")), systemImage: "link")
+                Label(t("rest.send_my_profile_to_a_club"), systemImage: "link")
             }
         } header: {
-            Text(t(tr("rest.joining_a_club")))
+            Text(t("rest.joining_a_club"))
         } footer: {
-            Text(t(tr("cl.secretary_can_invite_you")))
+            Text(t("cl.secretary_can_invite_you"))
         }
 
         Section(tr("Account")) {
@@ -177,7 +177,7 @@ struct ProfileView: View {
                 NavigationLink {
                     VerifyAccountScreen()
                 } label: {
-                    Label(t(tr("rest.confirm_email_or_phone")), systemImage: "checkmark.shield")
+                    Label(t("rest.confirm_email_or_phone"), systemImage: "checkmark.shield")
                         .foregroundStyle(FishersTheme.maybe)
                 }
             }
@@ -190,7 +190,7 @@ struct ProfileView: View {
             )) {
                 ForEach(RoleIntent.allCases) { Text($0.title).tag(Optional($0)) }
             } label: {
-                Label(t(tr("rest.getting_started_guide")), systemImage: "sparkles")
+                Label(t("rest.getting_started_guide"), systemImage: "sparkles")
             }
             // In its own script and never translated — a picker offering
             // "Punjabi" in English is no use to the person who needs it. The
@@ -207,13 +207,13 @@ struct ProfileView: View {
                 APIServerSettingsView()
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Label(t(tr("rest.api_server")), systemImage: "network")
+                    Label(t("rest.api_server"), systemImage: "network")
                     Text(AppConfig.displayHost)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            Button(t(tr("nav.sign_out")), role: .destructive) {
+            Button(t("nav.sign_out"), role: .destructive) {
                 confirmSignOut = true
             }
         }
@@ -227,11 +227,11 @@ struct ProfileView: View {
             NavigationLink {
                 DeleteAccountView()
             } label: {
-                Label(t(tr("cl.delete_account")), systemImage: "person.crop.circle.badge.xmark")
+                Label(t("cl.delete_account"), systemImage: "person.crop.circle.badge.xmark")
                     .foregroundStyle(FishersTheme.unavailable)
             }
         } footer: {
-            Text(t(tr("rest.deleting_removes_everything")))
+            Text(t("rest.deleting_removes_everything"))
         }
     }
 
@@ -249,7 +249,7 @@ struct ProfileView: View {
         } header: {
             Text(t("cl.career"))
         } footer: {
-            Text("Across \(seasons) season\(seasons == 1 ? "" : "s"), worked out from the ball-by-ball log.")
+            Text(t("rest.across_n_seasons", count: seasons, vars: ["n": seasons]))
         }
     }
 
@@ -272,7 +272,7 @@ struct ProfileView: View {
             if let tier = profile.tier {
                 LabeledContent(tr("Level"), value: tier.label)
                 if let next = tier.next {
-                    Label("Working towards \(next.label)", systemImage: "arrow.up.right")
+                    Label(t("rest.working_towards", vars: ["level": next.label]), systemImage: "arrow.up.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -316,7 +316,7 @@ struct ProfileView: View {
                     Label(sport.label, systemImage: sport.systemImage)
                 }
                 if session.user?.primarySport == profile.sport {
-                    Text(t(tr("rest.main_sport_badge")))
+                    Text(t("rest.main_sport_badge"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.tint)
                 }
@@ -376,11 +376,11 @@ struct ShareProfileScreen: View {
                 ShareProfileView(userId: userId)
                     .padding(.vertical, 4)
             } footer: {
-                Text(t(tr("rest.drop_it_in_whatsapp")))
+                Text(t("rest.drop_it_in_whatsapp"))
             }
         }
         .fishersList()
-        .navigationTitle(t(tr("rest.your_profile_link")))
+        .navigationTitle(t("rest.your_profile_link"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -402,17 +402,17 @@ struct VerifyAccountScreen: View {
                     }
                     .padding(.vertical, 4)
                 } else if failed || (status != nil && status?.canVerify == false) {
-                    Text(t(tr("rest.codes_cannot_be_sent")))
+                    Text(t("rest.codes_cannot_be_sent"))
                         .foregroundStyle(.secondary)
                 } else {
                     ProgressView()
                 }
             } footer: {
-                Text(t(tr("rest.starting_club_needs_confirmed")))
+                Text(t("rest.starting_club_needs_confirmed"))
             }
         }
         .fishersList()
-        .navigationTitle(t(tr("rest.confirm_its_you")))
+        .navigationTitle(t("rest.confirm_its_you"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             do { status = try await FishersAPI.verificationStatus() } catch { failed = true }

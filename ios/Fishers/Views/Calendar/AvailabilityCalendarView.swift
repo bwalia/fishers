@@ -41,7 +41,7 @@ struct CalendarPane: View {
 
                 bulk
 
-                Toggle(t(tr("ev.cricket_season_only")), isOn: $vm.cricketSeasonOnly)
+                Toggle(t("ev.cricket_season_only"), isOn: $vm.cricketSeasonOnly)
                     .padding(.horizontal)
                     .onChange(of: vm.cricketSeasonOnly) { _, _ in
                         Task { await vm.load() }
@@ -166,7 +166,7 @@ struct CalendarPane: View {
             }
             let fixtures = vm.fixtures(on: day)
             if fixtures.isEmpty {
-                Text(t(tr("ev.no_fixtures_this_day"))).font(FishersTheme.footnote).foregroundStyle(.secondary)
+                Text(t("ev.no_fixtures_this_day")).font(FishersTheme.footnote).foregroundStyle(.secondary)
             }
             ForEach(fixtures) { fixture in
                 VStack(alignment: .leading, spacing: 8) {
@@ -205,7 +205,7 @@ struct CalendarPane: View {
     /// Set a whole weekday for the month, then fix the odd day.
     private var bulk: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(t(tr("ev.your_usual_days"))).font(FishersTheme.headline)
+            Text(t("ev.your_usual_days")).font(FishersTheme.headline)
             Text(t("ev.set_every_weekday_in", vars: ["month": vm.month.formatted(.dateTime.month(.wide))]))
                 .font(FishersTheme.footnote)
                 .foregroundStyle(.secondary)

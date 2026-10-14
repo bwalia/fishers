@@ -21,7 +21,7 @@ struct ChatListView: View {
                     ContentUnavailableView(
                         "No chats yet",
                         systemImage: "bubble.left.and.bubble.right",
-                        description: Text(t(tr("cl.start_a_thread_for_your_club")))
+                        description: Text(t("cl.start_a_thread_for_your_club"))
                     )
                 }
                 ForEach(store.conversations) { conversation in
@@ -110,7 +110,7 @@ struct ChatListView: View {
         NavigationStack {
             Form {
                 Section(tr("Thread")) {
-                    TextField(t(tr("cl.first_xi_chat_example")), text: $newTitle)
+                    TextField(t("cl.first_xi_chat_example"), text: $newTitle)
                 }
                 if !clubContext.clubs.isEmpty {
                     Section(tr("Club")) {
@@ -125,13 +125,13 @@ struct ChatListView: View {
                     }
                 } else {
                     Section {
-                        Text(t(tr("cl.create_a_club_first")))
+                        Text(t("cl.create_a_club_first"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
-            .navigationTitle(t(tr("cl.new_chat")))
+            .navigationTitle(t("cl.new_chat"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

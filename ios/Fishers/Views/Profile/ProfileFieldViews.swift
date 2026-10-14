@@ -131,7 +131,7 @@ struct OptionMenu<Option: LabeledOption>: View where Option.AllCases: RandomAcce
 
     var body: some View {
         Picker(title, selection: $selection) {
-            Text(t(tr("rest.not_set"))).tag(Option?.none)
+            Text(t("rest.not_set")).tag(Option?.none)
             ForEach(Array(Option.allCases)) { option in
                 Text(option.label).tag(Option?.some(option))
             }
@@ -279,7 +279,7 @@ struct StatFieldRow: View {
             switch field.kind {
             case .choice(let options):
                 Picker(field.label, selection: $value) {
-                    Text(t(tr("rest.not_set"))).tag("")
+                    Text(t("rest.not_set")).tag("")
                     ForEach(options, id: \.self) { option in
                         // The tag stays English: it is what is stored on the
                         // profile and sent to the API. Only the row is drawn.
@@ -393,7 +393,7 @@ struct ReliabilityRing: View {
             VStack(spacing: 0) {
                 Text(reliability.band == .unproven ? "–" : "\(reliability.score)")
                     .font(.system(size: size * 0.32, weight: .bold, design: .rounded))
-                Text(t(tr("rest.reliability_short")))
+                Text(t("rest.reliability_short"))
                     .font(.system(size: size * 0.15))
                     .foregroundStyle(.secondary)
             }
@@ -402,7 +402,7 @@ struct ReliabilityRing: View {
         .accessibilityLabel(
             reliability.band == .unproven
                 ? tr("Reliability unproven, not enough games yet")
-                : "Reliability \(reliability.score) out of 100, \(reliability.band.label)"
+                : t("rest.reliability_out_of_100", vars: ["score": reliability.score, "band": reliability.band.label])
         )
     }
 }
@@ -427,7 +427,7 @@ struct ReliabilityCard: View {
             }
             Divider()
             if reliability.band == .unproven {
-                Text("Answer invites, turn up and pay your fees — after \(ReliabilityScore.minimumSample) games this becomes a score captains can weigh.")
+                Text(t("rest.after_n_games_becomes_score", vars: ["n": ReliabilityScore.minimumSample]))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -436,14 +436,14 @@ struct ReliabilityCard: View {
             MeterRow(label: tr("Answered the invite"), value: reliability.responseRate)
             MeterRow(label: tr("Paid match fees"), value: reliability.paymentRate)
             HStack {
-                Text(t(tr("rest.late_drop_outs")))
+                Text(t("rest.late_drop_outs"))
                 Spacer()
                 Text("\(reliability.lateCancellations)")
                     .foregroundStyle(reliability.lateCancellations > 0 ? .orange : .secondary)
             }
             .font(.caption)
             }
-            Text("Based on \(reliability.sampleSize) invite\(reliability.sampleSize == 1 ? "" : "s"). Captains see this when picking a squad.")
+            Text(t("rest.based_on_n_invites", count: reliability.sampleSize, vars: ["n": reliability.sampleSize]))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

@@ -80,15 +80,15 @@ struct ScoreHubPane: View {
             if !startable.isEmpty {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(t(tr("sr.two_sides_right_now")))
+                        Text(t("sr.two_sides_right_now"))
                             .font(FishersTheme.headline)
-                        Text(t(tr("sc.no_fixture_needed")))
+                        Text(t("sc.no_fixture_needed"))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                         Button {
                             starting = true
                         } label: {
-                            Label(t(tr("sr.start_a_match_now")), systemImage: "plus")
+                            Label(t("sr.start_a_match_now"), systemImage: "plus")
                                 .font(FishersTheme.headline)
                                 .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                         }
@@ -135,8 +135,8 @@ struct ScoreHubPane: View {
                     if total > 0 { Text("\(rows.count) of \(total)") }
                     Spacer()
                     Picker(tr("Order"), selection: $query.newestFirst) {
-                        Text(t(tr("ld.soonest_first"))).tag(false)
-                        Text(t(tr("ld.newest_first"))).tag(true)
+                        Text(t("ld.soonest_first")).tag(false)
+                        Text(t("ld.newest_first")).tag(true)
                     }
                     .pickerStyle(.menu)
                     .textCase(nil)
@@ -403,7 +403,7 @@ struct ScoreFixtureRow: View {
                         .background(FishersTheme.raised, in: Capsule())
                 }
                 if fixture.hasScorer, fixture.matchStatus == "live" {
-                    Text(t(tr("sr.being_scored")))
+                    Text(t("sr.being_scored"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -472,7 +472,7 @@ struct QuickMatchSheet: View {
                     }
                     if !teams.isEmpty {
                         Picker(tr("Team"), selection: $teamId) {
-                            Text(t(tr("rest.the_club"))).tag(UUID?.none)
+                            Text(t("rest.the_club")).tag(UUID?.none)
                             ForEach(teams) { Text($0.name).tag(Optional($0.id)) }
                         }
                     }
@@ -485,9 +485,9 @@ struct QuickMatchSheet: View {
                         LabeledContent(tr("Opposition"), value: awayName.isEmpty ? tr("Choose…") : awayName)
                     }
                 } header: {
-                    Text(t(tr("ev.the_opposition")))
+                    Text(t("ev.the_opposition"))
                 } footer: {
-                    Text(opponent.map { "\($0.clubName) are on \(Brand.name) — their captain can name their own eleven." }
+                    Text(opponent.map { t("sc.opponent_on_brand_sentence", vars: ["club": $0.clubName, "brand": Brand.name]) }
                          ?? tr("Find them by their code or name, or just type who turned up. Works offline if you type the name."))
                 }
 
@@ -507,7 +507,7 @@ struct QuickMatchSheet: View {
                         Task { await start() }
                     } label: {
                         Group {
-                            if busy { ProgressView() } else { Text(t(tr("sc.start_scoring"))).font(FishersTheme.headline) }
+                            if busy { ProgressView() } else { Text(t("sc.start_scoring")).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
@@ -519,7 +519,7 @@ struct QuickMatchSheet: View {
                     if let missing { Text(t("sc.still_needed", vars: ["what": missing])) }
                 }
             }
-            .navigationTitle(t(tr("cl.start_a_match")))
+            .navigationTitle(t("cl.start_a_match"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }

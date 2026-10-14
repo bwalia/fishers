@@ -27,7 +27,7 @@ struct ProfileEditView: View {
                 Section {
                     NavigationLink {
                         AboutForm(form: form)
-                            .navigationTitle(t(tr("rest.about_you")))
+                            .navigationTitle(t("rest.about_you"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
                         LabeledContent(tr("About you"), value: form.name)
@@ -60,7 +60,7 @@ struct ProfileEditView: View {
                 Section {
                     NavigationLink {
                         LogisticsForm(form: form)
-                            .navigationTitle(t(tr("rest.travel_and_logistics")))
+                            .navigationTitle(t("rest.travel_and_logistics"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
                         LabeledContent(tr("Travel & logistics"), value: form.area.nonEmpty ?? tr("Not set"))
@@ -74,10 +74,10 @@ struct ProfileEditView: View {
                         LabeledContent(tr("API server"), value: AppConfig.displayHost)
                     }
                 } footer: {
-                    Text(t(tr("rest.reliability_is_server_worked")))
+                    Text(t("rest.reliability_is_server_worked"))
                 }
             }
-            .navigationTitle(t(tr("cl.edit_profile")))
+            .navigationTitle(t("cl.edit_profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

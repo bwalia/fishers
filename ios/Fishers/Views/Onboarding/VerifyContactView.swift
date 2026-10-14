@@ -26,7 +26,7 @@ struct VerifyContactView: View {
         VStack(alignment: .leading, spacing: 12) {
             if !compact {
                 Label {
-                    Text("Confirm your \(channel.noun)").font(FishersTheme.headline)
+                    Text(t("rest.confirm_your_channel", vars: ["noun": channel.noun])).font(FishersTheme.headline)
                 } icon: {
                     Image(systemName: channel.systemImage).foregroundStyle(FishersTheme.pitch)
                 }
@@ -44,7 +44,7 @@ struct VerifyContactView: View {
                 }
             }
 
-            Text("Enter the 6-digit code we \(channel.sentVerb) to **\(address)**.")
+            Text(t("rest.enter_the_6_digit_code", vars: ["verb": channel.sentVerb, "address": address]))
                 .font(FishersTheme.subhead)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -82,7 +82,7 @@ struct VerifyContactView: View {
             Button {
                 Task { await send() }
             } label: {
-                Text(wait > 0 ? "Send a new code in \(wait)s" : "Send a new code")
+                Text(wait > 0 ? t("rest.send_a_new_code_in", vars: ["n": wait]) : t("rest.send_a_new_code"))
                     .font(FishersTheme.subhead.weight(.semibold))
                     .frame(minHeight: FishersTheme.minTap)
             }

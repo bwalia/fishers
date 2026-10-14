@@ -70,7 +70,7 @@ struct AuthView: View {
 
                         if mode == .signup {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(t(tr("rest.im_here_to")))
+                                Text(t("rest.im_here_to"))
                                     .font(FishersTheme.subhead.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                 RoleChooserView(selection: $role, compact: true)
@@ -213,7 +213,7 @@ struct AuthView: View {
                 }
                 HStack {
                     Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)
-                    Text(t(tr("rest.or_with_email")))
+                    Text(t("rest.or_with_email"))
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                     Rectangle().fill(Color.secondary.opacity(0.25)).frame(height: 1)

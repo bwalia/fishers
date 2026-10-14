@@ -106,7 +106,7 @@ struct WagonWheelPicker: View {
                 Spacer(minLength: 0)
             }
             .padding(.vertical)
-            .navigationTitle(t(tr("sc.where_did_it_go")))
+            .navigationTitle(t("sc.where_did_it_go"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -306,7 +306,7 @@ struct WagonWheelChart: View {
             .aspectRatio(1, contentMode: .fit)
 
             if shots.isEmpty {
-                Text(t(tr("sc.no_shots_recorded_yet")))
+                Text(t("sc.no_shots_recorded_yet"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

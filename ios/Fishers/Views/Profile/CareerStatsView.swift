@@ -32,10 +32,10 @@ struct CareerStatsView: View {
     var body: some View {
         if seasons.isEmpty {
             ContentUnavailableView {
-                Label("No \(discipline.rawValue) figures yet",
+                Label(t("rest.no_figures_yet", vars: ["discipline": tr(discipline.rawValue)]),
                       systemImage: discipline == .batting ? "figure.cricket" : "circle.dotted")
             } description: {
-                Text("These are worked out from matches scored on \(Brand.name). Play one — or ask your scorer to record it here — and it shows up the same evening.")
+                Text(t("rest.worked_out_from_matches_on", vars: ["brand": Brand.name]))
             }
         } else {
             Section {
@@ -123,7 +123,7 @@ struct CareerStatsView: View {
                     Text(club).font(FishersTheme.footnote).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("\(row.matches) match\(row.matches == 1 ? "" : "es")")
+                Text(t("rest.n_matches", count: row.matches, vars: ["n": row.matches]))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             }

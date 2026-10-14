@@ -46,7 +46,7 @@ struct ClubAdminView: View {
             case .fees: FeesList(store: store, canChase: role?.isCaptain ?? false)
             }
         }
-        .navigationTitle(t(tr("cl.manage_club")))
+        .navigationTitle(t("cl.manage_club"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
         .refreshable { await store.load() }
@@ -76,7 +76,7 @@ private struct RosterList: View {
         List {
             if !canManage {
                 Section {
-                    Label(t(tr("cl.only_secretary_changes_roles")),
+                    Label(t("cl.only_secretary_changes_roles"),
                         systemImage: "info.circle"
                     )
                     .font(.footnote)
@@ -108,7 +108,7 @@ private struct RosterList: View {
                 ContentUnavailableView(
                     "No members yet",
                     systemImage: "person.3",
-                    description: Text(t(tr("cl.add_players_by_signup_email")))
+                    description: Text(t("cl.add_players_by_signup_email"))
                 )
             }
         }
@@ -182,13 +182,13 @@ private struct RosterList: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(t(tr("cl.email_or_mobile_number")), text: $newIdentifier)
+                    TextField(t("cl.email_or_mobile_number"), text: $newIdentifier)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
-                    Text(t(tr("cl.whatever_they_signed_up_with")))
+                    Text(t("cl.whatever_they_signed_up_with"))
                 }
                 Section(tr("Role")) {
                     Picker(tr("Role"), selection: $newRole) {
@@ -203,7 +203,7 @@ private struct RosterList: View {
                     Button {
                         Task { await store.makeInvite(email: trimmedIdentifier) }
                     } label: {
-                        Label(t(tr("cl.make_an_invite_link_instead")), systemImage: "link")
+                        Label(t("cl.make_an_invite_link_instead"), systemImage: "link")
                     }
                     if let invite = store.invite,
                        let url = invite.url(webBase: AppConfig.webBaseURL.absoluteString) {
@@ -217,14 +217,14 @@ private struct RosterList: View {
                     Text(t("cl.invite_link_explainer", vars: ["brand": Brand.name]))
                 }
                 Section {
-                    TextField(t(tr("rest.paste_the_link_they_sent_you")), text: $pastedLink)
+                    TextField(t("rest.paste_the_link_they_sent_you"), text: $pastedLink)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     if let token = SharedPlayerCard.token(in: pastedLink) {
                         NavigationLink {
                             SharedPlayerCardView(token: token, preferredClubId: club.id)
                         } label: {
-                            Label(t(tr("cl.open_their_profile")), systemImage: "person.crop.rectangle")
+                            Label(t("cl.open_their_profile"), systemImage: "person.crop.rectangle")
                         }
                     } else if !pastedLink.isEmpty {
                         Text(t("cl.not_a_profile_link", vars: ["brand": Brand.name]))
@@ -232,12 +232,12 @@ private struct RosterList: View {
                             .foregroundStyle(FishersTheme.unavailable)
                     }
                 } header: {
-                    Text(t(tr("cl.got_a_profile_link")))
+                    Text(t("cl.got_a_profile_link"))
                 } footer: {
-                    Text(t(tr("cl.open_card_pick_club_send")))
+                    Text(t("cl.open_card_pick_club_send"))
                 }
             }
-            .navigationTitle(t(tr("cl.add_a_member")))
+            .navigationTitle(t("cl.add_a_member"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -335,11 +335,11 @@ private struct RoleSheet: View {
                 } header: {
                     Text(member.name)
                 } footer: {
-                    Text(t(tr("cl.must_keep_one_secretary")))
+                    Text(t("cl.must_keep_one_secretary"))
                 }
 
                 Section {
-                    Button(t(tr("cl.remove_from_the_club_action")), role: .destructive) {
+                    Button(t("cl.remove_from_the_club_action"), role: .destructive) {
                         confirmRemove = true
                     }
                 }
@@ -370,7 +370,7 @@ private struct RoleSheet: View {
                 }
                 Button(t("sc.cancel"), role: .cancel) {}
             } message: {
-                Text(t(tr("cl.past_record_stays")))
+                Text(t("cl.past_record_stays"))
             }
         }
     }
@@ -396,7 +396,7 @@ private struct PolicyForm: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Text(t(tr("cl.squad_selection")))
+                    Text(t("cl.squad_selection"))
                 }
 
                 Section {
@@ -409,9 +409,9 @@ private struct PolicyForm: View {
                         value: binding(\.dropLeadHours), in: 0...168, step: 6
                     )
                 } header: {
-                    Text(t(tr("cl.chasing_the_squad")))
+                    Text(t("cl.chasing_the_squad"))
                 } footer: {
-                    Text(t(tr("cl.reconfirm_then_reserve")))
+                    Text(t("cl.reconfirm_then_reserve"))
                 }
 
                 Section {
@@ -424,9 +424,9 @@ private struct PolicyForm: View {
                         value: binding(\.feeChaseMaxReminders), in: 0...10
                     )
                 } header: {
-                    Text(t(tr("lb.match_fees")))
+                    Text(t("lb.match_fees"))
                 } footer: {
-                    Text(t(tr("cl.then_daily_until_paid")))
+                    Text(t("cl.then_daily_until_paid"))
                 }
 
                 if store.isSaving {
@@ -476,7 +476,7 @@ private struct FeesList: View {
                 }
                 if fees.owed.isEmpty {
                     Section {
-                        Label(t(tr("cl.everyone_has_paid")), systemImage: "checkmark.seal.fill")
+                        Label(t("cl.everyone_has_paid"), systemImage: "checkmark.seal.fill")
                             .foregroundStyle(FishersTheme.available)
                     }
                 } else {
@@ -508,12 +508,12 @@ private struct FeesList: View {
                                 if store.isChasing {
                                     HStack { ProgressView(); Text(t("fp.sending")) }
                                 } else {
-                                    Label(t(tr("cl.send_reminders_now")), systemImage: "envelope.badge")
+                                    Label(t("cl.send_reminders_now"), systemImage: "envelope.badge")
                                 }
                             }
                             .disabled(store.isChasing)
                         } footer: {
-                            Text(t(tr("cl.scheduler_does_this_itself")))
+                            Text(t("cl.scheduler_does_this_itself"))
                         }
                     }
                 }

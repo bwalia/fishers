@@ -154,9 +154,9 @@ struct FixturesListPane: View {
                     .padding(.vertical, 4)
                 } header: {
                     HStack {
-                        Text(t(tr("ev.how_fixtures_work")))
+                        Text(t("ev.how_fixtures_work"))
                         Spacer()
-                        Button(t(tr("ev.got_it"))) { guideDismissed = true }
+                        Button(t("ev.got_it")) { guideDismissed = true }
                             .font(FishersTheme.footnote)
                             .textCase(nil)
                     }
@@ -219,7 +219,7 @@ struct FixturesListPane: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Picker(tr("Club"), selection: $clubFilter) {
-                            Text(t(tr("ev.all_clubs"))).tag(UUID?.none)
+                            Text(t("ev.all_clubs")).tag(UUID?.none)
                             ForEach(clubs, id: \.0) { Text($0.1).tag(Optional($0.0)) }
                         }
                     } label: {
@@ -342,7 +342,7 @@ struct FixtureRow: View {
                                 tag(fixture.status.capitalized, FishersTheme.unavailable)
                             }
                             if clashes {
-                                Label(t(tr("ev.clashes_with_another")), systemImage: "exclamationmark.triangle.fill")
+                                Label(t("ev.clashes_with_another"), systemImage: "exclamationmark.triangle.fill")
                                     .font(FishersTheme.caption)
                                     .foregroundStyle(FishersTheme.maybe)
                             }
@@ -362,7 +362,7 @@ struct FixtureRow: View {
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             } else {
-                FixtureAnswerControl(eventId: fixture.eventId, answer: $answer, title: "Can you play \(fixture.title)?")
+                FixtureAnswerControl(eventId: fixture.eventId, answer: $answer, title: t("ev.can_you_play", vars: ["fixture": fixture.title]))
             }
         }
         .padding(.vertical, 6)
@@ -418,12 +418,12 @@ struct ScheduleMatchSheet: View {
 
                 Section {
                     if venues.isEmpty {
-                        Text(t(tr("ev.no_grounds_saved_plain")))
+                        Text(t("ev.no_grounds_saved_plain"))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     } else {
                         Picker(tr("Ground"), selection: $venueId) {
-                            Text(t(tr("ev.not_decided_yet"))).tag(UUID?.none)
+                            Text(t("ev.not_decided_yet")).tag(UUID?.none)
                             ForEach(venues) { Text($0.name).tag(Optional($0.id)) }
                         }
                     }
@@ -438,7 +438,7 @@ struct ScheduleMatchSheet: View {
                         LabeledContent(tr("Opposition"), value: theirName.isEmpty ? tr("Choose…") : theirName)
                     }
                 } header: {
-                    Text(t(tr("ev.the_opposition")))
+                    Text(t("ev.the_opposition"))
                 } footer: {
                     Text(opponent != nil
                          ? "\(opponent!.clubName) are on \(Brand.name) — their players get asked too."
@@ -458,7 +458,7 @@ struct ScheduleMatchSheet: View {
                         Task { await schedule() }
                     } label: {
                         Group {
-                            if busy { ProgressView() } else { Text(t(tr("ld.schedule_and_ask_who_is_available"))).font(FishersTheme.headline) }
+                            if busy { ProgressView() } else { Text(t("ld.schedule_and_ask_who_is_available")).font(FishersTheme.headline) }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
@@ -467,13 +467,13 @@ struct ScheduleMatchSheet: View {
                     .listRowBackground(Color.clear)
                 } footer: {
                     if let missing {
-                        Text("Still needed: \(missing).")
+                        Text(t("sc.still_needed", vars: ["what": missing]))
                     } else {
-                        Text("Everyone in \(opponent != nil ? "both clubs" : "your club") is asked whether they can play, and the captain hears each answer.")
+                        Text(t("ev.everyone_in_is_asked", vars: ["who": opponent != nil ? t("ev.both_clubs") : t("ev.your_club")]))
                     }
                 }
             }
-            .navigationTitle(t(tr("ev.schedule_a_match")))
+            .navigationTitle(t("ev.schedule_a_match"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(t("sc.cancel")) { dismiss() } }

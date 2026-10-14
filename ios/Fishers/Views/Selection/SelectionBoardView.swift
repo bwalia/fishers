@@ -42,20 +42,20 @@ struct SelectionBoardView: View {
                     Button {
                         Task { await store.suggest() }
                     } label: {
-                        Label(t(tr("ld.suggest_from_ranking")), systemImage: "list.number")
+                        Label(t("ld.suggest_from_ranking"), systemImage: "list.number")
                     }
                     if store.board?.isAssistantAvailable ?? false {
                         Button {
                             Task { await store.askAssistant() }
                         } label: {
-                            Label(t(tr("ld.let_the_assistant_pick")), systemImage: "sparkles")
+                            Label(t("ld.let_the_assistant_pick"), systemImage: "sparkles")
                         }
                     }
                     Divider()
                     Button {
                         isChangingStatus = true
                     } label: {
-                        Label(t(tr("ld.delay_or_call_off")), systemImage: "cloud.rain.fill")
+                        Label(t("ld.delay_or_call_off"), systemImage: "cloud.rain.fill")
                     }
                 } label: {
                     if store.isThinking {
@@ -100,7 +100,7 @@ struct SelectionBoardView: View {
                 if let note = board.statusNote {
                     Text(note).font(.footnote).foregroundStyle(.secondary)
                 }
-                Text("Players are asked to reconfirm \(board.confirmLeadHours)h before, and dropped \(board.dropLeadHours)h before if they haven't.")
+                Text(t("ev.reconfirm_and_drop_hours", vars: ["confirm": board.confirmLeadHours, "drop": board.dropLeadHours]))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -132,7 +132,7 @@ struct SelectionBoardView: View {
                         .foregroundStyle(.secondary)
                 }
                 if proposal.published {
-                    Label(t(tr("ld.published_to_the_squad")), systemImage: "checkmark.circle.fill")
+                    Label(t("ld.published_to_the_squad"), systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(FishersTheme.available)
                 }
@@ -177,7 +177,7 @@ struct SelectionBoardView: View {
                             await store.load()
                         }
                     } label: {
-                        Label(t(tr("ld.move_reserves_up")), systemImage: "arrow.up.circle")
+                        Label(t("ld.move_reserves_up"), systemImage: "arrow.up.circle")
                     }
                 } header: {
                     Text(t("ev.reserves"))
@@ -202,9 +202,9 @@ struct SelectionBoardView: View {
                 )
             }
         } header: {
-            Text(t(tr("ld.available_best_first")))
+            Text(t("ld.available_best_first"))
         } footer: {
-            Text(t(tr("ld.tap_to_pick")))
+            Text(t("ld.tap_to_pick"))
         }
     }
 
@@ -247,7 +247,7 @@ struct SelectionBoardView: View {
                 if store.isPublishing {
                     ProgressView().frame(maxWidth: .infinity)
                 } else {
-                    Text(t(tr("ld.publish_squad"))).frame(maxWidth: .infinity)
+                    Text(t("ld.publish_squad")).frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -264,20 +264,20 @@ struct SelectionBoardView: View {
                     Picker(tr("Status"), selection: $newStatus) {
                         Text(t("ld.postponed")).tag("postponed")
                         Text(t("ld.cancelled")).tag("cancelled")
-                        Text(t(tr("ld.back_on_action"))).tag("scheduled")
+                        Text(t("ld.back_on_action")).tag("scheduled")
                     }
                     .pickerStyle(.segmented)
                 }
                 Section {
-                    TextField(t(tr("ld.ground_unplayable_example")), text: $statusNote, axis: .vertical)
+                    TextField(t("ld.ground_unplayable_example"), text: $statusNote, axis: .vertical)
                         .lineLimit(2...4)
                 } header: {
                     Text(t("sc.reason"))
                 } footer: {
-                    Text(t(tr("ld.posted_to_club_thread")))
+                    Text(t("ld.posted_to_club_thread"))
                 }
             }
-            .navigationTitle(t(tr("ld.delay_or_call_off")))
+            .navigationTitle(t("ld.delay_or_call_off"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

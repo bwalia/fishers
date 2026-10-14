@@ -21,7 +21,7 @@ struct EventDetailView: View {
                 if let event {
                     header(event)
                     if showingCached {
-                        Label(t(tr("ev.saved_on_this_phone")), systemImage: "wifi.slash")
+                        Label(t("ev.saved_on_this_phone"), systemImage: "wifi.slash")
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -46,7 +46,7 @@ struct EventDetailView: View {
                         NavigationLink {
                             SelectionBoardView(eventId: eventId)
                         } label: {
-                            Label(t(tr("ev.selection_board")), systemImage: "person.3.sequence.fill")
+                            Label(t("ev.selection_board"), systemImage: "person.3.sequence.fill")
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 6)
                         }
@@ -93,7 +93,7 @@ struct EventDetailView: View {
                     NavigationLink {
                         FollowedScorecardView(match: match)
                     } label: {
-                        Label(t(tr("ev.full_scorecard")), systemImage: "list.bullet.rectangle")
+                        Label(t("ev.full_scorecard"), systemImage: "list.bullet.rectangle")
                             .font(FishersTheme.subhead)
                     }
                 }
@@ -118,7 +118,7 @@ struct EventDetailView: View {
                     .tint(FishersTheme.pitch)
                     .accessibilityLabel(scoringButtonTitle)
                 } else if existingCricket == nil && !hasLocalMatch {
-                    Text(t(tr("ev.who_can_score_this")))
+                    Text(t("ev.who_can_score_this"))
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -163,24 +163,24 @@ struct EventDetailView: View {
                     .font(.headline)
                     .foregroundStyle(FishersTheme.accent)
                 if me.state == .selected || me.state == .confirmed {
-                    Text("Confirm at least \(board.confirmLeadHours)h before start. Unconfirmed places go to reserves \(board.dropLeadHours)h before.")
+                    Text(t("ev.confirm_before_start", vars: ["confirm": board.confirmLeadHours, "drop": board.dropLeadHours]))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 if me.state != .confirmed {
                     HStack {
-                        Button(t(tr("ev.im_playing"))) { Task { await respond(true) } }
+                        Button(t("ev.im_playing")) { Task { await respond(true) } }
                             .buttonStyle(.borderedProminent)
                             .tint(FishersTheme.available)
-                        Button(t(tr("ev.cant_make_it"))) { Task { await respond(false) } }
+                        Button(t("ev.cant_make_it")) { Task { await respond(false) } }
                             .buttonStyle(.bordered)
                     }
                     .disabled(isResponding)
                 } else {
-                    Label(t(tr("ev.youre_confirmed")), systemImage: "checkmark.seal.fill")
+                    Label(t("ev.youre_confirmed"), systemImage: "checkmark.seal.fill")
                         .font(.subheadline)
                         .foregroundStyle(FishersTheme.available)
-                    Button(t(tr("ev.actually_i_cant_make_it"))) { Task { await respond(false) } }
+                    Button(t("ev.actually_i_cant_make_it")) { Task { await respond(false) } }
                         .font(.footnote)
                         .buttonStyle(.plain)
                         .foregroundStyle(FishersTheme.unavailable)
@@ -237,7 +237,7 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(event.title)
                 .font(FishersTheme.title)
-            Text("\(event.sport.capitalized) · \(event.eventSubtype.replacingOccurrences(of: "_", with: " "))")
+            Text(t("ev.sport_and_kind", vars: ["sport": tr(event.sport.capitalized), "kind": tr(event.eventSubtype.replacingOccurrences(of: "_", with: " "))]))
                 .foregroundStyle(FishersTheme.accent)
             Text(event.startAt.formatted(date: .abbreviated, time: .shortened)
                  + " – "
@@ -280,13 +280,13 @@ struct EventDetailView: View {
                     Task {
                         do {
                             let intent = try await FishersAPI.paymentIntent(eventId: eventId, amountCents: fee)
-                            message = "Payment ready (\(intent.clientSecret.prefix(18))…)"
+                            message = t("rest.payment_ready")
                         } catch {
                             message = error.localizedDescription
                         }
                     }
                 } label: {
-                    Label("Pay \(String(format: "£%.2f", Double(fee) / 100))", systemImage: "creditcard")
+                    Label(t("ev.pay_amount", vars: ["amount": String(format: "£%.2f", Double(fee) / 100)]), systemImage: "creditcard")
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(FishersTheme.accent)

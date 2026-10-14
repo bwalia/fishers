@@ -154,7 +154,7 @@ struct PlayerProfileView: View {
                             Text(club).font(FishersTheme.footnote).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text("\(row.matches) match\(row.matches == 1 ? "" : "es")")
+                        Text(t("rest.n_matches", count: row.matches, vars: ["n": row.matches]))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     }

@@ -39,22 +39,22 @@ struct APIServerSettingsView: View {
         Form {
             if AppConfig.environmentPinsAPI {
                 Section {
-                    Text(t(tr("rest.launch_pinned_by_env")))
+                    Text(t("rest.launch_pinned_by_env"))
                         .font(.footnote)
                         .foregroundStyle(FishersTheme.maybe)
                 }
             }
 
             Section {
-                TextField(t(tr("rest.url_placeholder")), text: $draft)
+                TextField(t("rest.url_placeholder"), text: $draft)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
                     .textContentType(.URL)
             } header: {
-                Text(t(tr("rest.api_base_url")))
+                Text(t("rest.api_base_url"))
             } footer: {
-                Text("In use now: \(resolved). Open live screens again after changing — an open score stream keeps its old host until you leave it.")
+                Text(t("rest.in_use_now", vars: ["host": resolved]))
             }
 
             Section(tr("Quick picks")) {
@@ -80,14 +80,14 @@ struct APIServerSettingsView: View {
             Section {
                 Button(t("lc.save")) { save() }
                     .fontWeight(.semibold)
-                Button(t(tr("rest.reset_to_default"))) { reset() }
+                Button(t("rest.reset_to_default")) { reset() }
                 if AppConfig.storedAPIOverride != nil {
                     LabeledContent(tr("Saved override"), value: AppConfig.storedAPIOverride ?? "")
                         .font(.footnote)
                 }
             }
         }
-        .navigationTitle(t(tr("rest.api_server")))
+        .navigationTitle(t("rest.api_server"))
         .navigationBarTitleDisplayMode(.inline)
         .tint(FishersTheme.accent)
         .onAppear { refreshResolved() }

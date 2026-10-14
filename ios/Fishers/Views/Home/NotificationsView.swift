@@ -71,7 +71,7 @@ struct NotificationsView: View {
         .toolbar {
             if unread > 0 {
                 ToolbarItem(placement: .primaryAction) {
-                    Button(t(tr("rest.mark_all_read"))) {
+                    Button(t("rest.mark_all_read")) {
                         Task {
                             try? await FishersAPI.markNotificationRead(id: nil)
                             await reload()
@@ -120,7 +120,7 @@ struct NotificationsView: View {
             }
         }
 
-        Toggle(t(tr("rest.unread_only")), isOn: $unreadOnly)
+        Toggle(t("rest.unread_only"), isOn: $unreadOnly)
     }
 
     private func label(for kind: String) -> String {

@@ -44,7 +44,7 @@ struct WorldScoresView: View {
         }
         .listStyle(.insetGrouped)
         .fishersList()
-        .navigationTitle(t(tr("sr.cricket_scores")))
+        .navigationTitle(t("sr.cricket_scores"))
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task {
@@ -102,8 +102,8 @@ struct WorldScoresView: View {
             Image(systemName: "sportscourt")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
-            Text(t(tr("sr.world_scores_not_on"))).font(.headline)
-            Text(t(tr("rest.only_where_feed_configured")))
+            Text(t("sr.world_scores_not_on")).font(.headline)
+            Text(t("rest.only_where_feed_configured"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -216,7 +216,7 @@ private struct ScoreRow: View {
                 if batting {
                     // In words, so it survives a screen reader and a
                     // colour-blind reader alike.
-                    Text(t(tr("rest.batting_caption"))).font(.caption2).foregroundStyle(.secondary)
+                    Text(t("rest.batting_caption")).font(.caption2).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 8)
@@ -277,10 +277,10 @@ struct WorldScoresSection: View {
                     NavigationLink {
                         WorldScoresView()
                     } label: {
-                        Text(t(tr("rest.all_cricket_scores"))).font(.subheadline.weight(.medium))
+                        Text(t("rest.all_cricket_scores")).font(.subheadline.weight(.medium))
                     }
                 } header: {
-                    Text(t(tr("sr.around_the_world")))
+                    Text(t("sr.around_the_world"))
                         .font(FishersTheme.overline)
                         .tracking(0.8)
                 } footer: {

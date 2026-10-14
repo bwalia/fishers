@@ -99,7 +99,7 @@ struct PeoplePickerView: View {
             }
 
             if people.isEmpty, let active {
-                Text("Nobody by that name in \(active.label).")
+                Text(t("rest.nobody_by_that_name_in", vars: ["where": active.label]))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             }

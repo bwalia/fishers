@@ -41,16 +41,16 @@ struct WorldMatchView: View {
                     }
                     if detail.innings.isEmpty {
                         Section {
-                            Text(t(tr("sr.not_a_ball_bowled_yet"))).font(.headline)
-                            Text(t(tr("sr.the_card_will_fill_in_once_the_match_i")))
+                            Text(t("sr.not_a_ball_bowled_yet")).font(.headline)
+                            Text(t("sr.the_card_will_fill_in_once_the_match_i"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
                 } else {
                     Section {
-                        Text(t(tr("sr.no_scorecard_for_this_match_yet"))).font(.headline)
-                        Text(t(tr("rest.not_started_nothing_to_show")))
+                        Text(t("sr.no_scorecard_for_this_match_yet")).font(.headline)
+                        Text(t("rest.not_started_nothing_to_show"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -105,7 +105,7 @@ struct WorldMatchView: View {
                             .foregroundStyle(tab == i ? Color.white : Color.primary)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(innings.title(at: i)), \(innings[i].score ?? "no score")")
+                        .accessibilityLabel(t("sc.innings_score_aria", vars: ["innings": innings.title(at: i), "score": innings[i].score ?? t("sc.no_score")]))
                         .accessibilityAddTraits(tab == i ? [.isSelected, .isButton] : .isButton)
                     }
                 }
@@ -132,9 +132,9 @@ struct WorldMatchView: View {
             ForEach(d.battingNow) { CreaseRow(role: "Batting", player: $0) }
             ForEach(d.bowlingNow) { CreaseRow(role: "Bowling", player: $0) }
         } header: {
-            Text(t(tr("sc.at_the_crease")))
+            Text(t("sc.at_the_crease"))
         } footer: {
-            Text(t(tr("sr.who_is_in_and_who_is_bowling_at_them_r")))
+            Text(t("sr.who_is_in_and_who_is_bowling_at_them_r"))
         }
     }
 
@@ -208,7 +208,7 @@ private struct ScoreSummaryRow: View {
         HStack {
             Text(name).font(.subheadline.weight(batting ? .bold : .regular)).lineLimit(1)
             if batting {
-                Text("· " + t(tr("rest.batting_caption"))).font(.caption2).foregroundStyle(.secondary)
+                Text("· " + t("rest.batting_caption")).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 0) {
@@ -258,7 +258,7 @@ private struct InningsSection: View {
             }
             if !innings.fallOfWickets.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(t(tr("rest.fall_of_wickets")))
+                    Text(t("rest.fall_of_wickets"))
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.secondary)
                     Text(

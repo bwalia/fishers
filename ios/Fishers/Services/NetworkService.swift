@@ -39,7 +39,7 @@ enum APIError: LocalizedError {
             #endif
         case .unreachable(let detail):
             #if DEBUG
-            return "Cannot reach API at \(AppConfig.apiBaseURL.absoluteString) — is it running? (\(detail))"
+            return t("rest.cannot_reach_api_debug", vars: ["host": AppConfig.apiBaseURL.absoluteString, "detail": detail])
             #else
             return "Can't reach \(Brand.name) right now. Check your connection "
                 + tr("and try again.")

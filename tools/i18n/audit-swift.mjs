@@ -103,6 +103,13 @@ for (const file of files) {
         mangled.push(`${relative(repoRoot, file)}:${i + 1}  wrapped across two literals: ${m[0]}`);
       }
     }
+    // A key sent through the English translator. It works by accident — `tr`
+    // does not know the key, so it hands it back and `t` looks it up — but it
+    // says the wrapper could not tell a key from a sentence, and the next one
+    // it cannot tell apart may not be harmless.
+    for (const m of line.matchAll(/\bt\(\s*tr\(/g)) {
+      mangled.push(`${relative(repoRoot, file)}:${i + 1}  key passed through tr(): ${m[0]}`);
+    }
     // And a lookup key dressed as a caption.
     for (const m of line.matchAll(/\[\s*tr\("[^"]*"\)\s*\]/g)) {
       mangled.push(`${relative(repoRoot, file)}:${i + 1}  subscript key wrapped: ${m[0]}`);

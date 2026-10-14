@@ -103,7 +103,7 @@ struct CricketScorecardView: View {
             if let innings = selectedInnings {
                 Section {
                     Picker(tr("Batter"), selection: $wheelBatter) {
-                        Text(t(tr("sc.whole_innings"))).tag(UUID?.none)
+                        Text(t("sc.whole_innings")).tag(UUID?.none)
                         ForEach(innings.batters.filter(\.hasBatted)) { batter in
                             Text(state.name(for: batter.playerId)).tag(UUID?.some(batter.playerId))
                         }
@@ -113,7 +113,7 @@ struct CricketScorecardView: View {
                     WagonWheelChart(state: state, innings: innings, batterId: wheelBatter)
                         .padding(.vertical, 8)
                 } footer: {
-                    Text(t(tr("sc.shots_the_scorer_plotted")))
+                    Text(t("sc.shots_the_scorer_plotted"))
                 }
                 if let batter = wheelBatter,
                    let stats = innings.batters.first(where: { $0.playerId == batter }) {
@@ -124,7 +124,7 @@ struct CricketScorecardView: View {
                     }
                 }
             } else {
-                Text(t(tr("sc.no_innings_yet"))).foregroundStyle(.secondary)
+                Text(t("sc.no_innings_yet")).foregroundStyle(.secondary)
             }
         }
         .listStyle(.insetGrouped)
@@ -170,7 +170,7 @@ struct CricketScorecardView: View {
                     }
                 }
             } else {
-                Text(t(tr("sc.nothing_bowled_yet"))).foregroundStyle(.secondary)
+                Text(t("sc.nothing_bowled_yet")).foregroundStyle(.secondary)
             }
         }
         .listStyle(.plain)
@@ -203,7 +203,7 @@ struct CricketScorecardView: View {
                         value: String(format: tr("%.1f%% of %.1f%%"), dls.resourcesUsed, dls.resourcesSecond)
                     )
                 } header: {
-                    Text(t(tr("sc.duckworth_lewis_stern")))
+                    Text(t("sc.duckworth_lewis_stern"))
                 } footer: {
                     Text("\(dls.summary). \(dls.methodLabel).")
                 }
@@ -234,7 +234,7 @@ struct CricketScorecardView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(FishersTheme.maybe)
                 } header: {
-                    Text(t(tr("sc.player_of_the_match")))
+                    Text(t("sc.player_of_the_match"))
                 }
             } else if let top = state.impact.first {
                 Section {
@@ -248,9 +248,9 @@ struct CricketScorecardView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text(t(tr("sc.player_of_the_match")))
+                    Text(t("sc.player_of_the_match"))
                 } footer: {
-                    Text(t(tr("sc.worked_out_from_the_card")))
+                    Text(t("sc.worked_out_from_the_card"))
                 }
             }
 
@@ -265,9 +265,9 @@ struct CricketScorecardView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text(t(tr("sc.fighter_of_the_match")))
+                    Text(t("sc.fighter_of_the_match"))
                 } footer: {
-                    Text(t(tr("sc.best_in_losing_side")))
+                    Text(t("sc.best_in_losing_side"))
                 }
             }
 
@@ -286,7 +286,7 @@ struct CricketScorecardView: View {
 
             if state.innings.isEmpty {
                 Section {
-                    Text(t(tr("sc.no_scoring_yet")))
+                    Text(t("sc.no_scoring_yet"))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -350,7 +350,7 @@ struct CricketScorecardView: View {
             compare("Best stand", "\(home.bestPartnership)", "\(away.bestPartnership)")
             compare("Extras", "\(home.extras)", "\(away.extras)")
         } header: {
-            Text(t(tr("sc.how_the_game_went")))
+            Text(t("sc.how_the_game_went"))
         }
     }
 
@@ -389,8 +389,8 @@ struct CricketScorecardView: View {
                 Group {
                     Text("R").frame(width: 30, alignment: .trailing)
                     Text("B").frame(width: 30, alignment: .trailing)
-                    Text(t(tr("sh.col_fours"))).frame(width: 26, alignment: .trailing)
-                    Text(t(tr("sh.col_sixes"))).frame(width: 26, alignment: .trailing)
+                    Text(t("sh.col_fours")).frame(width: 26, alignment: .trailing)
+                    Text(t("sh.col_sixes")).frame(width: 26, alignment: .trailing)
                     Text(t("cl.sr")).frame(width: 46, alignment: .trailing)
                 }
             }
@@ -480,7 +480,7 @@ struct CricketScorecardView: View {
                 Text("\(innings.scoreDisplay)")
                     .bold()
                     .monospacedDigit()
-                Text("(\(innings.oversDisplay) ov, RR \(String(format: "%.2f", innings.runRate)))")
+                Text(t("sc.overs_and_run_rate", vars: ["overs": innings.oversDisplay, "rr": String(format: "%.2f", innings.runRate)]))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -613,7 +613,7 @@ struct CricketScoreSummary: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(FishersTheme.accent)
             } else if state.innings.isEmpty {
-                Text(t(tr("sr.not_started")))
+                Text(t("sr.not_started"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

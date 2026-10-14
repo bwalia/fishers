@@ -23,7 +23,7 @@ struct LiveFixtureRow: View {
                 } else {
                     // A match can be live before a ball is bowled — during the
                     // toss and team sheets — and "0/0" would be a lie about it.
-                    Text(t(tr("sr.not_started")))
+                    Text(t("sr.not_started"))
                         .font(FishersTheme.subhead)
                         .foregroundStyle(.secondary)
                 }

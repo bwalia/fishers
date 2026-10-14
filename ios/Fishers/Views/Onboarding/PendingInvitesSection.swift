@@ -44,7 +44,7 @@ struct PendingInvitesSection: View {
                 }
             } header: {
                 HStack {
-                    Text(t(tr("rest.waiting_for_you"))).font(FishersTheme.overline).tracking(0.8)
+                    Text(t("rest.waiting_for_you")).font(FishersTheme.overline).tracking(0.8)
                     Spacer()
                     Text("\(invites.count)")
                         .font(FishersTheme.caption)

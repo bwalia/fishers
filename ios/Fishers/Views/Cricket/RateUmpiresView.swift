@@ -25,9 +25,9 @@ struct RateUmpiresView: View {
                         }
                     }
                 } header: {
-                    Text(t(tr("sr.how_was_the_umpiring")))
+                    Text(t("sr.how_was_the_umpiring"))
                 } footer: {
-                    Text(t(tr("sr.it_goes_on_their_profile_with_your_nam")))
+                    Text(t("sr.it_goes_on_their_profile_with_your_nam"))
                 }
             }
         }
@@ -69,7 +69,7 @@ private struct RateOne: View {
                         .font(FishersTheme.caption)
                         .foregroundStyle(FishersTheme.available)
                 } else if umpire.myRating != nil {
-                    Text(t(tr("sr.your_review")))
+                    Text(t("sr.your_review"))
                         .font(FishersTheme.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -77,7 +77,7 @@ private struct RateOne: View {
 
             StarPicker(value: $rating) { saved = false }
 
-            TextField(t(tr("sr.gave_everything_explained_the_wides")), text: $comment, axis: .vertical)
+            TextField(t("sr.gave_everything_explained_the_wides"), text: $comment, axis: .vertical)
                 .lineLimit(2...4)
                 .onChange(of: comment) { _, _ in saved = false }
 
@@ -184,7 +184,7 @@ struct PendingUmpireReviewsView: View {
                 Text(match.matchTitle)
             } footer: {
                 if match.id == pending.first?.id {
-                    Text(t(tr("sc.you_played_in_these")))
+                    Text(t("sc.you_played_in_these"))
                 }
             }
         }

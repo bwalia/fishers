@@ -40,7 +40,7 @@ struct UmpiringView: View {
             }
 
             if isMine {
-                Toggle(t(tr("sr.i_umpire")), isOn: Binding(
+                Toggle(t("sr.i_umpire"), isOn: Binding(
                     get: { p.umpires },
                     set: { on in Task { await save(umpires: on) } }
                 ))
@@ -48,7 +48,7 @@ struct UmpiringView: View {
 
                 if p.umpires {
                     if editingNote {
-                        TextField(t(tr("sr.level_1_ecb_club_matches_only")), text: $note)
+                        TextField(t("sr.level_1_ecb_club_matches_only"), text: $note)
                             .textInputAutocapitalization(.sentences)
                         HStack {
                             Button(t("lc.save")) {
@@ -66,7 +66,7 @@ struct UmpiringView: View {
                     }
                 }
             } else if p.umpires {
-                Label(t(tr("sr.will_stand")), systemImage: "checkmark.seal")
+                Label(t("sr.will_stand"), systemImage: "checkmark.seal")
                     .foregroundStyle(FishersTheme.available)
             }
 
@@ -98,7 +98,7 @@ struct UmpiringView: View {
                             .frame(width: 32, alignment: .trailing)
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(n) stars, \(p.ratingBreakdown[n - 1]) of \(p.ratingCount)")
+                    .accessibilityLabel(t("rest.n_stars_of_total", vars: ["n": n, "count": p.ratingBreakdown[n - 1], "total": p.ratingCount]))
                 }
             }
         }
@@ -174,7 +174,7 @@ struct StarRow: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(value) out of 5")
+        .accessibilityLabel(t("rest.value_out_of_5", vars: ["value": value]))
     }
 }
 

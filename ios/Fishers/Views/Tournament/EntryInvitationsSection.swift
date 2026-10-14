@@ -67,7 +67,7 @@ struct EntryInvitationsSection: View {
                 }
             } header: {
                 HStack {
-                    Text(t(tr("tn.you_have_been_asked"))).font(FishersTheme.overline).tracking(0.8)
+                    Text(t("tn.you_have_been_asked")).font(FishersTheme.overline).tracking(0.8)
                     Spacer()
                     Text("\(invitations.count)").font(FishersTheme.caption)
                 }

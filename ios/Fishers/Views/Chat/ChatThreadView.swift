@@ -70,7 +70,7 @@ struct ChatThreadView: View {
                     if store.isThinking {
                         ProgressView()
                     } else {
-                        Label(t(tr("cl.ask_assistant")), systemImage: "sparkles")
+                        Label(t("cl.ask_assistant"), systemImage: "sparkles")
                     }
                 }
                 .disabled(store.isThinking)

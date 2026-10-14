@@ -62,28 +62,28 @@ struct EventTicketsView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(busy != nil)
                         }
-                        Button(t(tr("le.cancel_my_place")), role: .destructive) {
+                        Button(t("le.cancel_my_place"), role: .destructive) {
                             act("cancel", "Booking cancelled.") { _ = try await FishersAPI.cancelTicket(mine.id) }
                         }
                         .disabled(busy != nil)
                     } header: {
-                        Text(t(tr("ev.you_are_booked")))
+                        Text(t("ev.you_are_booked"))
                     }
                 } else {
                     Section {
                         if let left, left <= 0 {
-                            Text(t(tr("ev.sold_out_ask_your_secretary_whether_th"))).foregroundStyle(.secondary)
+                            Text(t("ev.sold_out_ask_your_secretary_whether_th")).foregroundStyle(.secondary)
                         } else {
                             let allowed = summary.guestsAllowed ?? 0
                             if allowed > 0 {
                                 Stepper("Bringing \(guests) \(guests == 1 ? "guest" : "guests")", value: $guests, in: 0...allowed)
                                 if guests > 0 {
-                                    TextField(t(tr("ev.names_so_the_table_plan_works")), text: $guestNames)
+                                    TextField(t("ev.names_so_the_table_plan_works"), text: $guestNames)
                                 }
                             } else {
-                                Text(t(tr("ev.members_only_no_guests_at_this_one"))).font(FishersTheme.footnote).foregroundStyle(.secondary)
+                                Text(t("ev.members_only_no_guests_at_this_one")).font(FishersTheme.footnote).foregroundStyle(.secondary)
                             }
-                            TextField(t(tr("ev.anything_the_club_should_know")), text: $notes)
+                            TextField(t("ev.anything_the_club_should_know"), text: $notes)
                             Button {
                                 let places = 1 + guests
                                 act("book", "Booked \(places) \(places == 1 ? "place" : "places").") {
@@ -94,14 +94,14 @@ struct EventTicketsView: View {
                                     )
                                 }
                             } label: {
-                                Text(busy == "book" ? "Booking…" : "Book \(1 + guests) \(guests == 0 ? "place" : "places")")
+                                Text(busy == "book" ? t("ev.booking_ellipsis") : t("ev.book_n_places", count: 1 + guests, vars: ["n": 1 + guests]))
                                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(busy != nil)
                         }
                     } header: {
-                        Text(t(tr("ev.book_a_place")))
+                        Text(t("ev.book_a_place"))
                     }
                 }
 
@@ -112,7 +112,7 @@ struct EventTicketsView: View {
                 if booking.insider {
                     Section {
                         if booking.tickets.isEmpty {
-                            Text(t(tr("ev.nobody_yet_be_the_first"))).foregroundStyle(.secondary)
+                            Text(t("ev.nobody_yet_be_the_first")).foregroundStyle(.secondary)
                         }
                         ForEach(booking.tickets) { ticket in
                             HStack(spacing: 12) {
@@ -121,7 +121,7 @@ struct EventTicketsView: View {
                                     Text(ticket.name ?? tr("A member"))
                                         .strikethrough(ticket.status == "cancelled")
                                     if ticket.guests > 0 {
-                                        Text("+\(ticket.guests)\(ticket.guestNames.map { " — \($0)" } ?? "")")
+                                        Text(ticket.guestNames.map { t("rest.plus_n_guests_named", vars: ["n": ticket.guests, "names": $0]) } ?? t("rest.plus_n_guests", vars: ["n": ticket.guests]))
                                             .font(FishersTheme.footnote).foregroundStyle(.secondary)
                                     }
                                     if let notes = ticket.notes {
@@ -143,10 +143,10 @@ struct EventTicketsView: View {
                             }
                         }
                     } header: {
-                        Text("Who is coming · \(summary.bookings) bookings")
+                        Text(t("ev.who_is_coming_bookings", vars: ["n": summary.bookings]))
                     } footer: {
                         if canManage {
-                            Text("Taken \(money(summary.collectedCents)) · owed \(money(summary.outstandingCents)). Swipe a booking to mark it paid.")
+                            Text(t("ev.taken_and_owed", vars: ["taken": money(summary.collectedCents), "owed": money(summary.outstandingCents)]))
                         }
                     }
                 }

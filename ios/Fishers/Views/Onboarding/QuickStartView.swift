@@ -30,7 +30,7 @@ struct QuickStartView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Hi \(firstName)")
                             .font(FishersTheme.display)
-                        Text(t(tr("rest.two_quick_things")))
+                        Text(t("rest.two_quick_things"))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -42,7 +42,7 @@ struct QuickStartView: View {
                         }
                     }
 
-                    question("What do you play?", note: sports.count > 1 ? "\(sports[0].label) is your main sport — the first one you picked." : nil) {
+                    question("What do you play?", note: sports.count > 1 ? t("rest.is_your_main_sport", vars: ["sport": sports[0].label]) : nil) {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
                             ForEach(Sport.allCases) { sport in
                                 sportChip(sport)
@@ -52,7 +52,7 @@ struct QuickStartView: View {
 
                     if asksPhone {
                         question(tr("Your mobile number"), note: tr("So your captain can reach you on match day. Only your clubs see it.")) {
-                            TextField(t(tr("cl.07700_900123")), text: $phone)
+                            TextField(t("cl.07700_900123"), text: $phone)
                                 .keyboardType(.phonePad)
                                 .textContentType(.telephoneNumber)
                                 .font(FishersTheme.body)
@@ -86,7 +86,7 @@ struct QuickStartView: View {
                     .controlSize(.large)
                     .disabled(saving || sports.isEmpty)
 
-                    Button(t(tr("rest.skip_for_now"))) { Task { await skip() } }
+                    Button(t("rest.skip_for_now")) { Task { await skip() } }
                         .font(FishersTheme.subhead.weight(.semibold))
                         .frame(minHeight: FishersTheme.minTap)
                         .disabled(saving)
@@ -184,9 +184,9 @@ struct WelcomeShareSheet: View {
                             .font(.system(size: 44))
                             .foregroundStyle(FishersTheme.pitch)
                             .accessibilityHidden(true)
-                        Text(t(tr("fin.youre_in_now_get_picked")))
+                        Text(t("fin.youre_in_now_get_picked"))
                             .font(FishersTheme.title)
-                        Text(t(tr("fin.send_your_profile_link")))
+                        Text(t("fin.send_your_profile_link"))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -199,7 +199,7 @@ struct WelcomeShareSheet: View {
                     ShareProfileView(userId: userId)
                         .padding(.vertical, 4)
                 } footer: {
-                    Text(t(tr("fin.they_see_name_photo")))
+                    Text(t("fin.they_see_name_photo"))
                 }
             }
             .fishersList()

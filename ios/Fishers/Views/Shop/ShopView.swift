@@ -22,8 +22,8 @@ struct ShopView: View {
             Section {
                 Picker(tr("Condition"), selection: $condition) {
                     Text(t("rest.everything")).tag(String?.none)
-                    Text(t(tr("lc.second_hand"))).tag(String?.some("used"))
-                    Text(t(tr("lc.brand_new"))).tag(String?.some("new"))
+                    Text(t("lc.second_hand")).tag(String?.some("used"))
+                    Text(t("lc.brand_new")).tag(String?.some("new"))
                 }
                 .pickerStyle(.segmented)
                 .listRowSeparator(.hidden)
@@ -48,7 +48,7 @@ struct ShopView: View {
         .listStyle(.insetGrouped)
         .fishersList()
         .searchable(text: $search, prompt: tr("Bats, pads, a club shirt"))
-        .navigationTitle(t(tr("sh.kit_for_sale")))
+        .navigationTitle(t("sh.kit_for_sale"))
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
