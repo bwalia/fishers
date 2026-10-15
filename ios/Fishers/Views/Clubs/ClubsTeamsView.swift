@@ -60,7 +60,7 @@ struct ClubsTeamsView: View {
                         }
                     } header: {
                         HStack {
-                            Text(total == 1 ? "1 club" : "\(total) clubs")
+                            Text(total == 1 ? tr("1 club") : "\(total) clubs")
                             Spacer()
                             if filters.isFiltered {
                                 Button(t("cl.clear_filters")) { clearFilters() }
@@ -84,7 +84,7 @@ struct ClubsTeamsView: View {
                         }
                     }
 
-                    Section("How clubs work") {
+                    Section(tr("How clubs work")) {
                         ForEach(Array(Self.howClubsWork.enumerated()), id: \.offset) { index, item in
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
@@ -110,7 +110,7 @@ struct ClubsTeamsView: View {
             .fishersList()
             .overlay { if !loaded { ProgressView() } }
             .navigationTitle(t("nav.clubs"))
-            .searchable(text: $search, prompt: "Search by name or description")
+            .searchable(text: $search, prompt: tr("Search by name or description"))
             .navigationDestination(for: ClubRoute.self) { route in
                 ClubDetailView(club: route.club, welcome: route.welcome)
             }
@@ -118,7 +118,7 @@ struct ClubsTeamsView: View {
                 ToolbarItem(placement: .topBarLeading) { filterMenu }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showCreate = true } label: { Image(systemName: "plus") }
-                        .accessibilityLabel("Start a club")
+                        .accessibilityLabel(tr("Start a club"))
                 }
             }
             .sheet(isPresented: $showCreate) {
@@ -147,35 +147,35 @@ struct ClubsTeamsView: View {
     }
 
     private static let howClubsWork: [(String, String)] = [
-        ("A secretary runs the club", "Members and their roles, teams, grounds, fixtures and fees."),
-        ("Players join by invite", "Added by email or mobile, or from their profile link — then accepted here or on Home."),
-        ("Captains pick the side", "Everyone says whether they can play; the captain picks from who is available."),
-        ("Matches are scored live", "Ball by ball. Stats and the club's public page keep themselves up to date."),
+        (tr("A secretary runs the club"), tr("Members and their roles, teams, grounds, fixtures and fees.")),
+        (tr("Players join by invite"), tr("Added by email or mobile, or from their profile link — then accepted here or on Home.")),
+        (tr("Captains pick the side"), tr("Everyone says whether they can play; the captain picks from who is available.")),
+        (tr("Matches are scored live"), tr("Ball by ball. Stats and the club's public page keep themselves up to date.")),
     ]
 
     private var filterMenu: some View {
         Menu {
-            Picker("Your role", selection: $filters.role) {
+            Picker(tr("Your role"), selection: $filters.role) {
                 Text(t("cl.all_roles")).tag(ClubListFilters.Role?.none)
                 ForEach(ClubListFilters.Role.allCases) { Text($0.label).tag(Optional($0)) }
             }
-            Picker("Sport", selection: $filters.sport) {
+            Picker(tr("Sport"), selection: $filters.sport) {
                 Text(t("cl.all_sports")).tag(String?.none)
                 ForEach(Self.sports, id: \.self) { Text($0.capitalized).tag(Optional($0)) }
             }
-            Picker("Public page", selection: $filters.publicPage) {
+            Picker(tr("Public page"), selection: $filters.publicPage) {
                 Text(t("cl.any_public_page")).tag(Bool?.none)
                 Text(t("cl.page_published")).tag(Optional(true))
                 Text(t("cl.no_public_page")).tag(Optional(false))
             }
-            Picker("Sort by", selection: $filters.sort) {
+            Picker(tr("Sort by"), selection: $filters.sort) {
                 ForEach(ClubListFilters.Sort.allCases) { Text($0.label).tag($0) }
             }
         } label: {
             Image(systemName: filters.role != nil || filters.sport != nil || filters.publicPage != nil
                   ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-        .accessibilityLabel("Filter and sort")
+        .accessibilityLabel(tr("Filter and sort"))
     }
 
     @ViewBuilder
@@ -294,8 +294,8 @@ struct ClubRowView: View {
                         .background(FishersTheme.accent400.opacity(0.22), in: Capsule())
                         .foregroundStyle(FishersTheme.maybe)
                 }
-                Label(row.isPublic ? "Anyone can find it" : "Invite only",
-                      systemImage: row.isPublic ? "person.2" : "lock")
+                Label(row.isPublic ? tr("Anyone can find it") : tr("Invite only"),
+                      systemImage: row.isPublic ? "person.2" : tr("lock"))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
                 if let description = row.description, !description.isEmpty {
@@ -303,14 +303,14 @@ struct ClubRowView: View {
                 }
                 HStack(spacing: 12) {
                     Label("\(row.memberCount)", systemImage: "person.2.fill")
-                        .accessibilityLabel("\(row.memberCount) \(row.memberCount == 1 ? "member" : "members")")
+                        .accessibilityLabel(t("cl.n_members", count: row.memberCount, vars: ["n": row.memberCount]))
                     Label("\(row.teamCount)", systemImage: "shield")
-                        .accessibilityLabel("\(row.teamCount) \(row.teamCount == 1 ? "team" : "teams")")
+                        .accessibilityLabel(t("cl.n_teams", count: row.teamCount, vars: ["n": row.teamCount]))
                     Text(row.sportTypes.map(\.capitalized).joined(separator: " · "))
                         .lineLimit(1)
                     if row.publicSlug != nil {
                         Image(systemName: "globe").foregroundStyle(FishersTheme.pitch)
-                            .accessibilityLabel("Public page published")
+                            .accessibilityLabel(tr("Public page published"))
                     }
                 }
                 .font(FishersTheme.caption)
@@ -382,8 +382,8 @@ struct NewClubSheet: View {
     ]
 
     private var missing: String? {
-        if name.trimmingCharacters(in: .whitespaces).count < 2 { return "Give the club a name to continue." }
-        if sports.isEmpty { return "Pick at least one sport." }
+        if name.trimmingCharacters(in: .whitespaces).count < 2 { return tr("Give the club a name to continue.") }
+        if sports.isEmpty { return tr("Pick at least one sport.") }
         return nil
     }
 
@@ -392,7 +392,7 @@ struct NewClubSheet: View {
             Form {
                 Section {
                     HStack(spacing: 12) {
-                        ClubCrest(name: name.isEmpty ? "Your club" : name, id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, size: 48)
+                        ClubCrest(name: name.isEmpty ? tr("Your club") : name, id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, size: 48)
                         TextField("\(Brand.name) CC", text: $name)
                             .font(FishersTheme.headline)
                             .textInputAutocapitalization(.words)
@@ -427,10 +427,10 @@ struct NewClubSheet: View {
                 }
 
                 Section {
-                    visibilityOption(isPublic: false, title: "Invite only", icon: "lock",
-                                     detail: "Kept out of search. Players join with an invite.")
-                    visibilityOption(isPublic: true, title: "Anyone can find it", icon: "person.2",
-                                     detail: "Other clubs can find you by name when they arrange a match.")
+                    visibilityOption(isPublic: false, title: tr("Invite only"), icon: "lock",
+                                     detail: tr("Kept out of search. Players join with an invite."))
+                    visibilityOption(isPublic: true, title: tr("Anyone can find it"), icon: "person.2",
+                                     detail: tr("Other clubs can find you by name when they arrange a match."))
                 } header: {
                     Text(t("cl.step_who_can_find"))
                 }
@@ -461,7 +461,7 @@ struct NewClubSheet: View {
                 }
 
                 Section {
-                    Label(missing ?? "You become its secretary, so you can add members straight away.",
+                    Label(missing ?? tr("You become its secretary, so you can add members straight away."),
                           systemImage: missing == nil ? "checkmark.shield" : "info.circle")
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
@@ -563,11 +563,11 @@ struct ClubDetailView: View {
                 HStack(spacing: 14) {
                     ClubCrest(name: club.name, id: club.id, size: 56)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(club.description ?? "No description yet.")
+                        Text(club.description ?? tr("No description yet."))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(club.description == nil ? .secondary : .primary)
-                        Label(club.visibility == "public" ? "Anyone can find it" : "Invite only",
-                              systemImage: club.visibility == "public" ? "person.2" : "lock")
+                        Label(club.visibility == "public" ? tr("Anyone can find it") : tr("Invite only"),
+                              systemImage: club.visibility == "public" ? "person.2" : tr("lock"))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                         if let role {
@@ -605,7 +605,7 @@ struct ClubDetailView: View {
             }
 
             if isCricket {
-                Section("Season stats") {
+                Section(tr("Season stats")) {
                     NavigationLink {
                         ClubStatsView(clubId: club.id, clubName: club.name)
                     } label: {
@@ -618,7 +618,7 @@ struct ClubDetailView: View {
                 NavigationLink {
                     ClubAdminView(club: club, role: role)
                 } label: {
-                    Label("\(members.count) \(members.count == 1 ? "member" : "members")", systemImage: "person.2")
+                    Label(t("cl.n_members", count: members.count, vars: ["n": members.count]), systemImage: "person.2")
                 }
             } header: {
                 Text(t("cl.members"))
@@ -695,7 +695,7 @@ struct ClubDetailView: View {
                 Text(t("cl.tournament_vs_tour"))
             }
 
-            Section("Fixtures & nets") {
+            Section(tr("Fixtures & nets")) {
                 ForEach(events) { event in
                     NavigationLink(value: event) {
                         EventRow(event: event)
@@ -745,7 +745,7 @@ struct ClubDetailView: View {
         .sheet(isPresented: $addingGround) {
             AddGroundSheet(clubId: club.id) { Task { await load() } }
         }
-        .alert("New tournament or tour", isPresented: $isCreatingTournament) {
+        .alert(tr("New tournament or tour"), isPresented: $isCreatingTournament) {
             TextField(t("cl.tournament_name_example"), text: $newTournamentName)
             Button(t("cl.create")) {
                 let name = newTournamentName
@@ -799,8 +799,8 @@ struct ClubDetailView: View {
             let done = setup.filter(\.done).count + 1
             let total = setup.count + 1
             VStack(alignment: .leading, spacing: 6) {
-                Text("Get \(club.name) ready for its first match").font(FishersTheme.headline)
-                Text("\(done) of \(total) done — \(total - done) to go.")
+                Text(t("cl.get_ready_for_first_match", vars: ["club": club.name])).font(FishersTheme.headline)
+                Text(t("cl.n_of_m_done", vars: ["done": done, "total": total, "left": total - done]))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
                 ProgressView(value: Double(done), total: Double(total)).tint(FishersTheme.pitch)
@@ -829,7 +829,7 @@ struct ClubDetailView: View {
                     }
                 }
                 .disabled(step.done)
-                .accessibilityValue(step.done ? "Done" : "To do")
+                .accessibilityValue(step.done ? tr("Done") : tr("To do"))
             }
         } header: {
             HStack {

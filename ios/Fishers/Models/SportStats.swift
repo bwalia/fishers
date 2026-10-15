@@ -1,5 +1,11 @@
 import Foundation
 
+// i18n:catalog — the labels and footnotes below are translated by
+// `StatField.label`/`footnote`, and the option arrays are the values
+// stored on `SportProfile.stats`, translated where they are drawn
+// (`ProfileFieldViews`). English here is the canonical form, not an
+// oversight; see tools/i18n/audit-swift.mjs.
+
 /// A single stat a player can record for a sport. The catalog below drives the
 /// stats form during profile setup, so adding a sport needs no new UI.
 struct StatField: Identifiable, Hashable {
@@ -11,26 +17,36 @@ struct StatField: Identifiable, Hashable {
     }
 
     let key: String
-    let label: String
     let kind: Kind
-    var footnote: String?
+
+    /// The catalog below is written in English, and that English is what the
+    /// dictionary is keyed on — so translating here, once, covers every field
+    /// of every sport without the catalog growing a key column.
+    ///
+    /// `key` is never translated: it is the column name inside
+    /// `SportProfile.stats`, and the server reads it.
+    private let labelEnglish: String
+    private let footnoteEnglish: String?
+
+    var label: String { tr(labelEnglish) }
+    var footnote: String? { footnoteEnglish.map { tr($0) } }
 
     var id: String { key }
 
     static func choice(_ key: String, _ label: String, _ options: [String], footnote: String? = nil) -> StatField {
-        StatField(key: key, label: label, kind: .choice(options), footnote: footnote)
+        StatField(key: key, kind: .choice(options), labelEnglish: label, footnoteEnglish: footnote)
     }
 
     static func integer(_ key: String, _ label: String, _ range: ClosedRange<Int> = 0...999, footnote: String? = nil) -> StatField {
-        StatField(key: key, label: label, kind: .integer(range), footnote: footnote)
+        StatField(key: key, kind: .integer(range), labelEnglish: label, footnoteEnglish: footnote)
     }
 
     static func decimal(_ key: String, _ label: String, placeholder: String = "0.0", footnote: String? = nil) -> StatField {
-        StatField(key: key, label: label, kind: .decimal(placeholder), footnote: footnote)
+        StatField(key: key, kind: .decimal(placeholder), labelEnglish: label, footnoteEnglish: footnote)
     }
 
     static func text(_ key: String, _ label: String, placeholder: String = "", footnote: String? = nil) -> StatField {
-        StatField(key: key, label: label, kind: .text(placeholder), footnote: footnote)
+        StatField(key: key, kind: .text(placeholder), labelEnglish: label, footnoteEnglish: footnote)
     }
 }
 
@@ -57,7 +73,7 @@ enum SportStats {
         case .paddle:
             return [
                 .choice("side", "Preferred side", ["Right side", "Left side", "Either side"]),
-                .decimal("padel_level", "Padel level", placeholder: "3.5", footnote: "0–7 scale used by most clubs and Playtomic."),
+                .decimal("padel_level", "Padel level", placeholder: "3.5", footnote: tr("0–7 scale used by most clubs and Playtomic.")),
                 .choice("play_style", "Style", ["Attacking", "Defensive", "Balanced"]),
                 .integer("matches", "Matches played"),
                 .integer("win_rate", "Win rate", 0...100),
@@ -79,7 +95,7 @@ enum SportStats {
                 .integer("appearances", "Appearances"),
                 .integer("goals", "Goals"),
                 .integer("assists", "Assists"),
-                .integer("clean_sheets", "Clean sheets", footnote: "Goalkeepers and defenders."),
+                .integer("clean_sheets", "Clean sheets", footnote: tr("Goalkeepers and defenders.")),
             ]
         case .rugby:
             return [
@@ -123,7 +139,7 @@ enum SportStats {
             return [
                 .choice("discipline", "Main discipline", ["Singles", "Doubles", "Mixed doubles"]),
                 .choice("side", "Preferred side", ["Right side", "Left side", "Either side"]),
-                .decimal("dupr_rating", "DUPR rating", placeholder: "3.5", footnote: "2.0–8.0, the rating most leagues ask for."),
+                .decimal("dupr_rating", "DUPR rating", placeholder: "3.5", footnote: tr("2.0–8.0, the rating most leagues ask for.")),
                 .integer("matches", "Matches played"),
                 .integer("win_rate", "Win rate", 0...100),
                 .text("partner", "Regular partner"),

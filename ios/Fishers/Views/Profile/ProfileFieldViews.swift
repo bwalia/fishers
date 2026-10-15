@@ -112,7 +112,7 @@ struct SelectableChip: View {
                 if let systemImage {
                     Image(systemName: systemImage)
                 }
-                Text(title)
+                Text(tr(title))
             }
             .font(.subheadline.weight(.medium))
             .padding(.horizontal, 12)
@@ -281,7 +281,9 @@ struct StatFieldRow: View {
                 Picker(field.label, selection: $value) {
                     Text(t("rest.not_set")).tag("")
                     ForEach(options, id: \.self) { option in
-                        Text(option).tag(option)
+                        // The tag stays English: it is what is stored on the
+                        // profile and sent to the API. Only the row is drawn.
+                        Text(tr(option)).tag(option)
                     }
                 }
                 .pickerStyle(.menu)
@@ -399,8 +401,8 @@ struct ReliabilityRing: View {
         .frame(width: size, height: size)
         .accessibilityLabel(
             reliability.band == .unproven
-                ? "Reliability unproven, not enough games yet"
-                : "Reliability \(reliability.score) out of 100, \(reliability.band.label)"
+                ? tr("Reliability unproven, not enough games yet")
+                : t("rest.reliability_out_of_100", vars: ["score": reliability.score, "band": reliability.band.label])
         )
     }
 }
@@ -425,14 +427,14 @@ struct ReliabilityCard: View {
             }
             Divider()
             if reliability.band == .unproven {
-                Text("Answer invites, turn up and pay your fees — after \(ReliabilityScore.minimumSample) games this becomes a score captains can weigh.")
+                Text(t("rest.after_n_games_becomes_score", vars: ["n": ReliabilityScore.minimumSample]))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-            MeterRow(label: "Turned up when going", value: reliability.attendanceRate)
-            MeterRow(label: "Answered the invite", value: reliability.responseRate)
-            MeterRow(label: "Paid match fees", value: reliability.paymentRate)
+            MeterRow(label: tr("Turned up when going"), value: reliability.attendanceRate)
+            MeterRow(label: tr("Answered the invite"), value: reliability.responseRate)
+            MeterRow(label: tr("Paid match fees"), value: reliability.paymentRate)
             HStack {
                 Text(t("rest.late_drop_outs"))
                 Spacer()
@@ -441,7 +443,7 @@ struct ReliabilityCard: View {
             }
             .font(.caption)
             }
-            Text("Based on \(reliability.sampleSize) invite\(reliability.sampleSize == 1 ? "" : "s"). Captains see this when picking a squad.")
+            Text(t("rest.based_on_n_invites", count: reliability.sampleSize, vars: ["n": reliability.sampleSize]))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

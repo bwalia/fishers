@@ -20,11 +20,11 @@ struct APIServerSettingsView: View {
     private var visiblePresets: [(String, String)] {
         var items: [(String, String)] = []
         if let lan = AppConfig.lanAPIBase {
-            items.append(("This Mac (Wi‑Fi)", lan.absoluteString))
+            items.append((tr("This Mac (Wi‑Fi)"), lan.absoluteString))
         }
         #if targetEnvironment(simulator)
         if let build = AppConfig.buildAPIBase, build.host == "127.0.0.1" {
-            items.append(("Simulator loopback", build.absoluteString))
+            items.append((tr("Simulator loopback"), build.absoluteString))
         }
         #endif
         // This brand's rings, not Fishers'. A preset naming another brand's
@@ -54,10 +54,10 @@ struct APIServerSettingsView: View {
             } header: {
                 Text(t("rest.api_base_url"))
             } footer: {
-                Text("In use now: \(resolved). Open live screens again after changing — an open score stream keeps its old host until you leave it.")
+                Text(t("rest.in_use_now", vars: ["host": resolved]))
             }
 
-            Section("Quick picks") {
+            Section(tr("Quick picks")) {
                 ForEach(visiblePresets, id: \.1) { label, url in
                     presetButton(label, url)
                 }
@@ -82,7 +82,7 @@ struct APIServerSettingsView: View {
                     .fontWeight(.semibold)
                 Button(t("rest.reset_to_default")) { reset() }
                 if AppConfig.storedAPIOverride != nil {
-                    LabeledContent("Saved override", value: AppConfig.storedAPIOverride ?? "")
+                    LabeledContent(tr("Saved override"), value: AppConfig.storedAPIOverride ?? "")
                         .font(.footnote)
                 }
             }
@@ -118,7 +118,7 @@ struct APIServerSettingsView: View {
             draft = url.absoluteString
             refreshResolved()
             note = AppConfig.environmentPinsAPI
-                ? "Saved, but FISHERS_API_URL still wins for this launch."
+                ? tr("Saved, but FISHERS_API_URL still wins for this launch.")
                 : "Saved. New requests use \(url.absoluteString)."
         } catch {
             errorMessage = error.localizedDescription

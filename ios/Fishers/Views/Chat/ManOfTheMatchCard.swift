@@ -61,7 +61,7 @@ struct ManOfTheMatchCard: View {
             }
             Spacer()
             if let view = store.view {
-                Text(view.poll.isOpen ? closingLabel(view.poll.closesAt) : "Closed")
+                Text(view.poll.isOpen ? closingLabel(view.poll.closesAt) : tr("Closed"))
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
@@ -80,8 +80,8 @@ struct ManOfTheMatchCard: View {
     private func ballot(_ view: MotmPollView) -> some View {
         if view.canVote {
             Text(view.myVote == nil
-                 ? "Who was your man of the match? Tap a name — you can change it until voting closes."
-                 : "Your vote is in. Tap another name to change it, or the same one to take it back.")
+                 ? tr("Who was your man of the match? Tap a name — you can change it until voting closes.")
+                 : tr("Your vote is in. Tap another name to change it, or the same one to take it back."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -148,7 +148,7 @@ struct ManOfTheMatchCard: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(winner.displayName)
                         .font(.headline)
-                    Text("\(winner.votes) of \(view.totalVotes) \(view.totalVotes == 1 ? "vote" : "votes")")
+                    Text(t("sc.n_votes", count: view.totalVotes, vars: ["won": winner.votes, "total": view.totalVotes]))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -163,7 +163,7 @@ struct ManOfTheMatchCard: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(FishersTheme.maybe)
                 Text(view.tiedAtTheTop.map(\.displayName).formatted(.list(type: .and))
-                     + " finished level. A captain picks.")
+                     + tr(" finished level. A captain picks."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -213,7 +213,7 @@ struct ManOfTheMatchCard: View {
 
     private func closingLabel(_ closesAt: Date) -> String {
         let remaining = closesAt.timeIntervalSinceNow
-        guard remaining > 0 else { return "Closing" }
+        guard remaining > 0 else { return tr("Closing") }
         if remaining < 3600 {
             return "\(max(1, Int(remaining / 60)))m left"
         }
@@ -255,7 +255,7 @@ private struct CandidateRow: View {
                     Image(systemName: "pencil.circle.fill")
                         .font(.caption2)
                         .foregroundStyle(FishersTheme.accent400)
-                        .accessibilityLabel("The scorer's pick")
+                        .accessibilityLabel(tr("The scorer's pick"))
                 }
                 Spacer()
                 if showsTally {

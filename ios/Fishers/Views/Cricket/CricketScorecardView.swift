@@ -54,8 +54,8 @@ struct CricketScorecardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("View", selection: $tab) {
-                ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+            Picker(tr("View"), selection: $tab) {
+                ForEach(Tab.allCases) { Text(tr($0.rawValue)).tag($0) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -86,7 +86,7 @@ struct CricketScorecardView: View {
     @ViewBuilder
     private var inningsPicker: some View {
         if state.innings.count > 1 {
-            Picker("Innings", selection: $inningsIndex) {
+            Picker(tr("Innings"), selection: $inningsIndex) {
                 ForEach(Array(state.innings.enumerated()), id: \.offset) { index, inn in
                     Text(state.name(for: inn.batting)).tag(index)
                 }
@@ -102,7 +102,7 @@ struct CricketScorecardView: View {
             }
             if let innings = selectedInnings {
                 Section {
-                    Picker("Batter", selection: $wheelBatter) {
+                    Picker(tr("Batter"), selection: $wheelBatter) {
                         Text(t("sc.whole_innings")).tag(UUID?.none)
                         ForEach(innings.batters.filter(\.hasBatted)) { batter in
                             Text(state.name(for: batter.playerId)).tag(UUID?.some(batter.playerId))
@@ -118,9 +118,9 @@ struct CricketScorecardView: View {
                 if let batter = wheelBatter,
                    let stats = innings.batters.first(where: { $0.playerId == batter }) {
                     Section("\(state.name(for: batter))") {
-                        LabeledContent("Runs", value: "\(stats.runs) (\(stats.balls))")
-                        LabeledContent("Boundaries", value: "\(stats.fours)x4, \(stats.sixes)x6")
-                        LabeledContent("Strike rate", value: String(format: "%.1f", stats.strikeRate))
+                        LabeledContent(tr("Runs"), value: "\(stats.runs) (\(stats.balls))")
+                        LabeledContent(tr("Boundaries"), value: "\(stats.fours)x4, \(stats.sixes)x6")
+                        LabeledContent(tr("Strike rate"), value: String(format: "%.1f", stats.strikeRate))
                     }
                 }
             } else {
@@ -155,11 +155,11 @@ struct CricketScorecardView: View {
                         .padding(.vertical, 2)
                     case .overEnd(let over):
                         HStack {
-                            Text("End of over \(over.over + 1)")
+                            Text(t("sc.end_of_over_n", vars: ["n": over.over + 1]))
                                 .font(.caption.weight(.bold))
                                 .textCase(.uppercase)
                             Spacer()
-                            Text("\(over.overRuns) run\(over.overRuns == 1 ? "" : "s")")
+                            Text(t("la.over_runs", count: over.overRuns, vars: ["n": over.overRuns]))
                                 .foregroundStyle(.secondary)
                             Text("\(over.runs)/\(over.wickets)")
                                 .font(.caption.monospacedDigit().weight(.bold))
@@ -196,11 +196,11 @@ struct CricketScorecardView: View {
 
             if let dls {
                 Section {
-                    LabeledContent("Par now", value: "\(dls.par)")
-                    LabeledContent("Target", value: "\(dls.target)")
+                    LabeledContent(tr("Par now"), value: "\(dls.par)")
+                    LabeledContent(tr("Target"), value: "\(dls.target)")
                     LabeledContent(
-                        "Resources used",
-                        value: String(format: "%.1f%% of %.1f%%", dls.resourcesUsed, dls.resourcesSecond)
+                        tr("Resources used"),
+                        value: String(format: tr("%.1f%% of %.1f%%"), dls.resourcesUsed, dls.resourcesSecond)
                     )
                 } header: {
                     Text(t("sc.duckworth_lewis_stern"))
@@ -209,12 +209,12 @@ struct CricketScorecardView: View {
                 }
             }
 
-            Section("Conditions") {
+            Section(tr("Conditions")) {
                 Text(state.conditions.summary)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 if let home = state.agreedHome, let away = state.agreedAway {
-                    Label("Agreed by \(home) and \(away)", systemImage: "checkmark.seal")
+                    Label(t("sc.agreed_by_both", vars: ["home": home, "away": away]), systemImage: "checkmark.seal")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -318,22 +318,22 @@ struct CricketScorecardView: View {
             .foregroundStyle(.secondary)
             .lineLimit(1)
 
-            compare("Score", "\(home.runs)/\(home.wickets)", "\(away.runs)/\(away.wickets)")
-            compare("Overs", home.overs, away.overs)
-            compare("Run rate", rate(home.runRate), rate(away.runRate))
+            compare(tr("Score"), "\(home.runs)/\(home.wickets)", "\(away.runs)/\(away.wickets)")
+            compare(tr("Overs"), home.overs, away.overs)
+            compare(tr("Run rate"), rate(home.runRate), rate(away.runRate))
             compare(
-                "Dot balls",
+                tr("Dot balls"),
                 "\(home.dots) · \(percent(home.dotPercent))",
                 "\(away.dots) · \(percent(away.dotPercent))"
             )
-            compare("Fours", "\(home.fours)", "\(away.fours)")
-            compare("Sixes", "\(home.sixes)", "\(away.sixes)")
+            compare(tr("Fours"), "\(home.fours)", "\(away.fours)")
+            compare(tr("Sixes"), "\(home.sixes)", "\(away.sixes)")
             compare(
-                "In boundaries",
+                tr("In boundaries"),
                 "\(home.boundaryRuns) · \(percent(home.boundaryPercent))",
                 "\(away.boundaryRuns) · \(percent(away.boundaryPercent))"
             )
-            ForEach(["Powerplay", "Middle", "Death"], id: \.self) { name in
+            ForEach([tr("Powerplay"), tr("Middle"), tr("Death")], id: \.self) { name in
                 let h = home.phases.first { $0.name == name }
                 let a = away.phases.first { $0.name == name }
                 if h != nil || a != nil {
@@ -344,11 +344,11 @@ struct CricketScorecardView: View {
                     )
                 }
             }
-            compare("Top order 1-3", "\(home.topOrder)", "\(away.topOrder)")
-            compare("Middle order 4-7", "\(home.middleOrder)", "\(away.middleOrder)")
-            compare("Lower order 8+", "\(home.lowerOrder)", "\(away.lowerOrder)")
-            compare("Best stand", "\(home.bestPartnership)", "\(away.bestPartnership)")
-            compare("Extras", "\(home.extras)", "\(away.extras)")
+            compare(tr("Top order 1-3"), "\(home.topOrder)", "\(away.topOrder)")
+            compare(tr("Middle order 4-7"), "\(home.middleOrder)", "\(away.middleOrder)")
+            compare(tr("Lower order 8+"), "\(home.lowerOrder)", "\(away.lowerOrder)")
+            compare(tr("Best stand"), "\(home.bestPartnership)", "\(away.bestPartnership)")
+            compare(tr("Extras"), "\(home.extras)", "\(away.extras)")
         } header: {
             Text(t("sc.how_the_game_went"))
         }
@@ -403,7 +403,7 @@ struct CricketScorecardView: View {
 
             let notBatted = didNotBat(innings)
             if !notBatted.isEmpty {
-                Text("Did not bat: \(notBatted.map { state.name(for: $0.playerId) }.joined(separator: ", "))")
+                Text(t("sc.did_not_bat_names", vars: ["names": notBatted.map { state.name(for: $0.playerId) }.joined(separator: ", ")]))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -480,7 +480,7 @@ struct CricketScorecardView: View {
                 Text("\(innings.scoreDisplay)")
                     .bold()
                     .monospacedDigit()
-                Text("(\(innings.oversDisplay) ov, RR \(String(format: "%.2f", innings.runRate)))")
+                Text(t("sc.overs_and_run_rate", vars: ["overs": innings.oversDisplay, "rr": String(format: "%.2f", innings.runRate)]))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -500,7 +500,7 @@ struct CricketScorecardView: View {
     // MARK: Fall of wickets and partnerships
 
     private func fallSection(_ innings: InningsState) -> some View {
-        Section("Fall of wickets") {
+        Section(tr("Fall of wickets")) {
             ForEach(Array(innings.fall.enumerated()), id: \.offset) { index, fall in
                 HStack {
                     Text("\(index + 1)-\(fall.score)")

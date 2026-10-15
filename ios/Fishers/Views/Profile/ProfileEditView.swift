@@ -30,18 +30,18 @@ struct ProfileEditView: View {
                             .navigationTitle(t("rest.about_you"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
-                        LabeledContent("About you", value: form.name)
+                        LabeledContent(tr("About you"), value: form.name)
                     }
                     NavigationLink {
                         SportsPicker(form: form)
                             .navigationTitle(t("rest.sports"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
-                        LabeledContent("Sports", value: form.selectedSports.map(\.label).joined(separator: ", "))
+                        LabeledContent(tr("Sports"), value: form.selectedSports.map(\.label).joined(separator: ", "))
                     }
                 }
 
-                Section("Level, league & stats") {
+                Section(tr("Level, league & stats")) {
                     ForEach(form.selectedSports) { sport in
                         NavigationLink {
                             SportDetailForm(sport: sport, form: form)
@@ -49,7 +49,7 @@ struct ProfileEditView: View {
                                 .navigationBarTitleDisplayMode(.inline)
                         } label: {
                             Label {
-                                LabeledContent(sport.label, value: form.detail(for: sport).tier?.label ?? "Not set")
+                                LabeledContent(sport.label, value: form.detail(for: sport).tier?.label ?? tr("Not set"))
                             } icon: {
                                 Image(systemName: sport.systemImage)
                             }
@@ -63,7 +63,7 @@ struct ProfileEditView: View {
                             .navigationTitle(t("rest.travel_and_logistics"))
                             .navigationBarTitleDisplayMode(.inline)
                     } label: {
-                        LabeledContent("Travel & logistics", value: form.area.nonEmpty ?? "Not set")
+                        LabeledContent(tr("Travel & logistics"), value: form.area.nonEmpty ?? tr("Not set"))
                     }
                 }
 
@@ -71,7 +71,7 @@ struct ProfileEditView: View {
                     NavigationLink {
                         APIServerSettingsView()
                     } label: {
-                        LabeledContent("API server", value: AppConfig.displayHost)
+                        LabeledContent(tr("API server"), value: AppConfig.displayHost)
                     }
                 } footer: {
                     Text(t("rest.reliability_is_server_worked"))

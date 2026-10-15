@@ -20,27 +20,27 @@ struct ClubStatsView: View {
             }
             if let board {
                 Section("\(board.club.seasonYear) record") {
-                    LabeledContent("Played", value: "\(board.club.matchesPlayed)")
+                    LabeledContent(tr("Played"), value: "\(board.club.matchesPlayed)")
                     LabeledContent("W–L–D", value: board.club.recordLabel)
                     if board.club.wins + board.club.losses > 0 {
                         let rate = Double(board.club.wins)
                             / Double(board.club.wins + board.club.losses) * 100
-                        LabeledContent("Win rate", value: String(format: "%.0f%%", rate))
+                        LabeledContent(tr("Win rate"), value: String(format: "%.0f%%", rate))
                     }
-                    LabeledContent("Runs for", value: "\(board.club.runsFor)")
-                    LabeledContent("Runs against", value: "\(board.club.runsAgainst)")
-                    LabeledContent("Wickets taken", value: "\(board.club.wicketsTaken)")
+                    LabeledContent(tr("Runs for"), value: "\(board.club.runsFor)")
+                    LabeledContent(tr("Runs against"), value: "\(board.club.runsAgainst)")
+                    LabeledContent(tr("Wickets taken"), value: "\(board.club.wicketsTaken)")
                     if let site = board.playCricket, let url = site.publicURL {
                         Link(destination: url) {
-                            Label(site.siteName ?? "Play-Cricket club page", systemImage: "arrow.up.right.square")
+                            Label(site.siteName ?? tr("Play-Cricket club page"), systemImage: "arrow.up.right.square")
                         }
                     }
                 }
-                Section("Batting") {
+                Section(tr("Batting")) {
                     ForEach(board.topBatters) { p in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
-                                Text(p.playerName ?? "Player")
+                                Text(p.playerName ?? tr("Player"))
                                 Spacer()
                                 Text("\(p.runs)")
                                     .font(.headline.monospacedDigit())
@@ -53,13 +53,13 @@ struct ClubStatsView: View {
                         .padding(.vertical, 2)
                     }
                 }
-                Section("Bowling") {
+                Section(tr("Bowling")) {
                     ForEach(board.topBowlers.filter { $0.oversBowled > 0 }) { p in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
-                                Text(p.playerName ?? "Player")
+                                Text(p.playerName ?? tr("Player"))
                                 Spacer()
-                                Text("\(p.wickets) wkt\(p.wickets == 1 ? "" : "s")")
+                                Text(t("sc.n_wickets_short", count: p.wickets, vars: ["n": p.wickets]))
                                     .font(.headline.monospacedDigit())
                             }
                             Text(bowlingLine(p))

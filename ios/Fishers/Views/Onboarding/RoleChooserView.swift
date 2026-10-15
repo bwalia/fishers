@@ -46,7 +46,7 @@ struct RoleChooserView: View {
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                 )
             VStack(alignment: .leading, spacing: 2) {
-                Text(busy == role ? "Saving…" : role.title)
+                Text(busy == role ? tr("Saving…") : role.title)
                     .font(FishersTheme.headline)
                     .foregroundStyle(.primary)
                 if !compact {

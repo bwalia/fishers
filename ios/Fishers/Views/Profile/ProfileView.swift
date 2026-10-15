@@ -46,7 +46,7 @@ struct ProfileView: View {
                     ProfileStrengthSection(user: user, onComplete: { isEditing = true }, offersReminder: false)
 
                     Section {
-                        Picker("Section", selection: $tab) {
+                        Picker(tr("Section"), selection: $tab) {
                             ForEach(Tab.allCases) { Text($0.title).tag($0) }
                         }
                         .pickerStyle(.segmented)
@@ -78,7 +78,7 @@ struct ProfileView: View {
             .sheet(isPresented: $isEditing) {
                 ProfileEditView(user: session.user)
             }
-            .confirmationDialog("Sign out of \(Brand.name)?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            .confirmationDialog(t("rest.sign_out_of_brand", vars: ["brand": Brand.name]), isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button(t("nav.sign_out"), role: .destructive) { session.signOut() }
                 Button(t("sc.cancel"), role: .cancel) {}
             } message: {
@@ -105,11 +105,11 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func overview(_ user: PublicUser) -> some View {
-        Section("About \(user.name.split(separator: " ").first.map(String.init) ?? user.name)") {
-            LabeledContent("Email", value: user.email ?? "—")
-            LabeledContent("Mobile", value: user.phone ?? "—")
+        Section(t("rest.about_person", vars: ["name": user.name.split(separator: " ").first.map(String.init) ?? user.name])) {
+            LabeledContent(tr("Email"), value: user.email ?? "—")
+            LabeledContent(tr("Mobile"), value: user.phone ?? "—")
             if let emergency = user.emergencyContact {
-                LabeledContent("In an emergency", value: emergency)
+                LabeledContent(tr("In an emergency"), value: emergency)
             }
         }
 
@@ -118,7 +118,7 @@ struct ProfileView: View {
         }
 
         if let achievements = stats?.achievements, !achievements.isEmpty {
-            Section("Honours") {
+            Section(tr("Honours")) {
                 ForEach(achievements) { award in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(award.title).font(FishersTheme.headline)
@@ -131,7 +131,7 @@ struct ProfileView: View {
         }
 
         if let reliability = user.reliability {
-            Section("Reliability") {
+            Section(tr("Reliability")) {
                 ReliabilityCard(reliability: reliability)
                     .padding(.vertical, 4)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -152,7 +152,7 @@ struct ProfileView: View {
 
         contactSection(user)
 
-        Section("Club shop") {
+        Section(tr("Club shop")) {
             NavigationLink {
                 ShopView()
             } label: {
@@ -172,7 +172,7 @@ struct ProfileView: View {
             Text(t("cl.secretary_can_invite_you"))
         }
 
-        Section("Account") {
+        Section(tr("Account")) {
             if !user.isVerified {
                 NavigationLink {
                     VerifyAccountScreen()
@@ -221,7 +221,7 @@ struct ProfileView: View {
         Section {
             // App Store Connect wants a policy anybody can read without an
             // account, so it lives on the web host rather than in here.
-            Link(destination: AppConfig.webBaseURL.appendingPathComponent("privacy")) {
+            Link(destination: AppConfig.webBaseURL.appendingPathComponent(tr("privacy"))) {
                 Label(t("rest.privacy"), systemImage: "hand.raised")
             }
             NavigationLink {
@@ -239,17 +239,17 @@ struct ProfileView: View {
         Section {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                       spacing: FishersTheme.space2) {
-                figure("Matches", totals.matches)
-                figure("Runs", totals.runs)
-                figure("Wickets", totals.wickets)
-                figure("Catches", totals.catches)
+                figure(tr("Matches"), totals.matches)
+                figure(tr("Runs"), totals.runs)
+                figure(tr("Wickets"), totals.wickets)
+                figure(tr("Catches"), totals.catches)
             }
             .padding(.vertical, 4)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         } header: {
             Text(t("cl.career"))
         } footer: {
-            Text("Across \(seasons) season\(seasons == 1 ? "" : "s"), worked out from the ball-by-ball log.")
+            Text(t("rest.across_n_seasons", count: seasons, vars: ["n": seasons]))
         }
     }
 
@@ -270,21 +270,21 @@ struct ProfileView: View {
     private func sportSection(_ profile: SportProfile) -> some View {
         Section {
             if let tier = profile.tier {
-                LabeledContent("Level", value: tier.label)
+                LabeledContent(tr("Level"), value: tier.label)
                 if let next = tier.next {
-                    Label("Working towards \(next.label)", systemImage: "arrow.up.right")
+                    Label(t("rest.working_towards", vars: ["level": next.label]), systemImage: "arrow.up.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             if let position = profile.position {
-                LabeledContent("Position", value: position)
+                LabeledContent(tr("Position"), value: position)
             }
             if let team = profile.teamName {
-                LabeledContent("Team", value: team)
+                LabeledContent(tr("Team"), value: team)
             }
             if let division = profile.division {
-                LabeledContent("Division") {
+                LabeledContent(tr("Division")) {
                     HStack(spacing: 6) {
                         Text(division.label)
                         if let target = profile.target, target.rank > division.rank {
@@ -302,10 +302,10 @@ struct ProfileView: View {
                 }
             }
             if let age = profile.ageBand {
-                LabeledContent("Age group", value: age.label)
+                LabeledContent(tr("Age group"), value: age.label)
             }
             if let years = profile.yearsPlaying, years > 0 {
-                LabeledContent("Years playing", value: "\(years)")
+                LabeledContent(tr("Years playing"), value: "\(years)")
             }
             ForEach(SportStats.summary(for: profile), id: \.label) { stat in
                 LabeledContent(stat.label, value: stat.value)
@@ -327,23 +327,23 @@ struct ProfileView: View {
     // MARK: - Location / contact
 
     private func locationSection(_ location: PlayerLocation) -> some View {
-        Section("Travel & logistics") {
+        Section(tr("Travel & logistics")) {
             if let summary = location.summary {
-                LabeledContent("Based", value: summary)
+                LabeledContent(tr("Based"), value: summary)
             }
             if let radius = location.travelRadiusMiles {
-                LabeledContent("Will travel", value: "\(radius) miles")
+                LabeledContent(tr("Will travel"), value: "\(radius) miles")
             }
             if let transport = location.transport {
-                LabeledContent("Transport") {
+                LabeledContent(tr("Transport")) {
                     Label(transport.label, systemImage: transport.systemImage)
                 }
                 if transport.offersLifts, let seats = location.spareSeats, seats > 0 {
-                    LabeledContent("Spare seats", value: "\(seats)")
+                    LabeledContent(tr("Spare seats"), value: "\(seats)")
                 }
             }
             if !location.weekdays.isEmpty {
-                LabeledContent("Usual days", value: location.weekdays.map(\.shortLabel).joined(separator: ", "))
+                LabeledContent(tr("Usual days"), value: location.weekdays.map(\.shortLabel).joined(separator: ", "))
             }
             if let notes = location.notes {
                 Text(notes)
@@ -354,12 +354,12 @@ struct ProfileView: View {
     }
 
     private func contactSection(_ user: PublicUser) -> some View {
-        Section("Contact") {
+        Section(tr("Contact")) {
             if let phone = user.phone {
-                LabeledContent("Mobile", value: phone)
+                LabeledContent(tr("Mobile"), value: phone)
             }
             if let emergency = user.emergencyContact {
-                LabeledContent("Emergency", value: emergency)
+                LabeledContent(tr("Emergency"), value: emergency)
             }
         }
     }

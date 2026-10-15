@@ -1,5 +1,9 @@
 import Foundation
 
+// i18n:catalog — `positions` returns the values stored on a profile and
+// sent to the API. They are translated where they are drawn, by
+// `SelectableChip`. English here is the canonical form.
+
 /// Sports the app knows about. Wire format stays a plain string (`sports_played`,
 /// `Club.sportTypes`, `Team.sport`) so clubs can carry sports outside this list.
 ///
@@ -78,16 +82,16 @@ enum SkillTier: String, CaseIterable, Identifiable, Codable, Hashable {
     case beginner, improver, intermediate, club, advanced, elite
 
     var id: String { rawValue }
-    var label: String { self == .club ? "Club standard" : rawValue.capitalized }
+    var label: String { self == .club ? tr("Club standard") : rawValue.capitalized }
 
     var blurb: String {
         switch self {
-        case .beginner: return "New to the sport — learning the basics."
-        case .improver: return "Played a bit, still building consistency."
-        case .intermediate: return "Comfortable in social and lower league sides."
-        case .club: return "Regular league player, holds a place in a side."
-        case .advanced: return "Strong league performer, front-line pick."
-        case .elite: return "Premier, county or representative standard."
+        case .beginner: return tr("New to the sport — learning the basics.")
+        case .improver: return tr("Played a bit, still building consistency.")
+        case .intermediate: return tr("Comfortable in social and lower league sides.")
+        case .club: return tr("Regular league player, holds a place in a side.")
+        case .advanced: return tr("Strong league performer, front-line pick.")
+        case .elite: return tr("Premier, county or representative standard.")
         }
     }
 
@@ -117,29 +121,29 @@ enum Division: String, CaseIterable, Identifiable, Codable, Hashable {
 
     var label: String {
         switch self {
-        case .social: return "Social & friendlies"
-        case .development: return "Development side"
-        case .division5: return "Division 5"
-        case .division4: return "Division 4"
-        case .division3: return "Division 3"
-        case .division2: return "Division 2"
-        case .division1: return "Division 1"
-        case .premier: return "Premier Division"
-        case .county: return "County / Representative"
+        case .social: return tr("Social & friendlies")
+        case .development: return tr("Development side")
+        case .division5: return tr("Division 5")
+        case .division4: return tr("Division 4")
+        case .division3: return tr("Division 3")
+        case .division2: return tr("Division 2")
+        case .division1: return tr("Division 1")
+        case .premier: return tr("Premier Division")
+        case .county: return tr("County / Representative")
         }
     }
 
     var shortLabel: String {
         switch self {
-        case .social: return "Social"
-        case .development: return "Dev"
-        case .division5: return "Div 5"
-        case .division4: return "Div 4"
-        case .division3: return "Div 3"
-        case .division2: return "Div 2"
-        case .division1: return "Div 1"
-        case .premier: return "Prem"
-        case .county: return "County"
+        case .social: return tr("Social")
+        case .development: return tr("Dev")
+        case .division5: return tr("Div 5")
+        case .division4: return tr("Div 4")
+        case .division3: return tr("Div 3")
+        case .division2: return tr("Div 2")
+        case .division1: return tr("Div 1")
+        case .premier: return tr("Prem")
+        case .county: return tr("County")
         }
     }
 
@@ -165,13 +169,13 @@ enum AgeGroup: String, CaseIterable, Identifiable, Codable, Hashable {
 
     var label: String {
         switch self {
-        case .u11: return "Under 11s"
-        case .u13: return "Under 13s"
-        case .u15: return "Under 15s"
-        case .u17: return "Under 17s"
-        case .senior: return "Senior"
-        case .vets40: return "Vets 40+"
-        case .vets50: return "Vets 50+"
+        case .u11: return tr("Under 11s")
+        case .u13: return tr("Under 13s")
+        case .u15: return tr("Under 15s")
+        case .u17: return tr("Under 17s")
+        case .senior: return tr("Senior")
+        case .vets40: return tr("Vets 40+")
+        case .vets50: return tr("Vets 50+")
         }
     }
 
@@ -196,10 +200,10 @@ enum TransportMode: String, CaseIterable, Identifiable, Codable, Hashable {
 
     var label: String {
         switch self {
-        case .driverWithSeats: return "Drives, can offer lifts"
-        case .driver: return "Drives, no spare seats"
-        case .publicTransport: return "Public transport"
-        case .needsLift: return "Needs a lift"
+        case .driverWithSeats: return tr("Drives, can offer lifts")
+        case .driver: return tr("Drives, no spare seats")
+        case .publicTransport: return tr("Public transport")
+        case .needsLift: return tr("Needs a lift")
         }
     }
 
@@ -223,13 +227,13 @@ enum Weekday: Int, CaseIterable, Identifiable, Codable, Hashable {
 
     var shortLabel: String {
         switch self {
-        case .sunday: return "Sun"
-        case .monday: return "Mon"
-        case .tuesday: return "Tue"
-        case .wednesday: return "Wed"
-        case .thursday: return "Thu"
-        case .friday: return "Fri"
-        case .saturday: return "Sat"
+        case .sunday: return tr("Sun")
+        case .monday: return tr("Mon")
+        case .tuesday: return tr("Tue")
+        case .wednesday: return tr("Wed")
+        case .thursday: return tr("Thu")
+        case .friday: return tr("Fri")
+        case .saturday: return tr("Sat")
         }
     }
 
@@ -357,19 +361,19 @@ enum ReliabilityBand: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .unproven: return "Unproven"
-        case .patchy: return "Patchy"
-        case .dependable: return "Dependable"
-        case .rockSolid: return "Rock solid"
+        case .unproven: return tr("Unproven")
+        case .patchy: return tr("Patchy")
+        case .dependable: return tr("Dependable")
+        case .rockSolid: return tr("Rock solid")
         }
     }
 
     var blurb: String {
         switch self {
-        case .unproven: return "Not enough games yet to score."
-        case .patchy: return "Drops out late more often than most."
-        case .dependable: return "Turns up when they say they will."
-        case .rockSolid: return "Answers early, shows up, pays up."
+        case .unproven: return tr("Not enough games yet to score.")
+        case .patchy: return tr("Drops out late more often than most.")
+        case .dependable: return tr("Turns up when they say they will.")
+        case .rockSolid: return tr("Answers early, shows up, pays up.")
         }
     }
 

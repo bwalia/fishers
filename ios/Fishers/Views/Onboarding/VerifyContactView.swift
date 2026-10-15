@@ -26,15 +26,15 @@ struct VerifyContactView: View {
         VStack(alignment: .leading, spacing: 12) {
             if !compact {
                 Label {
-                    Text("Confirm your \(channel.noun)").font(FishersTheme.headline)
+                    Text(t("rest.confirm_your_channel", vars: ["noun": channel.noun])).font(FishersTheme.headline)
                 } icon: {
                     Image(systemName: channel.systemImage).foregroundStyle(FishersTheme.pitch)
                 }
             }
 
             if status.channels.count > 1 {
-                Picker("Confirm by", selection: $channel) {
-                    ForEach(status.channels) { Text($0 == .email ? "Email" : "Phone").tag($0) }
+                Picker(tr("Confirm by"), selection: $channel) {
+                    ForEach(status.channels) { Text($0 == .email ? tr("Email") : tr("Phone")).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: channel) { _, _ in
@@ -44,7 +44,7 @@ struct VerifyContactView: View {
                 }
             }
 
-            Text("Enter the 6-digit code we \(channel.sentVerb) to **\(address)**.")
+            Text(t("rest.enter_the_6_digit_code", vars: ["verb": channel.sentVerb, "address": address]))
                 .font(FishersTheme.subhead)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -58,7 +58,7 @@ struct VerifyContactView: View {
                     .focused($codeFocused)
                     .frame(minHeight: FishersTheme.minTap)
                     .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .accessibilityLabel("Verification code")
+                    .accessibilityLabel(tr("Verification code"))
                     .onChange(of: code) { _, typed in
                         // Digits only, six at most — and a full code submits
                         // itself, the way the system keyboard's suggestion does.
@@ -82,7 +82,7 @@ struct VerifyContactView: View {
             Button {
                 Task { await send() }
             } label: {
-                Text(wait > 0 ? "Send a new code in \(wait)s" : "Send a new code")
+                Text(wait > 0 ? t("rest.send_a_new_code_in", vars: ["n": wait]) : t("rest.send_a_new_code"))
                     .font(FishersTheme.subhead.weight(.semibold))
                     .frame(minHeight: FishersTheme.minTap)
             }
@@ -134,7 +134,7 @@ struct VerifyContactView: View {
         do {
             onVerified(try await FishersAPI.confirmVerification(channel, code: code))
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "That code did not work"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("That code did not work")
             code = ""
             codeFocused = true
         }

@@ -93,7 +93,7 @@ struct CricketScoringFlowView: View {
             }
         }
         .background(FishersTheme.mist.ignoresSafeArea())
-        .navigationTitle(step == .live ? "LIVE" : "Start match")
+        .navigationTitle(step == .live ? tr("LIVE") : tr("Start match"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             store.replaceContext(modelContext)
@@ -150,7 +150,7 @@ struct CricketScoringFlowView: View {
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(awayName.isEmpty ? "Opposition" : awayName)
+                            Text(awayName.isEmpty ? tr("Opposition") : awayName)
                                 .foregroundStyle(awayName.isEmpty ? .secondary : .primary)
                             if opponent != nil {
                                 Label("On \(Brand.name)", systemImage: "checkmark.seal.fill")
@@ -171,28 +171,28 @@ struct CricketScoringFlowView: View {
             }
 
             Section {
-                Picker("Overs", selection: $conditions.oversLimit) {
+                Picker(tr("Overs"), selection: $conditions.oversLimit) {
                     ForEach(Self.overPresets, id: \.self) { option in
                         Text("\(option)").tag(UInt8(option))
                     }
                 }
                 Stepper(
                     conditions.oversPerBowler == 0
-                        ? "No bowler limit"
+                        ? tr("No bowler limit")
                         : "Max \(conditions.oversPerBowler) overs per bowler",
                     value: $conditions.oversPerBowler,
                     in: 0...conditions.oversLimit
                 )
                 Stepper(
                     conditions.powerplayOvers == 0
-                        ? "No powerplay"
+                        ? tr("No powerplay")
                         : "\(conditions.powerplayOvers) over powerplay",
                     value: $conditions.powerplayOvers,
                     in: 0...conditions.oversLimit
                 )
                 Stepper(
                     conditions.targetOversPerHour == 0
-                        ? "Over rate not counted"
+                        ? tr("Over rate not counted")
                         : "\(conditions.targetOversPerHour) overs an hour",
                     value: $conditions.targetOversPerHour,
                     in: 0...25
@@ -200,11 +200,15 @@ struct CricketScoringFlowView: View {
             } header: {
                 Text(t("sc.format"))
             } footer: {
-                Text("The usual allocation is a fifth of the innings — \(MatchConditions.standardOversPerBowler(conditions.oversLimit)) for \(conditions.oversLimit) overs — with a \(MatchConditions.standardPowerplay(conditions.oversLimit)) over powerplay. Fourteen an hour is the usual over rate. Set any of them to none for a social game.")
+                Text(t("sc.usual_allocation_and_powerplay", vars: [
+                    tr("perBowler"): MatchConditions.standardOversPerBowler(conditions.oversLimit),
+                    tr("overs"): conditions.oversLimit,
+                    tr("powerplay"): MatchConditions.standardPowerplay(conditions.oversLimit),
+                ]))
             }
 
-            Section("Ground") {
-                Picker("Ground", selection: $conditions.ground) {
+            Section(tr("Ground")) {
+                Picker(tr("Ground"), selection: $conditions.ground) {
                     ForEach(GroundType.allCases) { ground in
                         Label(ground.label, systemImage: ground.systemImage).tag(ground)
                     }
@@ -233,8 +237,8 @@ struct CricketScoringFlowView: View {
                 Text(t("sc.two_and_five_standard"))
             }
 
-            Section("Ball") {
-                Picker("Ball", selection: $conditions.ball) {
+            Section(tr("Ball")) {
+                Picker(tr("Ball"), selection: $conditions.ball) {
                     ForEach(BallType.allCases) { ball in
                         Text(ball.label).tag(ball)
                     }
@@ -299,7 +303,7 @@ struct CricketScoringFlowView: View {
                 Text(t("sc.change_means_agree_again"))
             }
 
-            Section("Captains") {
+            Section(tr("Captains")) {
                 agreementRow(side: .home, teamName: store.state.homeName)
                 agreementRow(side: .away, teamName: store.state.awayName)
             }
@@ -316,7 +320,7 @@ struct CricketScoringFlowView: View {
                     .foregroundStyle(FishersTheme.accent)
             } footer: {
                 if !store.state.conditionsAgreed {
-                    Text("Waiting on \(waitingNames). Tap Agree next to their name once they have said yes — this is the conversation you have at the toss.")
+                    Text(t("sc.waiting_on_names", vars: ["names": waitingNames]))
                 }
             }
         }
@@ -414,7 +418,7 @@ struct CricketScoringFlowView: View {
         let name = captainName.trimmingCharacters(in: .whitespaces)
         agreeingSide = nil
         guard !name.isEmpty else {
-            message = "Put a name against the agreement."
+            message = tr("Put a name against the agreement.")
             return
         }
         guard store.append(.conditionsAgreed(side: side, captainName: name)) else {
@@ -443,26 +447,26 @@ struct CricketScoringFlowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let home = store.state.agreedHome, let away = store.state.agreedAway {
-                    Label("Agreed by \(home) and \(away)", systemImage: "checkmark.seal.fill")
+                    Label(t("sc.agreed_by_both", vars: ["home": home, "away": away]), systemImage: "checkmark.seal.fill")
                         .font(.caption)
                         .foregroundStyle(FishersTheme.available)
                 }
             }
-            Section("Who won the toss") {
-                Picker("Winner", selection: $tossWinner) {
+            Section(tr("Who won the toss")) {
+                Picker(tr("Winner"), selection: $tossWinner) {
                     Text(homeName).tag(MatchSide.home)
                     Text(awayName).tag(MatchSide.away)
                 }
                 .pickerStyle(.segmented)
             }
-            Section("And chose to") {
-                Picker("Decision", selection: $tossDecision) {
+            Section(tr("And chose to")) {
+                Picker(tr("Decision"), selection: $tossDecision) {
                     ForEach(TossDecision.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
             }
             Section {
-                Text("\(store.state.name(for: firstInningsBatting)) bat first.")
+                Text(t("sc.team_bat_first_dot", vars: ["team": store.state.name(for: firstInningsBatting)]))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -518,7 +522,7 @@ struct CricketScoringFlowView: View {
             // One side at a time, because each captain names their own and the
             // engine now refuses to start until both sheets are in.
             VStack(spacing: 6) {
-                Text("\(umpires.count) umpire\(umpires.count == 1 ? "" : "s") appointed")
+                Text(t("sc.n_umpires_appointed", count: umpires.count, vars: ["n": umpires.count]))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 8) {
@@ -542,13 +546,13 @@ struct CricketScoringFlowView: View {
         let bowlXi = store.state.players(for: batting.opposite)
         return Form {
             Section {
-                playerPicker("Striker", selection: $strikerId, from: batXi)
-                playerPicker("Non-striker", selection: $nonStrikerId, from: batXi)
+                playerPicker(t("sc.striker_pick"), selection: $strikerId, from: batXi)
+                playerPicker(t("sc.non_striker_pick"), selection: $nonStrikerId, from: batXi)
             } header: {
-                Text("\(store.state.name(for: batting)) opening pair")
+                Text(t("sc.team_opening_pair", vars: ["team": store.state.name(for: batting)]))
             }
-            Section("Opening bowler") {
-                playerPicker("Bowler", selection: $bowlerId, from: bowlXi)
+            Section(tr("Opening bowler")) {
+                playerPicker(t("sc.bowler_pick"), selection: $bowlerId, from: bowlXi)
             }
             if let message {
                 Section { Text(message).font(.footnote).foregroundStyle(FishersTheme.unavailable) }
@@ -668,7 +672,7 @@ struct CricketScoringFlowView: View {
 
     private func startMatch() async {
         guard canScore else {
-            message = "You need scoring permission (captain, secretary or assigned scorer)."
+            message = tr("You need scoring permission (captain, secretary or assigned scorer).")
             return
         }
         booting = true
@@ -770,7 +774,7 @@ struct CricketScoringFlowView: View {
 
     private func startInnings(batting: MatchSide) {
         guard let s = strikerId, let ns = nonStrikerId, let b = bowlerId, s != ns else {
-            message = "Pick two different batters and a bowler."
+            message = t("sc.pick_two_batters_and_bowler")
             return
         }
         if store.append(.inningsStarted(
@@ -841,28 +845,28 @@ private struct TeamSheetEditor: View {
                     .onMove { players.move(fromOffsets: $0, toOffset: $1) }
                 }
             } header: {
-                Text("\(title) — batting order (\(players.count))")
+                Text(t("sc.batting_order_count", vars: ["team": title, "n": players.count]))
             } footer: {
                 Text(t("sc.drag_to_set_batting_order"))
             }
 
             if !players.isEmpty {
-                Section("Roles") {
-                    Picker("Captain", selection: Binding(
+                Section(tr("Roles")) {
+                    Picker(tr("Captain"), selection: Binding(
                         get: { captain },
                         set: { captain = $0; captainChosen = true }
                     )) {
                         Text("—").tag(UUID?.none)
                         ForEach(players) { Text($0.name).tag(UUID?.some($0.id)) }
                     }
-                    Picker("Wicketkeeper", selection: $keeper) {
+                    Picker(tr("Wicketkeeper"), selection: $keeper) {
                         Text("—").tag(UUID?.none)
                         ForEach(players) { Text($0.name).tag(UUID?.some($0.id)) }
                     }
                 }
             }
 
-            Section("Add a guest or the opposition") {
+            Section(tr("Add a guest or the opposition")) {
                 HStack {
                     TextField(t("cl.name"), text: $guestName)
                         .textInputAutocapitalization(.words)
@@ -873,7 +877,7 @@ private struct TeamSheetEditor: View {
             }
 
             if !available.isEmpty {
-                Section("From the club") {
+                Section(tr("From the club")) {
                     ForEach(available) { player in
                         Button {
                             players.append(player)
@@ -886,7 +890,7 @@ private struct TeamSheetEditor: View {
                                 if captains.contains(player.id) {
                                     Text("C").font(.caption2.bold())
                                         .foregroundStyle(FishersTheme.accent)
-                                        .accessibilityLabel("Captain")
+                                        .accessibilityLabel(tr("Captain"))
                                 }
                                 Spacer()
                                 Image(systemName: "plus.circle")
@@ -941,7 +945,7 @@ private struct OfficialsEditor: View {
             } header: {
                 Text("Umpires (\(umpires.count))")
             } footer: {
-                Text("An umpire who is a \(Brand.name) member can pick up the scoring, even without a club role.")
+                Text(t("sc.umpire_member_can_score", vars: ["brand": Brand.name]))
             }
 
             Section("Scorers (\(scorers.count))") {
@@ -956,8 +960,8 @@ private struct OfficialsEditor: View {
                 }
             }
 
-            Section("Add") {
-                Picker("Role", selection: $addingUmpire) {
+            Section(tr("Add")) {
+                Picker(tr("Role"), selection: $addingUmpire) {
                     Text(t("sc.umpire_one")).tag(true)
                     Text(t("la.scorer")).tag(false)
                 }
@@ -1039,7 +1043,7 @@ private struct CaptainNameSheet: View {
         NavigationStack {
             Form {
                 if !candidates.isEmpty {
-                    Section("Their squad") {
+                    Section(tr("Their squad")) {
                         if matches.isEmpty {
                             Text(t("sc.nobody_in_squad_matches"))
                                 .font(.footnote)
@@ -1067,13 +1071,13 @@ private struct CaptainNameSheet: View {
                     TextField(t("cl.name"), text: $name)
                         .textContentType(.name)
                 } header: {
-                    Text(candidates.isEmpty ? "Captain" : "Somebody else")
+                    Text(candidates.isEmpty ? tr("Captain") : tr("Somebody else"))
                 } footer: {
                     Text(t("sc.recorded_against_agreement"))
                 }
             }
-            .searchable(text: $search, prompt: "Find a player")
-            .navigationTitle("Captain of \(teamName)")
+            .searchable(text: $search, prompt: tr("Find a player"))
+            .navigationTitle(t("sc.captain_of", vars: ["team": teamName]))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

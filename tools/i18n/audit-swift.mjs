@@ -1,0 +1,226 @@
+#!/usr/bin/env node
+/**
+ * Every string a person could read, wherever it is written.
+ *
+ *   node tools/i18n/audit-swift.mjs [--list]
+ *
+ * convert-swift.mjs only ever looked at a literal in the first argument of
+ * seven calls, and "0 left" meant "0 left that it looks at" — which is a
+ * circular answer and was the wrong one. This looks at every literal in the
+ * app target and rules things out explicitly, so what is left is what is
+ * genuinely still English.
+ */
+import { readFileSync } from "node:fs";
+import { join, relative, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const appDir = join(repoRoot, "ios", "Fishers");
+
+/** Positions where a literal is never read by a person. */
+const NOT_COPY = [
+  /\bt\(\s*$/,                                   // the key we just gave t()
+  /\btr\(\s*$/,                                  // already translated by its English
+  /systemImage:\s*$/, /systemName:\s*$/,         // SF Symbols
+  /\bImage\(\s*$/, /decorative:\s*$/,
+  /forKey:\s*$/, /forInfoDictionaryKey:\s*$/,    // defaults / plist keys
+  /UserDefaults[^\n]*\bstring\(forKey:\s*$/,
+  /\bURL\(string:\s*$/, /\bscheme\s*==\s*$/,
+  /accessibilityIdentifier\(\s*$/,
+  /\bcase\s+\w+\s*=\s*$/,                        // handled separately, see below
+  /KeychainStore\.\w+\(\s*$/,
+  /\bNSLog\(\s*$/, /\bprint\(\s*$/, /\bassert\w*\(/,
+  // The engine's refusals. They are thrown in English from several files and
+  // translated once, in `CricketEngineError.errorDescription`, so the throw
+  // site is the canonical wording rather than a missed string.
+  /CricketEngineError\.(validation|conflict)\(\s*$/,
+  /CodingKeys/, /\bkey:\s*"[^"]*"\s*\)/,
+];
+
+const files = execSync(`find "${appDir}" -name '*.swift'`, { encoding: "utf8" })
+  .split("\n").filter(Boolean)
+  .filter((f) => !f.includes("/Generated/") && !f.endsWith("Localization.swift"));
+
+const findings = [];
+const catalogs = [];
+for (const file of files) {
+  const source = readFileSync(file, "utf8");
+  // A catalog holds the canonical English of values that are stored and sent,
+  // translated where they are drawn. Counting those as "still in English" is
+  // true of the source and false of the screen, and the difference matters
+  // when the number is a ratchet.
+  if (source.includes("i18n:catalog")) { catalogs.push(relative(repoRoot, file)); continue; }
+  const lines = source.split("\n");
+  lines.forEach((line, i) => {
+    // Skip comments and the doc-comment prose that fills this codebase.
+    if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+    // Walk the literals with escapes honoured, the same way the wrappers and
+    // the guard do. The regex this replaced — `"([^"\\]{2,})"` — skips any
+    // literal containing a backslash and then matches the *gap* to the next
+    // one, so a line like `t("k", vars: ["n": n])` reported `", vars: ["` as a
+    // string still in English. That inflated this count by about a quarter.
+    const literals = [];
+    for (let at = 0; at < line.length; ) {
+      const open = line.indexOf('"', at);
+      if (open < 0) break;
+      let close = open + 1;
+      while (close < line.length && !(line[close] === '"' && line[close - 1] !== "\\")) close += 1;
+      if (close >= line.length) break;
+      literals.push({ body: line.slice(open + 1, close), index: open });
+      at = close + 1;
+    }
+    for (const m of literals.map((l) => ({ 1: l.body, index: l.index, 0: `"${l.body}"` }))) {
+      const text = m[1];
+      if (text.length < 2) continue;
+      // A literal with interpolation in it is a sentence built at runtime.
+      // Those are counted by tools/i18n/interpolated.mjs, which reports the
+      // ones in a drawn position — and reports none. Counting them here as
+      // well would be the same work twice, under a name that does not fit.
+      if (text.includes("\\(")) continue;
+      // Must contain a word a person would read.
+      if (!/[A-Za-z]{2,}/.test(text)) continue;
+      // Pure identifiers: no space, all lowercase or dotted — keys, not copy.
+      if (!/\s/.test(text) && /^[a-z0-9_.\-/]+$/.test(text)) continue;
+      // An SF Symbol: dotted lowercase words, never a sentence.
+      if (/^[a-z0-9.]+$/.test(text) && text.includes(".")) continue;
+      // HTTP verbs, header names and query fragments — wire words, not copy.
+      if (/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(text)) continue;
+      if (/^(Accept|Authorization|Content-Type|application\/json|Bearer)$/i.test(text)) continue;
+      if (/^[a-z_]+=[^\s]*&?$/.test(text)) continue;
+      // An API path or a URL fragment.
+      if (/^\//.test(text) || /^https?:/.test(text)) continue;
+      // A number, a version, a scale point: "18.2", "2.5", "0.0".
+      if (/^[\d.,\-–\s%]+$/.test(text)) continue;
+      // A format or a separator with a stray word: " · ", " } ?? ".
+      if (!/[A-Za-z]{2,}/.test(text.replace(/[^A-Za-z]/g, " ").trim())) continue;
+      // Date and number format patterns — read by a formatter, not a person.
+      if (/^[yMdHhmsaEZ:.,\/\s'#0-]+$/.test(text) && !/[a-z]{3,}/i.test(text.replace(/[yMdHhmsaEZ]/g, ""))) continue;
+      const before = line.slice(0, m.index);
+      if (NOT_COPY.some((re) => re.test(before))) continue;
+      findings.push({ file: relative(repoRoot, file), line: i + 1, text, source: line.trim() });
+    }
+  });
+}
+
+/**
+ * Code that got wrapped as if it were words.
+ *
+ * The wrapper once matched across two adjacent literals — `of: "_", with: " "`
+ * became `of: "_tr(", with: ") "` — which compiles, runs, and silently does
+ * the wrong thing. A green build said nothing. This is the check that would
+ * have.
+ */
+const mangled = [];
+for (const file of files) {
+  readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+    // A comment explaining one of these is not one of these. The note above
+    // ClubAdmin's switch quotes `case tr("invite")` to say why it is wrong,
+    // and this check reported it as the thing it warns about.
+    if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+    // The signature is a *string literal* that contains a call. Looking for
+    // `tr(` with a word boundary misses the real case, because the corruption
+    // reads `"_tr("` and `_` is a word character — which is how this check
+    // passed on the very corruption it was written for.
+    // A *literal whose body contains a call* is the signature. Matching the
+    // gap between two adjacent literals is not — `? tr("Bat") : tr("Bowl")`
+    // looks the same to a careless pattern, and flagging it would bury the
+    // real one. This check has now been wrong in both directions, so it is
+    // written to say exactly what it means.
+    // Walk the literals with escapes honoured. A regex of `"([^"\\]*)"` skips
+    // any literal containing a backslash — so on
+    // `bowler.map { "b \\($0)" } ?? tr("bowled")` it skipped the first and
+    // matched the *gap*, reporting a correct line as damage. The walker is
+    // the same one the wrappers use, for the same reason.
+    let at = 0;
+    while (at < line.length) {
+      const open = line.indexOf('"', at);
+      if (open < 0) break;
+      let close = open + 1;
+      while (close < line.length && !(line[close] === '"' && line[close - 1] !== "\\")) close += 1;
+      if (close >= line.length) break;
+      const body = line.slice(open + 1, close);
+      // `tr(` inside a literal is the whole signature. `String(format:` is
+      // not: an interpolated string legitimately contains it, and the walker
+      // stops at the quote inside the interpolation.
+      if (/tr\(/.test(body)) {
+        mangled.push(`${relative(repoRoot, file)}:${i + 1}  wrapped across two literals: "${body}"`);
+      }
+      at = close + 1;
+    }
+    // A key sent through the English translator. It works by accident — `tr`
+    // does not know the key, so it hands it back and `t` looks it up — but it
+    // says the wrapper could not tell a key from a sentence, and the next one
+    // it cannot tell apart may not be harmless.
+    for (const m of line.matchAll(/\bt\(\s*tr\(/g)) {
+      mangled.push(`${relative(repoRoot, file)}:${i + 1}  key passed through tr(): ${m[0]}`);
+    }
+    // A comparison against a translated string. `case tr("invite"):` matches
+    // in English — where `tr` hands back what it was given — and never matches
+    // in Punjabi, so the whole switch silently falls to `default`. The tests
+    // run in English, which is exactly why this needs a check of its own.
+    for (const m of line.matchAll(/\bcase\s+tr\(|[=!]=\s*tr\(|\.(?:contains|hasPrefix|hasSuffix)\(tr\(/g)) {
+      mangled.push(`${relative(repoRoot, file)}:${i + 1}  compared against a translation: ${m[0]}`);
+    }
+    // A placeholder name translated into something the format string will
+    // never contain.
+    // Only in key position — after a `[` or a `,`. Without that, every
+    // ternary (`? tr("Bat") : tr("Bowl")`) looks like a dictionary key, and
+    // 106 of those drowned the one real hit.
+    for (const m of line.matchAll(/[\[,]\s*tr\("[^"]*"\):/g)) {
+      mangled.push(`${relative(repoRoot, file)}:${i + 1}  placeholder name translated: ${m[0]}`);
+    }
+    // And a lookup key dressed as a caption.
+    for (const m of line.matchAll(/\[\s*tr\("[^"]*"\)\s*\]/g)) {
+      mangled.push(`${relative(repoRoot, file)}:${i + 1}  subscript key wrapped: ${m[0]}`);
+    }
+  });
+}
+if (mangled.length) {
+  console.error("Code wrapped as if it were words — a wrapper matched across two literals:");
+  for (const m of mangled) console.error(`  ${m}`);
+  process.exitCode = 1;
+}
+
+const byText = new Map();
+for (const f of findings) {
+  if (!byText.has(f.text)) byText.set(f.text, []);
+  byText.get(f.text).push(f);
+}
+const byFile = new Map();
+for (const f of findings) byFile.set(f.file, (byFile.get(f.file) ?? 0) + 1);
+
+console.log(`${findings.length} user-readable literal(s) still in English, in ${byFile.size} file(s).`);
+if (catalogs.length) {
+  console.log(`(${catalogs.length} catalog file(s) skipped — English there is the stored value: ${catalogs.join(", ")})`);
+}
+console.log(`${byText.size} distinct.\n`);
+console.log("Worst files:");
+for (const [file, n] of [...byFile].sort((a, b) => b[1] - a[1]).slice(0, 15)) {
+  console.log(`  ${String(n).padStart(4)}  ${file}`);
+}
+/**
+ * A ratchet, not a target.
+ *
+ * The count may fall and must never rise. It exists because "nothing left in
+ * English" has been claimed twice from a tool that only looked at part of the
+ * app, and a number in CI is harder to fool than a claim in a commit message.
+ */
+const cap = process.argv.find((a) => a.startsWith("--max="));
+if (cap) {
+  const max = Number(cap.slice("--max=".length));
+  if (findings.length > max) {
+    console.error(`\nThat is ${findings.length - max} more than the agreed ${max}.`);
+    console.error("Wrap them (tools/i18n/wrap-calls.mjs) or lower the cap if you have.");
+    process.exit(1);
+  }
+  console.log(`\nWithin the cap of ${max}.`);
+}
+
+if (process.argv.includes("--list")) {
+  console.log("\n--- every one ---");
+  for (const [text, where] of [...byText].sort((a, b) => b[1].length - a[1].length)) {
+    console.log(`${String(where.length).padStart(3)}x ${JSON.stringify(text)}`);
+    console.log(`     ${where[0].file}:${where[0].line}  ${where[0].source.slice(0, 100)}`);
+  }
+}

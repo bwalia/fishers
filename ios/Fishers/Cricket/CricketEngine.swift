@@ -1,5 +1,9 @@
 import Foundation
 
+// i18n:catalog — the engine throws its refusals in English and
+// `CricketEngineError.errorDescription` translates them at the boundary,
+// so the engine itself stays a plain Swift library with no view layer in it.
+
 /// On-device cricket scoring engine — mirrors `backend/domain/src/cricket/engine.rs`.
 ///
 /// State is a fold over the event log, so the device and the API always agree:
@@ -859,24 +863,35 @@ extension MatchState {
         let first = innings[innings.count - 2]
         let second = innings[innings.count - 1]
         let isSuperOver = second.superOver
-        let decider = isSuperOver ? " the super over" : ""
-
+        // A super over is a different sentence rather than a word spliced into
+        // the middle of one: "won the super over by 3 wickets" puts it where
+        // English wants it, and another language may not want it there at all.
         if second.runs > first.runs {
             let wickets = second.wicketsAllowed > second.wickets
                 ? second.wicketsAllowed - second.wickets : 0
             let total = UInt16(second.oversAvailable) * 6
             let ballsLeft = total > second.legalBalls ? total - second.legalBalls : 0
-            var text = "\(name(for: second.batting)) won\(decider) by \(wickets) wicket\(wickets == 1 ? "" : "s")"
-            if ballsLeft > 0 && !isSuperOver { text += " (\(ballsLeft) balls remaining)" }
+            var text = t(
+                isSuperOver ? "sc.won_super_over_by_wickets" : "sc.won_by_wickets",
+                count: Int(wickets),
+                vars: ["team": name(for: second.batting), "n": wickets]
+            )
+            if ballsLeft > 0 && !isSuperOver {
+                text += t("sc.balls_remaining", count: Int(ballsLeft), vars: ["n": ballsLeft])
+            }
             winner = second.batting
             margin = text
         } else if second.runs < first.runs {
             let runs = first.runs - second.runs
             winner = first.batting
-            margin = "\(name(for: first.batting)) won\(decider) by \(runs) run\(runs == 1 ? "" : "s")"
+            margin = t(
+                isSuperOver ? "sc.won_super_over_by_runs" : "sc.won_by_runs",
+                count: Int(runs),
+                vars: ["team": name(for: first.batting), "n": runs]
+            )
         } else {
             winner = nil
-            margin = isSuperOver ? "Super over tied" : "Match tied"
+            margin = isSuperOver ? t("sc.super_over_tied") : t("sc.match_tied")
         }
     }
 }

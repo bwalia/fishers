@@ -149,7 +149,7 @@ struct ChatThreadView: View {
                 }
             }
             .disabled(store.isSending || draft.trimmingCharacters(in: .whitespaces).isEmpty)
-            .accessibilityLabel("Send")
+            .accessibilityLabel(tr("Send"))
         }
         .padding(10)
         .background(.bar)
@@ -230,7 +230,7 @@ private struct ProposalCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: proposal.proposalKind?.systemImage ?? "sparkles")
+                Image(systemName: proposal.proposalKind?.systemImage ?? tr("sparkles"))
                     .foregroundStyle(FishersTheme.accent)
                 Text(proposal.proposalKind?.label ?? proposal.kind.capitalized)
                     .font(.subheadline.weight(.semibold))

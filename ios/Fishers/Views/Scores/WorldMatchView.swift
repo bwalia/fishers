@@ -105,7 +105,7 @@ struct WorldMatchView: View {
                             .foregroundStyle(tab == i ? Color.white : Color.primary)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(innings.title(at: i)), \(innings[i].score ?? "no score")")
+                        .accessibilityLabel(t("sc.innings_score_aria", vars: ["innings": innings.title(at: i), "score": innings[i].score ?? t("sc.no_score")]))
                         .accessibilityAddTraits(tab == i ? [.isSelected, .isButton] : .isButton)
                     }
                 }
@@ -129,8 +129,8 @@ struct WorldMatchView: View {
 
     private func crease(_ d: WorldMatchDetail) -> some View {
         Section {
-            ForEach(d.battingNow) { CreaseRow(role: "Batting", player: $0) }
-            ForEach(d.bowlingNow) { CreaseRow(role: "Bowling", player: $0) }
+            ForEach(d.battingNow) { CreaseRow(role: tr("Batting"), player: $0) }
+            ForEach(d.bowlingNow) { CreaseRow(role: tr("Bowling"), player: $0) }
         } header: {
             Text(t("sc.at_the_crease"))
         } footer: {
@@ -142,7 +142,7 @@ struct WorldMatchView: View {
         Section {
             Text(
                 v.detailAsOf == nil
-                    ? "No scorecard loaded."
+                    ? tr("No scorecard loaded.")
                     : v.summary.phase == "done"
                         ? "Scorecard updated \(v.freshness). This match has finished, so this is the final card."
                         : "Scorecard updated \(v.freshness). It comes from a free feed and runs a few minutes behind play."

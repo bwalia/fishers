@@ -35,7 +35,7 @@ struct ClubMemberDetail: Codable, Identifiable, Equatable {
     var roleChoice: RoleChoice { RoleChoice(role: role, isCaptain: isCaptain ?? false) }
 
     /// Whichever way this member can actually be reached.
-    var contact: String { email ?? phone ?? "No contact details" }
+    var contact: String { email ?? phone ?? tr("No contact details") }
 
     /// "Batter · Club standard" under the name.
     var subtitle: String {
@@ -105,35 +105,48 @@ struct AppNotification: Codable, Identifiable, Equatable {
     /// One line of plain English. A player is not going to read
     /// `match_terms_proposed`. The same words the web uses.
     var line: String {
-        let sides = "\(payload["home_name"] ?? "A side") v \(payload["away_name"] ?? "another")"
+        let sides = t("cl.sides_v_sides", vars: [
+            tr("home"): payload["home_name"] ?? t("cl.a_side"),
+            tr("away"): payload["away_name"] ?? t("cl.another_side"),
+        ])
+        // `type` is what the API sent. It is matched, never translated — a
+        // `case tr("invite")` matches in English and never in Punjabi, which
+        // is how 31 of these came to fall through to `default`.
         switch type {
         case "match_terms_proposed":
-            return "\(sides) — the other captain has proposed the terms. Tap to agree."
+            return t("cl.notif_terms_proposed", vars: ["sides": sides])
         case "match_pick_your_xi":
-            return "\(sides) — the toss is done. Pick your side."
+            return t("cl.notif_pick_your_xi", vars: ["sides": sides])
         case "match_terms_agreed":
-            return "Both captains have agreed the terms. You can do the toss."
+            return tr("Both captains have agreed the terms. You can do the toss.")
         case "match_book_handed_over":
-            return "\(sides) — you have the book. You're scoring from the next ball."
+            return t("cl.notif_book_handed_over", vars: ["sides": sides])
         case "fixture_scheduled":
-            return "\(payload["title"] ?? "A fixture") — can you play?"
+            return t("cl.can_you_play_title", vars: ["title": payload["title"] ?? t("cl.a_fixture")])
         case "player_responded":
-            return "\(payload["player"] ?? "A player") answered for \(payload["title"] ?? "a fixture")."
+            return t("cl.notif_player_responded", vars: [
+                tr("player"): payload["player"] ?? t("cl.a_player"),
+                tr("title"): payload["title"] ?? t("cl.notif_a_fixture_lower"),
+            ])
         case "invite":
-            let from = payload["inviter"].map { " \($0) invited you." } ?? ""
+            let from = payload["inviter"].map { t("cl.notif_inviter", vars: ["name": $0]) } ?? ""
+            let club = payload["club_name"] ?? t("cl.notif_a_club")
             if let team = payload["team_name"] {
-                return "\(payload["club_name"] ?? "A club") wants you in their \(team).\(from)"
+                return t("cl.notif_wants_you_in_team", vars: ["club": club, "team": team, "from": from])
             }
             if let event = payload["event_title"] {
-                return "You're invited: \(event).\(from)"
+                return t("cl.notif_youre_invited_event", vars: ["event": event, "from": from])
             }
-            return "\(payload["club_name"] ?? "A club") wants you in the club.\(from)"
+            return t("cl.notif_wants_you_in_club", vars: ["club": club, "from": from])
         case "profile_nudge":
-            let percent = payload["percent"].map { " — you're \($0)% there" } ?? ""
-            return "Finish your profile\(percent). Captains pick players they can see."
+            let percent = payload["percent"].map { t("cl.notif_percent_there", vars: ["percent": $0]) } ?? ""
+            return t("cl.notif_finish_profile", vars: ["percent": percent])
         case "invite_accepted":
-            let into = payload["team_name"] ?? payload["event_title"] ?? payload["club_name"] ?? "the club"
-            return "\(payload["player"] ?? "A player") accepted — they're in \(into)."
+            let into = payload["team_name"] ?? payload["event_title"] ?? payload["club_name"] ?? tr("the club")
+            return t("cl.notif_accepted_theyre_in", vars: [
+                tr("player"): payload["player"] ?? t("cl.a_player"),
+                tr("into"): into,
+            ])
         default:
             return type.replacingOccurrences(of: "_", with: " ")
         }
@@ -224,20 +237,20 @@ enum SelectionAutonomy: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .off: return "Off"
-        case .suggest: return "Suggests"
-        case .autoPublish: return "Publishes"
+        case .off: return tr("Off")
+        case .suggest: return tr("Suggests")
+        case .autoPublish: return tr("Publishes")
         }
     }
 
     var blurb: String {
         switch self {
         case .off:
-            return "The assistant does not pick sides. Captains use the ranking instead."
+            return tr("The assistant does not pick sides. Captains use the ranking instead.")
         case .suggest:
-            return "The assistant proposes a side; a captain publishes it."
+            return tr("The assistant proposes a side; a captain publishes it.")
         case .autoPublish:
-            return "The assistant names and announces the side on its own."
+            return tr("The assistant names and announces the side on its own.")
         }
     }
 }

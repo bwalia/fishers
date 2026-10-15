@@ -18,8 +18,8 @@ struct FixturesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Show", selection: $mode) {
-                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                Picker(tr("Show"), selection: $mode) {
+                    ForEach(Mode.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
@@ -97,7 +97,7 @@ struct FixtureAnswerControl: View {
             try await FishersAPI.rsvp(eventId: eventId, status: next.rsvp)
         } catch {
             answer = before
-            self.error = (error as? APIError)?.friendlyMessage ?? "That did not save — try again"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("That did not save — try again")
         }
     }
 }
@@ -166,9 +166,9 @@ struct FixturesListPane: View {
             if fixtures != nil {
                 Section {
                     HStack(spacing: 8) {
-                        tile("Upcoming", upcoming.count, .upcoming)
-                        tile("To answer", unanswered.count, .unanswered)
-                        tile("Playing", playing.count, .upcoming)
+                        tile(tr("Upcoming"), upcoming.count, .upcoming)
+                        tile(tr("To answer"), unanswered.count, .unanswered)
+                        tile(tr("Playing"), playing.count, .upcoming)
                     }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
@@ -176,8 +176,8 @@ struct FixturesListPane: View {
             }
 
             Section {
-                Picker("Which fixtures", selection: $show) {
-                    ForEach(Show.allCases) { Text($0.rawValue).tag($0) }
+                Picker(tr("Which fixtures"), selection: $show) {
+                    ForEach(Show.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
@@ -204,11 +204,11 @@ struct FixturesListPane: View {
 
             if fixtures != nil && shown.isEmpty {
                 ContentUnavailableView {
-                    Label(show == .unanswered ? "Nothing to answer" : "No fixtures", systemImage: "calendar")
+                    Label(show == .unanswered ? tr("Nothing to answer") : tr("No fixtures"), systemImage: "calendar")
                 } description: {
                     Text(show == .unanswered
-                         ? "You've answered every upcoming fixture."
-                         : show == .past ? "No fixtures in the last four months." : "Nothing in the diary for your clubs yet.")
+                         ? tr("You've answered every upcoming fixture.")
+                         : show == .past ? tr("No fixtures in the last four months.") : tr("Nothing in the diary for your clubs yet."))
                 }
             }
         }
@@ -218,20 +218,20 @@ struct FixturesListPane: View {
             if clubs.count > 1 {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Picker("Club", selection: $clubFilter) {
+                        Picker(tr("Club"), selection: $clubFilter) {
                             Text(t("ev.all_clubs")).tag(UUID?.none)
                             ForEach(clubs, id: \.0) { Text($0.1).tag(Optional($0.0)) }
                         }
                     } label: {
                         Image(systemName: clubFilter == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                     }
-                    .accessibilityLabel("Which club")
+                    .accessibilityLabel(tr("Which club"))
                 }
             }
             if !schedulable.isEmpty {
                 ToolbarItem(placement: .primaryAction) {
                     Button { scheduling = true } label: { Image(systemName: "plus") }
-                        .accessibilityLabel("Schedule a match")
+                        .accessibilityLabel(tr("Schedule a match"))
                 }
             }
         }
@@ -358,11 +358,11 @@ struct FixtureRow: View {
             .buttonStyle(.plain)
 
             if isPast || fixture.isCancelled {
-                Label(fixture.saidLabel, systemImage: answer?.systemImage ?? "circle")
+                Label(fixture.saidLabel, systemImage: answer?.systemImage ?? tr("circle"))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             } else {
-                FixtureAnswerControl(eventId: fixture.eventId, answer: $answer, title: "Can you play \(fixture.title)?")
+                FixtureAnswerControl(eventId: fixture.eventId, answer: $answer, title: t("ev.can_you_play", vars: ["fixture": fixture.title]))
             }
         }
         .padding(.vertical, 6)
@@ -402,16 +402,16 @@ struct ScheduleMatchSheet: View {
     /// button with no explanation reads as a broken app.
     private var missing: String? {
         var parts: [String] = []
-        if club == nil { parts.append("which of your clubs is playing") }
-        if theirName.isEmpty { parts.append("who you are playing") }
+        if club == nil { parts.append(tr("which of your clubs is playing")) }
+        if theirName.isEmpty { parts.append(tr("who you are playing")) }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Your side") {
-                    Picker("Club", selection: $clubId) {
+                Section(tr("Your side")) {
+                    Picker(tr("Club"), selection: $clubId) {
                         ForEach(clubs) { Text($0.name).tag(Optional($0.id)) }
                     }
                 }
@@ -422,7 +422,7 @@ struct ScheduleMatchSheet: View {
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker("Ground", selection: $venueId) {
+                        Picker(tr("Ground"), selection: $venueId) {
                             Text(t("ev.not_decided_yet")).tag(UUID?.none)
                             ForEach(venues) { Text($0.name).tag(Optional($0.id)) }
                         }
@@ -435,7 +435,7 @@ struct ScheduleMatchSheet: View {
                     Button {
                         picking = true
                     } label: {
-                        LabeledContent("Opposition", value: theirName.isEmpty ? "Choose…" : theirName)
+                        LabeledContent(tr("Opposition"), value: theirName.isEmpty ? tr("Choose…") : theirName)
                     }
                 } header: {
                     Text(t("ev.the_opposition"))
@@ -445,8 +445,8 @@ struct ScheduleMatchSheet: View {
                          : "A club on \(Brand.name) gets asked as well. Otherwise only your side is.")
                 }
 
-                Section("When") {
-                    DatePicker("Date and time", selection: $start, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
+                Section(tr("When")) {
+                    DatePicker(tr("Date and time"), selection: $start, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
                 }
 
                 if let error {
@@ -467,9 +467,9 @@ struct ScheduleMatchSheet: View {
                     .listRowBackground(Color.clear)
                 } footer: {
                     if let missing {
-                        Text("Still needed: \(missing).")
+                        Text(t("sc.still_needed", vars: ["what": missing]))
                     } else {
-                        Text("Everyone in \(opponent != nil ? "both clubs" : "your club") is asked whether they can play, and the captain hears each answer.")
+                        Text(t("ev.everyone_in_is_asked", vars: ["who": opponent != nil ? t("ev.both_clubs") : t("ev.your_club")]))
                     }
                 }
             }
@@ -507,7 +507,7 @@ struct ScheduleMatchSheet: View {
                 team_id: nil,
                 // What the club plays. Hard-coding cricket here filed every
                 // fixture as a cricket match whatever the club turns out for.
-                sport: club.sportTypes.first ?? "cricket",
+                sport: club.sportTypes.first ?? tr("cricket"),
                 event_subtype: "league_match",
                 title: "\(club.name) v \(theirName)",
                 venue_id: venueId,
@@ -523,7 +523,7 @@ struct ScheduleMatchSheet: View {
             onScheduled()
             dismiss()
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not schedule that"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not schedule that")
         }
     }
 }

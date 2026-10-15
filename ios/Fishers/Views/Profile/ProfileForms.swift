@@ -22,7 +22,7 @@ struct AboutForm: View {
                 }
                 .listRowBackground(Color.clear)
             }
-            Section("You") {
+            Section(tr("You")) {
                 TextField(t("rest.full_name"), text: $form.name)
                     .textContentType(.name)
                 TextField(t("cl.mobile"), text: $form.phone)
@@ -63,7 +63,7 @@ struct SportsPicker: View {
                         Text(t("rest.shown_first_on_profile"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Picker("Main sport", selection: $form.primarySport) {
+                        Picker(tr("Main sport"), selection: $form.primarySport) {
                             ForEach(form.selectedSports) { sport in
                                 Text(sport.label).tag(Sport?.some(sport))
                             }
@@ -90,23 +90,23 @@ struct SportDetailForm: View {
                 Text(t("rest.your_standard"))
             } footer: {
                 if let tier = form.detail(for: sport).tier, let next = tier.next {
-                    Text("Next rung up: \(next.label). Log games and stats to make the case for it.")
+                    Text(t("rest.next_rung_up", vars: ["level": next.label]))
                 } else {
                     Text(t("rest.be_honest_captains_balance"))
                 }
             }
 
-            Section("Position") {
+            Section(tr("Position")) {
                 PositionChips(sport: sport, position: form.binding(sport, \.position))
                     .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
             }
 
-            Section("Team & league") {
+            Section(tr("Team & league")) {
                 TextField(t("rest.team_you_play_for"), text: teamNameBinding)
-                OptionMenu(title: "Age group", selection: form.ageGroupBinding(sport))
+                OptionMenu(title: tr("Age group"), selection: form.ageGroupBinding(sport))
                 if sport.usesDivisions {
-                    OptionMenu(title: "Division you play in", selection: form.divisionBinding(sport, target: false))
-                    OptionMenu(title: "Division you're aiming for", selection: form.divisionBinding(sport, target: true))
+                    OptionMenu(title: tr("Division you play in"), selection: form.divisionBinding(sport, target: false))
+                    OptionMenu(title: tr("Division you're aiming for"), selection: form.divisionBinding(sport, target: true))
                     DivisionLadder(
                         current: form.detail(for: sport).division,
                         target: form.detail(for: sport).target
@@ -114,7 +114,7 @@ struct SportDetailForm: View {
                     .padding(.vertical, 6)
                 }
                 Stepper(
-                    "Years playing: \(form.detail(for: sport).yearsPlaying ?? 0)",
+                    t("rest.years_playing", vars: ["n": form.detail(for: sport).yearsPlaying ?? 0]),
                     value: yearsBinding,
                     in: 0...60
                 )
@@ -123,7 +123,7 @@ struct SportDetailForm: View {
             Section {
                 SportStatsSection(sport: sport, form: form)
             } header: {
-                Text("Your \(sport.label.lowercased()) stats")
+                Text(t("rest.your_sport_stats", vars: ["sport": sport.label.lowercased()]))
             } footer: {
                 Text(t("rest.all_optional_player_card"))
             }
@@ -150,7 +150,7 @@ struct LogisticsForm: View {
 
     var body: some View {
         Form {
-            Section("Based") {
+            Section(tr("Based")) {
                 TextField(t("rest.area_or_town"), text: $form.area)
                 TextField(t("rest.postcode_first_part"), text: $form.postcode)
                     .textInputAutocapitalization(.characters)
@@ -158,12 +158,12 @@ struct LogisticsForm: View {
             }
 
             Section {
-                Picker("Will travel", selection: $form.travelRadiusMiles) {
+                Picker(tr("Will travel"), selection: $form.travelRadiusMiles) {
                     ForEach([5, 10, 15, 20, 30, 50], id: \.self) { miles in
                         Text("\(miles) miles").tag(miles)
                     }
                 }
-                OptionMenu(title: "Transport", selection: $form.transport)
+                OptionMenu(title: tr("Transport"), selection: $form.transport)
                 if form.transport?.offersLifts == true {
                     Stepper("Spare seats: \(form.spareSeats)", value: $form.spareSeats, in: 0...6)
                 }
@@ -182,7 +182,7 @@ struct LogisticsForm: View {
                 Text(t("rest.availability_starting_point"))
             }
 
-            Section("Anything else") {
+            Section(tr("Anything else")) {
                 TextField(t("rest.no_saturdays_example"), text: $form.logisticsNotes, axis: .vertical)
                     .lineLimit(2...4)
             }

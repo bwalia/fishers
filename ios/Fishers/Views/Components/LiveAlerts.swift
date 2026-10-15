@@ -158,7 +158,7 @@ private struct AlertCard: View {
                     .frame(width: FishersTheme.minTap, height: FishersTheme.minTap)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss")
+            .accessibilityLabel(tr("Dismiss"))
             .padding(.top, -8)
             .padding(.trailing, -10)
         }

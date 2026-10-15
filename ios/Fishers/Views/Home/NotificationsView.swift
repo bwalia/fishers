@@ -36,8 +36,8 @@ struct NotificationsView: View {
                     systemImage: "bell",
                     description: Text(
                         filtered
-                            ? "Try a different filter."
-                            : "You'll be told here when a captain proposes terms or somebody invites you."
+                            ? tr("Try a different filter.")
+                            : tr("You'll be told here when a captain proposes terms or somebody invites you.")
                     )
                 )
             }
@@ -91,7 +91,7 @@ struct NotificationsView: View {
         .onChange(of: search) { _, _ in Task { await debouncedReload() } }
         .onChange(of: kind) { _, _ in Task { await reload() } }
         .onChange(of: unreadOnly) { _, _ in Task { await reload() } }
-        .alert("Something went wrong", isPresented: .constant(message != nil)) {
+        .alert(tr("Something went wrong"), isPresented: .constant(message != nil)) {
             Button(t("rest.ok")) { message = nil }
         } message: {
             Text(message ?? "")
@@ -114,7 +114,7 @@ struct NotificationsView: View {
         // Only what this person has actually been sent, so the picker never
         // offers a filter that returns nothing.
         if !kinds.isEmpty {
-            Picker("Kind", selection: $kind) {
+            Picker(tr("Kind"), selection: $kind) {
                 Text(t("rest.everything")).tag("")
                 ForEach(kinds, id: \.self) { Text(label(for: $0)).tag($0) }
             }
@@ -125,18 +125,18 @@ struct NotificationsView: View {
 
     private func label(for kind: String) -> String {
         switch kind {
-        case "invite": return "Invitations"
-        case "selection_published", "squad_promoted": return "Squads"
-        case "selection_reconfirm": return "Confirmations"
-        case "match_terms_proposed", "match_terms_agreed", "match_pick_your_xi": return "Match setup"
-        case "match_book_handed_over": return "Scoring"
-        case "fixture_scheduled": return "Fixtures"
-        case "player_responded": return "Availability"
-        case "invite_accepted": return "Invitations"
-        case "profile_nudge": return "Your profile"
-        case "match_scheduled": return "Fixtures"
-        case "availability_request": return "Availability"
-        case "fee_reminder": return "Match fees"
+        case "invite": return tr("Invitations")
+        case "selection_published", "squad_promoted": return tr("Squads")
+        case "selection_reconfirm": return tr("Confirmations")
+        case "match_terms_proposed", tr("match_terms_agreed"), "match_pick_your_xi": return tr("Match setup")
+        case "match_book_handed_over": return tr("Scoring")
+        case "fixture_scheduled": return tr("Fixtures")
+        case "player_responded": return tr("Availability")
+        case "invite_accepted": return tr("Invitations")
+        case "profile_nudge": return tr("Your profile")
+        case "match_scheduled": return tr("Fixtures")
+        case "availability_request": return tr("Availability")
+        case "fee_reminder": return tr("Match fees")
         // A kind the app has not been taught about is still readable.
         default: return kind.replacingOccurrences(of: "_", with: " ").capitalized
         }

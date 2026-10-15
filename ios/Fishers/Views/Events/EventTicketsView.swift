@@ -29,9 +29,9 @@ struct EventTicketsView: View {
 
                 Section {
                     HStack(spacing: 8) {
-                        figure("Coming", "\(summary.headcount)")
-                        figure("Places left", left.map(String.init) ?? "—")
-                        figure("Each", summary.ticketPriceCents.map(money) ?? "Free")
+                        figure(tr("Coming"), "\(summary.headcount)")
+                        figure(tr("Places left"), left.map(String.init) ?? "—")
+                        figure(tr("Each"), summary.ticketPriceCents.map(money) ?? tr("Free"))
                     }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
@@ -46,17 +46,17 @@ struct EventTicketsView: View {
 
                 if let mine {
                     Section {
-                        LabeledContent("Places", value: "\(mine.places)")
-                        if let names = mine.guestNames { LabeledContent("Bringing", value: names) }
-                        LabeledContent("To pay", value: money(mine.amountCents))
-                        LabeledContent("Status", value: mine.status.capitalized)
+                        LabeledContent(tr("Places"), value: "\(mine.places)")
+                        if let names = mine.guestNames { LabeledContent(tr("Bringing"), value: names) }
+                        LabeledContent(tr("To pay"), value: money(mine.amountCents))
+                        LabeledContent(tr("Status"), value: mine.status.capitalized)
                         if !mine.isPaid {
                             Button {
                                 act("pay", "Payment opened — your club confirms it once it clears.") {
                                     _ = try await FishersAPI.payTicket(mine.id)
                                 }
                             } label: {
-                                Text(busy == "pay" ? "Opening…" : "Pay \(money(mine.amountCents))")
+                                Text(busy == "pay" ? tr("Opening…") : "Pay \(money(mine.amountCents))")
                                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                             }
                             .buttonStyle(.borderedProminent)
@@ -94,7 +94,7 @@ struct EventTicketsView: View {
                                     )
                                 }
                             } label: {
-                                Text(busy == "book" ? "Booking…" : "Book \(1 + guests) \(guests == 0 ? "place" : "places")")
+                                Text(busy == "book" ? t("ev.booking_ellipsis") : t("ev.book_n_places", count: 1 + guests, vars: ["n": 1 + guests]))
                                     .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                             }
                             .buttonStyle(.borderedProminent)
@@ -116,12 +116,12 @@ struct EventTicketsView: View {
                         }
                         ForEach(booking.tickets) { ticket in
                             HStack(spacing: 12) {
-                                AvatarView(name: ticket.name ?? "A member", size: 32)
+                                AvatarView(name: ticket.name ?? tr("A member"), size: 32)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(ticket.name ?? "A member")
+                                    Text(ticket.name ?? tr("A member"))
                                         .strikethrough(ticket.status == "cancelled")
                                     if ticket.guests > 0 {
-                                        Text("+\(ticket.guests)\(ticket.guestNames.map { " — \($0)" } ?? "")")
+                                        Text(ticket.guestNames.map { t("rest.plus_n_guests_named", vars: ["n": ticket.guests, "names": $0]) } ?? t("rest.plus_n_guests", vars: ["n": ticket.guests]))
                                             .font(FishersTheme.footnote).foregroundStyle(.secondary)
                                     }
                                     if let notes = ticket.notes {
@@ -143,10 +143,10 @@ struct EventTicketsView: View {
                             }
                         }
                     } header: {
-                        Text("Who is coming · \(summary.bookings) bookings")
+                        Text(t("ev.who_is_coming_bookings", vars: ["n": summary.bookings]))
                     } footer: {
                         if canManage {
-                            Text("Taken \(money(summary.collectedCents)) · owed \(money(summary.outstandingCents)). Swipe a booking to mark it paid.")
+                            Text(t("ev.taken_and_owed", vars: ["taken": money(summary.collectedCents), "owed": money(summary.outstandingCents)]))
                         }
                     }
                 }
@@ -157,7 +157,7 @@ struct EventTicketsView: View {
             }
         }
         .fishersList()
-        .navigationTitle(booking?.summary.title ?? "Tickets")
+        .navigationTitle(booking?.summary.title ?? tr("Tickets"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
@@ -193,7 +193,7 @@ struct EventTicketsView: View {
                 note = said
                 await load()
             } catch {
-                self.error = (error as? APIError)?.friendlyMessage ?? "That did not work"
+                self.error = (error as? APIError)?.friendlyMessage ?? tr("That did not work")
             }
         }
     }
@@ -202,7 +202,7 @@ struct EventTicketsView: View {
         do {
             booking = try await FishersAPI.tickets(eventId: eventId)
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not load the tickets"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not load the tickets")
         }
     }
 }

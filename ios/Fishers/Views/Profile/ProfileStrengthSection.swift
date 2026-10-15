@@ -18,9 +18,9 @@ struct ProfileStrengthSection: View {
                 HStack(spacing: 14) {
                     ProfileStrengthRing(percent: strength.percent)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Your profile is \(strength.percent)% complete")
+                        Text(t("rest.profile_percent_complete", vars: ["percent": strength.percent]))
                             .font(FishersTheme.headline)
-                        Text("\(strength.nextUp) so captains and clubs can see who they're picking.")
+                        Text(t("rest.so_captains_can_see", vars: ["what": strength.nextUp]))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -41,7 +41,7 @@ struct ProfileStrengthSection: View {
                         Button {
                             Task {
                                 reminder = await ProfileReminder.requestAndSchedule(for: user)
-                                    ? "We'll remind you tomorrow evening."
+                                    ? tr("We'll remind you tomorrow evening.")
                                     : "Turn on notifications for \(Brand.name) in Settings to get a reminder."
                             }
                         } label: {
@@ -79,6 +79,6 @@ struct ProfileStrengthRing: View {
                 .font(.caption.weight(.bold).monospacedDigit())
         }
         .frame(width: size, height: size)
-        .accessibilityLabel("Profile \(percent) percent complete")
+        .accessibilityLabel(t("rest.profile_percent_aria", vars: ["percent": percent]))
     }
 }

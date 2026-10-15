@@ -32,7 +32,7 @@ struct OppositionPickerView: View {
                     Text(t("sc.qr_under_clubs"))
                 }
 
-                Section("Search by name") {
+                Section(tr("Search by name")) {
                     HStack {
                         TextField(t("rest.club_or_team"), text: $query)
                             .autocorrectionDisabled()
@@ -83,7 +83,7 @@ struct OppositionPickerView: View {
                 } header: {
                     Text(t("sc.or_just_type_it"))
                 } footer: {
-                    Text("A scratch side that isn't on \(Brand.name) is only a name — that is fine.")
+                    Text(t("sc.scratch_side_only_a_name", vars: ["brand": Brand.name]))
                 }
 
                 if let message {
@@ -144,7 +144,7 @@ struct OppositionPickerView: View {
             onPick(identity.displayName, identity)
             dismiss()
         } catch {
-            message = "That code isn't one of ours. Try searching by name."
+            message = tr("That code isn't one of ours. Try searching by name.")
         }
     }
 }

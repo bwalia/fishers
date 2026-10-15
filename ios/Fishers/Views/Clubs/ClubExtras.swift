@@ -20,7 +20,7 @@ struct ClubWelcomeSheet: View {
                 .padding(.top, FishersTheme.space3)
                 .accessibilityHidden(true)
             Text(t("cl.club_created")).font(FishersTheme.overline).tracking(0.8).foregroundStyle(FishersTheme.pitch)
-            Text("\(clubName) is ready").font(FishersTheme.display).multilineTextAlignment(.center)
+            Text(t("cl.club_is_ready", vars: ["club": clubName])).font(FishersTheme.display).multilineTextAlignment(.center)
             Text(t("cl.you_are_its_secretary"))
                 .font(FishersTheme.subhead)
                 .foregroundStyle(.secondary)
@@ -28,10 +28,10 @@ struct ClubWelcomeSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 10) {
-                row(number: nil, title: "Create your club", detail: nil, current: false)
-                row(number: 2, title: "Add your players",
-                    detail: "By email or mobile number, or from a profile link a player sends you.", current: true)
-                row(number: 3, title: "Start your first match", detail: nil, current: false)
+                row(number: nil, title: tr("Create your club"), detail: nil, current: false)
+                row(number: 2, title: tr("Add your players"),
+                    detail: tr("By email or mobile number, or from a profile link a player sends you."), current: true)
+                row(number: 3, title: tr("Start your first match"), detail: nil, current: false)
             }
             .padding(.vertical, FishersTheme.space1)
 
@@ -97,7 +97,7 @@ struct TeamRosterView: View {
                         description: Text(t("cl.secretary_or_captain_adds"))
                     )
                 } else {
-                    Section("\(members.count) in the squad") {
+                    Section(t("cl.n_in_the_squad", vars: ["n": members.count])) {
                         ForEach(members) { member in
                             NavigationLink {
                                 PlayerProfileView(userId: member.userId, knownName: member.name)
@@ -150,7 +150,7 @@ struct AddTeamSheet: View {
             Form {
                 Section {
                     TextField(t("cl.1st_xi"), text: $name)
-                    Picker("Sport", selection: $sport) {
+                    Picker(tr("Sport"), selection: $sport) {
                         ForEach(club.sportTypes.isEmpty ? ["cricket"] : club.sportTypes, id: \.self) {
                             Text($0.capitalized).tag($0)
                         }
@@ -172,7 +172,7 @@ struct AddTeamSheet: View {
                         .disabled(busy || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .onAppear { sport = club.sportTypes.first ?? "cricket" }
+            .onAppear { sport = club.sportTypes.first ?? tr("cricket") }
         }
     }
 
@@ -223,7 +223,7 @@ struct GroundsSection: View {
                             Image(systemName: "map")
                         }
                         .buttonStyle(.borderless)
-                        .accessibilityLabel("Open \(venue.name) in Maps")
+                        .accessibilityLabel(t("cl.open_in_maps", vars: ["name": venue.name]))
                     }
                 }
             }
@@ -320,13 +320,13 @@ struct PublicPageEditorView: View {
             if let binding = Binding($page) {
                 Section {
                     HStack {
-                        Label(binding.wrappedValue.publicPage ? "Live" : "Not published",
+                        Label(binding.wrappedValue.publicPage ? tr("Live") : tr("Not published"),
                               systemImage: binding.wrappedValue.publicPage ? "checkmark.circle.fill" : "circle.dashed")
                             .foregroundStyle(binding.wrappedValue.publicPage ? FishersTheme.pitch : .secondary)
                         Spacer()
                         if binding.wrappedValue.publicPage, let slug = binding.wrappedValue.slug {
                             let url = AppConfig.webBaseURL.appending(path: "c/\(slug)")
-                            Link("View", destination: url).buttonStyle(.borderless)
+                            Link(tr("View"), destination: url).buttonStyle(.borderless)
                             ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
                                 .buttonStyle(.borderless)
                         }
@@ -335,22 +335,22 @@ struct PublicPageEditorView: View {
                     Text(t("cl.public_page_blurb_long"))
                 }
 
-                Section("Web address") {
+                Section(tr("Web address")) {
                     TextField(suggested, text: $slug)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    Text("\(AppConfig.webBaseURL.host() ?? Brand.domain)/c/\(address)")
+                    Text(t("cl.public_url_with_domain", vars: ["domain": AppConfig.webBaseURL.host() ?? Brand.domain, "slug": address]))
                         .font(.system(.footnote, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
 
-                Section("About the club") {
+                Section(tr("About the club")) {
                     TextField(t("cl.sunday_cricket_in_north_london_since_1"), text: optional(binding.tagline))
                     TextField(t("cl.who_you_are_where_you_play_who_you_are"), text: optional(binding.about), axis: .vertical)
                         .lineLimit(3...8)
                 }
 
-                Section("Details") {
+                Section(tr("Details")) {
                     TextField(t("cl.ground_example"), text: optional(binding.ground))
                     TextField(t("cl.founded_example"), text: $founded).keyboardType(.numberPad)
                     TextField(t("cl.email_for_new_players"), text: optional(binding.contactEmail))
@@ -359,7 +359,7 @@ struct PublicPageEditorView: View {
                 }
 
                 Section {
-                    Picker("Lead with", selection: binding.iconPlayerId) {
+                    Picker(tr("Lead with"), selection: binding.iconPlayerId) {
                         Text(t("cl.nobody_for_now")).tag(UUID?.none)
                         ForEach(members.filter(\.isActive)) { Text($0.name).tag(Optional($0.userId)) }
                     }
@@ -375,13 +375,13 @@ struct PublicPageEditorView: View {
                     Button {
                         Task { await save(publish: nil) }
                     } label: {
-                        Text(saved ? "Saved" : "Save").frame(maxWidth: .infinity)
+                        Text(saved ? tr("Saved") : tr("Save")).frame(maxWidth: .infinity)
                     }
                     .disabled(busy)
                     Button {
                         Task { await save(publish: !binding.wrappedValue.publicPage) }
                     } label: {
-                        Text(binding.wrappedValue.publicPage ? "Take it offline" : "Publish it").frame(maxWidth: .infinity)
+                        Text(binding.wrappedValue.publicPage ? tr("Take it offline") : tr("Publish it")).frame(maxWidth: .infinity)
                     }
                     .disabled(busy)
                 }
@@ -429,7 +429,7 @@ struct PublicPageEditorView: View {
             slug = updated.slug ?? ""
             saved = true
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not save the page"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not save the page")
         }
     }
 }
@@ -485,7 +485,7 @@ struct SharedPlayerCardView: View {
 
                 if let sent {
                     Section {
-                        Label("Invite sent to \(card.name) for \(sent). It appears for them to accept.", systemImage: "checkmark.circle.fill")
+                        Label(t("cl.invite_sent_to", vars: ["name": card.name, "what": sent]), systemImage: "checkmark.circle.fill")
                             .foregroundStyle(FishersTheme.pitch)
                     }
                 } else if places.isEmpty {
@@ -494,12 +494,12 @@ struct SharedPlayerCardView: View {
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Section("Invite them to") {
-                        Picker("Club", selection: $clubId) {
+                    Section(tr("Invite them to")) {
+                        Picker(tr("Club"), selection: $clubId) {
                             ForEach(places) { Text($0.club.name).tag(Optional($0.id)) }
                         }
                         if let place {
-                            Picker("Team", selection: $teamId) {
+                            Picker(tr("Team"), selection: $teamId) {
                                 if place.canInviteToClub { Text(t("cl.the_club_as_a_whole")).tag(UUID?.none) }
                                 ForEach(place.teams) { Text($0.name).tag(Optional($0.id)) }
                             }
@@ -520,7 +520,7 @@ struct SharedPlayerCardView: View {
                 ContentUnavailableView {
                     Label(t("cl.this_link_didnt_work"), systemImage: "link")
                 } description: {
-                    Text("\(error). Ask the player to send you their link again.")
+                    Text(t("cl.ask_for_link_again", vars: ["error": error]))
                 }
             } else {
                 ProgressView()
@@ -558,7 +558,7 @@ struct SharedPlayerCardView: View {
             clubId = start?.id
             teamId = (start?.canInviteToClub ?? true) ? nil : start?.teams.first?.id
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "That profile link did not open"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("That profile link did not open")
         }
     }
 
@@ -572,7 +572,7 @@ struct SharedPlayerCardView: View {
             let team = place.teams.first { $0.id == teamId }
             sent = team.map { "\($0.name) at \(place.club.name)" } ?? place.club.name
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not send the invite"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not send the invite")
         }
     }
 }

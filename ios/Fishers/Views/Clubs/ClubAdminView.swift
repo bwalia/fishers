@@ -33,8 +33,8 @@ struct ClubAdminView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("View", selection: $tab) {
-                ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+            Picker(tr("View"), selection: $tab) {
+                ForEach(Tab.allCases) { Text(tr($0.rawValue)).tag($0) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -50,7 +50,7 @@ struct ClubAdminView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
         .refreshable { await store.load() }
-        .alert("Something went wrong", isPresented: store.errorBinding) {
+        .alert(tr("Something went wrong"), isPresented: store.errorBinding) {
             Button(t("rest.ok"), role: .cancel) { store.errorMessage = nil }
         } message: {
             Text(store.errorMessage ?? "")
@@ -97,7 +97,7 @@ private struct RosterList: View {
 
             let former = store.members.filter { !$0.isActive }
             if !former.isEmpty {
-                Section("No longer in the club") {
+                Section(tr("No longer in the club")) {
                     ForEach(former) { member in
                         Text(member.name).foregroundStyle(.secondary)
                     }
@@ -118,7 +118,7 @@ private struct RosterList: View {
             if canManage {
                 ToolbarItem(placement: .primaryAction) {
                     Button { isAdding = true } label: { Image(systemName: "person.badge.plus") }
-                        .accessibilityLabel("Add a member")
+                        .accessibilityLabel(tr("Add a member"))
                 }
             }
         }
@@ -157,7 +157,7 @@ private struct RosterList: View {
                     }
                 }
             }
-            .accessibilityLabel("\(member.name), \(member.role.displayName). Open their profile.")
+            .accessibilityLabel(t("cl.member_open_profile", vars: ["name": member.name, "role": member.role.displayName]))
 
             if canManage {
                 Button {
@@ -166,7 +166,7 @@ private struct RosterList: View {
                     RoleBadge(choice: member.roleChoice)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Change \(member.name)'s role, now \(member.roleChoice.label)")
+                .accessibilityLabel(t("cl.change_role_now", vars: ["name": member.name, "role": member.roleChoice.label]))
             } else {
                 RoleBadge(choice: member.roleChoice)
             }
@@ -190,8 +190,8 @@ private struct RosterList: View {
                 } footer: {
                     Text(t("cl.whatever_they_signed_up_with"))
                 }
-                Section("Role") {
-                    Picker("Role", selection: $newRole) {
+                Section(tr("Role")) {
+                    Picker(tr("Role"), selection: $newRole) {
                         ForEach(ClubRole.appointable, id: \.self) { role in
                             Text(role.displayName).tag(role)
                         }
@@ -214,7 +214,7 @@ private struct RosterList: View {
                         }
                     }
                 } footer: {
-                    Text("An invite link works for somebody with no \(Brand.name) account. It joins them to the club once they sign up, and can only be used once.")
+                    Text(t("cl.invite_link_explainer", vars: ["brand": Brand.name]))
                 }
                 Section {
                     TextField(t("rest.paste_the_link_they_sent_you"), text: $pastedLink)
@@ -227,7 +227,7 @@ private struct RosterList: View {
                             Label(t("cl.open_their_profile"), systemImage: "person.crop.rectangle")
                         }
                     } else if !pastedLink.isEmpty {
-                        Text("That isn't a \(Brand.name) profile link — it looks like …/p/ followed by letters and numbers.")
+                        Text(t("cl.not_a_profile_link", vars: ["brand": Brand.name]))
                             .font(FishersTheme.footnote)
                             .foregroundStyle(FishersTheme.unavailable)
                     }
@@ -386,7 +386,7 @@ private struct PolicyForm: View {
         Form {
             if let settings = store.settings {
                 Section {
-                    Picker("The assistant", selection: autonomy) {
+                    Picker(tr("The assistant"), selection: autonomy) {
                         ForEach(SelectionAutonomy.allCases) { option in
                             Text(option.label).tag(option)
                         }
@@ -442,7 +442,7 @@ private struct PolicyForm: View {
     private var autonomy: Binding<SelectionAutonomy> {
         Binding(
             get: {
-                SelectionAutonomy(rawValue: store.settings?.selectionAutonomy ?? "suggest") ?? .suggest
+                SelectionAutonomy(rawValue: store.settings?.selectionAutonomy ?? tr("suggest")) ?? .suggest
             },
             set: { new in
                 store.mutateSettings { $0.selectionAutonomy = new.rawValue }
@@ -468,11 +468,11 @@ private struct FeesList: View {
         List {
             if let fees = store.fees {
                 Section {
-                    LabeledContent("Outstanding") {
+                    LabeledContent(tr("Outstanding")) {
                         Text(String(format: "£%.2f", Double(fees.totalCents) / 100))
                             .font(.headline.monospacedDigit())
                     }
-                    LabeledContent("People", value: "\(fees.count)")
+                    LabeledContent(tr("People"), value: "\(fees.count)")
                 }
                 if fees.owed.isEmpty {
                     Section {
@@ -480,7 +480,7 @@ private struct FeesList: View {
                             .foregroundStyle(FishersTheme.available)
                     }
                 } else {
-                    Section("Who owes") {
+                    Section(tr("Who owes")) {
                         ForEach(fees.owed) { fee in
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
@@ -493,7 +493,7 @@ private struct FeesList: View {
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 if fee.remindersSent > 0 {
-                                    Text("\(fee.remindersSent) reminder\(fee.remindersSent == 1 ? "" : "s") sent")
+                                    Text(t("cl.n_reminders_sent", count: fee.remindersSent, vars: ["n": fee.remindersSent]))
                                         .font(.caption2)
                                         .foregroundStyle(FishersTheme.maybe)
                                 }

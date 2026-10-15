@@ -38,7 +38,7 @@ struct ShareProfileView: View {
                         copied = true
                         shared()
                     } label: {
-                        Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        Label(copied ? tr("Copied") : tr("Copy"), systemImage: copied ? tr("checkmark") : "doc.on.doc")
                             .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                     }
                     .buttonStyle(.bordered)
@@ -98,7 +98,7 @@ struct ShareProfileView: View {
         do {
             link = try await FishersAPI.profileShareLink()
         } catch {
-            self.error = (error as? APIError)?.friendlyMessage ?? "Could not make your link"
+            self.error = (error as? APIError)?.friendlyMessage ?? tr("Could not make your link")
         }
     }
 

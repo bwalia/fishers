@@ -12,13 +12,13 @@ enum SelectionState: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .pool: return "Available pool"
-        case .selected: return "Selected"
-        case .reserve: return "Reserve"
-        case .notSelected: return "Not selected"
-        case .confirmed: return "Confirmed"
-        case .declined: return "Declined"
-        case .dropped: return "Dropped"
+        case .pool: return tr("Available pool")
+        case .selected: return tr("Selected")
+        case .reserve: return tr("Reserve")
+        case .notSelected: return tr("Not selected")
+        case .confirmed: return tr("Confirmed")
+        case .declined: return tr("Declined")
+        case .dropped: return tr("Dropped")
         }
     }
 

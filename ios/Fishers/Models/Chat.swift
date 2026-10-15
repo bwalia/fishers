@@ -74,7 +74,7 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     }
 
     var isFromAgent: Bool { kind == "agent" }
-    var authorLabel: String { senderName ?? "Assistant" }
+    var authorLabel: String { senderName ?? tr("Assistant") }
 
     /// The man-of-the-match vote this message opened, if it opened one.
     ///
@@ -98,10 +98,10 @@ enum ProposalKind: String, Codable {
 
     var label: String {
         switch self {
-        case .availability: return "Availability"
-        case .squad: return "Squad"
-        case .announcement: return "Announcement"
-        case .paymentChase: return "Match fees"
+        case .availability: return tr("Availability")
+        case .squad: return tr("Squad")
+        case .announcement: return tr("Announcement")
+        case .paymentChase: return tr("Match fees")
         }
     }
 
@@ -160,7 +160,7 @@ struct ProposalPayload: Codable, Equatable {
             return "Set \(availabilityStatus.rawValue) for \(date)"
         }
         if let userIds, !userIds.isEmpty { return "Invite \(userIds.count) players" }
-        return "No details"
+        return tr("No details")
     }
 }
 

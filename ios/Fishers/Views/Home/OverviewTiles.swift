@@ -14,12 +14,12 @@ struct OverviewTiles: View {
 
     var body: some View {
         HStack(spacing: FishersTheme.space1) {
-            Tile(value: clubs, label: "Clubs", caption: "memberships", tint: FishersTheme.accent)
-            Tile(value: upcoming, label: "Upcoming", caption: "fixtures ahead", tint: nil)
+            Tile(value: clubs, label: tr("Clubs"), caption: tr("memberships"), tint: FishersTheme.accent)
+            Tile(value: upcoming, label: tr("Upcoming"), caption: tr("fixtures ahead"), tint: nil)
             Tile(
                 value: live,
-                label: "In progress",
-                caption: live == 1 ? "match" : "matches",
+                label: tr("In progress"),
+                caption: live == 1 ? tr("match") : tr("matches"),
                 tint: live > 0 ? FishersTheme.pitch : nil
             )
         }

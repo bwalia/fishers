@@ -106,7 +106,7 @@ final class TournamentStore: ObservableObject {
         guard let home = entrants.first(where: { $0.name == row.homeName }),
               let away = entrants.first(where: { $0.name == row.awayName })
         else {
-            errorMessage = "Couldn't match the sides to entrants."
+            errorMessage = tr("Couldn't match the sides to entrants.")
             return
         }
         let homeResult = homeScore == awayScore ? "draw" : (homeScore > awayScore ? "win" : "loss")

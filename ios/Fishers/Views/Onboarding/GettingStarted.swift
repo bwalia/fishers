@@ -40,8 +40,8 @@ enum GettingStartedGuide {
         if f.canVerify {
             steps.append(GuideStep(
                 id: "verify",
-                title: "Confirm it's you",
-                detail: "Proves it's really you. Clubs are only started, and invites only accepted, by confirmed accounts.",
+                title: tr("Confirm it's you"),
+                detail: tr("Proves it's really you. Clubs are only started, and invites only accepted, by confirmed accounts."),
                 done: f.user.isVerified,
                 action: .verify
             ))
@@ -51,44 +51,44 @@ enum GettingStartedGuide {
         case .secretary:
             steps += [
                 GuideStep(
-                    id: "club", title: "Start your club",
-                    detail: "Its name and sport. You become the secretary — you run the teams, fixtures and who's in.",
+                    id: "club", title: tr("Start your club"),
+                    detail: tr("Its name and sport. You become the secretary — you run the teams, fixtures and who's in."),
                     done: f.ownClub != nil, action: .startClub
                 ),
                 GuideStep(
-                    id: "team", title: "Add your first team",
-                    detail: "A 1st XI, a Sunday side, the juniors — each team gets its own squad and fixtures.",
+                    id: "team", title: tr("Add your first team"),
+                    detail: tr("A 1st XI, a Sunday side, the juniors — each team gets its own squad and fixtures."),
                     done: f.teamCount > 0, action: .addTeam
                 ),
                 GuideStep(
-                    id: "players", title: "Invite your players",
-                    detail: "Add people by email or mobile number, or from the profile link a player sends you.",
+                    id: "players", title: tr("Invite your players"),
+                    detail: tr("Add people by email or mobile number, or from the profile link a player sends you."),
                     done: f.members.count > 1, action: .invitePlayers
                 ),
                 GuideStep(
-                    id: "captain", title: "Name a captain",
-                    detail: "Give one member the captain role — or, if you captain the side yourself, say so. Captains pick the side and run the scorebook.",
+                    id: "captain", title: tr("Name a captain"),
+                    detail: tr("Give one member the captain role — or, if you captain the side yourself, say so. Captains pick the side and run the scorebook."),
                     done: f.members.contains { $0.role == .teamCaptain || $0.isCaptain == true },
                     action: .chooseCaptain
                 ),
                 GuideStep(
-                    id: "fixture", title: "Schedule your first fixture",
-                    detail: "Who, where and when. Players mark themselves available and the captain picks the side.",
+                    id: "fixture", title: tr("Schedule your first fixture"),
+                    detail: tr("Who, where and when. Players mark themselves available and the captain picks the side."),
                     done: f.eventCount > 0, action: .scheduleFixture
                 ),
             ]
         case .player:
             steps += [
                 GuideStep(
-                    id: "share", title: "Send your profile to your club secretary",
-                    detail: "They open your link and invite you in. No need for them to type your details.",
+                    id: "share", title: tr("Send your profile to your club secretary"),
+                    detail: tr("They open your link and invite you in. No need for them to type your details."),
                     done: f.sharedOnce || f.inviteCount > 0 || f.clubCount > 0, action: .shareProfile
                 ),
                 GuideStep(
-                    id: "join", title: "Accept your club's invite",
+                    id: "join", title: tr("Accept your club's invite"),
                     detail: f.inviteCount > 0
-                        ? "It's waiting at the top of this screen — check it's your club, then tap Accept."
-                        : "When your secretary invites you, it appears at the top of this screen, ready to accept.",
+                        ? tr("It's waiting at the top of this screen — check it's your club, then tap Accept.")
+                        : tr("When your secretary invites you, it appears at the top of this screen, ready to accept."),
                     done: f.clubCount > 0, action: .acceptInvite
                 ),
             ]
@@ -153,7 +153,7 @@ struct GettingStartedSection: View {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     Label(
-                        "Getting started · \(role == .secretary ? "Club secretary" : "Player")",
+                        t("cl.getting_started_role", vars: ["role": role == .secretary ? t("cl.club_secretary_role") : t("cl.player_role")]),
                         systemImage: "sparkles"
                     )
                     .font(FishersTheme.overline)
@@ -161,14 +161,14 @@ struct GettingStartedSection: View {
                     .textCase(.uppercase)
                     .foregroundStyle(FishersTheme.pitch)
 
-                    Text(role == .secretary ? "Let's set up your club" : "Let's get you into your club")
+                    Text(role == .secretary ? tr("Let's set up your club") : tr("Let's get you into your club"))
                         .font(FishersTheme.title)
-                    Text("\(doneCount) of \(steps.count) done — \(steps.count - doneCount) to go.")
+                    Text(t("cl.n_of_m_done", vars: ["done": doneCount, "total": steps.count, "left": steps.count - doneCount]))
                         .font(FishersTheme.subhead)
                         .foregroundStyle(.secondary)
                     ProgressView(value: Double(doneCount), total: Double(steps.count))
                         .tint(FishersTheme.pitch)
-                        .accessibilityLabel("Setup progress")
+                        .accessibilityLabel(tr("Setup progress"))
                         .accessibilityValue("\(doneCount) of \(steps.count)")
                 }
                 .padding(.vertical, 4)
@@ -186,8 +186,8 @@ struct GettingStartedSection: View {
                     }
                 } label: {
                     Text(role == .secretary
-                         ? "Here to play, not to run a club? Switch to the player guide"
-                         : "Running a club instead? Switch to the secretary guide")
+                         ? tr("Here to play, not to run a club? Switch to the player guide")
+                         : tr("Running a club instead? Switch to the secretary guide"))
                         .font(FishersTheme.footnote)
                         .frame(minHeight: FishersTheme.minTap)
                 }
@@ -209,7 +209,7 @@ struct GettingStartedSection: View {
                 Spacer(minLength: 0)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityValue(step.done ? "Done" : isCurrent ? "Next" : "Later")
+            .accessibilityValue(step.done ? tr("Done") : isCurrent ? tr("Next") : tr("Later"))
 
             if isCurrent {
                 Text(step.detail)
@@ -260,7 +260,7 @@ struct GettingStartedSection: View {
                 NavigationLink {
                     ClubDetailView(club: ownClub)
                 } label: {
-                    Label(step.action == .addTeam ? "Add a team" : "Schedule a match",
+                    Label(step.action == .addTeam ? tr("Add a team") : tr("Schedule a match"),
                           systemImage: step.action == .addTeam ? "person.3" : "calendar.badge.plus")
                         .font(FishersTheme.headline)
                 }
@@ -270,8 +270,8 @@ struct GettingStartedSection: View {
                 NavigationLink {
                     ClubAdminView(club: ownClub, role: ownClubRole)
                 } label: {
-                    Label(step.action == .invitePlayers ? "Invite players" : "Choose a captain",
-                          systemImage: step.action == .invitePlayers ? "person.badge.plus" : "star")
+                    Label(step.action == .invitePlayers ? tr("Invite players") : tr("Choose a captain"),
+                          systemImage: step.action == .invitePlayers ? "person.badge.plus" : tr("star"))
                         .font(FishersTheme.headline)
                 }
             }

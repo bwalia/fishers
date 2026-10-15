@@ -9,17 +9,17 @@ enum RoleIntent: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .secretary: return "I run a club"
-        case .player: return "I play for a club"
+        case .secretary: return tr("I run a club")
+        case .player: return tr("I play for a club")
         }
     }
 
     var detail: String {
         switch self {
         case .secretary:
-            return "Secretary or organiser. You set up the club, its teams and fixtures, and bring the players in."
+            return tr("Secretary or organiser. You set up the club, its teams and fixtures, and bring the players in.")
         case .player:
-            return "Set up your player profile, send it to your club's secretary, and accept their invite."
+            return tr("Set up your player profile, send it to your club's secretary, and accept their invite.")
         }
     }
 
@@ -72,7 +72,7 @@ enum VerificationChannel: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var noun: String { self == .email ? "email" : "phone number" }
     /// How the code travels, for the sentence under the field.
-    var sentVerb: String { self == .email ? "emailed" : "sent on WhatsApp" }
+    var sentVerb: String { self == .email ? tr("emailed") : tr("sent on WhatsApp") }
     var systemImage: String { self == .email ? "envelope" : "message" }
 }
 

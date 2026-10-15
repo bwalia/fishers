@@ -23,8 +23,8 @@ struct TournamentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("View", selection: $tab) {
-                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
+            Picker(tr("View"), selection: $tab) {
+                ForEach(Tab.allCases, id: \.self) { Text(tr($0.rawValue)) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -170,7 +170,7 @@ struct TournamentView: View {
             }
         }
         if !store.knockoutFixtures.isEmpty {
-            Section("Knockout") {
+            Section(tr("Knockout")) {
                 ForEach(store.knockoutFixtures) { row in
                     HStack {
                         Text(row.fixtureLine).font(.subheadline)
@@ -225,8 +225,8 @@ struct TournamentView: View {
             // who is in the draw, so it is said rather than left to the badges.
             Text(
                 store.entrants.contains { $0.entry == .invited }
-                    ? "Sides that have been asked are not in the draw until they accept."
-                    : "Seeds are used to spread the strong sides across the groups."
+                    ? tr("Sides that have been asked are not in the draw until they accept.")
+                    : tr("Seeds are used to spread the strong sides across the groups.")
             )
         }
 
@@ -244,30 +244,30 @@ struct TournamentView: View {
             block.maxEntrants.map { "Up to \($0) sides" },
             block.entryFeeCents.map { "£\(String(format: "%.2f", Double($0) / 100)) to enter" },
             block.guestPlayersAllowed.map {
-                $0 == 0 ? "Club members only" : "Up to \($0) guest players"
+                $0 == 0 ? t("tn.club_members_only_caps") : t("tn.up_to_n_guest_players", vars: ["n": $0])
             },
         ].compactMap { $0 }
 
         Section {
-            LabeledContent("Players a side", value: "\(block.side)")
+            LabeledContent(tr("Players a side"), value: "\(block.side)")
             if let age = block.ageGroup, age != "open" {
-                LabeledContent("Age group", value: age.uppercased())
+                LabeledContent(tr("Age group"), value: age.uppercased())
             }
             if let gender = block.gender, gender != "open" {
-                LabeledContent("For", value: gender.capitalized)
+                LabeledContent(tr("For"), value: gender.capitalized)
             }
             ForEach(entryRules, id: \.self) { rule in
                 Text(rule).font(FishersTheme.footnote).foregroundStyle(.secondary)
             }
             if let c = block.conditions {
-                LabeledContent("Overs", value: "\(c.oversLimit)")
+                LabeledContent(tr("Overs"), value: "\(c.oversLimit)")
                 LabeledContent(
-                    "Most per bowler",
-                    value: c.oversPerBowler == 0 ? "No limit" : "\(c.oversPerBowler)"
+                    tr("Most per bowler"),
+                    value: c.oversPerBowler == 0 ? tr("No limit") : "\(c.oversPerBowler)"
                 )
-                LabeledContent("Ball", value: c.ball.label)
+                LabeledContent(tr("Ball"), value: c.ball.label)
                 if c.powerplayOvers > 0 {
-                    LabeledContent("Powerplay", value: "\(c.powerplayOvers) overs")
+                    LabeledContent(tr("Powerplay"), value: "\(c.powerplayOvers) overs")
                 }
             }
             if let notes = block.rulesNotes, !notes.isEmpty {
@@ -278,8 +278,8 @@ struct TournamentView: View {
         } footer: {
             Text(
                 block.conditions == nil
-                    ? "No playing conditions set — each match is agreed between its two captains."
-                    : "Every match in this tournament starts on these terms."
+                    ? tr("No playing conditions set — each match is agreed between its two captains.")
+                    : tr("Every match in this tournament starts on these terms.")
             )
         }
     }
@@ -335,8 +335,8 @@ private struct SetUpSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Format") {
-                    Picker("Format", selection: $format) {
+                Section(tr("Format")) {
+                    Picker(tr("Format"), selection: $format) {
                         ForEach([TournamentFormat.roundRobin, .groupsKnockout, .knockout], id: \.self) {
                             Text($0.label).tag($0)
                         }
@@ -347,14 +347,14 @@ private struct SetUpSheet: View {
                 }
                 Section {
                     TextField(t("tn.pitches_comma_separated"), text: $courts)
-                    DatePicker("First match", selection: $firstStart)
+                    DatePicker(tr("First match"), selection: $firstStart)
                     Stepper("Match length: \(matchMinutes) min", value: $matchMinutes, in: 20...480, step: 10)
                     Stepper("Gap between: \(gapMinutes) min", value: $gapMinutes, in: 0...120, step: 5)
                     Stepper("Rounds per pitch: \(rounds)", value: $rounds, in: 1...20)
                 } header: {
                     Text(t("tn.the_grid"))
                 } footer: {
-                    Text("\(courtList.count * rounds) slots for \(entrantCount) entrants. Anything that doesn't fit is reported rather than dropped.")
+                    Text(t("tn.slots_for_entrants", vars: ["slots": courtList.count * rounds, "entrants": entrantCount]))
                 }
             }
             .navigationTitle(t("tn.generate_fixtures"))
@@ -434,19 +434,19 @@ private struct ResultSheet: View {
         NavigationStack {
             Form {
                 Section(row.fixtureLine) {
-                    LabeledContent(row.homeName ?? "Home") {
+                    LabeledContent(row.homeName ?? tr("Home")) {
                         TextField("0", text: $homeScore)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                     }
-                    LabeledContent(row.awayName ?? "Away") {
+                    LabeledContent(row.awayName ?? tr("Away")) {
                         TextField("0", text: $awayScore)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                     }
                 }
                 if let score = row.scoreLine {
-                    Section("Recorded") { Text(score) }
+                    Section(tr("Recorded")) { Text(score) }
                 }
             }
             .navigationTitle(t("sc.result"))

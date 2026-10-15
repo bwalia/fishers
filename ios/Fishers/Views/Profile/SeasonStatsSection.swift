@@ -63,7 +63,7 @@ struct SeasonStatsSection: View {
                 ForEach(meStats.links.filter { $0.profileURL != nil }) { link in
                     if let url = link.profileURL {
                         Link(destination: url) {
-                            Label(link.displayName ?? "Play-Cricket profile", systemImage: "sportscourt")
+                            Label(link.displayName ?? tr("Play-Cricket profile"), systemImage: "sportscourt")
                         }
                     }
                 }
@@ -79,27 +79,27 @@ struct SeasonStatsSection: View {
     @ViewBuilder
     private func seasonSummary(_ season: PlayerSeasonStats) -> some View {
         HStack(spacing: 16) {
-            pill("Runs", "\(season.runs)")
-            pill("Wickets", "\(season.wickets)")
-            pill("Matches", "\(season.matches)")
+            pill(tr("Runs"), "\(season.runs)")
+            pill(tr("Wickets"), "\(season.wickets)")
+            pill(tr("Matches"), "\(season.matches)")
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Season \(season.seasonYear): \(season.runs) runs, \(season.wickets) wickets, \(season.matches) matches")
+        .accessibilityLabel(t("rest.season_stats_aria", vars: ["year": season.seasonYear, "runs": season.runs, "wickets": season.wickets, "matches": season.matches]))
 
         if let avg = season.battingAverage {
-            LabeledContent("Batting avg", value: String(format: "%.1f", avg))
+            LabeledContent(tr("Batting avg"), value: String(format: "%.1f", avg))
         }
         if let bowl = season.bowlingAverage {
-            LabeledContent("Bowling avg", value: String(format: "%.1f", bowl))
+            LabeledContent(tr("Bowling avg"), value: String(format: "%.1f", bowl))
         }
         if let highScore = season.highScore {
-            LabeledContent("High score", value: "\(highScore)")
+            LabeledContent(tr("High score"), value: "\(highScore)")
         }
         if let clubName = season.clubName {
-            LabeledContent("Club", value: clubName)
+            LabeledContent(tr("Club"), value: clubName)
         }
-        LabeledContent("Season", value: "\(season.seasonYear)")
+        LabeledContent(tr("Season"), value: "\(season.seasonYear)")
         if let url = season.playCricketURL {
             Link(destination: url) {
                 Label(t("rest.view_on_play_cricket"), systemImage: "arrow.up.right.square")

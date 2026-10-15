@@ -35,7 +35,7 @@ struct UmpiringView: View {
     private func content(_ p: UmpireProfile) -> some View {
         Section {
             HStack(spacing: FishersTheme.space3) {
-                figure("\(p.matches)", p.matches == 1 ? "match umpired" : "matches umpired")
+                figure("\(p.matches)", p.matches == 1 ? tr("match umpired") : tr("matches umpired"))
                 figure(p.ratingAverage.map { String(format: "%.1f", $0) } ?? "—", p.ratingLine)
             }
 
@@ -59,7 +59,7 @@ struct UmpiringView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        Button(p.note == nil ? "Add a note for captains" : "Edit note") {
+                        Button(p.note == nil ? tr("Add a note for captains") : tr("Edit note")) {
                             note = p.note ?? ""
                             editingNote = true
                         }
@@ -78,13 +78,13 @@ struct UmpiringView: View {
         } footer: {
             if p.matches == 0 && p.reviews.isEmpty {
                 Text(isMine
-                     ? "Ask your captain to name you as umpire and it starts counting."
-                     : "\(name ?? "They") have not umpired a match here yet.")
+                     ? tr("Ask your captain to name you as umpire and it starts counting.")
+                     : t("rest.have_not_umpired_yet", vars: ["name": name ?? t("rest.they_pronoun")]))
             }
         }
 
         if p.ratingCount > 0 {
-            Section("How the ratings fall") {
+            Section(tr("How the ratings fall")) {
                 ForEach((1...5).reversed(), id: \.self) { n in
                     HStack {
                         Text("\(n)").monospacedDigit().frame(width: 16, alignment: .trailing)
@@ -98,13 +98,13 @@ struct UmpiringView: View {
                             .frame(width: 32, alignment: .trailing)
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(n) stars, \(p.ratingBreakdown[n - 1]) of \(p.ratingCount)")
+                    .accessibilityLabel(t("rest.n_stars_of_total", vars: ["n": n, "count": p.ratingBreakdown[n - 1], "total": p.ratingCount]))
                 }
             }
         }
 
         if !p.reviews.isEmpty {
-            Section("What the players said") {
+            Section(tr("What the players said")) {
                 ForEach(p.reviews) { review in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 8) {
@@ -142,7 +142,7 @@ struct UmpiringView: View {
                 : try await FishersAPI.umpiring(of: userId!)
             note = profile?.note ?? ""
         } catch {
-            self.error = "Could not load the umpiring record"
+            self.error = tr("Could not load the umpiring record")
         }
     }
 
@@ -153,7 +153,7 @@ struct UmpiringView: View {
             profile = try await FishersAPI.setUmpiring(umpires: umpires, note: note)
             editingNote = false
         } catch {
-            self.error = "Could not save that"
+            self.error = tr("Could not save that")
         }
     }
 }
@@ -174,7 +174,7 @@ struct StarRow: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(value) out of 5")
+        .accessibilityLabel(t("rest.value_out_of_5", vars: ["value": value]))
     }
 }
 

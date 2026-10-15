@@ -1,0 +1,190 @@
+#!/usr/bin/env node
+/**
+ * Wrap every literal inside a rendering call, not just the first argument.
+ *
+ *   node tools/i18n/wrap-calls.mjs [--dry]
+ *
+ * `Text(mode == .login ? "Welcome back" : "Join your club")` is the shape that
+ * made "0 literals left" wrong twice: the first argument is an expression, so
+ * anything anchored to `Call("` walks straight past it. This matches the call,
+ * counts parentheses to find where it ends, and wraps each literal inside.
+ *
+ * Still only rendering calls, so a wrap cannot change a stored value, and
+ * `systemImage:`/`systemName:` arguments are left alone because an SF Symbol
+ * name is not words.
+ */
+import { readFileSync, writeFileSync } from "node:fs";
+import { join, relative, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const appDir = join(repoRoot, "ios", "Fishers");
+const dry = process.argv.includes("--dry");
+
+const CALLS = [
+  "Text", "Label", "Button", "Section", "navigationTitle", "navigationBarTitle",
+  "Toggle", "TextField", "SecureField", "TextEditor", "Picker", "Stepper", "Link",
+  "alert", "confirmationDialog", "SelectableChip", "Tile", "LabeledContent",
+  // A screen reader reads these aloud, so they are copy like any other.
+  "accessibilityLabel", "accessibilityValue", "accessibilityHint",
+  // Local helpers whose first argument is a caption, found by grepping the
+  // app for `func <name>(` that takes a title.
+  "stat", "figure", "tile", "metric", "pill", "ClubCrest",
+  "Stat", "question", "Row", "badge", "row", "Chip", "Pill", "Banner", "Hint",
+  "Block", "Spec", "Step", "rsvpButton", "playerPicker", "compare", "Section",
+  "field", "Item", "Preset", "DatePicker", "CreaseRow", "Toast", "EmptyState", "legend",
+];
+
+/**
+ * `?? "Could not load that."` — the sentence a view falls back to when an
+ * error carries none. It is assigned, not drawn, so the call-shaped passes
+ * never see it; but it goes on screen a moment later.
+ */
+const FALLBACK = /(\?\?\s*)"([^"\\]{2,})"/g;
+
+/**
+ * `message = "Saved."` and `self.error = "That did not work."` — a sentence on
+ * its way to a view, assigned rather than drawn, so no call-shaped pass sees
+ * it. Only these two names: anything else assigned a literal might be a value.
+ */
+const ASSIGNED = /\b((?:self\.)?(?:message|errorMessage|error|banner|note|status)\s*=\s*)"([^"\\]{2,})"/g;
+
+/**
+ * A ternary branch alone on its line:
+ *
+ *     Text(ready
+ *          ? "It's waiting at the top of this screen."
+ *          : "Your secretary will send one.")
+ *
+ * The call-shaped pass sees the span but the branch is its own line, and a
+ * line that starts with `?` or `:` has no call on it to match against.
+ *
+ * Views only. A bare string in a view is drawn; the same shape in a model or a
+ * service is as likely to be a value, and this has gone wrong four times by
+ * assuming otherwise.
+ */
+const BRANCH = /^(\s*[?:]\s*)"([^"\\]{2,})"/;
+const opener = new RegExp(String.raw`\b(${CALLS.join("|")})\(`, "g");
+
+let wrapped = 0, changed = 0;
+const files = execSync(`find "${appDir}" -name '*.swift'`, { encoding: "utf8" })
+  .split("\n").filter(Boolean)
+  .filter((f) => !f.includes("/Generated/") && !f.endsWith("Localization.swift"));
+
+for (const file of files) {
+  const before = readFileSync(file, "utf8");
+  let text = before;
+  let out = "";
+  let cursor = 0;
+  opener.lastIndex = 0;
+
+  for (let m; (m = opener.exec(text)); ) {
+    const openAt = m.index + m[0].length - 1;
+    // Where this call closes.
+    let depth = 0, closeAt = -1, inString = false;
+    for (let i = openAt; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"' && text[i - 1] !== "\\") inString = !inString;
+      if (inString) continue;
+      if (ch === "(") depth += 1;
+      else if (ch === ")") { depth -= 1; if (depth === 0) { closeAt = i; break; } }
+      if (i - openAt > 2000) break;
+    }
+    if (closeAt < 0) continue;
+
+    const span = text.slice(openAt, closeAt + 1);
+    // One line at a time inside the call, so the two refusals still apply.
+    const rewritten = span.split("\n").map((line) => {
+      // Only refuse a line whose interpolation contains a quote — that is
+      // where the walker cannot tell a literal's end, and it is what made
+      // `"str("` out of `\\(runs == 1 ? "" : "s")`. A line like
+      // `LabeledContent("Season", value: "\\(year)")` walks safely: the label
+      // is an ordinary literal, and the interpolated one is skipped below.
+      if (/\\\([^)]*"/.test(line)) return line;
+      if (/\bcase\s+\w+\s*=\s*"/.test(line)) return line;    // a raw value
+      if (/^\s*(\/\/|\*)/.test(line)) return line;           // a comment
+      // Walk the line's literals in order rather than matching a pattern
+      // against it. `of: "_", with: " "` has two one-character literals, and a
+      // pattern needing two or more characters skips the first, starts at the
+      // closing quote of it, and happily matches `", with: "` — turning the
+      // call into `of: "_tr(", with: ") "`. That compiles. It is the quiet
+      // kind of wrong, and it got through a green build.
+      let outLine = "";
+      let at = 0;
+      while (at < line.length) {
+        const open = line.indexOf('"', at);
+        if (open < 0) { outLine += line.slice(at); break; }
+        let close = open + 1;
+        while (close < line.length && !(line[close] === '"' && line[close - 1] !== "\\")) close += 1;
+        if (close >= line.length) { outLine += line.slice(at); break; }
+        const body = line.slice(open + 1, close);
+        const before = line.slice(at, open);
+        const named = /(\w+):\s*$/.exec(before);
+        const skip =
+          body.length < 2 ||
+          // `"\(season.seasonYear)"` is a value rendered as text, not words.
+          body.includes("\\(") ||
+          !/[A-Za-z]{2,}/.test(body) ||
+          (/^[a-z0-9.]+$/.test(body) && body.includes(".")) ||
+          (named && /^(systemImage|systemName|key|id|value|tag|of|with|separator|format)$/.test(named[1])) ||
+          /\b(t|tr)\($/.test(before) ||
+          // A dictionary key: `vars: ["away": …]` names the placeholder the
+          // translation will look for. Translate the key and `{away}` is
+          // never substituted — in Punjabi only, where nobody is looking.
+          /[\[,]\s*$/.test(before) && /^\s*:/.test(line.slice(close + 1)) ||
+          // A switch pattern or a comparison: both sides have to stay the
+          // value the server sent, or the match stops happening in Punjabi.
+          /\bcase\s+$/.test(before) ||
+          /[=!]=\s*$/.test(before) ||
+          /\.(?:contains|hasPrefix|hasSuffix)\($/.test(before) ||
+          // `payload["team_name"]` is a lookup into JSON the server sent.
+          // Wrapping it made the app search for a Punjabi key and find
+          // nothing — a bug a green build and a wrapped-count both missed.
+          /\[\s*$/.test(before);
+        outLine += before + (skip ? `"${body}"` : `tr("${body}")`);
+        if (!skip) wrapped += 1;
+        at = close + 1;
+      }
+      return outLine;
+      // eslint-disable-next-line no-unreachable
+      return line.replace(/(\w+:\s*)?"([^"\\]{2,})"/g, (whole, named, body) => {
+        if (named && /^(systemImage|systemName|key|id|value|tag):\s*$/.test(named)) return whole;
+        if (!/[A-Za-z]{2,}/.test(body)) return whole;
+        if (/^[a-z0-9.]+$/.test(body) && body.includes(".")) return whole;   // SF Symbol
+        wrapped += 1;
+        return `${named ?? ""}tr(${JSON.stringify(body)})`;
+      });
+    }).join("\n");
+
+    out += text.slice(cursor, openAt) + rewritten;
+    cursor = closeAt + 1;
+    opener.lastIndex = closeAt + 1;
+  }
+  out += text.slice(cursor);
+
+  out = out.split("\n").map((line) => {
+    // Interpolation and comments, same two refusals as everywhere else.
+    // Only refuse a line whose interpolation contains a quote — that is the
+    // case where the walker cannot tell where a literal ends, and it is what
+    // produced `"str("` from `\(runs == 1 ? "" : "s")`. A line like
+    // `LabeledContent("Season", value: "\(year)")` is safe to walk: the label
+    // is an ordinary literal and the interpolated one is skipped below.
+    if (/\\\([^)]*"/.test(line) || /^\s*(\/\/|\*)/.test(line)) return line;
+    const wrap = (whole, op, body) => {
+      if (!/[A-Za-z]{2,}/.test(body)) return whole;
+      if (/^[a-z0-9._]+$/.test(body) && !/\s/.test(body)) return whole;
+      wrapped += 1;
+      return `${op}tr(${JSON.stringify(body)})`;
+    };
+    let done = line.replace(FALLBACK, wrap).replace(ASSIGNED, wrap);
+    if (file.includes("/Views/")) done = done.replace(BRANCH, wrap);
+    return done;
+  }).join("\n");
+
+  if (out !== before) {
+    changed += 1;
+    if (!dry) writeFileSync(file, out);
+  }
+}
+console.log(`${wrapped} literal(s) inside ${changed} file(s)' rendering calls ${dry ? "would be" : ""} wrapped.`);

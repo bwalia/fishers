@@ -11,7 +11,7 @@ enum CricketMatchStatus: String, Codable, Hashable {
 
 enum TossDecision: String, Codable, Hashable, CaseIterable {
     case bat, bowl
-    var label: String { self == .bat ? "Bat" : "Bowl" }
+    var label: String { self == .bat ? tr("Bat") : tr("Bowl") }
 }
 
 enum MatchSide: String, Codable, Hashable, CaseIterable {
@@ -33,18 +33,18 @@ enum DismissalKind: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .bowled: return "Bowled"
-        case .caught: return "Caught"
-        case .lbw: return "LBW"
-        case .runOut: return "Run out"
-        case .stumped: return "Stumped"
-        case .hitWicket: return "Hit wicket"
-        case .retired: return "Retired out"
-        case .retiredHurt: return "Retired hurt"
-        case .obstructingTheField: return "Obstructing the field"
-        case .hitTheBallTwice: return "Hit the ball twice"
-        case .timedOut: return "Timed out"
-        case .other: return "Other"
+        case .bowled: return tr("Bowled")
+        case .caught: return tr("Caught")
+        case .lbw: return tr("LBW")
+        case .runOut: return tr("Run out")
+        case .stumped: return tr("Stumped")
+        case .hitWicket: return tr("Hit wicket")
+        case .retired: return tr("Retired out")
+        case .retiredHurt: return tr("Retired hurt")
+        case .obstructingTheField: return tr("Obstructing the field")
+        case .hitTheBallTwice: return tr("Hit the ball twice")
+        case .timedOut: return tr("Timed out")
+        case .other: return tr("Other")
         }
     }
 
@@ -106,20 +106,20 @@ enum ExtraKind: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .wide: return "Wide"
-        case .noBall: return "No ball"
-        case .bye: return "Bye"
-        case .legBye: return "Leg bye"
-        case .penalty: return "Penalty"
+        case .wide: return tr("Wide")
+        case .noBall: return tr("No ball")
+        case .bye: return tr("Bye")
+        case .legBye: return tr("Leg bye")
+        case .penalty: return tr("Penalty")
         }
     }
 
     var shortLabel: String {
         switch self {
-        case .wide: return "wd"
-        case .noBall: return "nb"
+        case .wide: return tr("wd")
+        case .noBall: return tr("nb")
         case .bye: return "b"
-        case .legBye: return "lb"
+        case .legBye: return tr("lb")
         case .penalty: return "p"
         }
     }
@@ -128,10 +128,10 @@ enum ExtraKind: String, Codable, CaseIterable, Identifiable {
     /// no-balls, and "runs run" for byes and leg byes.
     var footnote: String {
         switch self {
-        case .wide: return "1 for the wide, plus any run."
-        case .noBall: return "1 for the no ball, plus runs off the bat."
-        case .bye, .legBye: return "Counts as a legal ball."
-        case .penalty: return "Five penalty runs, no ball bowled."
+        case .wide: return tr("1 for the wide, plus any run.")
+        case .noBall: return tr("1 for the no ball, plus runs off the bat.")
+        case .bye, .legBye: return tr("Counts as a legal ball.")
+        case .penalty: return tr("Five penalty runs, no ball bowled.")
         }
     }
 }
@@ -163,10 +163,10 @@ struct MatchOfficials: Codable, Equatable {
     var summary: String {
         var parts: [String] = []
         if !umpires.isEmpty {
-            parts.append("Umpires: " + umpires.map(\.name).joined(separator: ", "))
+            parts.append(tr("Umpires: ") + umpires.map(\.name).joined(separator: ", "))
         }
         if !scorers.isEmpty {
-            parts.append("Scorers: " + scorers.map(\.name).joined(separator: ", "))
+            parts.append(tr("Scorers: ") + scorers.map(\.name).joined(separator: ", "))
         }
         return parts.joined(separator: " · ")
     }
@@ -180,9 +180,9 @@ enum GroundType: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .open: return "Open ground"
-        case .boxed: return "Boxed / caged"
-        case .indoor: return "Indoor"
+        case .open: return tr("Open ground")
+        case .boxed: return tr("Boxed / caged")
+        case .indoor: return tr("Indoor")
         }
     }
 
@@ -196,9 +196,9 @@ enum GroundType: String, Codable, CaseIterable, Identifiable {
 
     var blurb: String {
         switch self {
-        case .open: return "Full boundary, normal outfield."
-        case .boxed: return "Caged or netted — walls are in play."
-        case .indoor: return "Indoor centre rules."
+        case .open: return tr("Full boundary, normal outfield.")
+        case .boxed: return tr("Caged or netted — walls are in play.")
+        case .indoor: return tr("Indoor centre rules.")
         }
     }
 }
@@ -211,21 +211,21 @@ enum BallType: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .red: return "Red leather"
-        case .white: return "White leather"
-        case .pink: return "Pink leather"
-        case .tennis: return "Tennis"
-        case .tape: return "Tape ball"
+        case .red: return tr("Red leather")
+        case .white: return tr("White leather")
+        case .pink: return tr("Pink leather")
+        case .tennis: return tr("Tennis")
+        case .tape: return tr("Tape ball")
         }
     }
 
     var shortLabel: String {
         switch self {
-        case .red: return "Red"
-        case .white: return "White"
-        case .pink: return "Pink"
-        case .tennis: return "Tennis"
-        case .tape: return "Tape"
+        case .red: return tr("Red")
+        case .white: return tr("White")
+        case .pink: return tr("Pink")
+        case .tennis: return tr("Tennis")
+        case .tape: return tr("Tape")
         }
     }
 }
@@ -350,10 +350,10 @@ struct MatchConditions: Codable, Equatable, Hashable {
 
     /// "20 overs · 4 per bowler · white leather · open ground"
     var summary: String {
-        let perBowler = oversPerBowler == 0 ? "no bowler limit" : "\(oversPerBowler) per bowler"
+        let perBowler = oversPerBowler == 0 ? tr("no bowler limit") : "\(oversPerBowler) per bowler"
         var summary = "\(oversLimit) overs · \(perBowler) · \(ball.label.lowercased()) · \(ground.label.lowercased())"
         if powerplayOvers > 0 {
-            summary += " · \(powerplayOvers) over powerplay"
+            summary += t("sc.n_over_powerplay", vars: ["n": powerplayOvers])
         }
         return summary
     }
@@ -395,38 +395,38 @@ enum ShotKind: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .drive: return "Drive"
-        case .cut: return "Cut"
-        case .pull: return "Pull"
-        case .hook: return "Hook"
-        case .sweep: return "Sweep"
-        case .reverseSweep: return "Reverse sweep"
-        case .glance: return "Glance"
-        case .flick: return "Flick"
-        case .loft: return "Loft"
-        case .defence: return "Defence"
-        case .edge: return "Edge"
-        case .leave: return "Leave"
-        case .other: return "Other"
+        case .drive: return tr("Drive")
+        case .cut: return tr("Cut")
+        case .pull: return tr("Pull")
+        case .hook: return tr("Hook")
+        case .sweep: return tr("Sweep")
+        case .reverseSweep: return tr("Reverse sweep")
+        case .glance: return tr("Glance")
+        case .flick: return tr("Flick")
+        case .loft: return tr("Loft")
+        case .defence: return tr("Defence")
+        case .edge: return tr("Edge")
+        case .leave: return tr("Leave")
+        case .other: return tr("Other")
         }
     }
 
     /// The verb a commentator would use.
     var verb: String {
         switch self {
-        case .drive: return "driven"
-        case .cut: return "cut"
-        case .pull: return "pulled"
-        case .hook: return "hooked"
-        case .sweep: return "swept"
-        case .reverseSweep: return "reverse-swept"
-        case .glance: return "glanced"
-        case .flick: return "flicked"
-        case .loft: return "lofted"
-        case .defence: return "defended"
-        case .edge: return "edged"
-        case .leave: return "left alone"
-        case .other: return "worked away"
+        case .drive: return tr("driven")
+        case .cut: return tr("cut")
+        case .pull: return tr("pulled")
+        case .hook: return tr("hooked")
+        case .sweep: return tr("swept")
+        case .reverseSweep: return tr("reverse-swept")
+        case .glance: return tr("glanced")
+        case .flick: return tr("flicked")
+        case .loft: return tr("lofted")
+        case .defence: return tr("defended")
+        case .edge: return tr("edged")
+        case .leave: return tr("left alone")
+        case .other: return tr("worked away")
         }
     }
 
@@ -1642,8 +1642,8 @@ struct MatchState: Codable, Equatable {
 
     /// "c Smith b Jones", "run out (Patel)", "not out".
     func dismissalText(_ batter: BatterStats) -> String {
-        if batter.retiredHurt && !batter.out { return "retired hurt" }
-        guard batter.out else { return batter.hasBatted ? "not out" : "did not bat" }
+        if batter.retiredHurt && !batter.out { return t("sc.retired_hurt_lower") }
+        guard batter.out else { return batter.hasBatted ? tr("not out") : tr("did not bat") }
         let bowler = batter.bowlerId.map { name(for: $0) }
         // A substitute is named as one: "c sub (Patel) b Jones" is not the same
         // claim as "c Patel b Jones", and the card has always said so.
@@ -1652,33 +1652,33 @@ struct MatchState: Codable, Equatable {
         }
         switch batter.dismissal {
         case .bowled:
-            return bowler.map { "b \($0)" } ?? "bowled"
+            return bowler.map { "b \($0)" } ?? tr("bowled")
         case .caught:
             if let f = fielder, let b = bowler { return "c \(f) b \(b)" }
             if let b = bowler { return "c & b \(b)" }
-            return "caught"
+            return tr("caught")
         case .lbw:
-            return bowler.map { "lbw b \($0)" } ?? "lbw"
+            return bowler.map { "lbw b \($0)" } ?? tr("lbw")
         case .stumped:
             if let f = fielder, let b = bowler { return "st \(f) b \(b)" }
             if let b = bowler { return "st b \(b)" }
-            return "stumped"
+            return tr("stumped")
         case .hitWicket:
-            return bowler.map { "hit wicket b \($0)" } ?? "hit wicket"
+            return bowler.map { "hit wicket b \($0)" } ?? tr("hit wicket")
         case .runOut:
-            return fielder.map { "run out (\($0))" } ?? "run out"
+            return fielder.map { "run out (\($0))" } ?? tr("run out")
         case .retired:
-            return "retired out"
+            return tr("retired out")
         case .retiredHurt:
-            return "retired hurt"
+            return tr("retired hurt")
         case .obstructingTheField:
-            return "obstructing the field"
+            return tr("obstructing the field")
         case .hitTheBallTwice:
-            return "hit the ball twice"
+            return tr("hit the ball twice")
         case .timedOut:
-            return "timed out"
+            return tr("timed out")
         case .other, nil:
-            return "out"
+            return tr("out")
         }
     }
 
@@ -1713,8 +1713,8 @@ struct DlsPar: Codable, Equatable {
 
     var methodLabel: String {
         method == "supplied_table"
-            ? "DLS (supplied resource table)"
-            : "DLS (Standard Edition approximation)"
+            ? tr("DLS (supplied resource table)")
+            : tr("DLS (Standard Edition approximation)")
     }
 
     /// "12 ahead of the DLS par of 84".
@@ -1799,9 +1799,14 @@ enum CricketEngineError: LocalizedError {
     case validation(String)
     case conflict(String)
 
+    /// The engine throws these in English, from forty-odd places, and every
+    /// one of them is read by a scorer standing at a ground. Translating here
+    /// covers all of them without the engine having to know a dictionary
+    /// exists — and `tr` returns what it was given for anything not in it, so
+    /// a message written tomorrow still reads correctly.
     var errorDescription: String? {
         switch self {
-        case .validation(let m), .conflict(let m): return m
+        case .validation(let m), .conflict(let m): return tr(m)
         }
     }
 }

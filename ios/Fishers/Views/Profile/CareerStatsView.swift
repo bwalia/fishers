@@ -32,10 +32,10 @@ struct CareerStatsView: View {
     var body: some View {
         if seasons.isEmpty {
             ContentUnavailableView {
-                Label("No \(discipline.rawValue) figures yet",
+                Label(t("rest.no_figures_yet", vars: ["discipline": tr(discipline.rawValue)]),
                       systemImage: discipline == .batting ? "figure.cricket" : "circle.dotted")
             } description: {
-                Text("These are worked out from matches scored on \(Brand.name). Play one — or ask your scorer to record it here — and it shows up the same evening.")
+                Text(t("rest.worked_out_from_matches_on", vars: ["brand": Brand.name]))
             }
         } else {
             Section {
@@ -50,7 +50,7 @@ struct CareerStatsView: View {
                 Text(discipline.title)
             }
 
-            Section("Best of it") {
+            Section(tr("Best of it")) {
                 ForEach(highlights, id: \.label) { item in
                     LabeledContent {
                         Text(item.value).font(FishersTheme.figure(.title3))
@@ -72,7 +72,7 @@ struct CareerStatsView: View {
     // MARK: Pieces
 
     private var seasonPicker: some View {
-        Picker("Season", selection: $season) {
+        Picker(tr("Season"), selection: $season) {
             Text(t("cl.all")).tag(Int?.none)
             ForEach(years, id: \.self) { year in
                 Text(String(year)).tag(Int?.some(year))
@@ -87,13 +87,13 @@ struct CareerStatsView: View {
         let totals = Totals(shown)
         let cells: [(String, String)] = discipline == .batting
             ? [("Runs", String(totals.runs)),
-               ("Innings", String(totals.battingInnings)),
-               ("Average", fmt(totals.battingAverage)),
-               ("Strike rate", fmt(totals.strikeRate))]
-            : [("Wickets", String(totals.wickets)),
-               ("Overs", fmt(totals.overs, places: 1)),
-               ("Average", fmt(totals.bowlingAverage)),
-               ("Economy", fmt(totals.economy))]
+               (tr("Innings"), String(totals.battingInnings)),
+               (tr("Average"), fmt(totals.battingAverage)),
+               (tr("Strike rate"), fmt(totals.strikeRate))]
+            : [(tr("Wickets"), String(totals.wickets)),
+               (tr("Overs"), fmt(totals.overs, places: 1)),
+               (tr("Average"), fmt(totals.bowlingAverage)),
+               (tr("Economy"), fmt(totals.economy))]
 
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2),
                          spacing: FishersTheme.space2) {
@@ -123,7 +123,7 @@ struct CareerStatsView: View {
                     Text(club).font(FishersTheme.footnote).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("\(row.matches) match\(row.matches == 1 ? "" : "es")")
+                Text(t("rest.n_matches", count: row.matches, vars: ["n": row.matches]))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -131,15 +131,15 @@ struct CareerStatsView: View {
             // sideways on a phone.
             HStack(spacing: FishersTheme.space2) {
                 if discipline == .batting {
-                    stat("Runs", String(row.runs))
-                    stat("HS", row.highScore.map(String.init) ?? "—")
-                    stat("Avg", fmt(row.battingAverage))
-                    stat("SR", fmt(row.strikeRate))
+                    stat(tr("Runs"), String(row.runs))
+                    stat(tr("HS"), row.highScore.map(String.init) ?? "—")
+                    stat(tr("Avg"), fmt(row.battingAverage))
+                    stat(tr("SR"), fmt(row.strikeRate))
                 } else {
-                    stat("Wkts", String(row.wickets))
-                    stat("Overs", fmt(row.oversBowled, places: 1))
-                    stat("Avg", fmt(row.bowlingAverage))
-                    stat("Econ", fmt(row.oversBowled > 0
+                    stat(tr("Wkts"), String(row.wickets))
+                    stat(tr("Overs"), fmt(row.oversBowled, places: 1))
+                    stat(tr("Avg"), fmt(row.bowlingAverage))
+                    stat(tr("Econ"), fmt(row.oversBowled > 0
                                      ? Double(row.bowlingRuns) / row.oversBowled : nil))
                 }
             }
@@ -167,20 +167,20 @@ struct CareerStatsView: View {
             let most = best { Double($0.runs) }
             let avg = best { $0.battingAverage }
             return [
-                ("Highest score", hs?.highScore.map(String.init) ?? "—", hs?.seasonYear),
-                ("Most runs in a season", most.map { String($0.runs) } ?? "—", most?.seasonYear),
-                ("Best average", fmt(avg?.battingAverage), avg?.seasonYear),
+                (tr("Highest score"), hs?.highScore.map(String.init) ?? "—", hs?.seasonYear),
+                (tr("Most runs in a season"), most.map { String($0.runs) } ?? "—", most?.seasonYear),
+                (tr("Best average"), fmt(avg?.battingAverage), avg?.seasonYear),
             ]
         }
         let wkts = best { Double($0.wickets) }
         let econ = best { $0.oversBowled > 0 ? -Double($0.bowlingRuns) / $0.oversBowled : nil }
         let maidens = best { Double($0.maidens) }
         return [
-            ("Most wickets in a season", wkts.map { String($0.wickets) } ?? "—", wkts?.seasonYear),
-            ("Best economy",
+            (tr("Most wickets in a season"), wkts.map { String($0.wickets) } ?? "—", wkts?.seasonYear),
+            (tr("Best economy"),
              fmt(econ.flatMap { $0.oversBowled > 0 ? Double($0.bowlingRuns) / $0.oversBowled : nil }),
              econ?.seasonYear),
-            ("Most maidens", maidens.map { String($0.maidens) } ?? "—", maidens?.seasonYear),
+            (tr("Most maidens"), maidens.map { String($0.maidens) } ?? "—", maidens?.seasonYear),
         ]
     }
 

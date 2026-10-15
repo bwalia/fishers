@@ -29,9 +29,9 @@ enum CricketCommentary {
             let region = cricketRegion(angle: shot.angle, batsLeft: left)
             switch shot.kind {
             case .leave:
-                parts.append("— left alone")
+                parts.append(tr("— left alone"))
             case .defence:
-                parts.append("— defended")
+                parts.append(tr("— defended"))
             default:
                 parts.append("— \(shot.kind.verb) \(preposition(for: region)) \(region)")
             }
@@ -145,10 +145,10 @@ enum CricketCommentary {
             return extraPhrase(delivery.label, runs: Int(delivery.runs))
         }
         switch delivery.runs {
-        case 0: return "no run"
-        case 4: return "FOUR"
-        case 6: return "SIX"
-        case 1: return "1 run"
+        case 0: return tr("no run")
+        case 4: return tr("FOUR")
+        case 6: return tr("SIX")
+        case 1: return tr("1 run")
         default:
             if delivery.label.hasSuffix("b") || delivery.label.hasSuffix("lb") {
                 return extraPhrase(delivery.label, runs: Int(delivery.runs))
@@ -159,23 +159,23 @@ enum CricketCommentary {
 
     private static func extraPhrase(_ label: String, runs: Int) -> String {
         if label.hasPrefix("wd") {
-            return runs > 1 ? "wide, \(runs) runs" : "wide"
+            return runs > 1 ? t("sc.wide_n_runs", vars: ["n": runs]) : t("outcome.wide")
         }
         if label.hasPrefix("nb") {
-            return runs > 1 ? "no ball, \(runs) runs" : "no ball"
+            return runs > 1 ? t("sc.no_ball_n_runs", vars: ["n": runs]) : t("outcome.no_ball")
         }
-        if label.hasSuffix("lb") { return "\(runs) leg bye\(runs == 1 ? "" : "s")" }
-        if label.hasSuffix("b") { return "\(runs) bye\(runs == 1 ? "" : "s")" }
-        if label.hasSuffix("p") { return "\(runs) penalty runs" }
+        if label.hasSuffix("lb") { return t("sc.n_leg_byes", count: runs, vars: ["n": runs]) }
+        if label.hasSuffix("b") { return t("sc.n_byes", count: runs, vars: ["n": runs]) }
+        if label.hasSuffix("p") { return t("sc.n_penalty_runs", vars: ["n": runs]) }
         return label
     }
 
     /// "through cover", but "over long on" for a lofted shot to the rope.
     private static func preposition(for region: String) -> String {
         switch region {
-        case "long on", "long off": return "down the ground to"
-        case "fine leg", "third man": return "down to"
-        default: return "through"
+        case "long on", "long off": return t("sc.down_the_ground_to")
+        case "fine leg", "third man": return t("sc.down_to")
+        default: return t("sc.through")
         }
     }
 }

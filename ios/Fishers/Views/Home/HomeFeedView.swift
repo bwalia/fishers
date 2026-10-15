@@ -53,7 +53,7 @@ struct HomeFeedView: View {
                         .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                         .listRowBackground(Color.clear)
                     } header: {
-                        Text("How will you use \(Brand.name)?")
+                        Text(t("rest.how_will_you_use", vars: ["brand": Brand.name]))
                     } footer: {
                         Text(t("rest.well_show_you_what_next"))
                     }
@@ -92,7 +92,7 @@ struct HomeFeedView: View {
 
                 if clubContext.clubs.count > 1 {
                     Section {
-                        Picker("Club", selection: Binding(
+                        Picker(tr("Club"), selection: Binding(
                             get: { clubContext.activeClubId },
                             set: { if let id = $0 { clubContext.select(id) } }
                         )) {
@@ -194,7 +194,7 @@ struct HomeFeedView: View {
                             .foregroundStyle(FishersTheme.accent, .primary)
                     }
                     .accessibilityLabel(
-                        unread > 0 ? "\(unread) unread notifications" : "Notifications"
+                        unread > 0 ? "\(unread) unread notifications" : tr("Notifications")
                     )
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -203,7 +203,7 @@ struct HomeFeedView: View {
                     } label: {
                         Image(systemName: "bag")
                     }
-                    .accessibilityLabel("Shop")
+                    .accessibilityLabel(tr("Shop"))
                 }
             }
             .navigationDestination(for: Event.self) { EventDetailView(eventId: $0.id) }
@@ -363,7 +363,7 @@ struct EventRow: View {
                 Text(String(format: "£%.0f", Double(fee) / 100))
                     .font(FishersTheme.headline.monospacedDigit())
                     .foregroundStyle(.primary)
-                    .accessibilityLabel("Fee \(String(format: "£%.0f", Double(fee) / 100))")
+                    .accessibilityLabel(t("rest.fee_amount", vars: ["amount": String(format: "£%.0f", Double(fee) / 100)]))
             }
         }
         .padding(.vertical, 6)

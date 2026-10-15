@@ -38,15 +38,15 @@ struct ClubQRView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("QR code for \(shown.identity.displayName)")
+                    .accessibilityLabel(t("cl.qr_code_for", vars: ["name": shown.identity.displayName]))
                 } else {
                     HStack { Spacer(); ProgressView(); Spacer() }
                 }
             }
 
             if !teams.isEmpty {
-                Section("Which side") {
-                    Picker("Side", selection: $selectedTeamId) {
+                Section(tr("Which side")) {
+                    Picker(tr("Side"), selection: $selectedTeamId) {
                         Text(club.name).tag(UUID?.none)
                         ForEach(teams) { team in
                             Text(team.name).tag(UUID?.some(team.id))
@@ -64,7 +64,7 @@ struct ClubQRView: View {
                     }
                     Button {
                         UIPasteboard.general.string = shown.payload
-                        message = "Copied."
+                        message = tr("Copied.")
                     } label: {
                         Label(t("cl.copy_the_link"), systemImage: "doc.on.doc")
                     }
@@ -117,7 +117,7 @@ struct ClubQRView: View {
         do {
             code = try await FishersAPI.rotateClubQRCode(clubId: club.id)
             selectedTeamId = nil
-            message = "New code minted. The old one no longer works."
+            message = tr("New code minted. The old one no longer works.")
         } catch {
             message = error.localizedDescription
         }

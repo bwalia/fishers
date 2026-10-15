@@ -61,7 +61,7 @@ struct MatchOfficialRow: Codable, Identifiable, Equatable {
 
     var isUmpire: Bool { role == "umpire" }
 
-    var label: String { isUmpire ? "Umpire" : "Scorer" }
+    var label: String { isUmpire ? tr("Umpire") : tr("Scorer") }
 }
 
 /// One change of hands in the scoring book.
@@ -126,11 +126,11 @@ struct SquadPlayer: Codable, Identifiable, Equatable {
 
     var standingLabel: String {
         switch standing {
-        case "selected": return "picked"
-        case "reserve": return "reserve"
-        case "available": return "available"
-        case "unavailable": return "said no"
-        default: return "member"
+        case "selected": return tr("picked")
+        case "reserve": return tr("reserve")
+        case "available": return tr("available")
+        case "unavailable": return tr("said no")
+        default: return tr("member")
         }
     }
 }

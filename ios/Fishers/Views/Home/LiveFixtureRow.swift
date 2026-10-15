@@ -31,7 +31,7 @@ struct LiveFixtureRow: View {
                 // Whether *you* may score it is EventDetailView's answer to
                 // give; this only says whether anyone is on it, which is what
                 // decides if the book is being kept at all.
-                Text(fixture.hasScorer ? "Being scored" : "No scorer yet")
+                Text(fixture.hasScorer ? tr("Being scored") : tr("No scorer yet"))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(fixture.hasScorer ? .secondary : FishersTheme.maybe)
             }
@@ -41,7 +41,7 @@ struct LiveFixtureRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(fixture.sides), \(fixture.score ?? "not started"), "
-                + (fixture.hasScorer ? "being scored" : "no scorer yet")
+                + (fixture.hasScorer ? tr("being scored") : tr("no scorer yet"))
         )
     }
 }
@@ -52,7 +52,7 @@ struct LiveFixtureRow: View {
             fixture: CricketFixtureRow(
                 eventId: UUID(),
                 clubId: UUID(),
-                title: "Saturday League",
+                title: tr("Saturday League"),
                 startAt: .now,
                 eventStatus: "scheduled",
                 matchId: UUID(),

@@ -104,7 +104,7 @@ private struct Tally {
         if bowled > 0 {
             parts.append("\(wickets)-\(conceded) (\(MatchState.oversBallsDisplay(bowled)))")
         }
-        for (count, label) in [(catches, "ct"), (stumpings, "st"), (runOuts, "ro")] where count > 0 {
+        for (count, label) in [(catches, tr("ct")), (stumpings, tr("st")), (runOuts, tr("ro"))] where count > 0 {
             parts.append("\(count) \(label)")
         }
         return parts.joined(separator: " · ")

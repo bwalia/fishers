@@ -34,7 +34,7 @@ struct ClubMembershipRow: Codable, Identifiable, Hashable {
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         sportTypes = try c.decodeIfPresent([String].self, forKey: .sportTypes) ?? []
-        visibility = try c.decodeIfPresent(String.self, forKey: .visibility) ?? "invite_only"
+        visibility = try c.decodeIfPresent(String.self, forKey: .visibility) ?? tr("invite_only")
         ownerId = try c.decode(UUID.self, forKey: .ownerId)
         description = try c.decodeIfPresent(String.self, forKey: .description)
         isInformalGroup = try c.decodeIfPresent(Bool.self, forKey: .isInformalGroup) ?? false
@@ -65,10 +65,10 @@ struct ClubListFilters: Equatable {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .secretary: return "Secretary"
-            case .captain: return "Captain"
-            case .viceCaptain: return "Vice captain"
-            case .member: return "Member"
+            case .secretary: return tr("Secretary")
+            case .captain: return tr("Captain")
+            case .viceCaptain: return tr("Vice captain")
+            case .member: return tr("Member")
             }
         }
     }
@@ -78,9 +78,9 @@ struct ClubListFilters: Equatable {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .name: return "Name A–Z"
-            case .recent: return "Recently joined"
-            case .members: return "Most members"
+            case .name: return tr("Name A–Z")
+            case .recent: return tr("Recently joined")
+            case .members: return tr("Most members")
             }
         }
     }
@@ -125,14 +125,14 @@ struct RoleChoice: Hashable, Identifiable {
     var id: String { role.rawValue + (isCaptain ? "+captain" : "") }
 
     var label: String {
-        isCaptain ? "Secretary & captain" : role.displayName
+        isCaptain ? tr("Secretary & captain") : role.displayName
     }
 
-    var shortLabel: String { isCaptain ? "SEC · C" : role.shortLabel }
+    var shortLabel: String { isCaptain ? tr("SEC · C") : role.shortLabel }
 
     var responsibilities: String {
         isCaptain
-            ? "A secretary who also captains the side — usual in a small club. Marked captain on the team sheet."
+            ? tr("A secretary who also captains the side — usual in a small club. Marked captain on the team sheet.")
             : role.responsibilities
     }
 
@@ -238,19 +238,19 @@ struct ClubSetupStep: Identifiable, Equatable {
 
     var title: String {
         switch kind {
-        case .players: return "Add your players"
-        case .team: return "Add a team"
-        case .captain: return "Name a captain"
-        case .ground: return "Add your ground"
+        case .players: return tr("Add your players")
+        case .team: return tr("Add a team")
+        case .captain: return tr("Name a captain")
+        case .ground: return tr("Add your ground")
         }
     }
 
     var detail: String {
         switch kind {
-        case .players: return "By email or mobile number, or from a profile link a player sends you."
-        case .team: return "A 1st XI, a Sunday side, the juniors — each keeps its own squad."
-        case .captain: return "Captains pick the side and run the scorebook. Captain it yourself? Be Secretary & captain."
-        case .ground: return "So every fixture says where to turn up."
+        case .players: return tr("By email or mobile number, or from a profile link a player sends you.")
+        case .team: return tr("A 1st XI, a Sunday side, the juniors — each keeps its own squad.")
+        case .captain: return tr("Captains pick the side and run the scorebook. Captain it yourself? Be Secretary & captain.")
+        case .ground: return tr("So every fixture says where to turn up.")
         }
     }
 

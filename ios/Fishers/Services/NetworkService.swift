@@ -28,27 +28,24 @@ enum APIError: LocalizedError {
             if let message = Self.serverMessage(in: body) { return message }
             return statusSentence
         case .unauthorized:
-            return "Please sign in again."
+            return tr("Please sign in again.")
         case .decoding(let e):
             #if DEBUG
             return "Decode error: \(e.localizedDescription)"
             #else
             // Nothing the person did, and nothing they can fix by retrying.
-            return "\(Brand.name) sent back something this version of the app "
-                + "did not understand. Updating the app usually fixes it."
+            return t("rest.decode_error_sentence", vars: ["brand": Brand.name])
             #endif
         case .unreachable(let detail):
             #if DEBUG
-            return "Cannot reach API at \(AppConfig.apiBaseURL.absoluteString) — is it running? (\(detail))"
+            return t("rest.cannot_reach_api_debug", vars: ["host": AppConfig.apiBaseURL.absoluteString, "detail": detail])
             #else
-            return "Can't reach \(Brand.name) right now. Check your connection "
-                + "and try again."
+            return t("rest.cannot_reach_sentence", vars: ["brand": Brand.name])
             #endif
         case .empty:
-            return "\(Brand.name) did not send anything back. Try again."
+            return t("rest.sent_nothing_back", vars: ["brand": Brand.name])
         case .invalidURL:
-            return "This app is pointed at an address that is not valid. "
-                + "Check Profile → API server."
+            return tr("This app is pointed at an address that is not valid. Check Profile → API server.")
         }
     }
 
@@ -57,17 +54,17 @@ enum APIError: LocalizedError {
     /// Every one of these is something the person can act on, or an honest
     /// admission that they cannot. A bare number is neither.
     private var statusSentence: String {
-        guard case .http(let code, _) = self else { return "Something went wrong." }
+        guard case .http(let code, _) = self else { return tr("Something went wrong.") }
         switch code {
-        case 400, 422: return "Some of what you entered was not accepted. Check it and try again."
-        case 401: return "Please sign in again."
-        case 403: return "You do not have permission to do that."
-        case 404: return "That is not here any more."
-        case 409: return "That clashes with something that already exists."
-        case 413: return "That file is too big."
-        case 429: return "Too many tries just now. Wait a moment and try again."
+        case 400, 422: return tr("Some of what you entered was not accepted. Check it and try again.")
+        case 401: return tr("Please sign in again.")
+        case 403: return tr("You do not have permission to do that.")
+        case 404: return tr("That is not here any more.")
+        case 409: return tr("That clashes with something that already exists.")
+        case 413: return tr("That file is too big.")
+        case 429: return tr("Too many tries just now. Wait a moment and try again.")
         case 500...599: return "\(Brand.name) is having trouble right now. Try again in a moment."
-        default: return "Something went wrong. Try again."
+        default: return tr("Something went wrong. Try again.")
         }
     }
 
@@ -97,7 +94,7 @@ enum APIError: LocalizedError {
     /// Kept because thirty-four call sites say it, and it reads well at the
     /// point of use. Now the same string `localizedDescription` gives.
     var friendlyMessage: String {
-        errorDescription ?? "Something went wrong."
+        errorDescription ?? tr("Something went wrong.")
     }
 
     /// The machine-readable reason, when the API gives one — `"unverified"`

@@ -76,8 +76,8 @@ struct EntryInvitationsSection: View {
                 // otherwise would leave a club thinking its place was safe.
                 Text(
                     invitations.contains(where: { ($0.entryFeeCents ?? 0) > 0 })
-                        ? "Accepting holds your place. Where there is an entry fee your side is in the draw once it is settled — pay it on the web, or the host will record it."
-                        : "Accepting puts your side in the draw. Declining tells them now, while they can still find somebody else."
+                        ? tr("Accepting holds your place. Where there is an entry fee your side is in the draw once it is settled — pay it on the web, or the host will record it.")
+                        : tr("Accepting puts your side in the draw. Declining tells them now, while they can still find somebody else.")
                 )
             }
         }
@@ -103,7 +103,7 @@ struct EntryInvitationsSection: View {
             _ = try await FishersAPI.respondToEntry(entrantId: invitation.entrantId, status: status)
             await onAnswered()
         } catch {
-            self.error = "Could not send that answer. Try again in a moment."
+            self.error = tr("Could not send that answer. Try again in a moment.")
         }
     }
 }

@@ -210,9 +210,9 @@ enum AvailabilityStatus: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .available: return "Available"
-        case .unavailable: return "Unavailable"
-        case .maybe: return "Maybe"
+        case .available: return tr("Available")
+        case .unavailable: return tr("Unavailable")
+        case .maybe: return tr("Maybe")
         }
     }
 
@@ -312,24 +312,24 @@ struct Product: Codable, Identifiable, Hashable {
     var isSold: Bool { stock == 0 }
 
     var availability: String {
-        guard let stock else { return "On request" }
-        if stock == 0 { return "Sold" }
-        if stock == 1 && condition == "used" { return "One only" }
+        guard let stock else { return tr("On request") }
+        if stock == 0 { return tr("Sold") }
+        if stock == 1 && condition == "used" { return tr("One only") }
         return "\(stock) available"
     }
 
     var conditionLabel: String? {
         switch condition {
-        case "used": return "Second-hand"
-        case "new": return "Brand new"
+        case "used": return tr("Second-hand")
+        case "new": return tr("Brand new")
         default: return nil
         }
     }
 
     var categoryLabel: String {
         switch category {
-        case "equipment": return "Equipment"
-        case "merchandise": return "Merchandise"
+        case "equipment": return tr("Equipment")
+        case "merchandise": return tr("Merchandise")
         default: return category.capitalized
         }
     }

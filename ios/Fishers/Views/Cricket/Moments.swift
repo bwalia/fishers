@@ -10,9 +10,9 @@ struct Moment: Equatable {
 
     var word: String {
         switch kind {
-        case .four: return "FOUR"
-        case .six: return "SIX"
-        case .wicket: return "OUT!"
+        case .four: return tr("FOUR")
+        case .six: return tr("SIX")
+        case .wicket: return tr("OUT!")
         }
     }
 
@@ -41,7 +41,7 @@ struct Moment: Equatable {
             }
             return Moment(
                 kind: .wicket,
-                who: out.map { after.name(for: $0.playerId) } ?? "Wicket",
+                who: out.map { after.name(for: $0.playerId) } ?? tr("Wicket"),
                 detail: out.map { after.dismissalText($0) }
             )
         }

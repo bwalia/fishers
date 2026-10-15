@@ -33,7 +33,7 @@ enum ProfileReminder {
 
         for (id, days) in zip(ids, [1, 4]) {
             let content = UNMutableNotificationContent()
-            content.title = "Finish your \(Brand.name) profile"
+            content.title = t("rest.finish_your_brand_profile", vars: ["brand": Brand.name])
             content.body = "You're \(strength.percent)% there. \(strength.nextUp) so captains and clubs can see who they're picking."
             content.sound = .default
             try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger(inDays: days)))

@@ -100,7 +100,7 @@ struct ScoreHubPane: View {
             }
 
             if !phoneMatches.isEmpty {
-                Section("On this phone") {
+                Section(tr("On this phone")) {
                     ForEach(phoneMatches, id: \.matchId) { match in
                         Button {
                             resumeMatchId = match.matchId
@@ -112,8 +112,8 @@ struct ScoreHubPane: View {
             }
 
             Section {
-                Picker("Which fixtures", selection: $query.state) {
-                    ForEach(StateFilter.allCases) { Text($0.rawValue).tag($0) }
+                Picker(tr("Which fixtures"), selection: $query.state) {
+                    ForEach(StateFilter.allCases) { Text(tr($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
@@ -134,7 +134,7 @@ struct ScoreHubPane: View {
                 HStack {
                     if total > 0 { Text("\(rows.count) of \(total)") }
                     Spacer()
-                    Picker("Order", selection: $query.newestFirst) {
+                    Picker(tr("Order"), selection: $query.newestFirst) {
                         Text(t("ld.soonest_first")).tag(false)
                         Text(t("ld.newest_first")).tag(true)
                     }
@@ -158,7 +158,7 @@ struct ScoreHubPane: View {
             }
         }
         .fishersList()
-        .searchable(text: $typed, prompt: "Search fixtures or teams")
+        .searchable(text: $typed, prompt: tr("Search fixtures or teams"))
         .overlay { if !loaded { ProgressView() } }
         .task(id: typed) {
             // One request per pause in typing, not per keystroke.
@@ -261,7 +261,7 @@ struct ScoreHubPane: View {
                 page = 1
                 hasMore = false
                 showingCached = true
-                message = "Showing fixtures saved on this phone — will refresh when you are back online."
+                message = tr("Showing fixtures saved on this phone — will refresh when you are back online.")
             } else {
                 message = (error as? APIError)?.friendlyMessage ?? error.localizedDescription
                 showingCached = false
@@ -347,7 +347,7 @@ private struct LocalMatchRow: View {
                 .lineLimit(2)
                 .foregroundStyle(.primary)
             HStack(spacing: 6) {
-                Text(match.hasPendingWork ? "Waiting to sync" : "On this phone")
+                Text(match.hasPendingWork ? tr("Waiting to sync") : tr("On this phone"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(match.hasPendingWork ? FishersTheme.unavailable : .secondary)
                     .padding(.horizontal, 8)
@@ -373,7 +373,7 @@ struct ScoreFixtureRow: View {
 
     private var status: (label: String, tint: Color) {
         switch fixture.matchStatus {
-        case "live": return ("Live", FishersTheme.seam)
+        case "live": return (tr("Live"), FishersTheme.seam)
         case "complete", "published": return ("Finished", FishersTheme.pitch)
         case nil: return ("Not started", .secondary)
         case let other?: return (other.replacingOccurrences(of: "_", with: " ").capitalized, FishersTheme.accent)
@@ -432,9 +432,9 @@ struct QuickMatchSheet: View {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .friendly: return "Friendly"
-            case .league_match: return "League"
-            case .social: return "Social"
+            case .friendly: return tr("Friendly")
+            case .league_match: return tr("League")
+            case .social: return tr("Social")
             }
         }
     }
@@ -457,21 +457,21 @@ struct QuickMatchSheet: View {
     }
 
     private var missing: String? {
-        if club == nil { return "which of your clubs is playing" }
-        if awayName.trimmingCharacters(in: .whitespaces).isEmpty { return "who you are playing" }
-        if opponent?.clubId == clubId { return "an opposition that is not your own club" }
+        if club == nil { return tr("which of your clubs is playing") }
+        if awayName.trimmingCharacters(in: .whitespaces).isEmpty { return tr("who you are playing") }
+        if opponent?.clubId == clubId { return tr("an opposition that is not your own club") }
         return nil
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Your side") {
-                    Picker("Club", selection: $clubId) {
+                Section(tr("Your side")) {
+                    Picker(tr("Club"), selection: $clubId) {
                         ForEach(clubs) { Text($0.name).tag(Optional($0.id)) }
                     }
                     if !teams.isEmpty {
-                        Picker("Team", selection: $teamId) {
+                        Picker(tr("Team"), selection: $teamId) {
                             Text(t("rest.the_club")).tag(UUID?.none)
                             ForEach(teams) { Text($0.name).tag(Optional($0.id)) }
                         }
@@ -482,17 +482,17 @@ struct QuickMatchSheet: View {
                     Button {
                         picking = true
                     } label: {
-                        LabeledContent("Opposition", value: awayName.isEmpty ? "Choose…" : awayName)
+                        LabeledContent(tr("Opposition"), value: awayName.isEmpty ? tr("Choose…") : awayName)
                     }
                 } header: {
                     Text(t("ev.the_opposition"))
                 } footer: {
-                    Text(opponent.map { "\($0.clubName) are on \(Brand.name) — their captain can name their own eleven." }
-                         ?? "Find them by their code or name, or just type who turned up. Works offline if you type the name.")
+                    Text(opponent.map { t("sc.opponent_on_brand_sentence", vars: ["club": $0.clubName, "brand": Brand.name]) }
+                         ?? tr("Find them by their code or name, or just type who turned up. Works offline if you type the name."))
                 }
 
-                Section("Kind of match") {
-                    Picker("Kind", selection: $kind) {
+                Section(tr("Kind of match")) {
+                    Picker(tr("Kind"), selection: $kind) {
                         ForEach(Kind.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
@@ -516,7 +516,7 @@ struct QuickMatchSheet: View {
                     .disabled(busy || missing != nil)
                     .listRowBackground(Color.clear)
                 } footer: {
-                    if let missing { Text("Still needed: \(missing).") }
+                    if let missing { Text(t("sc.still_needed", vars: ["what": missing])) }
                 }
             }
             .navigationTitle(t("cl.start_a_match"))
@@ -583,7 +583,7 @@ struct QuickMatchSheet: View {
                 self.error = api.friendlyMessage
                 return
             } catch {
-                self.error = "Could not start the match"
+                self.error = tr("Could not start the match")
                 return
             }
         }

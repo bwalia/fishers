@@ -148,9 +148,9 @@ struct EventDetailView: View {
     }
 
     private var scoringButtonTitle: String {
-        if hasLocalMatch, existingCricket == nil { return "Continue scoring" }
-        guard let match = existingCricket else { return "Start match" }
-        return match.state.status.isFinished ? "Reopen scoring" : "Continue scoring"
+        if hasLocalMatch, existingCricket == nil { return tr("Continue scoring") }
+        guard let match = existingCricket else { return tr("Start match") }
+        return match.state.status.isFinished ? tr("Reopen scoring") : tr("Continue scoring")
     }
 
     /// Shown to a player once they are picked: confirm or pull out, well before
@@ -163,7 +163,7 @@ struct EventDetailView: View {
                     .font(.headline)
                     .foregroundStyle(FishersTheme.accent)
                 if me.state == .selected || me.state == .confirmed {
-                    Text("Confirm at least \(board.confirmLeadHours)h before start. Unconfirmed places go to reserves \(board.dropLeadHours)h before.")
+                    Text(t("ev.confirm_before_start", vars: ["confirm": board.confirmLeadHours, "drop": board.dropLeadHours]))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -202,13 +202,13 @@ struct EventDetailView: View {
 
     private func headline(for state: SelectionState) -> String {
         switch state {
-        case .selected: return "You're picked"
-        case .confirmed: return "You're in"
-        case .reserve: return "You're on standby"
-        case .dropped: return "Your place went to a reserve"
-        case .declined: return "You said you can't make it"
-        case .notSelected: return "Not selected this time"
-        case .pool: return "You're in the mix"
+        case .selected: return tr("You're picked")
+        case .confirmed: return tr("You're in")
+        case .reserve: return tr("You're on standby")
+        case .dropped: return tr("Your place went to a reserve")
+        case .declined: return tr("You said you can't make it")
+        case .notSelected: return tr("Not selected this time")
+        case .pool: return tr("You're in the mix")
         }
     }
 
@@ -237,7 +237,7 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(event.title)
                 .font(FishersTheme.title)
-            Text("\(event.sport.capitalized) · \(event.eventSubtype.replacingOccurrences(of: "_", with: " "))")
+            Text(t("ev.sport_and_kind", vars: ["sport": tr(event.sport.capitalized), "kind": tr(event.eventSubtype.replacingOccurrences(of: "_", with: " "))]))
                 .foregroundStyle(FishersTheme.accent)
             Text(event.startAt.formatted(date: .abbreviated, time: .shortened)
                  + " – "
@@ -252,9 +252,9 @@ struct EventDetailView: View {
 
     private var rsvpRow: some View {
         HStack(spacing: 10) {
-            rsvpButton("Going", .going)
-            rsvpButton("Maybe", .maybe)
-            rsvpButton("Can't", .notGoing)
+            rsvpButton(tr("Going"), .going)
+            rsvpButton(tr("Maybe"), .maybe)
+            rsvpButton(tr("Can't"), .notGoing)
         }
     }
 
@@ -263,7 +263,7 @@ struct EventDetailView: View {
             Task {
                 do {
                     try await FishersAPI.rsvp(eventId: eventId, status: status)
-                    message = "RSVP updated"
+                    message = tr("RSVP updated")
                     await load()
                 } catch {
                     message = error.localizedDescription
@@ -280,13 +280,13 @@ struct EventDetailView: View {
                     Task {
                         do {
                             let intent = try await FishersAPI.paymentIntent(eventId: eventId, amountCents: fee)
-                            message = "Payment ready (\(intent.clientSecret.prefix(18))…)"
+                            message = t("rest.payment_ready")
                         } catch {
                             message = error.localizedDescription
                         }
                     }
                 } label: {
-                    Label("Pay \(String(format: "£%.2f", Double(fee) / 100))", systemImage: "creditcard")
+                    Label(t("ev.pay_amount", vars: ["amount": String(format: "£%.2f", Double(fee) / 100)]), systemImage: "creditcard")
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(FishersTheme.accent)
@@ -356,7 +356,7 @@ struct EventDetailView: View {
                 attendees = []
                 roleInfo = OfflineCache.loadRole(clubId: cached.clubId)
                 showingCached = true
-                message = "Showing the fixture saved on this phone."
+                message = tr("Showing the fixture saved on this phone.")
             } else {
                 message = error.localizedDescription
             }

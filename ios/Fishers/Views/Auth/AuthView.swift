@@ -22,7 +22,7 @@ struct AuthView: View {
     enum Method: String, CaseIterable, Identifiable {
         case email, phone
         var id: String { rawValue }
-        var label: String { self == .email ? "Email" : "Mobile number" }
+        var label: String { self == .email ? tr("Email") : tr("Mobile number") }
 
         /// Whether a value is plausibly the thing this method asks for.
         ///
@@ -56,14 +56,14 @@ struct AuthView: View {
                         .padding(.top, FishersTheme.space3)
 
                     VStack(alignment: .leading, spacing: FishersTheme.space2) {
-                        Text(mode == .login ? "Welcome back" : "Join your club")
+                        Text(mode == .login ? tr("Welcome back") : tr("Join your club"))
                             .font(FishersTheme.title)
                             .tracking(-0.3)
                             .foregroundStyle(.primary)
 
                         Text(mode == .login
-                             ? "Sign in to see fixtures, chats and selection."
-                             : "Create an account — you can be in a match within a minute.")
+                             ? tr("Sign in to see fixtures, chats and selection.")
+                             : tr("Create an account — you can be in a match within a minute."))
                             .font(FishersTheme.subhead)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -81,10 +81,10 @@ struct AuthView: View {
 
                         VStack(spacing: 12) {
                             if mode == .signup {
-                                field("Name", text: $name, field: .name)
+                                field(tr("Name"), text: $name, field: .name)
                                     .textContentType(.name)
 
-                                Picker("Register with", selection: $method) {
+                                Picker(tr("Register with"), selection: $method) {
                                     ForEach(Method.allCases) { Text($0.label).tag($0) }
                                 }
                                 .pickerStyle(.segmented)
@@ -95,12 +95,12 @@ struct AuthView: View {
                                 .onChange(of: method) { _, _ in identifier = "" }
                             }
                             if mode == .signup && method == .phone {
-                                field("Mobile number", text: $identifier, field: .identifier)
+                                field(tr("Mobile number"), text: $identifier, field: .identifier)
                                     .textContentType(.telephoneNumber)
                                     .keyboardType(.phonePad)
                             } else {
                                 field(
-                                    mode == .login ? "Email or mobile number" : "Email",
+                                    mode == .login ? tr("Email or mobile number") : tr("Email"),
                                     text: $identifier,
                                     field: .identifier
                                 )
@@ -111,8 +111,8 @@ struct AuthView: View {
                             }
                             if mode == .signup, !trimmedIdentifier.isEmpty, !identifierLooksRight {
                                 Text(method == .email
-                                     ? "That does not look like an email address."
-                                     : "That does not look like a mobile number.")
+                                     ? tr("That does not look like an email address.")
+                                     : tr("That does not look like a mobile number."))
                                     .font(FishersTheme.footnote)
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -134,7 +134,7 @@ struct AuthView: View {
                                 if session.isLoading {
                                     ProgressView()
                                 } else {
-                                    Text(mode == .login ? "Sign in" : "Create account")
+                                    Text(mode == .login ? tr("Sign in") : tr("Create account"))
                                         .font(FishersTheme.headline)
                                 }
                             }
@@ -145,7 +145,7 @@ struct AuthView: View {
                         .controlSize(.large)
                         .disabled(session.isLoading || !canSubmit)
 
-                        Button(mode == .login ? "Need an account? Sign up" : "Have an account? Sign in") {
+                        Button(mode == .login ? tr("Need an account? Sign up") : tr("Have an account? Sign in")) {
                             withAnimation(.snappy) {
                                 mode = mode == .login ? .signup : .login
                             }
@@ -201,7 +201,7 @@ struct AuthView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "g.circle.fill")
                                 .font(.title3)
-                            Text(mode == .signup ? "Sign up with Google" : "Continue with Google")
+                            Text(mode == .signup ? tr("Sign up with Google") : tr("Continue with Google"))
                                 .font(FishersTheme.headline)
                         }
                         .frame(maxWidth: .infinity)
@@ -288,7 +288,7 @@ struct AuthView: View {
                   let token = String(data: tokenData, encoding: .utf8),
                   !token.isEmpty
             else {
-                session.errorMessage = "Apple sign-in did not return a token — try again"
+                session.errorMessage = tr("Apple sign-in did not return a token — try again")
                 return
             }
             var nameParts: [String] = []
@@ -307,7 +307,7 @@ struct AuthView: View {
     private func socialGoogle() async {
         do {
             guard let googleConfig else {
-                session.errorMessage = "Google sign-in is not set up on this server"
+                session.errorMessage = tr("Google sign-in is not set up on this server")
                 return
             }
             let credential = try await SocialAuth.signInWithGoogle(config: googleConfig)

@@ -14,7 +14,7 @@ struct CalendarPane: View {
     private let weekdays = ["M", "T", "W", "T", "F", "S", "S"]
     /// Monday-first, as the grid is, in Calendar's 1 = Sunday numbering.
     private let weekdayOrder: [(Int, String)] = [
-        (2, "Mondays"), (3, "Tuesdays"), (4, "Wednesdays"), (5, "Thursdays"), (6, "Fridays"), (7, "Saturdays"), (1, "Sundays"),
+        (2, tr("Mondays")), (3, tr("Tuesdays")), (4, tr("Wednesdays")), (5, tr("Thursdays")), (6, tr("Fridays")), (7, tr("Saturdays")), (1, tr("Sundays")),
     ]
 
     var body: some View {
@@ -65,7 +65,7 @@ struct CalendarPane: View {
             } label: {
                 Image(systemName: "chevron.left").frame(width: FishersTheme.minTap, height: FishersTheme.minTap)
             }
-            .accessibilityLabel("Previous month")
+            .accessibilityLabel(tr("Previous month"))
             Spacer()
             Text(vm.month.formatted(.dateTime.month(.wide).year()))
                 .font(FishersTheme.title)
@@ -77,7 +77,7 @@ struct CalendarPane: View {
             } label: {
                 Image(systemName: "chevron.right").frame(width: FishersTheme.minTap, height: FishersTheme.minTap)
             }
-            .accessibilityLabel("Next month")
+            .accessibilityLabel(tr("Next month"))
         }
         .padding(.horizontal)
     }
@@ -189,7 +189,7 @@ struct CalendarPane: View {
                             get: { vm.fixtures.first { $0.eventId == fixture.eventId }?.myAnswer },
                             set: { vm.setAnswer($0, for: fixture.eventId) }
                         ),
-                        title: "Can you play \(fixture.title)?"
+                        title: t("ev.can_you_play", vars: ["fixture": fixture.title])
                     )
                 }
                 .padding(12)
@@ -206,10 +206,10 @@ struct CalendarPane: View {
     private var bulk: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(t("ev.your_usual_days")).font(FishersTheme.headline)
-            Text("Set every one of a weekday in \(vm.month.formatted(.dateTime.month(.wide))) at once, then change the odd day above.")
+            Text(t("ev.set_every_weekday_in", vars: ["month": vm.month.formatted(.dateTime.month(.wide))]))
                 .font(FishersTheme.footnote)
                 .foregroundStyle(.secondary)
-            Picker("Weekday", selection: $bulkWeekday) {
+            Picker(tr("Weekday"), selection: $bulkWeekday) {
                 ForEach(weekdayOrder, id: \.0) { Text($0.1).tag($0.0) }
             }
             .pickerStyle(.menu)
@@ -243,7 +243,7 @@ struct CalendarPane: View {
     }
 
     private func dayLabel(_ day: Date, status: AvailabilityStatus?, marks: [MyFixture]) -> String {
-        var parts = [day.formatted(.dateTime.weekday(.wide).day().month(.wide)), status?.label ?? "not said"]
+        var parts = [day.formatted(.dateTime.weekday(.wide).day().month(.wide)), status?.label ?? tr("not said")]
         parts += marks.map { "\($0.title): \($0.saidLabel)" }
         return parts.joined(separator: ", ")
     }

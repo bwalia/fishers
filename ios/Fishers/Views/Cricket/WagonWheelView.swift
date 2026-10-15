@@ -96,7 +96,7 @@ struct WagonWheelPicker: View {
                     .frame(maxWidth: 320, maxHeight: 320)
                     .padding(.horizontal)
 
-                Text(angle == nil ? "Tap where it went" : regionName)
+                Text(angle == nil ? tr("Tap where it went") : regionName)
                     .font(FishersTheme.headline)
                     .foregroundStyle(angle == nil ? .secondary : FishersTheme.accent)
                     .animation(.snappy, value: angle)
@@ -135,10 +135,10 @@ struct WagonWheelPicker: View {
     private var headline: String {
         let outcome: String
         switch runs {
-        case 6: outcome = "SIX"
-        case 4: outcome = "FOUR"
-        case 0: outcome = "no run"
-        case 1: outcome = "1 run"
+        case 6: outcome = tr("SIX")
+        case 4: outcome = tr("FOUR")
+        case 0: outcome = tr("no run")
+        case 1: outcome = tr("1 run")
         default: outcome = "\(runs) runs"
         }
         return "\(batterName) — \(outcome)"
@@ -167,7 +167,7 @@ struct WagonWheelPicker: View {
                         record(value.location, centre: centre, radius: radius)
                     }
             )
-            .accessibilityLabel("Wagon wheel. Tap to place the shot.")
+            .accessibilityLabel(tr("Wagon wheel. Tap to place the shot."))
         }
         .aspectRatio(1, contentMode: .fit)
     }
@@ -311,9 +311,9 @@ struct WagonWheelChart: View {
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 14) {
-                    legend(FishersTheme.six, "Six")
-                    legend(FishersTheme.four, "Four")
-                    legend(FishersTheme.accent, "Runs")
+                    legend(FishersTheme.six, tr("Six"))
+                    legend(FishersTheme.four, tr("Four"))
+                    legend(FishersTheme.accent, tr("Runs"))
                 }
                 .font(.caption2)
             }
