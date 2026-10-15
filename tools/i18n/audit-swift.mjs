@@ -31,6 +31,10 @@ const NOT_COPY = [
   /\bcase\s+\w+\s*=\s*$/,                        // handled separately, see below
   /KeychainStore\.\w+\(\s*$/,
   /\bNSLog\(\s*$/, /\bprint\(\s*$/, /\bassert\w*\(/,
+  // The engine's refusals. They are thrown in English from several files and
+  // translated once, in `CricketEngineError.errorDescription`, so the throw
+  // site is the canonical wording rather than a missed string.
+  /CricketEngineError\.(validation|conflict)\(\s*$/,
   /CodingKeys/, /\bkey:\s*"[^"]*"\s*\)/,
 ];
 

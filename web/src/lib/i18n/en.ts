@@ -3908,6 +3908,11 @@ export const en = {
   "sc.one_run": "1 run",
   "sc.test_format": "Test",
 
+  // MARK: The ball-by-ball words
+  "sc.no_run": "no run",
+  "sc.four_caps": "FOUR",
+  "sc.six_caps": "SIX",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

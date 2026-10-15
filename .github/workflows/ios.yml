@@ -59,7 +59,7 @@ jobs:
       # number here is harder to fool than a sentence in a commit message.
       - name: No new English hardcoded into the app
         working-directory: .
-        run: node tools/i18n/audit-swift.mjs --max=149
+        run: node tools/i18n/audit-swift.mjs --max=144
 
       # Zero, and it stays zero. A string the app can show with no entry reads
       # in English however well the wrapping was done.

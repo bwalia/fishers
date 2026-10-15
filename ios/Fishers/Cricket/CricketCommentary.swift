@@ -29,9 +29,9 @@ enum CricketCommentary {
             let region = cricketRegion(angle: shot.angle, batsLeft: left)
             switch shot.kind {
             case .leave:
-                parts.append("— left alone")
+                parts.append(tr("— left alone"))
             case .defence:
-                parts.append("— defended")
+                parts.append(tr("— defended"))
             default:
                 parts.append("— \(shot.kind.verb) \(preposition(for: region)) \(region)")
             }
@@ -145,9 +145,9 @@ enum CricketCommentary {
             return extraPhrase(delivery.label, runs: Int(delivery.runs))
         }
         switch delivery.runs {
-        case 0: return "no run"
-        case 4: return "FOUR"
-        case 6: return "SIX"
+        case 0: return tr("no run")
+        case 4: return tr("FOUR")
+        case 6: return tr("SIX")
         case 1: return tr("1 run")
         default:
             if delivery.label.hasSuffix("b") || delivery.label.hasSuffix("lb") {

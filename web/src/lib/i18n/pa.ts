@@ -3895,4 +3895,9 @@ export const pa: Dict = {
   "sc.one_run": "1 ਦੌੜ",
   "sc.test_format": "ਟੈਸਟ",
 
+  // MARK: The ball-by-ball words
+  "sc.no_run": "ਕੋਈ ਦੌੜ ਨਹੀਂ",
+  "sc.four_caps": "ਚੌਕਾ",
+  "sc.six_caps": "ਛੱਕਾ",
+
 };
