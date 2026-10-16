@@ -47,6 +47,9 @@ export type PublicUser = {
   email?: string | null;
   phone?: string | null;
   avatar_url?: string | null;
+  /// The photograph behind the name on the profile header. Absent for most
+  /// people, and the header falls back to the brand gradient.
+  cover_url?: string | null;
   emergency_contact?: string | null;
   /// The sport they lead with; the rest hang off it.
   primary_sport?: string | null;

@@ -3301,6 +3301,88 @@ a.bell-item:hover { background: var(--surface-2); }
   color: #fff;
   border-radius: 0 0 var(--radius) var(--radius);
   overflow: hidden;
+  /* The cover and the tools are positioned against this. */
+  position: relative;
+  isolation: isolate;
+}
+
+/* The cover photograph, and the scrim that keeps the type readable on it.
+   The gradient above is NOT replaced: white type on an arbitrary photograph
+   fails contrast at the first bright sky, so the photo goes underneath and
+   the brand colour comes back over it at a weight that holds ~5:1 on the
+   name. A cover is decoration; the name is the page. */
+.pro-hero[data-cover]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: var(--pro-cover);
+  background-size: cover;
+  background-position: center;
+}
+
+.pro-hero[data-cover]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(105deg,
+      color-mix(in srgb, var(--sage-900) 88%, transparent),
+      color-mix(in srgb, var(--sage-800) 62%, transparent) 58%,
+      color-mix(in srgb, #0d140e 52%, transparent));
+}
+
+/* Top-right, out of the way of the name and clear of the avatar. */
+.pro-cover-tools {
+  position: absolute;
+  top: var(--s3);
+  right: clamp(var(--s4), 3vw, var(--s6));
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.pro-cover-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 999px;
+  /* Readable whether it is sitting on the gradient or on a photograph. */
+  background: rgb(0 0 0 / 0.42);
+  backdrop-filter: blur(6px);
+}
+
+.pro-cover-btn:hover { background: rgb(0 0 0 / 0.56); }
+.pro-cover-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.pro-cover-btn[disabled] { cursor: progress; opacity: 0.7; }
+
+.pro-cover-error {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  color: #fff;
+  background: rgb(0 0 0 / 0.55);
+  border-radius: 999px;
+}
+
+/* On a phone the buttons would sit on top of the name, so they go under it. */
+@media (max-width: 560px) {
+  .pro-cover-tools {
+    position: static;
+    justify-content: flex-start;
+    padding-bottom: var(--s3);
+  }
 }
 
 .pro-hero-body {

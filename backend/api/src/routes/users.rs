@@ -21,6 +21,7 @@ pub fn router() -> Router<AppState> {
         .route("/me/password", post(set_password))
         .route("/me/delete", post(delete_me))
         .route("/me/avatar", post(upload_avatar))
+        .route("/me/cover", post(upload_cover).delete(remove_cover))
         .route("/me/share-link", post(share_link))
         .route("/players/card/{token}", get(shared_card))
 }
@@ -200,6 +201,11 @@ async fn with_reliability(
 /// filling the bucket.
 const MAX_AVATAR_BYTES: usize = 2 * 1024 * 1024;
 
+/// A cover spans the width of the page, so it is a bigger picture than a face
+/// by the nature of the thing. 2MB refuses an ordinary photograph off a phone
+/// held sideways, which reads as the upload being broken.
+const MAX_COVER_BYTES: usize = 6 * 1024 * 1024;
+
 /// What we are willing to serve back, checked against the bytes rather than
 /// the caller's word for it.
 /// Shared with the shop's photo upload: two copies of the same magic
@@ -266,6 +272,79 @@ async fn upload_avatar(
     };
     Ok(Json(
         users_repo::update_profile(&state.pool, auth.user_id, &update)
+            .await?
+            .into(),
+    ))
+}
+
+/// The photograph behind the name on a profile.
+///
+/// Same shape as the avatar above, and the same refusal to trust the
+/// multipart header: the content type comes from the file's own magic bytes,
+/// because a caller who says "image/png" and sends HTML would otherwise have
+/// it served back from our own origin.
+async fn upload_cover(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    mut form: axum::extract::Multipart,
+) -> ApiResult<Json<PublicUser>> {
+    let storage = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| ApiError::bad_request("uploads are not configured on this server"))?;
+
+    let mut bytes: Option<Vec<u8>> = None;
+    while let Some(field) = form
+        .next_field()
+        .await
+        .map_err(|e| ApiError::bad_request(format!("could not read the upload: {e}")))?
+    {
+        if field.name() == Some("file") {
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| ApiError::bad_request(format!("could not read the file: {e}")))?;
+            if data.len() > MAX_COVER_BYTES {
+                return Err(ApiError::bad_request("that picture is over 6MB"));
+            }
+            bytes = Some(data.to_vec());
+            break;
+        }
+    }
+    let bytes = bytes.ok_or_else(|| ApiError::bad_request("no file was sent"))?;
+    let (content_type, ext) = sniff_image(&bytes)
+        .ok_or_else(|| ApiError::bad_request("that is not a JPEG, PNG or WebP"))?;
+
+    // Keyed by user and a fresh id, so a new cover never serves a stale one
+    // out of somebody's cache.
+    let key = format!("covers/{}/{}.{ext}", auth.user_id, Uuid::new_v4());
+    let url = storage
+        .put(&key, content_type, bytes)
+        .await
+        .map_err(|e| ApiError::internal(format!("could not store the picture: {e}")))?;
+
+    let update = fishers_domain::UpdateProfileRequest {
+        cover_url: Some(url),
+        ..Default::default()
+    };
+    Ok(Json(
+        users_repo::update_profile(&state.pool, auth.user_id, &update)
+            .await?
+            .into(),
+    ))
+}
+
+/// Take the cover back off, and go back to the brand's gradient.
+///
+/// A DELETE of its own rather than a field on the profile update: that request
+/// treats an absent field as "leave it alone", so there is nowhere in it to
+/// say "remove this".
+async fn remove_cover(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<PublicUser>> {
+    Ok(Json(
+        users_repo::clear_cover(&state.pool, auth.user_id)
             .await?
             .into(),
     ))

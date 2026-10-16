@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Every user query returns the same shape, including the profile JSONB columns.
-const USER_COLUMNS: &str = "id, name, email, phone, apple_id, avatar_url, sports_played, \
+const USER_COLUMNS: &str = "id, name, email, phone, apple_id, avatar_url, cover_url, sports_played, \
      position_role, skill_level, emergency_contact, primary_sport, sport_profiles, \
      location, profile_completed_at, email_verified_at, phone_verified_at, role_intent, \
      profile_share_token, password_hash, created_at, updated_at";
@@ -90,6 +90,7 @@ pub async fn update_profile(
     let name = req.name.clone().unwrap_or(current.name);
     let phone = req.phone.clone().or(current.phone);
     let avatar_url = req.avatar_url.clone().or(current.avatar_url);
+    let cover_url = req.cover_url.clone().or(current.cover_url);
     let sports_played = req.sports_played.clone().unwrap_or(current.sports_played);
     let position_role = req.position_role.clone().or(current.position_role);
     let skill_level = req.skill_level.clone().or(current.skill_level);
@@ -127,6 +128,7 @@ pub async fn update_profile(
              profile_completed_at = $12,
              updated_at = $13,
              role_intent = $14,
+             cover_url = $15,
              -- A verified number stays verified only while it is the same
              -- number. SET's right-hand side reads the old row, so `phone`
              -- here is the number before this update.
@@ -149,6 +151,24 @@ pub async fn update_profile(
     .bind(profile_completed_at)
     .bind(Utc::now())
     .bind(role_intent)
+    .bind(cover_url)
+    .fetch_one(pool)
+    .await
+}
+
+/// Take the cover photograph off a profile.
+///
+/// Its own query rather than a field on `UpdateProfileRequest`: that request
+/// keeps the current value for anything left out, so `None` there means "leave
+/// it alone" and there is no way to spell "remove it".
+pub async fn clear_cover(pool: &PgPool, user_id: Uuid) -> Result<User, sqlx::Error> {
+    sqlx::query_as::<_, User>(&format!(
+        "UPDATE users SET cover_url = NULL, updated_at = $2
+         WHERE id = $1
+         RETURNING {USER_COLUMNS}"
+    ))
+    .bind(user_id)
+    .bind(Utc::now())
     .fetch_one(pool)
     .await
 }

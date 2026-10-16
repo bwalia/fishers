@@ -1,6 +1,6 @@
 // Generated from web/src/lib/i18n/ by tools/i18n. Do not edit.
 //
-// 3665 keys per language. The words themselves are in the JSON tables
+// 3673 keys per language. The words themselves are in the JSON tables
 // beside this file; only the list of languages needs to be code, because it is
 // what the picker iterates and what `Language(rawValue:)` validates.
 

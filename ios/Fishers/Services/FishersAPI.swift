@@ -1319,6 +1319,25 @@ enum FishersAPI {
         )
     }
 
+    /// The picture behind the name on the profile header.
+    ///
+    /// Same shape as the avatar above. The server allows 6MB here rather than
+    /// 2: a cover spans the width of the screen, so it is a bigger picture by
+    /// the nature of the thing.
+    static func uploadCover(_ data: Data, mimeType: String = "image/jpeg") async throws -> PublicUser {
+        try await NetworkService.shared.upload(
+            path: "/me/cover",
+            fileName: "cover.\(mimeType.hasSuffix("png") ? "png" : "jpg")",
+            mimeType: mimeType,
+            data: data
+        )
+    }
+
+    /// Take it off again and go back to the gradient.
+    static func removeCover() async throws -> PublicUser {
+        try await NetworkService.shared.request("DELETE", path: "/me/cover")
+    }
+
     // MARK: Season stats (Play-Cricket)
 
     static func mySeasonStats(season: Int? = nil) async throws -> MeStatsResponse {

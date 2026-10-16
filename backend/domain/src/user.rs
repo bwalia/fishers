@@ -16,6 +16,9 @@ pub struct User {
     pub phone: Option<String>,
     pub apple_id: Option<String>,
     pub avatar_url: Option<String>,
+    /// The photograph behind the name on a profile. Absent for most people,
+    /// and the header falls back to the brand's gradient.
+    pub cover_url: Option<String>,
     pub sports_played: Vec<String>,
     pub position_role: Option<String>,
     pub skill_level: Option<String>,
@@ -45,6 +48,7 @@ pub struct PublicUser {
     pub email: Option<String>,
     pub phone: Option<String>,
     pub avatar_url: Option<String>,
+    pub cover_url: Option<String>,
     pub sports_played: Vec<String>,
     /// Position and standard of the primary sport, flattened for list views.
     pub position_role: Option<String>,
@@ -81,6 +85,7 @@ impl From<User> for PublicUser {
             email: u.email,
             phone: u.phone,
             avatar_url: u.avatar_url,
+            cover_url: u.cover_url,
             sports_played: u.sports_played,
             position_role: u.position_role,
             skill_level: u.skill_level,
@@ -230,6 +235,10 @@ pub struct UpdateProfileRequest {
     pub name: Option<String>,
     pub phone: Option<String>,
     pub avatar_url: Option<String>,
+    /// `Some` sets it. Clearing one goes through `DELETE /me/cover`, because
+    /// this request keeps the current value for every field left out — there
+    /// is no way here to say "remove it" rather than "leave it alone".
+    pub cover_url: Option<String>,
     pub sports_played: Option<Vec<String>>,
     pub position_role: Option<String>,
     pub skill_level: Option<String>,
@@ -268,7 +277,7 @@ pub struct RefreshRequest {
 mod strength_tests {
     use super::*;
 
-    fn user() -> User {
+    pub(super) fn user() -> User {
         User {
             id: Uuid::nil(),
             name: "Pat Player".into(),
@@ -276,6 +285,7 @@ mod strength_tests {
             phone: None,
             apple_id: None,
             avatar_url: None,
+            cover_url: None,
             sports_played: vec![],
             position_role: None,
             skill_level: None,
@@ -373,5 +383,32 @@ mod set_password_tests {
     fn the_current_password_is_optional_at_this_layer() {
         assert!(req(None, "a-good-enough-password").validate().is_ok());
         assert!(req(Some("old"), "a-good-enough-password").validate().is_ok());
+    }
+}
+
+#[cfg(test)]
+mod cover_tests {
+    use super::*;
+
+    /// Not a guard against forgetting the field — `PublicUser` has it as a
+    /// required member, so leaving it out of the conversion does not compile.
+    /// What this pins is that the value arrives unchanged: the mapping is
+    /// hand-written, and `avatar_url` sits on the line above.
+    #[test]
+    fn the_cover_survives_the_conversion_to_what_the_api_returns() {
+        let mut user = super::strength_tests::user();
+        user.cover_url = Some("https://example.test/covers/x.jpg".into());
+        let public: PublicUser = user.into();
+        assert_eq!(
+            public.cover_url.as_deref(),
+            Some("https://example.test/covers/x.jpg")
+        );
+    }
+
+    /// Most profiles have none, and the header falls back to the gradient.
+    #[test]
+    fn no_cover_stays_no_cover() {
+        let public: PublicUser = super::strength_tests::user().into();
+        assert_eq!(public.cover_url, None);
     }
 }

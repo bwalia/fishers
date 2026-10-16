@@ -3900,4 +3900,14 @@ export const pa: Dict = {
   "sc.four_caps": "ਚੌਕਾ",
   "sc.six_caps": "ਛੱਕਾ",
 
+  // MARK: The cover photograph on a profile
+  "pro.add_a_cover_photo": "ਕਵਰ ਫ਼ੋਟੋ ਜੋੜੋ",
+  "pro.change_cover_photo": "ਕਵਰ ਫ਼ੋਟੋ ਬਦਲੋ",
+  "pro.remove_cover_photo": "ਕਵਰ ਫ਼ੋਟੋ ਹਟਾਓ",
+  "pro.cover_photo": "ਕਵਰ ਫ਼ੋਟੋ",
+  "pro.cover_too_big": "ਇਹ ਤਸਵੀਰ 6MB ਤੋਂ ਵੱਡੀ ਹੈ। ਕੋਈ ਛੋਟੀ ਵਰਤੋ।",
+  "pro.cover_would_not_upload": "ਉਹ ਕਵਰ ਅੱਪਲੋਡ ਨਹੀਂ ਹੋਇਆ।",
+  "pro.cover_removed": "ਕਵਰ ਫ਼ੋਟੋ ਹਟਾ ਦਿੱਤੀ।",
+  "pro.wide_picture_reads_best": "ਚੌੜੀ ਤਸਵੀਰ ਸਭ ਤੋਂ ਵਧੀਆ ਲੱਗਦੀ ਹੈ — ਤੁਹਾਡਾ ਮੈਦਾਨ, ਤੁਹਾਡੀ ਟੀਮ, ਜਾਂ ਬਾਊਂਡਰੀ ਤੋਂ ਦਿਸਦਾ ਨਜ਼ਾਰਾ।",
+
 };
