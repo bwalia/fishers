@@ -18,6 +18,9 @@ struct ProfileHeroView: View {
     @State private var uploading = false
     @State private var error: String?
 
+    @State private var coverPicked: PhotosPickerItem?
+    @State private var coverBusy = false
+
     private var main: SportProfile? {
         user.profiles.first { $0.sport == user.primarySport } ?? user.profiles.first
     }
@@ -78,13 +81,120 @@ struct ProfileHeroView: View {
         }
         .padding(FishersTheme.space3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(colors: [FishersTheme.primary900, FishersTheme.primary700],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-        )
+        .background(alignment: .center) { backdrop }
+        .overlay(alignment: .topTrailing) { coverTools }
         .onChange(of: picked) { _, item in
             guard let item else { return }
             Task { await send(item) }
+        }
+        .onChange(of: coverPicked) { _, item in
+            guard let item else { return }
+            Task { await sendCover(item) }
+        }
+    }
+
+    /// The cover photograph, with the brand gradient over it.
+    ///
+    /// The gradient is not replaced by the picture — it is laid on top of it.
+    /// White type over an arbitrary photograph fails contrast at the first
+    /// bright sky, and the name is the point of this header while the cover is
+    /// decoration. Without a cover the gradient is simply the whole of it,
+    /// which is what it has always been.
+    @ViewBuilder
+    private var backdrop: some View {
+        ZStack {
+            if let cover = user.coverUrl, let url = URL(string: cover) {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Color.clear
+                }
+                .clipped()
+            }
+            LinearGradient(
+                colors: user.coverUrl == nil
+                    ? [FishersTheme.primary900, FishersTheme.primary700]
+                    // Over a photograph it thins out, enough to keep the type
+                    // readable without hiding what the picture is of.
+                    : [FishersTheme.primary900.opacity(0.88), FishersTheme.primary700.opacity(0.62)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    /// Add, change or take off the cover.
+    private var coverTools: some View {
+        HStack(spacing: 6) {
+            if user.coverUrl != nil {
+                Button {
+                    Task { await removeCover() }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .padding(7)
+                }
+                .buttonStyle(.plain)
+                .background(.black.opacity(0.42), in: Circle())
+                .foregroundStyle(.white)
+                .disabled(coverBusy)
+                .accessibilityLabel(t("pro.remove_cover_photo"))
+            }
+            PhotosPicker(selection: $coverPicked, matching: .images, photoLibrary: .shared()) {
+                ZStack {
+                    if coverBusy {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                }
+                .frame(width: 26, height: 26)
+                .padding(4)
+                .background(.black.opacity(0.42), in: Circle())
+                .foregroundStyle(.white)
+                .contentShape(Circle())
+            }
+            .disabled(coverBusy)
+            .accessibilityLabel(
+                user.coverUrl == nil ? t("pro.add_a_cover_photo") : t("pro.change_cover_photo")
+            )
+        }
+        .padding(FishersTheme.space2)
+    }
+
+    private func sendCover(_ item: PhotosPickerItem) async {
+        coverBusy = true
+        error = nil
+        defer {
+            coverBusy = false
+            coverPicked = nil
+        }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                error = tr("That photo could not be read.")
+                return
+            }
+            // Checked here as well as on the server, so somebody who picks a
+            // 20MB photograph is told before they wait for all of it to go up.
+            guard data.count <= 6 * 1024 * 1024 else {
+                error = t("pro.cover_too_big")
+                return
+            }
+            onPhotoChanged(try await FishersAPI.uploadCover(data, mimeType: mimeType(of: data)))
+        } catch {
+            self.error = (error as? APIError)?.friendlyMessage ?? t("pro.cover_would_not_upload")
+        }
+    }
+
+    private func removeCover() async {
+        coverBusy = true
+        error = nil
+        defer { coverBusy = false }
+        do {
+            onPhotoChanged(try await FishersAPI.removeCover())
+        } catch {
+            self.error = (error as? APIError)?.friendlyMessage ?? t("pro.cover_would_not_upload")
         }
     }
 

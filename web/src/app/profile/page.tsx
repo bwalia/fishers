@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -125,7 +125,15 @@ function ProfileHero({
   const last = parts[parts.length - 1] ?? me.name;
 
   return (
-    <header className="pro-hero">
+    <header
+      className="pro-hero"
+      // The photograph rides on a custom property so the stylesheet keeps the
+      // layering; the gradient stays over it as a scrim rather than being
+      // replaced, because white type on somebody's holiday snap is unreadable.
+      style={me.cover_url ? ({ "--pro-cover": `url("${me.cover_url}")` } as CSSProperties) : undefined}
+      data-cover={me.cover_url ? "" : undefined}
+    >
+      <CoverUploader me={me} onSaved={onSaved} />
       <div className="pro-hero-body">
         <AvatarUploader me={me} onSaved={onSaved} />
         <div className="pro-id">
@@ -158,6 +166,89 @@ function ProfileHero({
         ))}
       </nav>
     </header>
+  );
+}
+
+/// The picture behind the name, and the two things you can do to it.
+///
+/// Separate from the avatar uploader rather than one component with a mode:
+/// they sit in different places, take different sizes, and only this one can
+/// be removed — the face falls back to initials, the cover to the gradient.
+function CoverUploader({ me, onSaved }: { me: PublicUser; onSaved: () => void }) {
+  const t = useT();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    // Checked here as well as on the server so somebody who picks a 20MB
+    // photograph is told before they wait for the whole of it to go up.
+    if (file.size > 6 * 1024 * 1024) {
+      setError(t("pro.cover_too_big"));
+      if (input.current) input.current.value = "";
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const user = await upload<PublicUser>("/me/cover", file);
+      saveUser(user);
+      onSaved();
+    } catch (err) {
+      setError(readErr(err, t("pro.cover_would_not_upload")));
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const user = await api<PublicUser>("DELETE", "/me/cover");
+      saveUser(user);
+      onSaved();
+    } catch (err) {
+      setError(readErr(err, t("pro.cover_would_not_upload")));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pro-cover-tools">
+      {error && (
+        <p className="pro-cover-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        type="button"
+        className="pro-cover-btn"
+        disabled={busy}
+        onClick={() => input.current?.click()}
+      >
+        {busy ? <span className="spinner" /> : <Icon name="camera" size={15} />}
+        <span>{me.cover_url ? t("pro.change_cover_photo") : t("pro.add_a_cover_photo")}</span>
+      </button>
+      {me.cover_url && (
+        <button type="button" className="pro-cover-btn" disabled={busy} onClick={remove}>
+          {/* No icon: the set has no bin, and a tick or a cross on a remove
+              button says the wrong thing. The label carries it. */}
+          <span>{t("pro.remove_cover_photo")}</span>
+        </button>
+      )}
+      <input
+        ref={input}
+        type="file"
+        // The server sniffs the real bytes; this only filters the picker.
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(e) => pick(e.target.files?.[0])}
+      />
+    </div>
   );
 }
 
