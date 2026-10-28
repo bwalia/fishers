@@ -75,6 +75,24 @@ function write(files) {
   }
 }
 
+/// The values a brand file cannot invent for itself, said out loud.
+///
+/// Not a failure: a brand is legitimately added before anybody has settled
+/// its legal entity, and failing here would stop the build over a field that
+/// only matters at submission. It is printed because the alternative was
+/// silence, and silence is how "[the legal entity that runs Fishers] is the
+/// data controller" reached the live privacy policy and stayed there.
+function reportUnfilled(brand) {
+  const unfilled = [
+    ["legalEntity", brand.legalEntity, "the data controller, in the privacy policy and the terms"],
+    ["jurisdiction", brand.jurisdiction, "whose courts the terms answer in"],
+  ].filter(([, value]) => !value);
+
+  for (const [field, , what] of unfilled) {
+    console.log(`  TO FILL  ${field} — ${what}`);
+  }
+}
+
 function main(argv) {
   const [command = "check", ...rest] = argv;
 
@@ -99,6 +117,7 @@ function main(argv) {
       const brand = loadBrand(repoRoot, id);
       console.log(`\n${brand.name} (${id})`);
       ok = reportContrast(brand) && ok;
+      reportUnfilled(brand);
     }
     if (ok) console.log("\nEvery brand is readable.");
     return ok ? 0 : 1;

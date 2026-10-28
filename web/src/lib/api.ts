@@ -965,3 +965,49 @@ export const SPORTS = [
   "tennis",
   "other",
 ] as const;
+
+/// What a report is about, and why. The spellings are the wire contract — the
+/// API parses these exact strings, so a typo here is a 400 rather than a
+/// type error.
+export type ReportSubjectKind = "message" | "listing" | "user" | "club";
+
+export type ReportReason =
+  | "abuse"
+  | "objectionable"
+  | "spam"
+  | "impersonation"
+  | "privacy"
+  | "other";
+
+export type BlockedUser = {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  blocked_at: string;
+};
+
+export function fileReport(
+  subjectKind: ReportSubjectKind,
+  subjectId: string,
+  reason: ReportReason,
+  note?: string
+) {
+  return api<unknown>("POST", "/reports", {
+    subject_kind: subjectKind,
+    subject_id: subjectId,
+    reason,
+    note: note?.trim() || null,
+  });
+}
+
+export function blockUser(userId: string) {
+  return api<void>("POST", "/me/blocks", { user_id: userId });
+}
+
+export function unblockUser(userId: string) {
+  return api<void>("DELETE", `/me/blocks/${userId}`);
+}
+
+export function listBlocks() {
+  return api<BlockedUser[]>("GET", "/me/blocks");
+}

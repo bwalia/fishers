@@ -28,6 +28,29 @@ rings:
 # Traefik answers 404 on every path that names it rather than saying so.
 gateway: [int]
 
+# The law the privacy notice and the terms actually answer to. These were
+# hardcoded as UK GDPR and the ICO in `web/src/app/privacy/page.tsx`, which is
+# right for this brand and wrong for one whose users are in India — it pointed
+# everybody at a regulator with no jurisdiction over them.
+# The company behind both brands. Named by the privacy notice as the data
+# controller, by the terms as who you are agreeing with, and by the App Store
+# listing's copyright line.
+legalEntity: Workstation Solutions Limited
+
+# The governing law of the *terms* — which courts hear a dispute. One only:
+# naming two makes the clause ambiguous and unenforceable. England and Wales
+# because the company is registered there. Data protection is a separate
+# question and is answered under `privacy:` below, where both laws really do
+# apply at once.
+jurisdiction: England and Wales
+
+privacy:
+  law: UK GDPR
+  regulator: the ICO
+  regulatorUrl: https://ico.org.uk
+  # Below this age a parent or guardian holds the account. UK GDPR's floor.
+  childAge: 13
+
 support:
   # Where a person writes to.
   email: hello@fishers.cloud

@@ -16,16 +16,30 @@ export async function generateMetadata(): Promise<Metadata> {
 /// to from Profile. Static on purpose: a privacy policy that needs the API up
 /// is no use to somebody who has just deleted their account.
 ///
-/// TODO before submitting: CONTROLLER is still a placeholder, and it is the
-/// one that matters — a privacy notice that names no data controller names
-/// nobody accountable. It wants the legal entity that actually runs this, the
-/// same one `terms/page.tsx` names.
+/// CONTROLLER comes from `brands/<id>.yaml` rather than from a literal here,
+/// because it was a literal and it shipped — the live policy told everybody
+/// that "[the legal entity that runs Fishers]" was the data controller, which
+/// names nobody accountable. Setting `legalEntity:` in the brand file fills
+/// this and the terms page at once; leaving it unset keeps the brackets, and
+/// `npm run brand:check` says so.
 ///
 /// CONTACT is the brand's own support address rather than a placeholder: it
 /// is real, somebody answers it, and the terms page already uses it. A
 /// dedicated privacy@ address can replace it here alone whenever there is one.
-const CONTROLLER = `[the legal entity that runs ${brand.name}]`;
+const CONTROLLER = brand.legalEntity;
 const CONTACT = brand.supportEmail;
+
+/// One date, next to the content it describes. It was inside a dictionary key
+/// — `rest.last_updated_17_september_2026` — so the only way to change it was
+/// to add a new key, which is why it still said September.
+const UPDATED = "28 October 2026";
+
+/// Widened on purpose. `brand.generated.ts` is `as const` and written per
+/// brand, so this reads as the literal type `""` for a brand whose regulator
+/// has no address — and then the branch that links it narrows to `never` and
+/// stops compiling. Typing it `string` keeps the page independent of whichever
+/// brand happened to be generated.
+const REGULATOR_URL: string = brand.privacyRegulatorUrl;
 
 export default async function PrivacyPage() {
   const t = await getT();
@@ -36,7 +50,7 @@ export default async function PrivacyPage() {
         <p>
           {t("privacy.brand_is_a_club_app", { brand: brand.name })}
         </p>
-        <p className="muted">{t("rest.last_updated_17_september_2026")}</p>
+        <p className="muted">{t("privacy.last_updated", { date: UPDATED })}</p>
       </section>
 
       <div className="panel">
@@ -67,6 +81,12 @@ export default async function PrivacyPage() {
             <strong>{t("rest.payments")}</strong>{t("privacy.payments_detail")}
           </li>
           <li>
+            <strong>{t("privacy.anything_you_list")}</strong>{t("privacy.anything_you_list_detail")}
+          </li>
+          <li>
+            <strong>{t("privacy.reports_and_blocks")}</strong>{t("privacy.reports_and_blocks_detail")}
+          </li>
+          <li>
             <strong>{t("rest.a_device_token")}</strong> {t("rest.if_you_turn_notifications_on_so_we_can")}
           </li>
         </ul>
@@ -83,6 +103,7 @@ export default async function PrivacyPage() {
           <li><strong>{t("rest.google")}</strong>{t("privacy.google_only_if_you_choose")}</li>
           <li><strong>{t("privacy.apple_and_push")}</strong>{t("privacy.to_deliver_notifications")}</li>
           <li>{t("rest.our_email_and_messaging_providers_to_s")}</li>
+          <li>{t("privacy.whoever_reviews_reports")}</li>
         </ul>
         <p>
           {t("rest.the_assistant_features_run_on_a_model")}
@@ -101,16 +122,34 @@ export default async function PrivacyPage() {
         <p>
           {t("rest.everything_that_identifies_you_goes_na")}
         </p>
+        <p>{t("privacy.reports_outlive")}</p>
 
         <h2>{t("rest.your_rights")}</h2>
         <p>
-          {t("privacy.your_rights_detail", { contact: CONTACT })}{" "}
-          <a href="https://ico.org.uk" target="_blank" rel="noreferrer">{t("rest.ico_org_uk")}</a>.
+          {t("privacy.your_rights_detail", {
+            law: brand.privacyLaw,
+            contact: CONTACT,
+            regulator: brand.privacyRegulator,
+          })}
+          {/* "at <link>" only where one regulator is named. With two the bare
+              domain reads as though it belonged to the second one, so those
+              brands carry the address inside the sentence instead. */}
+          {REGULATOR_URL ? (
+            <>
+              {" at "}
+              <a href={REGULATOR_URL} target="_blank" rel="noreferrer">
+                {REGULATOR_URL.replace(/^https?:\/\//, "")}
+              </a>
+              .
+            </>
+          ) : (
+            "."
+          )}
         </p>
 
         <h2>{t("rest.children")}</h2>
         <p>
-          {t("rest.junior_members_are_a_normal_part_of_a")}
+          {t("rest.junior_members_are_a_normal_part_of_a", { age: brand.childAge })}
         </p>
 
         <p className="muted" style={{ marginTop: 24 }}>

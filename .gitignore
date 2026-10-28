@@ -89,3 +89,10 @@ web/src/app/icon.png
 web/src/app/apple-icon.png
 web/public/icon-512.png
 web/public/mark-192.png
+
+# App Review's demo account. This repository is public, so a committed
+# demo_password.txt is a working login to production for anybody who clones
+# it. `upload_metadata` writes both files from ASC_DEMO_USER and
+# ASC_DEMO_PASSWORD at run time, onto a checkout the runner throws away.
+ios/fastlane/store/*/review_information/demo_user.txt
+ios/fastlane/store/*/review_information/demo_password.txt

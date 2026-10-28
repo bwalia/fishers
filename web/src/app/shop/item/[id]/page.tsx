@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/Icon";
+import { ReportOrBlock } from "@/components/ReportOrBlock";
 import { readErr, type MarketListing } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
 import { availability, enquire, marketItem, price, reserve } from "@/lib/shop";
@@ -151,6 +152,7 @@ export default function ItemPage({ params }: { params: Promise<{ id: string }> }
               asking={asking}
               onTake={take}
               onAsk={ask}
+              onBlocked={() => router.push("/shop")}
             />
           )}
 
@@ -259,6 +261,7 @@ function BuyerPanel({
   asking,
   onTake,
   onAsk,
+  onBlocked,
 }: {
   item: MarketListing;
   sold: boolean;
@@ -267,6 +270,7 @@ function BuyerPanel({
   asking: boolean;
   onTake: () => void;
   onAsk: () => void;
+  onBlocked: () => void;
 }) {
   const t = useT();
   if (reserved)
@@ -311,6 +315,16 @@ function BuyerPanel({
             {item.seller_name && <span className="muted"> · {item.club_name}</span>}
           </span>
         </p>
+        {/* A listing is the one place a stranger puts words and a photograph
+            in front of you, so it is the one that most needs this. Blocking
+            sends you back to the marketplace, which no longer holds it. */}
+        <ReportOrBlock
+          subjectKind="listing"
+          subjectId={item.id}
+          personId={item.listed_by}
+          personName={item.seller_name}
+          onBlocked={onBlocked}
+        />
         {(item.seller_email || item.seller_phone) && (
           <p className="item-contact">
             Happy to be contacted directly:

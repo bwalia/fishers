@@ -8,7 +8,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
 use fishers_agent::AgentError;
-use fishers_db::repos::{agent as agent_repo, chat as chat_repo, clubs as clubs_repo};
+use fishers_db::repos::{
+    agent as agent_repo, chat as chat_repo, clubs as clubs_repo, moderation as moderation_repo,
+};
 use fishers_domain::{
     AgentAnalysis, AgentProposal, ChatMessage, Conversation, ConversationSummary,
     CreateConversationRequest, MarkReadRequest, Permission, PostMessageRequest,
@@ -86,6 +88,13 @@ async fn create_conversation(
                 ));
             }
             if let [other] = body.member_ids[..] {
+                // A block has to stop a new thread as well as hide an old
+                // one, or blocking somebody just means they start again.
+                if moderation_repo::blocked_between(&state.pool, auth.user_id, other).await? {
+                    return Err(ApiError::forbidden(
+                        "You cannot start a conversation with this person.",
+                    ));
+                }
                 if let Some(existing) = chat_repo::find_direct(&state.pool, auth.user_id, other).await? {
                     return Ok(Json(existing));
                 }
@@ -136,7 +145,14 @@ async fn list_messages(
 ) -> ApiResult<Json<Vec<ChatMessage>>> {
     require_thread_member(&state, id, auth.user_id).await?;
     Ok(Json(
-        chat_repo::list_messages(&state.pool, id, page.before, page.limit.unwrap_or(50)).await?,
+        chat_repo::list_messages(
+            &state.pool,
+            id,
+            Some(auth.user_id),
+            page.before,
+            page.limit.unwrap_or(50),
+        )
+        .await?,
     ))
 }
 

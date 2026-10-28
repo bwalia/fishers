@@ -23,7 +23,28 @@ struct ListingDetailView: View {
     @State private var asking = false
     @State private var openThread: ConversationSummary?
 
+    @Environment(\.dismiss) private var dismiss
+
+    /// A listing is the one place a stranger puts words and a photograph in
+    /// front of you, so it is the one that most needs reporting. Not on your
+    /// own advert: there is nobody there to report but yourself. Blocking
+    /// sends you back to the marketplace, which no longer holds it.
     var body: some View {
+        if let listing, !listing.mine {
+            page.reportOrBlock(
+                .listing,
+                id: productId,
+                person: listing.product.listedBy,
+                personName: listing.sellerName,
+                placement: .toolbar,
+                onBlocked: { _ in dismiss() }
+            )
+        } else {
+            page
+        }
+    }
+
+    private var page: some View {
         ScrollView {
             if let listing {
                 VStack(alignment: .leading, spacing: 20) {

@@ -1,6 +1,7 @@
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
+use fishers_db::repos::moderation as moderation_repo;
 use fishers_db::repos::orders as orders_repo;
 use fishers_domain::{
     CreateProductRequest, Order, Permission, PlaceOrderRequest, Product, UpdateProductRequest,
@@ -70,12 +71,12 @@ struct MarketQuery {
 /// stock: a sold bat on the front page wastes somebody's evening.
 async fn marketplace(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Query(q): Query<MarketQuery>,
 ) -> ApiResult<Json<Vec<Product>>> {
     let term = q.q.as_deref().map(str::trim).filter(|t| !t.is_empty());
     Ok(Json(
-        orders_repo::marketplace(&state.pool, q.condition, term, 100).await?,
+        orders_repo::marketplace(&state.pool, auth.user_id, q.condition, term, 100).await?,
     ))
 }
 
@@ -167,10 +168,19 @@ async fn market_item(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<fishers_domain::MarketListing>> {
-    orders_repo::public_listing(&state.pool, id, auth.user_id)
+    let listing = orders_repo::public_listing(&state.pool, id, auth.user_id)
         .await?
-        .map(Json)
-        .ok_or_else(|| ApiError::not_found("that listing is not for sale"))
+        .ok_or_else(|| ApiError::not_found("that listing is not for sale"))?;
+
+    // The marketplace list already leaves this out; answering the direct link
+    // would hand back by id exactly what the block hides.
+    if let Some(seller) = listing.product.listed_by {
+        if moderation_repo::blocked_between(&state.pool, auth.user_id, seller).await? {
+            return Err(ApiError::not_found("that listing is not for sale"));
+        }
+    }
+
+    Ok(Json(listing))
 }
 
 #[derive(Debug, Serialize)]
@@ -207,6 +217,14 @@ async fn enquire(
         .find(|r| *r != auth.user_id)
         // Their own club's listing, or one whose club has lost its officers.
         .ok_or_else(|| ApiError::bad_request("there is nobody to ask about this one"))?;
+
+    // The listing is what makes a stranger's message legitimate. A block
+    // withdraws that.
+    if moderation_repo::blocked_between(&state.pool, auth.user_id, seller).await? {
+        return Err(ApiError::forbidden(
+            "You cannot start a conversation with this person.",
+        ));
+    }
 
     let (conversation, started) = fishers_db::repos::chat::enquiry_thread(
         &state.pool,

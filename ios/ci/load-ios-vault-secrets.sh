@@ -37,6 +37,14 @@ REQUIRED_IDS = ("ASC_KEY_ID", "ASC_ISSUER_ID", "APPLE_TEAM_ID")
 # Public OAuth client ids for Continue with Google — still kept out of git and
 # injected into project.yml at xcodegen time from Vault / env.
 OPTIONAL_GOOGLE = ("GOOGLE_IOS_CLIENT_ID", "GOOGLE_REVERSED_CLIENT_ID")
+# The account App Review signs in with. Per brand, so it lives beside the
+# signing material rather than in a repository secret — and out of git
+# entirely, because this repository is public and the password works on
+# production. `upload_metadata` writes it into the listing at run time.
+OPTIONAL_REVIEW = ("ASC_DEMO_USER", "ASC_DEMO_PASSWORD")
+# Everything above that is passed through when present and fetched from the
+# brand's vault path when it is not.
+OPTIONAL_PASSTHROUGH = OPTIONAL_GOOGLE + OPTIONAL_REVIEW
 FORBIDDEN_HOSTS = ("vault.diytaxreturn.co.uk",)
 KEY_ID_RE = re.compile(r"^[A-Z0-9]{10}$")
 ISSUER_RE = re.compile(
@@ -219,7 +227,7 @@ def publish(data, source):
         ))
     if data.get("APP_STORE_APP_ID"):
         env_lines.append(("APP_STORE_APP_ID", clean(str(data["APP_STORE_APP_ID"]))))
-    for key in OPTIONAL_GOOGLE:
+    for key in OPTIONAL_PASSTHROUGH:
         if data.get(key):
             env_lines.append((key, clean(str(data[key]))))
 
@@ -291,8 +299,8 @@ def resolve_auth(required=True):
     return addr, token
 
 def fetch_optional_google(data):
-    """Fill OPTIONAL_GOOGLE from WSLVault when missing from the current env map."""
-    missing = [k for k in OPTIONAL_GOOGLE if not clean(str(data.get(k, "")))]
+    """Fill OPTIONAL_PASSTHROUGH from WSLVault when missing from the current env map."""
+    missing = [k for k in OPTIONAL_PASSTHROUGH if not clean(str(data.get(k, "")))]
     if not missing:
         return
     addr, token = resolve_auth(required=False)
@@ -322,7 +330,7 @@ def fetch_optional_google(data):
 if env_has_ids():
     data = {k: clean(os.environ.get(k, "")) for k in REQUIRED_IDS}
     for optional in ("ASC_PRIVATE_KEY_B64", "ASC_PRIVATE_KEY", "ASC_P8_PATH",
-                     "CERT_PRIVATE_KEY_B64", "APP_STORE_APP_ID") + OPTIONAL_GOOGLE:
+                     "CERT_PRIVATE_KEY_B64", "APP_STORE_APP_ID") + OPTIONAL_PASSTHROUGH:
         if os.environ.get(optional):
             data[optional] = os.environ[optional]
     fetch_optional_google(data)

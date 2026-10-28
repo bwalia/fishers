@@ -1445,3 +1445,52 @@ extension FishersAPI {
         )
     }
 }
+
+// MARK: - Reporting something, and blocking somebody
+
+extension FishersAPI {
+    /// Tell us something is wrong. Reporting the same thing twice while the
+    /// first is still open is one report, which the API decides rather than
+    /// the screen.
+    static func report(
+        _ kind: ReportSubjectKind,
+        id subjectId: UUID,
+        reason: ReportReason,
+        note: String?
+    ) async throws {
+        struct Body: Encodable {
+            let subject_kind: String
+            let subject_id: UUID
+            let reason: String
+            let note: String?
+        }
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        try await NetworkService.shared.requestVoid(
+            "POST",
+            path: "/reports",
+            body: Body(
+                subject_kind: kind.rawValue,
+                subject_id: subjectId,
+                reason: reason.rawValue,
+                note: (trimmed?.isEmpty ?? true) ? nil : trimmed
+            )
+        )
+    }
+
+    static func block(userId: UUID) async throws {
+        struct Body: Encodable { let user_id: UUID }
+        try await NetworkService.shared.requestVoid(
+            "POST", path: "/me/blocks", body: Body(user_id: userId)
+        )
+    }
+
+    static func unblock(userId: UUID) async throws {
+        try await NetworkService.shared.requestVoid(
+            "DELETE", path: "/me/blocks/\(userId.uuidString)"
+        )
+    }
+
+    static func blockedUsers() async throws -> [BlockedUser] {
+        try await NetworkService.shared.request("GET", path: "/me/blocks")
+    }
+}

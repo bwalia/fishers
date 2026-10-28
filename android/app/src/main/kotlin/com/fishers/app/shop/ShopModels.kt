@@ -119,6 +119,11 @@ data class MarketListing(
     @SerialName("club_name") val clubName: String,
     @SerialName("seller_name") val sellerName: String? = null,
     /**
+     * Who put it up. Needed to block them from the listing itself — the
+     * seller's name is shown, but a name is not something you can block.
+     */
+    @SerialName("listed_by") val listedBy: String? = null,
+    /**
      * Only when the seller asked for their details to be shown. `null`
      * otherwise, and the buyer is pointed at the message thread instead.
      */

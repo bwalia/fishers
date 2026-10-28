@@ -9,6 +9,8 @@ pattern as [KubePilot](https://github.com/bwalia/kubepilot).
 | **TestFlight (auto)** | Push to `main` that touches `ios/**` | Everyday QA after merge |
 | **TestFlight (tag)** | Push `v*.*.*` (auto-tag or manual) | Formal version cuts |
 | **TestFlight (manual)** | `workflow_dispatch` → **testflight** | Ad-hoc builds |
+| **Listing readiness** | `workflow_dispatch` → **store_status** | Before anything is submitted |
+| **Listing text** | `workflow_dispatch` → **metadata** | When `ios/fastlane/metadata/` changes |
 | **App Store review** | `workflow_dispatch` → **app_store** | After TestFlight sign-off |
 
 Release CI runs on the self-hosted Mac Studio runner (`runs-on: self-hosted`).
@@ -76,9 +78,42 @@ Merge to main (ios/** changed)     or     push v1.2.3 tag     or     workflow_di
                     ┌───────────────┴────────────────┐
                     ▼                                ▼
             testflight (auto/manual/tag)      app_store (dispatch only)
-            upload_to_testflight              upload + deliver(submit_for_review)
-            (internal only)
+            upload_to_testflight              select the build already on
+            (internal only)                   TestFlight, then submit it
 ```
+
+## Going to the App Store
+
+Three dispatches, in order. None of them builds anything.
+
+```
+store_status   →  what the listing is still missing, per brand
+metadata       →  upload ios/fastlane/metadata/<brand>/ as the listing text
+app_store      →  attach the build already on TestFlight and submit it
+```
+
+`app_store` **promotes rather than rebuilds**. The whole point of a TestFlight
+round is that the binary people signed off is the binary that ships; archiving
+again at submission time would send Apple something nobody had run. It picks
+the newest processed build on the version's own train, attaches it if the
+version has none, and submits.
+
+`metadata` refuses to run while any value in the brand's metadata folder is
+still a bracketed placeholder. Two of them cannot be guessed from the repo:
+
+| File | Who knows it |
+|---|---|
+| `copyright.txt` | the legal entity that runs the brand |
+| `review_information/{first,last}_name.txt`, `phone_number.txt`, `email_address.txt` | whoever Apple should ring |
+| `review_information/demo_{user,password}.txt` | an account that works on the **production** ring |
+
+The demo account is not optional: every screen past the first belongs to a
+club, so review cannot see the app without one, and it has to exist on prod
+rather than on a ring.
+
+`store_status` also does not check two things App Store Connect requires and
+its API will not let a key set: the **age rating** questionnaire and the **App
+Privacy** data-collection answers. Both are filled in by hand, once.
 
 Auto-tag (`.github/workflows/auto-tag.yml`) bumps `vMAJOR.MINOR.PATCH` on every
 `main` push (skip with `[skip tag]`). Tag pushes with the default

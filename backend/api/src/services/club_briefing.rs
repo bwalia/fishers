@@ -90,7 +90,7 @@ pub async fn build_club_briefing(
             .collect();
 
     let mut transcript: Vec<TranscriptLine> =
-        chat_repo::list_messages(&state.pool, conversation.id, None, TRANSCRIPT_LIMIT)
+        chat_repo::list_messages(&state.pool, conversation.id, None, None, TRANSCRIPT_LIMIT)
             .await?
             .into_iter()
             .map(|m| TranscriptLine {

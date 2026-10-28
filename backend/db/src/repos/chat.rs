@@ -290,9 +290,16 @@ pub async fn list_for_user(
 
 /// Newest-first page of messages; pass the oldest `created_at` you hold as
 /// `before` to page backwards.
+/// `viewer` is whose view this is, and whose blocks therefore apply: messages
+/// from anybody blocked in either direction are left out. Pass `None` where
+/// the read is not a person looking at their own thread — the club briefing
+/// and the selection transcript are the club's record rather than one
+/// member's screen, and filtering those by whoever triggered them would make
+/// the same club produce different summaries depending on who asked.
 pub async fn list_messages(
     pool: &PgPool,
     conversation_id: Uuid,
+    viewer: Option<Uuid>,
     before: Option<DateTime<Utc>>,
     limit: i64,
 ) -> Result<Vec<ChatMessage>, sqlx::Error> {
@@ -304,6 +311,11 @@ pub async fn list_messages(
         LEFT JOIN users u ON u.id = m.sender_id
         WHERE m.conversation_id = $1
           AND ($2::timestamptz IS NULL OR m.created_at < $2)
+          AND ($4::uuid IS NULL OR m.sender_id IS NULL OR NOT EXISTS (
+                SELECT 1 FROM user_blocks b
+                 WHERE (b.blocker_id = $4 AND b.blocked_id = m.sender_id)
+                    OR (b.blocker_id = m.sender_id AND b.blocked_id = $4)
+          ))
         ORDER BY m.created_at DESC
         LIMIT $3
         "#,
@@ -311,6 +323,7 @@ pub async fn list_messages(
     .bind(conversation_id)
     .bind(before)
     .bind(limit.clamp(1, 200))
+    .bind(viewer)
     .fetch_all(pool)
     .await
 }

@@ -21,6 +21,7 @@ import { Umpiring } from "@/components/Umpiring";
 import { PendingUmpireReviews } from "@/components/RateUmpires";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/Avatar";
+import { BlockedList } from "@/components/BlockedList";
 import { ShareProfile } from "@/components/ShareProfile";
 import { ProfileStrength } from "@/components/ProfileStrength";
 import { useRequireAuth } from "@/lib/require-auth";
@@ -322,6 +323,8 @@ function Overview({
             <Icon name="chart" size={16} /> {t("cl.season_stats")}
           </Link>
         </div>
+
+        <BlockedList />
 
         <DeleteAccount />
       </aside>

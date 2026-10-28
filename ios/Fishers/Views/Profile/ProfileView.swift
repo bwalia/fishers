@@ -172,6 +172,14 @@ struct ProfileView: View {
             Text(t("cl.secretary_can_invite_you"))
         }
 
+        Section(t("mod.safety")) {
+            NavigationLink {
+                BlockedListView()
+            } label: {
+                Label(t("mod.blocked_people"), systemImage: "hand.raised")
+            }
+        }
+
         Section(tr("Account")) {
             if !user.isVerified {
                 NavigationLink {

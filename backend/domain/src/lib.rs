@@ -15,6 +15,8 @@ mod event;
 mod invite;
 /// Man of the match, voted for by the club after the game.
 mod motm;
+/// Reporting something, and blocking somebody.
+mod moderation;
 mod order;
 mod payment;
 /// Cross-cutting club activity events (AI, stats, notifications).
@@ -38,6 +40,7 @@ pub mod world_cricket;
 pub mod world_cricket_detail;
 
 pub use admin::*;
+pub use moderation::*;
 pub use agent::*;
 pub use availability::*;
 pub use chat::*;

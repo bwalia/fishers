@@ -79,6 +79,13 @@ struct PlayerProfileView: View {
         }
         .listStyle(.insetGrouped)
         .fishersList()
+        .reportOrBlock(
+            .user,
+            id: userId,
+            person: userId,
+            personName: player?.name ?? knownName,
+            placement: .toolbar
+        )
         .navigationTitle(player?.name ?? knownName ?? tr("Player"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

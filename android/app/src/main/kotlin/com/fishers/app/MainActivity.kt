@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { inner ->
                     RootScreen(
                         viewModel = model,
+                        api = app.network.api,
                         chatList = remember { ChatListViewModel(app.network.api) },
                         threadFor = { id -> ChatThreadViewModel(app.network.api, id) },
                         fixtures = remember { FixturesViewModel(app.network.api) },

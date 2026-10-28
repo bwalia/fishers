@@ -239,8 +239,13 @@ pub async fn public_product(pool: &PgPool, id: Uuid) -> Result<Option<Product>, 
 /// one that makes its own bats, has thirty members and needs a bigger room.
 /// Only what a secretary has deliberately listed publicly, and only what is
 /// still in stock — a sold bat on the front page is worse than an empty one.
+/// `viewer` is who is browsing, and whose blocks apply: a listing put up by
+/// somebody blocked in either direction is left out. The marketplace is the
+/// one place in the app where a stranger can put words and a photograph in
+/// front of you, so a block that did not reach it would not be a block.
 pub async fn marketplace(
     pool: &PgPool,
+    viewer: Uuid,
     condition: Option<fishers_domain::ProductCondition>,
     query: Option<&str>,
     limit: i64,
@@ -252,6 +257,11 @@ pub async fn marketplace(
            AND (stock IS NULL OR stock > 0)
            AND ($1::product_condition IS NULL OR condition = $1)
            AND ($2::text IS NULL OR name ILIKE $2 OR brand ILIKE $2 OR description ILIKE $2)
+           AND (listed_by IS NULL OR NOT EXISTS (
+                 SELECT 1 FROM user_blocks b
+                  WHERE (b.blocker_id = $4 AND b.blocked_id = listed_by)
+                     OR (b.blocker_id = listed_by AND b.blocked_id = $4)
+           ))
          ORDER BY created_at DESC
          LIMIT $3
         "#
@@ -259,6 +269,7 @@ pub async fn marketplace(
     .bind(condition)
     .bind(query.map(|q| format!("%{q}%")))
     .bind(limit)
+    .bind(viewer)
     .fetch_all(pool)
     .await
 }

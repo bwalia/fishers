@@ -64,6 +64,8 @@ import com.fishers.app.views.fixtures.FixturesScreen
 import com.fishers.app.chat.ChatThreadViewModel
 import com.fishers.app.chat.ConversationSummary
 import com.fishers.app.net.PublicUser
+import com.fishers.app.net.FishersApi
+import com.fishers.app.views.safety.BlockedListCard
 import com.fishers.app.views.chat.ChatListScreen
 import com.fishers.app.views.chat.ChatThreadScreen
 import com.fishers.app.shop.ListingViewModel
@@ -81,6 +83,7 @@ import com.fishers.app.views.shop.MarketplaceScreen
 @Composable
 fun MainTabScreen(
     user: PublicUser?,
+    api: FishersApi,
     onSignOut: () -> Unit,
     chatList: ChatListViewModel,
     threadFor: (String) -> ChatThreadViewModel,
@@ -165,6 +168,7 @@ fun MainTabScreen(
                 } else if (shopOpen) {
                     ShopTab(
                         market = market,
+                        api = api,
                         listingFor = listingFor,
                         openListing = openListing,
                         onOpen = { openListing = it },
@@ -204,6 +208,7 @@ fun MainTabScreen(
                 }
 
                 Tab.Chats -> ChatsTab(
+                    api = api,
                     chatList = chatList,
                     threadFor = threadFor,
                     openThread = openThread,
@@ -237,6 +242,8 @@ fun MainTabScreen(
                         onWilling = umpiring::setWilling,
                     )
 
+                    BlockedListCard(api = api)
+
                     LanguagePicker()
 
                     TextButton(onClick = onSignOut) { Text(t("nav.sign_out")) }
@@ -265,6 +272,7 @@ fun MainTabScreen(
 @Composable
 private fun ShopTab(
     market: MarketViewModel,
+    api: FishersApi,
     listingFor: (String) -> ListingViewModel,
     openListing: String?,
     onOpen: (String) -> Unit,
@@ -294,7 +302,13 @@ private fun ShopTab(
                 onOpenThread(conversation, title)
             }
         }
-        ListingScreen(state = state, onReserve = model::reserve, onAsk = model::ask)
+        ListingScreen(
+            state = state,
+            api = api,
+            onReserve = model::reserve,
+            onAsk = model::ask,
+            onBlocked = onBack,
+        )
     }
 }
 
@@ -327,6 +341,7 @@ private fun ClubsTab(
  */
 @Composable
 private fun ChatsTab(
+    api: FishersApi,
     chatList: ChatListViewModel,
     threadFor: (String) -> ChatThreadViewModel,
     openThread: String?,
@@ -343,7 +358,13 @@ private fun ChatsTab(
         val state by model.state.collectAsStateWithLifecycle()
         LaunchedEffect(openThread) { model.load() }
         BackHandler(onBack = onBack)
-        ChatThreadScreen(title = openTitle, state = state, onSend = model::send)
+        ChatThreadScreen(
+            title = openTitle,
+            state = state,
+            onSend = model::send,
+            api = api,
+            onBlocked = { model.dropMessagesFrom(it) },
+        )
     }
 }
 

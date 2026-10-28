@@ -22,6 +22,38 @@ rings:
 # limiting, not authentication.
 gateway: []
 
+# India, so not UK GDPR. The Digital Personal Data Protection Act 2023, with
+# the Rules notified in November 2025, and the Data Protection Board of India
+# rather than the ICO. The Board is digital-only and takes complaints through
+# its own portal; no URL here until there is one worth printing, so the notice
+# names it without a link.
+# The company behind both brands. Named by the privacy notice as the data
+# controller, by the terms as who you are agreeing with, and by the App Store
+# listing's copyright line.
+legalEntity: Workstation Solutions Limited
+
+# The governing law of the *terms* — which courts hear a dispute. One only:
+# naming two makes the clause ambiguous and unenforceable. England and Wales
+# because the company is registered there. Data protection is a separate
+# question and is answered under `privacy:` below, where both laws really do
+# apply at once.
+jurisdiction: England and Wales
+
+privacy:
+  # Both, and not as a hedge: the controller is established in the UK, and the
+  # people whose data it is are in India. UK GDPR binds the first, the DPDP
+  # Act binds the second, and a notice naming one of them is wrong about the
+  # other.
+  law: UK GDPR and India's Digital Personal Data Protection Act 2023
+  regulator: the ICO in the United Kingdom (ico.org.uk), or the Data Protection Board of India
+  # Deliberately blank. The page appends "at <url>" after the regulator, which
+  # reads as though the address belonged to the Board when two are named — so
+  # the ICO's goes inside the sentence above instead.
+  regulatorUrl: ""
+  # The DPDP Act counts anybody under 18 as a child and requires verifiable
+  # parental consent — not 13, which is what the page used to say to everyone.
+  childAge: 18
+
 support:
   # Where a person writes to.
   email: hello@gullycricket.app

@@ -8544,3 +8544,43 @@ main .panel[id] { scroll-margin-top: 80px; }
   border-bottom-color: transparent;
   text-decoration: underline;
 }
+
+/* Reporting something, and blocking whoever posted it.
+   `.choice` was already taken by a two-column fieldset, so these carry their
+   own names rather than inherit a grid meant for something else. */
+.report-tools {
+  display: inline-flex;
+  gap: var(--s1);
+  align-items: center;
+}
+
+.report-reason {
+  display: flex;
+  gap: var(--s2);
+  align-items: baseline;
+  /* 44px, so the row is a touch target and not just a word with a dot. */
+  min-height: 44px;
+  padding: var(--s1) 0;
+  cursor: pointer;
+}
+
+.report-reason input {
+  /* Lines the control up with the first line of a label that wraps. */
+  margin-top: 0.15em;
+  flex: none;
+}
+
+.blocked-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s2);
+}
+
+.blocked-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--s2);
+  align-items: center;
+}

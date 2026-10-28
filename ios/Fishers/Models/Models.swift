@@ -284,6 +284,9 @@ struct Product: Codable, Identifiable, Hashable {
     /// Whether the price is the price. Second-hand kit gets haggled over, and
     /// a buyer who cannot tell either overpays or does not ask.
     var negotiable: Bool?
+    /// Who put it up. Needed to block them from the listing itself — the
+    /// seller's name is shown, but a name is not something you can block.
+    var listedBy: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, currency, category, stock, condition, size, brand, photos
@@ -293,6 +296,7 @@ struct Product: Codable, Identifiable, Hashable {
         case listedPublicly = "listed_publicly"
         case collectionNote = "collection_note"
         case negotiable
+        case listedBy = "listed_by"
     }
 
     var priceLabel: String {
@@ -449,5 +453,58 @@ enum JSONValue: Codable, Hashable {
         case .array(let v): try c.encode(v)
         case .null: try c.encodeNil()
         }
+    }
+}
+
+// MARK: - Reporting something, and blocking somebody
+
+/// What a report is about. The raw values are the wire contract — the API
+/// parses these exact strings — so they stay as they are whatever the labels
+/// on screen say.
+enum ReportSubjectKind: String, Codable {
+    case message
+    case listing
+    case user
+    case club
+}
+
+/// Why. A fixed list rather than free text: the note is optional, and a
+/// report carrying nothing but an empty note tells whoever reads it nothing.
+enum ReportReason: String, Codable, CaseIterable, Identifiable {
+    case abuse
+    case objectionable
+    case spam
+    case impersonation
+    case privacy
+    case other
+
+    var id: String { rawValue }
+
+    /// The sentence on screen. A key rather than the English, so it reads in
+    /// Punjabi too — and separate from `rawValue`, which the API matches on.
+    var label: String {
+        switch self {
+        case .abuse: return t("mod.reason_abuse")
+        case .objectionable: return t("mod.reason_objectionable")
+        case .spam: return t("mod.reason_spam")
+        case .impersonation: return t("mod.reason_impersonation")
+        case .privacy: return t("mod.reason_privacy")
+        case .other: return t("mod.reason_other")
+        }
+    }
+}
+
+/// Somebody on your blocked list, with enough to recognise them by.
+struct BlockedUser: Codable, Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var avatarUrl: String?
+    var blockedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case avatarUrl = "avatar_url"
+        case blockedAt = "blocked_at"
     }
 }

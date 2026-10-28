@@ -52,6 +52,7 @@ export async function SiteFooter() {
 
           <div className="site-foot-col">
             <h2>{t("foot.get_in_touch")}</h2>
+            <Link href="/support">{t("sup.support")}</Link>
             <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>
           </div>
         </nav>
