@@ -168,6 +168,7 @@ fun MainTabScreen(
                 } else if (shopOpen) {
                     ShopTab(
                         market = market,
+                        api = api,
                         listingFor = listingFor,
                         openListing = openListing,
                         onOpen = { openListing = it },
@@ -271,6 +272,7 @@ fun MainTabScreen(
 @Composable
 private fun ShopTab(
     market: MarketViewModel,
+    api: FishersApi,
     listingFor: (String) -> ListingViewModel,
     openListing: String?,
     onOpen: (String) -> Unit,
@@ -300,7 +302,13 @@ private fun ShopTab(
                 onOpenThread(conversation, title)
             }
         }
-        ListingScreen(state = state, onReserve = model::reserve, onAsk = model::ask)
+        ListingScreen(
+            state = state,
+            api = api,
+            onReserve = model::reserve,
+            onAsk = model::ask,
+            onBlocked = onBack,
+        )
     }
 }
 

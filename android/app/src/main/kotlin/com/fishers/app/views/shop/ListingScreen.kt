@@ -1,6 +1,9 @@
 package com.fishers.app.views.shop
 
 import com.fishers.app.i18n.t
+import com.fishers.app.net.FishersApi
+import com.fishers.app.safety.ReportSubjectKind
+import com.fishers.app.views.safety.ReportOrBlock
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,8 +61,10 @@ import com.fishers.app.shop.MarketListing
 @Composable
 fun ListingScreen(
     state: ListingState,
+    api: FishersApi,
     onReserve: () -> Unit,
     onAsk: () -> Unit,
+    onBlocked: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val listing = state.listing
@@ -95,6 +100,21 @@ fun ListingScreen(
         }
 
         Sections(listing)
+
+        // A listing is the one place a stranger puts words and a photograph in
+        // front of you, so it is the one that most needs this. Not on your own
+        // advert: there is nobody there to report but yourself. Blocking steps
+        // back to the marketplace, which no longer holds it.
+        if (!listing.mine) {
+            ReportOrBlock(
+                api = api,
+                kind = ReportSubjectKind.LISTING,
+                subjectId = listing.id,
+                personId = listing.listedBy,
+                personName = listing.sellerName,
+                onBlocked = { onBlocked() },
+            )
+        }
     }
 }
 

@@ -284,6 +284,9 @@ struct Product: Codable, Identifiable, Hashable {
     /// Whether the price is the price. Second-hand kit gets haggled over, and
     /// a buyer who cannot tell either overpays or does not ask.
     var negotiable: Bool?
+    /// Who put it up. Needed to block them from the listing itself — the
+    /// seller's name is shown, but a name is not something you can block.
+    var listedBy: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, currency, category, stock, condition, size, brand, photos
@@ -293,6 +296,7 @@ struct Product: Codable, Identifiable, Hashable {
         case listedPublicly = "listed_publicly"
         case collectionNote = "collection_note"
         case negotiable
+        case listedBy = "listed_by"
     }
 
     var priceLabel: String {

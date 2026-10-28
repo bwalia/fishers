@@ -2,6 +2,9 @@ Gully Cricket is a club app for cricket. Everything past the first screen belong
 a club, so review needs the account above — there is nothing meaningful to see
 signed out.
 
+The account is a member of "Gully Cricket Demo", a club kept invite-only so it
+stays out of the way of real sides.
+
 Signed in with it you will find:
 
 * Home — the next fixture and anything live.
@@ -12,6 +15,20 @@ Signed in with it you will find:
 * Clubs — the club, its teams and its members.
 * Profile — batting and bowling figures, and the language switch. The app is
   fully English and Punjabi, scoring words included.
+
+Reporting and blocking
+----------------------
+
+* Press and hold any message in a club chat to report it or block whoever sent
+  it.
+* A shop listing and a player's profile each carry the same two actions in the
+  top-right menu.
+* A block works both ways and takes effect at once: neither person sees the
+  other's messages or listings again.
+* Profile > Blocked people lists everyone you have blocked, and lifts a block.
+
+Reports go to the club's administrators, who can act on them from the web
+dashboard at www.gullycricket.app.
 
 Sign in with Apple is offered on the first screen and works with the account
 above or with any Apple ID.

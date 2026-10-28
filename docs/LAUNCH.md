@@ -54,10 +54,22 @@ has to exist on **www.gullycricket.app**, not on a ring.
 It needs to be in a club with fixtures, a played match and a thread, or review
 sees an empty app and rejects it as incomplete.
 
+It does **not** go in the repository. This one is public, and a committed
+`demo_password.txt` is a working login to production for anybody who clones
+it — so both files are gitignored, and `upload_metadata` writes them at run
+time from two values it reads beside the signing material:
+
 ```
-ios/fastlane/store/gullycricket/review_information/demo_user.txt
-ios/fastlane/store/gullycricket/review_information/demo_password.txt
+ASC_DEMO_USER       the email the account signed up with
+ASC_DEMO_PASSWORD   its password
 ```
+
+Put them in `kv/<brand>/ios` in WSLVault, next to `ASC_KEY_ID`. They are per
+brand, which a repository secret could not be. The lane stops and names the
+missing one rather than uploading a listing App Review cannot sign into.
+
+Make the club **invite-only**, so a demo side does not turn up in front of
+real ones. Review is a member, so it sees it either way.
 
 Play asks for the same thing under **App access → All functionality requires
 credentials**.

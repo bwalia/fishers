@@ -5,6 +5,8 @@
 #   ci_build_number → prepare_signing → build_ipa → beta (TestFlight)
 # See .github/workflows/ios_release.yml and docs/IOS_RELEASE.md.
 
+require "fileutils"
+
 default_platform(:ios)
 
 # Which brand this build is. `tools/brand mobile <id>` puts both of these in
@@ -947,6 +949,24 @@ platform :ios do
     # deliver was never meant to be reading.
     dir = File.expand_path("store/#{brand}", __dir__)
     UI.user_error!("No metadata for #{brand} at #{dir}") unless Dir.exist?(dir)
+
+    # The demo account App Review signs in with. Deliberately not in the
+    # repository: this one is public, and a committed demo_password.txt
+    # publishes a working login to production to anybody who clones it.
+    # `deliver` reads review information from files and from nowhere else,
+    # so the values arrive as environment variables — from the same vault
+    # path as the signing material — and are written here, onto a checkout
+    # the runner throws away.
+    review = File.join(dir, "review_information")
+    FileUtils.mkdir_p(review)
+    { "demo_user" => "ASC_DEMO_USER", "demo_password" => "ASC_DEMO_PASSWORD" }.each do |name, var|
+      value = ENV[var].to_s
+      UI.user_error!(
+        "#{var} is not set. App Review needs a demo account that signs in on " \
+        "production; set it in kv/#{brand}/ios or as a repository secret."
+      ) if value.empty?
+      File.write(File.join(review, "#{name}.txt"), value)
+    end
 
     # A placeholder that reaches App Store Connect is worse than a blank one:
     # it gets published, and it reads as though somebody meant it. The two
