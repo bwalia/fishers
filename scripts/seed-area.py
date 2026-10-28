@@ -78,7 +78,7 @@ LONDON = ZoneInfo("Europe/London")
 # The same world on every run: same people, same clubs, same scorecards.
 rng = random.Random(20260917)
 # Filled in by main(); the defaults are what a local stack gets.
-OPTS = argparse.Namespace(invented=False, clubs=0, note=None, public_pages=True,
+OPTS = argparse.Namespace(invented=False, area="real", clubs=0, note=None, public_pages=True,
                           manifest=None, rounds=3, workers=16)
 print_lock = threading.Lock()
 
@@ -154,6 +154,17 @@ def london(day, hour, minute=0):
 HERTS = "Hertfordshire Saturday League"
 MIDDX = "Middlesex Saturday League"
 RING = "Chilterns & North London League"
+
+# Punjab and Delhi, for Gully Cricket. Its own set because the Hertfordshire
+# list is what the App Store screenshots were going to show for an app whose
+# users are in India — "Hemel Hempstead Town CC at Pancake Lane" is not wrong
+# so much as about somewhere else.
+#
+# These sides are invented, which is the honest way round here: a gully side
+# is a handful of people from one colony rather than a club with a century of
+# records, so there is no real name to borrow. The localities are real and the
+# coordinates approximate, which is the same rule the lists above follow.
+GULLY = "Doaba Evening League"
 
 # (name, short, area, league, ground, address, lat, lng, members, women's section)
 CLUBS = [
@@ -243,6 +254,13 @@ MIX = {
             "sinhala": 3, "bangladeshi": 2, "afghan": 2, "southern": 4},
     MIDDX: {"british": 36, "punjabi": 9, "gujarati": 17, "pakistani": 11, "tamil": 8,
             "sinhala": 6, "bangladeshi": 4, "afghan": 3, "southern": 3, "caribbean": 3},
+    # Punjab and west Delhi. No "british" and no "southern": those two are the
+    # English club game's home and overseas cohorts, and "southern" is
+    # Afrikaans and Australasian given names — the first run of this league
+    # made a Blake Nel captain and secretary of a Delhi side, which is the
+    # name the App Store screenshots would then have carried.
+    GULLY: {"punjabi": 70, "tamil": 10, "gujarati": 8, "pakistani": 5,
+            "bangladeshi": 4, "afghan": 3},
 }
 
 FIRST = {
@@ -324,6 +342,39 @@ Jonny Bairstow|Ollie Pope|Paul Taylor|Neil Robertson|Steve James|Sam Allardyce|H
 
 # For a shared server. Invented clubs in the same towns: a real club's name on
 # a page of invented players and invented results is not ours to put there.
+GULLY_CLUBS = [
+    # Ludhiana
+    ("Sarabha Nagar Strikers", "Sarabha Nagar", "Ludhiana", GULLY,
+     "Sarabha Nagar Park", "Sarabha Nagar, Ludhiana 141001", 30.8980, 75.8120, 22, False),
+    ("Model Town Chargers", "Model Town", "Ludhiana", GULLY,
+     "Model Town Ground", "Model Town, Ludhiana 141002", 30.8880, 75.8420, 20, False),
+    # Jalandhar
+    ("Doaba Colony XI", "Doaba Colony", "Jalandhar", GULLY,
+     "Doaba Colony Ground", "Doaba Colony, Jalandhar 144004", 31.3100, 75.5900, 21, False),
+    ("Urban Estate Royals", "Urban Estate", "Jalandhar", GULLY,
+     "Urban Estate Phase 2", "Urban Estate, Jalandhar 144022", 31.3420, 75.5780, 18, False),
+    # Amritsar
+    ("Ranjit Avenue Riders", "Ranjit Avenue", "Amritsar", GULLY,
+     "Ranjit Avenue Ground", "Ranjit Avenue, Amritsar 143001", 31.6480, 74.8650, 23, False),
+    ("Majitha Road Warriors", "Majitha Road", "Amritsar", GULLY,
+     "Majitha Road Maidan", "Majitha Road, Amritsar 143001", 31.6600, 74.8810, 19, False),
+    # Patiala
+    ("Tripuri Town Titans", "Tripuri", "Patiala", GULLY,
+     "Tripuri Ground", "Tripuri, Patiala 147001", 30.3300, 76.3900, 20, False),
+    ("Leela Bhawan Lions", "Leela Bhawan", "Patiala", GULLY,
+     "Leela Bhawan Park", "Leela Bhawan, Patiala 147001", 30.3380, 76.3990, 18, True),
+    # Mohali and Chandigarh
+    ("Phase 7 Panthers", "Phase 7", "Mohali", GULLY,
+     "Phase 7 Ground", "Phase 7, Mohali 160055", 30.7050, 76.7190, 22, False),
+    ("Sector 34 Smashers", "Sector 34", "Chandigarh", GULLY,
+     "Sector 34 Ground", "Sector 34, Chandigarh 160022", 30.7190, 76.7680, 21, True),
+    # Delhi
+    ("Rajouri Garden Rangers", "Rajouri Garden", "Delhi", GULLY,
+     "Rajouri Garden Maidan", "Rajouri Garden, New Delhi 110027", 28.6490, 77.1200, 24, False),
+    ("Tilak Nagar Tigers", "Tilak Nagar", "Delhi", GULLY,
+     "Tilak Nagar Ground", "Tilak Nagar, New Delhi 110018", 28.6400, 77.0950, 20, False),
+]
+
 RING_CLUBS = [
     ("Gade Valley CC", "Gade Valley", "Hemel Hempstead", RING,
      "Gadebridge Park", "Gadebridge Park, Hemel Hempstead HP1", 51.7620, -0.4760, 26, True),
@@ -350,6 +401,15 @@ RING_CLUBS = [
     ("Totteridge Common CC", "Totteridge Common", "Totteridge", RING,
      "The Common", "Totteridge Common, London N20", 51.6330, -0.1990, 16, False),
 ]
+
+# Which set of clubs a run seeds. `--invented` stays as an alias for the
+# middle one: it is in the docstring, in docs/ and in people's shell history.
+AREAS = {
+    "real": CLUBS,
+    "invented": RING_CLUBS,
+    "india": GULLY_CLUBS,
+}
+
 
 # A club side, top to bottom: (position, bowling styles to pick from).
 SIDE = [
@@ -500,7 +560,7 @@ class Club:
 def chosen_clubs():
     """The area's clubs, or invented ones for a shared server. An odd club
     would sit out every round, so the count is always even."""
-    specs = RING_CLUBS if OPTS.invented else CLUBS
+    specs = AREAS[OPTS.area]
     if OPTS.clubs:
         per_league: dict[str, list] = {}
         for spec in specs:
@@ -1098,9 +1158,12 @@ def write_manifest(hemel: Club, watford: Club, kings: Club, five, t20_tonight, t
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("--area", choices=sorted(AREAS), default="real",
+                   help="which clubs to seed: real Hertfordshire ones (default), invented "
+                        "ones for a shared server, or india — Punjab and Delhi gully sides, "
+                        "which is what GullyCricket's screenshots should show")
     p.add_argument("--invented", action="store_true",
-                   help="invented club names — for a shared server, where a real club's name "
-                        "does not belong on invented players and invented results")
+                   help="alias for --area invented")
     p.add_argument("--clubs", type=int, default=0, metavar="N",
                    help="seed about N clubs rather than the whole list (rounded to an even number "
                         "per league, so nobody sits out a round)")
@@ -1117,7 +1180,15 @@ def parse_args():
                         "over its memory limit — the default is 16 on loopback, 3 elsewhere")
     p.add_argument("--manifest", metavar="PATH",
                    help="where to write what the iOS tours read (default .dev/seed-area.json)")
-    return p.parse_args()
+    args = p.parse_args()
+    # The alias wins only when it was actually passed, so `--area india
+    # --invented` is a contradiction the caller gets told about rather than
+    # one of the two silently winning.
+    if args.invented and args.area != "real":
+        p.error("--invented is an alias for --area invented; pass one or the other")
+    if args.invented:
+        args.area = "invented"
+    return args
 
 
 def main():

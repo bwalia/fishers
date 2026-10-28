@@ -51,6 +51,15 @@ open class FakeFishersApi : FishersApi {
     override suspend fun setRoleIntent(body: RoleIntentPatch): PublicUser =
         error("setRoleIntent not expected")
 
+    // ---- reporting something, and blocking somebody ----
+    override suspend fun report(body: com.fishers.app.safety.ReportRequest): Unit =
+        error("report not expected")
+    override suspend fun block(body: com.fishers.app.safety.BlockRequest): Unit =
+        error("block not expected")
+    override suspend fun unblock(userId: String): Unit = error("unblock not expected")
+    override suspend fun blockedUsers(): List<com.fishers.app.safety.BlockedUser> =
+        error("blockedUsers not expected")
+
     // ---- the shop ----
     override suspend fun marketplace(
         condition: String?,

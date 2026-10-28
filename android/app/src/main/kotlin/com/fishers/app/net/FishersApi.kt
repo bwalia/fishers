@@ -88,6 +88,20 @@ interface FishersApi {
     @PATCH("me")
     suspend fun setRoleIntent(@Body body: RoleIntentPatch): PublicUser
 
+    // ---- Reporting something, and blocking somebody ----
+
+    @POST("reports")
+    suspend fun report(@Body body: com.fishers.app.safety.ReportRequest)
+
+    @POST("me/blocks")
+    suspend fun block(@Body body: com.fishers.app.safety.BlockRequest)
+
+    @DELETE("me/blocks/{userId}")
+    suspend fun unblock(@Path("userId") userId: String)
+
+    @GET("me/blocks")
+    suspend fun blockedUsers(): List<com.fishers.app.safety.BlockedUser>
+
     // ---- Umpiring ----
 
     @GET("me/umpiring")

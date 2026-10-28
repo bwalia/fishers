@@ -37,7 +37,11 @@ import androidx.compose.ui.unit.dp
 import com.fishers.app.R
 import com.fishers.app.chat.ChatMessage
 import com.fishers.app.chat.ChatThreadState
+import com.fishers.app.net.FishersApi
+import retrofit2.Retrofit
+import com.fishers.app.safety.ReportSubjectKind
 import com.fishers.app.theme.FishersTheme
+import com.fishers.app.views.safety.ReportOrBlock
 
 /**
  * One thread — `ChatThreadView.swift`.
@@ -51,7 +55,11 @@ fun ChatThreadScreen(
     title: String,
     state: ChatThreadState,
     onSend: (String) -> Unit,
+    api: FishersApi,
     modifier: Modifier = Modifier,
+    /// Blocking somebody has to take their messages off this screen now, not
+    /// on the next load: the thread is already in state.
+    onBlocked: (String) -> Unit = {},
 ) {
     var draft by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -80,7 +88,9 @@ fun ChatThreadScreen(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(state.messages, key = { it.id }) { MessageRow(it) }
+                    items(state.messages, key = { it.id }) {
+                        MessageRow(it, api = api, onBlocked = onBlocked)
+                    }
                 }
             }
         }
@@ -117,7 +127,11 @@ fun ChatThreadScreen(
 }
 
 @Composable
-private fun MessageRow(message: ChatMessage) {
+private fun MessageRow(
+    message: ChatMessage,
+    api: FishersApi,
+    onBlocked: (String) -> Unit,
+) {
     when {
         // Not a person talking, and it must not look like one.
         message.isSystem -> Text(
@@ -141,6 +155,18 @@ private fun MessageRow(message: ChatMessage) {
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(message.body, style = MaterialTheme.typography.bodyMedium)
+                // Only under something a person wrote. The app's own notes
+                // have nobody behind them to report or to block.
+                if (!message.isAgent) {
+                    ReportOrBlock(
+                        api = api,
+                        kind = ReportSubjectKind.MESSAGE,
+                        subjectId = message.id,
+                        personId = message.senderId,
+                        personName = message.senderName,
+                        onBlocked = onBlocked,
+                    )
+                }
             }
         }
     }
@@ -151,6 +177,13 @@ private fun MessageRow(message: ChatMessage) {
 private fun ThreadPreview() {
     FishersTheme {
         ChatThreadScreen(
+            // A preview has no network. Retrofit builds the interface lazily,
+            // so nothing is validated or called until a request is made —
+            // and the preview never makes one.
+            api = Retrofit.Builder()
+                .baseUrl("http://localhost/")
+                .build()
+                .create(FishersApi::class.java),
             title = "Lords CC",
             state = ChatThreadState(
                 isFirstLoad = false,

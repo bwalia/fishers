@@ -32,6 +32,9 @@ import com.fishers.app.views.auth.AuthScreen
 @Composable
 fun RootScreen(
     viewModel: SessionViewModel,
+    /// Reporting and blocking are not a feature of one screen, so they take
+    /// the client directly rather than a view model each.
+    api: com.fishers.app.net.FishersApi,
     chatList: com.fishers.app.chat.ChatListViewModel,
     threadFor: (String) -> com.fishers.app.chat.ChatThreadViewModel,
     fixtures: com.fishers.app.fixtures.FixturesViewModel,
@@ -74,6 +77,7 @@ fun RootScreen(
             )
 
             Destination.SignedIn -> MainTabScreen(
+                api = api,
                 user = state.user,
                 onSignOut = viewModel::signOut,
                 chatList = chatList,

@@ -60,6 +60,17 @@ class ChatThreadViewModel(
     private val conversationId: String,
 ) : ViewModel() {
 
+    /**
+     * Take somebody's messages off the screen the moment they are blocked.
+     * The API stops returning them, but this thread is already in state and
+     * would otherwise keep showing them until the screen was reopened.
+     */
+    fun dropMessagesFrom(senderId: String) {
+        _state.value = _state.value.copy(
+            messages = _state.value.messages.filterNot { it.senderId == senderId }
+        )
+    }
+
     private val _state = MutableStateFlow(ChatThreadState())
     val state: StateFlow<ChatThreadState> = _state.asStateFlow()
 
