@@ -131,9 +131,12 @@ export default async function PrivacyPage() {
             contact: CONTACT,
             regulator: brand.privacyRegulator,
           })}
+          {/* "at <link>" only where one regulator is named. With two the bare
+              domain reads as though it belonged to the second one, so those
+              brands carry the address inside the sentence instead. */}
           {REGULATOR_URL ? (
             <>
-              {" "}
+              {" at "}
               <a href={REGULATOR_URL} target="_blank" rel="noreferrer">
                 {REGULATOR_URL.replace(/^https?:\/\//, "")}
               </a>
