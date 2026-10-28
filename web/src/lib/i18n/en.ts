@@ -1154,7 +1154,7 @@ export const en = {
   "rest.your_rights": "Your rights",
   "rest.ico_org_uk": "ico.org.uk",
   "rest.children": "Children",
-  "rest.junior_members_are_a_normal_part_of_a": "Junior members are a normal part of a cricket club. Where a member is under 13, the club is expected to have the parent or guardian set the account up and agree to this policy.",
+  "rest.junior_members_are_a_normal_part_of_a": "Junior members are a normal part of a cricket club. Where a member is under {age}, the club is expected to have the parent or guardian set the account up and agree to this policy. We do not profile anybody and we show no advertising, to children or to anyone else.",
   "rest.with_google_an_email_address_or_a_mobi": "With Google, an email address or a mobile number — whichever you actually use.",
   "rest.your_name": "Your name",
   "rest.mobile_number": "Mobile number",
@@ -2709,7 +2709,7 @@ export const en = {
   "rest.no_hireable_spaces_yet": "No hireable spaces yet. Secretaries can mark a space as hireable from their club’s venues.",
   "privacy.brand_is_a_club_app": "{brand} is a club app: it keeps the things a club needs to put a side out on a Saturday. This is all of it, in plain terms.",
   "privacy.is_the_data_controller": "{controller} is the data controller. Questions, corrections and complaints go to",
-  "privacy.your_rights_detail": "Under UK GDPR you can ask for a copy of your data, ask us to correct it, ask us to delete it, or object to how we use it. Write to {contact} and we will answer within a month. You can also complain to the ICO at",
+  "privacy.your_rights_detail": "Under {law} you can ask for a copy of your data, ask us to correct it, ask us to delete it, or object to how we use it. Write to {contact} and we will answer within a month. You can also complain to {regulator}",
   "privacy.back_to_brand": "Back to {brand}",
   "le.network_unreachable": "Could not reach the server. Check your connection and try again.",
 
@@ -2793,7 +2793,7 @@ export const en = {
   "terms.your_account": "Your account",
   "terms.account_one_each": "One account each, under the name your club knows you by. A squad list is no use if nobody can tell who is on it.",
   "terms.account_password": "Keep your password to yourself. Anything done with your account is treated as done by you, so tell us straight away if you think somebody else has got into it.",
-  "terms.account_age": "You need to be 13 or over to hold your own account. Younger than that, a parent or guardian holds it and agrees these terms for you.",
+  "terms.account_age": "You need to be {age} or over to hold your own account. Younger than that, a parent or guardian holds it and agrees these terms for you.",
   "terms.not_allowed": "What you may not do",
   "terms.not_allowed_abuse": "Put nothing on here you would not say to somebody's face. Abuse, harassment and slurs close an account, and a club chat is not an exception.",
   "terms.not_allowed_uploads": "Upload only what is yours to upload. Photos, crests, kit designs and club names belong to somebody, and that somebody is sometimes not you.",
@@ -3956,6 +3956,15 @@ export const en = {
   "mod.cannot_message": "You cannot start a conversation with this person.",
   "mod.reported": "Reported",
   "mod.safety": "Reporting and blocking",
+
+  // MARK: Privacy — the data categories the notice was missing
+  "privacy.reports_and_blocks": "Reports and blocks",
+  "privacy.reports_and_blocks_detail": " — if you report something, we keep what you reported, why, anything you wrote, and that it was you, so somebody can look at it and answer you. If you block somebody, we keep that you did. The person you blocked is not told.",
+  "privacy.anything_you_list": "Anything you list for sale",
+  "privacy.anything_you_list_detail": " — the description, the photographs and the price, which every signed-in member can see, including people at other clubs. Messages about a listing go to the seller, so a thread about a bat is between the two of you rather than inside a club.",
+  "privacy.whoever_reviews_reports": "Whoever reviews a report, which is us and not your club — a complaint about a club officer should not land on that officer's desk.",
+  "privacy.reports_outlive": "A report you made stays after you delete your account, with your name taken off it: it is about somebody else, and withdrawing it silently would leave whoever is still being complained about looking clean.",
+  "privacy.last_updated": "Last updated {date}.",
 
 } as const;
 

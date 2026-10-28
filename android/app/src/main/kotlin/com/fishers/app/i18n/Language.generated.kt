@@ -1,6 +1,6 @@
 // Generated from web/src/lib/i18n/ by tools/i18n. Do not edit.
 //
-// 3705 keys per language. The words are in assets/strings/; only the
+// 3712 keys per language. The words are in assets/strings/; only the
 // list of languages needs to be code, because it is what the picker iterates
 // and what `Language.from` validates.
 

@@ -28,6 +28,17 @@ rings:
 # Traefik answers 404 on every path that names it rather than saying so.
 gateway: [int]
 
+# The law the privacy notice and the terms actually answer to. These were
+# hardcoded as UK GDPR and the ICO in `web/src/app/privacy/page.tsx`, which is
+# right for this brand and wrong for one whose users are in India — it pointed
+# everybody at a regulator with no jurisdiction over them.
+privacy:
+  law: UK GDPR
+  regulator: the ICO
+  regulatorUrl: https://ico.org.uk
+  # Below this age a parent or guardian holds the account. UK GDPR's floor.
+  childAge: 13
+
 support:
   # Where a person writes to.
   email: hello@fishers.cloud

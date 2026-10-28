@@ -22,6 +22,18 @@ rings:
 # limiting, not authentication.
 gateway: []
 
+# India, so not UK GDPR. The Digital Personal Data Protection Act 2023, with
+# the Rules notified in November 2025, and the Data Protection Board of India
+# rather than the ICO. The Board is digital-only and takes complaints through
+# its own portal; no URL here until there is one worth printing, so the notice
+# names it without a link.
+privacy:
+  law: the Digital Personal Data Protection Act 2023
+  regulator: the Data Protection Board of India
+  # The DPDP Act counts anybody under 18 as a child and requires verifiable
+  # parental consent — not 13, which is what the page used to say to everyone.
+  childAge: 18
+
 support:
   # Where a person writes to.
   email: hello@gullycricket.app

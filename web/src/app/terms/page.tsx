@@ -25,6 +25,11 @@ const CONTROLLER = brand.legalEntity;
 const CONTACT = brand.supportEmail;
 const JURISDICTION = brand.jurisdiction;
 
+/// Same reason the privacy policy carries its own: the date was inside a
+/// dictionary key, so changing it meant adding a key, and it still said
+/// October while the terms underneath it had changed.
+const UPDATED = "28 October 2026";
+
 export default async function TermsPage() {
   const t = await getT();
   return (
@@ -32,7 +37,7 @@ export default async function TermsPage() {
       <section className="hero">
         <h1>{t("foot.terms")}</h1>
         <p>{t("terms.intro", { brand: brand.name })}</p>
-        <p className="muted">{t("terms.last_updated")}</p>
+        <p className="muted">{t("privacy.last_updated", { date: UPDATED })}</p>
       </section>
 
       <div className="panel prose">
@@ -46,7 +51,7 @@ export default async function TermsPage() {
         <ul>
           <li>{t("terms.account_one_each")}</li>
           <li>{t("terms.account_password")}</li>
-          <li>{t("terms.account_age")}</li>
+          <li>{t("terms.account_age", { age: brand.childAge })}</li>
         </ul>
 
         <h2>{t("terms.not_allowed")}</h2>

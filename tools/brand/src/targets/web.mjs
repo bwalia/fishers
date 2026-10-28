@@ -166,6 +166,18 @@ function typescript(brand, mark) {
     // a line of YAML per brand rather than an edit in two components.
     legalEntity: brand.legalEntity ?? `[the legal entity that runs ${brand.name}]`,
     jurisdiction: brand.jurisdiction ?? "[the jurisdiction those terms answer in]",
+    // Which law the notice answers to, who enforces it, and the age below
+    // which a parent holds the account. Hardcoded as UK GDPR / the ICO / 13
+    // before this, which pointed GullyCricket's users at a regulator with no
+    // jurisdiction over them and understated the age India requires.
+    privacyLaw: brand.privacy?.law ?? "UK GDPR",
+    privacyRegulator: brand.privacy?.regulator ?? "the ICO",
+    // "" rather than null when a regulator has no address worth printing.
+    // This file is generated per brand, so a literal null here types the
+    // field as `null` for that brand and the page that links it stops
+    // compiling — for the other brand, where it is a string.
+    privacyRegulatorUrl: brand.privacy?.regulatorUrl ?? "",
+    childAge: brand.privacy?.childAge ?? 13,
     // The browser chrome is painted from metadata rather than from CSS, so
     // these two have to be here as well as in the stylesheet.
     themeLight: brand.source.surface,

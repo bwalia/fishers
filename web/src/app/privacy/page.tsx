@@ -29,6 +29,18 @@ export async function generateMetadata(): Promise<Metadata> {
 const CONTROLLER = brand.legalEntity;
 const CONTACT = brand.supportEmail;
 
+/// One date, next to the content it describes. It was inside a dictionary key
+/// — `rest.last_updated_17_september_2026` — so the only way to change it was
+/// to add a new key, which is why it still said September.
+const UPDATED = "28 October 2026";
+
+/// Widened on purpose. `brand.generated.ts` is `as const` and written per
+/// brand, so this reads as the literal type `""` for a brand whose regulator
+/// has no address — and then the branch that links it narrows to `never` and
+/// stops compiling. Typing it `string` keeps the page independent of whichever
+/// brand happened to be generated.
+const REGULATOR_URL: string = brand.privacyRegulatorUrl;
+
 export default async function PrivacyPage() {
   const t = await getT();
   return (
@@ -38,7 +50,7 @@ export default async function PrivacyPage() {
         <p>
           {t("privacy.brand_is_a_club_app", { brand: brand.name })}
         </p>
-        <p className="muted">{t("rest.last_updated_17_september_2026")}</p>
+        <p className="muted">{t("privacy.last_updated", { date: UPDATED })}</p>
       </section>
 
       <div className="panel">
@@ -69,6 +81,12 @@ export default async function PrivacyPage() {
             <strong>{t("rest.payments")}</strong>{t("privacy.payments_detail")}
           </li>
           <li>
+            <strong>{t("privacy.anything_you_list")}</strong>{t("privacy.anything_you_list_detail")}
+          </li>
+          <li>
+            <strong>{t("privacy.reports_and_blocks")}</strong>{t("privacy.reports_and_blocks_detail")}
+          </li>
+          <li>
             <strong>{t("rest.a_device_token")}</strong> {t("rest.if_you_turn_notifications_on_so_we_can")}
           </li>
         </ul>
@@ -85,6 +103,7 @@ export default async function PrivacyPage() {
           <li><strong>{t("rest.google")}</strong>{t("privacy.google_only_if_you_choose")}</li>
           <li><strong>{t("privacy.apple_and_push")}</strong>{t("privacy.to_deliver_notifications")}</li>
           <li>{t("rest.our_email_and_messaging_providers_to_s")}</li>
+          <li>{t("privacy.whoever_reviews_reports")}</li>
         </ul>
         <p>
           {t("rest.the_assistant_features_run_on_a_model")}
@@ -103,16 +122,31 @@ export default async function PrivacyPage() {
         <p>
           {t("rest.everything_that_identifies_you_goes_na")}
         </p>
+        <p>{t("privacy.reports_outlive")}</p>
 
         <h2>{t("rest.your_rights")}</h2>
         <p>
-          {t("privacy.your_rights_detail", { contact: CONTACT })}{" "}
-          <a href="https://ico.org.uk" target="_blank" rel="noreferrer">{t("rest.ico_org_uk")}</a>.
+          {t("privacy.your_rights_detail", {
+            law: brand.privacyLaw,
+            contact: CONTACT,
+            regulator: brand.privacyRegulator,
+          })}
+          {REGULATOR_URL ? (
+            <>
+              {" "}
+              <a href={REGULATOR_URL} target="_blank" rel="noreferrer">
+                {REGULATOR_URL.replace(/^https?:\/\//, "")}
+              </a>
+              .
+            </>
+          ) : (
+            "."
+          )}
         </p>
 
         <h2>{t("rest.children")}</h2>
         <p>
-          {t("rest.junior_members_are_a_normal_part_of_a")}
+          {t("rest.junior_members_are_a_normal_part_of_a", { age: brand.childAge })}
         </p>
 
         <p className="muted" style={{ marginTop: 24 }}>
