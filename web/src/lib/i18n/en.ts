@@ -3932,6 +3932,31 @@ export const en = {
   "sup.a_delete": "In Profile, at the bottom. It removes your account and the personal details on it. Scores you recorded stay on the match card, because they are part of its result.",
   "sup.the_rest": "Everything else",
 
+  // MARK: Reporting something, and blocking somebody
+  "mod.report": "Report",
+  "mod.block": "Block",
+  "mod.unblock": "Unblock",
+  "mod.report_this": "Report this",
+  "mod.what_is_wrong": "What is wrong with it?",
+  "mod.reason_abuse": "Abuse or harassment",
+  "mod.reason_objectionable": "Objectionable content",
+  "mod.reason_spam": "Spam or a scam",
+  "mod.reason_impersonation": "Pretending to be somebody else",
+  "mod.reason_privacy": "Somebody's private details",
+  "mod.reason_other": "Something else",
+  "mod.anything_else": "Anything else we should know?",
+  "mod.send_report": "Send report",
+  "mod.report_sent": "Thank you. Somebody will look at this.",
+  "mod.report_would_not_send": "That report would not send. Try again.",
+  "mod.block_name": "Block {name}",
+  "mod.block_explains": "They will not be able to message you, and you will not see their messages or their listings. They are not told.",
+  "mod.blocked_people": "People you have blocked",
+  "mod.nobody_blocked": "You have not blocked anybody.",
+  "mod.block_would_not_save": "That would not save. Try again.",
+  "mod.cannot_message": "You cannot start a conversation with this person.",
+  "mod.reported": "Reported",
+  "mod.safety": "Reporting and blocking",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

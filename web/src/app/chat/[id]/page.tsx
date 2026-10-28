@@ -16,6 +16,7 @@ import {
   type ConversationSummary,
 } from "@/lib/chat";
 import { Avatar } from "@/components/Avatar";
+import { ReportOrBlock } from "@/components/ReportOrBlock";
 import { ManOfTheMatch, motmPollId } from "@/components/ManOfTheMatch";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
@@ -58,6 +59,13 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
   const [seenAt, setSeenAt] = useState(0);
   const lastTop = useRef(0);
   const me = getStoredUser();
+
+  /// Take somebody's messages off the screen the moment they are blocked.
+  /// `load` merges rather than replaces, so refetching alone would leave the
+  /// copies already in state sitting there until the page was remounted.
+  const dropSender = useCallback((senderId: string) => {
+    setMessages((prev) => prev.filter((m) => m.sender_id !== senderId));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -259,7 +267,7 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
             <p className="thread-day">{day.day}</p>
             {day.messages.map((m) => (
               <div key={m.id}>
-                <Bubble message={m} mine={m.sender_id === me?.id} />
+                <Bubble message={m} mine={m.sender_id === me?.id} onBlocked={dropSender} />
                 {/* A vote the server opened when the game ended, under the
                     message that announced it — part of the conversation
                     rather than a screen somebody has to go and find. */}
@@ -307,7 +315,15 @@ export default function ChatThreadPage({ params }: { params: Promise<{ id: strin
   );
 }
 
-function Bubble({ message, mine }: { message: ChatMessage; mine: boolean }) {
+function Bubble({
+  message,
+  mine,
+  onBlocked,
+}: {
+  message: ChatMessage;
+  mine: boolean;
+  onBlocked: (senderId: string) => void;
+}) {
   const t = useT();
   // A note the app wrote itself — somebody joined, a squad went up. It is not
   // anybody's message, so it does not get a bubble or a face.
@@ -329,6 +345,17 @@ function Bubble({ message, mine }: { message: ChatMessage; mine: boolean }) {
         <time className="bubble-at" dateTime={message.created_at}>
           {chatTime(message.created_at)}
         </time>
+        {/* Only on somebody else's, and not on the app's own notes — there is
+            nobody to report for those. */}
+        {!mine && !fromAgent && (
+          <ReportOrBlock
+            subjectKind="message"
+            subjectId={message.id}
+            personId={message.sender_id}
+            personName={message.sender_name}
+            onBlocked={() => message.sender_id && onBlocked(message.sender_id)}
+          />
+        )}
       </div>
     </div>
   );

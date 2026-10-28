@@ -782,7 +782,7 @@ async fn recent_transcript(
         return Ok(Vec::new());
     };
     let mut lines: Vec<TranscriptLine> =
-        chat_repo::list_messages(&state.pool, conversation_id, None, TRANSCRIPT_LIMIT)
+        chat_repo::list_messages(&state.pool, conversation_id, None, None, TRANSCRIPT_LIMIT)
             .await?
             .into_iter()
             .map(|m| TranscriptLine {

@@ -8,6 +8,14 @@ import SwiftUI
 final class ChatStore: ObservableObject {
     @Published var conversations: [ConversationSummary] = []
     @Published var messages: [ChatMessage] = []
+
+    /// Take somebody's messages off the screen the moment they are blocked.
+    /// The API stops returning them, but a reload merges rather than replaces
+    /// — so without this the copies already loaded would sit there until the
+    /// thread was opened again.
+    func dropMessages(from senderId: UUID) {
+        messages.removeAll { $0.senderId == senderId }
+    }
     @Published var proposals: [AgentProposal] = []
     @Published var isLoading = false
     @Published var isSending = false

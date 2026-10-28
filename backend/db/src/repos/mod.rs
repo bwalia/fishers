@@ -7,6 +7,7 @@ pub mod cricket;
 pub mod events;
 pub mod invites;
 pub mod motm;
+pub mod moderation;
 pub mod notifications;
 pub mod orders;
 pub mod payments;

@@ -23,7 +23,7 @@ struct ChatThreadView: View {
                                 .padding(.horizontal)
                         }
                         ForEach(store.messages) { message in
-                            MessageBubble(message: message)
+                            MessageBubble(message: message) { store.dropMessages(from: $0) }
                                 .id(message.id)
                             // A vote the server opened when the game ended.
                             // Rendered under the message that announced it,
@@ -158,8 +158,25 @@ struct ChatThreadView: View {
 
 private struct MessageBubble: View {
     let message: ChatMessage
+    let onBlocked: (UUID) -> Void
 
     var body: some View {
+        // Long press reports or blocks, but only on something a person wrote.
+        // The assistant's notes have nobody behind them to report or block.
+        if message.isFromAgent {
+            bubble
+        } else {
+            bubble.reportOrBlock(
+                .message,
+                id: message.id,
+                person: message.senderId,
+                personName: message.senderName,
+                onBlocked: onBlocked
+            )
+        }
+    }
+
+    private var bubble: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 if message.isFromAgent {
