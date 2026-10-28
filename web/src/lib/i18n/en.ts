@@ -3913,6 +3913,25 @@ export const en = {
   "sc.four_caps": "FOUR",
   "sc.six_caps": "SIX",
 
+  // MARK: Support — the page App Store Connect links to as the support URL
+  "sup.support": "Support",
+  "sup.intro": "Something not working, or a question about your club's data? Write to us — a person reads it.",
+  "sup.description": "How to get help with {brand}, and the questions people ask most.",
+  "sup.write_to_us": "Write to us",
+  "sup.reply_time": "We answer in English or Punjabi, usually within two working days.",
+  "sup.questions": "The questions we get asked",
+  "sup.q_join": "How do I join my club?",
+  "sup.a_join": "Ask whoever runs it for an invite link. Opening that link on your phone adds you to the club and to the teams you play for.",
+  "sup.q_score": "Can two people score the same match?",
+  "sup.a_score": "Yes. Everyone scoring sees the same innings as it is scored, and so does anybody just watching.",
+  "sup.q_language": "How do I change the language?",
+  "sup.a_language": "In Profile. The whole app changes, the scoring words included, and it stays changed next time you open it.",
+  "sup.q_signin": "I cannot get in.",
+  "sup.a_signin": "Use Forgot your password, or sign in with Apple or Google if that is how you signed up.",
+  "sup.q_delete": "How do I delete my account?",
+  "sup.a_delete": "In Profile, at the bottom. It removes your account and the personal details on it. Scores you recorded stay on the match card, because they are part of its result.",
+  "sup.the_rest": "Everything else",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

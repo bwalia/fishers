@@ -8,12 +8,22 @@
 # Runs FishersUITests/StoreScreenshots on a 6.9" iPhone and a 13" iPad, each a
 # Simulator of its own (made on first use, erased every run — the same reason
 # scripts/record-area-tour.sh gives), and writes the PNGs to
-# docs/screenshots/store/<device>/, which git ignores.
+# docs/screenshots/store/<brand>/<device>/, which git ignores.
+#
+# BRAND picks which app is photographed and defaults to fishers:
+#
+#   BRAND=gullycricket ./scripts/store-screenshots.sh
+#
+# It generates the brand before xcodegen, because this script used to shoot
+# whatever happened to be generated already — so a run you believed was
+# GullyCricket filed Fishers' screenshots under its name, which is the same
+# way a TestFlight build once shipped entirely as the wrong brand.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DERIVED="${FISHERS_DERIVED_DATA:-/tmp/fishers-dd}"
-OUT="${FISHERS_STORE_SCREENSHOTS:-$ROOT/docs/screenshots/store}"
+BRAND="${BRAND:-fishers}"
+OUT="${FISHERS_STORE_SCREENSHOTS:-$ROOT/docs/screenshots/store/$BRAND}"
 RESULTS="${FISHERS_UI_RESULTS:-/tmp/fishers-store-screenshots}"
 
 api_port="$(sed -nE 's/^API_PORT=([0-9]+).*/\1/p' "$ROOT/.env" 2>/dev/null | tail -1)"
@@ -39,6 +49,18 @@ import json, sys
 ios = [r for r in json.load(sys.stdin)['runtimes'] if r['platform'] == 'iOS' and r['isAvailable']]
 print(sorted(ios, key=lambda r: [int(x) for x in r['version'].split('.')])[-1]['identifier'])
 ")
+
+echo "==> brand: $BRAND"
+(cd "$ROOT" && node tools/brand/index.mjs generate "$BRAND" --ios >/dev/null)
+
+# Read it back rather than trust the generate. The name in the xcconfig is what
+# the screenshots will show in the tab bar and the status bar.
+want="$(cd "$ROOT" && node tools/brand/index.mjs mobile "$BRAND" | sed -nE 's/^BRAND_NAME=(.*)$/\1/p')"
+got="$(sed -nE 's/^PRODUCT_NAME *= *(.*)$/\1/p' "$ROOT/ios/Fishers/Brand/Generated/brand.xcconfig" | tail -1)"
+if [ -n "$want" ] && [ "$want" != "$got" ]; then
+  echo "Generated brand is '$got' but $BRAND is '$want' — refusing to shoot the wrong app." >&2
+  exit 1
+fi
 
 (cd "$ROOT/ios" && xcodegen generate >/dev/null)
 

@@ -50,6 +50,7 @@ on:
           - app_store
           - screenshots
           - store_status
+          - metadata
       screenshots_dir:
         description: "screenshots: folder on the runner holding <locale>/*.png (blank = ~/fishers-store-screenshots/<brand>)"
         required: false
@@ -135,7 +136,7 @@ jobs:
       # Targets that only act on what App Store Connect already holds, so they
       # skip xcodegen, build-number, signing and archive entirely. A new
       # read-only target is one line here rather than an edit at five steps.
-      NO_BUILD_TARGETS: '["testflight_ready", "invite_testers", "screenshots", "store_status"]'
+      NO_BUILD_TARGETS: '["testflight_ready", "invite_testers", "screenshots", "store_status", "metadata", "app_store"]'
       LANG: en_US.UTF-8
       LC_ALL: en_US.UTF-8
     steps:
@@ -297,6 +298,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'invite_testers'
         run: bundle exec fastlane ios invite_testers
 
+      - name: Upload App Store listing text
+        # Listing text only — no binary, no screenshots, no submission. Refuses
+        # to run while any value is still a bracketed placeholder.
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'metadata'
+        run: bundle exec fastlane ios upload_metadata
+
       - name: Report App Store listing readiness
         # Read-only. Names every field the listing is still missing, so a first
         # submission is not the thing that discovers them.
@@ -304,6 +311,8 @@ jobs:
         run: bundle exec fastlane ios store_status
 
       - name: Submit for App Store review
+        # Promotes the build already on TestFlight — it does not archive a new
+        # one, so what ships is what was signed off.
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'app_store'
         run: bundle exec fastlane ios release
 

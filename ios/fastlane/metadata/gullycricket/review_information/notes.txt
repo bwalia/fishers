@@ -1,0 +1,23 @@
+Gully Cricket is a club app for cricket. Everything past the first screen belongs to
+a club, so review needs the account above — there is nothing meaningful to see
+signed out.
+
+Signed in with it you will find:
+
+* Home — the next fixture and anything live.
+* Fixtures — a match list. Open one and mark yourself available to see how a
+  side gets picked.
+* A live match — "Score" on a fixture opens ball-by-ball scoring. Tapping runs,
+  a wicket or an extra updates the card for everyone watching at once.
+* Clubs — the club, its teams and its members.
+* Profile — batting and bowling figures, and the language switch. The app is
+  fully English and Punjabi, scoring words included.
+
+Sign in with Apple is offered on the first screen and works with the account
+above or with any Apple ID.
+
+There are no in-app purchases and no adverts. The Shop section is classified
+listings between club members: people message each other about second-hand
+gear, and no payment is taken in the app.
+
+Written to and read from www.gullycricket.app.
