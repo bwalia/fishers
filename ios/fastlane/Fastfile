@@ -1064,6 +1064,19 @@ platform :ios do
       end
       if build.nil?
         blockers << "no build attached to #{version.version_string}"
+        # Apple will only let a build join a version whose number matches its
+        # own train, so say which trains exist. A listing sitting on 1.0 with
+        # every build uploaded as 1.0.0 has nothing it can promote, and the
+        # two look close enough to read past.
+        trains = app.get_builds(includes: "preReleaseVersion", sort: "-uploadedDate", limit: 20)
+                    .group_by { |b| b.pre_release_version&.version }
+        trains.each do |train, builds|
+          valid = builds.count { |b| b.processing_state == "VALID" }
+          UI.message("Train #{train || "unknown"}: #{builds.count} build(s), #{valid} processed")
+        end
+        blockers << "no build on the #{version.version_string} train — uploaded builds are on " \
+                    "#{trains.keys.compact.uniq.join(', ')}" \
+          unless trains.key?(version.version_string)
       else
         UI.message("Build #{build.version} — #{build.processing_state}")
         blockers << "build #{build.version} is still #{build.processing_state}" \
