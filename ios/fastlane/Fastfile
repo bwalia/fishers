@@ -992,7 +992,14 @@ platform :ios do
     else
       UI.message("Version #{version.version_string} — state #{version.app_store_state}")
 
-      build = version.get_build
+      # Spaceship raises rather than returning nil when the version has no
+      # build attached — which is exactly the state a version sits in until
+      # somebody picks one, so it is a report line and not a crash.
+      build = begin
+        version.get_build
+      rescue StandardError
+        nil
+      end
       if build.nil?
         blockers << "no build attached to #{version.version_string}"
       else
