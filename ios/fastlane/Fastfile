@@ -939,7 +939,13 @@ platform :ios do
   desc "Upload this brand's App Store listing text (no binary, no screenshots, no submission)"
   lane :upload_metadata do
     brand = ENV.fetch("BRAND", "fishers")
-    dir = File.expand_path("metadata/#{brand}", __dir__)
+    # `store/`, not `metadata/`. deliver validates `./fastlane/metadata` on
+    # every run — including the lanes that skip metadata entirely — and
+    # rejects any child that is not a locale. A directory per brand there
+    # stopped the screenshot upload dead with "Unsupported directory name(s)
+    # ... fishers, gullycricket", which is a true statement about a folder
+    # deliver was never meant to be reading.
+    dir = File.expand_path("store/#{brand}", __dir__)
     UI.user_error!("No metadata for #{brand} at #{dir}") unless Dir.exist?(dir)
 
     # A placeholder that reaches App Store Connect is worse than a blank one:

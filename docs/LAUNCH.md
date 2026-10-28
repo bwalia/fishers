@@ -37,7 +37,7 @@ They appear on `/privacy`, on `/terms`, and in the App Store copyright line.
 ### 1.2 The App Review contact
 
 Apple rings this if review goes wrong. Four files, under
-`ios/fastlane/metadata/gullycricket/review_information/`:
+`ios/fastlane/store/gullycricket/review_information/`:
 
 | File | What |
 |---|---|
@@ -55,8 +55,8 @@ It needs to be in a club with fixtures, a played match and a thread, or review
 sees an empty app and rejects it as incomplete.
 
 ```
-ios/fastlane/metadata/gullycricket/review_information/demo_user.txt
-ios/fastlane/metadata/gullycricket/review_information/demo_password.txt
+ios/fastlane/store/gullycricket/review_information/demo_user.txt
+ios/fastlane/store/gullycricket/review_information/demo_password.txt
 ```
 
 Play asks for the same thing under **App access → All functionality requires
@@ -64,7 +64,7 @@ credentials**.
 
 ### 1.4 The copyright line
 
-`ios/fastlane/metadata/gullycricket/copyright.txt` — `2026 <registered name>`.
+`ios/fastlane/store/gullycricket/copyright.txt` — `2026 <registered name>`.
 
 ### 1.5 Android signing
 
@@ -82,18 +82,27 @@ keytool -genkeypair -v \
   -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-Then set two repository secrets:
+Then set **five** repository secrets. The workflow checks four of them by name
+and fails on the first that is missing:
 
 ```sh
 base64 -i upload-keystore.jks | gh secret set ANDROID_KEYSTORE_B64
+gh secret set ANDROID_KEYSTORE_PASSWORD    # the store password
+gh secret set ANDROID_KEY_ALIAS            # "upload", from the command above
+gh secret set ANDROID_KEY_PASSWORD         # the key password
 gh secret set PLAY_SERVICE_ACCOUNT_JSON < play-service-account.json
 ```
 
 The service account comes from Play Console → Setup → API access → create a
 service account in Google Cloud, then grant it **Release manager** on the app.
 
-Check `android/app/build.gradle.kts` for the alias and password names the build
-expects, and set those secrets too if they are not the defaults.
+> **These are one set of repository secrets, and both brands sign with them.**
+> `docs/ANDROID_RELEASE.md` says each brand needs its own upload keystore,
+> because each is a separate Play app — and it is right, but the workflow has
+> no per-brand path for it the way iOS has `kv/<brand>/ios` in Vault. Signing
+> both brands with one key works and Play will accept it; separating them later
+> means a key reset. If Gully Cricket is the only one launching now, generate
+> its keystore and treat these secrets as its own, rather than as a shared pair.
 
 ### 1.6 The two store records
 
@@ -160,7 +169,7 @@ Profile → Delete account, which is what Apple requires.
 ## 3. What is already done
 
 * Listing text for both brands, in the repo, uploaded by a workflow:
-  `ios/fastlane/metadata/<brand>/` and `android/fastlane/metadata/<brand>/`.
+  `ios/fastlane/store/<brand>/` and `android/fastlane/metadata/<brand>/`.
   Every claim in it is one the code supports — there is no calendar export and
   no StoreKit, so neither is mentioned.
 * **Screenshots** for Gully Cricket, shot from the real app against Punjab and
