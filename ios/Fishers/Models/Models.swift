@@ -7,6 +7,9 @@ struct PublicUser: Codable, Identifiable, Equatable {
     var email: String?
     var phone: String?
     var avatarUrl: String?
+    /// The photograph behind the name on the profile header. Absent for most
+    /// people, and the header falls back to the brand gradient.
+    var coverUrl: String?
     var sportsPlayed: [String]
     /// Position and standard of the primary sport, flattened for list views.
     var positionRole: String?
@@ -32,6 +35,7 @@ struct PublicUser: Codable, Identifiable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id, name, email, phone, location, reliability
         case avatarUrl = "avatar_url"
+        case coverUrl = "cover_url"
         case sportsPlayed = "sports_played"
         case positionRole = "position_role"
         case skillLevel = "skill_level"

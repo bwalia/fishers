@@ -3913,6 +3913,16 @@ export const en = {
   "sc.four_caps": "FOUR",
   "sc.six_caps": "SIX",
 
+  // MARK: The cover photograph on a profile
+  "pro.add_a_cover_photo": "Add a cover photo",
+  "pro.change_cover_photo": "Change cover photo",
+  "pro.remove_cover_photo": "Remove cover photo",
+  "pro.cover_photo": "Cover photo",
+  "pro.cover_too_big": "That picture is over 6MB. Try a smaller one.",
+  "pro.cover_would_not_upload": "That cover would not upload.",
+  "pro.cover_removed": "Cover photo removed.",
+  "pro.wide_picture_reads_best": "A wide picture reads best — your ground, your side, or the view from the boundary.",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.
