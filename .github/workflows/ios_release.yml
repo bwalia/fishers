@@ -49,6 +49,7 @@ on:
           - invite_testers
           - app_store
           - screenshots
+          - store_status
       screenshots_dir:
         description: "screenshots: folder on the runner holding <locale>/*.png (blank = ~/fishers-store-screenshots/<brand>)"
         required: false
@@ -131,6 +132,10 @@ jobs:
       VAULT_TOKEN_FILE: /Users/balinderwalia/.secrets/wslvault/token.json
       # Each brand signs with its own Apple account material.
       FISHERS_IOS_VAULT_PATH: kv/${{ matrix.brand }}/ios
+      # Targets that only act on what App Store Connect already holds, so they
+      # skip xcodegen, build-number, signing and archive entirely. A new
+      # read-only target is one line here rather than an edit at five steps.
+      NO_BUILD_TARGETS: '["testflight_ready", "invite_testers", "screenshots", "store_status"]'
       LANG: en_US.UTF-8
       LC_ALL: en_US.UTF-8
     steps:
@@ -233,8 +238,7 @@ jobs:
       - name: Install XcodeGen
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+          || !contains(fromJSON(env.NO_BUILD_TARGETS), inputs.target)
         run: |
           if ! command -v xcodegen >/dev/null 2>&1; then
             brew install xcodegen
@@ -243,8 +247,7 @@ jobs:
       - name: Resolve marketing version
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+          || !contains(fromJSON(env.NO_BUILD_TARGETS), inputs.target)
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
@@ -262,23 +265,20 @@ jobs:
       - name: Compute next build number
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+          || !contains(fromJSON(env.NO_BUILD_TARGETS), inputs.target)
         id: build
         run: bundle exec fastlane ios ci_build_number
 
       - name: Prepare code signing
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+          || !contains(fromJSON(env.NO_BUILD_TARGETS), inputs.target)
         run: bundle exec fastlane ios prepare_signing
 
       - name: Build signed IPA
         if: >-
           github.event_name != 'workflow_dispatch'
-          || (inputs.target != 'testflight_ready' && inputs.target != 'invite_testers'
-              && inputs.target != 'screenshots')
+          || !contains(fromJSON(env.NO_BUILD_TARGETS), inputs.target)
         env:
           BUILD_NUMBER: ${{ steps.build.outputs.build_number }}
         run: bundle exec fastlane ios build_ipa
@@ -296,6 +296,12 @@ jobs:
       - name: Resend TestFlight invite emails
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'invite_testers'
         run: bundle exec fastlane ios invite_testers
+
+      - name: Report App Store listing readiness
+        # Read-only. Names every field the listing is still missing, so a first
+        # submission is not the thing that discovers them.
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'store_status'
+        run: bundle exec fastlane ios store_status
 
       - name: Submit for App Store review
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'app_store'

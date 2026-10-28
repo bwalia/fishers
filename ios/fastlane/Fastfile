@@ -965,4 +965,92 @@ platform :ios do
       }
     )
   end
+
+  # A first submission fails on whatever the listing was never filled in with,
+  # and Apple records the rejection against the app rather than against the
+  # oversight. This reads the live listing and names what is still blank, so
+  # the gate before `release` is a report rather than a rejection email.
+  desc "Report what the App Store listing still needs before it can be submitted"
+  lane :store_status do
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(**asc_api_key)
+
+    app = Spaceship::ConnectAPI::App.find(APP_ID)
+    UI.user_error!(
+      "No App Store Connect app for #{APP_ID}. The record is made by hand once — " \
+      "see docs/IOS_NEW_BRAND_TESTFLIGHT.md."
+    ) if app.nil?
+
+    UI.header("#{app.name} — #{APP_ID}")
+    blockers = []
+
+    version = app.get_edit_app_store_version
+    if version.nil?
+      live = app.get_app_store_versions(filter: { appStoreState: "READY_FOR_SALE" }).first
+      blockers << "no editable version — add one in App Store Connect" \
+        if live.nil? || !live.version_string.to_s.empty?
+      UI.important("No version is in Prepare for Submission.")
+    else
+      UI.message("Version #{version.version_string} — state #{version.app_store_state}")
+
+      build = version.get_build
+      if build.nil?
+        blockers << "no build attached to #{version.version_string}"
+      else
+        UI.message("Build #{build.version} — #{build.processing_state}")
+        blockers << "build #{build.version} is still #{build.processing_state}" \
+          unless build.processing_state == "VALID"
+      end
+
+      blockers << "copyright" if version.copyright.to_s.strip.empty?
+
+      version.get_app_store_version_localizations.each do |loc|
+        { "description" => loc.description,
+          "keywords" => loc.keywords,
+          "support URL" => loc.support_url }.each do |field, value|
+          blockers << "#{loc.locale}: #{field}" if value.to_s.strip.empty?
+        end
+
+        shots = loc.get_app_screenshot_sets.reject { |set| set.app_screenshots.to_a.empty? }
+        if shots.empty?
+          blockers << "#{loc.locale}: screenshots"
+        else
+          UI.message("#{loc.locale} screenshots: " +
+            shots.map { |s| "#{s.screenshot_display_type} ×#{s.app_screenshots.count}" }.join(", "))
+        end
+      end
+
+      # The app opens on a login wall, so review cannot get past the first
+      # screen without an account. Apple rejects for exactly this.
+      detail = begin
+        version.fetch_app_store_review_detail
+      rescue StandardError
+        nil
+      end
+      if detail.nil?
+        blockers << "App Review Information (contact details)"
+      else
+        blockers << "review contact email" if detail.contact_email.to_s.strip.empty?
+        blockers << "demo account for review — the app opens on a login wall" \
+          if detail.demo_account_name.to_s.strip.empty?
+      end
+    end
+
+    info = app.fetch_edit_app_info || app.fetch_latest_app_info
+    if info.nil?
+      blockers << "app information"
+    else
+      blockers << "primary category" if info.primary_category.nil?
+      blockers << "age rating" if info.app_store_age_rating.to_s.strip.empty?
+      info.get_app_info_localizations.each do |loc|
+        blockers << "#{loc.locale}: privacy policy URL" if loc.privacy_policy_url.to_s.strip.empty?
+      end
+    end
+
+    if blockers.empty?
+      UI.success("#{app.name} looks ready to submit.")
+    else
+      UI.important("#{app.name} is not ready to submit — #{blockers.count} item(s) outstanding:")
+      blockers.each { |item| UI.important("  • #{item}") }
+    end
+  end
 end
