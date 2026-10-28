@@ -994,12 +994,32 @@ platform :ios do
     if attached
       UI.message("Build #{attached.version} is already attached to #{version.version_string}")
     else
-      candidates = app.get_builds(includes: "preReleaseVersion", sort: "-uploadedDate", limit: 50)
-                      .select { |b| b.processing_state == "VALID" }
-                      .select { |b| b.pre_release_version&.version == version.version_string }
+      processed = app.get_builds(includes: "preReleaseVersion", sort: "-uploadedDate", limit: 50)
+                     .select { |b| b.processing_state == "VALID" }
       UI.user_error!(
-        "No processed build on the #{version.version_string} train to promote — " \
-        "send one to TestFlight first (target: testflight)."
+        "No processed build to promote — send one to TestFlight first (target: testflight)."
+      ) if processed.empty?
+
+      # Apple only lets a build join a version whose number matches its own
+      # train. GullyCricket's listing was created as 1.0 by hand while every
+      # build carries project.yml's 1.0.0, so there was nothing it could ever
+      # attach. Renaming the version is safe here and only here: nothing is
+      # attached to orphan, and the number has to match the binary anyway.
+      trains = processed.map { |b| b.pre_release_version&.version }.compact.uniq
+      if !trains.include?(version.version_string) && trains.one?
+        UI.important(
+          "Version #{version.version_string} has no builds — every build is #{trains.first}. " \
+          "Renaming the listing to #{trains.first} so the tested build can be attached."
+        )
+        version.update(attributes: { versionString: trains.first })
+        version = app.get_edit_app_store_version
+      end
+
+      candidates = processed.select { |b| b.pre_release_version&.version == version.version_string }
+      UI.user_error!(
+        "No processed build on the #{version.version_string} train — builds are on " \
+        "#{trains.join(', ')}. Either rename the version in App Store Connect or " \
+        "build #{version.version_string} and send it to TestFlight."
       ) if candidates.empty?
 
       attached = candidates.first
