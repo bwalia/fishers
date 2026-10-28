@@ -17,13 +17,13 @@ export async function generateMetadata(): Promise<Metadata> {
 /// reason the privacy policy is: terms that need the API up are no use to
 /// somebody arguing with us about them.
 ///
-/// TODO before submitting: replace CONTROLLER, CONTACT and JURISDICTION with
-/// the legal entity that actually runs this, an address somebody answers, and
-/// the place whose courts it answers in. The same three placeholders are in
-/// `privacy/page.tsx`; changing one and not the other is the mistake to avoid.
-const CONTROLLER = `[the operator of ${brand.name}]`;
+/// All three come from `brands/<id>.yaml` now rather than from literals here.
+/// They were literals, in brackets, in two separate files — and changing one
+/// and not the other was the mistake the old note warned about, which is
+/// exactly the mistake a shared source removes rather than warns about.
+const CONTROLLER = brand.legalEntity;
 const CONTACT = brand.supportEmail;
-const JURISDICTION = "[England and Wales]";
+const JURISDICTION = brand.jurisdiction;
 
 export default async function TermsPage() {
   const t = await getT();

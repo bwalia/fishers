@@ -159,6 +159,13 @@ function typescript(brand, mark) {
     description: brand.description,
     domain: brand.domain,
     supportEmail: brand.support.email,
+    // The data controller named by the privacy policy and the terms, and the
+    // courts those terms answer in. Both were literals in the two pages, in
+    // brackets, and both shipped that way — a privacy notice naming no
+    // controller names nobody accountable. Here instead so filling them in is
+    // a line of YAML per brand rather than an edit in two components.
+    legalEntity: brand.legalEntity ?? `[the legal entity that runs ${brand.name}]`,
+    jurisdiction: brand.jurisdiction ?? "[the jurisdiction those terms answer in]",
     // The browser chrome is painted from metadata rather than from CSS, so
     // these two have to be here as well as in the stylesheet.
     themeLight: brand.source.surface,

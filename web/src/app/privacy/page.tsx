@@ -16,15 +16,17 @@ export async function generateMetadata(): Promise<Metadata> {
 /// to from Profile. Static on purpose: a privacy policy that needs the API up
 /// is no use to somebody who has just deleted their account.
 ///
-/// TODO before submitting: CONTROLLER is still a placeholder, and it is the
-/// one that matters — a privacy notice that names no data controller names
-/// nobody accountable. It wants the legal entity that actually runs this, the
-/// same one `terms/page.tsx` names.
+/// CONTROLLER comes from `brands/<id>.yaml` rather than from a literal here,
+/// because it was a literal and it shipped — the live policy told everybody
+/// that "[the legal entity that runs Fishers]" was the data controller, which
+/// names nobody accountable. Setting `legalEntity:` in the brand file fills
+/// this and the terms page at once; leaving it unset keeps the brackets, and
+/// `npm run brand:check` says so.
 ///
 /// CONTACT is the brand's own support address rather than a placeholder: it
 /// is real, somebody answers it, and the terms page already uses it. A
 /// dedicated privacy@ address can replace it here alone whenever there is one.
-const CONTROLLER = `[the legal entity that runs ${brand.name}]`;
+const CONTROLLER = brand.legalEntity;
 const CONTACT = brand.supportEmail;
 
 export default async function PrivacyPage() {
