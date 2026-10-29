@@ -2,8 +2,13 @@ Gully Cricket is a club app for cricket. Everything past the first screen belong
 a club, so review needs the account above — there is nothing meaningful to see
 signed out.
 
-The account is a member of "Gully Cricket Demo", a club kept invite-only so it
-stays out of the way of real sides.
+The account runs Ranjit Avenue Riders, a gully side in Amritsar with a squad
+of 23, a league match already played ball by ball with a full scorecard, nets,
+and further fixtures to pick a side for. It also owns an empty club called
+"Gully Cricket Demo" — that one is a leftover and there is nothing in it.
+
+Every club and player you will see is invented demo data, marked as such on
+each club.
 
 Signed in with it you will find:
 
