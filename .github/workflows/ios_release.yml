@@ -302,6 +302,18 @@ jobs:
         # Listing text only — no binary, no screenshots, no submission. Refuses
         # to run while any value is still a bracketed placeholder.
         if: github.event_name == 'workflow_dispatch' && inputs.target == 'metadata'
+        env:
+          # The account App Review signs in with. Per brand — a demo account is
+          # a row in that brand's own database — so the secret is named for the
+          # brand rather than shared. Secret names are not case-sensitive, so
+          # the lowercase id out of `brands/` finds GULLYCRICKET_ASC_DEMO_USER
+          # without this workflow having to hold a list of brands.
+          #
+          # The vault path carries these too, and whichever arrives first wins:
+          # load-ios-vault-secrets.sh prefers what the environment already has
+          # and only falls back to kv/<brand>/ios for what is missing.
+          ASC_DEMO_USER: ${{ secrets[format('{0}_ASC_DEMO_USER', matrix.brand)] }}
+          ASC_DEMO_PASSWORD: ${{ secrets[format('{0}_ASC_DEMO_PASSWORD', matrix.brand)] }}
         run: bundle exec fastlane ios upload_metadata
 
       - name: Report App Store listing readiness
