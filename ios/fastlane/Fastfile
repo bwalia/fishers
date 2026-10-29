@@ -989,14 +989,6 @@ platform :ios do
       skip_app_version_update: true,
       submit_for_review: false,
       run_precheck_before_submit: false,
-      # Apple refuses the whole submission without this, and it is not part of
-      # the listing — "You must provide a value for the attribute
-      # 'contentRightsDeclaration'". Both brands show content their users
-      # wrote: photographs on a shop listing, messages in a club chat. That is
-      # third-party content, and the terms are what give us the right to show
-      # it. Set here rather than clicked once in App Store Connect so the
-      # declaration is reviewable in the same place as the terms it rests on.
-      content_rights_declaration: "uses_third_party_content",
       force: true
     )
   end
