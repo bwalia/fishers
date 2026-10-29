@@ -64,9 +64,21 @@ ASC_DEMO_USER       the email the account signed up with
 ASC_DEMO_PASSWORD   its password
 ```
 
-Put them in `kv/<brand>/ios` in WSLVault, next to `ASC_KEY_ID`. They are per
-brand, which a repository secret could not be. The lane stops and names the
-missing one rather than uploading a listing App Review cannot sign into.
+Either place works, and the environment wins over the vault — the loader
+prefers what it already has and only falls back for what is missing:
+
+* **Repository secrets**, named for the brand: `GULLYCRICKET_ASC_DEMO_USER`
+  and `GULLYCRICKET_ASC_DEMO_PASSWORD` at
+  <https://github.com/bwalia/fishers/settings/secrets/actions>. Secret names
+  are not case-sensitive, so the workflow builds the name from the brand id
+  and holds no list of brands. Needs nothing but a GitHub login.
+* **WSLVault** at `kv/<brand>/ios`, beside `ASC_KEY_ID`. Use `vault kv patch`,
+  never `put` — `put` replaces the whole secret and takes the signing material
+  with it.
+
+They are per brand because a demo account is a row in that brand's own
+database. The lane stops and names the missing one rather than uploading a
+listing App Review cannot sign into.
 
 Make the club **invite-only**, so a demo side does not turn up in front of
 real ones. Review is a member, so it sees it either way.
