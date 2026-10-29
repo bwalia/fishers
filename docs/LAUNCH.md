@@ -140,11 +140,16 @@ Neither API can create an app.
 
 ---
 
-## 2. The two questionnaires nobody can automate
+## 2. What nobody can automate
 
-Apple's API key cannot set either, and Play's cannot either. Both are filled
-in once, by hand. These are the answers the code supports — check them rather
-than trust them, because you are the one signing.
+Apple's API key cannot set any of these, and Play's cannot either. They are
+filled in once, by hand. These are the answers the code supports — check them
+rather than trust them, because you are the one signing.
+
+**`store_status` cannot see any of section 2.3.** It reads the version, the
+build and the listing text, which is all the API exposes — so it will say
+"looks ready to submit" while Apple refuses the submission. The first
+submission is what discovers them, and the error names all three at once.
 
 ### 2.1 Age rating (App Store) and content rating (Play)
 
@@ -189,6 +194,23 @@ Profile → Delete account, which is what Apple requires.
 **Encryption in transit:** yes. **Can a user request deletion:** yes.
 
 ---
+
+### 2.3 The three settings that block a submission
+
+None of these is a questionnaire and none is in the listing, so nothing in
+this repository can set or check them. Apple refuses the whole submission
+until all three are answered, and names them together:
+
+* **App Privacy — published.** Filling the data types in is not enough; the
+  **Publish** button at the top right of the App Privacy page is a separate
+  act. Until it is pressed Apple reports *"You must have published answers to
+  your app's data usages."*
+* **Pricing and Availability.** Free is still a price and has to be chosen.
+  *"App is not eligible for submission until pricing has been set."*
+* **Content Rights**, under App Information. Whether the app shows third-party
+  content. An app whose users post photographs and listings does — the terms
+  are what gives us the right to show them. *"You must provide a value for the
+  attribute 'contentRightsDeclaration'."*
 
 ## 3. What is already done
 
@@ -262,6 +284,7 @@ designed banner, not a generated one.
 ## 5. Before you press submit
 
 - [ ] `store_status` reports nothing outstanding
+- [ ] Section 2.3: App Privacy **published**, pricing set, content rights answered
 - [ ] The demo account signs in **on production** and lands in a club with a played match
 - [ ] `/privacy` and `/terms` name a real company, on the live site
 - [ ] Fishers only: production API redeployed — it is behind GullyCricket's and
