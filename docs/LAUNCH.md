@@ -207,10 +207,12 @@ until all three are answered, and names them together:
   your app's data usages."*
 * **Pricing and Availability.** Free is still a price and has to be chosen.
   *"App is not eligible for submission until pricing has been set."*
-* **Content Rights**, under App Information. Whether the app shows third-party
-  content. An app whose users post photographs and listings does — the terms
-  are what gives us the right to show them. *"You must provide a value for the
-  attribute 'contentRightsDeclaration'."*
+* **Content Rights.** Sent by `upload_metadata` as `uses_third_party_content`
+  — an app whose users post photographs and listings shows content it did not
+  write, and the terms are what give us the right to show it. The only one of
+  the three the API can set, so it lives in the Fastfile beside the terms it
+  rests on rather than clicked once where nobody can review it. Change it
+  there, not in App Store Connect, or the next upload puts it back.
 
 ## 3. What is already done
 
@@ -284,7 +286,8 @@ designed banner, not a generated one.
 ## 5. Before you press submit
 
 - [ ] `store_status` reports nothing outstanding
-- [ ] Section 2.3: App Privacy **published**, pricing set, content rights answered
+- [ ] Section 2.3: App Privacy **published** and pricing set (content rights
+      is sent by `upload_metadata`)
 - [ ] The demo account signs in **on production** and lands in a club with a played match
 - [ ] `/privacy` and `/terms` name a real company, on the live site
 - [ ] Fishers only: production API redeployed — it is behind GullyCricket's and
