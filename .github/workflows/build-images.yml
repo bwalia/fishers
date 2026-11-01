@@ -97,6 +97,30 @@ jobs:
         id: commit
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      # The version the footer shows, baked into the image. It used to be read
+      # from GitHub at runtime — the newest tag in the repo — so every ring
+      # claimed the latest release whether or not it was running it: test, acc
+      # and prod all said v1.0.188 while serving v1.0.187. The image is what
+      # is deployed, so the image says what it is.
+      #
+      # Auto Tag cuts vX.Y.Z on the same push that triggers a main build, so
+      # the tag is waited for briefly. A commit that never gets one (a branch,
+      # an older sha) is named by its short sha instead.
+      - name: Resolve the version the footer shows
+        id: version
+        run: |
+          set -euo pipefail
+          version=""
+          for _ in 1 2 3 4 5 6; do
+            git fetch --tags --force --quiet || true
+            version=$(git tag --points-at HEAD --list 'v[0-9]*' | sort -V | tail -n1)
+            [ -n "$version" ] && break
+            sleep 10
+          done
+          [ -n "$version" ] || version="$(git rev-parse --short=7 HEAD)"
+          echo "Footer version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Resolve registry
         id: reg
         run: |
@@ -173,6 +197,7 @@ jobs:
           NS: ${{ steps.reg.outputs.ns }}
           TAG: ${{ inputs.image_tag || 'latest' }}
           SHA: ${{ steps.commit.outputs.sha }}
+          APP_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           for brand in $BRANDS; do
@@ -180,6 +205,7 @@ jobs:
             docker buildx build \
               --file ./web/Dockerfile \
               --build-arg "BRAND=$brand" \
+              --build-arg "APP_VERSION=$APP_VERSION" \
               --tag "$NS/$brand-web:$TAG" \
               --tag "$NS/$brand-web:$SHA" \
               --cache-from "type=gha,scope=$brand-web" \
