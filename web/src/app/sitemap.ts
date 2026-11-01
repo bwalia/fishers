@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { apiV1 } from "@/lib/api";
 import { isIndexable, siteUrl } from "@/lib/site";
+import { postsForBrand } from "@/lib/blog";
 
 /// Rendered per request, never at build time.
 ///
@@ -73,6 +74,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly" as const,
       priority,
     })),
+    // Only a brand that has posts has a blog at all; elsewhere /blog is a 404.
+    ...(postsForBrand().length
+      ? [
+          { url: `${base}/blog`, lastModified: now, changeFrequency: "weekly" as const, priority: 0.6 },
+          ...postsForBrand().map((post) => ({
+            url: `${base}/blog/${post.slug}`,
+            lastModified: new Date(`${post.date}T12:00:00Z`),
+            changeFrequency: "yearly" as const,
+            priority: 0.6,
+          })),
+        ]
+      : []),
     ...(await clubPages()),
   ];
 }

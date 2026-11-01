@@ -192,6 +192,11 @@ function typescript(brand, mark) {
     // a background of its own, which is what it was drawn for: "a home screen
     // gives it none". So dark surfaces get the tile.
     markSrcDark: "/icon-192.png",
+    // The App Store listing, or "" for a brand without a live one. "" rather
+    // than null for the same reason as privacyRegulatorUrl: a literal null
+    // types the field as null for that brand, and the badge stops compiling
+    // for the other. Every badge on the site renders nothing when it is "".
+    appStoreUrl: brand.stores?.appStore ?? "",
   };
   return `/* Generated from brands/${brand.id}.yaml. Do not edit. */
 

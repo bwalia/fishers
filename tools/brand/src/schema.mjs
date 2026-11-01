@@ -113,6 +113,14 @@ export function validate(brand, source) {
     );
   }
 
+  // Optional: a brand with no live listing has no `stores`, and the website
+  // draws no badge. One that has one must give a real App Store URL — the
+  // badge links straight to it.
+  const appStore = brand?.stores?.appStore;
+  if (appStore !== undefined && !(typeof appStore === "string" && /^https:\/\/apps\.apple\.com\//.test(appStore))) {
+    problems.push(`${where("stores.appStore")} must be an https://apps.apple.com/ link`);
+  }
+
   if (problems.length) {
     throw new BrandError(
       `That brand file cannot be used yet:\n  ${problems.join("\n  ")}`,

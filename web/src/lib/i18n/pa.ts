@@ -2769,6 +2769,19 @@ export const pa: Dict = {
   "foot.get_in_touch": "ਸੰਪਰਕ ਕਰੋ",
   "foot.rights": "ਸਾਰੇ ਹੱਕ ਰਾਖਵੇਂ ਹਨ।",
   "foot.build_on_github": "ਇਹ ਬਿਲਡ GitHub ਉੱਤੇ",
+  "foot.blog": "ਬਲੌਗ",
+  "foot.get_the_app": "ਐਪ ਲਓ",
+  "foot.app_line": "iPhone ਅਤੇ iPad ਲਈ ਮੁਫ਼ਤ। ਕੋਈ ਇਸ਼ਤਿਹਾਰ ਨਹੀਂ।",
+
+  "app.banner_label": "ਐਪ ਲਓ",
+  "app.banner": "{brand} ਹੁਣ App Store ਉੱਤੇ ਹੈ, iPhone ਅਤੇ iPad ਲਈ ਮੁਫ਼ਤ।",
+  "app.banner_story": "ਲਾਂਚ ਬਾਰੇ ਪੜ੍ਹੋ",
+  "app.download": "App Store ਤੋਂ {brand} ਡਾਊਨਲੋਡ ਕਰੋ",
+
+  "blog.title": "ਬਲੌਗ",
+  "blog.intro": "{brand} ਦੀਆਂ ਖ਼ਬਰਾਂ: ਕੀ ਆਇਆ ਹੈ ਅਤੇ ਅੱਗੇ ਕੀ ਆ ਰਿਹਾ ਹੈ।",
+  "blog.read": "ਪੋਸਟ ਪੜ੍ਹੋ",
+  "blog.back": "ਸਾਰੀਆਂ ਪੋਸਟਾਂ",
   // The terms page
   "terms.description": "{brand} ਵਰਤਣ ਨਾਲ ਤੁਸੀਂ ਜਿਨ੍ਹਾਂ ਸ਼ਰਤਾਂ ਨਾਲ ਸਹਿਮਤ ਹੁੰਦੇ ਹੋ — ਐਪ ਕੀ ਹੈ, ਤੁਹਾਡਾ ਖਾਤਾ ਕਿਸ ਲਈ ਹੈ, ਅਤੇ ਕਿਸ ਚੀਜ਼ ਦੀ ਜ਼ਿੰਮੇਵਾਰੀ ਕਿਸ ਦੀ ਹੈ।",
   "terms.intro": "{brand} ਵਰਤਣ ਨਾਲ ਤੁਸੀਂ ਇਨ੍ਹਾਂ ਸ਼ਰਤਾਂ ਨਾਲ ਸਹਿਮਤ ਹੁੰਦੇ ਹੋ। ਇਹ ਪੜ੍ਹੇ ਜਾਣ ਲਈ ਲਿਖੀਆਂ ਗਈਆਂ ਹਨ, ਰੋਅਬ ਪਾਉਣ ਲਈ ਨਹੀਂ — ਜੇ ਇੱਥੇ ਕੋਈ ਗੱਲ ਸਮਝ ਨਾ ਆਵੇ ਤਾਂ ਸਾਨੂੰ ਦੱਸੋ, ਅਸੀਂ ਸ਼ਬਦ ਸੁਧਾਰ ਦੇਵਾਂਗੇ, ਉਹਲੇ ਨਹੀਂ ਲੁਕਾਂਗੇ।",

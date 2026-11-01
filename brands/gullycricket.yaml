@@ -111,3 +111,11 @@ assets:
 mobile:
   bundleId: app.gullycricket
   displayName: Gully Cricket
+
+# Where the app can be downloaded. Only a listing that is live goes here: the
+# website draws a "Download on the App Store" badge at the top and the bottom
+# of every page from this, and a badge that leads to "app not available" is
+# worse than no badge. Approved and released in every territory on
+# 31 October 2026. No Play Store line until that listing is live too.
+stores:
+  appStore: https://apps.apple.com/app/gully-cricket/id6819722006

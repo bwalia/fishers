@@ -6,6 +6,7 @@ import { OfflineReady } from "@/components/OfflineReady";
 import { ShellNav } from "@/components/ShellNav";
 import { MobileNav } from "@/components/MobileNav";
 import { SiteFooter } from "@/components/SiteFooter";
+import { AppBanner } from "@/components/AppBanner";
 import { LiveAlerts } from "@/components/LiveAlerts";
 import { LOCALES, makeT } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
@@ -138,6 +139,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <LocaleProvider initial={locale}>
           <a className="skip-link" href="#main">{t("nav.skip")}</a>
           <OfflineReady />
+          <AppBanner />
           <ShellNav />
           <div className="shell">{children}</div>
           <SiteFooter />
