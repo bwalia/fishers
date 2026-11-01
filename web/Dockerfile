@@ -68,6 +68,11 @@ COPY --from=build --chown=10001:10001 /app/.next/standalone ./
 COPY --from=build --chown=10001:10001 /app/.next/static ./.next/static
 COPY --from=build --chown=10001:10001 /app/public ./public
 
+# Which build this is, for the footer. Baked in rather than looked up, so a
+# ring says the version it is running rather than the newest one on GitHub.
+ARG APP_VERSION=""
+ENV APP_VERSION=$APP_VERSION
+
 USER 10001
 
 EXPOSE 3000
