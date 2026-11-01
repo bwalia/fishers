@@ -3,6 +3,8 @@ import { BrandMark } from "@/components/BrandMark";
 import { brand } from "@/brand.generated";
 import { getT } from "@/lib/i18n/server";
 import { appVersion } from "@/lib/version";
+import { AppStoreBadge } from "@/components/AppStoreBadge";
+import { postsForBrand } from "@/lib/blog";
 
 /// The bottom of every page: what the thing is, where the legal pages are,
 /// and which build you are looking at.
@@ -16,6 +18,7 @@ export async function SiteFooter() {
   const t = await getT();
   const version = await appVersion();
   const year = new Date().getFullYear();
+  const hasBlog = postsForBrand().length > 0;
 
   return (
     <footer className="site-foot">
@@ -26,6 +29,19 @@ export async function SiteFooter() {
             {brand.name}
           </p>
           <p className="muted">{t("foot.blurb")}</p>
+          {brand.appStoreUrl && (
+            <div className="site-foot-app">
+              <p className="site-foot-app-head">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icon-192.png" width={44} height={44} alt="" />
+                <span>
+                  <strong>{t("foot.get_the_app")}</strong>
+                  <span className="muted">{t("foot.app_line")}</span>
+                </span>
+              </p>
+              <AppStoreBadge label={t("app.download", { brand: brand.name })} height={44} />
+            </div>
+          )}
         </div>
 
         <nav className="site-foot-cols" aria-label={t("foot.label")}>
@@ -34,6 +50,7 @@ export async function SiteFooter() {
             <Link href="/tour">{t("foot.tour")}</Link>
             <Link href="/docs">{t("foot.guide")}</Link>
             <Link href="/hire">{t("nav.hire")}</Link>
+            {hasBlog && <Link href="/blog">{t("foot.blog")}</Link>}
           </div>
 
           <div className="site-foot-col">
