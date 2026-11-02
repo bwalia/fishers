@@ -44,6 +44,9 @@ pub fn router() -> Router<AppState> {
         .route("/opponents/lookup", post(lookup_opponent))
         .route("/opponents/search", get(search_opponents))
         .route("/clubs/{id}/page", get(get_page).patch(update_page))
+        // No auth: a picker has to know what to offer before anybody has
+        // signed in, and which sports an app covers is not a secret.
+        .route("/sports", get(offered_sports))
         // No auth: this is the club's shop window.
         .route("/public/clubs/{slug}", get(public_page))
         // No auth either: the addresses of the shop windows, for the sitemap.
@@ -102,6 +105,24 @@ async fn public_pages(
     State(state): State<AppState>,
 ) -> ApiResult<Json<Vec<clubs_repo::PublishedPage>>> {
     Ok(Json(clubs_repo::published_pages(&state.pool).await?))
+}
+
+/// What this deployment's pickers should offer.
+///
+/// `all` travels beside `offered` on purpose. The two answer different
+/// questions: what a new club may be started in, and what a sport name on an
+/// existing club might be. A deployment that offers cricket alone still has
+/// to render the football club somebody started last season, so a client that
+/// treated `offered` as the whole vocabulary would show that club no name and
+/// no badge.
+async fn offered_sports(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "offered": state.sports.offered(),
+        "all": fishers_domain::SportType::ALL
+            .into_iter()
+            .map(fishers_domain::SportType::as_str)
+            .collect::<Vec<_>>(),
+    }))
 }
 
 async fn public_page(
@@ -228,6 +249,7 @@ async fn create_club(
     Json(body): Json<CreateClubRequest>,
 ) -> ApiResult<Json<Club>> {
     body.validate()?;
+    super::require_offered_sports(&state, &body.sport_types)?;
     // Whoever starts a club runs it, so it must be a real, reachable person.
     super::verification::require_verified(&state, auth.user_id).await?;
     let club = clubs_repo::create_club(&state.pool, auth.user_id, &body).await?;
@@ -561,6 +583,7 @@ async fn create_team(
     Json(body): Json<CreateTeamRequest>,
 ) -> ApiResult<Json<Team>> {
     body.validate()?;
+    super::require_offered_sports(&state, &[body.sport])?;
     require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
     Ok(Json(
         clubs_repo::create_team(&state.pool, id, &body).await?,

@@ -11,3 +11,4 @@ pub mod ollama;
 pub mod storage;
 pub mod apple;
 pub mod google;
+pub mod sports;
