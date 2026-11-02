@@ -178,6 +178,7 @@ jobs:
       - name: Check the images exist
         env:
           REG_NS: ${{ steps.ring.outputs.ns }}
+          BRAND: ${{ steps.ring.outputs.brand }}
           HOST: ${{ steps.ring.outputs.registry }}
           PROVIDER: ${{ inputs.registry_provider || 'NEBULACR' }}
           REG_USER: ${{ secrets.NEBULACR_USERNAME }}
@@ -190,7 +191,15 @@ jobs:
           fi
           echo "$REG_PASS" | docker login "$HOST" -u "$REG_USER" --password-stdin >/dev/null
           fail=0
-          for img in fishers-api fishers-web; do
+          # The API binary is shared between brands; the dashboard is not —
+          # the brand is baked into the bundle, so it is built and named
+          # `<brand>-web` (see the helm upgrade below, which sets exactly
+          # that). Asking for `fishers-web` meant this gate failed every
+          # GullyCricket deploy on an image nothing was ever going to push,
+          # and would have passed a Fishers image for it if one happened to
+          # share the sha. resolve in deploy-single-environment.yml already
+          # says this in a comment; this is the copy that never heard.
+          for img in fishers-api "$BRAND-web"; do
             if docker manifest inspect "$REG_NS/$img:$IMAGE_TAG" >/dev/null 2>&1; then
               echo "  ok  $img:$IMAGE_TAG"
             else
