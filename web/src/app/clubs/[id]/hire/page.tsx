@@ -7,11 +7,11 @@ import {
   api,
   money,
   readErr,
-  SPORTS,
   type Venue,
   type VenueRateCard,
   type VenueSpace,
 } from "@/lib/api";
+import { useOfferedSports } from "@/lib/sports";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
 import { useT } from "@/lib/i18n/provider";
@@ -39,6 +39,7 @@ const UNITS = [
 
 export default function ClubHireManagePage() {
   const t = useT();
+  const offeredSports = useOfferedSports();
   const authed = useRequireAuth();
   const params = useParams<{ id: string }>();
   const clubId = params.id;
@@ -251,7 +252,7 @@ export default function ClubHireManagePage() {
                   onChange={(e) => setSport(e.target.value)}
                 >
                   <option value="">{t("cl.none_hall_pavilion")}</option>
-                  {SPORTS.map((s) => (
+                  {offeredSports.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
