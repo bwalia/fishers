@@ -1,0 +1,10 @@
+Continue with Google now works. It was showing a button that failed every time
+it was tapped — sorry if that was the way you tried to sign in. Sign in with
+Apple and email were unaffected.
+
+The sport pickers now offer cricket only. The first screen used to list
+football, badminton, padel, pickleball and tennis as well, which this app does
+not score yet. Clubs already set up for another sport keep everything they
+had.
+
+Some English and Punjabi wording has been corrected.
