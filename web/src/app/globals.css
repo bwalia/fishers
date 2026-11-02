@@ -6062,6 +6062,18 @@ button.fx-stat:focus-visible { outline: 2px solid var(--ring); outline-offset: 2
   gap: 0;
 }
 
+/* `/` serves the landing page to everybody, because a crawler has no session
+   and would otherwise be handed an empty <main> — which is what it indexed
+   for the whole of launch week. A signed-in reader is on their way to the
+   dashboard instead, and SESSION_BOOT sets this attribute before the first
+   paint, so they never see the sales page they already said yes to.
+
+   Deliberately keyed off the document, not a React state: by the time React
+   could hide this, it has already been painted. */
+html[data-session="in"] .lp {
+  display: none;
+}
+
 .lp h2 {
   font-size: clamp(1.9rem, 1.3rem + 2.2vw, 3rem);
   line-height: 1.05;

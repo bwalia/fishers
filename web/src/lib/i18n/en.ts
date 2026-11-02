@@ -1085,6 +1085,7 @@ export const en = {
   "rest.ada_example_com": "ada@example.com",
   "rest.447700900123": "+447700900123",
   "rest.api_documentation": "API documentation",
+  "rest.docs_description": "The {brand} REST API: interactive Swagger UI and the OpenAPI spec, for clubs and tools that want to read their own fixtures, availability and scores.",
   "rest.open_swagger_ui": "Open Swagger UI",
   "rest.spec": "Spec:",
   "rest.are_you_coming": "Are you coming?",

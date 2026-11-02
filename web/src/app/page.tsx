@@ -93,8 +93,17 @@ export default function HomePage() {
     .filter((e) => new Date(e.start_at).getTime() > Date.now())
     .sort((a, b) => a.start_at.localeCompare(b.start_at));
 
-  if (!checked) return <main id="main" />;
-  if (!user) return <Landing />;
+  // The only homepage a crawler ever sees. `checked` turns true in an effect,
+  // and a first-pass crawl runs no effects, so this branch used to return an
+  // empty <main> — which is precisely what got indexed: no heading, no copy,
+  // nothing to rank for. Rendering the landing here puts the real words in the
+  // server HTML for everybody, signed in or not.
+  //
+  // A member still does not watch the sales page flash past on the way to the
+  // dashboard: SESSION_BOOT marks the document before the first paint and the
+  // stylesheet hides `.lp`, the same trick THEME_BOOT plays for the theme. A
+  // crawler carries no token, sets no attribute, and reads it as a visitor does.
+  if (!checked || !user) return <Landing />;
 
   return (
     <main id="main">

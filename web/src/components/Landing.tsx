@@ -2,8 +2,45 @@ import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { Icon, type IconName } from "@/components/Icon";
 import { brand } from "@/brand.generated";
+import { siteUrl } from "@/lib/site";
 import { useT } from "@/lib/i18n/provider";
 import type { Key } from "@/lib/i18n/en";
+
+/// The app itself, for the search result rather than for the page.
+///
+/// This is what turns a blue line of text into a result carrying the price,
+/// the platform and a link to the store listing. `offers` states free
+/// outright: left out, a free app reads the same as one whose price nobody
+/// filled in.
+///
+/// No `aggregateRating`, and not by oversight — there are no ratings yet, and
+/// inventing them is the one thing in this file that could earn a manual
+/// penalty rather than a worse ranking.
+///
+/// The store link is only a claim worth making where a listing exists.
+/// Fishers has none, so the field is empty and is omitted rather than
+/// published as an empty string.
+function appStructuredData() {
+  const url = siteUrl();
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": `${url}/#app`,
+    name: brand.name,
+    description: brand.description,
+    applicationCategory: "SportsApplication",
+    // Tracks the iOS deployment target in ios/project.yml. A string, because
+    // nothing on the web side reads that file and a wrong minimum here costs
+    // a rich-result field, not a build.
+    operatingSystem: brand.appStoreUrl ? "iOS 17.0 or later" : "Any",
+    url,
+    publisher: { "@id": `${url}/#organization` },
+    offers: { "@type": "Offer", price: "0", priceCurrency: "GBP" },
+    ...(brand.appStoreUrl
+      ? { downloadUrl: brand.appStoreUrl, sameAs: [brand.appStoreUrl] }
+      : {}),
+  };
+}
 
 /// Signed-out `/`: brand, what Fishers does, and how a club gets going.
 /// Everything named here is a screen that exists in the app.
@@ -11,6 +48,10 @@ export function Landing() {
   const t = useT();
   return (
     <main id="main" className="lp">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(appStructuredData()) }}
+      />
       <section className="lp-hero">
         <div className="lp-hero-inner">
           <div className="lp-hero-copy">

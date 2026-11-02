@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { brand } from "@/brand.generated";
 import { getLocale, getT } from "@/lib/i18n/server";
 import { formatDate, postBySlug } from "@/lib/blog";
+import { siteUrl } from "@/lib/site";
 import { AppStoreBadge } from "@/components/AppStoreBadge";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -27,8 +28,34 @@ export default async function BlogPostPage({ params }: Props) {
   const t = await getT();
   const locale = await getLocale();
 
+  const url = siteUrl();
+
   return (
     <main id="main">
+      {/* A post, for the result rather than for the page. `BlogPosting` is
+          what puts a date beside the headline in search; without it a launch
+          announcement reads as the same age forever, and an announcement that
+          looks undated is one nobody clicks. Author and publisher are both the
+          organisation on purpose — these are company posts, and inventing a
+          person to sign them would be a fabricated entity in structured data. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            headline: post.title,
+            description: post.summary,
+            datePublished: post.date,
+            dateModified: post.date,
+            mainEntityOfPage: `${url}/blog/${post.slug}`,
+            image: `${url}/icon-192.png`,
+            inLanguage: locale,
+            author: { "@id": `${url}/#organization` },
+            publisher: { "@id": `${url}/#organization` },
+          }),
+        }}
+      />
       <article className="blog-post">
         <p>
           <Link href="/blog" className="muted">
