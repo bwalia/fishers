@@ -57,7 +57,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
 
   if (missing)
     return (
-      <main className="club-site">
+      <main id="main" className="club-site">
         <div className="club-empty">
           <h1>{t("rest.no_club_here")}</h1>
           <p>{t("rest.that_address_does_not_belong_to_a_club")}</p>
@@ -67,7 +67,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
 
   if (!page)
     return (
-      <main className="club-site">
+      <main id="main" className="club-site">
         <div className="skeleton" style={{ height: 320 }} />
       </main>
     );
@@ -75,7 +75,7 @@ export default function PublicClubPage({ params }: { params: Promise<{ slug: str
   const { club, record } = page;
 
   return (
-    <main className="club-site">
+    <main id="main" className="club-site">
       <header className="club-hero">
         <p className="club-eyebrow">
           {club.sport_types.join(" · ")}

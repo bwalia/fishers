@@ -60,7 +60,7 @@ export default function HireBrowsePage() {
   }
 
   return (
-    <main className="page">
+    <main id="main" className="page">
       <header className="page-head">
         <h1>
           <Icon name="pin" /> {t("rest.venue_hire")}

@@ -2798,6 +2798,7 @@ export const en = {
   "blog.intro": "News from {brand}: what's shipped and what's next.",
   "blog.read": "Read the post",
   "blog.back": "All posts",
+  "blog.contents": "On this page",
   // MARK: The terms page
   "terms.description": "The terms you agree to by using {brand} — what the app is, what your account is for, and who is responsible for what.",
   "terms.intro": "These are the terms you agree to by using {brand}. They are written to be read rather than to be impressive — if a line here is unclear, tell us and we will fix the wording rather than hide behind it.",
