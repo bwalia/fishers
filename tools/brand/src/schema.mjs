@@ -17,6 +17,14 @@ const REQUIRED_STRINGS = [
 
 const RINGS = ["int", "test", "acc", "prod"];
 
+/// Must match `SportType` in backend/domain/src/enums.rs.
+///
+/// A fourth copy of that list — the web's `SPORTS` and the iOS `Sport` enum
+/// are the others — and the one it matters most to get right, because a typo
+/// here does not fail anywhere visible: the brand generates, the ring
+/// deploys, and the sport is simply missing from every picker.
+const SPORTS = ["cricket", "football", "badminton", "paddle", "pickleball", "tennis", "other"];
+
 const SOURCE_COLOURS = ["primary", "primaryPale", "surface", "accent"];
 
 const RAMP_COLOURS = [
@@ -81,6 +89,29 @@ export function validate(brand, source) {
           `${where("gateway")} has "${ring}", which is not a ring. ` +
             `Rings are: ${RINGS.join(", ")}`,
         );
+      }
+    }
+  }
+
+  // Optional. Left out means every sport, which is what every brand did
+  // before this existed; present means exactly these and nothing else. An
+  // empty list is rejected rather than read as "none": a brand that offers no
+  // sports is an app with nothing in it, and is far more likely to be a
+  // half-finished edit than an intention.
+  if (brand?.sports !== undefined) {
+    if (!Array.isArray(brand.sports) || brand.sports.length === 0) {
+      problems.push(
+        `${where("sports")} must be a non-empty list, or left out entirely to ` +
+          `offer every sport`,
+      );
+    } else {
+      for (const sport of brand.sports) {
+        if (!SPORTS.includes(sport)) {
+          problems.push(
+            `${where("sports")} has "${sport}", which the API's SportType does ` +
+              `not accept. Sports are: ${SPORTS.join(", ")}`,
+          );
+        }
       }
     }
   }

@@ -9,12 +9,12 @@ import {
   getStoredUser,
   readErr,
   roleLabel,
-  SPORTS,
   type Club,
   type Page,
   type PublicUser,
   type VerificationStatus,
 } from "@/lib/api";
+import { useOfferedSports } from "@/lib/sports";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { useRequireAuth } from "@/lib/require-auth";
@@ -94,6 +94,7 @@ function apiPath(f: Filters) {
 
 export default function ClubsPage() {
   const t = useT();
+  const offeredSports = useOfferedSports();
   const authed = useRequireAuth();
   const router = useRouter();
   const [me, setMe] = useState<PublicUser | null>(null);
@@ -243,7 +244,7 @@ export default function ClubsPage() {
               </select>
               <select aria-label={t("cl.sport")} value={filters.sport} onChange={(e) => set({ sport: e.target.value })}>
                 <option value="">{t("cl.all_sports")}</option>
-                {SPORTS.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+                {offeredSports.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
               </select>
               <select aria-label={t("cl.public_page")} value={filters.published} onChange={(e) => set({ published: e.target.value })}>
                 <option value="">{t("cl.any_public_page")}</option>
@@ -515,6 +516,7 @@ const initials = (name: string) =>
 /// account gets somewhere to add people to.
 function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (club: Club) => void }) {
   const t = useT();
+  const offeredSports = useOfferedSports();
   const [name, setName] = useState("");
   const [sports, setSports] = useState<string[]>(["cricket"]);
   const [description, setDescription] = useState("");
@@ -592,7 +594,7 @@ function CreateClub({ onClose, onCreated }: { onClose: () => void; onCreated: (c
             <span className="cc-num" aria-hidden="true">2</span> {t("cl.sports_played")}
           </legend>
           <div className="cc-chips">
-            {SPORTS.map((s) => {
+            {offeredSports.map((s) => {
               const on = sports.includes(s);
               return (
                 <button

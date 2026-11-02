@@ -147,9 +147,14 @@ struct SportSelectGrid: View {
 
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
 
+    /// Offers what this deployment offers; see `OfferedSports`. A sport the
+    /// profile already names stays selected and readable either way — this
+    /// narrows what can be added, never what has been.
+    private var offered: [Sport] { OfferedSports.shared.sports }
+
     var body: some View {
         LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(Sport.allCases) { sport in
+            ForEach(offered) { sport in
                 Button {
                     form.toggle(sport)
                 } label: {
@@ -174,6 +179,7 @@ struct SportSelectGrid: View {
                 .buttonStyle(.plain)
             }
         }
+        .task { await OfferedSports.shared.load() }
     }
 }
 

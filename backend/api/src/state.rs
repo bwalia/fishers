@@ -42,6 +42,16 @@ pub struct AppState {
     /// Checks Sign in with Apple identity tokens; audience defaults to
     /// `com.fishers.app` when APPLE_CLIENT_ID is unset.
     pub apple: std::sync::Arc<crate::services::apple::AppleSignIn>,
+    /// SPORTS_ENABLED: which sports a new club or fixture may be created in.
+    ///
+    /// Per brand, from the brand's own Helm values: Gully Cricket offers
+    /// cricket while the rest are being finished, Fishers offers all of them.
+    /// Unset means all, so a ring nobody configured keeps what it had rather
+    /// than losing six sports to a missing value.
+    ///
+    /// Gates what is offered, never what is read: a club already playing
+    /// football keeps everything it has.
+    pub sports: crate::services::sports::Sports,
     /// PLATFORM_ADMIN_EMAILS: who may see the whole system rather than their
     /// own clubs. Lower-cased at startup; matched against a **verified** email.
     ///
@@ -99,6 +109,7 @@ impl AppState {
             ),
             google: std::sync::Arc::new(crate::services::google::GoogleSignIn::from_env()),
             apple: std::sync::Arc::new(crate::services::apple::AppleSignIn::from_env()),
+            sports: crate::services::sports::Sports::from_env(),
             platform_admins: std::env::var("PLATFORM_ADMIN_EMAILS")
                 .unwrap_or_default()
                 .split(',')

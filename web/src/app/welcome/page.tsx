@@ -9,11 +9,11 @@ import {
   markQuickStartDone,
   readErr,
   saveUser,
-  SPORTS,
   type Club,
   type PublicUser,
   type RoleIntent,
 } from "@/lib/api";
+import { useOfferedSports } from "@/lib/sports";
 import { Icon } from "@/components/Icon";
 import { RoleChooser } from "@/components/RoleChooser";
 import { ShareProfile } from "@/components/ShareProfile";
@@ -27,6 +27,7 @@ import { useT } from "@/lib/i18n/provider";
 /// match, not for filling in a form.
 export default function WelcomePage() {
   const t = useT();
+  const offeredSports = useOfferedSports();
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [role, setRole] = useState<RoleIntent | null>(null);
@@ -137,7 +138,7 @@ export default function WelcomePage() {
         <fieldset className="qs-question">
           <legend>{t("rest.what_do_you_play")}</legend>
           <div className="chip-list" role="group">
-            {SPORTS.map((sport) => {
+            {offeredSports.map((sport) => {
               const on = sports.includes(sport);
               return (
                 <button

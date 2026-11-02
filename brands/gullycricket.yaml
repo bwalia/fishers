@@ -22,6 +22,23 @@ rings:
 # limiting, not authentication.
 gateway: []
 
+# What the pickers offer when starting a club or a team.
+#
+# The app is called Gully Cricket and the scoring is cricket's; the rest of
+# the club shell works for other sports, but none of them has been through a
+# season here yet. Offering a sport the moment the database has a word for it
+# is how somebody's first evening with the app is spent finding the edges of
+# something unfinished — and a first impression is only made once.
+#
+# Add to this list as each sport is finished. It reaches the API through the
+# brand's Helm values, so enabling one is a value change and a deploy, not a
+# release of three apps. Omit the key entirely to offer every sport, which is
+# what Fishers does.
+#
+# Turning a sport off never touches a club that already plays it.
+sports:
+  - cricket
+
 # India, so not UK GDPR. The Digital Personal Data Protection Act 2023, with
 # the Rules notified in November 2025, and the Data Protection Board of India
 # rather than the ICO. The Board is digital-only and takes complaints through
