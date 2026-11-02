@@ -66,19 +66,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!isIndexable()) return [];
 
   const base = siteUrl();
-  const now = new Date();
+  const posts = postsForBrand();
   return [
+    // No `lastModified`. This route is rendered per request, so stamping it
+    // with the clock told every crawl that all nine of these had changed
+    // seconds ago — which is both untrue and the one thing Google says it
+    // punishes: given lastmod values it finds unreliable, it stops believing
+    // the field for the whole site. That would have cost the pages where the
+    // date is real — the club pages and the posts below — to decorate pages
+    // that change when somebody edits them in git.
+    //
+    // Omitted is not a gap. An absent lastmod means "no claim", and a crawler
+    // falls back to deciding for itself, which is what it was doing anyway.
     ...STATIC.map(({ path, priority }) => ({
       url: path === "/" ? base : base + path,
-      lastModified: now,
       changeFrequency: "monthly" as const,
       priority,
     })),
     // Only a brand that has posts has a blog at all; elsewhere /blog is a 404.
-    ...(postsForBrand().length
+    ...(posts.length
       ? [
-          { url: `${base}/blog`, lastModified: now, changeFrequency: "weekly" as const, priority: 0.6 },
-          ...postsForBrand().map((post) => ({
+          // The index changes when its newest post does, and not before.
+          {
+            url: `${base}/blog`,
+            lastModified: new Date(`${posts[0].date}T12:00:00Z`),
+            changeFrequency: "weekly" as const,
+            priority: 0.6,
+          },
+          ...posts.map((post) => ({
             url: `${base}/blog/${post.slug}`,
             lastModified: new Date(`${post.date}T12:00:00Z`),
             changeFrequency: "yearly" as const,
