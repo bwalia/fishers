@@ -128,6 +128,10 @@ assets:
 mobile:
   bundleId: app.gullycricket
   displayName: Gully Cricket
+  # Gully Cricket's own Google Cloud project, not Fishers'. See the note in
+  # brands/fishers.yaml: this is what the reversed URL scheme in Info.plist is
+  # built from, and it has to match what /auth/google hands the phone.
+  googleIosClientId: 243948798933-0jn6n9410404dfrj6c7leicq544girbv.apps.googleusercontent.com
 
 # Where the app can be downloaded. Only a listing that is live goes here: the
 # website draws a "Download on the App Store" badge at the top and the bottom

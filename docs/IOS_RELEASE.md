@@ -197,15 +197,27 @@ Store the values from §1 under these names (same in either place):
 | `APPLE_TEAM_ID` | 10-character team id |
 | `CERT_PRIVATE_KEY_B64` | (optional) base64 of distribution private key `.pem` |
 | `APP_STORE_APP_ID` | (optional) numeric ASC app id |
-| `GOOGLE_IOS_CLIENT_ID` | (optional) Google Cloud iOS OAuth client id |
-| `GOOGLE_REVERSED_CLIENT_ID` | (optional) reversed client id used as the Google URL scheme |
+| `GOOGLE_IOS_CLIENT_ID` | (optional) overrides the brand's own iOS OAuth client id |
+| `GOOGLE_REVERSED_CLIENT_ID` | (optional) overrides the derived Google URL scheme |
 
-`GOOGLE_IOS_CLIENT_ID` and `GOOGLE_REVERSED_CLIENT_ID` are loaded from Vault or
-GitHub secrets at build time and written into `project.yml` just before
-xcodegen — they are **not** committed to git. The ring vault config already
-holds `GOOGLE_IOS_CLIENT_ID` / `APPLE_CLIENT_ID` for the API; keep the same
-iOS client id (plus its reversed form) under `kv/fishers/ios` for the app
-build.
+`GOOGLE_IOS_CLIENT_ID` and `GOOGLE_REVERSED_CLIENT_ID` normally need no secret
+at all: they come from `mobile.googleIosClientId` in `brands/<id>.yaml`, which
+the brand generator writes into `brand.xcconfig` and `xcodegen` reads. The
+reversed form is derived, never configured — two halves of one value drift, and
+the app builds either way.
+
+Setting them in Vault or GitHub secrets still overrides the brand's pair for
+one build; `verify_google_oauth_client_ids!` appends the override to the
+xcconfig and then fails the build unless the pair it ends up with is
+self-consistent.
+
+They are per brand because the reversed id becomes a `CFBundleURLSchemes` entry
+and GIDSignIn refuses a scheme that does not match the client id `/auth/google`
+hands the phone. This was not hypothetical: `project.yml` carried Fishers' pair
+as a shared default, so Gully Cricket 1.0.0 shipped Fishers' URL scheme and
+every "Continue with Google" raised `missingURLScheme` — through a green build
+and App Store review. Whatever a new brand forgets, it cannot be this: the
+field is required, and `npm --prefix tools/brand test` fails without it.
 
 **Option A — WSLVault** (`https://vault.workstation.co.uk`, same vault as ring deploys):
 

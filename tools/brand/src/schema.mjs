@@ -132,10 +132,23 @@ export function validate(brand, source) {
     problems.push(...colourProblem(brand?.dark?.[key], where(`dark.${key}`)));
   }
 
-  for (const key of ["bundleId", "displayName"]) {
+  for (const key of ["bundleId", "displayName", "googleIosClientId"]) {
     if (typeof brand?.mobile?.[key] !== "string") {
       problems.push(`${where(`mobile.${key}`)} is missing`);
     }
+  }
+  // Required, not optional, and this is the reason: the reversed form of this
+  // id is a URL scheme in Info.plist, and GIDSignIn aborts Continue with
+  // Google when the scheme does not match the client id /auth/google returns.
+  // Left to a default, a new brand inherits whichever brand was hardcoded and
+  // ships a sign-in button that always errors — green build, broken app.
+  const googleId = brand?.mobile?.googleIosClientId;
+  if (typeof googleId === "string" && !/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(googleId)) {
+    problems.push(
+      `${where("mobile.googleIosClientId")} must be an iOS OAuth client id ` +
+        `such as 1234-abcd.apps.googleusercontent.com, from this brand's own ` +
+        `Google Cloud project (Credentials -> type "iOS")`,
+    );
   }
   if (brand?.mobile?.bundleId && !/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(brand.mobile.bundleId)) {
     problems.push(

@@ -94,23 +94,37 @@ breakage, and it stops the moment step 1 is done.
 
 ---
 
-## Step 3 — Google sign-in on iOS (optional)
+## Step 3 — Google sign-in on iOS (required)
 
-"Continue with Google" will not be configured in the GullyCricket iOS app
-until this is done. Nothing else is affected: the build succeeds without it,
-because the loader treats these two as optional.
+This used to say "optional — nothing else is affected, the build succeeds
+without it". That was wrong, and it cost Gully Cricket a release: with no
+client id of its own, the build fell back to the shared default in
+`project.yml`, which was **Fishers'**. The app shipped Fishers' reversed id as
+its only Google URL scheme, so GIDSignIn rejected the client id
+`/auth/google` handed the phone and every "Continue with Google" failed. The
+build was green, review passed, and 1.0.0 sat on the App Store for a week with
+a dead button.
 
-1. In the Google Cloud console, create an **OAuth client → iOS** for bundle id
-   `app.gullycricket`.
-2. Send me the client id and the reversed client id, or put them in Vault
-   yourself at `kv/gullycricket/ios`:
+So the client id now lives in the brand file and is required:
 
+1. In the Google Cloud console, create an **OAuth client → iOS** for the
+   brand's bundle id (`app.gullycricket`).
+2. Put the client id in `brands/<id>.yaml`:
+
+```yaml
+mobile:
+  googleIosClientId: 243948798933-xxxx.apps.googleusercontent.com
 ```
-GOOGLE_IOS_CLIENT_ID
-GOOGLE_REVERSED_CLIENT_ID
-```
 
-Fishers' equivalent path holds exactly those two keys and nothing else.
+That is the whole of it. The reversed form is derived, so there is no second
+value to keep in step, and no Vault path to seed — these ids are public, they
+ship inside every copy of the app. It must match what the brand's own
+`/auth/google` returns; `curl https://<domain>/api/v1/auth/google` is the
+check.
+
+Leave it out and the build fails with the reason, rather than quietly
+inheriting another brand's. Vault's `kv/<brand>/ios` can still override the
+pair for one build if a ring needs a different Google project.
 
 ---
 

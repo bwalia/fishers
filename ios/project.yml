@@ -81,12 +81,13 @@ targets:
         LAN_IP: ""
         FISHERS_LAN_API_BASE_URL: ""
         FISHERS_LAN_WEB_BASE_URL: ""
-        # iOS OAuth client from Google Cloud Console (type "iOS"). These are
-        # public client ids that must live in Info.plist — without the reversed
-        # URL scheme GIDSignIn aborts the process on Continue with Google.
-        # CI may still override from Vault via inject_google_oauth_client_ids!.
-        GOOGLE_IOS_CLIENT_ID: "349950507807-0k4ui8eqljqnqhl4o3u5ooocshj028m1.apps.googleusercontent.com"
-        GOOGLE_REVERSED_CLIENT_ID: "com.googleusercontent.apps.349950507807-0k4ui8eqljqnqhl4o3u5ooocshj028m1"
+        # GOOGLE_IOS_CLIENT_ID and GOOGLE_REVERSED_CLIENT_ID are deliberately
+        # absent here: they come from Brand/Generated/brand.xcconfig, per
+        # brand, like PRODUCT_BUNDLE_IDENTIFIER. A value in this block would
+        # defeat that — a target setting outranks an xcconfig, which is how
+        # Fishers' pair ended up inside Gully Cricket and made every Continue
+        # with Google fail. Override for one build with env/Vault, which
+        # verify_google_oauth_client_ids! appends to the xcconfig.
       configs:
         Debug:
           # Loopback is right on the Simulator, which shares the Mac's network

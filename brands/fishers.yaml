@@ -108,3 +108,10 @@ assets:
 mobile:
   bundleId: com.fishers.app
   displayName: Fishers
+  # The iOS OAuth client from this brand's own Google Cloud project. Public by
+  # nature — it ships inside every copy of the app — but per brand, because the
+  # reversed form becomes a URL scheme in Info.plist and GIDSignIn refuses a
+  # scheme that does not match the client id the API hands the phone. Shared
+  # between brands, it meant Gully Cricket shipped Fishers' scheme and every
+  # Continue with Google ended in "missing URL scheme".
+  googleIosClientId: 349950507807-0k4ui8eqljqnqhl4o3u5ooocshj028m1.apps.googleusercontent.com
