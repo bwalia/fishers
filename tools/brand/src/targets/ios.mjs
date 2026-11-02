@@ -136,7 +136,22 @@ PRODUCT_BUNDLE_IDENTIFIER = ${brand.mobile.bundleId}
 PRODUCT_NAME = ${brand.mobile.displayName}
 FISHERS_BRAND_ID = ${brand.id}
 FISHERS_API_HOST = ${brand.rings.prod}
+
+// Info.plist takes GIDClientID from the first and a CFBundleURLSchemes entry
+// from the second. They belong to the brand for the same reason the bundle id
+// does: project.yml used to carry Fishers' pair as a literal, so every other
+// brand built with Fishers' URL scheme and GIDSignIn rejected the client id
+// its own API had just handed the phone.
+GOOGLE_IOS_CLIENT_ID = ${brand.mobile.googleIosClientId}
+GOOGLE_REVERSED_CLIENT_ID = ${reversedClientId(brand.mobile.googleIosClientId)}
 `;
+}
+
+/** `1234-abcd.apps.googleusercontent.com` -> `com.googleusercontent.apps.1234-abcd`,
+ *  the URL scheme Google's SDK looks for. Derived rather than configured: two
+ *  halves of one value drift, and the app builds either way. */
+function reversedClientId(clientId) {
+  return `com.googleusercontent.apps.${clientId.replace(/\.apps\.googleusercontent\.com$/, "")}`;
 }
 
 /** `#8fa28a` as `0x8FA28A` — what `Color(hex:)` takes. */

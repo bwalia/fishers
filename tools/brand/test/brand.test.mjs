@@ -72,6 +72,7 @@ dark:
 mobile:
   bundleId: test.example.app
   displayName: Test Brand
+  googleIosClientId: 1234567890-testtesttesttesttesttesttesttest.apps.googleusercontent.com
 `;
 
 /** A scratch repo with whatever brand files a test needs. */
@@ -116,6 +117,51 @@ test("every brand has its own domain and bundle id", () => {
   );
 });
 
+/**
+ * Gully Cricket 1.0.0 shipped with Fishers' reversed client id as its only
+ * Google URL scheme, because project.yml carried Fishers' pair as a default
+ * and nothing per brand overrode it. GIDSignIn compares the scheme against the
+ * client id /auth/google returns, so the button appeared and every tap raised
+ * missingURLScheme — on a green build, through App Store review, for a week.
+ */
+test("every brand has its own Google OAuth client id, reversed into its own URL scheme", () => {
+  const brands = listBrands(repoRoot).map((id) => loadBrand(repoRoot, id));
+  const ids = brands.map((b) => b.mobile.googleIosClientId);
+  assert.equal(
+    new Set(ids).size,
+    ids.length,
+    "two brands share a Google iOS client id, so one of them ships the other's URL scheme",
+  );
+  for (const brand of brands) {
+    const xcconfig = iosFiles(brand, repoRoot, mkdtempSync(join(tmpdir(), "brand-ios-")))
+      .find((f) => f.path.endsWith("brand.xcconfig")).contents;
+    const id = xcconfig.match(/^GOOGLE_IOS_CLIENT_ID = (.+)$/m)?.[1];
+    const reversed = xcconfig.match(/^GOOGLE_REVERSED_CLIENT_ID = (.+)$/m)?.[1];
+    assert.equal(id, brand.mobile.googleIosClientId, `${brand.id} xcconfig lost its client id`);
+    assert.equal(
+      reversed,
+      `com.googleusercontent.apps.${id.replace(/\.apps\.googleusercontent\.com$/, "")}`,
+      `${brand.id} URL scheme is not its own client id reversed`,
+    );
+  }
+});
+
+test("a brand with no Google client id is refused, not defaulted", () => {
+  const { mobile, ...rest } = parseYaml(
+    readFileSync(join(repoRoot, "brands", "fishers.yaml"), "utf8"),
+  );
+  const { googleIosClientId, ...mobileWithout } = mobile;
+  assert.throws(
+    () => validate({ ...rest, mobile: mobileWithout }, "fishers"),
+    /mobile\.googleIosClientId is missing/,
+    "a brand without its own client id has to fail the build, not inherit one",
+  );
+  assert.throws(
+    () => validate({ ...rest, mobile: { ...mobile, googleIosClientId: "not-a-client-id" } }, "fishers"),
+    /mobile\.googleIosClientId must be an iOS OAuth client id/,
+  );
+});
+
 // ---- the check that matters ----
 
 /**
@@ -156,6 +202,7 @@ test("every missing field is reported at once, not one per run", () => {
       assert.ok(e instanceof BrandError);
       for (const expected of [
         "name", "domain", "rings.prod", "source.primary", "dark.bg", "mobile.bundleId",
+        "mobile.googleIosClientId",
       ]) {
         assert.match(e.message, new RegExp(expected.replace(".", "\\.")));
       }

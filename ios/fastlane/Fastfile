@@ -49,32 +49,57 @@ def asc_api_key
   )
 end
 
-# Write Vault / env Google OAuth ids into project.yml just before xcodegen so
-# Info.plist gets the URL scheme. project.yml may already carry the public
-# client ids; env/Vault override when set.
-def inject_google_oauth_client_ids!
+# Check the brand's Google OAuth ids reached the xcconfig, and let env/Vault
+# override them for one build.
+#
+# The ids come from brands/<id>.yaml through brand.xcconfig now. This used to
+# write them into project.yml, which carried Fishers' pair as a default — so a
+# Gully Cricket build inherited Fishers' reversed id, the URL scheme in
+# Info.plist did not match the client id /auth/google returned, and every
+# Continue with Google raised missingURLScheme. The build was green and the
+# button was dead, which is the pairing this check exists to break.
+def verify_google_oauth_client_ids!
+  path = File.expand_path("../Fishers/Brand/Generated/brand.xcconfig", __dir__)
+  UI.user_error!("No brand.xcconfig at #{path} — generate_brand! must run first") unless File.exist?(path)
+
   ios_id = ENV["GOOGLE_IOS_CLIENT_ID"].to_s.strip
   reversed = ENV["GOOGLE_REVERSED_CLIENT_ID"].to_s.strip
-  path = File.expand_path("../project.yml", __dir__)
-  text = File.read(path)
-  if ios_id.empty? && reversed.empty?
-    # Keep whatever is already in project.yml — fail only if that is blank too.
-    has_ios = text.match?(/GOOGLE_IOS_CLIENT_ID:\s*"(?!["\s])[^"]+"/)
-    has_rev = text.match?(/GOOGLE_REVERSED_CLIENT_ID:\s*"(?!["\s])[^"]+"/)
-    unless has_ios && has_rev
-      UI.user_error!(
-        "GOOGLE_IOS_CLIENT_ID / GOOGLE_REVERSED_CLIENT_ID unset — " \
-        "Continue with Google crashes without the URL scheme in Info.plist. " \
-        "Set them in ios/project.yml or kv/fishers/ios."
-      )
+  if !ios_id.empty? || !reversed.empty?
+    # Last assignment wins in an xcconfig, so appending is the override.
+    reversed = "com.googleusercontent.apps.#{ios_id.sub(/\.apps\.googleusercontent\.com\z/, "")}" if reversed.empty?
+    File.open(path, "a") do |fh|
+      fh.puts("\n// Overridden for this build from env / WSLVault.")
+      fh.puts("GOOGLE_IOS_CLIENT_ID = #{ios_id}") unless ios_id.empty?
+      fh.puts("GOOGLE_REVERSED_CLIENT_ID = #{reversed}")
     end
-    UI.message("Using Google OAuth client ids already in project.yml")
-    return
+    UI.success("Overrode Google OAuth client ids from env/Vault for this build")
   end
-  text = text.sub(/GOOGLE_IOS_CLIENT_ID:\s*"[^"]*"/, "GOOGLE_IOS_CLIENT_ID: \"#{ios_id}\"")
-  text = text.sub(/GOOGLE_REVERSED_CLIENT_ID:\s*"[^"]*"/, "GOOGLE_REVERSED_CLIENT_ID: \"#{reversed}\"")
-  File.write(path, text)
-  UI.success("Injected Google OAuth client ids into project.yml for this build")
+
+  # Last assignment wins in an xcconfig, so the override appended above is the
+  # one the build uses — `scan(...).last`, not the first match, or an override
+  # that disagrees with the brand's own pair gets checked and the build uses
+  # the other one.
+  text = File.read(path)
+  got_id = text.scan(/^GOOGLE_IOS_CLIENT_ID\s*=\s*(\S+)\s*$/).last&.first.to_s
+  got_rev = text.scan(/^GOOGLE_REVERSED_CLIENT_ID\s*=\s*(\S+)\s*$/).last&.first.to_s
+  if got_id.empty? || got_rev.empty?
+    UI.user_error!(
+      "brand.xcconfig carries no Google OAuth client id — Continue with Google " \
+      "cannot work without the reversed id as a URL scheme in Info.plist. Set " \
+      "mobile.googleIosClientId in brands/#{ENV.fetch("BRAND", "fishers")}.yaml."
+    )
+  end
+  # The halves must agree, or the scheme is present and still the wrong one —
+  # the exact shape of the bug, just harder to see.
+  want_rev = "com.googleusercontent.apps.#{got_id.sub(/\.apps\.googleusercontent\.com\z/, "")}"
+  if got_rev != want_rev
+    UI.user_error!(
+      "GOOGLE_REVERSED_CLIENT_ID (#{got_rev}) is not the reversed form of " \
+      "GOOGLE_IOS_CLIENT_ID (#{got_id}) — expected #{want_rev}. GIDSignIn would " \
+      "reject the client id this build advertises."
+    )
+  end
+  UI.success("Google OAuth client id for #{ENV.fetch("BRAND", "fishers")}: #{got_id}")
 end
 
 # The brand this build is, from brands/<id>.yaml. project.yml names
@@ -119,7 +144,7 @@ end
 
 def generate_xcode_project!
   generate_brand!
-  inject_google_oauth_client_ids!
+  verify_google_oauth_client_ids!
   sh("xcodegen", "generate", "--spec", "../project.yml")
 end
 
