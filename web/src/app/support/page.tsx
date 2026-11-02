@@ -27,7 +27,7 @@ export default async function SupportPage() {
   ] as const;
 
   return (
-    <main id="main">
+    <main id="main" className="reading">
       <section className="hero">
         <h1>{t("sup.support")}</h1>
         <p>{t("sup.intro")}</p>

@@ -33,7 +33,7 @@ const UPDATED = "28 October 2026";
 export default async function TermsPage() {
   const t = await getT();
   return (
-    <main id="main">
+    <main id="main" className="reading">
       <section className="hero">
         <h1>{t("foot.terms")}</h1>
         <p>{t("terms.intro", { brand: brand.name })}</p>

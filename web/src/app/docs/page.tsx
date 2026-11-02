@@ -14,7 +14,7 @@ export default function DocsPage() {
   const yaml = `${origin}/api-docs/openapi.yaml`;
 
   return (
-    <main>
+    <main id="main" className="reading">
       <section className="hero">
         <h1>{t("rest.api_documentation")}</h1>
         <p>

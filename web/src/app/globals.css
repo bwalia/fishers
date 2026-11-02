@@ -265,6 +265,27 @@ a:hover { text-decoration: underline; }
 /* Long-form prose stays readable however wide the window gets. */
 .prose { max-width: 68ch; }
 
+/* A page that is only words — terms, privacy, the API notes, support.
+   Centred, because a reading column pinned to the left of a 1680px shell
+   put a third of a screen of nothing beside every line, and uncapped,
+   because the pages without a measure were running to 1500px: about 165
+   characters a line, roughly twice what anyone can track back to the next
+   one without losing their place.
+   Not folded into `.prose`: that one also dresses cards and club copy,
+   which sit inside a column already and must not centre themselves. */
+.reading {
+  max-width: 76ch;
+  margin-inline: auto;
+}
+
+/* The one paragraph under a page title. Unstyled until now, so on /hire it
+   ran the full 1536px of the window above a grid of cards. */
+.lede {
+  max-width: 62ch;
+  font-size: 1.1rem;
+  line-height: 1.55;
+}
+
 .topbar {
   position: sticky;
   top: 0;
@@ -8673,12 +8694,218 @@ main .panel[id] { scroll-margin-top: 80px; }
 .blog-card h2 a:hover { text-decoration: underline; }
 .blog-card time { font-size: 0.85rem; }
 
-.blog-post { max-width: 76ch; }
-.blog-post-head { display: flex; align-items: center; gap: var(--s4); margin: var(--s3) 0; }
-.blog-post-head h1 { margin: 0 0 var(--s1); }
-.blog-post-icon { border-radius: 22%; flex: none; box-shadow: 0 2px 10px color-mix(in srgb, var(--ink-900) 18%, transparent); }
-.blog-post-lede { font-size: 1.12rem; line-height: 1.55; margin: 0 0 var(--s4); }
-.blog-post-body { margin-top: var(--s5); line-height: 1.65; }
-.blog-post-body h2 { margin-top: var(--s5); }
-.blog-post-body li + li { margin-top: var(--s2); }
-.blog-post-foot { margin-top: var(--s5); }
+/* ----------------------------------------------------------------------
+   A post. Tokens only — follows the theme.
+
+   It used to be one 76ch column pinned to the left of a 1680px shell, so a
+   laptop showed a strip of text and a third of a screen of nothing beside
+   it. Full-bleed prose is not the cure: a line of body text past about 75
+   characters is measurably harder to scan, so widening the words would have
+   traded dead space for a worse read.
+
+   What fills the width instead is structure. The hero is a band, edge to
+   edge, carrying the one thing that should be the widest on the page — the
+   title — with the icon and the badge holding the other end of it. Below
+   that, two columns: the article at its own measure, and the furniture that
+   used to sit under it (contents, download) alongside instead of after.
+   ---------------------------------------------------------------------- */
+
+/* Break out of the shell gutter, the same way the landing page does. */
+.post { --post-aside-w: 290px; }
+
+.shell:has(> .post) { max-width: none; padding-inline: 0; }
+/* ...and close the gap the bar leaves, so the band starts at the bar. */
+.topbar:has(+ .shell > .post) { margin-bottom: 0; }
+
+.post-hero {
+  padding-block: clamp(var(--s5), 4.5vw, 64px);
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(
+      110% 130% at 12% 0%,
+      color-mix(in srgb, var(--primary) 16%, transparent),
+      transparent 62%
+    ),
+    var(--surface-2);
+}
+
+/* One measure for the band and the body below it, so the title, the first
+   paragraph and the contents list all start on the same line down the page. */
+.post-hero-in,
+.post-main {
+  max-width: 1080px;
+  margin-inline: auto;
+  padding-inline: clamp(var(--s4), 3vw, var(--s6));
+}
+
+.post-back {
+  display: inline-block;
+  margin-bottom: var(--s5);
+  color: var(--fg-muted);
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+.post-back:hover { color: var(--fg); text-decoration: underline; }
+
+/* The same two columns as `.post-main` below, on purpose: the title and the
+   first paragraph then start on one vertical rule, and the icon sits over
+   the sidebar rather than near it. Two columns shared by both halves is what
+   reads as a designed page; 65px of drift between them is what reads as an
+   accident. */
+.post-head,
+.post-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--post-aside-w);
+  gap: clamp(var(--s5), 4vw, 56px);
+}
+.post-head { align-items: center; }
+
+.post-date {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The one element allowed to use the whole band. Fluid rather than stepped:
+   it has to survive a 360px phone and a 1180px band without a breakpoint
+   for each. */
+.post-head h1 {
+  margin: var(--s2) 0 var(--s3);
+  font-size: clamp(2rem, 1.15rem + 3.4vw, 3.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.post-lede {
+  max-width: 48ch;
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: clamp(1.05rem, 0.98rem + 0.4vw, 1.3rem);
+  line-height: 1.55;
+}
+
+.post-head-app {
+  display: grid;
+  justify-items: start;
+  gap: var(--s4);
+}
+.post-icon {
+  border-radius: 22%;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--ink-900) 22%, transparent);
+}
+
+.post-main {
+  align-items: start;
+  padding-block: clamp(var(--s5), 4vw, 56px);
+}
+
+/* The column is the measure. `.prose` caps at 68ch for pages that have no
+   column to sit in; here the grid already holds the line to about 74
+   characters, and leaving the cap on would open a gap between the last word
+   and the sidebar — the very thing this layout exists to close. */
+.post-body {
+  max-width: none;
+  line-height: 1.7;
+}
+.post-body > :first-child { margin-top: 0; }
+.post-body h2 {
+  margin-top: var(--s6);
+  font-size: clamp(1.3rem, 1.1rem + 0.8vw, 1.7rem);
+  letter-spacing: -0.01em;
+  /* Anchored from the contents list, so leave room for the sticky bar. */
+  scroll-margin-top: 96px;
+}
+.post-body li + li { margin-top: var(--s2); }
+
+.post-aside {
+  position: sticky;
+  /* 88px is what every other sticky aside here uses — see .cc-aside. */
+  top: 88px;
+  display: grid;
+  gap: var(--s4);
+}
+
+.post-toc {
+  padding: var(--s4) var(--s5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.post-toc h2 {
+  margin: 0 0 var(--s3);
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.post-toc ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s1);
+  counter-reset: toc;
+}
+.post-toc li { counter-increment: toc; }
+.post-toc a {
+  display: grid;
+  grid-template-columns: 1.6em 1fr;
+  gap: var(--s1);
+  padding: var(--s2) 0;
+  color: var(--fg);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  padding-left: var(--s3);
+  margin-left: calc(var(--s3) * -1);
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.post-toc a::before {
+  content: counter(toc) ".";
+  color: var(--fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.post-toc a:hover { color: var(--primary-ink); border-left-color: var(--primary); }
+
+.post-get {
+  display: grid;
+  justify-items: start;
+  gap: var(--s4);
+  padding: var(--s5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(
+      120% 150% at 0% 0%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 70%
+    ),
+    var(--surface);
+}
+.post-get p { margin: 0; font-size: 0.95rem; line-height: 1.5; }
+
+@media (max-width: 920px) {
+  .post-head {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    gap: var(--s5);
+  }
+  /* Icon and badge side by side once they are no longer a column of their
+     own, rather than a tall stack between the lede and the article. */
+  .post-head-app {
+    grid-auto-flow: column;
+    align-items: center;
+    justify-items: start;
+    gap: var(--s5);
+  }
+  .post-icon { width: 88px; height: 88px; }
+
+  .post-main { grid-template-columns: minmax(0, 1fr); }
+  .post-aside { position: static; }
+  /* Four headings on a phone are a scroll, not a navigation — and a list of
+     them between the reader and the end of the post is in the way. */
+  .post-toc { display: none; }
+}

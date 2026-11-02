@@ -44,7 +44,7 @@ const REGULATOR_URL: string = brand.privacyRegulatorUrl;
 export default async function PrivacyPage() {
   const t = await getT();
   return (
-    <main id="main">
+    <main id="main" className="reading">
       <section className="hero">
         <h1>{t("rest.privacy")}</h1>
         <p>
