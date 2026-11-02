@@ -12,6 +12,7 @@ import {
   ROLE_CHOICES,
   money,
   NO_ICON_PLAYER,
+  SPORTS,
   type Club,
   type ClubMemberRow,
   type Invite,
@@ -24,7 +25,6 @@ import {
   type Venue,
   type Team,
 } from "@/lib/api";
-import { useOfferedSports } from "@/lib/sports";
 import { AddByLink } from "@/components/AddByLink";
 import { ClubSetup } from "@/components/ClubSetup";
 import { MessageButton } from "@/components/MessageButton";
@@ -470,7 +470,6 @@ function Teams({
   onChanged: () => void;
 }) {
   const t = useT();
-  const offeredSports = useOfferedSports();
   const [name, setName] = useState("");
   const [sport, setSport] = useState("cricket");
   const [busy, setBusy] = useState(false);
@@ -533,7 +532,7 @@ function Teams({
           <label className="team-add-sport">
             {t("cl.sport")}
             <select value={sport} onChange={(e) => setSport(e.target.value)}>
-              {offeredSports.map((s) => <option key={s} value={s}>{s}</option>)}
+              {SPORTS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
           <button className="btn primary" type="button" disabled={!name.trim() || busy} onClick={create}>

@@ -29,10 +29,6 @@ export function helmValues(brand, ring) {
   // no value: the TLS secret is named from the chart and isolated by the
   // namespace already, so setting it here would look like it mattered.
   const gateway = brand.gateway.includes(ring);
-  // A brand that lists no sports offers all of them, which is what every ring
-  // did before this value existed. Gully Cricket lists cricket while the rest
-  // are being finished; Fishers is a multi-sport app and lists nothing.
-  const sports = brand.sports?.length ? `\n  sportsEnabled: ${brand.sports.join(",")}` : "";
   // Everything this ring answers on except its canonical host — today that is
   // the apex, and only on prod.
   const redirects = edgeHostsFor(brand, ring).filter((h) => h !== host);
@@ -63,7 +59,7 @@ kong:
 # but Fishers: the token said app.gullycricket and the server wanted
 # com.fishers.app.
 config:
-  appleClientId: ${brand.mobile.bundleId}${sports}
+  appleClientId: ${brand.mobile.bundleId}
 
 # The hostnames that land on this ring and are sent to the canonical one.
 #

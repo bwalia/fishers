@@ -64,12 +64,6 @@ enum FishersAPI {
         try await NetworkService.shared.request("GET", path: "/auth/apple", authorized: false)
     }
 
-    /// Which sports this deployment's pickers should offer. Unauthenticated:
-    /// onboarding asks before there is anything to authenticate with.
-    static func offeredSports() async throws -> SportsOnOffer {
-        try await NetworkService.shared.request("GET", path: "/sports", authorized: false)
-    }
-
     /// Google ID token → Fishers session (sign-in or register).
     static func signInWithGoogle(credential: String) async throws -> SocialSignedIn {
         struct Body: Encodable { let credential: String }

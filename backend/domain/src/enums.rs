@@ -48,48 +48,6 @@ pub enum SportType {
     Other,
 }
 
-impl SportType {
-    /// Every sport the column accepts, in the order a picker should offer
-    /// them. Cricket first because that is what the scoring is for; `Other`
-    /// last because it is the escape hatch rather than a choice.
-    ///
-    /// The one list. A second one written out somewhere else is a sport that
-    /// exists in the database and nowhere a person can pick it.
-    pub const ALL: [SportType; 7] = [
-        SportType::Cricket,
-        SportType::Football,
-        SportType::Badminton,
-        SportType::Paddle,
-        SportType::Pickleball,
-        SportType::Tennis,
-        SportType::Other,
-    ];
-
-    /// The wire spelling — what serde writes, and what the Postgres enum
-    /// holds. Kept beside `ALL` so the two cannot disagree.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            SportType::Cricket => "cricket",
-            SportType::Football => "football",
-            SportType::Badminton => "badminton",
-            SportType::Paddle => "paddle",
-            SportType::Pickleball => "pickleball",
-            SportType::Tennis => "tennis",
-            SportType::Other => "other",
-        }
-    }
-
-    /// Read a wire spelling back, case and padding forgiven.
-    ///
-    /// `padel` is accepted for `paddle`: both apps spelled it that way before
-    /// the enums were lined up, and profiles saved then still say it.
-    pub fn parse(raw: &str) -> Option<SportType> {
-        let key = raw.trim().to_ascii_lowercase();
-        let key = if key == "padel" { "paddle" } else { key.as_str() };
-        SportType::ALL.into_iter().find(|s| s.as_str() == key)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "event_subtype", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]

@@ -96,14 +96,6 @@ config:
   # falls back to com.fishers.app, which is only right for Fishers.
   appleClientId: ""
 
-  # Which sports a new club or team may be started in, comma separated.
-  # Set per brand by `brand helm <id> <ring>` from the brand's own `sports`.
-  #
-  # Empty means every sport, which is what every ring did before this value
-  # existed — a brand that says nothing keeps what it had rather than losing
-  # six sports to a value somebody missed. A brand that wants fewer says so.
-  sportsEnabled: ""
-
   jwtAccessTtlSecs: 900
   jwtRefreshTtlSecs: 2592000
   rustLog: "fishers_api=info,fishers_notifications=info,fishers_jobs=info,tower_http=warn,sqlx=warn"

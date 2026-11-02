@@ -11,11 +11,11 @@ import {
   skillLabel,
   upload,
   SKILL_LEVELS,
+  SPORTS,
   SPORT_POSITIONS,
   type PublicUser,
   type SportProfile,
 } from "@/lib/api";
-import { useOfferedSports } from "@/lib/sports";
 import { economy, num, type MeStats, type PlayerSeasonStats } from "@/lib/stats";
 import { Umpiring } from "@/components/Umpiring";
 import { PendingUmpireReviews } from "@/components/RateUmpires";
@@ -973,9 +973,8 @@ function SportCard({
 
 function AddSport({ me, onSaved }: { me: PublicUser; onSaved: () => void }) {
   const t = useT();
-  const offeredSports = useOfferedSports();
   const existing = (me.sport_profiles ?? []).map((p) => p.sport);
-  const spare = offeredSports.filter((s) => !existing.includes(s));
+  const spare = SPORTS.filter((s) => !existing.includes(s));
   const [busy, setBusy] = useState(false);
 
   if (spare.length === 0) return null;

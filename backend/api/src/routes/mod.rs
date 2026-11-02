@@ -27,30 +27,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::json;
 
-use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
-use fishers_domain::SportType;
-
-/// Refuse a sport this deployment does not offer.
-///
-/// The two entry points only — starting a club, and adding a team to one.
-/// Deliberately not fixtures: a club that already plays football has to be
-/// able to arrange next Sunday's game, and gating the fixture would stop it
-/// dead. Turning a sport off decides what may be *started*, never what may
-/// carry on. See `services::sports` for the whole of that reasoning.
-///
-/// 400 rather than 403: nothing here is about permission. The request named
-/// something this deployment does not offer, which is a problem with the
-/// request, and the message names the sport so the answer is actionable.
-pub(crate) fn require_offered_sports(state: &AppState, chosen: &[SportType]) -> ApiResult<()> {
-    match state.sports.first_rejected(chosen) {
-        None => Ok(()),
-        Some(sport) => Err(ApiError::bad_request(format!(
-            "{} is not one of the sports this app offers yet",
-            sport.as_str()
-        ))),
-    }
-}
 
 /// The live stream, kept apart so main.rs can mount it outside the request
 /// timeout.

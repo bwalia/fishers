@@ -6,9 +6,9 @@ import {
   api,
   money,
   readErr,
+  SPORTS,
   type HireableSpace,
 } from "@/lib/api";
-import { useOfferedSports } from "@/lib/sports";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/lib/i18n/provider";
 
@@ -26,7 +26,6 @@ const KIND_LABEL: Record<string, string> = {
 
 export default function HireBrowsePage() {
   const t = useT();
-  const offeredSports = useOfferedSports();
   const [rows, setRows] = useState<HireableSpace[] | null>(null);
   const [q, setQ] = useState("");
   const [sport, setSport] = useState("");
@@ -83,7 +82,7 @@ export default function HireBrowsePage() {
           <span>{t("rest.sport")}</span>
           <select value={sport} onChange={(e) => setSport(e.target.value)}>
             <option value="">{t("rest.any")}</option>
-            {offeredSports.map((s) => (
+            {SPORTS.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>

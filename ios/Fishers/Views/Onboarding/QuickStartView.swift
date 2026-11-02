@@ -44,13 +44,10 @@ struct QuickStartView: View {
 
                     question(tr("What do you play?"), note: sports.count > 1 ? t("rest.is_your_main_sport", vars: ["sport": sports[0].label]) : nil) {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
-                            ForEach(OfferedSports.shared.sports) { sport in
+                            ForEach(Sport.allCases) { sport in
                                 sportChip(sport)
                             }
                         }
-                        // The first screen of the app, so the one that most
-                        // needs to offer only what is finished.
-                        .task { await OfferedSports.shared.load() }
                     }
 
                     if asksPhone {

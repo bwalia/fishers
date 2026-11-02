@@ -84,14 +84,6 @@ spec:
             - name: APPLE_CLIENT_ID
               value: {{ . | quote }}
             {{- end }}
-            {{- with .Values.config.sportsEnabled }}
-            # Which sports a club or team may be started in. Unset means all,
-            # so a ring nobody configured keeps every sport rather than losing
-            # them to a missing value. Gates what is offered, never what is
-            # read: a club already playing football is untouched.
-            - name: SPORTS_ENABLED
-              value: {{ . | quote }}
-            {{- end }}
             {{- with .Values.config.ollamaUrl }}
             - name: OLLAMA_URL
               value: {{ . | quote }}
