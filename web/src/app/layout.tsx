@@ -95,6 +95,51 @@ export const viewport = {
 const THEME_BOOT = `try{var t=localStorage.getItem('fishers_theme');
 if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}`;
 
+/// Applied before the first paint, for the same reason as THEME_BOOT above.
+///
+/// `/` server-renders the signed-out landing page now, because that is the
+/// only version of it a crawler is ever served. Without this a member would
+/// watch the sales page flash past on every load while the client reads
+/// storage, so the document is marked signed-in before anything is painted
+/// and the stylesheet hides the landing. A crawler holds no token, sets no
+/// attribute, and is shown exactly the page a visitor is shown.
+const SESSION_BOOT = `try{if(localStorage.getItem('fishers_access_token'))
+document.documentElement.setAttribute('data-session','in');}catch(e){}`;
+
+/// What this site is, in the one form a search engine parses rather than
+/// infers from the prose.
+///
+/// Organization and WebSite are true on every page, so they belong here.
+/// `SoftwareApplication` describes the app rather than the site and lives on
+/// the homepage with the rest of the sales copy. No `SearchAction`: there is
+/// no site search to send anyone to, and advertising one that 404s is worse
+/// than advertising none.
+function siteStructuredData() {
+  const url = siteUrl();
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${url}/#organization`,
+        name: brand.name,
+        legalName: brand.legalName,
+        url,
+        logo: `${url}${brand.markSrc}`,
+        email: brand.supportEmail,
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${url}/#website`,
+        name: brand.name,
+        url,
+        inLanguage: Object.keys(LOCALES),
+        publisher: { "@id": `${url}/#organization` },
+      },
+    ],
+  };
+}
+
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // Read before the first paint, so the page arrives in the reader's language
   // rather than arriving in English and correcting itself.
@@ -134,6 +179,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+        <script dangerouslySetInnerHTML={{ __html: SESSION_BOOT }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData()) }}
+        />
       </head>
       <body>
         <LocaleProvider initial={locale}>
