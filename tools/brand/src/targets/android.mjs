@@ -67,7 +67,7 @@ function strings(brand) {
 }
 
 function colours(brand) {
-  const { ramp, source } = brand;
+  const { ramp, source, dark } = brand;
   return `<?xml version="1.0" encoding="utf-8"?>
 <!-- Generated from brands/${brand.id}.yaml. Do not edit.
 
@@ -80,17 +80,39 @@ function colours(brand) {
     <color name="brand_source_surface">${source.surface}</color>
     <color name="brand_source_accent">${source.accent}</color>
 
+    <color name="brand_primary_400">${ramp.primary400}</color>
     <color name="brand_primary_500">${ramp.primary500}</color>
     <color name="brand_primary_600">${ramp.primary600}</color>
     <color name="brand_primary_700">${ramp.primary700}</color>
+    <color name="brand_primary_800">${ramp.primary800}</color>
     <color name="brand_primary_900">${ramp.primary900}</color>
 
+    <color name="brand_accent_400">${ramp.accent400}</color>
+    <color name="brand_accent_500">${ramp.accent500}</color>
     <color name="brand_accent_600">${ramp.accent600}</color>
     <color name="brand_accent_700">${ramp.accent700}</color>
 
     <color name="brand_ink_900">${ramp.ink900}</color>
     <color name="brand_ink_700">${ramp.ink700}</color>
     <color name="brand_ink_500">${ramp.ink500}</color>
+
+    <!-- Dark is not a grey inversion: these are mixed from the brand's own
+         hue, the same twelve the web reads as its brand-dark custom
+         properties. Android used to get none of them, so a dark build fell
+         through to Material's baseline purple for every surface it had not
+         been handed. -->
+    <color name="brand_dark_bg">${dark.bg}</color>
+    <color name="brand_dark_surface">${dark.surface}</color>
+    <color name="brand_dark_surface_2">${dark.surface2}</color>
+    <color name="brand_dark_surface_3">${dark.surface3}</color>
+    <color name="brand_dark_fg">${dark.fg}</color>
+    <color name="brand_dark_fg_muted">${dark.fgMuted}</color>
+    <color name="brand_dark_fg_subtle">${dark.fgSubtle}</color>
+    <color name="brand_dark_border">${dark.border}</color>
+    <color name="brand_dark_border_strong">${dark.borderStrong}</color>
+    <color name="brand_dark_on_primary">${dark.onPrimary}</color>
+    <color name="brand_dark_raised">${dark.raised}</color>
+    <color name="brand_dark_accent_pale">${dark.accentPale}</color>
 </resources>
 `;
 }
