@@ -37,9 +37,23 @@ Per brand, in order:
    `node tools/brand/index.mjs mobile <id>` prints it, and it comes from
    `brands/<id>.yaml` — that file is the source of truth, not this table.
 
-2. Build a signed AAB locally (below) and upload it manually to **internal
-   testing**. Complete the store listing and content rating.
-3. Then the workflow takes over.
+2. Get a signed AAB and upload it manually to **internal testing**. Build it
+   locally (below), or — easier, since CI holds the upload keystore and your
+   laptop may not — dispatch this workflow with **upload** off:
+
+   ```
+   gh workflow run android_release.yml -f brand=<id> -f track=internal -f upload=false
+   ```
+
+   That builds and signs the bundle, skips Play entirely, and leaves the AAB
+   as the run's `<brand>-aab` artifact for you to download and upload by hand.
+3. Complete the store listing and content rating. The listing text is already
+   written, per brand, in `android/fastlane/metadata/<brand>/en-GB/` —
+   `title.txt`, `short_description.txt`, `full_description.txt`. Nothing
+   publishes those files: `r0adkll/upload-google-play` uploads a bundle and
+   nothing else, so they are copy-and-paste sources, not a deployment. Keep
+   them in step with what is live, or delete them rather than let them drift.
+4. Then the workflow takes over.
 
 ## Signing
 

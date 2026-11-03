@@ -8,6 +8,8 @@ name: Android Release (Google Play)
 #
 #   AUTO (merge to main) : push touching android/** or this workflow → internal
 #   DISPATCH             : pick brand and track (internal → production)
+#   DISPATCH, upload off : build and sign only, bundle kept as an artifact —
+#                          how a brand's first, manual upload gets its AAB
 #
 # Play's API cannot create an app. The first bundle for a brand is uploaded by
 # hand in the Play Console; after that this takes over. See
@@ -44,6 +46,11 @@ on:
         description: "Marketing version override (blank = build.gradle.kts or the tag)"
         required: false
         default: ""
+      upload:
+        description: "Upload to Play. Off builds and signs the bundle and keeps it as an artifact — what a brand's first, manual upload needs."
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: fishers-android-release
@@ -166,6 +173,23 @@ jobs:
           keyPassword=$KEY_PASSWORD
           EOF
 
+      # Play's credential, by name and early. Absent, the upload action fails
+      # after the whole build with "Unknown error occurred." — which is what
+      # nine consecutive releases looked like.
+      - name: Play credentials
+        if: github.event_name != 'workflow_dispatch' || inputs.upload
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PLAY_JSON:-}" ]; then
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set. Play cannot be reached."
+            echo "See docs/ANDROID_RELEASE.md — The Play service account."
+            exit 1
+          fi
+          printf '%s' "$PLAY_JSON" | python3 -c 'import json,sys; json.load(sys.stdin)' \
+            || { echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not valid JSON."; exit 1; }
+
       - name: Resolve version
         env:
           INPUT_VERSION: ${{ inputs.version }}
@@ -176,8 +200,12 @@ jobs:
           elif [ -n "${INPUT_VERSION:-}" ]; then
             v="$INPUT_VERSION"
           else
-            v="$(awk -F'"' '/versionName *=/{print $2; exit}' android/app/build.gradle.kts)"
+            v="$(awk -F'"' '/versionName *=/{print $4; exit}' android/app/build.gradle.kts)"
           fi
+          case "$v" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::Resolved version '$v' is not a version."; exit 1 ;;
+          esac
           echo "Version $v, build ${GITHUB_RUN_NUMBER}"
           # versionCode is the run number, never a counter in a file: Play
           # refuses a code it has seen, and a hand-maintained one is a merge
@@ -197,7 +225,7 @@ jobs:
           # bundle<Flavour>Release, capitalised the way Gradle names variants.
           flavour="$(printf '%s' "${BRAND:0:1}" | tr '[:lower:]' '[:upper:]')${BRAND:1}"
           ./gradlew ":app:bundle${flavour}Release" --no-daemon \
-            -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE"
+            -PappVersionName="$VERSION_NAME" -PappVersionCode="$VERSION_CODE"
           echo "AAB=android/app/build/outputs/bundle/${BRAND}Release/app-${BRAND}-release.aab" >> "$GITHUB_ENV"
 
       - name: The bundle exists
@@ -207,6 +235,7 @@ jobs:
           ls -la "$AAB"
 
       - name: Upload to Play
+        if: github.event_name != 'workflow_dispatch' || inputs.upload
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}

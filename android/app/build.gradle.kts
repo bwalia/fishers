@@ -39,7 +39,10 @@ android {
         // a failed release. Named `app*` so neither can collide with a Gradle
         // property of its own.
         versionCode = (findProperty("appVersionCode") as String?)?.toInt() ?: 1
-        versionName = (findProperty("appVersionName") as String?) ?: "0.1.0"
+        // The marketing version, kept level with iOS: one product, one
+        // number, whatever phone it is on. iOS sets it as MARKETING_VERSION
+        // in `ios/project.yml` — move both or neither.
+        versionName = (findProperty("appVersionName") as String?) ?: "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // The engine is built for these three, and JNA would otherwise bring a
