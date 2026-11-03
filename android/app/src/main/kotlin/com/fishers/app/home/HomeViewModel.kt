@@ -2,7 +2,7 @@ package com.fishers.app.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.fishers.app.fixtures.FishersEvent
+import com.fishers.app.fixtures.MyFixture
 import com.fishers.app.net.FishersApi
 import com.fishers.app.session.readableError
 import kotlinx.coroutines.async
@@ -14,7 +14,7 @@ import java.time.Instant
 
 data class HomeState(
     /** The next fixture that has not been called off. */
-    val next: FishersEvent? = null,
+    val next: MyFixture? = null,
     val unreadChats: Long = 0,
     val clubCount: Int = 0,
     val isLoading: Boolean = false,

@@ -20,7 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fishers.app.R
-import com.fishers.app.fixtures.FishersEvent
+import com.fishers.app.fixtures.MyFixture
 import com.fishers.app.fixtures.formatWhen
 import com.fishers.app.home.HomeState
 import com.fishers.app.theme.FishersTheme
@@ -127,7 +127,7 @@ private fun Tile(
 }
 
 @Composable
-private fun NextFixture(event: FishersEvent) {
+private fun NextFixture(event: MyFixture) {
     Text(event.title, style = MaterialTheme.typography.titleMedium)
     Text(formatWhen(event.startAt), style = MaterialTheme.typography.bodyMedium)
 }
@@ -140,7 +140,7 @@ private fun HomePreview() {
             "Ravi Patel",
             HomeState(
                 isFirstLoad = false,
-                next = FishersEvent(
+                next = MyFixture(
                     id = "1", clubId = "c", title = "Lords CC v Hemel",
                     startAt = "2026-09-27T13:30:00Z",
                 ),
