@@ -1,5 +1,6 @@
 package com.fishers.app.views.chat
 
+import com.fishers.app.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,7 +78,7 @@ fun ChatThreadScreen(
 
                 state.messages.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                     Text(
-                        state.error ?: "Nothing said yet.",
+                        state.error ?: t("rest.nothing_said_yet"),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -113,14 +114,14 @@ fun ChatThreadScreen(
                 value = draft,
                 onValueChange = { draft = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Message $title") },
+                placeholder = { Text(t("rest.message_someone", vars = mapOf("name" to title))) },
                 maxLines = 4,
             )
             IconButton(
                 onClick = { onSend(draft); draft = "" },
                 enabled = draft.isNotBlank() && !state.isSending,
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = t("rest.send"))
             }
         }
     }

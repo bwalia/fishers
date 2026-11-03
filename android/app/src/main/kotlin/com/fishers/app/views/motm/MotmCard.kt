@@ -45,7 +45,7 @@ fun MotmCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             when {
                 poll == null && state.isLoading -> CircularProgressIndicator(Modifier.padding(8.dp))
-                poll == null -> Text(state.error ?: "No vote here.")
+                poll == null -> Text(state.error ?: t("rest.no_vote_here"))
                 else -> {
                     Text(poll.title, style = MaterialTheme.typography.titleMedium)
                     poll.result?.let {
@@ -55,9 +55,9 @@ fun MotmCard(
                     val open = poll.isOpen()
                     Text(
                         when {
-                            !open -> "Voting has closed."
+                            !open -> t("rest.voting_has_closed")
                             poll.tallyVisible -> "${poll.totalVotes} voted."
-                            else -> "Votes are hidden until you have cast yours."
+                            else -> t("rest.votes_hidden_until_you_vote")
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
@@ -65,7 +65,7 @@ fun MotmCard(
 
                     HorizontalDivider()
 
-                    listOf("Home" to poll.home, "Away" to poll.away).forEach { (label, side) ->
+                    listOf(t("sc.home_default") to poll.home, t("sc.away_default") to poll.away).forEach { (label, side) ->
                         if (side.isNotEmpty()) {
                             Text(
                                 label,

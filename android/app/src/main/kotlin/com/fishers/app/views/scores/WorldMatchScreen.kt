@@ -62,7 +62,7 @@ fun WorldMatchScreen(
     if (view == null) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                state.error ?: "Could not load that match.",
+                state.error ?: t("le.could_not_load_that_match"),
                 color = MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(24.dp),
@@ -106,15 +106,15 @@ fun WorldMatchScreen(
         } else if (view.detail == null) {
             item {
                 Empty(
-                    "No scorecard for this match yet.",
-                    "If it has not started, there is nothing to show.",
+                    t("sr.no_scorecard_for_this_match_yet"),
+                    t("rest.not_started_nothing_to_show"),
                 )
             }
         } else {
             item {
                 Empty(
-                    "Not a ball bowled yet.",
-                    "The card will fill in once the match is under way.",
+                    t("sr.not_a_ball_bowled_yet"),
+                    t("sr.the_card_will_fill_in_once_the_match_i"),
                 )
             }
         }
@@ -122,12 +122,12 @@ fun WorldMatchScreen(
         item {
             Text(
                 buildString {
-                    append("Scorecard updated ${view.freshness()}.")
+                    append(t("sr.scorecard_updated", vars = mapOf("when" to view.freshness())))
                     append(
                         if (view.summary.phase == "done") {
-                            " This match has finished, so this is the final card."
+                            t("sr.match_finished_final_card")
                         } else {
-                            " It comes from a free feed and runs a few minutes behind play."
+                            t("fin.free_feed_delay")
                         },
                     )
                 },
@@ -247,11 +247,11 @@ private fun Crease(batting: List<CurrentPlayer>, bowling: List<CurrentPlayer>) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (batting.isNotEmpty()) {
-            SubHead("Batting")
+            SubHead(t("sr.batting"))
             batting.forEach { CreaseRow(it) }
         }
         if (bowling.isNotEmpty()) {
-            SubHead("Bowling")
+            SubHead(t("sr.bowling"))
             bowling.forEach { CreaseRow(it) }
         }
     }
@@ -354,7 +354,7 @@ private fun InningsCard(innings: Innings, title: String) {
             }
         }
 
-        SubHead("Batting")
+        SubHead(t("sr.batting"))
         BatHead()
         innings.batting.forEach { BatRow(it) }
 
@@ -375,12 +375,12 @@ private fun InningsCard(innings: Innings, title: String) {
         }
 
         if (innings.bowling.isNotEmpty()) {
-            SubHead("Bowling")
+            SubHead(t("sr.bowling"))
             innings.bowling.forEach { BowlRow(it) }
         }
 
         if (innings.fallOfWickets.isNotEmpty()) {
-            SubHead("Fall of wickets")
+            SubHead(t("sr.fall_of_wickets"))
             Text(
                 innings.fallOfWickets.joinToString("  ·  ") { f ->
                     "${f.wicket}–${f.runs ?: "—"} ${f.batter.orEmpty()}".trim()

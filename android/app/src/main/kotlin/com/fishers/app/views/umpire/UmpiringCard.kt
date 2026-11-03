@@ -151,7 +151,7 @@ private fun Body(
     } else if (profile.matches == 0) {
         Text(
             if (isMine) {
-                "You have not umpired a match here yet. Ask your captain to name you as umpire and it starts counting."
+                t("le.you_have_not_umpired_a_match_here_yet")
             } else {
                 "${theirName ?: "They"} have not umpired a match here yet."
             },

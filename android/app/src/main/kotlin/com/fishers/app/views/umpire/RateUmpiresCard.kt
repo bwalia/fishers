@@ -41,7 +41,7 @@ import com.fishers.app.umpire.RateUmpiresState
  * After the match: say how the umpiring went — `RateUmpiresView.swift`,
  * `RateUmpires.tsx`.
  *
- * Nothing is drawn when no umpire was named. "No umpires to rate" on every
+ * Nothing is drawn when no umpire was named. t("rest.no_umpires_to_rate") on every
  * match a club scores without naming one is noise.
  */
 @Composable
@@ -119,7 +119,7 @@ private fun RateOne(
                 onClick = { onReview(rating, comment.ifBlank { null }) },
                 enabled = !busy && rating >= 1,
             ) {
-                Text(if (umpire.myRating == null) "Submit" else "Update")
+                Text(if (umpire.myRating == null) t("le.submit") else t("le.update"))
             }
             if (umpire.myRating != null) {
                 TextButton(onClick = onWithdraw, enabled = !busy) { Text(t("cl.remove")) }
@@ -155,7 +155,7 @@ private fun StarPicker(value: Int, onPick: (Int) -> Unit) {
             }
         }
         Text(
-            if (value > 0) "$value / 5" else "Not rated",
+            if (value > 0) "$value / 5" else t("le.not_rated"),
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(start = 8.dp),
         )

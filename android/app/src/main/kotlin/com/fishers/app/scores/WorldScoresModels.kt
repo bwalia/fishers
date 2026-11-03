@@ -1,5 +1,6 @@
 package com.fishers.app.scores
 
+import com.fishers.app.i18n.t
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Duration
@@ -63,7 +64,7 @@ data class WorldMatch(
 
     /** The feed shouts TEST; a scorecard should not. */
     val formatLabel: String?
-        get() = format?.uppercase()?.let { if (it == "TEST") "Test" else it }
+        get() = format?.uppercase()?.let { if (it == "TEST") t("sc.test_format") else it }
 
     /**
      * The side with an over count against it is the side at the crease. The
@@ -117,16 +118,13 @@ data class WorldScores(
      */
     fun freshness(now: Instant = Instant.now()): String {
         val at = asOf?.let { runCatching { Instant.parse(it) }.getOrNull() }
-            ?: return "not loaded yet"
+            ?: return t("sr.not_loaded_yet")
         val mins = Duration.between(at, now).toMinutes()
         return when {
-            mins < 1 -> "just now"
-            mins == 1L -> "1 minute ago"
-            mins < 60 -> "$mins minutes ago"
-            else -> {
-                val hours = Math.round(mins / 60.0)
-                if (hours == 1L) "1 hour ago" else "$hours hours ago"
-            }
+            mins < 1 -> t("sr.just_now")
+            mins < 60 -> t("sr.minutes_ago", count = mins.toInt(), vars = mapOf("n" to mins))
+            else -> Math.round(mins / 60.0)
+                .let { t("sr.hours_ago", count = it.toInt(), vars = mapOf("n" to it)) }
         }
     }
 }
@@ -236,13 +234,13 @@ data class WorldMatchDetailView(
 ) {
     fun freshness(now: Instant = Instant.now()): String {
         val at = detailAsOf?.let { runCatching { Instant.parse(it) }.getOrNull() }
-            ?: return "not loaded yet"
+            ?: return t("sr.not_loaded_yet")
         val mins = Duration.between(at, now).toMinutes()
         return when {
-            mins < 1 -> "just now"
-            mins == 1L -> "1 minute ago"
-            mins < 60 -> "$mins minutes ago"
-            else -> Math.round(mins / 60.0).let { if (it == 1L) "1 hour ago" else "$it hours ago" }
+            mins < 1 -> t("sr.just_now")
+            mins < 60 -> t("sr.minutes_ago", count = mins.toInt(), vars = mapOf("n" to mins))
+            else -> Math.round(mins / 60.0)
+                .let { t("sr.hours_ago", count = it.toInt(), vars = mapOf("n" to it)) }
         }
     }
 }
@@ -258,7 +256,10 @@ private fun List<Innings>.ordinalAt(index: Int): Pair<Int, Boolean> {
 }
 
 private fun ordinalWord(n: Int) = when (n) {
-    1 -> "1st"; 2 -> "2nd"; 3 -> "3rd"; else -> "${n}th"
+    1 -> t("sr.ordinal_1st")
+    2 -> t("sr.ordinal_2nd")
+    3 -> t("sr.ordinal_3rd")
+    else -> t("sr.ordinal_nth", vars = mapOf("n" to n))
 }
 
 /** "MWC 2nd" — a tab's label, abbreviated because four must fit across a phone. */

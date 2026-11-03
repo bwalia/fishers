@@ -74,7 +74,7 @@ fun ListingScreen(
                 CircularProgressIndicator()
             } else {
                 Text(
-                    state.error ?: "That listing is not available.",
+                    state.error ?: t("lc.that_listing_is_not_available"),
                     Modifier.padding(32.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -125,7 +125,7 @@ private fun Header(listing: MarketListing) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Tag(product.categoryLabel)
             product.conditionLabel?.let { Tag(it) }
-            if (product.negotiable && !product.isSold) Tag("Open to offers")
+            if (product.negotiable && !product.isSold) Tag(t("sh.open_to_offers"))
         }
         Text(listing.name, style = MaterialTheme.typography.headlineSmall)
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -143,7 +143,7 @@ private fun Header(listing: MarketListing) {
             }
         }
         Text(
-            if (product.isSold) "Sold — no longer available" else product.availability,
+            if (product.isSold) t("lc.sold_no_longer_available") else product.availability,
             style = MaterialTheme.typography.bodyMedium,
             color = if (product.isSold) {
                 MaterialTheme.colorScheme.error
@@ -181,9 +181,9 @@ private fun BuyerPanel(
             ) {
                 Text(
                     when {
-                        listing.product.isSold -> "Already gone"
-                        state.reserving -> "Reserving…"
-                        else -> "Reserve it"
+                        listing.product.isSold -> t("lc.already_gone")
+                        state.reserving -> t("lc.reserving")
+                        else -> t("lc.reserve_it")
                     },
                 )
             }
@@ -195,8 +195,8 @@ private fun BuyerPanel(
                 Text(
                     when {
                         state.asking -> "Opening…"
-                        listing.product.negotiable -> "Make an offer"
-                        else -> "Ask a question"
+                        listing.product.negotiable -> t("lc.make_an_offer")
+                        else -> t("lc.ask_a_question")
                     },
                 )
             }
@@ -276,14 +276,14 @@ private fun OwnerPanel(listing: MarketListing) {
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Stat("People asking", "$asked", Modifier.weight(1f))
-            Stat("Photographs", "${listing.photos.size}", Modifier.weight(1f))
-            Stat("Visible to", if (listing.listedPublicly) "Every club" else "Your club", Modifier.weight(1f))
+            Stat(t("sh.people_asking"), "$asked", Modifier.weight(1f))
+            Stat(t("sh.photographs"), "${listing.photos.size}", Modifier.weight(1f))
+            Stat(t("sh.visible_to"), if (listing.listedPublicly) t("lc.every_club") else t("lc.your_club"), Modifier.weight(1f))
         }
         Text(
             when {
-                asked == 0 -> "Nobody has asked about it yet. Questions arrive in Chats."
-                asked == 1 -> "One person has asked about it — the message is in Chats."
+                asked == 0 -> t("sh.nobody_has_asked_about_it_yet_question")
+                asked == 1 -> t("cl.one_person_has_asked")
                 else -> "$asked people have asked about it. The conversations are in Chats."
             },
             style = MaterialTheme.typography.bodySmall,
@@ -333,46 +333,46 @@ private fun Stat(label: String, value: String, modifier: Modifier = Modifier) {
 private fun Sections(listing: MarketListing) {
     val product = listing.product
 
-    Block("Description") {
+    Block(t("sh.description")) {
         Text(
             product.description?.takeIf { it.isNotBlank() }
                 ?: if (listing.mine) {
-                    "No description was written. Adding one helps it sell."
+                    t("sh.no_description_adding_helps")
                 } else {
-                    "No description was written. Ask the seller if you need to know more."
+                    t("sh.no_description_ask_seller")
                 },
             style = MaterialTheme.typography.bodyMedium,
         )
     }
 
-    Block("Details") {
+    Block(t("sh.details")) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Spec("Category", product.categoryLabel)
-            product.conditionLabel?.let { Spec("Condition", it) }
-            product.brand?.let { Spec("Make", it) }
-            product.size?.let { Spec("Size", it) }
-            Spec("How many", product.availability)
-            product.conditionNote?.let { Spec("Wear and damage", it) }
+            Spec(t("sh.category"), product.categoryLabel)
+            product.conditionLabel?.let { Spec(t("sh.condition"), it) }
+            product.brand?.let { Spec(t("sh.make"), it) }
+            product.size?.let { Spec(t("sh.size"), it) }
+            Spec(t("sh.how_many"), product.availability)
+            product.conditionNote?.let { Spec(t("sh.wear_and_damage"), it) }
         }
     }
 
-    Block("Where to collect it") {
+    Block(t("sh.where_to_collect_it")) {
         Column {
             Text(listing.clubName, style = MaterialTheme.typography.titleSmall)
             Text(
                 product.collectionNote
-                    ?: "The seller has not said where yet — ask them before you travel.",
+                    ?: t("lc.the_seller_has_not_said_where_yet_ask"),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
     }
 
     if (!listing.mine) {
-        Block("How buying works") {
+        Block(t("sh.how_buying_works")) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Step(
-                    1, "Ask anything you need to.",
-                    "Messages go to the seller here in the app." +
+                    1, t("sh.ask_anything_you_need_to"),
+                    t("fin.messages_go_to_seller") +
                         if (product.negotiable) {
                             " The price is open to offers, so say what you would pay."
                         } else {
@@ -380,12 +380,12 @@ private fun Sections(listing: MarketListing) {
                         },
                 )
                 Step(
-                    2, "Reserve it.",
-                    "That holds it for you and tells the seller — it does not charge you anything.",
+                    2, t("sh.reserve_it"),
+                    t("sh.holds_it_for_you"),
                 )
                 Step(
-                    3, "Collect and pay in person.",
-                    "Cash or transfer, directly to the seller. No money goes through this app.",
+                    3, t("sh.collect_and_pay_in_person"),
+                    t("sh.cash_or_transfer_directly_to_the_selle"),
                 )
             }
         }
@@ -420,7 +420,10 @@ private fun Gallery(photos: List<String>, title: String) {
         ) { page ->
             AsyncImage(
                 model = photos[page],
-                contentDescription = "$title — photograph ${page + 1} of ${photos.size}",
+                contentDescription = t(
+                    "sc.photograph_n_of_m",
+                    vars = mapOf("title" to title, "n" to page + 1, "total" to photos.size),
+                ),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -429,7 +432,7 @@ private fun Gallery(photos: List<String>, title: String) {
             // A count rather than dots: a screen reader can say "2 of 6", and
             // six identical dots tell somebody with low vision nothing.
             Text(
-                "${pager.currentPage + 1} of ${photos.size}",
+                t("rest.photo_n_of_total", vars = mapOf("n" to pager.currentPage + 1, "total" to photos.size)),
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),

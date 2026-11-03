@@ -1,5 +1,7 @@
 package com.fishers.app.fixtures
 
+import com.fishers.app.i18n.Strings
+import com.fishers.app.i18n.t
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Instant
@@ -29,13 +31,13 @@ enum class EventSubtype {
 
     val label: String
         get() = when (this) {
-            Nets -> "Nets"
-            Friendly -> "Friendly"
-            LeagueMatch -> "League"
-            Tournament -> "Tournament"
-            Social -> "Social"
-            Training -> "Training"
-            Generic -> "Event"
+            Nets -> t("ev.nets")
+            Friendly -> t("ld.friendly")
+            LeagueMatch -> t("ld.league")
+            Tournament -> t("tn.tournament")
+            Social -> t("ld.social")
+            Training -> t("ev.training")
+            Generic -> t("ev.event")
         }
 }
 
@@ -48,10 +50,10 @@ enum class RsvpStatus {
 
     val label: String
         get() = when (this) {
-            Going -> "Going"
-            NotGoing -> "Can't"
-            Maybe -> "Maybe"
-            Invited -> "Asked"
+            Going -> t("ld.going")
+            NotGoing -> t("ld.can_t")
+            Maybe -> t("ev.maybe")
+            Invited -> t("rest.asked")
         }
 }
 
@@ -142,7 +144,10 @@ data class FishersEvent(
 fun formatWhen(iso: String, zone: ZoneId = ZoneId.systemDefault()): String =
     runCatching {
         DateTimeFormatter
-            .ofPattern("EEE d MMM, HH:mm", Locale.getDefault())
+            // The app's own language, not the device's. Someone whose phone is
+            // in English but who picked ਪੰਜਾਬੀ in the app was reading Punjabi
+            // headings above an English date.
+            .ofPattern("EEE d MMM, HH:mm", Locale.forLanguageTag(Strings.language.code))
             .withZone(zone)
             .format(Instant.parse(iso))
     }.getOrDefault(iso)

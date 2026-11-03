@@ -3983,6 +3983,51 @@ export const en = {
   "privacy.reports_outlive": "A report you made stays after you delete your account, with your name taken off it: it is about somebody else, and withdrawing it silently would leave whoever is still being complained about looking clean.",
   "privacy.last_updated": "Last updated {date}.",
 
+  // MARK: Android screens that were hardcoded in English
+  "rest.a_club_or_fixture_starts_one": "A club or a fixture starts one, and it appears here.",
+  "rest.about_this_listing": "About this listing",
+  "rest.asked_not_answered": "Asked, not answered",
+  "rest.called_off": "Called off",
+  "rest.email_or_password_not_right": "That email or password was not right.",
+  "rest.i_already_have_an_account": "I already have an account",
+  "rest.i_am_new_here": "I am new here",
+  "rest.i_do_not_want_this": "I do not want this",
+  "rest.no_connection_check_signal": "No connection. Check the signal and try again.",
+  "rest.no_match_here_yet": "No match here yet.",
+  "rest.no_umpires_to_rate": "No umpires to rate",
+  "rest.no_vote_here": "No vote here.",
+  "rest.nothing_said_yet": "Nothing said yet.",
+  "rest.nothing_unread": "Nothing unread.",
+  "rest.one_club": "One club.",
+  "rest.one_message_waiting": "One message waiting.",
+  "rest.pull_down_once_there_is_signal": "Pull down once there is signal.",
+  "rest.server_having_trouble": "The server is having trouble. Try again shortly.",
+  "rest.signed_in": "Signed in",
+  "rest.signing_in": "Signing in",
+  "rest.start_playing": "Start playing.",
+  "rest.the_book_could_not_be_read": "The book could not be read: {detail}",
+  "rest.the_book_would_not_take_that": "The book would not take that.",
+  "rest.too_many_tries": "Too many tries. Give it a minute.",
+  "rest.votes_hidden_until_you_vote": "Votes are hidden until you have cast yours.",
+  "rest.voting_has_closed": "Voting has closed.",
+  "sc.needs_off": "Needs {runs} off {balls}",
+  "sc.needs_runs": "Needs {runs}",
+  "sr.in_play": "In play",
+
+  // MARK: Android labels and interpolated lines that stayed English
+  "rest.afternoon_name": "Afternoon, {name}",
+  "rest.message_someone": "Message {name}",
+  "rest.starts_when": "Starts {when}",
+  "rest.photo_n_of_total": "{n} of {total}",
+
+  // MARK: Android enum display labels
+  "ev.nets": "Nets",
+  "ev.training": "Training",
+  "rest.admin": "Admin",
+
+  // MARK: Android scores ordinals
+  "sr.ordinal_3rd": "3rd",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

@@ -1,5 +1,6 @@
 package com.fishers.app.shop
 
+import com.fishers.app.i18n.t
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.text.NumberFormat
@@ -65,23 +66,23 @@ data class Product(
 
     val availability: String
         get() = when {
-            stock == null -> "On request"
-            stock == 0 -> "Sold"
-            stock == 1 && condition == "used" -> "One only"
-            else -> "$stock available"
+            stock == null -> t("lc.on_request")
+            stock == 0 -> t("le.sold")
+            stock == 1 && condition == "used" -> t("lc.one_only")
+            else -> t("sh.n_available", vars = mapOf("n" to stock))
         }
 
     val conditionLabel: String?
         get() = when (condition) {
-            "used" -> "Second-hand"
-            "new" -> "Brand new"
+            "used" -> t("lc.second_hand")
+            "new" -> t("lc.brand_new")
             else -> null
         }
 
     val categoryLabel: String
         get() = when (category) {
-            "equipment" -> "Equipment"
-            "merchandise" -> "Merchandise"
+            "equipment" -> t("lc.equipment")
+            "merchandise" -> t("lc.merchandise")
             else -> category.replaceFirstChar { it.uppercase() }
         }
 }
