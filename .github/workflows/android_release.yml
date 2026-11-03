@@ -166,6 +166,22 @@ jobs:
           keyPassword=$KEY_PASSWORD
           EOF
 
+      # Play's credential, by name and early. Absent, the upload action fails
+      # after the whole build with "Unknown error occurred." — which is what
+      # nine consecutive releases looked like.
+      - name: Play credentials
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PLAY_JSON:-}" ]; then
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set. Play cannot be reached."
+            echo "See docs/ANDROID_RELEASE.md — The Play service account."
+            exit 1
+          fi
+          printf '%s' "$PLAY_JSON" | python3 -c 'import json,sys; json.load(sys.stdin)' \
+            || { echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not valid JSON."; exit 1; }
+
       - name: Resolve version
         env:
           INPUT_VERSION: ${{ inputs.version }}
@@ -176,8 +192,12 @@ jobs:
           elif [ -n "${INPUT_VERSION:-}" ]; then
             v="$INPUT_VERSION"
           else
-            v="$(awk -F'"' '/versionName *=/{print $2; exit}' android/app/build.gradle.kts)"
+            v="$(awk -F'"' '/versionName *=/{print $4; exit}' android/app/build.gradle.kts)"
           fi
+          case "$v" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::Resolved version '$v' is not a version."; exit 1 ;;
+          esac
           echo "Version $v, build ${GITHUB_RUN_NUMBER}"
           # versionCode is the run number, never a counter in a file: Play
           # refuses a code it has seen, and a hand-maintained one is a merge
@@ -197,7 +217,7 @@ jobs:
           # bundle<Flavour>Release, capitalised the way Gradle names variants.
           flavour="$(printf '%s' "${BRAND:0:1}" | tr '[:lower:]' '[:upper:]')${BRAND:1}"
           ./gradlew ":app:bundle${flavour}Release" --no-daemon \
-            -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE"
+            -PappVersionName="$VERSION_NAME" -PappVersionCode="$VERSION_CODE"
           echo "AAB=android/app/build/outputs/bundle/${BRAND}Release/app-${BRAND}-release.aab" >> "$GITHUB_ENV"
 
       - name: The bundle exists
