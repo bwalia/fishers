@@ -93,8 +93,7 @@ fun WorldScoresScreen(
     ) {
         item {
             Text(
-                "Scores updated ${scores.freshness()}. They come from a free feed and run a " +
-                    "few minutes behind live play.",
+                t("sr.scores_updated_free_feed", vars = mapOf("when" to scores.freshness())),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -104,14 +103,14 @@ fun WorldScoresScreen(
         // Test at stumps is still being played — so each group says what it
         // holds.
         group(
-            "Being played now",
-            "Matches in progress, including the intervals.",
+            t("sr.being_played_now"),
+            t("rest.matches_in_progress_note"),
             scores.live,
-            "Nothing is being played at the moment.",
+            t("rest.nothing_being_played"),
             onOpen,
         )
-        group("Coming up", "Due to start soon.", scores.upcoming, "No fixtures listed for the next few days.", onOpen)
-        group("Recent results", "Matches that have finished.", scores.recent, "No results yet.", onOpen)
+        group(t("sr.coming_up"), t("rest.due_to_start_soon"), scores.upcoming, t("rest.no_fixtures_next_few_days"), onOpen)
+        group(t("sr.recent_results"), t("rest.matches_that_finished"), scores.recent, t("rest.no_results_yet_dot"), onOpen)
     }
 }
 
@@ -214,7 +213,7 @@ private fun ScoreCard(match: WorldMatch, onOpen: (String) -> Unit) {
             if (match.phase == "pending") {
                 match.startLabel?.let {
                     Text(
-                        "Starts $it",
+                        t("rest.starts_when", vars = mapOf("when" to it)),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -232,7 +231,7 @@ private fun ScoreCard(match: WorldMatch, onOpen: (String) -> Unit) {
 }
 
 /**
- * The word is always there — "In play", "Tea", "Stumps". The colour and the dot
+ * The word is always there — t("sr.in_play"), "Tea", "Stumps". The colour and the dot
  * sit on top of the text, never instead of it.
  */
 @Composable

@@ -1,5 +1,6 @@
 package com.fishers.app.views.chat
 
+import com.fishers.app.i18n.t
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,13 +47,13 @@ fun ChatListScreen(
             Box(modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
 
         state.error != null && state.conversations.isEmpty() ->
-            Message(modifier, state.error, "Pull down once there is signal.")
+            Message(modifier, state.error, t("rest.pull_down_once_there_is_signal"))
 
         state.conversations.isEmpty() ->
             Message(
                 modifier,
-                "No chats yet.",
-                "A club or a fixture starts one, and it appears here.",
+                t("cl.no_chats_yet"),
+                t("rest.a_club_or_fixture_starts_one"),
             )
 
         else -> LazyColumn(modifier.fillMaxSize()) {

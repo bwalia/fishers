@@ -1072,6 +1072,8 @@ export const pa: Dict = {
   "rest.ada_example_com": "ada@example.com",
   "rest.447700900123": "+447700900123",
   "rest.api_documentation": "API ਦਸਤਾਵੇਜ਼",
+  "rest.docs_description":
+    "{brand} REST API: ਇੰਟਰਐਕਟਿਵ Swagger UI ਅਤੇ OpenAPI ਸਪੈੱਕ — ਉਹਨਾਂ ਕਲੱਬਾਂ ਤੇ ਟੂਲਾਂ ਲਈ ਜੋ ਆਪਣੇ ਮੈਚ, ਉਪਲਬਧਤਾ ਤੇ ਸਕੋਰ ਆਪ ਪੜ੍ਹਨਾ ਚਾਹੁੰਦੇ ਹਨ।",
   "rest.open_swagger_ui": "Swagger UI ਖੋਲ੍ਹੋ",
   "rest.spec": "ਸਪੈੱਕ:",
   "rest.are_you_coming": "ਕੀ ਤੁਸੀਂ ਆ ਰਹੇ ਹੋ?",
@@ -3966,5 +3968,50 @@ export const pa: Dict = {
   "privacy.whoever_reviews_reports": "ਜੋ ਰਿਪੋਰਟ ਦੀ ਸਮੀਖਿਆ ਕਰਦਾ ਹੈ, ਜੋ ਅਸੀਂ ਹਾਂ ਨਾ ਕਿ ਤੁਹਾਡਾ ਕਲੱਬ — ਕਲੱਬ ਅਧਿਕਾਰੀ ਬਾਰੇ ਸ਼ਿਕਾਇਤ ਉਸੇ ਅਧਿਕਾਰੀ ਦੇ ਮੇਜ਼ ਉੱਤੇ ਨਹੀਂ ਪਹੁੰਚਣੀ ਚਾਹੀਦੀ।",
   "privacy.reports_outlive": "ਤੁਹਾਡੇ ਵੱਲੋਂ ਕੀਤੀ ਰਿਪੋਰਟ ਖਾਤਾ ਮਿਟਾਉਣ ਤੋਂ ਬਾਅਦ ਵੀ ਰਹਿੰਦੀ ਹੈ, ਤੁਹਾਡਾ ਨਾਂ ਹਟਾ ਕੇ: ਇਹ ਕਿਸੇ ਹੋਰ ਬਾਰੇ ਹੈ, ਅਤੇ ਇਸਨੂੰ ਚੁੱਪ-ਚਾਪ ਵਾਪਸ ਲੈਣ ਨਾਲ ਜਿਸ ਬਾਰੇ ਸ਼ਿਕਾਇਤ ਹੈ ਉਹ ਸਾਫ਼ ਲੱਗੇਗਾ।",
   "privacy.last_updated": "ਆਖਰੀ ਵਾਰ {date} ਨੂੰ ਬਦਲਿਆ।",
+
+  // MARK: Android screens that were hardcoded in English
+  "rest.a_club_or_fixture_starts_one": "ਕਲੱਬ ਜਾਂ ਮੈਚ ਤੋਂ ਗੱਲਬਾਤ ਸ਼ੁਰੂ ਹੁੰਦੀ ਹੈ, ਤੇ ਇੱਥੇ ਦਿਖਦੀ ਹੈ।",
+  "rest.about_this_listing": "ਇਸ ਇਸ਼ਤਿਹਾਰ ਬਾਰੇ",
+  "rest.asked_not_answered": "ਪੁੱਛਿਆ, ਜਵਾਬ ਨਹੀਂ",
+  "rest.called_off": "ਰੱਦ",
+  "rest.email_or_password_not_right": "ਉਹ ਈਮੇਲ ਜਾਂ ਪਾਸਵਰਡ ਸਹੀ ਨਹੀਂ ਸੀ।",
+  "rest.i_already_have_an_account": "ਮੇਰਾ ਪਹਿਲਾਂ ਹੀ ਖਾਤਾ ਹੈ",
+  "rest.i_am_new_here": "ਮੈਂ ਇੱਥੇ ਨਵਾਂ ਹਾਂ",
+  "rest.i_do_not_want_this": "ਮੈਨੂੰ ਇਹ ਨਹੀਂ ਚਾਹੀਦਾ",
+  "rest.no_connection_check_signal": "ਕੋਈ ਕਨੈਕਸ਼ਨ ਨਹੀਂ। ਸਿਗਨਲ ਵੇਖੋ ਤੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  "rest.no_match_here_yet": "ਇੱਥੇ ਹਾਲੇ ਕੋਈ ਮੈਚ ਨਹੀਂ।",
+  "rest.no_umpires_to_rate": "ਰੇਟ ਕਰਨ ਲਈ ਕੋਈ ਅੰਪਾਇਰ ਨਹੀਂ",
+  "rest.no_vote_here": "ਇੱਥੇ ਕੋਈ ਵੋਟ ਨਹੀਂ।",
+  "rest.nothing_said_yet": "ਹਾਲੇ ਕੁਝ ਨਹੀਂ ਕਿਹਾ ਗਿਆ।",
+  "rest.nothing_unread": "ਕੁਝ ਵੀ ਅਣਪੜ੍ਹੇ ਨਹੀਂ।",
+  "rest.one_club": "ਇੱਕ ਕਲੱਬ।",
+  "rest.one_message_waiting": "ਇੱਕ ਸੁਨੇਹਾ ਉਡੀਕ ਰਿਹਾ ਹੈ।",
+  "rest.pull_down_once_there_is_signal": "ਸਿਗਨਲ ਆਉਣ 'ਤੇ ਹੇਠਾਂ ਖਿੱਚੋ।",
+  "rest.server_having_trouble": "ਸਰਵਰ ਵਿੱਚ ਦਿੱਕਤ ਹੈ। ਥੋੜ੍ਹੀ ਦੇਰ ਬਾਅਦ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  "rest.signed_in": "ਸਾਈਨ ਇਨ ਹੋ ਗਏ",
+  "rest.signing_in": "ਸਾਈਨ ਇਨ ਹੋ ਰਿਹਾ ਹੈ",
+  "rest.start_playing": "ਖੇਡਣਾ ਸ਼ੁਰੂ ਕਰੋ।",
+  "rest.the_book_could_not_be_read": "ਸਕੋਰ-ਬੁੱਕ ਪੜ੍ਹੀ ਨਹੀਂ ਜਾ ਸਕੀ: {detail}",
+  "rest.the_book_would_not_take_that": "ਸਕੋਰ-ਬੁੱਕ ਇਹ ਨਹੀਂ ਮੰਨੇਗੀ।",
+  "rest.too_many_tries": "ਬਹੁਤ ਵਾਰ ਕੋਸ਼ਿਸ਼ ਹੋਈ। ਇੱਕ ਮਿੰਟ ਰੁਕੋ।",
+  "rest.votes_hidden_until_you_vote": "ਜਦ ਤੱਕ ਤੁਸੀਂ ਆਪਣੀ ਵੋਟ ਨਹੀਂ ਪਾਉਂਦੇ, ਵੋਟਾਂ ਲੁਕੀਆਂ ਰਹਿੰਦੀਆਂ ਹਨ।",
+  "rest.voting_has_closed": "ਵੋਟਿੰਗ ਬੰਦ ਹੋ ਗਈ।",
+  "sc.needs_off": "{balls} ਗੇਂਦਾਂ ਵਿੱਚ {runs} ਦੌੜਾਂ ਚਾਹੀਦੀਆਂ",
+  "sc.needs_runs": "{runs} ਦੌੜਾਂ ਚਾਹੀਦੀਆਂ",
+  "sr.in_play": "ਚੱਲ ਰਿਹਾ",
+
+  // MARK: Android labels and interpolated lines that stayed English
+  "rest.afternoon_name": "ਸਤ ਸ੍ਰੀ ਅਕਾਲ, {name}",
+  "rest.message_someone": "{name} ਨੂੰ ਸੁਨੇਹਾ ਭੇਜੋ",
+  "rest.starts_when": "{when} ਸ਼ੁਰੂ",
+  "rest.photo_n_of_total": "{total} ਵਿੱਚੋਂ {n}",
+
+  // MARK: Android enum display labels
+  "ev.nets": "ਨੈੱਟ",
+  "ev.training": "ਟ੍ਰੇਨਿੰਗ",
+  "rest.admin": "ਐਡਮਿਨ",
+
+  // MARK: Android scores ordinals
+  "sr.ordinal_3rd": "ਤੀਜੀ",
 
 };

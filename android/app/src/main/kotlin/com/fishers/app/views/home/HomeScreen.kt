@@ -52,7 +52,8 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            name?.let { "Afternoon, ${it.substringBefore(' ')}" } ?: stringResource(R.string.brand_name),
+            name?.let { t("rest.afternoon_name", vars = mapOf("name" to it.substringBefore(' '))) }
+                ?: stringResource(R.string.brand_name),
             style = MaterialTheme.typography.headlineSmall,
         )
 
@@ -61,34 +62,34 @@ fun HomeScreen(
                 style = MaterialTheme.typography.bodyMedium)
         }
 
-        Tile("Next up") {
+        Tile(t("rest.next_up")) {
             state.next?.let { NextFixture(it) }
                 ?: Text(t("ev.nothing_in_the_diary"), style = MaterialTheme.typography.bodyMedium)
         }
 
-        Tile("Chats") {
+        Tile(t("nav.chats")) {
             Text(
                 when (state.unreadChats) {
-                    0L -> "Nothing unread."
-                    1L -> "One message waiting."
+                    0L -> t("rest.nothing_unread")
+                    1L -> t("rest.one_message_waiting")
                     else -> "${state.unreadChats} messages waiting."
                 },
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
 
-        Tile("Clubs") {
+        Tile(t("nav.clubs")) {
             Text(
                 when (state.clubCount) {
-                    0 -> "You are not in a club yet."
-                    1 -> "One club."
+                    0 -> t("cl.not_in_a_club_yet")
+                    1 -> t("rest.one_club")
                     else -> "${state.clubCount} clubs."
                 },
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
 
-        Tile("Kit for sale", onClick = onOpenShop) {
+        Tile(t("sh.kit_for_sale"), onClick = onOpenShop) {
             Text(t("sh.bats_pads_club_kit"),
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -96,7 +97,7 @@ fun HomeScreen(
 
         // Worded so it cannot be read as your own club's match: the fixtures
         // above are yours, this is everybody else's.
-        Tile("Cricket scores", onClick = onOpenScores) {
+        Tile(t("sr.cricket_scores"), onClick = onOpenScores) {
             Text(t("rest.live_scores_around_the_world"),
                 style = MaterialTheme.typography.bodyMedium,
             )

@@ -1,5 +1,6 @@
 package com.fishers.app.views.clubs
 
+import com.fishers.app.i18n.t
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,7 +41,7 @@ fun ClubsScreen(
 
         state.clubs.isEmpty() -> Box(modifier.fillMaxSize().padding(32.dp), Alignment.Center) {
             Text(
-                state.error ?: "You are not in a club yet.",
+                state.error ?: t("cl.not_in_a_club_yet"),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -113,7 +114,7 @@ fun ClubDetailScreen(
             items(state.onTheBooks, key = { it.userId }) { MemberRow(it) }
         }
         if (state.invited.isNotEmpty()) {
-            item { Heading("Asked, not answered") }
+            item { Heading(t("rest.asked_not_answered")) }
             items(state.invited, key = { it.userId }) { MemberRow(it, muted = true) }
         }
     }
@@ -148,7 +149,7 @@ private fun MemberRow(member: ClubMemberDetail, muted: Boolean = false) {
         // same word down the side of a roster is noise.
         if (member.isCaptain || member.role.runsTheClub) {
             Text(
-                if (member.isCaptain) "Captain" else member.role.label,
+                if (member.isCaptain) t("sc.captain") else member.role.label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.secondary,
             )

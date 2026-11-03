@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  * Reporting something, and blocking whoever posted it.
  *
  * Two dialogs behind one pair of buttons, because they are one decision in the
- * person's head — "I do not want this". `personId` is null where there is
+ * person's head — t("rest.i_do_not_want_this"). `personId` is null where there is
  * nobody to block: the app's own notes, or a club rather than a member.
  *
  * It takes the API rather than a view model. There is no state worth keeping

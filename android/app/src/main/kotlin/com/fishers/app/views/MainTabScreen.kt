@@ -125,7 +125,7 @@ fun MainTabScreen(
                         icon = { Icon(entry.icon, contentDescription = null) },
                         // Label as well as icon: an icon-only bar is a guessing
                         // game, and the Laws of this app are hard enough.
-                        label = { Text(entry.title) },
+                        label = { Text(t(entry.titleKey)) },
                     )
                 }
             }
@@ -219,7 +219,7 @@ fun MainTabScreen(
 
                 Tab.Profile -> {
                     Text(
-                        user?.name ?: "Signed in",
+                        user?.name ?: t("rest.signed_in"),
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     user?.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
@@ -250,7 +250,7 @@ fun MainTabScreen(
                 }
 
                 else -> {
-                    Text(tab.title, style = MaterialTheme.typography.headlineSmall)
+                    Text(t(tab.titleKey), style = MaterialTheme.typography.headlineSmall)
                     Text(
                         tab.missing,
                         style = MaterialTheme.typography.bodyMedium,
@@ -297,7 +297,7 @@ private fun ShopTab(
         // coming back does not re-open the same conversation.
         LaunchedEffect(state.openConversation) {
             state.openConversation?.let { conversation ->
-                val title = state.listing?.let { "About: ${it.name}" } ?: "About this listing"
+                val title = state.listing?.let { "About: ${it.name}" } ?: t("rest.about_this_listing")
                 model.conversationOpened()
                 onOpenThread(conversation, title)
             }
@@ -368,12 +368,12 @@ private fun ChatsTab(
     }
 }
 
-private enum class Tab(val title: String, val icon: ImageVector, val missing: String) {
-    Home("Home", Icons.Filled.Home, ""),
-    Fixtures("Fixtures", Icons.Filled.DateRange, ""),
-    Chats("Chats", Icons.Filled.Email, ""),
-    Clubs("Clubs", Icons.Filled.Person, ""),
-    Profile("Profile", Icons.Filled.AccountCircle, ""),
+private enum class Tab(val titleKey: String, val icon: ImageVector, val missing: String) {
+    Home("nav.home", Icons.Filled.Home, ""),
+    Fixtures("nav.fixtures", Icons.Filled.DateRange, ""),
+    Chats("nav.chats", Icons.Filled.Email, ""),
+    Clubs("nav.clubs", Icons.Filled.Person, ""),
+    Profile("nav.profile", Icons.Filled.AccountCircle, ""),
 }
 
 /**

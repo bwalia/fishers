@@ -1,5 +1,6 @@
 package com.fishers.app.cricket
 
+import com.fishers.app.i18n.t
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.builtins.ListSerializer
@@ -48,10 +49,11 @@ class Engine(private val json: Json = Json { ignoreUnknownKeys = true }) {
         }.getOrDefault(false)
 
     /** What the engine said when it refused, in its own words. */
-    fun reason(t: Throwable): String = when (t) {
-        is EngineException.Refused -> t.detail
-        is EngineException.Malformed -> "The book could not be read: ${t.detail}"
-        else -> t.message ?: "The book would not take that."
+    fun reason(cause: Throwable): String = when (cause) {
+        is EngineException.Refused -> cause.detail
+        is EngineException.Malformed ->
+            t("rest.the_book_could_not_be_read", vars = mapOf("detail" to cause.detail))
+        else -> cause.message ?: t("rest.the_book_would_not_take_that")
     }
 
     /**
@@ -114,7 +116,11 @@ data class Scoreline(
         val needed = target - runs
         if (needed <= 0) return null
         val ballsLeft = oversLimit * 6 - legalBalls
-        return if (ballsLeft > 0) "Needs $needed off $ballsLeft" else "Needs $needed"
+        return if (ballsLeft > 0) {
+            t("sc.needs_off", vars = mapOf("runs" to needed, "balls" to ballsLeft))
+        } else {
+            t("sc.needs_runs", vars = mapOf("runs" to needed))
+        }
     }
 }
 

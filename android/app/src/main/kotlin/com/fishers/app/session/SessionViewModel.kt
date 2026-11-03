@@ -1,5 +1,6 @@
 package com.fishers.app.session
 
+import com.fishers.app.i18n.t
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fishers.app.net.FishersApi
@@ -15,8 +16,8 @@ import kotlinx.coroutines.launch
 
 /** What they said they came to do. Asked on sign-up, changeable later. */
 enum class RoleIntent(val wire: String, val title: String) {
-    Secretary("secretary", "I run a club"),
-    Player("player", "I play for a club"),
+    Secretary("secretary", t("cl.i_run_a_club")),
+    Player("player", t("cl.i_play_for_a_club")),
 }
 
 data class SessionState(
@@ -138,12 +139,12 @@ class SessionViewModel(
  */
 internal fun readableError(t: Throwable): String = when {
     t is retrofit2.HttpException && t.code() == 401 ->
-        "That email or password was not right."
+        t("rest.email_or_password_not_right")
     t is retrofit2.HttpException && t.code() == 429 ->
-        "Too many tries. Give it a minute."
+        t("rest.too_many_tries")
     t is retrofit2.HttpException && t.code() in 500..599 ->
-        "The server is having trouble. Try again shortly."
+        t("rest.server_having_trouble")
     t is java.io.IOException ->
-        "No connection. Check the signal and try again."
-    else -> t.message ?: "Something went wrong."
+        t("rest.no_connection_check_signal")
+    else -> t.message ?: t("rest.something_went_wrong_plain")
 }

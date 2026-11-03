@@ -53,7 +53,7 @@ fun ScoringScreen(
     ) {
         state.score?.let { Scoreboard(it, state.match?.oversLimit ?: 0) }
             ?: Text(
-                state.error ?: "No match here yet.",
+                state.error ?: t("rest.no_match_here_yet"),
                 style = MaterialTheme.typography.bodyMedium,
             )
 
@@ -75,8 +75,8 @@ fun ScoringScreen(
 
             Text(t("la.extras"), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("wide" to "Wide", "no_ball" to "No ball",
-                    "bye" to "Bye", "leg_bye" to "Leg bye").forEach { (wire, label) ->
+                listOf("wide" to t("extra.wide"), "no_ball" to t("extra.no_ball"),
+                    "bye" to t("extra.bye"), "leg_bye" to t("extra.leg_bye")).forEach { (wire, label) ->
                     OutlinedButton(onClick = { onExtra(wire) }, modifier = Modifier.weight(1f)) {
                         Text(label, style = MaterialTheme.typography.labelMedium)
                     }

@@ -1,5 +1,6 @@
 package com.fishers.app.views.fixtures
 
+import com.fishers.app.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,7 +50,7 @@ fun FixturesScreen(
             Alignment.Center,
         ) {
             Text(
-                state.error ?: "Nothing in the diary yet.",
+                state.error ?: t("ev.nothing_in_the_diary_yet"),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -66,13 +67,13 @@ fun FixturesScreen(
                 }
             }
             if (state.upcoming.isNotEmpty()) {
-                item { SectionHeading("Coming up") }
+                item { SectionHeading(t("rest.coming_up")) }
                 items(state.upcoming, key = { it.id }) {
                     FixtureCard(it, answering = state.answering == it.id, onAnswer = onAnswer)
                 }
             }
             if (state.past.isNotEmpty()) {
-                item { SectionHeading("Played") }
+                item { SectionHeading(t("cl.played")) }
                 items(state.past, key = { it.id }) {
                     FixtureCard(it, answering = false, onAnswer = onAnswer, past = true)
                 }
@@ -120,7 +121,7 @@ private fun FixtureCard(
             // other is how a side turns up to an empty ground.
             if (event.isOff) {
                 Text(
-                    if (event.status.name == "Postponed") "Postponed" else "Called off",
+                    if (event.status.name == "Postponed") t("ld.postponed") else t("rest.called_off"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )

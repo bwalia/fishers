@@ -64,9 +64,9 @@ fun MarketplaceScreen(
             Modifier.padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Filter("Everything", state.condition == null) { onFilter(null) }
-            Filter("Second-hand", state.condition == "used") { onFilter("used") }
-            Filter("Brand new", state.condition == "new") { onFilter("new") }
+            Filter(t("rest.everything"), state.condition == null) { onFilter(null) }
+            Filter(t("lc.second_hand"), state.condition == "used") { onFilter("used") }
+            Filter(t("lc.brand_new"), state.condition == "new") { onFilter("new") }
         }
 
         when {
@@ -100,14 +100,14 @@ private fun Empty(searching: Boolean) {
     Box(Modifier.fillMaxSize().padding(32.dp), Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                if (searching) "Nothing matched that." else "Nothing is for sale yet.",
+                if (searching) t("rest.nothing_matched_that") else t("sh.nothing_for_sale_yet"),
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
                 if (searching) {
-                    "Try a shorter search, or look through everything."
+                    t("cl.try_a_shorter_search")
                 } else {
-                    "When a club lists a bat or a spare set of pads, it turns up here."
+                    t("sh.when_a_club_lists_a_bat")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,

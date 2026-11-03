@@ -1,5 +1,6 @@
 package com.fishers.app.umpire
 
+import com.fishers.app.i18n.t
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -41,7 +42,7 @@ data class UmpireProfile(
     /** "4.3 from 12", or what to say before anybody has rated them. */
     val ratingLine: String
         get() = if (ratingAverage == null || ratingCount == 0) {
-            "No ratings yet"
+            t("le.no_ratings_yet")
         } else {
             "%.1f from %d %s".format(ratingAverage, ratingCount,
                 if (ratingCount == 1) "review" else "reviews")

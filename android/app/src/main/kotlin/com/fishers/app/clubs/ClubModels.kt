@@ -1,5 +1,6 @@
 package com.fishers.app.clubs
 
+import com.fishers.app.i18n.t
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -16,12 +17,12 @@ enum class UserRole {
     /** What a club calls it, not what the database does. */
     val label: String
         get() = when (this) {
-            SuperAdmin -> "Admin"
-            ClubAdmin -> "Secretary"
-            TeamCaptain -> "Captain"
-            TeamViceCaptain -> "Vice captain"
-            Member -> "Member"
-            Guest -> "Guest"
+            SuperAdmin -> t("rest.admin")
+            ClubAdmin -> t("cl.secretary")
+            TeamCaptain -> t("sc.captain")
+            TeamViceCaptain -> t("cl.vice_captain")
+            Member -> t("lb.member")
+            Guest -> t("rest.guest")
         }
 
     /** Whether they can do secretary things — invite, edit, pick sides. */

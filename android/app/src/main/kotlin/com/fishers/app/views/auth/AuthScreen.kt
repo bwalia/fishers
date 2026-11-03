@@ -92,7 +92,7 @@ fun AuthScreen(
         ) {
             Text(stringResource(R.string.brand_name), style = MaterialTheme.typography.headlineLarge)
             Text(
-                if (signingUp) "Start playing." else "Welcome back.",
+                if (signingUp) t("rest.start_playing") else t("rest.welcome_back"),
                 style = MaterialTheme.typography.bodyLarge,
             )
 
@@ -169,11 +169,11 @@ fun AuthScreen(
                     CircularProgressIndicator(
                         modifier = Modifier
                             .height(20.dp)
-                            .semantics { contentDescription = "Signing in" },
+                            .semantics { contentDescription = t("rest.signing_in") },
                         strokeWidth = 2.dp,
                     )
                 } else {
-                    Text(if (signingUp) "Create account" else "Sign in")
+                    Text(if (signingUp) t("le.create_account") else t("rest.sign_in"))
                 }
             }
 
@@ -182,8 +182,8 @@ fun AuthScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    if (signingUp) "I already have an account"
-                    else "I am new here"
+                    if (signingUp) t("rest.i_already_have_an_account")
+                    else t("rest.i_am_new_here")
                 )
             }
             Spacer(Modifier.height(8.dp))
