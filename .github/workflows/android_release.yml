@@ -8,6 +8,8 @@ name: Android Release (Google Play)
 #
 #   AUTO (merge to main) : push touching android/** or this workflow → internal
 #   DISPATCH             : pick brand and track (internal → production)
+#   DISPATCH, upload off : build and sign only, bundle kept as an artifact —
+#                          how a brand's first, manual upload gets its AAB
 #
 # Play's API cannot create an app. The first bundle for a brand is uploaded by
 # hand in the Play Console; after that this takes over. See
@@ -44,6 +46,11 @@ on:
         description: "Marketing version override (blank = build.gradle.kts or the tag)"
         required: false
         default: ""
+      upload:
+        description: "Upload to Play. Off builds and signs the bundle and keeps it as an artifact — what a brand's first, manual upload needs."
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: fishers-android-release
@@ -170,6 +177,7 @@ jobs:
       # after the whole build with "Unknown error occurred." — which is what
       # nine consecutive releases looked like.
       - name: Play credentials
+        if: github.event_name != 'workflow_dispatch' || inputs.upload
         env:
           PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
@@ -227,6 +235,7 @@ jobs:
           ls -la "$AAB"
 
       - name: Upload to Play
+        if: github.event_name != 'workflow_dispatch' || inputs.upload
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
