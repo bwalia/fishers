@@ -58,6 +58,50 @@ enum class RsvpStatus {
 @Serializable
 data class RsvpRequest(val status: RsvpStatus)
 
+/**
+ * One of your fixtures with your own answer to it — `GET /events/mine`.
+ *
+ * A different shape from [FishersEvent], which is `GET /events/{id}`: keyed
+ * `event_id`, with the club and venue names already resolved and your answer
+ * as `my_answer`. Decoding this list as [FishersEvent] is what made the
+ * Fixtures tab fail with "Field 'id' is required", and the home screen quietly
+ * say "Nothing in the diary" — `runCatching` turned the decode error into an
+ * empty state. `ios/Fishers/Models/Fixtures.swift` has had the right model all
+ * along; Android reused the one for a neighbouring endpoint.
+ */
+@Serializable
+data class MyFixture(
+    @SerialName("event_id") val id: String,
+    @SerialName("club_id") val clubId: String,
+    @SerialName("club_name") val clubName: String? = null,
+    val title: String,
+    val sport: String? = null,
+    @SerialName("event_subtype") val subtype: EventSubtype = EventSubtype.Generic,
+    val status: EventStatus = EventStatus.Scheduled,
+    @SerialName("start_at") val startAt: String,
+    @SerialName("end_at") val endAt: String? = null,
+    @SerialName("venue_name") val venueName: String? = null,
+    @SerialName("opponent_club_id") val opponentClubId: String? = null,
+    @SerialName("opponent_club_name") val opponentClubName: String? = null,
+    @SerialName("match_id") val matchId: String? = null,
+    /** Your answer. The server calls it `my_answer` here and `my_rsvp` on
+     *  `GET /events/{id}` — the one place the two endpoints disagree. */
+    @SerialName("my_answer") val myRsvp: RsvpStatus? = null,
+    @SerialName("fee_amount_cents") val feeAmountCents: Int? = null,
+    @SerialName("ticket_price_cents") val ticketPriceCents: Int? = null,
+) {
+    val startsAt: Instant? get() = runCatching { Instant.parse(startAt) }.getOrNull()
+
+    /** Ahead of us. An unreadable date counts as upcoming rather than hidden:
+     *  a captain would rather see a wrong-looking date than no fixture. */
+    fun isUpcoming(now: Instant = Instant.now()): Boolean =
+        startsAt?.let { it >= now } ?: true
+
+    /** Called off, and the app must say so loudly. */
+    val isOff: Boolean
+        get() = status == EventStatus.Cancelled || status == EventStatus.Postponed
+}
+
 @Serializable
 data class FishersEvent(
     val id: String,

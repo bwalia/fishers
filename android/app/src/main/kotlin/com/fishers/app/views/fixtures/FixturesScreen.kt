@@ -21,7 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.fishers.app.fixtures.FishersEvent
+import com.fishers.app.fixtures.MyFixture
 import com.fishers.app.fixtures.FixturesState
 import com.fishers.app.fixtures.RsvpStatus
 import com.fishers.app.fixtures.formatWhen
@@ -92,7 +92,7 @@ private fun SectionHeading(text: String) {
 
 @Composable
 private fun FixtureCard(
-    event: FishersEvent,
+    event: MyFixture,
     answering: Boolean,
     onAnswer: (String, RsvpStatus) -> Unit,
     past: Boolean = false,
@@ -120,10 +120,7 @@ private fun FixtureCard(
             // other is how a side turns up to an empty ground.
             if (event.isOff) {
                 Text(
-                    buildString {
-                        append(if (event.status.name == "Postponed") "Postponed" else "Called off")
-                        event.statusNote?.let { append(" — "); append(it) }
-                    },
+                    if (event.status.name == "Postponed") "Postponed" else "Called off",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -153,17 +150,16 @@ private fun FixturesPreview() {
             FixturesState(
                 isFirstLoad = false,
                 upcoming = listOf(
-                    FishersEvent(
+                    MyFixture(
                         id = "1", clubId = "c", title = "Lords CC v Hemel",
                         subtype = com.fishers.app.fixtures.EventSubtype.LeagueMatch,
                         startAt = "2026-09-27T13:30:00Z", myRsvp = RsvpStatus.Going,
                     ),
-                    FishersEvent(
+                    MyFixture(
                         id = "2", clubId = "c", title = "Thursday nets",
                         subtype = com.fishers.app.fixtures.EventSubtype.Nets,
                         startAt = "2026-09-25T18:00:00Z",
                         status = com.fishers.app.fixtures.EventStatus.Cancelled,
-                        statusNote = "ground unplayable",
                     ),
                 ),
             ),

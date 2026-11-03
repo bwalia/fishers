@@ -11,8 +11,8 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 
 data class FixturesState(
-    val upcoming: List<FishersEvent> = emptyList(),
-    val past: List<FishersEvent> = emptyList(),
+    val upcoming: List<MyFixture> = emptyList(),
+    val past: List<MyFixture> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val isFirstLoad: Boolean = true,

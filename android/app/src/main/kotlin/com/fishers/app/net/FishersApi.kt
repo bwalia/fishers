@@ -218,7 +218,11 @@ interface FishersApi {
 
     // ---- clubs ----
 
-    @GET("me/clubs")
+    /** The clubs this person is in. `/clubs` rather than `/me/clubs`: the
+     *  latter is the paged, searchable one and answers `{"items": [...]}`,
+     *  which decoded as a bare list left the home screen saying "You are not
+     *  in a club yet" to someone who runs one. Nothing here pages or filters. */
+    @GET("clubs")
     suspend fun myClubs(): List<com.fishers.app.clubs.Club>
 
     @GET("clubs/{id}/members")
@@ -231,7 +235,7 @@ interface FishersApi {
 
     /** Everything this person is involved in, across their clubs. */
     @GET("events/mine")
-    suspend fun myFixtures(): List<com.fishers.app.fixtures.FishersEvent>
+    suspend fun myFixtures(): List<com.fishers.app.fixtures.MyFixture>
 
     @GET("events/{id}")
     suspend fun event(@Path("id") id: String): com.fishers.app.fixtures.FishersEvent
