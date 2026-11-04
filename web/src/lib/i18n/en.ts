@@ -4031,6 +4031,9 @@ export const en = {
   // MARK: Deleting an account from the Android app
   "del.wrong_password": "That password does not match.",
 
+  // MARK: Continue with Google on Android
+  "goo.no_account": "There is no Google account on this phone. Add one in Settings, or use your email instead.",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

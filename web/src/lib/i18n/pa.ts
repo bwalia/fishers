@@ -4017,4 +4017,7 @@ export const pa: Dict = {
   // MARK: Deleting an account from the Android app
   "del.wrong_password": "ਉਹ ਪਾਸਵਰਡ ਮੇਲ ਨਹੀਂ ਖਾਂਦਾ।",
 
+  // MARK: Continue with Google on Android
+  "goo.no_account": "ਇਸ ਫ਼ੋਨ ਉੱਤੇ ਕੋਈ ਗੂਗਲ ਖਾਤਾ ਨਹੀਂ ਹੈ। ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਇੱਕ ਜੋੜੋ, ਜਾਂ ਇਸਦੀ ਥਾਂ ਈਮੇਲ ਵਰਤੋ।",
+
 };

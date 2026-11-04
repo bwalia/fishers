@@ -4,6 +4,8 @@ import com.fishers.app.EnglishStrings
 import com.fishers.app.FakeFishersApi
 import com.fishers.app.net.AuthTokens
 import com.fishers.app.net.DeleteAccountRequest
+import com.fishers.app.net.GoogleConfig
+import com.fishers.app.net.GoogleSignInRequest
 import com.fishers.app.net.FishersApi
 import com.fishers.app.net.LoginRequest
 import com.fishers.app.net.PublicUser
@@ -332,5 +334,83 @@ class SessionViewModelTest {
 
         assertEquals("could not delete the account — try again", failure)
         assertEquals("a", store.get(TokenStore.ACCESS))
+    }
+
+    // ---- continue with Google ----
+
+    @Test
+    fun `the button is offered only when the server has Google on and names a client`() = runTest(dispatcher.scheduler) {
+        suspend fun offered(config: () -> GoogleConfig): String? {
+            val model = SessionViewModel(object : FakeFishersApi() {
+                override suspend fun googleConfig() = config()
+            }, Session(FakeStore()))
+            model.loadGoogle()
+            advanceUntilIdle()
+            return model.googleClientId.value
+        }
+
+        assertEquals("web-id", offered { GoogleConfig(enabled = true, clientId = "web-id") })
+        assertNull("switched off", offered { GoogleConfig(enabled = false, clientId = "web-id") })
+        assertNull("on, but nothing to ask Google with", offered { GoogleConfig(enabled = true) })
+        assertNull("a blank id is no id", offered { GoogleConfig(enabled = true, clientId = " ") })
+        assertNull("the iPhone's id is no use here", offered { GoogleConfig(enabled = true, iosClientId = "ios-id") })
+    }
+
+    /** Email still works, so the form must not say anything about a button nobody asked for. */
+    @Test
+    fun `an unreachable server just leaves the button off`() = runTest(dispatcher.scheduler) {
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun googleConfig(): GoogleConfig = throw java.io.IOException("down")
+        }, Session(FakeStore()))
+
+        model.loadGoogle()
+        advanceUntilIdle()
+
+        assertNull(model.googleClientId.value)
+        assertNull("and says nothing", model.state.value.error)
+    }
+
+    @Test
+    fun `a Google token signs them in, and the server is the one that checks it`() = runTest(dispatcher.scheduler) {
+        val store = FakeStore()
+        var sent: GoogleSignInRequest? = null
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun googleSignIn(body: GoogleSignInRequest): AuthTokens {
+                sent = body
+                return tokens(alice)
+            }
+        }, Session(store))
+
+        model.signInWithGoogle("id-token-from-google")
+        advanceUntilIdle()
+
+        assertEquals("id-token-from-google", sent?.credential)
+        assertTrue(model.state.value.isAuthenticated)
+        assertEquals(alice, model.state.value.user)
+        assertEquals("a", store.get(TokenStore.ACCESS))
+    }
+
+    /** A 401 here means Google did not vouch for it, not that a password was wrong. */
+    @Test
+    fun `Google not confirming the token does not blame a password nobody typed`() = runTest(dispatcher.scheduler) {
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun googleSignIn(body: GoogleSignInRequest): AuthTokens = throw unauthorized()
+        }, Session(FakeStore()))
+
+        model.signInWithGoogle("forged")
+        advanceUntilIdle()
+
+        assertEquals("Google sign-in did not work — try again", model.state.value.error)
+        assertFalse(model.state.value.isAuthenticated)
+    }
+
+    @Test
+    fun `a failure before there is a token is said where the form says everything else`() = runTest(dispatcher.scheduler) {
+        val model = SessionViewModel(FakeFishersApi(), Session(FakeStore()))
+
+        model.googleFailed("There is no Google account on this phone.")
+
+        assertEquals("There is no Google account on this phone.", model.state.value.error)
+        assertFalse(model.state.value.isLoading)
     }
 }

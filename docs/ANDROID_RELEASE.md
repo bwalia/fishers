@@ -96,6 +96,42 @@ keyPassword=…
 
 with the `.jks` beside it in `android/`.
 
+## Continue with Google
+
+The button is in the app and needs **nothing from the server** — it asks
+`GET /auth/google` whether to appear, gets a Google ID token for the *web*
+client id, and posts it to the same `POST /auth/google` the website and the
+iPhone use. What it does need is something no build can check: Google only
+hands a token to an app it has been told about.
+
+Per brand, in that brand's own Google Cloud project (`brands/<id>.yaml` →
+`googleIosClientId` names the project by its number):
+
+1. **APIs & Services → Credentials → Create credentials → OAuth client ID →
+   Android.**
+2. **Package name:** the brand's `applicationId` (`node tools/brand/index.mjs
+   mobile <id>` prints it).
+3. **SHA-1 certificate fingerprint:** one client per fingerprint, same package.
+   An app can be signed three ways, and each is a different key:
+
+   | Where the APK comes from | Whose key | Where to read its SHA-1 |
+   |---|---|---|
+   | Play (internal testing onwards) | **Play App Signing** key | Play Console → *Test and release* → *App integrity* → *App signing key certificate* |
+   | A bundle uploaded by hand, or CI's APK | the **upload** key | the same page → *Upload key certificate* |
+   | Built and installed on a developer's machine | that machine's **debug** key | `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android` |
+
+   The Play App Signing one is the one that matters for users: the app they
+   install from the store is re-signed with it, whatever signed the upload.
+
+Missing or mismatched, Google does not say so. It answers "no credential
+available", which the app can only report as *there is no Google account on
+this phone* — the same words as genuinely having none. If the button opens
+Google's chooser and then fails, check the fingerprint before anything else.
+
+The server side needs no change: it verifies the token's audience against the
+web client id (`GOOGLE_CLIENT_ID`), which is what the app asks Google to mint it
+for. `GET /auth/google` returning `"enabled": false` hides the button.
+
 ## Repository secrets
 
 | Secret | What |

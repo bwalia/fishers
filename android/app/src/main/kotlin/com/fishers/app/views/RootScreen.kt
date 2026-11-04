@@ -11,6 +11,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import kotlinx.coroutines.launch
+import com.fishers.app.session.requestGoogleIdToken
+import com.fishers.app.session.GoogleResult
+import com.fishers.app.i18n.t
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,11 +77,32 @@ fun RootScreen(
                 CircularProgressIndicator()
             }
 
-            Destination.Auth -> AuthScreen(
-                state = state,
-                onSignIn = viewModel::signIn,
-                onSignUp = viewModel::signUp,
-            )
+            Destination.Auth -> {
+                val googleClientId by viewModel.googleClientId.collectAsStateWithLifecycle()
+                // An Activity context: the account chooser is a sheet over it.
+                val context = LocalContext.current
+                val scope = rememberCoroutineScope()
+                LaunchedEffect(Unit) { viewModel.loadGoogle() }
+
+                AuthScreen(
+                    state = state,
+                    onSignIn = viewModel::signIn,
+                    onSignUp = viewModel::signUp,
+                    googleEnabled = googleClientId != null,
+                    onGoogle = {
+                        googleClientId?.let { clientId ->
+                            scope.launch {
+                                when (val result = requestGoogleIdToken(context, clientId)) {
+                                    is GoogleResult.Token -> viewModel.signInWithGoogle(result.idToken)
+                                    GoogleResult.Cancelled -> Unit
+                                    GoogleResult.NoAccount -> viewModel.googleFailed(t("goo.no_account"))
+                                    GoogleResult.Failed -> viewModel.googleFailed(t("rest.could_not_present_google"))
+                                }
+                            }
+                        }
+                    },
+                )
+            }
 
             Destination.SignedIn -> MainTabScreen(
                 api = api,

@@ -36,6 +36,25 @@ data class SignupRequest(
 )
 
 /**
+ * `GET /auth/google`: whether this server offers Google sign-in, and the public
+ * client ids to ask Google with. Android needs the *web* one — see
+ * [com.fishers.app.session.requestGoogleIdToken]. The iPhone's is carried so the
+ * shape matches the server's and nobody has to wonder where it went.
+ */
+@Serializable
+data class GoogleConfig(
+    val enabled: Boolean = false,
+    @SerialName("client_id") val clientId: String? = null,
+    @SerialName("ios_client_id") val iosClientId: String? = null,
+)
+
+/** `POST /auth/google`. The server calls the ID token `credential`. */
+@Serializable
+data class GoogleSignInRequest(
+    val credential: String,
+)
+
+/**
  * `POST /me/delete`. Absent for an account with no password — one that signs in
  * with Google — where the live session is the proof. POST rather than DELETE
  * because the password travels in the body.
@@ -91,6 +110,17 @@ interface FishersApi {
 
     @POST("auth/refresh")
     suspend fun refresh(@Body body: RefreshRequest): AuthTokens
+
+    @GET("auth/google")
+    suspend fun googleConfig(): GoogleConfig
+
+    /**
+     * One button signs in or registers. The reply is the usual tokens plus a
+     * `created` flag the website uses to ask a new player what they are here
+     * for; ignored here, because `ignoreUnknownKeys` says it may be.
+     */
+    @POST("auth/google")
+    suspend fun googleSignIn(@Body body: GoogleSignInRequest): AuthTokens
 
     /** 204 on success. Cannot be undone; the account is anonymised, not parked. */
     @POST("me/delete")

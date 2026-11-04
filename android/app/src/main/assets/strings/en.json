@@ -761,6 +761,7 @@
   "fp.title": "Reset your password",
   "fx.available": "Available",
   "fx.maybe": "Maybe",
+  "goo.no_account": "There is no Google account on this phone. Add one in Settings, or use your email instead.",
   "ground_type.boxed": "Boxed",
   "ground_type.indoor": "Indoor",
   "ground_type.open": "Open",
