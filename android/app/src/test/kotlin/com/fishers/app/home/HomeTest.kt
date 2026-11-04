@@ -4,7 +4,7 @@ import com.fishers.app.FakeFishersApi
 import com.fishers.app.chat.ConversationSummary
 import com.fishers.app.clubs.Club
 import com.fishers.app.fixtures.EventStatus
-import com.fishers.app.fixtures.FishersEvent
+import com.fishers.app.fixtures.MyFixture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -38,7 +38,7 @@ class HomeTest {
     private val now = Instant.parse("2026-09-23T12:00:00Z")
 
     private fun event(id: String, at: String, status: EventStatus = EventStatus.Scheduled) =
-        FishersEvent(id = id, clubId = "c", title = id, startAt = at, status = status)
+        MyFixture(id = id, clubId = "c", title = id, startAt = at, status = status)
 
     private fun chat(unread: Long) = ConversationSummary(
         id = "c$unread", kind = "club", title = "t",
@@ -68,7 +68,7 @@ class HomeTest {
     @Test
     fun `unread counts are added up across every thread`() = runTest(dispatcher.scheduler) {
         val model = HomeViewModel(object : FakeFishersApi() {
-            override suspend fun myFixtures() = emptyList<FishersEvent>()
+            override suspend fun myFixtures() = emptyList<MyFixture>()
             override suspend fun conversations() = listOf(chat(2), chat(0), chat(5))
             override suspend fun myClubs() = listOf(Club("1", "Lords"), Club("2", "Hemel"))
         })
@@ -106,7 +106,7 @@ class HomeTest {
     @Test
     fun `everything failing does say so`() = runTest(dispatcher.scheduler) {
         val model = HomeViewModel(object : FakeFishersApi() {
-            override suspend fun myFixtures(): List<FishersEvent> = throw IOException("down")
+            override suspend fun myFixtures(): List<MyFixture> = throw IOException("down")
             override suspend fun conversations(): List<ConversationSummary> =
                 throw IOException("down")
             override suspend fun myClubs(): List<Club> = throw IOException("down")

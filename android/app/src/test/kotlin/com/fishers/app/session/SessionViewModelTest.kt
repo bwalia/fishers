@@ -1,5 +1,6 @@
 package com.fishers.app.session
 
+import com.fishers.app.EnglishStrings
 import com.fishers.app.FakeFishersApi
 import com.fishers.app.net.AuthTokens
 import com.fishers.app.net.FishersApi
@@ -27,12 +28,15 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionViewModelTest {
+    @get:Rule val english = EnglishStrings()
+
 
     // `runTest` builds its own TestCoroutineScheduler unless it is handed
     // one, and a bare StandardTestDispatcher() builds a second. Work launched

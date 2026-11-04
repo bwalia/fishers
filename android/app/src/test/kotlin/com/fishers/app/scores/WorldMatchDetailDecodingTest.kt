@@ -1,11 +1,13 @@
 package com.fishers.app.scores
 
+import com.fishers.app.EnglishStrings
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 /**
@@ -16,6 +18,8 @@ import org.junit.Test
  * depends on getting that right.
  */
 class WorldMatchDetailDecodingTest {
+    @get:Rule val english = EnglishStrings()
+
     private val json = Json { ignoreUnknownKeys = true }
 
     /** Captured from `GET /api/v1/cricket/world-scores/54297112`. */
