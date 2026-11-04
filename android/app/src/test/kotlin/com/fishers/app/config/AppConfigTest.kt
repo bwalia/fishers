@@ -1,6 +1,7 @@
 package com.fishers.app.config
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -82,5 +83,41 @@ class AppConfigTest {
             environment = emptyMap(),
         )
         assertEquals("https://int.fishers.cloud/api/v1", config.apiV1)
+    }
+
+    // ---- what a build carries as its own server ----
+
+    /**
+     * The store build. CI passes no explicit URL, so this is the whole of what a
+     * Gully Cricket install knows — and it used to know Fishers', which would
+     * have signed its players into somebody else's database.
+     */
+    @Test
+    fun `a release build with no explicit url is its own brand's production host`() {
+        val baked = AppConfig.bakedApiBase(explicit = "", debug = false, brandHost = "www.gullycricket.app")
+        val config = AppConfig(FakeStore(), debug = false, buildTimeApiBase = baked, environment = emptyMap())
+
+        assertEquals("https://www.gullycricket.app/api/v1", config.apiV1)
+    }
+
+    @Test
+    fun `an explicit url wins, so a developer can point a build at int`() {
+        assertEquals(
+            "https://int.gullycricket.app",
+            AppConfig.bakedApiBase("https://int.gullycricket.app", debug = false, brandHost = "www.gullycricket.app"),
+        )
+    }
+
+    @Test
+    fun `a debug build keeps its loopback fallback rather than quietly using production`() {
+        assertNull(AppConfig.bakedApiBase(explicit = "", debug = true, brandHost = "www.gullycricket.app"))
+    }
+
+    @Test
+    fun `a blank url is no url`() {
+        assertEquals(
+            "https://www.fishers.cloud",
+            AppConfig.bakedApiBase(explicit = "   ", debug = false, brandHost = "www.fishers.cloud"),
+        )
     }
 }

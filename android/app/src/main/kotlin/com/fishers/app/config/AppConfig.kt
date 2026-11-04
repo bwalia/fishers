@@ -65,6 +65,19 @@ class AppConfig(
     private fun String?.orNullIfBlank(): String? = this?.takeIf { it.isNotBlank() }
 
     companion object {
+        /**
+         * The server a build carries as its own, which is what a person's phone
+         * reaches before they have touched a setting.
+         *
+         * An explicit URL wins — a developer pointing a build at int. Otherwise a
+         * release build is its own brand's production host; a debug build keeps
+         * the loopback fallback, so running from Studio does not quietly talk to
+         * production. CI passes no explicit URL, so the brand's host is the whole
+         * of what a store build knows.
+         */
+        fun bakedApiBase(explicit: String?, debug: Boolean, brandHost: String): String? =
+            explicit?.takeIf { it.isNotBlank() } ?: if (debug) null else "https://$brandHost"
+
         const val ENV_KEY = "FISHERS_API_URL"
         const val OVERRIDE_KEY = "FishersAPIBaseURL"
         const val API_PORT_KEY = "API_PORT"
@@ -72,6 +85,10 @@ class AppConfig(
         /** `scripts/start.sh`'s own default, off the beaten track so the stack
          *  does not fight Postgres on 5432 or another dev server on 8080. */
         const val DEFAULT_API_PORT = "7312"
+        /** Only reached if nothing was baked in, which the app no longer allows:
+         *  FishersApp passes the brand's own host. It is Fishers' because Fishers
+         *  was the only brand when it was written — a reason to distrust it, not
+         *  to rely on it. */
         const val DEVICE_API_BASE = "https://www.fishers.cloud"
 
         private const val PREFS = "fishers.config"

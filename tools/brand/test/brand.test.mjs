@@ -279,6 +279,23 @@ test("android resources are written under the flavour's own directory", () => {
 });
 
 /**
+ * The Android release build fell back to a host written into the source —
+ * Fishers' — when CI passed none, so the Gully Cricket bundle would have signed
+ * people into Fishers. The host has to arrive from the brand file, per brand.
+ */
+test("every brand's android app is given its own production host", () => {
+  const brands = listBrands(repoRoot).map((id) => loadBrand(repoRoot, id));
+  for (const brand of brands) {
+    const strings = androidFiles(brand, repoRoot).find((f) => f.path.endsWith("/values/strings.xml"));
+    assert.ok(strings, `${brand.id} has no strings.xml`);
+    const host = strings.contents.match(/<string name="brand_api_host">([^<]+)<\/string>/)?.[1];
+    assert.equal(host, brand.rings.prod, `${brand.id} is not pointed at its own host`);
+  }
+  const hosts = brands.map((b) => b.rings.prod);
+  assert.equal(new Set(hosts).size, hosts.length, "two brands share a production host");
+});
+
+/**
  * A brand name is somebody's input. Unescaped it breaks the XML, and the
  * generated header used to carry it raw — which no amount of escaping the
  * element content would have saved.
