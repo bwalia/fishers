@@ -16,6 +16,7 @@ import com.fishers.app.fixtures.RsvpRequest
 import com.fishers.app.motm.CastMotmVoteRequest
 import com.fishers.app.motm.MotmPollView
 import com.fishers.app.net.AuthTokens
+import com.fishers.app.net.DeleteAccountRequest
 import com.fishers.app.net.FishersApi
 import com.fishers.app.net.LoginRequest
 import com.fishers.app.net.PublicUser
@@ -155,4 +156,6 @@ open class FakeFishersApi : FishersApi {
 
     override suspend fun markRead(id: String, body: MarkReadRequest): Unit =
         error("markRead not expected")
+    override suspend fun deleteAccount(body: DeleteAccountRequest): Unit =
+        error("deleteAccount not expected")
 }

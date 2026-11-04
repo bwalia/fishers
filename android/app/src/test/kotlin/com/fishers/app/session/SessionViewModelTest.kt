@@ -3,6 +3,7 @@ package com.fishers.app.session
 import com.fishers.app.EnglishStrings
 import com.fishers.app.FakeFishersApi
 import com.fishers.app.net.AuthTokens
+import com.fishers.app.net.DeleteAccountRequest
 import com.fishers.app.net.FishersApi
 import com.fishers.app.net.LoginRequest
 import com.fishers.app.net.PublicUser
@@ -253,5 +254,83 @@ class SessionViewModelTest {
         assertNull(store.get(TokenStore.ACCESS))
         assertNull(store.get(TokenStore.REFRESH))
         assertFalse("and does not sit on a spinner", model.state.value.isStarting)
+    }
+
+    // ---- deleting the account ----
+
+    private fun signedIn(): Pair<FakeStore, Session> {
+        val store = FakeStore()
+        val session = Session(store)
+        session.set(Tokens("a", "r"))
+        return store to session
+    }
+
+    @Test
+    fun `deleting the account signs them out and takes the tokens with it`() = runTest(dispatcher.scheduler) {
+        val (store, session) = signedIn()
+        var sent: DeleteAccountRequest? = null
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun deleteAccount(body: DeleteAccountRequest) { sent = body }
+        }, session)
+        var failure: String? = null
+
+        model.deleteAccount("hunter22") { failure = it }
+        advanceUntilIdle()
+
+        assertEquals("the password is sent, so a stolen session is not enough", "hunter22", sent?.password)
+        assertFalse(model.state.value.isAuthenticated)
+        assertNull(store.get(TokenStore.ACCESS))
+        assertNull(store.get(TokenStore.REFRESH))
+        assertNull("and nothing is reported, because nothing went wrong", failure)
+    }
+
+    /**
+     * An account that signs in with Google has no password to type, and the
+     * server accepts the live session instead — but only if the field is
+     * absent. An empty string would be checked against nothing and refused.
+     */
+    @Test
+    fun `a blank password goes up as absent`() = runTest(dispatcher.scheduler) {
+        val (_, session) = signedIn()
+        var sent: DeleteAccountRequest? = null
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun deleteAccount(body: DeleteAccountRequest) { sent = body }
+        }, session)
+
+        model.deleteAccount("") { }
+        advanceUntilIdle()
+
+        assertNull(sent?.password)
+    }
+
+    @Test
+    fun `a wrong password says so and leaves them signed in`() = runTest(dispatcher.scheduler) {
+        val (store, session) = signedIn()
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun deleteAccount(body: DeleteAccountRequest) = throw unauthorized()
+        }, session)
+        var failure: String? = null
+
+        model.deleteAccount("nope") { failure = it }
+        advanceUntilIdle()
+
+        assertEquals("That password does not match.", failure)
+        assertEquals("still signed in — nothing was deleted", "a", store.get(TokenStore.ACCESS))
+    }
+
+    @Test
+    fun `no signal says the account could not be deleted`() = runTest(dispatcher.scheduler) {
+        val (store, session) = signedIn()
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun deleteAccount(body: DeleteAccountRequest) =
+                throw java.io.IOException("down")
+        }, session)
+        var failure: String? = null
+
+        model.deleteAccount("pw") { failure = it }
+        advanceUntilIdle()
+
+        assertEquals("could not delete the account — try again", failure)
+        assertEquals("a", store.get(TokenStore.ACCESS))
     }
 }
