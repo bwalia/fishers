@@ -30,7 +30,16 @@ class FishersApp : Application() {
         config = AppConfig.from(
             context = this,
             debug = BuildConfig.DEBUG,
-            buildTimeApiBase = BuildConfig.FISHERS_API_URL.takeIf { it.isNotBlank() },
+            // Before this, a release build with no explicit URL fell through to
+            // AppConfig's literal, `www.fishers.cloud` — so the Gully Cricket
+            // bundle CI built would have signed people into Fishers' database. CI
+            // passes no -Pfishers.apiUrl and a developer build always did, which
+            // is how it went unseen.
+            buildTimeApiBase = AppConfig.bakedApiBase(
+                explicit = BuildConfig.FISHERS_API_URL,
+                debug = BuildConfig.DEBUG,
+                brandHost = getString(R.string.brand_api_host),
+            ),
         )
         session = Session(KeystoreTokenStore(this))
         network = Network(config, session)

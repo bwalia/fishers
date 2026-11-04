@@ -345,6 +345,11 @@ val brandTasks = listOf("fishers", "gullycricket").associateWith { brandId ->
         // The launcher icons come from here too, so a redrawn logo has to
         // invalidate this task — the yaml alone would not have changed.
         inputs.dir(rootProject.file("../brands/$brandId"))
+        // And the generator itself. A new resource (brand_api_host) left an
+        // existing build directory untouched, because nothing said that
+        // changing the code that writes the files could change the files — so
+        // `R.string.brand_api_host` did not exist until something forced it.
+        inputs.dir(rootProject.file("../tools/brand/src"))
     }
 }
 

@@ -62,6 +62,10 @@ function strings(brand) {
     <string name="brand_name">${xml(brand.name)}</string>
     <string name="brand_tagline">${xml(brand.tagline)}</string>
     <string name="brand_support_email">${xml(brand.support.email)}</string>
+    <!-- Where this brand's production API and web answer — the same value the
+         iPhone gets as FISHERS_API_HOST. Without it a release build fell back
+         to a host written into the source, which was Fishers' for everybody. -->
+    <string name="brand_api_host">${xml(brand.rings.prod)}</string>
 </resources>
 `;
 }
