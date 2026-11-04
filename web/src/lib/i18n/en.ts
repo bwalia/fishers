@@ -4028,6 +4028,9 @@ export const en = {
   // MARK: Android scores ordinals
   "sr.ordinal_3rd": "3rd",
 
+  // MARK: Deleting an account from the Android app
+  "del.wrong_password": "That password does not match.",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

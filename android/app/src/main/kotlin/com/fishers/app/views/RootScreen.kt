@@ -81,6 +81,7 @@ fun RootScreen(
                 api = api,
                 user = state.user,
                 onSignOut = viewModel::signOut,
+                onDeleteAccount = viewModel::deleteAccount,
                 chatList = chatList,
                 threadFor = threadFor,
                 fixtures = fixtures,
