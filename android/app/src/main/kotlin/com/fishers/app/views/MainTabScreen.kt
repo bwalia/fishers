@@ -66,6 +66,7 @@ import com.fishers.app.chat.ChatThreadViewModel
 import com.fishers.app.chat.ConversationSummary
 import com.fishers.app.net.PublicUser
 import com.fishers.app.net.FishersApi
+import com.fishers.app.views.profile.DeleteAccountCard
 import com.fishers.app.views.safety.BlockedListCard
 import com.fishers.app.views.chat.ChatListScreen
 import com.fishers.app.views.chat.ChatThreadScreen
@@ -86,6 +87,7 @@ fun MainTabScreen(
     user: PublicUser?,
     api: FishersApi,
     onSignOut: () -> Unit,
+    onDeleteAccount: (password: String, onError: (String) -> Unit) -> Unit,
     chatList: ChatListViewModel,
     threadFor: (String) -> ChatThreadViewModel,
     fixtures: FixturesViewModel,
@@ -268,6 +270,8 @@ fun MainTabScreen(
                     LanguagePicker()
 
                     TextButton(onClick = onSignOut) { Text(t("nav.sign_out")) }
+
+                    DeleteAccountCard(onDelete = onDeleteAccount)
                 }
 
                 else -> {

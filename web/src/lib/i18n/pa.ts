@@ -4014,4 +4014,7 @@ export const pa: Dict = {
   // MARK: Android scores ordinals
   "sr.ordinal_3rd": "ਤੀਜੀ",
 
+  // MARK: Deleting an account from the Android app
+  "del.wrong_password": "ਉਹ ਪਾਸਵਰਡ ਮੇਲ ਨਹੀਂ ਖਾਂਦਾ।",
+
 };

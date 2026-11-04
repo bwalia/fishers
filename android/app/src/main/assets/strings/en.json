@@ -491,6 +491,7 @@
   "day.thu": "Thu",
   "day.tue": "Tue",
   "day.wed": "Wed",
+  "del.wrong_password": "That password does not match.",
   "ev.7_50": "7.50",
   "ev.80": "80",
   "ev.a_whole_month_at_once": "A whole month at once",

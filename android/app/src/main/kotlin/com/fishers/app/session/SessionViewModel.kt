@@ -4,6 +4,7 @@ import com.fishers.app.i18n.t
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fishers.app.net.FishersApi
+import com.fishers.app.net.DeleteAccountRequest
 import com.fishers.app.net.LoginRequest
 import com.fishers.app.net.PublicUser
 import com.fishers.app.net.RoleIntentPatch
@@ -15,9 +16,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /** What they said they came to do. Asked on sign-up, changeable later. */
-enum class RoleIntent(val wire: String, val title: String) {
-    Secretary("secretary", t("cl.i_run_a_club")),
-    Player("player", t("cl.i_play_for_a_club")),
+enum class RoleIntent(val wire: String, private val titleKey: String) {
+    Secretary("secretary", "cl.i_run_a_club"),
+    Player("player", "cl.i_play_for_a_club"),
+    ;
+
+    /** Looked up when it is drawn. An enum's constructor arguments are built
+     *  once, at class load, so a `t()` there froze the label in whichever
+     *  language was current — and never followed the picker. */
+    val title: String get() = t(titleKey)
 }
 
 data class SessionState(
@@ -102,6 +109,37 @@ class SessionViewModel(
     fun signOut() {
         session.clear()
         _state.value = SessionState(isStarting = false)
+    }
+
+    /**
+     * Delete this account.
+     *
+     * The password is typed again for the reason the server asks for it: a
+     * signed-in phone left on a table should not be enough to end somebody's
+     * account. Blank goes up as absent, for an account that has no password
+     * because it signs in with Google.
+     *
+     * On success the session is cleared and the app falls back to sign-in. On
+     * failure the reason goes to [onError] rather than into [SessionState.error],
+     * which only the signed-out screens show and this is asked from a dialog.
+     */
+    fun deleteAccount(password: String, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            runCatching { api.deleteAccount(DeleteAccountRequest(password.ifBlank { null })) }
+                .onSuccess {
+                    session.clear()
+                    _state.value = SessionState(isStarting = false)
+                }
+                .onFailure {
+                    onError(
+                        if (it is retrofit2.HttpException && it.code() == 401) {
+                            t("del.wrong_password")
+                        } else {
+                            t("cl.could_not_delete_the_account")
+                        },
+                    )
+                }
+        }
     }
 
     fun dismissError() {

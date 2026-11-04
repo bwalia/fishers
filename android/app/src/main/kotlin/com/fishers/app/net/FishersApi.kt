@@ -35,6 +35,16 @@ data class SignupRequest(
     val password: String,
 )
 
+/**
+ * `POST /me/delete`. Absent for an account with no password — one that signs in
+ * with Google — where the live session is the proof. POST rather than DELETE
+ * because the password travels in the body.
+ */
+@Serializable
+data class DeleteAccountRequest(
+    val password: String? = null,
+)
+
 /** `PATCH /me` leaves everything it is not sent alone, so this is the one field. */
 @Serializable
 data class RoleIntentPatch(
@@ -81,6 +91,10 @@ interface FishersApi {
 
     @POST("auth/refresh")
     suspend fun refresh(@Body body: RefreshRequest): AuthTokens
+
+    /** 204 on success. Cannot be undone; the account is anonymised, not parked. */
+    @POST("me/delete")
+    suspend fun deleteAccount(@Body body: DeleteAccountRequest)
 
     @GET("me")
     suspend fun me(): PublicUser
