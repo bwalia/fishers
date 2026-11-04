@@ -4034,6 +4034,29 @@ export const en = {
   // MARK: Continue with Google on Android
   "goo.no_account": "There is no Google account on this phone. Add one in Settings, or use your email instead.",
 
+  // MARK: Deleting your account: the public page
+  "del.description": "How to delete your {brand} account, what is deleted, and what stays.",
+  "del.intro": "{brand} is run by {controller}. You can delete your {brand} account yourself, in the app or on the website. It takes a minute, it is immediate, and it cannot be undone.",
+  "del.in_the_app": "In the app",
+  "del.step_signin": "Sign in to {brand}.",
+  "del.step_profile": "Open Profile and choose Delete account.",
+  "del.step_confirm": "Type your password to confirm. If you sign in with Google or Apple and have no password, leave it blank.",
+  "del.step_done": "Choose Delete my account. You are signed out everywhere straight away.",
+  "del.on_the_website": "On the website",
+  "del.web_same": "The steps are the same on the website.",
+  "del.cannot_sign_in": "Cannot sign in?",
+  "del.cannot_sign_in_detail": "Write to {email} and tell us the email address or mobile number on the account. We will check it is yours before we delete it.",
+  "del.what_goes": "What is deleted",
+  "del.d_identity": "Your name, email address, mobile number and password.",
+  "del.d_profile": "Your picture, emergency contact, area and travel radius, and everything on your player profile.",
+  "del.d_access": "Your Google and Apple sign-in links, your profile share link, every signed-in session and every notification token.",
+  "del.what_stays": "What stays",
+  "del.k_records": "The scorecards, fixtures and club history you were part of, and the averages built on them, under the name “Deleted member”. That name no longer points at anybody. Those records belong to the other players too, and a match that loses a batter stops adding up.",
+  "del.k_messages": "Messages you wrote in club chats and to sellers stay in those conversations, shown as from “Deleted member”.",
+  "del.k_photo": "Your picture is unlinked from your account at once. The image file itself has not yet been removed from our storage; its address is private, and nothing points to it any more.",
+  "del.how_long": "Backups made before you deleted your account still hold a copy for up to 14 days, then roll off on their own.",
+  "del.more_detail": "More detail:",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.
