@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fishers.app.net.FishersApi
 import com.fishers.app.net.DeleteAccountRequest
+import com.fishers.app.net.GoogleSignInRequest
 import com.fishers.app.net.LoginRequest
 import com.fishers.app.net.PublicUser
 import com.fishers.app.net.RoleIntentPatch
@@ -74,6 +75,47 @@ class SessionViewModel(
                     _state.value = SessionState(isStarting = false)
                 }
         }
+    }
+
+    private val _googleClientId = MutableStateFlow<String?>(null)
+
+    /**
+     * The client id to ask Google with. Null means the button is not offered:
+     * the server has Google switched off, or could not be asked. Email still
+     * works either way, which is why a failure here is silent.
+     */
+    val googleClientId: StateFlow<String?> = _googleClientId.asStateFlow()
+
+    fun loadGoogle() {
+        if (_googleClientId.value != null) return
+        viewModelScope.launch {
+            runCatching { api.googleConfig() }.onSuccess { config ->
+                _googleClientId.value = config.clientId?.takeIf { config.enabled && it.isNotBlank() }
+            }
+        }
+    }
+
+    /**
+     * Google has said who this is; the server checks it again and signs them in
+     * or makes an account. A refusal is Google's to explain, not the password's
+     * — [readableError] would call a 401 "that email or password was not right",
+     * to somebody who typed neither.
+     */
+    fun signInWithGoogle(idToken: String) = authenticate(
+        call = { api.googleSignIn(GoogleSignInRequest(idToken)) },
+        describe = {
+            if (it is retrofit2.HttpException && it.code() == 401) {
+                t("le.google_sign_in_did_not_work_try_again")
+            } else {
+                readableError(it)
+            }
+        },
+    )
+
+    /** Something failed before there was a token to send. Said where the form
+     *  says everything else, rather than in a place only this flow reads. */
+    fun googleFailed(message: String) {
+        _state.value = _state.value.copy(isLoading = false, error = message)
     }
 
     fun signIn(identifier: String, password: String) = authenticate(
@@ -149,6 +191,7 @@ class SessionViewModel(
     private fun authenticate(
         call: suspend () -> com.fishers.app.net.AuthTokens,
         then: suspend () -> Unit = {},
+        describe: (Throwable) -> String = ::readableError,
     ) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
@@ -163,7 +206,7 @@ class SessionViewModel(
                     then()
                 }
                 .onFailure {
-                    _state.value = _state.value.copy(isLoading = false, error = readableError(it))
+                    _state.value = _state.value.copy(isLoading = false, error = describe(it))
                 }
         }
     }

@@ -17,6 +17,8 @@ import com.fishers.app.motm.CastMotmVoteRequest
 import com.fishers.app.motm.MotmPollView
 import com.fishers.app.net.AuthTokens
 import com.fishers.app.net.DeleteAccountRequest
+import com.fishers.app.net.GoogleConfig
+import com.fishers.app.net.GoogleSignInRequest
 import com.fishers.app.net.FishersApi
 import com.fishers.app.net.LoginRequest
 import com.fishers.app.net.PublicUser
@@ -158,4 +160,7 @@ open class FakeFishersApi : FishersApi {
         error("markRead not expected")
     override suspend fun deleteAccount(body: DeleteAccountRequest): Unit =
         error("deleteAccount not expected")
+    override suspend fun googleConfig(): GoogleConfig = error("googleConfig not expected")
+    override suspend fun googleSignIn(body: GoogleSignInRequest): AuthTokens =
+        error("googleSignIn not expected")
 }
