@@ -117,7 +117,8 @@ export default async function PrivacyPage() {
         <h2>{t("rest.deleting_your_account")}</h2>
         <p>
           <strong>{t("privacy.profile_delete_account")}</strong>
-          {t("privacy.immediate_cannot_be_undone")}
+          {t("privacy.immediate_cannot_be_undone")}{" "}
+          <Link href="/delete-account">{t("foot.delete_account")}</Link>
         </p>
         <p>
           {t("rest.everything_that_identifies_you_goes_na")}

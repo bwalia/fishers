@@ -35,6 +35,7 @@ const STATIC: { path: string; priority: number }[] = [
   { path: "/support", priority: 0.3 },
   { path: "/terms", priority: 0.3 },
   { path: "/privacy", priority: 0.3 },
+  { path: "/delete-account", priority: 0.3 },
 ];
 
 /// Club pages a club chose to publish — the only part of this site holding
