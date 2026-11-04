@@ -1,10 +1,12 @@
 package com.fishers.app.scores
 
+import com.fishers.app.EnglishStrings
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
 
@@ -16,6 +18,8 @@ import java.time.Instant
  * the payload is pinned to a real response.
  */
 class WorldScoresDecodingTest {
+    @get:Rule val english = EnglishStrings()
+
     private val json = Json { ignoreUnknownKeys = true }
 
     /**

@@ -1,9 +1,11 @@
 package com.fishers.app.session
 
+import com.fishers.app.EnglishStrings
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
@@ -18,6 +20,8 @@ import java.io.IOException
  * things from the reader, so they must not read the same.
  */
 class ErrorsTest {
+    @get:Rule val english = EnglishStrings()
+
 
     private fun http(code: Int) = HttpException(
         Response.error<Any>(code, "".toResponseBody("application/json".toMediaType())),

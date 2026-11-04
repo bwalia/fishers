@@ -1,5 +1,6 @@
 package com.fishers.app.cricket
 
+import com.fishers.app.EnglishStrings
 import com.fishers.app.FakeFishersApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,6 +18,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
 
@@ -30,6 +32,8 @@ import java.io.IOException
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScoringTest {
+    @get:Rule val english = EnglishStrings()
+
 
     // `runTest` builds its own TestCoroutineScheduler unless it is handed
     // one, and a bare StandardTestDispatcher() builds a second. Work launched

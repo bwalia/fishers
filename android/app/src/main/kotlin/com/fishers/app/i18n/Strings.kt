@@ -48,6 +48,19 @@ object Strings {
         language = if (saved != null) Language.from(saved) else Language.from(systemTag())
     }
 
+    /**
+     * Unit tests have no Context to read assets from, so they hand the tables in.
+     * Internal on purpose: nothing but a test has any reason to call it.
+     *
+     * It exists because a `t()` in a JVM test returns the bare key, and a test
+     * that asserts "That email or password was not right." then fails with
+     * "rest.email_or_password_not_right" — which is how thirteen of them went
+     * red when those strings moved into the catalogue.
+     */
+    internal fun install(tables: Map<Language, Map<String, String>>) {
+        this.tables = tables
+    }
+
     fun set(context: Context, next: Language) {
         if (next == language) return
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, next.code).apply()
