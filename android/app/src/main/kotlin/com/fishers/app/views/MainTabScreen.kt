@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.fishers.app.umpire.UmpireViewModel
+import com.fishers.app.views.cricket.ScoringScreen
 import com.fishers.app.views.umpire.UmpiringCard
 import com.fishers.app.umpire.PendingUmpireReviewsViewModel
 import com.fishers.app.views.umpire.PendingUmpireReviewsCard
@@ -97,6 +98,7 @@ fun MainTabScreen(
     listingFor: (String) -> ListingViewModel,
     worldScores: WorldScoresViewModel,
     worldMatchFor: (String) -> WorldMatchViewModel,
+    scoringFor: (String) -> com.fishers.app.cricket.ScoringViewModel,
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
@@ -111,6 +113,7 @@ fun MainTabScreen(
     var openListing by rememberSaveable { mutableStateOf<String?>(null) }
     // The world scores, one screen deep off Home.
     var scoresOpen by rememberSaveable { mutableStateOf(false) }
+    var openFixture by rememberSaveable { mutableStateOf<String?>(null) }
     // Which match's scorecard is open, if any.
     var openWorldMatch by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -202,9 +205,27 @@ fun MainTabScreen(
                 )
 
                 Tab.Fixtures -> {
-                    val state by fixtures.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(Unit) { fixtures.load() }
-                    FixturesScreen(state = state, onAnswer = fixtures::answer)
+                    val fixtureId = openFixture
+                    if (fixtureId == null) {
+                        val state by fixtures.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(Unit) { fixtures.load() }
+                        FixturesScreen(
+                            state = state,
+                            onAnswer = fixtures::answer,
+                            onOpen = { openFixture = it.id },
+                        )
+                    } else {
+                        BackHandler { openFixture = null }
+                        val model = remember(fixtureId) { scoringFor(fixtureId) }
+                        val state by model.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(fixtureId) { model.load() }
+                        ScoringScreen(
+                            state = state,
+                            onRuns = model::runs,
+                            onExtra = { model.extra(it) },
+                            onUndo = model::undo,
+                        )
+                    }
                 }
 
                 Tab.Chats -> ChatsTab(

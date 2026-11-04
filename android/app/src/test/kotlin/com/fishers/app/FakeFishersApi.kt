@@ -11,6 +11,7 @@ import com.fishers.app.cricket.CricketMatch
 import com.fishers.app.cricket.EventsBatch
 import com.fishers.app.cricket.ScoringEvent
 import com.fishers.app.fixtures.FishersEvent
+import com.fishers.app.fixtures.MyFixture
 import com.fishers.app.fixtures.RsvpRequest
 import com.fishers.app.motm.CastMotmVoteRequest
 import com.fishers.app.motm.MotmPollView
@@ -128,7 +129,7 @@ open class FakeFishersApi : FishersApi {
     override suspend fun clubTeams(id: String): List<Team> = error("clubTeams not expected")
 
     // ---- fixtures ----
-    override suspend fun myFixtures(): List<FishersEvent> = error("myFixtures not expected")
+    override suspend fun myFixtures(): List<MyFixture> = error("myFixtures not expected")
     override suspend fun event(id: String): FishersEvent = error("event not expected")
     override suspend fun rsvp(id: String, body: RsvpRequest): Unit = error("rsvp not expected")
 

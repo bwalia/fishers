@@ -1,6 +1,7 @@
 package com.fishers.app.views.fixtures
 
 import com.fishers.app.i18n.t
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import com.fishers.app.theme.FishersTheme
 fun FixturesScreen(
     state: FixturesState,
     onAnswer: (String, RsvpStatus) -> Unit,
+    onOpen: (MyFixture) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     when {
@@ -69,7 +71,12 @@ fun FixturesScreen(
             if (state.upcoming.isNotEmpty()) {
                 item { SectionHeading(t("rest.coming_up")) }
                 items(state.upcoming, key = { it.id }) {
-                    FixtureCard(it, answering = state.answering == it.id, onAnswer = onAnswer)
+                    FixtureCard(
+                        it,
+                        answering = state.answering == it.id,
+                        onAnswer = onAnswer,
+                        onOpen = onOpen,
+                    )
                 }
             }
             if (state.past.isNotEmpty()) {
@@ -96,9 +103,13 @@ private fun FixtureCard(
     event: MyFixture,
     answering: Boolean,
     onAnswer: (String, RsvpStatus) -> Unit,
+    onOpen: (MyFixture) -> Unit = {},
     past: Boolean = false,
 ) {
-    Card(Modifier.fillMaxWidth()) {
+    // The card is the way into the match. Until now nothing opened one, so
+    // ScoringScreen — the app's headline feature and the whole point of the
+    // Rust engine underneath it — could not be reached from anywhere.
+    Card(Modifier.fillMaxWidth().clickable { onOpen(event) }) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 Modifier.fillMaxWidth(),

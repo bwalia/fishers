@@ -1,10 +1,12 @@
 package com.fishers.app.shop
 
+import com.fishers.app.EnglishStrings
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 /**
@@ -14,6 +16,8 @@ import org.junit.Test
  * to a real response.
  */
 class MarketListingDecodingTest {
+    @get:Rule val english = EnglishStrings()
+
     private val json = Json { ignoreUnknownKeys = true }
 
     /**

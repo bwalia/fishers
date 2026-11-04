@@ -40,7 +40,7 @@ class FixturesTest {
         startAt: String,
         status: EventStatus = EventStatus.Scheduled,
         myRsvp: RsvpStatus? = null,
-    ) = FishersEvent(
+    ) = MyFixture(
         id = id, clubId = "c", title = "Fixture $id",
         startAt = startAt, status = status, myRsvp = myRsvp,
     )
@@ -170,7 +170,7 @@ class FixturesTest {
     @Test
     fun `a failed load says why rather than looking empty`() = runTest(dispatcher.scheduler) {
         val model = FixturesViewModel(object : FakeFishersApi() {
-            override suspend fun myFixtures(): List<FishersEvent> = throw IOException("down")
+            override suspend fun myFixtures(): List<MyFixture> = throw IOException("down")
         })
 
         model.load(now)
