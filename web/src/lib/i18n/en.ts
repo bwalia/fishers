@@ -4028,6 +4028,12 @@ export const en = {
   // MARK: Android scores ordinals
   "sr.ordinal_3rd": "3rd",
 
+  // MARK: Deleting an account from the Android app
+  "del.wrong_password": "That password does not match.",
+
+  // MARK: Continue with Google on Android
+  "goo.no_account": "There is no Google account on this phone. Add one in Settings, or use your email instead.",
+
   // MARK: Deleting your account: the public page
   "del.description": "How to delete your {brand} account, what is deleted, and what stays.",
   "del.intro": "{brand} is run by {controller}. You can delete your {brand} account yourself, in the app or on the website. It takes a minute, it is immediate, and it cannot be undone.",

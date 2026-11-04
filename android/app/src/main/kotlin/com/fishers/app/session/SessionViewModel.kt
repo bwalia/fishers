@@ -4,6 +4,8 @@ import com.fishers.app.i18n.t
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fishers.app.net.FishersApi
+import com.fishers.app.net.DeleteAccountRequest
+import com.fishers.app.net.GoogleSignInRequest
 import com.fishers.app.net.LoginRequest
 import com.fishers.app.net.PublicUser
 import com.fishers.app.net.RoleIntentPatch
@@ -15,9 +17,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /** What they said they came to do. Asked on sign-up, changeable later. */
-enum class RoleIntent(val wire: String, val title: String) {
-    Secretary("secretary", t("cl.i_run_a_club")),
-    Player("player", t("cl.i_play_for_a_club")),
+enum class RoleIntent(val wire: String, private val titleKey: String) {
+    Secretary("secretary", "cl.i_run_a_club"),
+    Player("player", "cl.i_play_for_a_club"),
+    ;
+
+    /** Looked up when it is drawn. An enum's constructor arguments are built
+     *  once, at class load, so a `t()` there froze the label in whichever
+     *  language was current — and never followed the picker. */
+    val title: String get() = t(titleKey)
 }
 
 data class SessionState(
@@ -69,6 +77,47 @@ class SessionViewModel(
         }
     }
 
+    private val _googleClientId = MutableStateFlow<String?>(null)
+
+    /**
+     * The client id to ask Google with. Null means the button is not offered:
+     * the server has Google switched off, or could not be asked. Email still
+     * works either way, which is why a failure here is silent.
+     */
+    val googleClientId: StateFlow<String?> = _googleClientId.asStateFlow()
+
+    fun loadGoogle() {
+        if (_googleClientId.value != null) return
+        viewModelScope.launch {
+            runCatching { api.googleConfig() }.onSuccess { config ->
+                _googleClientId.value = config.clientId?.takeIf { config.enabled && it.isNotBlank() }
+            }
+        }
+    }
+
+    /**
+     * Google has said who this is; the server checks it again and signs them in
+     * or makes an account. A refusal is Google's to explain, not the password's
+     * — [readableError] would call a 401 "that email or password was not right",
+     * to somebody who typed neither.
+     */
+    fun signInWithGoogle(idToken: String) = authenticate(
+        call = { api.googleSignIn(GoogleSignInRequest(idToken)) },
+        describe = {
+            if (it is retrofit2.HttpException && it.code() == 401) {
+                t("le.google_sign_in_did_not_work_try_again")
+            } else {
+                readableError(it)
+            }
+        },
+    )
+
+    /** Something failed before there was a token to send. Said where the form
+     *  says everything else, rather than in a place only this flow reads. */
+    fun googleFailed(message: String) {
+        _state.value = _state.value.copy(isLoading = false, error = message)
+    }
+
     fun signIn(identifier: String, password: String) = authenticate(
         call = { api.login(LoginRequest(identifier.trim(), password)) },
     )
@@ -104,6 +153,37 @@ class SessionViewModel(
         _state.value = SessionState(isStarting = false)
     }
 
+    /**
+     * Delete this account.
+     *
+     * The password is typed again for the reason the server asks for it: a
+     * signed-in phone left on a table should not be enough to end somebody's
+     * account. Blank goes up as absent, for an account that has no password
+     * because it signs in with Google.
+     *
+     * On success the session is cleared and the app falls back to sign-in. On
+     * failure the reason goes to [onError] rather than into [SessionState.error],
+     * which only the signed-out screens show and this is asked from a dialog.
+     */
+    fun deleteAccount(password: String, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            runCatching { api.deleteAccount(DeleteAccountRequest(password.ifBlank { null })) }
+                .onSuccess {
+                    session.clear()
+                    _state.value = SessionState(isStarting = false)
+                }
+                .onFailure {
+                    onError(
+                        if (it is retrofit2.HttpException && it.code() == 401) {
+                            t("del.wrong_password")
+                        } else {
+                            t("cl.could_not_delete_the_account")
+                        },
+                    )
+                }
+        }
+    }
+
     fun dismissError() {
         _state.value = _state.value.copy(error = null)
     }
@@ -111,6 +191,7 @@ class SessionViewModel(
     private fun authenticate(
         call: suspend () -> com.fishers.app.net.AuthTokens,
         then: suspend () -> Unit = {},
+        describe: (Throwable) -> String = ::readableError,
     ) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
@@ -125,7 +206,7 @@ class SessionViewModel(
                     then()
                 }
                 .onFailure {
-                    _state.value = _state.value.copy(isLoading = false, error = readableError(it))
+                    _state.value = _state.value.copy(isLoading = false, error = describe(it))
                 }
         }
     }

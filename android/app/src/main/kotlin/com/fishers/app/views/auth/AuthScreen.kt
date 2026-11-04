@@ -2,6 +2,13 @@ package com.fishers.app.views.auth
 
 import com.fishers.app.i18n.t
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,8 +61,10 @@ import com.fishers.app.theme.FishersTheme
  * sign-up, where it is the only thing the app needs to know that it cannot work
  * out later.
  *
- * No social buttons yet: Apple is a settled gap on Android, and Google needs a
- * native SDK and console config that have not landed.
+ * Continue with Google is offered when the server has it on (`GET /auth/google`)
+ * and names a client id; the button signs in or registers, which is why it sits
+ * above both forms rather than inside one. Apple is still not here, a settled
+ * gap on Android.
  */
 @Composable
 fun AuthScreen(
@@ -63,6 +72,8 @@ fun AuthScreen(
     onSignIn: (identifier: String, password: String) -> Unit,
     onSignUp: (name: String, identifier: String, password: String, role: RoleIntent?) -> Unit,
     modifier: Modifier = Modifier,
+    googleEnabled: Boolean = false,
+    onGoogle: () -> Unit = {},
 ) {
     var signingUp by rememberSaveable { mutableStateOf(false) }
     var name by rememberSaveable { mutableStateOf("") }
@@ -95,6 +106,23 @@ fun AuthScreen(
                 if (signingUp) t("rest.start_playing") else t("rest.welcome_back"),
                 style = MaterialTheme.typography.bodyLarge,
             )
+
+            if (googleEnabled) {
+                GoogleButton(onClick = onGoogle, enabled = !state.isLoading)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    HorizontalDivider(Modifier.weight(1f))
+                    Text(
+                        t("rest.or_with_email"),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+                    HorizontalDivider(Modifier.weight(1f))
+                }
+            }
 
             if (signingUp) {
                 OutlinedTextField(
@@ -188,6 +216,30 @@ fun AuthScreen(
             }
             Spacer(Modifier.height(8.dp))
         }
+    }
+}
+
+/**
+ * The same button the iPhone shows: a coloured disc with a G, because the real
+ * logo is Google's artwork and ships in their own button assets, not in ours.
+ * Outlined, so it reads as an alternative to the filled Sign in beneath it
+ * rather than a second answer to it.
+ */
+@Composable
+private fun GoogleButton(onClick: () -> Unit, enabled: Boolean) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+        ) {
+            Text("G", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelLarge)
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(t("rest.continue_with_google"))
     }
 }
 

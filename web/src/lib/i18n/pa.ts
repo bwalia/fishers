@@ -4014,6 +4014,12 @@ export const pa: Dict = {
   // MARK: Android scores ordinals
   "sr.ordinal_3rd": "ਤੀਜੀ",
 
+  // MARK: Deleting an account from the Android app
+  "del.wrong_password": "ਉਹ ਪਾਸਵਰਡ ਮੇਲ ਨਹੀਂ ਖਾਂਦਾ।",
+
+  // MARK: Continue with Google on Android
+  "goo.no_account": "ਇਸ ਫ਼ੋਨ ਉੱਤੇ ਕੋਈ ਗੂਗਲ ਖਾਤਾ ਨਹੀਂ ਹੈ। ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਇੱਕ ਜੋੜੋ, ਜਾਂ ਇਸਦੀ ਥਾਂ ਈਮੇਲ ਵਰਤੋ।",
+
   // MARK: Deleting your account: the public page
   "del.description": "ਆਪਣਾ {brand} ਖਾਤਾ ਕਿਵੇਂ ਮਿਟਾਉਣਾ ਹੈ, ਕੀ ਹਟਾਇਆ ਜਾਂਦਾ ਹੈ ਤੇ ਕੀ ਰਹਿੰਦਾ ਹੈ।",
   "del.intro": "{brand} ਨੂੰ {controller} ਚਲਾਉਂਦੀ ਹੈ। ਤੁਸੀਂ ਆਪਣਾ {brand} ਖਾਤਾ ਆਪ ਹੀ ਮਿਟਾ ਸਕਦੇ ਹੋ, ਐਪ ਵਿੱਚ ਜਾਂ ਵੈੱਬਸਾਈਟ 'ਤੇ। ਇਸ ਵਿੱਚ ਇੱਕ ਮਿੰਟ ਲੱਗਦਾ ਹੈ, ਇਹ ਤੁਰੰਤ ਹੁੰਦਾ ਹੈ ਅਤੇ ਵਾਪਸ ਨਹੀਂ ਲਿਆ ਜਾ ਸਕਦਾ।",

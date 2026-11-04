@@ -170,6 +170,13 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
+
+    // Continue with Google. Credential Manager asks Play services for the
+    // account chooser; googleid turns what it hands back into an ID token the
+    // server can verify — the same /auth/google the website and iOS use.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
