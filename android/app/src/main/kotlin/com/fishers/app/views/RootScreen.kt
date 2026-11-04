@@ -47,6 +47,7 @@ fun RootScreen(
     listingFor: (String) -> com.fishers.app.shop.ListingViewModel,
     worldScores: com.fishers.app.scores.WorldScoresViewModel,
     worldMatchFor: (String) -> com.fishers.app.scores.WorldMatchViewModel,
+    scoringFor: (String) -> com.fishers.app.cricket.ScoringViewModel,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -92,6 +93,7 @@ fun RootScreen(
                 listingFor = listingFor,
                 worldScores = worldScores,
                 worldMatchFor = worldMatchFor,
+                scoringFor = scoringFor,
             )
         }
     }

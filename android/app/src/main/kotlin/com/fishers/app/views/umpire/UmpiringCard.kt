@@ -81,7 +81,10 @@ private fun Body(
     ) {
         Figure(
             profile.matches.toString(),
-            if (profile.matches == 1) "match umpired" else "matches umpired",
+            // The figure is drawn above, so this is the label alone — and the
+            // plural was hand-rolled in English beside a catalogue that
+            // already carries both forms.
+            t("ump.match_umpired", count = profile.matches, vars = mapOf("n" to "")).trim(),
         )
         Figure(
             profile.ratingAverage?.let { "%.1f".format(it) } ?: "—",

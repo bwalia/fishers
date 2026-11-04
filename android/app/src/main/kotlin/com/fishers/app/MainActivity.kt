@@ -60,6 +60,9 @@ class MainActivity : ComponentActivity() {
                         market = remember { MarketViewModel(app.network.api) },
                         worldScores = remember { WorldScoresViewModel(app.network.api) },
                         worldMatchFor = { id -> WorldMatchViewModel(app.network.api, id) },
+                        scoringFor = { eventId ->
+                            com.fishers.app.cricket.ScoringViewModel(app.network.api, eventId)
+                        },
                         listingFor = { id -> ListingViewModel(app.network.api, id) },
                         modifier = Modifier.padding(inner),
                     )
