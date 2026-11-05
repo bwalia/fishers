@@ -25,8 +25,8 @@ build the debtors list from the fees the app already knows are unpaid.
 
 ## Who may see and change the accounts
 
-- **Club owner** (`clubs.owner_id`) and members with the new role
-  **`club_treasurer`**. Nobody else can see the accounts or change them.
+- **Club owner** (`clubs.owner_id`) and members the club has made
+  **treasurer**. Nobody else can see the accounts or change them.
 - The club secretary (`club_admin`), captains, vice captains, members and
   guests get **no** access by default. A secretary is not a treasurer. Club
   money is the one area where the usual "secretary can do everything" rule does
@@ -41,19 +41,16 @@ build the debtors list from the fees the app already knows are unpaid.
 
 ### Where this goes in the code
 
-- `backend/domain/src/enums.rs`: add `UserRole::ClubTreasurer`, and a migration
-  that runs `ALTER TYPE user_role ADD VALUE 'club_treasurer'`. Outside the
-  accounts, a treasurer has the same permissions as a `Member`. Place the new
-  role carefully in any ordering or "at least" comparisons in `rbac.rs` so it
-  does not quietly gain captain or secretary powers.
-- `backend/domain/src/rbac.rs`: add `Permission::ViewAccounts` and
-  `Permission::ManageAccounts`. `UserRole::can` grants both to `ClubTreasurer`
-  only. The owner gets them from an ownership check, not a role. Add
-  `require_accounts_access(state, club_id, user_id, write: bool)` in
-  `backend/api/src/rbac.rs`, which passes when the user is
-  `clubs.owner_id` **or** an active member whose role grants the permission.
-  Return a 403 that names the rule: "Only the club owner or a treasurer can open
-  the accounts".
+- **Treasurer is a flag, not a role.** `club_members.is_treasurer`, next to
+  the role. (An earlier draft of this brief said to add a `club_treasurer` value
+  to `user_role`. That was dropped: the shipped iOS app decodes `role` as a
+  closed enum, so a club with a treasurer would have failed the member list for
+  everyone in it. An extra key is ignored. A flag also lets a secretary be the
+  treasurer, which is common in small clubs.)
+- `backend/domain/src/accounts.rs`: `can_open_accounts(is_owner, is_treasurer)`.
+  `backend/api/src/rbac.rs`: `require_accounts_access`, which returns a 403
+  with code `accounts_forbidden` and the message "Only the club owner or a
+  treasurer can open the accounts".
 - Tests for every role, both read and write. Cover a suspended treasurer, and a
   treasurer of one club trying to reach another club's books.
 

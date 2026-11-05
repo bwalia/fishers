@@ -222,6 +222,8 @@ pub struct ClubMembership {
     pub role: UserRole,
     /// Captains the side — by role, or as a secretary who captains too.
     pub is_captain: bool,
+    /// Keeps the club's books. An extra key, not a role: older apps ignore it.
+    pub is_treasurer: bool,
     /// Active members and teams, for the card on the clubs list.
     pub member_count: i64,
     pub team_count: i64,
@@ -240,6 +242,7 @@ const MEMBERSHIP_SELECT: &str = r#"
         SELECT c.id, c.name, c.sport_types, c.visibility, c.owner_id, c.description,
                c.is_informal_group, c.created_at, c.updated_at, m.role,
                (m.role = 'team_captain' OR (m.is_captain AND m.role IN ('club_admin', 'super_admin'))) AS is_captain,
+               m.is_treasurer,
                (SELECT COUNT(*) FROM club_members cm
                  WHERE cm.club_id = c.id AND cm.status = 'active') AS member_count,
                (SELECT COUNT(*) FROM teams t WHERE t.club_id = c.id) AS team_count,
@@ -746,6 +749,8 @@ pub struct ClubMemberDetail {
     pub role: UserRole,
     /// Captains the side — by role, or as a secretary who captains too.
     pub is_captain: bool,
+    /// Keeps the club's books. An extra key, not a role: older apps ignore it.
+    pub is_treasurer: bool,
     pub status: MembershipStatus,
     pub joined_at: chrono::DateTime<chrono::Utc>,
     pub position_role: Option<String>,
@@ -761,6 +766,7 @@ pub async fn list_member_details(
         r#"
         SELECT m.user_id, u.name, u.email, u.phone, m.role,
                (m.role = 'team_captain' OR (m.is_captain AND m.role IN ('club_admin', 'super_admin'))) AS is_captain,
+               m.is_treasurer,
                m.status, m.joined_at, u.position_role, u.skill_level, u.avatar_url
         FROM club_members m
         JOIN users u ON u.id = m.user_id
