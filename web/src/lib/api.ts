@@ -208,6 +208,12 @@ export type MyRole = {
   can_invite_to_play: boolean;
   can_score_match: boolean;
   permissions: string[];
+  /// Owns the club. Older APIs leave these out.
+  is_owner?: boolean;
+  /// Keeps the club's books — a flag beside the role, not a role.
+  is_treasurer?: boolean;
+  /// The owner or a treasurer: whether "Accounts" is shown at all.
+  can_open_accounts?: boolean;
 };
 
 /// A page of anything the API pages: `{ items, total, page, per_page, has_more }`.
@@ -684,6 +690,8 @@ export type ClubMemberRow = {
   role: string;
   /// Captains the side — by role, or a secretary who captains too.
   is_captain?: boolean;
+  /// Keeps the club's books.
+  is_treasurer?: boolean;
   status: string;
   position_role?: string | null;
   skill_level?: string | null;

@@ -129,6 +129,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
               {members.find((m) => m.user_id === me?.id)?.is_captain && myRole.is_secretary ? " & captain" : ""}
             </span>
           )}
+          {myRole?.is_treasurer && <span className="tag gold">{t("acc.treasurer")}</span>}
         </div>
       </section>
 
@@ -145,6 +146,20 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
             </Link>
           </div>
         )}
+
+      {/* The books: the owner and treasurers only. The API enforces it; this
+          only spares everyone else a link that would say no. */}
+      {myRole?.can_open_accounts && (
+        <div className="panel instant-start">
+          <div>
+            <h2>{t("acc.title")}</h2>
+            <p className="muted">{t("acc.club_page_blurb")}</p>
+          </div>
+          <Link className="btn" href={`/clubs/${id}/accounts`}>
+            {t("acc.open_the_accounts")}
+          </Link>
+        </div>
+      )}
 
       {isSecretary && (
         <ClubSetup
