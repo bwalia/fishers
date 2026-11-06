@@ -133,6 +133,10 @@ struct MatchResponse {
     /// second innings on, because a comparison needs somebody to compare with.
     #[serde(skip_serializing_if = "Option::is_none")]
     insights: Option<fishers_domain::MatchInsights>,
+    /// The ball the match turned on, once there is a result and a chase to
+    /// read it from.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    turning_point: Option<fishers_domain::TurningPoint>,
     state: MatchState,
 }
 
@@ -146,16 +150,18 @@ struct PostMatch {
     awards: Vec<fishers_domain::PlayerImpact>,
     fighter: Option<fishers_domain::PlayerImpact>,
     insights: Option<fishers_domain::MatchInsights>,
+    turning_point: Option<fishers_domain::TurningPoint>,
 }
 
 fn post_match(state: &MatchState) -> PostMatch {
     if !state.status.is_finished() {
-        return PostMatch { awards: Vec::new(), fighter: None, insights: None };
+        return PostMatch { awards: Vec::new(), fighter: None, insights: None, turning_point: None };
     }
     PostMatch {
         awards: state.impact(),
         fighter: state.fighter_of_the_match(),
         insights: state.insights(),
+        turning_point: state.turning_point(),
     }
 }
 
@@ -190,6 +196,7 @@ fn to_response(
         awards: post.awards,
         fighter: post.fighter,
         insights: post.insights,
+        turning_point: post.turning_point,
         state: projection,
     }
 }
@@ -516,6 +523,10 @@ struct ScorecardResponse {
     fighter: Option<fishers_domain::PlayerImpact>,
     #[serde(skip_serializing_if = "Option::is_none")]
     insights: Option<fishers_domain::MatchInsights>,
+    /// The ball the match turned on, once there is a result and a chase to
+    /// read it from.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    turning_point: Option<fishers_domain::TurningPoint>,
 }
 
 async fn scorecard(
@@ -536,6 +547,7 @@ async fn scorecard(
         awards: post.awards,
         fighter: post.fighter,
         insights: post.insights,
+        turning_point: post.turning_point,
     }))
 }
 

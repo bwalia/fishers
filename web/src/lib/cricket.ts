@@ -174,6 +174,26 @@ export type PlayerImpact = {
   line: string;
 };
 
+/// The ball a finished chase turned on, read off the ball-by-ball log. The
+/// chances are the server's estimate, in whole percent, for the winning side.
+export type TurningPoint = {
+  side: Side;
+  kind: "comeback" | "decider";
+  innings: number;
+  /// "14.3"
+  over: string;
+  /// What the scorebook shows for the ball: "6", "W".
+  label: string;
+  runs: number;
+  is_wicket: boolean;
+  batter_id?: string | null;
+  bowler_id?: string | null;
+  before_percent: number;
+  after_percent: number;
+  runs_needed: number;
+  balls_left: number;
+};
+
 /// What `GET/POST /cricket/matches/{id}` replies with.
 export type MatchResponse = {
   id: string;
@@ -206,6 +226,8 @@ export type MatchResponse = {
   fighter?: PlayerImpact | null;
   /// Both sides totalled up, from the second innings on.
   insights?: MatchInsights | null;
+  /// The ball the match turned on, once there is a result and a chase.
+  turning_point?: TurningPoint | null;
   state: MatchState;
 };
 

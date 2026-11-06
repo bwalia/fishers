@@ -4057,6 +4057,16 @@ export const en = {
   "del.how_long": "Backups made before you deleted your account still hold a copy for up to 14 days, then roll off on their own.",
   "del.more_detail": "More detail:",
 
+  // MARK: Turning point
+  "tp.title": "The turning point",
+  "tp.comeback_headline": "{name} turned it around",
+  "tp.decider_headline": "{name} put it out of reach",
+  "tp.over_and_ball": "Over {over} · {label}",
+  "tp.bowler_to_batter": "{bowler} to {batter}",
+  "tp.chance": "{name}'s chance, roughly: {before}% to {after}%",
+  "tp.needed": "{runs} needed from {balls} balls",
+  "tp.basis": "An estimate from the ball-by-ball log: the delivery that moved the winners' chance the most.",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

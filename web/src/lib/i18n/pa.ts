@@ -4043,4 +4043,14 @@ export const pa: Dict = {
   "del.how_long": "ਤੁਹਾਡੇ ਖਾਤਾ ਮਿਟਾਉਣ ਤੋਂ ਪਹਿਲਾਂ ਬਣੇ ਬੈਕਅੱਪ ਵਿੱਚ 14 ਦਿਨ ਤੱਕ ਇੱਕ ਕਾਪੀ ਰਹਿੰਦੀ ਹੈ, ਫਿਰ ਆਪਣੇ ਆਪ ਹਟ ਜਾਂਦੀ ਹੈ।",
   "del.more_detail": "ਹੋਰ ਵੇਰਵੇ:",
 
+  // MARK: Turning point
+  "tp.title": "ਮੋੜ ਦਾ ਪਲ",
+  "tp.comeback_headline": "{name} ਨੇ ਬਾਜ਼ੀ ਪਲਟ ਦਿੱਤੀ",
+  "tp.decider_headline": "{name} ਨੇ ਮੈਚ ਪਹੁੰਚ ਤੋਂ ਬਾਹਰ ਕਰ ਦਿੱਤਾ",
+  "tp.over_and_ball": "ਓਵਰ {over} · {label}",
+  "tp.bowler_to_batter": "{bowler} ਤੋਂ {batter}",
+  "tp.chance": "{name} ਦਾ ਮੌਕਾ, ਲਗਭਗ: {before}% ਤੋਂ {after}%",
+  "tp.needed": "{balls} ਗੇਂਦਾਂ ਵਿੱਚ {runs} ਦੌੜਾਂ ਚਾਹੀਦੀਆਂ",
+  "tp.basis": "ਗੇਂਦ-ਦਰ-ਗੇਂਦ ਲੌਗ ਤੋਂ ਅੰਦਾਜ਼ਾ: ਉਹ ਗੇਂਦ ਜਿਸ ਨੇ ਜੇਤੂਆਂ ਦੇ ਮੌਕੇ ਨੂੰ ਸਭ ਤੋਂ ਵੱਧ ਬਦਲਿਆ।",
+
 };

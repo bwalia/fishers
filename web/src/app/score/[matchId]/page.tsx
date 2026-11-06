@@ -40,6 +40,7 @@ import {
   type MatchInsights,
   type MatchState,
   type PlayerImpact,
+  type TurningPoint,
   type SideInsights,
   type Side,
   type SideSquad,
@@ -1084,6 +1085,45 @@ function Comparison({
   );
 }
 
+/// The ball the match turned on — the winners' chance before and after it.
+///
+/// The percentages are an estimate the server works out from the ball-by-ball
+/// log, so the card says so rather than presenting them as fact.
+function TurningPointCard({
+  tp,
+  winner,
+  nameOf,
+}: {
+  tp: TurningPoint;
+  winner: string;
+  nameOf: (id?: string | null) => string;
+}) {
+  const t = useT();
+  const headline =
+    tp.kind === "comeback"
+      ? t("tp.comeback_headline", { name: winner })
+      : t("tp.decider_headline", { name: winner });
+  return (
+    <div className="award-card turning">
+      <span className="what">{t("tp.title")}</span>
+      <div className="who">{headline}</div>
+      <div className="figures">{t("tp.over_and_ball", { over: tp.over, label: tp.label })}</div>
+      {tp.bowler_id && tp.batter_id && (
+        <div className="figures">
+          {t("tp.bowler_to_batter", { bowler: nameOf(tp.bowler_id), batter: nameOf(tp.batter_id) })}
+        </div>
+      )}
+      <div className="figures">
+        {t("tp.chance", { name: winner, before: tp.before_percent, after: tp.after_percent })}
+      </div>
+      {tp.runs_needed > 0 && (
+        <div className="figures">{t("tp.needed", { runs: tp.runs_needed, balls: tp.balls_left })}</div>
+      )}
+      <p className="basis">{t("tp.basis")}</p>
+    </div>
+  );
+}
+
 /// The awards: who had the game, and who made a contest of it.
 ///
 /// Nobody in cricket computes this — an adjudicator watches and picks. So the
@@ -1276,6 +1316,13 @@ function Stages({
                 canAct={canAct}
                 nameOf={nameOf}
               />
+              {match.turning_point && (
+                <TurningPointCard
+                  tp={match.turning_point}
+                  winner={match.turning_point.side === "home" ? st.home_name : st.away_name}
+                  nameOf={nameOf}
+                />
+              )}
               {match.insights && (
                 <details className="fold" open>
                   <summary>{t("sc.how_the_game_went")}</summary>
