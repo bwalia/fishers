@@ -86,4 +86,21 @@ final class CareerTotalsTests: XCTestCase {
         )
         XCTAssertEqual(Totals([s]).catches, 8)
     }
+
+    /// Imported seasons and older servers send no count; they add nothing
+    /// rather than failing to decode.
+    func testMagicMomentsSumAndMayBeAbsent() throws {
+        var counted = season(year: 2026)
+        counted.magicMoments = 3
+        XCTAssertEqual(Totals([counted, season(year: 2025)]).magicMoments, 3)
+
+        let json = """
+        {"id":"\(UUID())","user_id":"\(UUID())","sport":"cricket","season_year":2026,
+         "source":"play_cricket","matches":1,"runs":0,"wickets":0,"batting_innings":0,
+         "not_outs":0,"balls_faced":0,"fours":0,"sixes":0,"overs_bowled":0,
+         "bowling_runs":0,"maidens":0,"catches":0,"stumpings":0}
+        """
+        let row = try JSONDecoder().decode(PlayerSeasonStats.self, from: Data(json.utf8))
+        XCTAssertNil(row.magicMoments)
+    }
 }

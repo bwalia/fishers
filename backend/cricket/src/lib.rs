@@ -29,12 +29,12 @@ pub mod dls;
 mod engine;
 mod impact;
 mod insights;
-mod turning;
+mod moments;
 mod types;
 
 pub use dls::{DlsMethod, DlsPar, InningsResources, ResourceTable};
 pub use engine::*;
 pub use impact::PlayerImpact;
 pub use insights::{MatchInsights, PhaseScore, SideInsights};
-pub use turning::{TurningKind, TurningPoint};
+pub use moments::{Feat, FeatKind, MagicMoment, MomentRole, TurningKind};
 pub use types::*;

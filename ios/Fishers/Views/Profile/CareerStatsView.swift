@@ -156,6 +156,13 @@ struct CareerStatsView: View {
     }
 
     private var highlights: [(label: String, value: String, season: Int?)] {
+        let magic = Totals(shown).magicMoments
+        let moments: [(label: String, value: String, season: Int?)] =
+            magic > 0 ? [(t("mm.title"), String(magic), nil)] : []
+        return disciplineHighlights + moments
+    }
+
+    private var disciplineHighlights: [(label: String, value: String, season: Int?)] {
         /// Lowest wins for economy, so that one ranks on the negative.
         func best(_ pick: (PlayerSeasonStats) -> Double?) -> PlayerSeasonStats? {
             shown.compactMap { row in pick(row).map { ($0, row) } }
@@ -196,6 +203,7 @@ struct Totals {
     let runs: Int
     let wickets: Int
     let catches: Int
+    let magicMoments: Int
     let battingInnings: Int
     let notOuts: Int
     let ballsFaced: Int
@@ -207,6 +215,7 @@ struct Totals {
         runs = seasons.reduce(0) { $0 + $1.runs }
         wickets = seasons.reduce(0) { $0 + $1.wickets }
         catches = seasons.reduce(0) { $0 + $1.catches + $1.stumpings }
+        magicMoments = seasons.reduce(0) { $0 + ($1.magicMoments ?? 0) }
         battingInnings = seasons.reduce(0) { $0 + $1.battingInnings }
         notOuts = seasons.reduce(0) { $0 + $1.notOuts }
         ballsFaced = seasons.reduce(0) { $0 + $1.ballsFaced }

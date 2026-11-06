@@ -70,6 +70,11 @@ pub struct PlayerSeasonStats {
     pub maidens: i32,
     pub catches: i32,
     pub stumpings: i32,
+    /// Times this player made the ball a match turned on. Only counted for
+    /// matches scored ball by ball in the app.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub magic_moments: i32,
     pub extras: Json<Value>,
     pub updated_at: DateTime<Utc>,
 }

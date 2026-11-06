@@ -285,6 +285,9 @@ function Overview({
                 <div><dt>{t("cl.runs")}</dt><dd className="num">{career.runs}</dd></div>
                 <div><dt>{t("cl.wickets")}</dt><dd className="num">{career.wickets}</dd></div>
                 <div><dt>{t("cl.catches")}</dt><dd className="num">{career.catches}</dd></div>
+                {career.magicMoments > 0 && (
+                  <div><dt>{t("mm.title")}</dt><dd className="num">{career.magicMoments}</dd></div>
+                )}
               </dl>
               <p className="subtle">
                 Across {seasons.length} season{seasons.length === 1 ? "" : "s"}, worked out
@@ -713,6 +716,7 @@ function totals(seasons: PlayerSeasonStats[]) {
     runs: add((s) => s.runs),
     wickets: add((s) => s.wickets),
     catches: add((s) => s.catches + s.stumpings),
+    magicMoments: add((s) => s.magic_moments ?? 0),
     battingInnings: add((s) => s.batting_innings),
     notOuts: add((s) => s.not_outs),
     ballsFaced: add((s) => s.balls_faced),

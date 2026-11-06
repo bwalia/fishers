@@ -40,7 +40,8 @@ import {
   type MatchInsights,
   type MatchState,
   type PlayerImpact,
-  type TurningPoint,
+  type MagicMoment,
+  type Feat,
   type SideInsights,
   type Side,
   type SideSquad,
@@ -1085,42 +1086,116 @@ function Comparison({
   );
 }
 
-/// The ball the match turned on — the winners' chance before and after it.
+/// The balls the match turned on, each with the player who made it.
 ///
 /// The percentages are an estimate the server works out from the ball-by-ball
-/// log, so the card says so rather than presenting them as fact.
-function TurningPointCard({
-  tp,
-  winner,
+/// log, so the panel says so rather than presenting them as fact.
+function MagicMoments({
+  moments,
+  st,
   nameOf,
 }: {
-  tp: TurningPoint;
-  winner: string;
+  moments: MagicMoment[];
+  st: MatchState;
   nameOf: (id?: string | null) => string;
 }) {
   const t = useT();
-  const headline =
-    tp.kind === "comeback"
-      ? t("tp.comeback_headline", { name: winner })
-      : t("tp.decider_headline", { name: winner });
+  const sideName = (s: Side) => (s === "home" ? st.home_name : st.away_name);
+  const tag = (m: MagicMoment) =>
+    m.turning === "comeback"
+      ? t("mm.turned_comeback")
+      : m.turning === "decider"
+        ? t("mm.turned_decider")
+        : m.won
+          ? t("mm.swung_it")
+          : t("mm.nearly_won_it");
+  const what = (m: MagicMoment) => {
+    const player = nameOf(m.player_id);
+    if (m.role === "fielding") return t("mm.ran_out", { player });
+    if (m.role === "bowling" && m.is_wicket) {
+      const took = t("mm.took_wicket", { player });
+      if (!m.helper_id) return took;
+      const how =
+        m.dismissal === "stumped"
+          ? t("mm.stumped_by", { name: nameOf(m.helper_id) })
+          : t("mm.caught_by", { name: nameOf(m.helper_id) });
+      return `${took}, ${how}`;
+    }
+    if (m.role === "bowling") return t("mm.kept_it_tight", { player });
+    if (m.label === "6") return t("mm.hit_six", { player });
+    if (m.label === "4") return t("mm.hit_four", { player });
+    return t("mm.hit_runs", { player, runs: m.runs });
+  };
   return (
-    <div className="award-card turning">
-      <span className="what">{t("tp.title")}</span>
-      <div className="who">{headline}</div>
-      <div className="figures">{t("tp.over_and_ball", { over: tp.over, label: tp.label })}</div>
-      {tp.bowler_id && tp.batter_id && (
-        <div className="figures">
-          {t("tp.bowler_to_batter", { bowler: nameOf(tp.bowler_id), batter: nameOf(tp.batter_id) })}
+    <details className="fold" open>
+      <summary>{t("mm.title")}</summary>
+      {moments.map((m) => (
+        <div
+          key={`${m.innings}-${m.over}-${m.player_id}`}
+          className={`award-card moment${m.won ? "" : " fight"}`}
+        >
+          <span className="what">{tag(m)}</span>
+          <div className="who">{what(m)}</div>
+          <div className="figures">
+            {t("mm.over_and_ball", { over: m.over, label: m.label })}
+            {m.shot && <> · {t(`shot.${m.shot}` as Key)}</>}
+          </div>
+          <div className="figures">
+            {t("mm.chance", {
+              name: sideName(m.side),
+              before: m.before_percent,
+              after: m.after_percent,
+            })}
+          </div>
+          {m.runs_needed > 0 && (
+            <div className="figures">
+              {t("mm.needed", { runs: m.runs_needed, balls: m.balls_left })}
+            </div>
+          )}
         </div>
-      )}
-      <div className="figures">
-        {t("tp.chance", { name: winner, before: tp.before_percent, after: tp.after_percent })}
-      </div>
-      {tp.runs_needed > 0 && (
-        <div className="figures">{t("tp.needed", { runs: tp.runs_needed, balls: tp.balls_left })}</div>
-      )}
-      <p className="basis">{t("tp.basis")}</p>
-    </div>
+      ))}
+      <p className="basis subtle">{t("mm.basis")}</p>
+    </details>
+  );
+}
+
+/// Hat-tricks, last-ball finishes and the rest, one line each.
+function Feats({ feats, nameOf }: { feats: Feat[]; nameOf: (id?: string | null) => string }) {
+  const t = useT();
+  const label = (f: Feat) => {
+    switch (f.kind) {
+      case "hat_trick":
+        return f.value > 3 ? t("feat.wickets_in_a_row", { n: f.value }) : t("feat.hat_trick");
+      case "two_in_two":
+        return t("feat.two_in_two");
+      case "sixes_in_an_over":
+        return t("feat.sixes_in_an_over", { n: f.value });
+      case "milestone_with_a_six":
+        return t("feat.milestone_with_a_six", { n: f.value });
+      case "partnership_breaker":
+        return t("feat.partnership_breaker", { n: f.value });
+      case "death_maiden":
+        return f.value > 0 ? t("feat.wicket_maiden_at_the_death") : t("feat.death_maiden");
+      case "last_ball_finish":
+        return t("feat.last_ball_finish");
+      case "last_over_defence":
+        return t("feat.last_over_defence", { n: f.value });
+    }
+  };
+  return (
+    <details className="fold" open>
+      <summary>{t("mm.feats_title")}</summary>
+      <ol className="had-the-game">
+        {feats.map((f) => (
+          <li key={`${f.kind}-${f.innings}-${f.over}-${f.player_id}`}>
+            <span className="nm">{nameOf(f.player_id)}</span>
+            <span className="fg">
+              {label(f)} · {f.over}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }
 
@@ -1316,12 +1391,11 @@ function Stages({
                 canAct={canAct}
                 nameOf={nameOf}
               />
-              {match.turning_point && (
-                <TurningPointCard
-                  tp={match.turning_point}
-                  winner={match.turning_point.side === "home" ? st.home_name : st.away_name}
-                  nameOf={nameOf}
-                />
+              {match.moments && match.moments.length > 0 && (
+                <MagicMoments moments={match.moments} st={st} nameOf={nameOf} />
+              )}
+              {match.feats && match.feats.length > 0 && (
+                <Feats feats={match.feats} nameOf={nameOf} />
               )}
               {match.insights && (
                 <details className="fold" open>
