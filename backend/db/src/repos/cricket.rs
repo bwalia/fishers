@@ -883,6 +883,8 @@ struct PlayerTally {
     maidens: i32,
     catches: i32,
     stumpings: i32,
+    /// The ball the match turned on was theirs.
+    magic_moments: i32,
 }
 
 /// Everything a finished match owes the rest of the app: who turned up, what it
@@ -948,10 +950,10 @@ async fn record_match_outcomes(
                 user_id, club_id, sport, season_year, source,
                 matches, runs, wickets, batting_innings, not_outs, balls_faced,
                 fours, sixes, high_score, overs_bowled, bowling_runs, maidens,
-                catches, stumpings
+                catches, stumpings, magic_moments
             )
             SELECT u.id, $2, 'cricket', $3, 'fishers_scoring',
-                   $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+                   $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
             FROM users u WHERE u.id = $1
             ON CONFLICT (user_id, club_id, sport, season_year, source) DO UPDATE SET
                 matches         = player_season_stats.matches + EXCLUDED.matches,
@@ -971,6 +973,7 @@ async fn record_match_outcomes(
                 maidens         = player_season_stats.maidens + EXCLUDED.maidens,
                 catches         = player_season_stats.catches + EXCLUDED.catches,
                 stumpings       = player_season_stats.stumpings + EXCLUDED.stumpings,
+                magic_moments   = player_season_stats.magic_moments + EXCLUDED.magic_moments,
                 updated_at      = NOW()
             "#,
         )
@@ -991,6 +994,7 @@ async fn record_match_outcomes(
         .bind(tally.maidens)
         .bind(tally.catches)
         .bind(tally.stumpings)
+        .bind(tally.magic_moments)
         .execute(&mut **tx)
         .await?;
     }
@@ -1144,6 +1148,11 @@ fn tally_players(state: &MatchState) -> std::collections::HashMap<Uuid, PlayerTa
         }
     }
 
+    // The ball the match turned on, credited to whoever made it.
+    if let Some(moment) = state.turning_point() {
+        tallies.entry(moment.player_id).or_default().magic_moments += 1;
+    }
+
     tallies
 }
 
@@ -1207,4 +1216,49 @@ async fn record_tournament_result(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod magic_moment_tally {
+    use super::*;
+    use fishers_domain::{DeliveryRecord, InningsState, MatchSide, MatchStatus};
+
+    fn ball(label: &str, runs: u8, n: usize, batter: Uuid, bowler: Uuid) -> DeliveryRecord {
+        DeliveryRecord {
+            over: (n / 6) as u16,
+            ball_in_over: (n % 6) as u8 + 1,
+            label: label.into(),
+            runs,
+            is_legal: true,
+            is_wicket: false,
+            batter_id: Some(batter),
+            bowler_id: Some(bowler),
+            shot: None,
+        }
+    }
+
+    /// Thirty dots, then sixes: the hitter turned it, and their season says so.
+    #[test]
+    fn the_turning_ball_counts_toward_the_season() {
+        let (blocker, hitter, bowler) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let mut deliveries: Vec<_> = (0..30).map(|n| ball("0", 0, n, blocker, bowler)).collect();
+        deliveries.extend((30..47).map(|n| ball("6", 6, n, hitter, bowler)));
+        let state = MatchState {
+            status: MatchStatus::Complete,
+            winner: Some(MatchSide::Away),
+            overs_limit: 20,
+            target: Some(101),
+            innings: vec![
+                InningsState { index: 0, batting: MatchSide::Home, bowling: MatchSide::Away, runs: 100, legal_balls: 120, complete: true, ..InningsState::default() },
+                InningsState { index: 1, batting: MatchSide::Away, bowling: MatchSide::Home, runs: 102, legal_balls: 47, deliveries, complete: true, ..InningsState::default() },
+            ],
+            ..MatchState::default()
+        };
+
+        let turning = state.turning_point().expect("the sixes turned it");
+        assert_eq!(turning.player_id, hitter);
+        let tallies = tally_players(&state);
+        assert_eq!(tallies[&hitter].magic_moments, 1);
+        assert_eq!(tallies.values().map(|t| t.magic_moments).sum::<i32>(), 1, "one ball, one moment");
+    }
 }

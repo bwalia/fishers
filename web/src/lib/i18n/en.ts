@@ -4057,6 +4057,37 @@ export const en = {
   "del.how_long": "Backups made before you deleted your account still hold a copy for up to 14 days, then roll off on their own.",
   "del.more_detail": "More detail:",
 
+  // MARK: Magic moments
+  "mm.title": "Magic moments",
+  "mm.turned_comeback": "Turned it around",
+  "mm.turned_decider": "Put it out of reach",
+  "mm.swung_it": "Swung it",
+  "mm.nearly_won_it": "Nearly won it",
+  "mm.hit_six": "{player} hit a six",
+  "mm.hit_four": "{player} hit a four",
+  "mm.hit_runs": "{player} took {runs}",
+  "mm.took_wicket": "{player} took the wicket",
+  "mm.caught_by": "caught by {name}",
+  "mm.stumped_by": "stumped by {name}",
+  "mm.ran_out": "{player} with the run-out",
+  "mm.kept_it_tight": "{player} kept it tight",
+  "mm.over_and_ball": "Over {over} · {label}",
+  "mm.chance": "{name}'s chance, roughly: {before}% to {after}%",
+  "mm.needed": "{runs} needed from {balls} balls",
+  "mm.basis": "Estimated from the ball-by-ball log: the balls that moved the result most, credited to the player who made them.",
+  "mm.feats_title": "Feats",
+  "mm.col": "Magic",
+  "feat.hat_trick": "Hat-trick",
+  "feat.wickets_in_a_row": "{n} wickets in {n} balls",
+  "feat.two_in_two": "Two wickets in two balls",
+  "feat.sixes_in_an_over": "{n} sixes in an over",
+  "feat.milestone_with_a_six": "Reached {n} with a six",
+  "feat.partnership_breaker": "Broke the {n}-run stand",
+  "feat.death_maiden": "Maiden at the death",
+  "feat.wicket_maiden_at_the_death": "Wicket maiden at the death",
+  "feat.last_ball_finish": "Won it off the last ball",
+  "feat.last_over_defence": "Defended {n} in the last over",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

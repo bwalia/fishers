@@ -23,6 +23,8 @@ export type PlayerSeasonStats = {
   maidens: number;
   catches: number;
   stumpings: number;
+  /// Times they made the ball a match turned on. Absent on older servers.
+  magic_moments?: number;
   player_name?: string | null;
   club_name?: string | null;
   play_cricket_profile_url?: string | null;

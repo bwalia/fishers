@@ -133,6 +133,13 @@ struct MatchResponse {
     /// second innings on, because a comparison needs somebody to compare with.
     #[serde(skip_serializing_if = "Option::is_none")]
     insights: Option<fishers_domain::MatchInsights>,
+    /// The balls the match turned on and the players who made them, the
+    /// turning point first. Only once there is a result and a chase.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    moments: Vec<fishers_domain::MagicMoment>,
+    /// Hat-tricks, last-ball finishes and the rest, read off the log.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    feats: Vec<fishers_domain::Feat>,
     state: MatchState,
 }
 
@@ -146,16 +153,20 @@ struct PostMatch {
     awards: Vec<fishers_domain::PlayerImpact>,
     fighter: Option<fishers_domain::PlayerImpact>,
     insights: Option<fishers_domain::MatchInsights>,
+    moments: Vec<fishers_domain::MagicMoment>,
+    feats: Vec<fishers_domain::Feat>,
 }
 
 fn post_match(state: &MatchState) -> PostMatch {
     if !state.status.is_finished() {
-        return PostMatch { awards: Vec::new(), fighter: None, insights: None };
+        return PostMatch { awards: Vec::new(), fighter: None, insights: None, moments: Vec::new(), feats: Vec::new() };
     }
     PostMatch {
         awards: state.impact(),
         fighter: state.fighter_of_the_match(),
         insights: state.insights(),
+        moments: state.magic_moments(),
+        feats: state.feats(),
     }
 }
 
@@ -190,6 +201,8 @@ fn to_response(
         awards: post.awards,
         fighter: post.fighter,
         insights: post.insights,
+        moments: post.moments,
+        feats: post.feats,
         state: projection,
     }
 }
@@ -516,6 +529,13 @@ struct ScorecardResponse {
     fighter: Option<fishers_domain::PlayerImpact>,
     #[serde(skip_serializing_if = "Option::is_none")]
     insights: Option<fishers_domain::MatchInsights>,
+    /// The balls the match turned on and the players who made them, the
+    /// turning point first. Only once there is a result and a chase.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    moments: Vec<fishers_domain::MagicMoment>,
+    /// Hat-tricks, last-ball finishes and the rest, read off the log.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    feats: Vec<fishers_domain::Feat>,
 }
 
 async fn scorecard(
@@ -536,6 +556,8 @@ async fn scorecard(
         awards: post.awards,
         fighter: post.fighter,
         insights: post.insights,
+        moments: post.moments,
+        feats: post.feats,
     }))
 }
 

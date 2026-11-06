@@ -94,6 +94,10 @@ struct PlayerSeasonStats: Codable, Identifiable, Equatable {
     let maidens: Int
     let catches: Int
     let stumpings: Int
+    /// Times they made the ball a match turned on. Absent from older servers
+    /// and from imported seasons, so optional — and a `var` so existing
+    /// initialisers do not have to pass it.
+    var magicMoments: Int?
     let playerName: String?
     let clubName: String?
     let playCricketProfileUrl: String?
@@ -119,6 +123,7 @@ struct PlayerSeasonStats: Codable, Identifiable, Equatable {
         case oversBowled = "overs_bowled"
         case bowlingRuns = "bowling_runs"
         case maidens, catches, stumpings
+        case magicMoments = "magic_moments"
         case playerName = "player_name"
         case clubName = "club_name"
         case playCricketProfileUrl = "play_cricket_profile_url"

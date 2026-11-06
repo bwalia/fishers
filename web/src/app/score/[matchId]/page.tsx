@@ -40,6 +40,8 @@ import {
   type MatchInsights,
   type MatchState,
   type PlayerImpact,
+  type MagicMoment,
+  type Feat,
   type SideInsights,
   type Side,
   type SideSquad,
@@ -1084,6 +1086,119 @@ function Comparison({
   );
 }
 
+/// The balls the match turned on, each with the player who made it.
+///
+/// The percentages are an estimate the server works out from the ball-by-ball
+/// log, so the panel says so rather than presenting them as fact.
+function MagicMoments({
+  moments,
+  st,
+  nameOf,
+}: {
+  moments: MagicMoment[];
+  st: MatchState;
+  nameOf: (id?: string | null) => string;
+}) {
+  const t = useT();
+  const sideName = (s: Side) => (s === "home" ? st.home_name : st.away_name);
+  const tag = (m: MagicMoment) =>
+    m.turning === "comeback"
+      ? t("mm.turned_comeback")
+      : m.turning === "decider"
+        ? t("mm.turned_decider")
+        : m.won
+          ? t("mm.swung_it")
+          : t("mm.nearly_won_it");
+  const what = (m: MagicMoment) => {
+    const player = nameOf(m.player_id);
+    if (m.role === "fielding") return t("mm.ran_out", { player });
+    if (m.role === "bowling" && m.is_wicket) {
+      const took = t("mm.took_wicket", { player });
+      if (!m.helper_id) return took;
+      const how =
+        m.dismissal === "stumped"
+          ? t("mm.stumped_by", { name: nameOf(m.helper_id) })
+          : t("mm.caught_by", { name: nameOf(m.helper_id) });
+      return `${took}, ${how}`;
+    }
+    if (m.role === "bowling") return t("mm.kept_it_tight", { player });
+    if (m.label === "6") return t("mm.hit_six", { player });
+    if (m.label === "4") return t("mm.hit_four", { player });
+    return t("mm.hit_runs", { player, runs: m.runs });
+  };
+  return (
+    <details className="fold" open>
+      <summary>{t("mm.title")}</summary>
+      {moments.map((m) => (
+        <div
+          key={`${m.innings}-${m.over}-${m.player_id}`}
+          className={`award-card moment${m.won ? "" : " fight"}`}
+        >
+          <span className="what">{tag(m)}</span>
+          <div className="who">{what(m)}</div>
+          <div className="figures">
+            {t("mm.over_and_ball", { over: m.over, label: m.label })}
+            {m.shot && <> · {t(`shot.${m.shot}` as Key)}</>}
+          </div>
+          <div className="figures">
+            {t("mm.chance", {
+              name: sideName(m.side),
+              before: m.before_percent,
+              after: m.after_percent,
+            })}
+          </div>
+          {m.runs_needed > 0 && (
+            <div className="figures">
+              {t("mm.needed", { runs: m.runs_needed, balls: m.balls_left })}
+            </div>
+          )}
+        </div>
+      ))}
+      <p className="basis subtle">{t("mm.basis")}</p>
+    </details>
+  );
+}
+
+/// Hat-tricks, last-ball finishes and the rest, one line each.
+function Feats({ feats, nameOf }: { feats: Feat[]; nameOf: (id?: string | null) => string }) {
+  const t = useT();
+  const label = (f: Feat) => {
+    switch (f.kind) {
+      case "hat_trick":
+        return f.value > 3 ? t("feat.wickets_in_a_row", { n: f.value }) : t("feat.hat_trick");
+      case "two_in_two":
+        return t("feat.two_in_two");
+      case "sixes_in_an_over":
+        return t("feat.sixes_in_an_over", { n: f.value });
+      case "milestone_with_a_six":
+        return t("feat.milestone_with_a_six", { n: f.value });
+      case "partnership_breaker":
+        return t("feat.partnership_breaker", { n: f.value });
+      case "death_maiden":
+        return f.value > 0 ? t("feat.wicket_maiden_at_the_death") : t("feat.death_maiden");
+      case "last_ball_finish":
+        return t("feat.last_ball_finish");
+      case "last_over_defence":
+        return t("feat.last_over_defence", { n: f.value });
+    }
+  };
+  return (
+    <details className="fold" open>
+      <summary>{t("mm.feats_title")}</summary>
+      <ol className="had-the-game">
+        {feats.map((f) => (
+          <li key={`${f.kind}-${f.innings}-${f.over}-${f.player_id}`}>
+            <span className="nm">{nameOf(f.player_id)}</span>
+            <span className="fg">
+              {label(f)} · {f.over}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 /// The awards: who had the game, and who made a contest of it.
 ///
 /// Nobody in cricket computes this — an adjudicator watches and picks. So the
@@ -1276,6 +1391,12 @@ function Stages({
                 canAct={canAct}
                 nameOf={nameOf}
               />
+              {match.moments && match.moments.length > 0 && (
+                <MagicMoments moments={match.moments} st={st} nameOf={nameOf} />
+              )}
+              {match.feats && match.feats.length > 0 && (
+                <Feats feats={match.feats} nameOf={nameOf} />
+              )}
               {match.insights && (
                 <details className="fold" open>
                   <summary>{t("sc.how_the_game_went")}</summary>

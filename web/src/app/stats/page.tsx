@@ -168,6 +168,7 @@ export default function StatsPage() {
                   <th className="n">{t("sh.col_wkts")}</th>
                   <th className="n">{t("sh.col_econ")}</th>
                   <th className="n">{t("sh.ct_st")}</th>
+                  <th className="n" title={t("mm.title")}>{t("mm.col")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,6 +183,7 @@ export default function StatsPage() {
                     <td className="n">{s.wickets}</td>
                     <td className="n">{num(economy(s))}</td>
                     <td className="n">{s.catches}/{s.stumpings}</td>
+                    <td className="n">{s.magic_moments ?? 0}</td>
                   </tr>
                 ))}
               </tbody>
