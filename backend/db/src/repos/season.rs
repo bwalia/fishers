@@ -4,8 +4,8 @@
 
 use chrono::{DateTime, Utc};
 use fishers_domain::season::{
-    match_figures, ClubRank, ClubSeason, Leader, Leaderboard, MatchLine, PlayerGame,
-    SeasonRecordLine,
+    match_figures, ClosePreview, ClubRank, ClubSeason, DueSeasonEmail, Leader, Leaderboard,
+    MatchLine, PlayerGame, SeasonRecordLine,
 };
 use fishers_domain::{MatchSide, MatchState};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -261,27 +261,9 @@ pub async fn club_season(
         .or_else(|| seasons.first().copied())
         .unwrap_or_else(|| fishers_domain::season::season_of(Utc::now()));
 
-    // A match counts for the club once, whatever number of its players were in
-    // it; its result is what the club's players' lines say it was.
-    let record: SeasonRecordLine = sqlx::query_as(
-        r#"
-        WITH m AS (
-            SELECT match_id, bool_or(won) AS won, bool_and(won IS NOT NULL) AS decided
-            FROM player_match_lines
-            WHERE club_id = $1 AND season_year = $2
-            GROUP BY match_id
-        )
-        SELECT COUNT(*) AS played,
-               COUNT(*) FILTER (WHERE won) AS won,
-               COUNT(*) FILTER (WHERE decided AND NOT won) AS lost,
-               COUNT(*) FILTER (WHERE NOT decided) AS tied_or_no_result
-        FROM m
-        "#,
-    )
-    .bind(club_id)
-    .bind(season)
-    .fetch_one(pool)
-    .await?;
+    // A match counts for the club once, whatever number of its players were
+    // in it; its result is what the club's players' lines say it was.
+    let record = club_record(pool, club_id, season).await?;
     let players: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT user_id) FROM player_match_lines WHERE club_id = $1 AND season_year = $2",
     )
@@ -301,7 +283,176 @@ pub async fn club_season(
             boards.push(Leaderboard { code: (*code).into(), leaders });
         }
     }
-    Ok(Some(ClubSeason { club_id, club_name, season, seasons, record, players, boards }))
+    let closed_at = closed_at(pool, club_id, season).await?;
+    Ok(Some(ClubSeason { club_id, club_name, season, closed_at, seasons, record, players, boards }))
+}
+
+pub async fn closed_at(
+    pool: &PgPool,
+    club_id: Uuid,
+    season: i32,
+) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+    sqlx::query_scalar("SELECT closed_at FROM club_seasons WHERE club_id = $1 AND season_year = $2")
+        .bind(club_id)
+        .bind(season)
+        .fetch_optional(pool)
+        .await
+}
+
+/// The club's record for a season.
+pub async fn club_record(pool: &PgPool, club_id: Uuid, season: i32) -> Result<SeasonRecordLine, sqlx::Error> {
+    sqlx::query_as(
+        r#"
+        WITH m AS (
+            SELECT match_id, bool_or(won) AS won, bool_and(won IS NOT NULL) AS decided
+            FROM player_match_lines
+            WHERE club_id = $1 AND season_year = $2
+            GROUP BY match_id
+        )
+        SELECT COUNT(*) AS played,
+               COUNT(*) FILTER (WHERE won) AS won,
+               COUNT(*) FILTER (WHERE decided AND NOT won) AS lost,
+               COUNT(*) FILTER (WHERE NOT decided) AS tied_or_no_result
+        FROM m
+        "#,
+    )
+    .bind(club_id)
+    .bind(season)
+    .fetch_one(pool)
+    .await
+}
+
+/// Who closing the season would email, before anybody presses the button.
+pub async fn close_preview(pool: &PgPool, club_id: Uuid, season: i32) -> Result<ClosePreview, sqlx::Error> {
+    sqlx::query_as(
+        r#"
+        SELECT $2::INT AS season,
+               (SELECT closed_at FROM club_seasons WHERE club_id = $1 AND season_year = $2) AS closed_at,
+               COUNT(*) AS members,
+               COUNT(*) FILTER (WHERE u.email IS NOT NULL AND NOT u.season_emails_off) AS will_email,
+               COUNT(*) FILTER (WHERE EXISTS (
+                   SELECT 1 FROM player_match_lines l
+                   WHERE l.user_id = u.id AND l.club_id = $1 AND l.season_year = $2)) AS played
+        FROM club_members m JOIN users u ON u.id = m.user_id
+        WHERE m.club_id = $1 AND m.status = 'active' AND u.deleted_at IS NULL
+        "#,
+    )
+    .bind(club_id)
+    .bind(season)
+    .fetch_one(pool)
+    .await
+}
+
+/// Close the season and queue an email for every active member. None when it
+/// was already closed: closing twice must not email anybody twice.
+pub async fn close_season(
+    pool: &PgPool,
+    club_id: Uuid,
+    season: i32,
+    by: Uuid,
+) -> Result<Option<i64>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let closed: Option<DateTime<Utc>> = sqlx::query_scalar(
+        r#"
+        INSERT INTO club_seasons (club_id, season_year, closed_by) VALUES ($1, $2, $3)
+        ON CONFLICT DO NOTHING
+        RETURNING closed_at
+        "#,
+    )
+    .bind(club_id)
+    .bind(season)
+    .bind(by)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if closed.is_none() {
+        return Ok(None);
+    }
+    let queued = sqlx::query(
+        r#"
+        INSERT INTO season_emails (club_id, season_year, user_id)
+        SELECT $1, $2, m.user_id
+        FROM club_members m JOIN users u ON u.id = m.user_id
+        WHERE m.club_id = $1 AND m.status = 'active' AND u.deleted_at IS NULL
+        ON CONFLICT DO NOTHING
+        "#,
+    )
+    .bind(club_id)
+    .bind(season)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    tx.commit().await?;
+    Ok(Some(queued as i64))
+}
+
+/// The next season emails to send, oldest close first.
+pub async fn due_season_emails(pool: &PgPool, limit: i64) -> Result<Vec<DueSeasonEmail>, sqlx::Error> {
+    sqlx::query_as(
+        r#"
+        SELECT e.club_id, c.name AS club_name, e.season_year, e.user_id,
+               u.email, u.season_emails_off, u.email_prefs_token, e.attempts
+        FROM season_emails e
+        JOIN clubs c ON c.id = e.club_id
+        JOIN users u ON u.id = e.user_id
+        WHERE e.sent_at IS NULL AND e.skipped IS NULL
+        ORDER BY e.queued_at, e.user_id
+        LIMIT $1
+        "#,
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
+/// `skipped` None means it went.
+pub async fn mark_season_email(
+    pool: &PgPool,
+    due: &DueSeasonEmail,
+    skipped: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        UPDATE season_emails
+        SET sent_at = CASE WHEN $4::TEXT IS NULL THEN NOW() END, skipped = $4, attempts = attempts + 1
+        WHERE club_id = $1 AND season_year = $2 AND user_id = $3
+        "#,
+    )
+    .bind(due.club_id)
+    .bind(due.season_year)
+    .bind(due.user_id)
+    .bind(skipped)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// A failed send: try again next tick, up to three times.
+pub async fn retry_season_email(pool: &PgPool, due: &DueSeasonEmail) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        UPDATE season_emails
+        SET attempts = attempts + 1,
+            skipped = CASE WHEN attempts + 1 >= 3 THEN 'failed' END
+        WHERE club_id = $1 AND season_year = $2 AND user_id = $3
+        "#,
+    )
+    .bind(due.club_id)
+    .bind(due.season_year)
+    .bind(due.user_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Turn season emails off or on from the link in one. True when the token
+/// was somebody's.
+pub async fn set_season_emails_off(pool: &PgPool, token: &str, off: bool) -> Result<bool, sqlx::Error> {
+    let done = sqlx::query("UPDATE users SET season_emails_off = $2 WHERE email_prefs_token = $1")
+        .bind(token)
+        .bind(off)
+        .execute(pool)
+        .await?;
+    Ok(done.rows_affected() > 0)
 }
 
 /// Each board: the top five. The qualifying bars keep one lucky innings off

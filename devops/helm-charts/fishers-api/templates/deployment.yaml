@@ -92,6 +92,23 @@ spec:
             - name: SPORTS_ENABLED
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.config.brandName }}
+            # Whose name, colour and reply address the email carries.
+            - name: BRAND_NAME
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.brandColor }}
+            - name: BRAND_COLOR
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.brandTint }}
+            - name: BRAND_TINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.brandSupportEmail }}
+            - name: BRAND_SUPPORT_EMAIL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.config.ollamaUrl }}
             - name: OLLAMA_URL
               value: {{ . | quote }}

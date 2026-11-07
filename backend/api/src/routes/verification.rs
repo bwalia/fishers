@@ -29,6 +29,7 @@ use crate::auth::AuthUser;
 use argon2::PasswordHasher;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
+use fishers_notifications::brand::{html_escape, Brand};
 
 const TTL_SECS: i64 = 600;
 const MAX_ATTEMPTS: i32 = 5;
@@ -187,12 +188,12 @@ pub async fn issue(state: &AppState, user: &User, channel: &'static str) -> ApiR
 
     let delivered = match channel {
         "email" => {
-            let (text, html) = email_body(&user.name, &code);
+            let (text, html) = email_body(&state.email.brand, &user.name, &code);
             state
                 .email
                 .send_html(
                     &target,
-                    &format!("{code} is your Fishers code"),
+                    &format!("{code} is your {} code", state.email.brand.name),
                     &text,
                     &html,
                 )
@@ -335,10 +336,15 @@ async fn send_reset(state: &AppState, user: &User, email: &str) -> ApiResult<()>
     let hash = hash_code(&state.jwt_secret, user.id, RESET, email, &code);
     codes::create(&state.pool, user.id, RESET, email, &hash, TTL_SECS).await?;
 
-    let (text, html) = reset_email_body(&user.name, &code);
+    let (text, html) = reset_email_body(&state.email.brand, &user.name, &code);
     if let Err(e) = state
         .email
-        .send_html(email, &format!("{code} is your Fishers reset code"), &text, &html)
+        .send_html(
+            email,
+            &format!("{code} is your {} reset code", state.email.brand.name),
+            &text,
+            &html,
+        )
         .await
     {
         // Leave nothing live that nobody received.
@@ -427,23 +433,19 @@ async fn reset(
     Ok(Json(serde_json::json!({ "reset": true })))
 }
 
-fn reset_email_body(name: &str, code: &str) -> (String, String) {
+fn reset_email_body(brand: &Brand, name: &str, code: &str) -> (String, String) {
     let first = name.split_whitespace().next().unwrap_or("there");
+    let app = &brand.name;
     let text = format!(
-        "Hi {first},\n\nUse this code to set a new Fishers password:\n\n    {code}\n\n\
+        "Hi {first},\n\nUse this code to set a new {app} password:\n\n    {code}\n\n\
          It expires in 10 minutes. If you did not ask to reset your password, ignore this \
-         email — your current one still works and nobody has been told it.\n\n— Fishers\n"
+         email — your current one still works and nobody has been told it.\n\n— {app}\n"
     );
-    let first = html_escape(first);
-    let html = format!(
-        r#"<!doctype html><html><body style="margin:0;background:#f4f1e8;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2a22">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" style="max-width:460px;background:#ffffff;border-radius:14px;border:1px solid #e3ddd0">
-<tr><td style="padding:28px 28px 8px;font-size:15px;font-weight:700;letter-spacing:.08em">FISHERS</td></tr>
-<tr><td style="padding:8px 28px;font-size:15px;line-height:1.6">Hi {first}, use this code to set a new password:</td></tr>
-<tr><td style="padding:12px 28px"><div style="font-size:34px;font-weight:700;letter-spacing:.3em;background:#eef2ea;border-radius:10px;padding:16px 0;text-align:center;color:#2f4a36">{code}</div></td></tr>
-<tr><td style="padding:8px 28px 28px;font-size:13px;line-height:1.6;color:#5b6660">It expires in 10 minutes. If you did not ask to reset your password, ignore this email — your current one still works and nobody has been told it.</td></tr>
-</table></td></tr></table></body></html>"#
+    let html = brand.code_email_html(
+        &format!("Hi {}, use this code to set a new password:", html_escape(first)),
+        code,
+        "It expires in 10 minutes. If you did not ask to reset your password, ignore this email — \
+         your current one still works and nobody has been told it.",
     );
     (text, html)
 }
@@ -501,31 +503,20 @@ fn mask(channel: &str, target: &str) -> String {
     }
 }
 
-fn email_body(name: &str, code: &str) -> (String, String) {
+fn email_body(brand: &Brand, name: &str, code: &str) -> (String, String) {
     let first = name.split_whitespace().next().unwrap_or("there");
+    let app = &brand.name;
     let text = format!(
-        "Hi {first},\n\nYour Fishers code is:\n\n    {code}\n\nIt expires in 10 minutes. \
-         If you did not ask for it, ignore this email — nobody can use it without your password.\n\n— Fishers\n"
+        "Hi {first},\n\nYour {app} code is:\n\n    {code}\n\nIt expires in 10 minutes. \
+         If you did not ask for it, ignore this email — nobody can use it without your password.\n\n— {app}\n"
     );
-    let first = html_escape(first);
-    let html = format!(
-        r#"<!doctype html><html><body style="margin:0;background:#f4f1e8;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2a22">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" style="max-width:460px;background:#ffffff;border-radius:14px;border:1px solid #e3ddd0">
-<tr><td style="padding:28px 28px 8px;font-size:15px;font-weight:700;letter-spacing:.08em">FISHERS</td></tr>
-<tr><td style="padding:8px 28px;font-size:15px;line-height:1.6">Hi {first}, here is your code:</td></tr>
-<tr><td style="padding:12px 28px"><div style="font-size:34px;font-weight:700;letter-spacing:.3em;background:#eef2ea;border-radius:10px;padding:16px 0;text-align:center;color:#2f4a36">{code}</div></td></tr>
-<tr><td style="padding:8px 28px 28px;font-size:13px;line-height:1.6;color:#5b6660">It expires in 10 minutes. If you did not ask for it, ignore this email — nobody can use it without your password.</td></tr>
-</table></td></tr></table></body></html>"#
+    let html = brand.code_email_html(
+        &format!("Hi {}, here is your code:", html_escape(first)),
+        code,
+        "It expires in 10 minutes. If you did not ask for it, ignore this email — nobody can use \
+         it without your password.",
     );
     (text, html)
-}
-
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
 
 #[cfg(test)]
@@ -569,7 +560,7 @@ mod tests {
 
     #[test]
     fn a_reset_email_never_carries_the_password_or_a_working_link() {
-        let (text, html) = reset_email_body("Jiya", "123456");
+        let (text, html) = reset_email_body(&Brand::default(), "Jiya", "123456");
         for body in [&text, &html] {
             assert!(body.contains("123456"), "the code is the whole point");
             assert!(
@@ -581,8 +572,16 @@ mod tests {
     }
 
     #[test]
+    fn the_email_carries_the_brand_it_was_sent_from() {
+        let gully = Brand { name: "Gully Cricket".into(), colour: "#a54f18".into(), ..Brand::default() };
+        let (text, html) = email_body(&gully, "Arjun", "123456");
+        assert!(text.contains("Your Gully Cricket code") && !text.contains("Fishers"));
+        assert!(html.contains("GULLY CRICKET") && html.contains("#a54f18") && !html.contains("FISHERS"));
+    }
+
+    #[test]
     fn a_name_cannot_inject_html_into_the_email() {
-        let (_, html) = email_body("<script>x</script> Smith", "000111");
+        let (_, html) = email_body(&Brand::default(), "<script>x</script> Smith", "000111");
         assert!(!html.contains("<script>"));
     }
 }

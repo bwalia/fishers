@@ -932,10 +932,39 @@ pub struct ClubSeason {
     pub club_id: Uuid,
     pub club_name: String,
     pub season: i32,
+    /// When the secretary closed it, and the season emails went.
+    pub closed_at: Option<DateTime<Utc>>,
     pub seasons: Vec<i32>,
     pub record: SeasonRecordLine,
     pub players: i64,
     pub boards: Vec<Leaderboard>,
+}
+
+/// What closing the season will do, shown before the secretary confirms.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ClosePreview {
+    pub season: i32,
+    pub closed_at: Option<DateTime<Utc>>,
+    /// Active members of the club.
+    pub members: i64,
+    /// Of those, who will get an email: an address on file, not opted out.
+    pub will_email: i64,
+    /// Of those, who played this season and gets their figures; the rest
+    /// get a thank-you.
+    pub played: i64,
+}
+
+/// One season email waiting to go.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct DueSeasonEmail {
+    pub club_id: Uuid,
+    pub club_name: String,
+    pub season_year: i32,
+    pub user_id: Uuid,
+    pub email: Option<String>,
+    pub season_emails_off: bool,
+    pub email_prefs_token: String,
+    pub attempts: i32,
 }
 
 #[cfg(test)]

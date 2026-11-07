@@ -8,6 +8,10 @@ pub mod apns;
 pub mod fcm;
 pub mod webpush;
 pub mod whatsapp;
+pub mod brand;
+pub mod season_email;
+
+pub use brand::Brand;
 
 use lettre::message::header::ContentType;
 use lettre::message::{Mailbox, MultiPart};
@@ -146,6 +150,8 @@ impl PushService {
 #[derive(Clone)]
 pub struct EmailService {
     pub from_address: String,
+    /// Whose name and colours the mail carries.
+    pub brand: Brand,
     transport: Option<AsyncSmtpTransport<Tokio1Executor>>,
 }
 
@@ -162,6 +168,7 @@ impl Default for EmailService {
     fn default() -> Self {
         Self {
             from_address: "Fishers <no-reply@fishers.cloud>".into(),
+            brand: Brand::default(),
             transport: None,
         }
     }
@@ -170,13 +177,14 @@ impl Default for EmailService {
 impl EmailService {
     pub fn from_env() -> Self {
         let var = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
+        let brand = Brand::from_env();
         let Some(host) = var("SMTP_HOST") else {
             info!("SMTP_HOST not set: email is off, and so is email verification");
-            return Self::default();
+            return Self { brand, ..Self::default() };
         };
         let username = var("SMTP_USERNAME");
         let from_address = var("EMAIL_FROM")
-            .or_else(|| username.as_ref().map(|u| format!("Fishers <{u}>")))
+            .or_else(|| username.as_ref().map(|u| format!("{} <{u}>", brand.name)))
             .unwrap_or_else(|| Self::default().from_address);
         let port: u16 = var("SMTP_PORT").and_then(|p| p.parse().ok()).unwrap_or(587);
 
@@ -189,7 +197,7 @@ impl EmailService {
             Ok(b) => b.port(port).timeout(Some(std::time::Duration::from_secs(20))),
             Err(e) => {
                 warn!(error = %e, host, "SMTP transport could not be built: email is off");
-                return Self::default();
+                return Self { brand, ..Self::default() };
             }
         };
         if let (Some(u), Some(p)) = (username, var("SMTP_PASSWORD")) {
@@ -198,6 +206,7 @@ impl EmailService {
         info!(host, port, from = %from_address, "email on");
         Self {
             from_address,
+            brand,
             transport: Some(builder.build()),
         }
     }
