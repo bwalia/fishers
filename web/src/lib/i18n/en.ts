@@ -4189,6 +4189,26 @@ export const en = {
   "ss.unsub_undo": "Turn season emails back on",
   "ss.resub_done": "Season emails are back on",
   "ss.unsub_failed": "That link is not recognised. It may have been copied wrongly.",
+  // MARK: Open club link
+  "jl.title": "Club link — anyone can join",
+  "jl.explainer": "One link for the whole squad. Put it in the team WhatsApp group: everyone who opens it can sign up and join the club, and it never gets used up. It isn't tied to anyone's email or name. They join as a member, and you can change their role afterwards.",
+  "jl.make_link": "Make a club link",
+  "jl.new_link": "Make a new link",
+  "jl.turn_off": "Turn off",
+  "jl.confirm_new_link": "Make a new link? The old one will stop working. Anyone who already joined stays in.",
+  "jl.confirm_turn_off": "Turn the club link off? Nobody new can join through it. Anyone who already joined stays in.",
+  "jl.new_link_made": "New link made. The old one no longer works.",
+  "jl.turned_off": "The club link is off.",
+  "jl.could_not_make_link": "Could not make the club link",
+  "jl.could_not_turn_off": "Could not turn the club link off",
+  "jl.whatsapp_message": "Join {club} on {brand}: {url}",
+  "jl.joined_through_it.one": "{n} person has joined through this link",
+  "jl.joined_through_it.other": "{n} people have joined through this link",
+  "jl.join_club": "Join {club}",
+  "jl.invited_by": "Invited by {name}",
+  "jl.link_turned_off": "The club has turned this link off.",
+  "jl.link_already_used": "This invite has already been used.",
+  "jl.ask_for_the_current_link": "Ask the club for its current link.",
 
 } as const;
 

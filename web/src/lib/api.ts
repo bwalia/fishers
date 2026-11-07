@@ -897,9 +897,26 @@ export type Invite = {
   token: string;
   status: string;
   created_at: string;
+  /// An open link: never used up, good for everyone who follows it until the
+  /// club turns it off. `uses` counts who has joined through it.
+  open?: boolean;
+  uses?: number;
   /// The club, "team · club", or fixture — present on your own invites.
   target_name?: string | null;
   invited_by_name?: string | null;
+};
+
+/// What an invite link is to, readable before signing in.
+export type InvitePreview = {
+  target_type: "club" | "team" | "event";
+  target_id: string;
+  club_id?: string | null;
+  club_name?: string | null;
+  team_name?: string | null;
+  event_title?: string | null;
+  invited_by_name?: string | null;
+  open: boolean;
+  usable: boolean;
 };
 
 /// What somebody is allowed to do in the club — an office, not a job that

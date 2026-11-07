@@ -1,11 +1,13 @@
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use fishers_db::repos::clubs as clubs_repo;
 use fishers_db::repos::events as events_repo;
 use fishers_db::repos::invites as invites_repo;
 use fishers_db::repos::users as users_repo;
-use fishers_domain::{CreateInviteRequest, Invite, InviteTarget, Permission};
+use fishers_domain::{CreateInviteRequest, Invite, InvitePreview, InviteTarget, Permission};
+use serde::Deserialize;
 use validator::Validate;
 
 use crate::auth::AuthUser;
@@ -17,7 +19,72 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/invites", post(create_invite))
         .route("/invites/mine", get(my_invites))
+        .route("/invites/{token}", get(preview_invite))
         .route("/invites/{token}/accept", post(accept_invite))
+        .route(
+            "/clubs/{id}/join-link",
+            get(club_join_link).post(make_club_join_link).delete(stop_club_join_link),
+        )
+}
+
+/// What a link is to, before signing in. No auth: whoever holds the link was
+/// sent it, and the page they land on should say which club is asking —
+/// "Join Southall Strikers", not "You have been invited".
+async fn preview_invite(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> ApiResult<Json<InvitePreview>> {
+    invites_repo::preview(&state.pool, &token)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("invite not found"))
+}
+
+/// The club's open link, or null when it has none switched on.
+async fn club_join_link(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(club_id): Path<uuid::Uuid>,
+) -> ApiResult<Json<Option<Invite>>> {
+    require_permission(&state, club_id, auth.user_id, None, Permission::InviteToClub).await?;
+    Ok(Json(
+        invites_repo::current_open_link(&state.pool, InviteTarget::Club, club_id).await?,
+    ))
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct MakeJoinLink {
+    /// Turn the current link off and make a new one.
+    #[serde(default)]
+    fresh: bool,
+}
+
+/// Switch the open link on, or hand back the one already on. One link for
+/// the whole squad to use: it is never used up, so the WhatsApp group can
+/// all join through the same message.
+async fn make_club_join_link(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(club_id): Path<uuid::Uuid>,
+    body: Option<Json<MakeJoinLink>>,
+) -> ApiResult<Json<Invite>> {
+    require_permission(&state, club_id, auth.user_id, None, Permission::InviteToClub).await?;
+    let fresh = body.map(|Json(b)| b.fresh).unwrap_or(false);
+    Ok(Json(
+        invites_repo::open_link(&state.pool, InviteTarget::Club, club_id, auth.user_id, fresh)
+            .await?,
+    ))
+}
+
+/// Stop the open link letting anyone else in. Those already in stay.
+async fn stop_club_join_link(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(club_id): Path<uuid::Uuid>,
+) -> ApiResult<StatusCode> {
+    require_permission(&state, club_id, auth.user_id, None, Permission::InviteToClub).await?;
+    invites_repo::revoke_open_link(&state.pool, InviteTarget::Club, club_id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn create_invite(
@@ -193,12 +260,15 @@ async fn accept_invite(
     Path(token): Path<String>,
 ) -> ApiResult<Json<Invite>> {
     super::verification::require_verified(&state, auth.user_id).await?;
-    let invite = invites_repo::accept_invite(&state.pool, &token, auth.user_id)
+    let (invite, joined) = invites_repo::accept_invite(&state.pool, &token, auth.user_id)
         .await?
-        .ok_or_else(|| ApiError::not_found("invite not found or already used"))?;
+        .ok_or_else(|| {
+            ApiError::not_found("This invite has already been used or was turned off")
+        })?;
 
     // Close the loop for whoever sent it: they asked, and this is the answer.
-    if invite.invited_by != auth.user_id {
+    // Not again for somebody already in who followed the club link twice.
+    if joined && invite.invited_by != auth.user_id {
         let what = describe(
             &state,
             &CreateInviteRequest {
