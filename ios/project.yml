@@ -47,7 +47,7 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CURRENT_PROJECT_VERSION: 1
-        MARKETING_VERSION: 1.0.1
+        MARKETING_VERSION: 1.0.2
         # The API and web hosts this build talks to. The web host is where
         # shared live-scoreboard links point. Release must name production —
         # a TestFlight build is in someone else's hands and cannot reach a
