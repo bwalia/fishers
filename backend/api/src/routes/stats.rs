@@ -58,7 +58,8 @@ async fn close_preview(
 #[derive(Debug, Serialize)]
 struct Closed {
     season: i32,
-    /// Emails queued: they go out over the next few minutes.
+    /// Emails that will go — an address on file, not opted out — over the
+    /// next few minutes.
     queued: i64,
 }
 

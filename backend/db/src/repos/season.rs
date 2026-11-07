@@ -343,8 +343,9 @@ pub async fn close_preview(pool: &PgPool, club_id: Uuid, season: i32) -> Result<
     .await
 }
 
-/// Close the season and queue an email for every active member. None when it
-/// was already closed: closing twice must not email anybody twice.
+/// Close the season and queue an email for every active member; returns how
+/// many will actually be emailed. None when it was already closed: closing
+/// twice must not email anybody twice.
 pub async fn close_season(
     pool: &PgPool,
     club_id: Uuid,
@@ -367,22 +368,30 @@ pub async fn close_season(
     if closed.is_none() {
         return Ok(None);
     }
-    let queued = sqlx::query(
+    // Everybody is queued — the push and the bell reach those with no email
+    // too — but the number reported is the one the preview promised: emails
+    // that will actually go. Counting the opted-out told a secretary "34 on
+    // their way" a moment after the preview said 33.
+    let emailed: i64 = sqlx::query_scalar(
         r#"
-        INSERT INTO season_emails (club_id, season_year, user_id)
-        SELECT $1, $2, m.user_id
-        FROM club_members m JOIN users u ON u.id = m.user_id
-        WHERE m.club_id = $1 AND m.status = 'active' AND u.deleted_at IS NULL
-        ON CONFLICT DO NOTHING
+        WITH q AS (
+            INSERT INTO season_emails (club_id, season_year, user_id)
+            SELECT $1, $2, m.user_id
+            FROM club_members m JOIN users u ON u.id = m.user_id
+            WHERE m.club_id = $1 AND m.status = 'active' AND u.deleted_at IS NULL
+            ON CONFLICT DO NOTHING
+            RETURNING user_id
+        )
+        SELECT COUNT(*) FROM q JOIN users u ON u.id = q.user_id
+        WHERE u.email IS NOT NULL AND NOT u.season_emails_off
         "#,
     )
     .bind(club_id)
     .bind(season)
-    .execute(&mut *tx)
-    .await?
-    .rows_affected();
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
-    Ok(Some(queued as i64))
+    Ok(Some(emailed))
 }
 
 /// The next season emails to send, oldest close first.
