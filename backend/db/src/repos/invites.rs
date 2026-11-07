@@ -1,5 +1,6 @@
 use fishers_domain::{
-    AttendeeSummary, CreateInviteRequest, EventInvite, Invite, InviteTarget, RsvpStatus,
+    AttendeeSummary, CreateInviteRequest, EventInvite, Invite, InvitePreview, InviteTarget,
+    RsvpStatus,
 };
 use rand::Rng;
 use sqlx::PgPool;
@@ -23,7 +24,7 @@ pub async fn create_invite(
         let existing = sqlx::query_as::<_, Invite>(
             r#"
             SELECT id, target_type, target_id, invited_user_id, invited_email,
-                   invited_by, token, status, created_at, accepted_at
+                   invited_by, token, status, created_at, accepted_at, open, uses
             FROM invites
             WHERE target_type = $1 AND target_id = $2 AND invited_user_id = $3
               AND status = 'pending'
@@ -45,7 +46,7 @@ pub async fn create_invite(
         INSERT INTO invites (target_type, target_id, invited_user_id, invited_email, invited_by, token)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, target_type, target_id, invited_user_id, invited_email,
-                  invited_by, token, status, created_at, accepted_at
+                  invited_by, token, status, created_at, accepted_at, open, uses
         "#,
     )
     .bind(req.target_type)
@@ -59,11 +60,137 @@ pub async fn create_invite(
     .map(|invite| (invite, true))
 }
 
+/// The live open link for a club or team, if it has one.
+pub async fn current_open_link(
+    pool: &PgPool,
+    target_type: InviteTarget,
+    target_id: Uuid,
+) -> Result<Option<Invite>, sqlx::Error> {
+    sqlx::query_as::<_, Invite>(
+        r#"
+        SELECT id, target_type, target_id, invited_user_id, invited_email,
+               invited_by, token, status, created_at, accepted_at, open, uses
+        FROM invites
+        WHERE target_type = $1 AND target_id = $2 AND open AND status = 'pending'
+        "#,
+    )
+    .bind(target_type)
+    .bind(target_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// The open link, made if there is none. Asking twice hands back the same
+/// link, so a secretary who opens the page again shares what they shared
+/// before rather than silently breaking it.
+///
+/// `fresh` turns the current one off first and makes a new one: for a link
+/// that has got out to people it should not have.
+pub async fn open_link(
+    pool: &PgPool,
+    target_type: InviteTarget,
+    target_id: Uuid,
+    by: Uuid,
+    fresh: bool,
+) -> Result<Invite, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    if fresh {
+        revoke_open_link_in(&mut tx, target_type, target_id).await?;
+    }
+    // ON CONFLICT against the one-live-link index: two secretaries pressing
+    // the button at once both get the one link.
+    sqlx::query(
+        r#"
+        INSERT INTO invites (target_type, target_id, invited_by, token, open)
+        VALUES ($1, $2, $3, $4, TRUE)
+        ON CONFLICT (target_type, target_id) WHERE open AND status = 'pending' DO NOTHING
+        "#,
+    )
+    .bind(target_type)
+    .bind(target_id)
+    .bind(by)
+    .bind(invite_token())
+    .execute(&mut *tx)
+    .await?;
+    let link = sqlx::query_as::<_, Invite>(
+        r#"
+        SELECT id, target_type, target_id, invited_user_id, invited_email,
+               invited_by, token, status, created_at, accepted_at, open, uses
+        FROM invites
+        WHERE target_type = $1 AND target_id = $2 AND open AND status = 'pending'
+        "#,
+    )
+    .bind(target_type)
+    .bind(target_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(link)
+}
+
+/// Turn the open link off. Anyone who already joined stays in; the link just
+/// stops letting new people through. True when there was one to turn off.
+pub async fn revoke_open_link(
+    pool: &PgPool,
+    target_type: InviteTarget,
+    target_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let revoked = revoke_open_link_in(&mut tx, target_type, target_id).await?;
+    tx.commit().await?;
+    Ok(revoked)
+}
+
+async fn revoke_open_link_in(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    target_type: InviteTarget,
+    target_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let done = sqlx::query(
+        r#"
+        UPDATE invites SET status = 'revoked'
+        WHERE target_type = $1 AND target_id = $2 AND open AND status = 'pending'
+        "#,
+    )
+    .bind(target_type)
+    .bind(target_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(done.rows_affected() > 0)
+}
+
+/// What a link is to, for the page somebody lands on before signing in.
+pub async fn preview(pool: &PgPool, token: &str) -> Result<Option<InvitePreview>, sqlx::Error> {
+    sqlx::query_as::<_, InvitePreview>(
+        r#"
+        SELECT i.target_type, i.target_id,
+               c.id AS club_id, c.name AS club_name,
+               t.name AS team_name, e.title AS event_title,
+               u.name AS invited_by_name,
+               i.open,
+               (i.status = 'pending' AND c.id IS NOT NULL) AS usable
+        FROM invites i
+        LEFT JOIN teams t ON i.target_type = 'team' AND t.id = i.target_id
+        LEFT JOIN events e ON i.target_type = 'event' AND e.id = i.target_id
+        LEFT JOIN clubs c ON c.id = CASE i.target_type
+                                        WHEN 'club' THEN i.target_id
+                                        WHEN 'team' THEN t.club_id
+                                        WHEN 'event' THEN e.club_id
+                                    END
+        LEFT JOIN users u ON u.id = i.invited_by
+        WHERE i.token = $1
+        "#,
+    )
+    .bind(token)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn list_my_invites(pool: &PgPool, user_id: Uuid) -> Result<Vec<Invite>, sqlx::Error> {
     sqlx::query_as::<_, Invite>(
         r#"
         SELECT i.id, i.target_type, i.target_id, i.invited_user_id, i.invited_email,
-               i.invited_by, i.token, i.status, i.created_at, i.accepted_at,
+               i.invited_by, i.token, i.status, i.created_at, i.accepted_at, i.open, i.uses,
                CASE i.target_type
                    WHEN 'club' THEN (SELECT name FROM clubs WHERE id = i.target_id)
                    WHEN 'team' THEN (SELECT t.name || ' · ' || c.name
@@ -219,19 +346,22 @@ pub async fn list_attendees(
 /// An invite addressed to a person can only be accepted by that person. A link
 /// invite (to an email, or to nobody in particular) can be accepted by whoever
 /// holds the link — that is what the link is for.
+///
+/// The bool is false when this changed nothing: somebody already in the club
+/// following its open link again.
 pub async fn accept_invite(
     pool: &PgPool,
     token: &str,
     user_id: Uuid,
-) -> Result<Option<Invite>, sqlx::Error> {
+) -> Result<Option<(Invite, bool)>, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let invite = sqlx::query_as::<_, Invite>(
         r#"
         UPDATE invites SET status = 'accepted', accepted_at = NOW(), invited_user_id = $2
-        WHERE token = $1 AND status = 'pending'
+        WHERE token = $1 AND status = 'pending' AND NOT open
           AND (invited_user_id IS NULL OR invited_user_id = $2)
         RETURNING id, target_type, target_id, invited_user_id, invited_email,
-                  invited_by, token, status, created_at, accepted_at
+                  invited_by, token, status, created_at, accepted_at, open, uses
         "#,
     )
     .bind(token)
@@ -239,9 +369,59 @@ pub async fn accept_invite(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let Some(inv) = invite else {
+    // Not a one-use invite: perhaps the club's open link, which stays
+    // pending for the next person. Locked so the count below is exact.
+    let invite = match invite {
+        Some(inv) => Some(inv),
+        None => {
+            sqlx::query_as::<_, Invite>(
+                r#"
+                SELECT id, target_type, target_id, invited_user_id, invited_email,
+                       invited_by, token, status, created_at, accepted_at, open, uses
+                FROM invites
+                WHERE token = $1 AND status = 'pending' AND open
+                FOR UPDATE
+                "#,
+            )
+            .bind(token)
+            .fetch_optional(&mut *tx)
+            .await?
+        }
+    };
+
+    let Some(mut inv) = invite else {
         return Ok(None);
     };
+
+    // Following the open link again — a reload, a second tap in the WhatsApp
+    // group — when already in is not somebody new joining: it counts nobody
+    // and tells the secretary nothing.
+    let mut joined = true;
+    if inv.open {
+        let already: bool = sqlx::query_scalar(
+            r#"
+            SELECT CASE $1::invite_target
+                WHEN 'club' THEN EXISTS (SELECT 1 FROM club_members
+                                         WHERE club_id = $2 AND user_id = $3 AND status = 'active')
+                WHEN 'team' THEN EXISTS (SELECT 1 FROM team_members
+                                         WHERE team_id = $2 AND user_id = $3)
+                ELSE FALSE
+            END
+            "#,
+        )
+        .bind(inv.target_type)
+        .bind(inv.target_id)
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        joined = !already;
+        if joined {
+            inv.uses = sqlx::query_scalar("UPDATE invites SET uses = uses + 1 WHERE id = $1 RETURNING uses")
+                .bind(inv.id)
+                .fetch_one(&mut *tx)
+                .await?;
+        }
+    }
 
     match inv.target_type {
         InviteTarget::Club => {
@@ -271,11 +451,11 @@ pub async fn accept_invite(
         InviteTarget::Event => {
             tx.commit().await?;
             invite_to_event(pool, inv.target_id, user_id, inv.invited_by).await?;
-            return Ok(Some(inv));
+            return Ok(Some((inv, joined)));
         }
     }
     tx.commit().await?;
-    Ok(Some(inv))
+    Ok(Some((inv, joined)))
 }
 
 /// Active member, keeping any role they already hold — accepting an invite

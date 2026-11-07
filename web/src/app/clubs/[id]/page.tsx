@@ -26,6 +26,7 @@ import {
 } from "@/lib/api";
 import { useOfferedSports } from "@/lib/sports";
 import { AddByLink } from "@/components/AddByLink";
+import { ClubJoinLink } from "@/components/ClubJoinLink";
 import { ClubSetup } from "@/components/ClubSetup";
 import { MessageButton } from "@/components/MessageButton";
 import { Icon } from "@/components/Icon";
@@ -160,6 +161,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
 
       <Members
         clubId={id}
+        clubName={club.name}
         members={members}
         isSecretary={isSecretary}
         // A captain can bring a player into their team from a shared link,
@@ -188,6 +190,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
 
 function Members({
   clubId,
+  clubName,
   members,
   isSecretary,
   canAddByLink,
@@ -195,6 +198,7 @@ function Members({
   onChanged,
 }: {
   clubId: string;
+  clubName: string;
   members: ClubMemberRow[];
   isSecretary: boolean;
   canAddByLink: boolean;
@@ -272,6 +276,7 @@ function Members({
         })}
       </p>
 
+      {isSecretary && <ClubJoinLink clubId={clubId} clubName={clubName} />}
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
       {canAddByLink && <AddByLink clubId={clubId} />}
 
