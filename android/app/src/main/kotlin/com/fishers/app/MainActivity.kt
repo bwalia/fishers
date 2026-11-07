@@ -27,11 +27,34 @@ import com.fishers.app.scores.WorldScoresViewModel
 import com.fishers.app.shop.MarketViewModel
 import com.fishers.app.theme.FishersTheme
 import com.fishers.app.views.RootScreen
+import android.content.Intent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.fishers.app.season.SeasonLink
+import com.fishers.app.season.SeasonViewModel
 
 class MainActivity : ComponentActivity() {
+    /**
+     * Where a tapped notification wants to go. When the app is not in the
+     * foreground, FCM shows the notification itself and a tap launches this
+     * activity with the message's `data` as string extras — so routing is
+     * reading those, whichever component ends up receiving the push.
+     */
+    private var seasonLink by mutableStateOf<SeasonLink?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        linkFrom(intent)?.let { seasonLink = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Not on a recreation: the tap was handled the first time round, and
+        // rotating the phone should not throw somebody back to the stats.
+        if (savedInstanceState == null) seasonLink = linkFrom(intent)
         val app = application as FishersApp
 
         setContent {
@@ -64,10 +87,23 @@ class MainActivity : ComponentActivity() {
                             com.fishers.app.cricket.ScoringViewModel(app.network.api, eventId)
                         },
                         listingFor = { id -> ListingViewModel(app.network.api, id) },
+                        season = remember { SeasonViewModel(app.network.api) },
+                        seasonLink = seasonLink,
+                        onSeasonLinkHandled = { seasonLink = null },
                         modifier = Modifier.padding(inner),
                     )
                 }
             }
         }
     }
+}
+
+/** `season_closed`, from a notification's extras; null for anything else. */
+private fun linkFrom(intent: Intent?): SeasonLink? {
+    val extras = intent?.extras ?: return null
+    return SeasonLink.fromPush(
+        url = extras.getString("url"),
+        season = extras.getString("season"),
+        clubId = extras.getString("club_id"),
+    )
 }

@@ -275,6 +275,50 @@ interface FishersApi {
     @GET("clubs/{id}/teams")
     suspend fun clubTeams(@Path("id") id: String): List<com.fishers.app.clubs.Team>
 
+    /** What this person may do in one club. The close-the-season box asks
+     *  before it shows itself, as the website's club page does. */
+    @GET("clubs/{id}/my-role")
+    suspend fun myClubRole(@Path("id") id: String): com.fishers.app.season.MyClubRole
+
+    // ---- the season ----
+
+    /** This person's season. Both optional: the API picks the latest season
+     *  they played, and all their clubs, when left out. */
+    @GET("me/game")
+    suspend fun myGame(
+        @Query("season") season: Int? = null,
+        @Query("club_id") clubId: String? = null,
+    ): com.fishers.app.season.PlayerGame
+
+    /** A club-mate's season. 403 for anyone who shares no club with them. */
+    @GET("users/{id}/game")
+    suspend fun playerGame(
+        @Path("id") userId: String,
+        @Query("season") season: Int? = null,
+    ): com.fishers.app.season.PlayerGame
+
+    /** Members only. */
+    @GET("clubs/{id}/season")
+    suspend fun clubSeason(
+        @Path("id") clubId: String,
+        @Query("season") season: Int? = null,
+    ): com.fishers.app.season.ClubSeason
+
+    /** What closing would do. Refused for anyone without `manage_club_ops`. */
+    @GET("clubs/{id}/seasons/{year}/close")
+    suspend fun closeSeasonPreview(
+        @Path("id") clubId: String,
+        @Path("year") season: Int,
+    ): com.fishers.app.season.ClosePreview
+
+    /** Once, and for good: every member is emailed their season. 409 if it
+     *  was closed already — by this secretary on another device, say. */
+    @POST("clubs/{id}/seasons/{year}/close")
+    suspend fun closeSeason(
+        @Path("id") clubId: String,
+        @Path("year") season: Int,
+    ): com.fishers.app.season.SeasonClosed
+
     // ---- fixtures ----
 
     /** Everything this person is involved in, across their clubs. */

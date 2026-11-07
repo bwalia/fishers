@@ -1339,6 +1339,50 @@ enum FishersAPI {
         )
     }
 
+    // MARK: Season stats (match by match)
+
+    /// Your season, worked out from the matches scored on the app. Both
+    /// arguments optional: the API picks the latest season and every club.
+    static func myGame(season: Int? = nil, clubId: UUID? = nil) async throws -> PlayerGame {
+        var query: [String] = []
+        if let season { query.append("season=\(season)") }
+        if let clubId { query.append("club_id=\(clubId.uuidString)") }
+        let suffix = query.isEmpty ? "" : "?" + query.joined(separator: "&")
+        return try await NetworkService.shared.request("GET", path: "/me/game\(suffix)")
+    }
+
+    /// A club-mate's season. 403 for anybody who does not share a club.
+    static func playerGame(userId: UUID, season: Int? = nil) async throws -> PlayerGame {
+        let suffix = season.map { "?season=\($0)" } ?? ""
+        return try await NetworkService.shared.request(
+            "GET", path: "/users/\(userId.uuidString)/game\(suffix)"
+        )
+    }
+
+    /// The club's record and leaderboards. Members only.
+    static func clubSeason(clubId: UUID, season: Int? = nil) async throws -> ClubSeason {
+        let suffix = season.map { "?season=\($0)" } ?? ""
+        return try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/season\(suffix)"
+        )
+    }
+
+    /// Who closing the season would email. Refused for anybody who cannot
+    /// manage the club's operations.
+    static func seasonClosePreview(clubId: UUID, season: Int) async throws -> SeasonClosePreview {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/seasons/\(season)/close"
+        )
+    }
+
+    /// Close the season and queue every member's email. Once only: a second
+    /// close is a 409.
+    static func closeSeason(clubId: UUID, season: Int) async throws -> SeasonClosed {
+        try await NetworkService.shared.request(
+            "POST", path: "/clubs/\(clubId.uuidString)/seasons/\(season)/close"
+        )
+    }
+
     static func syncClubStats(clubId: UUID) async throws {
         struct Resp: Decodable {
             let status: String

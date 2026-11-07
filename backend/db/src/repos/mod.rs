@@ -13,6 +13,7 @@ pub mod orders;
 pub mod payments;
 pub mod platform;
 pub mod scoreboard_shares;
+pub mod season;
 pub mod selection;
 pub mod stats;
 pub mod tournament;
