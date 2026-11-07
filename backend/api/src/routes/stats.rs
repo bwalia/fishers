@@ -21,6 +21,56 @@ pub fn router() -> Router<AppState> {
         .route("/clubs/{id}/stats", get(club_stats))
         .route("/clubs/{id}/stats/sync", post(sync_club_stats))
         .route("/achievements", get(list_achievements))
+        .route("/me/game", get(my_game))
+        .route("/users/{id}/game", get(their_game))
+        .route("/clubs/{id}/season", get(club_season))
+}
+
+#[derive(Debug, Deserialize)]
+struct GameQuery {
+    season: Option<i32>,
+    /// Which club to rank them in. Defaults to the one they played most for.
+    club_id: Option<Uuid>,
+}
+
+/// "My game": the season, its form, bests, milestones and the good news in it.
+async fn my_game(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(q): Query<GameQuery>,
+) -> ApiResult<Json<fishers_domain::season::PlayerGame>> {
+    fishers_db::repos::season::player_game(&state.pool, auth.user_id, q.season, q.club_id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("no such player"))
+}
+
+/// A club-mate's game, on the same terms as their season stats.
+async fn their_game(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Query(q): Query<GameQuery>,
+) -> ApiResult<Json<fishers_domain::season::PlayerGame>> {
+    shared_clubs(&state, auth.user_id, id).await?;
+    fishers_db::repos::season::player_game(&state.pool, id, q.season, q.club_id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("no such player"))
+}
+
+/// The club's season from its players' match lines: the record and the boards.
+async fn club_season(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Query(q): Query<SeasonQuery>,
+) -> ApiResult<Json<fishers_domain::season::ClubSeason>> {
+    require_club_member(&state, id, auth.user_id).await?;
+    fishers_db::repos::season::club_season(&state.pool, id, q.season)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("no such club"))
 }
 
 #[derive(Debug, Deserialize)]
@@ -139,7 +189,9 @@ async fn club_stats(
     Query(q): Query<SeasonQuery>,
 ) -> ApiResult<Json<ClubSeasonBoard>> {
     require_club_member(&state, id, auth.user_id).await?;
-    let season = q.season.unwrap_or(2026);
+    let season = q
+        .season
+        .unwrap_or_else(|| fishers_domain::season::season_of(chrono::Utc::now()));
     let board = stats_repo::club_board(&state.pool, id, season)
         .await?
         .ok_or_else(|| ApiError::not_found("no season stats for this club"))?;

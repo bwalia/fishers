@@ -97,6 +97,26 @@ async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> an
     if let Err(e) = nudge_unfinished_profiles(pool, push).await {
         warn!(error = %e, "profile nudges failed");
     }
+    if let Err(e) = backfill_match_lines(pool).await {
+        warn!(error = %e, "backfilling match lines failed");
+    }
+    Ok(())
+}
+
+/// Player lines for matches finished before lines existed, a few hundred a
+/// tick until there are none left; after that it is one cheap query.
+async fn backfill_match_lines(pool: &PgPool) -> anyhow::Result<()> {
+    let mut done = 0;
+    loop {
+        let n = fishers_db::repos::season::backfill_lines(pool, 50).await?;
+        done += n;
+        if n < 50 || done >= 500 {
+            break;
+        }
+    }
+    if done > 0 {
+        info!(matches = done, "backfilled player match lines");
+    }
     Ok(())
 }
 

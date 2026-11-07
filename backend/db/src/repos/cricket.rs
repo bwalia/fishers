@@ -995,6 +995,10 @@ async fn record_match_outcomes(
         .await?;
     }
 
+    // 2b. The same match, kept match by match: form, bests and milestones
+    //     need to know which match a number came from.
+    super::season::record_lines(tx, match_id, state).await?;
+
     // 3. The club's season board. Until now only the Play-Cricket sync wrote
     //    this, so a club scoring its own matches showed "Played 0" forever.
     record_club_season(tx, club_id, season_year, state).await?;
