@@ -1,0 +1,344 @@
+{
+    "club_id": "6074888b-460c-456d-a9e5-9e5e7d1a3fff",
+    "club_name": "Hemel Hempstead Town CC",
+    "season": 2026,
+    "closed_at": "2026-11-07T12:51:08.914614Z",
+    "seasons": [
+        2026
+    ],
+    "record": {
+        "played": 8,
+        "won": 4,
+        "lost": 3,
+        "tied_or_no_result": 1
+    },
+    "players": 22,
+    "boards": [
+        {
+            "code": "runs",
+            "leaders": [
+                {
+                    "user_id": "f1a09bf0-d643-4eb6-aaaf-f2f914245a52",
+                    "name": "Gary Tucker",
+                    "value": "281",
+                    "detail": "7 inns"
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "193",
+                    "detail": "7 inns"
+                },
+                {
+                    "user_id": "cb6fe05b-b640-492e-a739-00baa044488a",
+                    "name": "Chris Gardner",
+                    "value": "166",
+                    "detail": "6 inns"
+                },
+                {
+                    "user_id": "227db472-83fc-4739-aa8d-db52458aead3",
+                    "name": "Elliot Roberts",
+                    "value": "121",
+                    "detail": "5 inns"
+                },
+                {
+                    "user_id": "d4566147-ce20-4d50-b6c9-a7f49d268bac",
+                    "name": "Karthik Venkatesan",
+                    "value": "99",
+                    "detail": "7 inns"
+                }
+            ]
+        },
+        {
+            "code": "wickets",
+            "leaders": [
+                {
+                    "user_id": "9450cf5b-35b6-4923-bcae-4e8bc36ea777",
+                    "name": "Nuwan De Silva",
+                    "value": "11",
+                    "detail": "at 20.2"
+                },
+                {
+                    "user_id": "31d2d760-41f2-4757-853f-0889a8dc7512",
+                    "name": "Paul Campbell",
+                    "value": "10",
+                    "detail": "at 15.6"
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "10",
+                    "detail": "at 20.6"
+                },
+                {
+                    "user_id": "227db472-83fc-4739-aa8d-db52458aead3",
+                    "name": "Elliot Roberts",
+                    "value": "6",
+                    "detail": "at 33.5"
+                },
+                {
+                    "user_id": "10423546-b4dd-464f-9100-9ad78ebb3401",
+                    "name": "Josh Burton",
+                    "value": "5",
+                    "detail": "at 25.2"
+                }
+            ]
+        },
+        {
+            "code": "batting_average",
+            "leaders": [
+                {
+                    "user_id": "cb6fe05b-b640-492e-a739-00baa044488a",
+                    "name": "Chris Gardner",
+                    "value": "55.3",
+                    "detail": "6 inns"
+                },
+                {
+                    "user_id": "227db472-83fc-4739-aa8d-db52458aead3",
+                    "name": "Elliot Roberts",
+                    "value": "40.3",
+                    "detail": "5 inns"
+                },
+                {
+                    "user_id": "f1a09bf0-d643-4eb6-aaaf-f2f914245a52",
+                    "name": "Gary Tucker",
+                    "value": "40.1",
+                    "detail": "7 inns"
+                },
+                {
+                    "user_id": "99a7d482-c4f3-414f-8f12-8b6d200e505b",
+                    "name": "Samir Hirani",
+                    "value": "37.0",
+                    "detail": "3 inns"
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "32.2",
+                    "detail": "7 inns"
+                }
+            ]
+        },
+        {
+            "code": "strike_rate",
+            "leaders": [
+                {
+                    "user_id": "227db472-83fc-4739-aa8d-db52458aead3",
+                    "name": "Elliot Roberts",
+                    "value": "119.8",
+                    "detail": "101 balls"
+                },
+                {
+                    "user_id": "cb6fe05b-b640-492e-a739-00baa044488a",
+                    "name": "Chris Gardner",
+                    "value": "109.9",
+                    "detail": "151 balls"
+                },
+                {
+                    "user_id": "f1a09bf0-d643-4eb6-aaaf-f2f914245a52",
+                    "name": "Gary Tucker",
+                    "value": "102.2",
+                    "detail": "275 balls"
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "93.7",
+                    "detail": "206 balls"
+                },
+                {
+                    "user_id": "5b65abc3-fe5c-450d-b2bc-842c40876bcc",
+                    "name": "George Holt",
+                    "value": "91.1",
+                    "detail": "79 balls"
+                }
+            ]
+        },
+        {
+            "code": "economy",
+            "leaders": [
+                {
+                    "user_id": "31d2d760-41f2-4757-853f-0889a8dc7512",
+                    "name": "Paul Campbell",
+                    "value": "5.03",
+                    "detail": "31.0 overs"
+                },
+                {
+                    "user_id": "cb6fe05b-b640-492e-a739-00baa044488a",
+                    "name": "Chris Gardner",
+                    "value": "5.13",
+                    "detail": "31.0 overs"
+                },
+                {
+                    "user_id": "10423546-b4dd-464f-9100-9ad78ebb3401",
+                    "name": "Josh Burton",
+                    "value": "5.48",
+                    "detail": "23.0 overs"
+                },
+                {
+                    "user_id": "9450cf5b-35b6-4923-bcae-4e8bc36ea777",
+                    "name": "Nuwan De Silva",
+                    "value": "5.55",
+                    "detail": "40.0 overs"
+                },
+                {
+                    "user_id": "227db472-83fc-4739-aa8d-db52458aead3",
+                    "name": "Elliot Roberts",
+                    "value": "5.64",
+                    "detail": "35.4 overs"
+                }
+            ]
+        },
+        {
+            "code": "best_innings",
+            "leaders": [
+                {
+                    "user_id": "f1a09bf0-d643-4eb6-aaaf-f2f914245a52",
+                    "name": "Gary Tucker",
+                    "value": "79",
+                    "detail": "v Radlett"
+                },
+                {
+                    "user_id": "cb6fe05b-b640-492e-a739-00baa044488a",
+                    "name": "Chris Gardner",
+                    "value": "62*",
+                    "detail": "v Radlett"
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "60",
+                    "detail": "v Abbots Langley"
+                },
+                {
+                    "user_id": "cb6fe05b-b640-492e-a739-00baa044488a",
+                    "name": "Chris Gardner",
+                    "value": "57*",
+                    "detail": "v Chorleywood"
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "57*",
+                    "detail": "v Radlett"
+                }
+            ]
+        },
+        {
+            "code": "best_bowling",
+            "leaders": [
+                {
+                    "user_id": "31d2d760-41f2-4757-853f-0889a8dc7512",
+                    "name": "Paul Campbell",
+                    "value": "4/24",
+                    "detail": "v Radlett"
+                },
+                {
+                    "user_id": "523299e7-4657-49a6-b4af-d927ad1590fb",
+                    "name": "Ketan Pandya",
+                    "value": "3/18",
+                    "detail": "v Kings Langley 2nd XI"
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "3/21",
+                    "detail": "v Radlett"
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "3/22",
+                    "detail": "v Chorleywood"
+                },
+                {
+                    "user_id": "9450cf5b-35b6-4923-bcae-4e8bc36ea777",
+                    "name": "Nuwan De Silva",
+                    "value": "3/38",
+                    "detail": "v Chorleywood"
+                }
+            ]
+        },
+        {
+            "code": "catches",
+            "leaders": [
+                {
+                    "user_id": "e3db48f8-51f2-436e-8900-3c39a5800bd5",
+                    "name": "Phil Edwards",
+                    "value": "8",
+                    "detail": null
+                },
+                {
+                    "user_id": "9450cf5b-35b6-4923-bcae-4e8bc36ea777",
+                    "name": "Nuwan De Silva",
+                    "value": "4",
+                    "detail": null
+                },
+                {
+                    "user_id": "31d2d760-41f2-4757-853f-0889a8dc7512",
+                    "name": "Paul Campbell",
+                    "value": "4",
+                    "detail": null
+                },
+                {
+                    "user_id": "cb6fe05b-b640-492e-a739-00baa044488a",
+                    "name": "Chris Gardner",
+                    "value": "3",
+                    "detail": null
+                },
+                {
+                    "user_id": "46a1838b-bfd0-4678-aaa7-9d9bef1fa05d",
+                    "name": "Rajinder Khera",
+                    "value": "3",
+                    "detail": null
+                }
+            ]
+        },
+        {
+            "code": "sixes",
+            "leaders": [
+                {
+                    "user_id": "f1a09bf0-d643-4eb6-aaaf-f2f914245a52",
+                    "name": "Gary Tucker",
+                    "value": "11",
+                    "detail": null
+                },
+                {
+                    "user_id": "cb6fe05b-b640-492e-a739-00baa044488a",
+                    "name": "Chris Gardner",
+                    "value": "7",
+                    "detail": null
+                },
+                {
+                    "user_id": "227db472-83fc-4739-aa8d-db52458aead3",
+                    "name": "Elliot Roberts",
+                    "value": "6",
+                    "detail": null
+                },
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "5",
+                    "detail": null
+                },
+                {
+                    "user_id": "e3db48f8-51f2-436e-8900-3c39a5800bd5",
+                    "name": "Phil Edwards",
+                    "value": "3",
+                    "detail": null
+                }
+            ]
+        },
+        {
+            "code": "player_of_match",
+            "leaders": [
+                {
+                    "user_id": "fffd388c-a7ff-463c-b67e-d1c68acc20d0",
+                    "name": "Dominic Reynolds",
+                    "value": "4",
+                    "detail": null
+                }
+            ]
+        }
+    ]
+}

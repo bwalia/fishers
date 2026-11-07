@@ -54,6 +54,17 @@ struct PlayerProfileView: View {
                 seasonSection
             }
 
+            // Their season match by match — form and bests — for club-mates.
+            // Asked of the API even when the imported seasons above are empty:
+            // a player new this summer has scored matches before any import.
+            Section {
+                NavigationLink {
+                    SeasonStatsView(player: userId, name: player?.name ?? knownName ?? "")
+                } label: {
+                    Label(t("cl.season_stats"), systemImage: "chart.bar.xaxis")
+                }
+            }
+
             if !honours.isEmpty {
                 Section(tr("Honours")) {
                     ForEach(honours) { award in

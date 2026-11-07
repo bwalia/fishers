@@ -27,6 +27,8 @@ final class PushRegistrar: NSObject, ObservableObject {
     /// opens the thread; it is cleared once it has.
     @Published var pendingConversation: UUID?
     @Published var pendingMotmPoll: UUID?
+    /// A closed season to open on "My game" — the `season_closed` push.
+    @Published var pendingSeason: SeasonLink?
 
     private override init() { super.init() }
 
@@ -92,9 +94,10 @@ final class PushRegistrar: NSObject, ObservableObject {
     func route(_ target: Target) {
         if let conversation = target.conversation { pendingConversation = conversation }
         if let poll = target.motmPoll { pendingMotmPoll = poll }
+        if let season = target.season { pendingSeason = season }
     }
 
-    /// The two ids Fishers puts alongside `aps`, lifted out of a payload.
+    /// The ids the server puts alongside `aps`, lifted out of a payload.
     ///
     /// A `[AnyHashable: Any]` cannot cross an actor boundary, so the reading
     /// happens where the notification arrives and only these two values are
@@ -102,11 +105,61 @@ final class PushRegistrar: NSObject, ObservableObject {
     struct Target: Sendable {
         var conversation: UUID?
         var motmPoll: UUID?
+        var season: SeasonLink?
 
         init(_ userInfo: [AnyHashable: Any]) {
             conversation = (userInfo["conversation_id"] as? String).flatMap(UUID.init(uuidString:))
             motmPoll = (userInfo["motm_poll_id"] as? String).flatMap(UUID.init(uuidString:))
+            season = SeasonLink(userInfo)
         }
+    }
+}
+
+/// Where a `season_closed` push points: `/stats?season=2026&club=<id>`, the
+/// same link the season email carries.
+///
+/// APNs gets the payload's fields but not the notification's type, so this is
+/// recognised by its `url` rather than by name — which also means any future
+/// push that links to the stats page lands in the right place for free. The
+/// separate `season` and `club_id` fields are read as well, for a payload
+/// that ever arrives without the url.
+struct SeasonLink: Identifiable, Equatable, Sendable {
+    var season: Int?
+    var clubId: UUID?
+    /// `tab=club`, which the website's own "See the club's leaderboards"
+    /// link adds. The push never does: it is about *your* season.
+    var clubTab = false
+
+    var id: String { "\(season.map(String.init) ?? "-")|\(clubId?.uuidString ?? "-")|\(clubTab)" }
+
+    init(season: Int?, clubId: UUID?, clubTab: Bool = false) {
+        self.season = season
+        self.clubId = clubId
+        self.clubTab = clubTab
+    }
+
+    init?(_ userInfo: [AnyHashable: Any]) {
+        if let raw = userInfo["url"] as? String, let link = SeasonLink(url: raw) {
+            self = link
+            return
+        }
+        // A number in the JSON arrives as NSNumber; a string if it was quoted.
+        let season = (userInfo["season"] as? NSNumber)?.intValue
+            ?? (userInfo["season"] as? String).flatMap { Int($0) }
+        let club = (userInfo["club_id"] as? String).flatMap(UUID.init(uuidString:))
+        guard let season else { return nil }
+        self.init(season: season, clubId: club)
+    }
+
+    /// "/stats?season=2026&club=<id>", or the full web address of it.
+    init?(url raw: String) {
+        guard let components = URLComponents(string: raw), components.path.hasSuffix("/stats")
+        else { return nil }
+        let items = components.queryItems ?? []
+        let season = items.first { $0.name == "season" }?.value.flatMap { Int($0) }
+        let club = items.first { $0.name == "club" }?.value.flatMap(UUID.init(uuidString:))
+        let tab = items.first { $0.name == "tab" }?.value
+        self.init(season: season, clubId: club, clubTab: tab == "club")
     }
 }
 
