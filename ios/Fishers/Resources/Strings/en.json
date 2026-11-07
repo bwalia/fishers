@@ -3483,6 +3483,7 @@
   "ss.catches": "Catches",
   "ss.close_button": "Close the {season} season and send",
   "ss.close_confirm": "Close the {season} season and email {n} members? This cannot be undone.",
+  "ss.close_confirm_button": "Close and send",
   "ss.close_explainer": "When the season is over, close it and every member gets their season by email: their highlights, numbers, form and bests. It happens once and cannot be undone.",
   "ss.close_played": "{n} played this season and get their own figures.",
   "ss.close_thanks": "Members who did not play get a short thank-you instead.",

@@ -4179,6 +4179,7 @@ export const en = {
   "ss.close_played": "{n} played this season and get their own figures.",
   "ss.close_thanks": "Members who did not play get a short thank-you instead.",
   "ss.close_button": "Close the {season} season and send",
+  "ss.close_confirm_button": "Close and send",
   "ss.close_confirm": "Close the {season} season and email {n} members? This cannot be undone.",
   "ss.closed_now": "Season closed. {n} emails are on their way over the next few minutes.",
   "ss.closed_on": "Season closed on {date}. Everyone has been sent their season.",

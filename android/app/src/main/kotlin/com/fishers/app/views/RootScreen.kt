@@ -54,6 +54,10 @@ fun RootScreen(
     worldScores: com.fishers.app.scores.WorldScoresViewModel,
     worldMatchFor: (String) -> com.fishers.app.scores.WorldMatchViewModel,
     scoringFor: (String) -> com.fishers.app.cricket.ScoringViewModel,
+    season: com.fishers.app.season.SeasonViewModel,
+    /** A tapped notification's destination; held until somebody is signed in to see it. */
+    seasonLink: com.fishers.app.season.SeasonLink? = null,
+    onSeasonLinkHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -122,6 +126,9 @@ fun RootScreen(
                 worldScores = worldScores,
                 worldMatchFor = worldMatchFor,
                 scoringFor = scoringFor,
+                season = season,
+                seasonLink = seasonLink,
+                onSeasonLinkHandled = onSeasonLinkHandled,
             )
         }
     }

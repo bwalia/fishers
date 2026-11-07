@@ -15,6 +15,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -82,6 +83,7 @@ fun ClubDetailScreen(
     clubName: String,
     state: ClubDetailState,
     modifier: Modifier = Modifier,
+    onOpenSeason: (() -> Unit)? = null,
 ) {
     if (state.isFirstLoad && state.isLoading) {
         Box(modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -95,6 +97,13 @@ fun ClubDetailScreen(
     ) {
         item {
             Text(clubName, style = MaterialTheme.typography.headlineSmall)
+        }
+        // The season's record and leaderboards, under the name: what a member
+        // opens a club to check after a Saturday, before who is on the books.
+        onOpenSeason?.let { open ->
+            item {
+                OutlinedButton(onClick = open) { Text(t("ss.club_season")) }
+            }
         }
         state.error?.let {
             item {

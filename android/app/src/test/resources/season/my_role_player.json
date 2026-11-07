@@ -1,0 +1,12 @@
+{
+    "role": "member",
+    "display_name": "Member",
+    "is_secretary": false,
+    "is_captain": false,
+    "can_invite_to_play": false,
+    "can_score_match": false,
+    "permissions": [
+        "view_club",
+        "respond_as_player"
+    ]
+}

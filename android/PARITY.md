@@ -103,6 +103,7 @@ path and the same information in the same order of visual priority.
 | `Views/Clubs/ClubExtras.swift` (`ClubWelcomeSheet`, `TeamRosterView`, `AddTeamSheet`, `GroundsSection`, `AddGroundSheet`, `PublicPageEditorView`, `SharedPlayerCardView`) | `lib/views/clubs/club_extras.dart` | planned | Sheets become bottom sheets or full-screen dialogs by weight. |
 | `Views/Clubs/ClubQRView.swift` (`ClubQRView`, `QRImage`, `QRScannerView`) | `lib/views/clubs/club_qr_view.dart` | planned | Code drawn on device from `payload` (the server's `svg` is ignored, as on iOS). Camera permission asked at point of use. |
 | `Views/Clubs/ClubStatsView.swift` | `lib/views/clubs/club_stats_view.dart` | planned | Season board and Play-Cricket leaderboards. |
+| `web/src/app/stats/page.tsx` → Club tab | `views/season/SeasonScreen.kt` (Club tab) | **done** | Reached from a club's roster ("Club season"). Record tiles, ten boards with your own rows highlighted, "Season closed on …" once closed. For anyone with `manage_club_ops` (asked of `GET /clubs/{id}/my-role` first), the close box: preview facts, a can't-be-undone dialog, `POST …/close`; a 409 is shown as closed, not as an error. |
 
 ### Cricket
 
@@ -128,6 +129,7 @@ path and the same information in the same order of visual priority.
 | `Views/Profile/ProfileFieldViews.swift` (18 types incl. `AvatarView`, `ReliabilityRing`, `TierSelector`, `DivisionLadder`, `StatFieldRow`, `WeekdayPicker`) | `lib/views/profile/profile_field_views.dart` | planned | The profile widget library; `AvatarView` is used app-wide. |
 | `Views/Profile/ProfileStrengthSection.swift` (+ `ProfileStrengthRing`) | `lib/views/profile/profile_strength_section.dart` | planned | Model **done** (`lib/models/profile_strength.dart`). Disappears at 100%. |
 | `Views/Profile/SeasonStatsSection.swift` | `lib/views/profile/season_stats_section.dart` | planned | Shows an error row rather than vanishing. |
+| `web/src/app/stats/page.tsx` → My game | `views/season/SeasonScreen.kt` + `season/SeasonViewModel.kt` | **done** | Mirrors the website, not an iOS screen: a "My game" button on Profile. Season picker (the API's seasons plus this year), highlights rendered from their `code` (the API's `text` for an unknown one), headline tiles only where they apply with last season beside each and a ▲ only for an improvement, a Canvas bar chart of runs (oldest left, best bar labelled, every bar in the content description), trend sentences, recent matches, bests, milestones newest first, club rank. A friendly empty state at 0 matches. Opened by a `season_closed` push too — see [Push](#push). |
 | `Views/Profile/CareerStatsView.swift` (+ `Totals`) | `lib/views/profile/career_stats_view.dart` | planned | Season by season, with career sums. |
 | `Views/Profile/PlayerProfileView.swift` | `lib/views/profile/player_profile_view.dart` | planned | Same figures, no contact details — `TeammateProfile` has nowhere to put them. |
 | `Views/Profile/APIServerSettingsView.swift` | `lib/views/profile/api_server_settings_view.dart` | planned | `AppConfig` and `FishersRing` are **done**; the panel that drives them is not. See [Rings](#rings). |
@@ -365,6 +367,11 @@ and body it sends.
 | `shareScoreboard` | `POST /cricket/matches/{id}/share` |
 | `uploadAvatar` | `POST /me/avatar` (multipart) |
 | `mySeasonStats` | `GET /me/stats[?season]` |
+| `myGame` | `GET /me/game[?season][&club_id]` — **done** in Kotlin |
+| `playerGame` | `GET /users/{id}/game[?season]` — **done** in Kotlin (no screen yet; club-mates only, 403 otherwise) |
+| `clubSeason` | `GET /clubs/{id}/season[?season]` — **done** in Kotlin |
+| `closeSeasonPreview` / `closeSeason` | `GET` / `POST /clubs/{id}/seasons/{year}/close` — **done** in Kotlin |
+| `myClubRole` | `GET /clubs/{id}/my-role` — **done** in Kotlin, decoded only as far as `role` and `permissions` |
 | `clubSeasonBoard` | `GET /clubs/{id}/stats?season` |
 | `syncClubStats` | `POST /clubs/{id}/stats/sync` |
 
@@ -374,6 +381,19 @@ and body it sends.
 **Naming:** Swift overloads `setAvailability`; Dart cannot, so the bulk one is
 `setAvailabilityForDates`. `myFixtures` sends its timestamps with a `Z` rather
 than an offset, because a `+` in a query string reads as a space.
+
+### Push
+
+There is no Firebase on Android yet — no SDK, no token registration — so no
+push reaches the phone today. What *is* in place is the routing: FCM shows a
+notification itself when the app is in the background and a tap launches the
+launcher activity with the message's `data` as string extras.
+`MainActivity` reads `url` / `season` / `club_id` from those extras (on create
+and on a new intent) and `SeasonLink.fromPush` turns a `season_closed`
+payload — `url: /stats?season=YYYY&club=UUID` — into My game for that season.
+Checked on an emulator by starting the activity with those extras. When FCM
+lands, a `FirebaseMessagingService` that builds its own notification for the
+foreground case should put the same extras on its `PendingIntent`.
 
 ---
 

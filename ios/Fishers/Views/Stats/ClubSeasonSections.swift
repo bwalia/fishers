@@ -167,7 +167,7 @@ struct CloseSeasonSection: View {
             t("ss.close_title", vars: ["season": season.season]),
             isPresented: $confirming
         ) {
-            Button(t("ss.close_button", vars: ["season": season.season]), role: .destructive) {
+            Button(t("ss.close_confirm_button"), role: .destructive) {
                 Task { await close() }
             }
             Button(t("sc.cancel"), role: .cancel) {}
