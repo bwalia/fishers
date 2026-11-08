@@ -375,6 +375,12 @@ struct MyRoleResponse {
     can_invite_to_play: bool,
     can_score_match: bool,
     permissions: Vec<&'static str>,
+    /// Owns the club — the one person who can reopen a closed year.
+    is_owner: bool,
+    /// Keeps the club's books.
+    is_treasurer: bool,
+    /// The owner or a treasurer: whether to show "Accounts" at all.
+    can_open_accounts: bool,
 }
 
 async fn my_role(
@@ -383,7 +389,14 @@ async fn my_role(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<MyRoleResponse>> {
     let role = require_club_member(&state, id, auth.user_id).await?;
+    let (is_owner, is_treasurer) =
+        fishers_db::repos::accounts::accounts_access(&state.pool, id, auth.user_id)
+            .await?
+            .unwrap_or((false, false));
     Ok(Json(MyRoleResponse {
+        is_owner,
+        is_treasurer,
+        can_open_accounts: fishers_domain::can_open_accounts(is_owner, is_treasurer),
         role,
         display_name: role.display_name(),
         is_secretary: matches!(role, UserRole::ClubAdmin | UserRole::SuperAdmin),
