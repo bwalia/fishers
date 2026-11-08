@@ -54,7 +54,7 @@ pub use cricket::{
     ExtraKind, FallOfWicket, GroundType, InningsResources, InningsState, MatchConditions,
     MatchInsights, MatchPlayer, MatchSide, MatchState, MatchStatus, PhaseScore, PlayerImpact,
     ResourceTable, ScoringEvent, ScoringEventKind, SideInsights, region_for, ShotKind, ShotRecord,
-    TossDecision,
+    TossDecision, Feat, FeatKind, MagicMoment, MomentRole, TurningKind,
 };
 pub use enums::*;
 pub use event::*;

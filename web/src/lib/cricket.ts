@@ -174,6 +174,51 @@ export type PlayerImpact = {
   line: string;
 };
 
+/// A ball that swung a finished chase, and the player who made it. The
+/// chances are the server's estimate, in whole percent, for `side`.
+export type MagicMoment = {
+  player_id: string;
+  /// The catcher or keeper when the bowler's wicket needed one.
+  helper_id?: string | null;
+  role: "batting" | "bowling" | "fielding";
+  /// The side it helped — the player's side.
+  side: Side;
+  won: boolean;
+  /// Set on the one ball the match turned on.
+  turning?: "comeback" | "decider" | null;
+  dismissal?: string | null;
+  shot?: string | null;
+  innings: number;
+  /// "14.3"
+  over: string;
+  label: string;
+  runs: number;
+  is_wicket: boolean;
+  before_percent: number;
+  after_percent: number;
+  runs_needed: number;
+  balls_left: number;
+};
+
+/// A recognised piece of cricket read off the log.
+export type Feat = {
+  kind:
+    | "hat_trick"
+    | "two_in_two"
+    | "sixes_in_an_over"
+    | "milestone_with_a_six"
+    | "partnership_breaker"
+    | "death_maiden"
+    | "last_ball_finish"
+    | "last_over_defence";
+  player_id: string;
+  side: Side;
+  innings: number;
+  over: string;
+  /// How many wickets, sixes, runs — whichever the kind is counting.
+  value: number;
+};
+
 /// What `GET/POST /cricket/matches/{id}` replies with.
 export type MatchResponse = {
   id: string;
@@ -206,6 +251,10 @@ export type MatchResponse = {
   fighter?: PlayerImpact | null;
   /// Both sides totalled up, from the second innings on.
   insights?: MatchInsights | null;
+  /// The balls the match turned on, turning point first. Finished chases only.
+  moments?: MagicMoment[];
+  /// Hat-tricks, last-ball finishes and the rest.
+  feats?: Feat[];
   state: MatchState;
 };
 
