@@ -50,6 +50,36 @@ of the permissions this table grants them and ignored a captaincy recorded on
 the team rather than the club. Those copies are gone; if you add a route, gate
 it with `require_permission` and a `Permission`, never a role list.
 
+## Club accounts — the owner and treasurers only
+
+Club money is the one place where "the secretary can do everything" stops.
+The books (`/clubs/{id}/accounts/…`) open for exactly two kinds of person:
+
+- the club's **owner** (`clubs.owner_id`), and
+- an active member the club has made its **treasurer**.
+
+Nobody else — not a secretary, not a captain, not a super admin — gets in. The
+refusal is a 403 with code `accounts_forbidden`. Every accounts route starts
+with `require_accounts_access` in `backend/api/src/rbac.rs`; hiding the link in
+a client is not the protection.
+
+**Treasurer is a flag, not a role.** It lives on the membership as
+`club_members.is_treasurer`, beside the role, for two reasons: a small club's
+secretary is very often its treasurer too, and phones already installed decode
+`role` as a closed list — a new value there would fail the whole member list on
+iOS, while an extra `is_treasurer` key is simply ignored.
+
+| Method | Path | Who |
+|---|---|---|
+| `PUT` | `/clubs/{id}/members/{user_id}/treasurer` | owner or secretary — `{"is_treasurer": true}` |
+| `GET` | `/clubs/{id}/my-role` | adds `is_owner`, `is_treasurer`, `can_open_accounts` |
+| any | `/clubs/{id}/accounts/…` | owner or treasurer |
+| `POST` | `/clubs/{id}/accounts/periods/{pid}/reopen` | owner only |
+
+Appointing a treasurer gives the person who appointed them no access to the
+books. Every change to the books, and every appointment, is in the accounts
+audit trail. See [CLUB_ACCOUNTS.md](CLUB_ACCOUNTS.md).
+
 ## Who can change roles
 
 A **club secretary** appoints and stands down captains, vice captains and

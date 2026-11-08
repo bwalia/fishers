@@ -1,5 +1,7 @@
 //! Core domain types for Fishers — clubs, events, availability, payments.
 
+/// Club accounts — the books a treasurer keeps.
+pub mod accounts;
 mod agent;
 mod availability;
 mod chat;
@@ -24,6 +26,7 @@ pub mod platform;
 mod profile;
 mod rbac;
 /// Season stats + Play-Cricket (ECB) profile links.
+pub mod season;
 pub mod stats;
 /// Tournament generation is namespaced: `tournament::round_robin` etc.
 pub mod tournament;
@@ -40,6 +43,7 @@ pub mod world_cricket;
 pub mod world_cricket_detail;
 
 pub use admin::*;
+pub use accounts::*;
 pub use moderation::*;
 pub use agent::*;
 pub use availability::*;

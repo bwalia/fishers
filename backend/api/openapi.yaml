@@ -25,6 +25,8 @@ tags:
   - name: Tournament
   - name: Notifications
   - name: Stats
+  - name: Accounts
+    description: Club books. The club owner or a treasurer only — every route returns 403 `accounts_forbidden` to anyone else, secretaries included.
 
 paths:
   /health:
@@ -751,6 +753,362 @@ paths:
       responses:
         "200":
           description: OK
+
+  /clubs/{id}/members/{user_id}/treasurer:
+    put:
+      tags: [Accounts]
+      summary: "Make a member treasurer, or stop them (owner or secretary; grants the appointer nothing)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts:
+    get:
+      tags: [Accounts]
+      summary: "Overview: access, years, categories, money accounts, the open year's report"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+
+  /clubs/{id}/accounts/audit:
+    get:
+      tags: [Accounts]
+      summary: "Audit trail of every change to the books"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+
+  /clubs/{id}/accounts/periods:
+    post:
+      tags: [Accounts]
+      summary: "Open an accounting year (b/f, bank and stock carry from last year)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/periods/{pid}:
+    patch:
+      tags: [Accounts]
+      summary: "Edit a year's label, opening balance (first year only) or report text"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/periods/{pid}/close:
+    post:
+      tags: [Accounts]
+      summary: "Close a year; its figures stop moving"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/periods/{pid}/reopen:
+    post:
+      tags: [Accounts]
+      summary: "Reopen a closed year (owner only, with a reason)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/periods/{pid}/report:
+    get:
+      tags: [Accounts]
+      summary: "Income & Expenditure, balance sheet, reconciliation and insights, with last year beside it"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+
+  /clubs/{id}/accounts/periods/{pid}/transactions:
+    get:
+      tags: [Accounts]
+      summary: "List a year's transactions"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+    post:
+      tags: [Accounts]
+      summary: "Add income, expenditure or a prior-period adjustment"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/periods/{pid}/debts:
+    get:
+      tags: [Accounts]
+      summary: "Debtors and creditors as they stood at the year end"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+
+  /clubs/{id}/accounts/periods/{pid}/suggestions:
+    get:
+      tags: [Accounts]
+      summary: "Fees paid in the app not yet in the books, and fees still unpaid"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+
+  /clubs/{id}/accounts/periods/{pid}/accept-payments:
+    post:
+      tags: [Accounts]
+      summary: "Take app payments into the books (settles an owed fee instead of counting it twice)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/periods/{pid}/raise-unpaid-fees:
+    post:
+      tags: [Accounts]
+      summary: "Raise unpaid match fees as debtors, one per member per fixture"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/periods/{pid}/stock:
+    get:
+      tags: [Accounts]
+      summary: "Stock at the start and end of the year"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+
+  /clubs/{id}/accounts/periods/{pid}/money:
+    get:
+      tags: [Accounts]
+      summary: "Money accounts: opening, computed closing, statement figure"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+
+  /clubs/{id}/accounts/transactions/{tid}:
+    patch:
+      tags: [Accounts]
+      summary: "Edit a transaction in an open year"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: tid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/transactions/{tid}/void:
+    post:
+      tags: [Accounts]
+      summary: "Void a transaction, with a reason (nothing is deleted)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: tid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/categories:
+    get:
+      tags: [Accounts]
+      summary: "List income and expenditure lines"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+    post:
+      tags: [Accounts]
+      summary: "Add a line"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/categories/{cid}:
+    patch:
+      tags: [Accounts]
+      summary: "Rename, reorder, footnote or archive a line"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: cid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/money-accounts:
+    get:
+      tags: [Accounts]
+      summary: "List money accounts"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+    post:
+      tags: [Accounts]
+      summary: "Add a bank, cash, supplier credit or provider account"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/money-accounts/{aid}:
+    patch:
+      tags: [Accounts]
+      summary: "Rename or archive a money account"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: aid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/money-accounts/{aid}/balance:
+    put:
+      tags: [Accounts]
+      summary: "Set opening (first year) or statement balance for a year"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: aid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/debts:
+    post:
+      tags: [Accounts]
+      summary: "Raise a debtor or creditor (accrues to the owed line by default)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/debts/{did}/settlements:
+    get:
+      tags: [Accounts]
+      summary: "Payments and write-offs against a debt"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: did, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+    post:
+      tags: [Accounts]
+      summary: "Pay, write off, or record a debt recovered short"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: did, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/debts/{did}/void:
+    post:
+      tags: [Accounts]
+      summary: "Void a debt with nothing paid against it"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: did, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/settlements/{sid}/void:
+    post:
+      tags: [Accounts]
+      summary: "Void a settlement in an open year"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: sid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/stock:
+    post:
+      tags: [Accounts]
+      summary: "Add a stock item, e.g. match balls"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/accounts/stock/{item}/count:
+    put:
+      tags: [Accounts]
+      summary: "Record opening (first year) or closing stock at cost"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: item, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not the owner or a treasurer }
+        "409": { description: The year is closed, or the change conflicts }
 
 components:
   securitySchemes:

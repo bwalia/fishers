@@ -225,6 +225,17 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  // Treasurer is a flag beside the role, so it is its own switch rather than
+  // a sixth entry in the role list.
+  const setTreasurer = async (userId: string, on: boolean) => {
+    try {
+      await api("PUT", `/clubs/${id}/members/${userId}/treasurer`, { is_treasurer: on });
+      setMembers((prev) => prev.map((m) => (m.user_id === userId ? { ...m, is_treasurer: on } : m)));
+    } catch (e) {
+      setErr(readErr(e, t("le.could_not_change_that_role")));
+    }
+  };
+
   const remove = async (userId: string, name: string) => {
     if (!confirm(t("cl.remove_from_club", { name, club: club?.name ?? t("cl.this_club") }))) return;
     try {
@@ -394,6 +405,7 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                   <th>{t("cl.col_email")}</th>
                   <th>{t("rest.phone")}</th>
                   <th style={{ width: 150 }}>{t("cl.col_role")}</th>
+                  <th style={{ width: 100 }}>{t("acc.treasurer")}</th>
                   <th style={{ width: 90 }} />
                 </tr>
               </thead>
@@ -412,6 +424,14 @@ export default function ClubPeoplePage({ params }: { params: Promise<{ id: strin
                           <option key={r.value} value={r.value}>{t(r.label)}</option>
                         ))}
                       </select>
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={!!m.is_treasurer}
+                        aria-label={t("acc.make_treasurer", { name: m.name })}
+                        onChange={(e) => void setTreasurer(m.user_id, e.target.checked)}
+                      />
                     </td>
                     <td>
                       <button className="btn ghost sm" onClick={() => void remove(m.user_id, m.name)}>

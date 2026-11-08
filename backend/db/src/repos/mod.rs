@@ -1,3 +1,4 @@
+pub mod accounts;
 pub mod admin;
 pub mod agent;
 pub mod availability;
@@ -13,6 +14,7 @@ pub mod orders;
 pub mod payments;
 pub mod platform;
 pub mod scoreboard_shares;
+pub mod season;
 pub mod selection;
 pub mod stats;
 pub mod tournament;

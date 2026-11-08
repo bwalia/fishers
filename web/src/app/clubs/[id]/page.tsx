@@ -26,6 +26,7 @@ import {
 } from "@/lib/api";
 import { useOfferedSports } from "@/lib/sports";
 import { AddByLink } from "@/components/AddByLink";
+import { ClubJoinLink } from "@/components/ClubJoinLink";
 import { ClubSetup } from "@/components/ClubSetup";
 import { MessageButton } from "@/components/MessageButton";
 import { Icon } from "@/components/Icon";
@@ -129,6 +130,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
               {members.find((m) => m.user_id === me?.id)?.is_captain && myRole.is_secretary ? " & captain" : ""}
             </span>
           )}
+          {myRole?.is_treasurer && <span className="tag gold">{t("acc.treasurer")}</span>}
         </div>
       </section>
 
@@ -146,6 +148,20 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
           </div>
         )}
 
+      {/* The books: the owner and treasurers only. The API enforces it; this
+          only spares everyone else a link that would say no. */}
+      {myRole?.can_open_accounts && (
+        <div className="panel instant-start">
+          <div>
+            <h2>{t("acc.title")}</h2>
+            <p className="muted">{t("acc.club_page_blurb")}</p>
+          </div>
+          <Link className="btn" href={`/clubs/${id}/accounts`}>
+            {t("acc.open_the_accounts")}
+          </Link>
+        </div>
+      )}
+
       {isSecretary && (
         <ClubSetup
           clubId={id}
@@ -160,6 +176,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
 
       <Members
         clubId={id}
+        clubName={club.name}
         members={members}
         isSecretary={isSecretary}
         // A captain can bring a player into their team from a shared link,
@@ -188,6 +205,7 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
 
 function Members({
   clubId,
+  clubName,
   members,
   isSecretary,
   canAddByLink,
@@ -195,6 +213,7 @@ function Members({
   onChanged,
 }: {
   clubId: string;
+  clubName: string;
   members: ClubMemberRow[];
   isSecretary: boolean;
   canAddByLink: boolean;
@@ -272,6 +291,7 @@ function Members({
         })}
       </p>
 
+      {isSecretary && <ClubJoinLink clubId={clubId} clubName={clubName} />}
       {isSecretary && <AddMember clubId={clubId} onAdded={onChanged} />}
       {canAddByLink && <AddByLink clubId={clubId} />}
 

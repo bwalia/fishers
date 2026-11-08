@@ -1,3 +1,4 @@
+mod accounts;
 mod admin;
 mod auth;
 mod availability;
@@ -73,6 +74,7 @@ pub fn router() -> Router<AppState> {
 
 fn api_v1() -> Router<AppState> {
     Router::new()
+        .merge(accounts::router())
         .merge(admin::router())
         .merge(auth::router())
         .merge(users::router())

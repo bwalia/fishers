@@ -208,6 +208,12 @@ export type MyRole = {
   can_invite_to_play: boolean;
   can_score_match: boolean;
   permissions: string[];
+  /// Owns the club. Older APIs leave these out.
+  is_owner?: boolean;
+  /// Keeps the club's books — a flag beside the role, not a role.
+  is_treasurer?: boolean;
+  /// The owner or a treasurer: whether "Accounts" is shown at all.
+  can_open_accounts?: boolean;
 };
 
 /// A page of anything the API pages: `{ items, total, page, per_page, has_more }`.
@@ -684,6 +690,8 @@ export type ClubMemberRow = {
   role: string;
   /// Captains the side — by role, or a secretary who captains too.
   is_captain?: boolean;
+  /// Keeps the club's books.
+  is_treasurer?: boolean;
   status: string;
   position_role?: string | null;
   skill_level?: string | null;
@@ -897,9 +905,26 @@ export type Invite = {
   token: string;
   status: string;
   created_at: string;
+  /// An open link: never used up, good for everyone who follows it until the
+  /// club turns it off. `uses` counts who has joined through it.
+  open?: boolean;
+  uses?: number;
   /// The club, "team · club", or fixture — present on your own invites.
   target_name?: string | null;
   invited_by_name?: string | null;
+};
+
+/// What an invite link is to, readable before signing in.
+export type InvitePreview = {
+  target_type: "club" | "team" | "event";
+  target_id: string;
+  club_id?: string | null;
+  club_name?: string | null;
+  team_name?: string | null;
+  event_title?: string | null;
+  invited_by_name?: string | null;
+  open: boolean;
+  usable: boolean;
 };
 
 /// What somebody is allowed to do in the club — an office, not a job that

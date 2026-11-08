@@ -8,7 +8,8 @@ use uuid::Uuid;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, ApiResult};
-use crate::rbac::{require_club_member, require_secretary};
+use crate::rbac::{require_club_member, require_club_permission, require_secretary};
+use fishers_domain::Permission;
 use crate::services::play_cricket;
 use crate::state::AppState;
 
@@ -21,6 +22,135 @@ pub fn router() -> Router<AppState> {
         .route("/clubs/{id}/stats", get(club_stats))
         .route("/clubs/{id}/stats/sync", post(sync_club_stats))
         .route("/achievements", get(list_achievements))
+        .route("/me/game", get(my_game))
+        .route("/users/{id}/game", get(their_game))
+        .route("/clubs/{id}/season", get(club_season))
+        .route(
+            "/clubs/{id}/seasons/{year}/close",
+            get(close_preview).post(close_season),
+        )
+        .route("/email/season/off", post(season_emails_off))
+        .route("/email/season/on", post(season_emails_on))
+}
+
+/// A year somebody could actually be closing.
+fn plausible_season(year: i32) -> ApiResult<i32> {
+    let now = fishers_domain::season::season_of(chrono::Utc::now());
+    if (2000..=now + 1).contains(&year) {
+        Ok(year)
+    } else {
+        Err(ApiError::bad_request("that is not a season this club could have played"))
+    }
+}
+
+/// Who closing the season would email — shown before the secretary confirms,
+/// because it cannot be taken back.
+async fn close_preview(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((id, year)): Path<(Uuid, i32)>,
+) -> ApiResult<Json<fishers_domain::season::ClosePreview>> {
+    require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
+    let year = plausible_season(year)?;
+    Ok(Json(fishers_db::repos::season::close_preview(&state.pool, id, year).await?))
+}
+
+#[derive(Debug, Serialize)]
+struct Closed {
+    season: i32,
+    /// Emails that will go — an address on file, not opted out — over the
+    /// next few minutes.
+    queued: i64,
+}
+
+/// Close the season: every active member gets their season by email. Once a
+/// year; a second close is a 409 and emails nobody.
+async fn close_season(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((id, year)): Path<(Uuid, i32)>,
+) -> ApiResult<Json<Closed>> {
+    require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
+    let year = plausible_season(year)?;
+    match fishers_db::repos::season::close_season(&state.pool, id, year, auth.user_id).await? {
+        Some(queued) => Ok(Json(Closed { season: year, queued })),
+        None => Err(ApiError::conflict("this season is already closed")),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PrefsToken {
+    token: String,
+}
+
+/// From the link in a season email, signed in or not: the token is the
+/// whole of the permission, and all it can do is this.
+async fn season_emails_off(
+    State(state): State<AppState>,
+    Json(body): Json<PrefsToken>,
+) -> ApiResult<Json<serde_json::Value>> {
+    set_season_emails(&state, &body.token, true).await
+}
+
+async fn season_emails_on(
+    State(state): State<AppState>,
+    Json(body): Json<PrefsToken>,
+) -> ApiResult<Json<serde_json::Value>> {
+    set_season_emails(&state, &body.token, false).await
+}
+
+async fn set_season_emails(state: &AppState, token: &str, off: bool) -> ApiResult<Json<serde_json::Value>> {
+    if token.len() < 32 || !fishers_db::repos::season::set_season_emails_off(&state.pool, token, off).await? {
+        return Err(ApiError::not_found("that link is not recognised"));
+    }
+    Ok(Json(serde_json::json!({ "season_emails_off": off })))
+}
+
+#[derive(Debug, Deserialize)]
+struct GameQuery {
+    season: Option<i32>,
+    /// Which club to rank them in. Defaults to the one they played most for.
+    club_id: Option<Uuid>,
+}
+
+/// "My game": the season, its form, bests, milestones and the good news in it.
+async fn my_game(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(q): Query<GameQuery>,
+) -> ApiResult<Json<fishers_domain::season::PlayerGame>> {
+    fishers_db::repos::season::player_game(&state.pool, auth.user_id, q.season, q.club_id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("no such player"))
+}
+
+/// A club-mate's game, on the same terms as their season stats.
+async fn their_game(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Query(q): Query<GameQuery>,
+) -> ApiResult<Json<fishers_domain::season::PlayerGame>> {
+    shared_clubs(&state, auth.user_id, id).await?;
+    fishers_db::repos::season::player_game(&state.pool, id, q.season, q.club_id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("no such player"))
+}
+
+/// The club's season from its players' match lines: the record and the boards.
+async fn club_season(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Query(q): Query<SeasonQuery>,
+) -> ApiResult<Json<fishers_domain::season::ClubSeason>> {
+    require_club_member(&state, id, auth.user_id).await?;
+    fishers_db::repos::season::club_season(&state.pool, id, q.season)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("no such club"))
 }
 
 #[derive(Debug, Deserialize)]
@@ -139,7 +269,9 @@ async fn club_stats(
     Query(q): Query<SeasonQuery>,
 ) -> ApiResult<Json<ClubSeasonBoard>> {
     require_club_member(&state, id, auth.user_id).await?;
-    let season = q.season.unwrap_or(2026);
+    let season = q
+        .season
+        .unwrap_or_else(|| fishers_domain::season::season_of(chrono::Utc::now()));
     let board = stats_repo::club_board(&state.pool, id, season)
         .await?
         .ok_or_else(|| ApiError::not_found("no season stats for this club"))?;

@@ -151,12 +151,18 @@ pub async fn club_leaderboard(
                c.name AS club_name,
                l.profile_url AS play_cricket_profile_url,
                l.play_cricket_player_id
-        FROM player_season_stats p
+        -- One row per player. Somebody with both a Play-Cricket row and a
+        -- scored-in-the-app row was listed twice; the fuller of the two wins.
+        FROM (
+            SELECT DISTINCT ON (user_id) *
+            FROM player_season_stats
+            WHERE club_id = $1 AND season_year = $2
+            ORDER BY user_id, matches DESC, updated_at DESC
+        ) p
         JOIN users u ON u.id = p.user_id
         LEFT JOIN clubs c ON c.id = p.club_id
         LEFT JOIN play_cricket_player_links l
                ON l.user_id = p.user_id AND l.club_id IS NOT DISTINCT FROM p.club_id
-        WHERE p.club_id = $1 AND p.season_year = $2
         ORDER BY {order}
         LIMIT $3
         "#

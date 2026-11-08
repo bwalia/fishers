@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, getAccessToken, type Club, type Invite } from "@/lib/api";
+import { api, getAccessToken, type Club, type Invite, type InvitePreview } from "@/lib/api";
 import { Icon } from "@/components/Icon";
 import { useT } from "@/lib/i18n/provider";
 
@@ -16,20 +16,32 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
   const [stage, setStage] = useState<Stage>("checking");
   const [club, setClub] = useState<Club | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // What the link is to, read before anyone signs in, so the page can say
+  // "Join Southall Strikers" rather than "You have been invited" to nothing
+  // in particular — and say a dead link is dead before anyone signs up for it.
+  const [preview, setPreview] = useState<InvitePreview | null>(null);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      // Nothing to accept with yet. The link is kept so signing in or
-      // registering lands them straight back here.
-      setStage("signed-out");
-      return;
-    }
-    setStage("joining");
     (async () => {
+      const seen = await api<InvitePreview>("GET", `/invites/${token}`).catch(() => null);
+      setPreview(seen);
+      if (seen && !seen.usable) {
+        setError(seen.open ? t("jl.link_turned_off") : t("jl.link_already_used"));
+        setStage("failed");
+        return;
+      }
+      if (!getAccessToken()) {
+        // Nothing to accept with yet. The link is kept so signing in or
+        // registering lands them straight back here.
+        setStage("signed-out");
+        return;
+      }
+      setStage("joining");
       try {
         const invite = await api<Invite>("POST", `/invites/${token}/accept`);
-        if (invite.target_type === "club") {
-          setClub(await api<Club>("GET", `/clubs/${invite.target_id}`).catch(() => null));
+        const clubId = invite.target_type === "club" ? invite.target_id : seen?.club_id;
+        if (clubId) {
+          setClub(await api<Club>("GET", `/clubs/${clubId}`).catch(() => null));
         }
         setStage("joined");
       } catch (err) {
@@ -53,7 +65,14 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
 
         {stage === "signed-out" && (
           <>
-            <h1>{t("rest.you_have_been_invited")}</h1>
+            <h1>
+              {preview?.club_name
+                ? t("jl.join_club", { club: preview.team_name ? `${preview.team_name} · ${preview.club_name}` : preview.club_name })
+                : t("rest.you_have_been_invited")}
+            </h1>
+            {preview?.invited_by_name && !preview.open && (
+              <p className="subtle">{t("jl.invited_by", { name: preview.invited_by_name })}</p>
+            )}
             <p className="muted">
               {t("rest.sign_in_or_create_an_account_and_you_w")}
             </p>
@@ -90,7 +109,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             <h1>{t("rest.that_link_did_not_work")}</h1>
             <p className="error">{error}</p>
             <p className="muted">
-              {t("rest.an_invite_can_only_be_used_once_ask_wh")}
+              {preview?.open ? t("jl.ask_for_the_current_link") : t("rest.an_invite_can_only_be_used_once_ask_wh")}
             </p>
             <Link className="btn" href="/clubs">{t("rest.your_clubs")}</Link>
           </>

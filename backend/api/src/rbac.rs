@@ -216,3 +216,32 @@ mod platform_admin_tests {
         assert!(!admits(&list(&["someone@example.com"]), None, true));
     }
 }
+
+/// Who is opening a club's books, and as what.
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub struct AccountsAccess {
+    pub is_owner: bool,
+    pub is_treasurer: bool,
+}
+
+/// The club's owner or one of its treasurers — nobody else, whatever their
+/// role. A secretary is not a treasurer, and a super admin gets no way in
+/// through here. The 403 says so, rather than "not allowed".
+pub async fn require_accounts_access(
+    state: &AppState,
+    club_id: Uuid,
+    user_id: Uuid,
+) -> ApiResult<AccountsAccess> {
+    let (is_owner, is_treasurer) =
+        fishers_db::repos::accounts::accounts_access(&state.pool, club_id, user_id)
+            .await?
+            .ok_or_else(|| ApiError::not_found("club not found"))?;
+    if fishers_domain::can_open_accounts(is_owner, is_treasurer) {
+        Ok(AccountsAccess { is_owner, is_treasurer })
+    } else {
+        Err(ApiError::forbidden(
+            "Only the club owner or a treasurer can open the accounts",
+        )
+        .with_code("accounts_forbidden"))
+    }
+}

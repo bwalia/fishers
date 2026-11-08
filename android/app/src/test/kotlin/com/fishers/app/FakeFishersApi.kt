@@ -130,6 +130,20 @@ open class FakeFishersApi : FishersApi {
         error("clubMembers not expected")
 
     override suspend fun clubTeams(id: String): List<Team> = error("clubTeams not expected")
+    override suspend fun myClubRole(id: String): com.fishers.app.season.MyClubRole =
+        error("myClubRole not expected")
+
+    // ---- the season ----
+    override suspend fun myGame(season: Int?, clubId: String?): com.fishers.app.season.PlayerGame =
+        error("myGame not expected")
+    override suspend fun playerGame(userId: String, season: Int?): com.fishers.app.season.PlayerGame =
+        error("playerGame not expected")
+    override suspend fun clubSeason(clubId: String, season: Int?): com.fishers.app.season.ClubSeason =
+        error("clubSeason not expected")
+    override suspend fun closeSeasonPreview(clubId: String, season: Int): com.fishers.app.season.ClosePreview =
+        error("closeSeasonPreview not expected")
+    override suspend fun closeSeason(clubId: String, season: Int): com.fishers.app.season.SeasonClosed =
+        error("closeSeason not expected")
 
     // ---- fixtures ----
     override suspend fun myFixtures(): List<MyFixture> = error("myFixtures not expected")
