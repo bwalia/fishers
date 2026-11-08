@@ -9010,3 +9010,154 @@ main .panel[id] { scroll-margin-top: 80px; }
   .acc-statement td, .acc-plain td { border-color: #ccc; }
   @page { size: A4; margin: 18mm 16mm; }
 }
+
+/* ---------- Season stats (/stats) ----------
+   The good news first, then the numbers, then the form. Improvement is the
+   brand colour with an arrow; anything else is plain ink — nothing here is
+   ever red, because a quieter season is context, not a fault. */
+
+.season-controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s4);
+}
+.season-controls .tabs { margin-bottom: 0; flex: 1 1 auto; }
+
+.season-highlights ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.season-highlights li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--radius);
+  background: var(--pitch-50);
+  border-left: 4px solid var(--primary);
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+.season-hl-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--primary-ink);
+}
+
+.season-tiles {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin-bottom: var(--s4);
+}
+.season-delta {
+  margin-top: var(--s1);
+  font-size: 0.8rem;
+  color: var(--fg-subtle);
+}
+.season-delta.up { color: var(--primary-ink); font-weight: 600; }
+
+.season-trends { display: grid; gap: var(--s1); margin-bottom: var(--s3); }
+.season-trend { margin: 0; font-size: 0.95rem; }
+.season-trend.rising { color: var(--primary-ink); font-weight: 600; }
+
+.season-chart { position: relative; margin-bottom: var(--s3); }
+.season-chart svg { display: block; overflow: visible; max-width: 100%; }
+.season-axis { stroke: var(--border); stroke-width: 1; }
+.season-bar { fill: var(--primary); }
+.season-bar.hover { fill: var(--primary-ink); }
+.season-bar-label { fill: var(--fg); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.season-tick { fill: var(--fg-subtle); font-size: 11px; }
+.season-dnb { fill: var(--fg-subtle); font-size: 14px; }
+.season-chart rect:focus { outline: none; }
+.season-chart rect:focus-visible { outline: 2px solid var(--primary); }
+.season-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-1);
+  border-radius: var(--radius);
+  padding: var(--s2) var(--s3);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.season-form-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.season-form-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-subtle);
+  font-weight: 600;
+  padding: var(--s2) var(--s2) var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.season-form-table td { padding: var(--s2) var(--s2) var(--s2) 0; border-bottom: 1px solid var(--border); }
+.season-form-table tr:last-child td { border-bottom: none; }
+.season-form-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.season-two {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+.season-two > .panel { margin-bottom: var(--s4); }
+
+.season-list { list-style: none; margin: 0; padding: 0; }
+.season-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.season-list li:last-child { border-bottom: none; }
+.season-list-label { font-weight: 600; }
+.season-list-value {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.season-boards {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.season-boards > .panel { margin-bottom: 0; }
+.season-board { list-style: none; margin: 0; padding: 0; }
+.season-board li {
+  display: grid;
+  grid-template-columns: 1.5em 1fr auto;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: 6px var(--s1);
+  border-radius: 8px;
+}
+.season-board li.me { background: var(--pitch-50); }
+.season-board-pos { color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
+.season-board-name { min-width: 0; overflow-wrap: anywhere; }
+.season-board-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.season-close { border-left: 4px solid var(--accent); }
+.season-close-facts { margin: var(--s2) 0 var(--s3); padding-left: 1.2em; }
+.season-closed { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s4); }
+
+@media (max-width: 560px) {
+  .season-form-table .season-result { display: none; }
+  .season-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

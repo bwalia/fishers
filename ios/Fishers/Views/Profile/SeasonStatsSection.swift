@@ -10,6 +10,16 @@ struct SeasonStatsSection: View {
 
     var body: some View {
         Section {
+            // The season from the matches scored on the app — highlights,
+            // form, bests — is where a player looks first, so it leads the
+            // section; the Play-Cricket figures below are the imported record.
+            NavigationLink {
+                SeasonStatsView()
+            } label: {
+                Label(t("ss.my_game"), systemImage: "chart.bar.xaxis")
+                    .font(FishersTheme.headline)
+            }
+
             if isLoading && meStats == nil {
                 HStack(spacing: 12) {
                     ProgressView()

@@ -1,0 +1,300 @@
+{
+    "user_id": "f1a09bf0-d643-4eb6-aaaf-f2f914245a52",
+    "name": "Gary Tucker",
+    "season": 2026,
+    "seasons": [
+        2026
+    ],
+    "totals": {
+        "matches": 7,
+        "won": 4,
+        "batting_innings": 7,
+        "not_outs": 0,
+        "runs": 281,
+        "balls_faced": 275,
+        "fours": 22,
+        "sixes": 11,
+        "high_score": 79,
+        "high_score_not_out": false,
+        "fifties": 2,
+        "hundreds": 0,
+        "ducks": 0,
+        "double_figures": 7,
+        "batting_average": 40.1,
+        "strike_rate": 102.2,
+        "bowling_balls": 0,
+        "overs": "0.0",
+        "bowling_runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "economy": null,
+        "bowling_average": null,
+        "bowling_strike_rate": null,
+        "best_bowling": null,
+        "catches": 2,
+        "stumpings": 0,
+        "player_of_match": 0
+    },
+    "previous": null,
+    "career": {
+        "matches": 7,
+        "won": 4,
+        "batting_innings": 7,
+        "not_outs": 0,
+        "runs": 281,
+        "balls_faced": 275,
+        "fours": 22,
+        "sixes": 11,
+        "high_score": 79,
+        "high_score_not_out": false,
+        "fifties": 2,
+        "hundreds": 0,
+        "ducks": 0,
+        "double_figures": 7,
+        "batting_average": 40.1,
+        "strike_rate": 102.2,
+        "bowling_balls": 0,
+        "overs": "0.0",
+        "bowling_runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "economy": null,
+        "bowling_average": null,
+        "bowling_strike_rate": null,
+        "best_bowling": null,
+        "catches": 2,
+        "stumpings": 0,
+        "player_of_match": 0
+    },
+    "form": {
+        "matches": [
+            {
+                "match_id": "e976eb29-c39c-4f20-b90e-c3690c27e16f",
+                "event_id": "10d8ca22-d725-45d5-bbe5-e6d057d377d1",
+                "played_at": "2026-10-03T12:00:00Z",
+                "opposition": "Abbots Langley",
+                "won": true,
+                "batted": true,
+                "runs": 52,
+                "balls": 53,
+                "not_out": false,
+                "bowled": false,
+                "wickets": 0,
+                "runs_conceded": 0,
+                "overs": "0.0",
+                "catches": 1,
+                "player_of_match": false
+            },
+            {
+                "match_id": "77689f15-194a-40e2-b1be-d8477aa4aa11",
+                "event_id": "206aecc9-3956-440d-a1be-c317ef2421d2",
+                "played_at": "2026-09-26T12:00:00Z",
+                "opposition": "Radlett",
+                "won": true,
+                "batted": true,
+                "runs": 79,
+                "balls": 70,
+                "not_out": false,
+                "bowled": false,
+                "wickets": 0,
+                "runs_conceded": 0,
+                "overs": "0.0",
+                "catches": 0,
+                "player_of_match": false
+            },
+            {
+                "match_id": "525daea1-04af-42d1-889f-0456c825eb2e",
+                "event_id": "8a7764f4-c016-4fc2-92ce-9e218de64c82",
+                "played_at": "2026-09-19T12:00:00Z",
+                "opposition": "Chorleywood",
+                "won": true,
+                "batted": true,
+                "runs": 20,
+                "balls": 14,
+                "not_out": false,
+                "bowled": false,
+                "wickets": 0,
+                "runs_conceded": 0,
+                "overs": "0.0",
+                "catches": 0,
+                "player_of_match": false
+            },
+            {
+                "match_id": "fb23e63d-7bef-4755-ac01-cfecf7bb66a0",
+                "event_id": "26d40e02-ff76-49f9-8750-b13356060db0",
+                "played_at": "2026-09-18T17:30:00Z",
+                "opposition": "Kings Langley",
+                "won": true,
+                "batted": true,
+                "runs": 29,
+                "balls": 24,
+                "not_out": false,
+                "bowled": false,
+                "wickets": 0,
+                "runs_conceded": 0,
+                "overs": "0.0",
+                "catches": 0,
+                "player_of_match": false
+            },
+            {
+                "match_id": "44f3e449-12d6-4e27-b358-916243c5ec0c",
+                "event_id": "62996b05-d40e-45fb-be32-e17a8d148a8a",
+                "played_at": "2026-09-12T12:00:00Z",
+                "opposition": "Abbots Langley",
+                "won": false,
+                "batted": true,
+                "runs": 46,
+                "balls": 41,
+                "not_out": false,
+                "bowled": false,
+                "wickets": 0,
+                "runs_conceded": 0,
+                "overs": "0.0",
+                "catches": 0,
+                "player_of_match": false
+            },
+            {
+                "match_id": "c78a0e3a-eef5-47a3-b7f1-87f46253e7fd",
+                "event_id": "2d77575e-97bd-4456-a40d-72d3ab189975",
+                "played_at": "2026-09-05T12:00:00Z",
+                "opposition": "Radlett",
+                "won": false,
+                "batted": true,
+                "runs": 17,
+                "balls": 21,
+                "not_out": false,
+                "bowled": false,
+                "wickets": 0,
+                "runs_conceded": 0,
+                "overs": "0.0",
+                "catches": 0,
+                "player_of_match": false
+            },
+            {
+                "match_id": "51648c7f-0018-4357-8eb9-a4746b3cb861",
+                "event_id": "5b02da74-dcf7-484e-9089-ecf51ddac8d7",
+                "played_at": "2026-08-29T12:00:00Z",
+                "opposition": "Chorleywood",
+                "won": false,
+                "batted": true,
+                "runs": 38,
+                "balls": 52,
+                "not_out": false,
+                "bowled": false,
+                "wickets": 0,
+                "runs_conceded": 0,
+                "overs": "0.0",
+                "catches": 1,
+                "player_of_match": false
+            }
+        ],
+        "recent_batting_average": 45.2,
+        "batting_trend": "steady",
+        "recent_wickets_per_match": null,
+        "bowling_trend": null
+    },
+    "bests": [
+        {
+            "code": "best_score",
+            "value": "79",
+            "opposition": "Radlett",
+            "played_at": "2026-09-26T12:00:00Z",
+            "season_year": 2026,
+            "this_season": true
+        },
+        {
+            "code": "most_sixes",
+            "value": "5",
+            "opposition": "Abbots Langley",
+            "played_at": "2026-10-03T12:00:00Z",
+            "season_year": 2026,
+            "this_season": true
+        },
+        {
+            "code": "most_catches",
+            "value": "1",
+            "opposition": "Chorleywood",
+            "played_at": "2026-08-29T12:00:00Z",
+            "season_year": 2026,
+            "this_season": true
+        }
+    ],
+    "milestones": [
+        {
+            "code": "first_match",
+            "reached_at": "2026-08-29T12:00:00Z",
+            "opposition": "Chorleywood",
+            "this_season": true
+        },
+        {
+            "code": "first_six",
+            "reached_at": "2026-08-29T12:00:00Z",
+            "opposition": "Chorleywood",
+            "this_season": true
+        },
+        {
+            "code": "first_catch",
+            "reached_at": "2026-08-29T12:00:00Z",
+            "opposition": "Chorleywood",
+            "this_season": true
+        },
+        {
+            "code": "runs_100",
+            "reached_at": "2026-09-12T12:00:00Z",
+            "opposition": "Abbots Langley",
+            "this_season": true
+        },
+        {
+            "code": "first_win",
+            "reached_at": "2026-09-18T17:30:00Z",
+            "opposition": "Kings Langley",
+            "this_season": true
+        },
+        {
+            "code": "first_fifty",
+            "reached_at": "2026-09-26T12:00:00Z",
+            "opposition": "Radlett",
+            "this_season": true
+        },
+        {
+            "code": "runs_250",
+            "reached_at": "2026-10-03T12:00:00Z",
+            "opposition": "Abbots Langley",
+            "this_season": true
+        }
+    ],
+    "club_rank": {
+        "club_id": "6074888b-460c-456d-a9e5-9e5e7d1a3fff",
+        "club_name": "Hemel Hempstead Town CC",
+        "runs": 1,
+        "wickets": null,
+        "catches": 7,
+        "players": 22
+    },
+    "highlights": [
+        {
+            "code": "season_best_score",
+            "text": "Best score of the season: 79 against Radlett.",
+            "value": "79",
+            "detail": "Radlett"
+        },
+        {
+            "code": "milestone",
+            "text": "Milestone reached: 250 career runs.",
+            "value": "250 career runs",
+            "detail": "runs_250"
+        },
+        {
+            "code": "club_top_runs",
+            "text": "Top for runs at Hemel Hempstead Town CC this season.",
+            "value": "1",
+            "detail": "Hemel Hempstead Town CC"
+        },
+        {
+            "code": "consistent",
+            "text": "You reached double figures in 7 of 7 innings.",
+            "value": "7",
+            "detail": "7"
+        }
+    ]
+}

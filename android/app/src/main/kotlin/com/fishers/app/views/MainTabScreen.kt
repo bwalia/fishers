@@ -74,6 +74,11 @@ import com.fishers.app.shop.ListingViewModel
 import com.fishers.app.shop.MarketViewModel
 import com.fishers.app.views.shop.ListingScreen
 import com.fishers.app.views.shop.MarketplaceScreen
+import com.fishers.app.season.SeasonLink
+import com.fishers.app.season.SeasonTab
+import com.fishers.app.season.SeasonViewModel
+import com.fishers.app.views.season.SeasonScreen
+import androidx.compose.material3.OutlinedButton
 
 /**
  * The five top-level destinations, in the order `MainTabView.swift` has them.
@@ -101,6 +106,10 @@ fun MainTabScreen(
     worldScores: WorldScoresViewModel,
     worldMatchFor: (String) -> WorldMatchViewModel,
     scoringFor: (String) -> com.fishers.app.cricket.ScoringViewModel,
+    season: SeasonViewModel,
+    /** Where a tapped `season_closed` notification wants to land, until it has. */
+    seasonLink: SeasonLink? = null,
+    onSeasonLinkHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
@@ -118,6 +127,23 @@ fun MainTabScreen(
     var openFixture by rememberSaveable { mutableStateOf<String?>(null) }
     // Which match's scorecard is open, if any.
     var openWorldMatch by rememberSaveable { mutableStateOf<String?>(null) }
+    // The season pages: the player's own off Profile, the club's off a club.
+    // Each opens on top of the tab it was reached from, so Back goes there.
+    var myGameOpen by rememberSaveable { mutableStateOf(false) }
+    var clubSeasonOpen by rememberSaveable { mutableStateOf(false) }
+
+    // A notification tap. Lands on My game for the season it is about, as the
+    // website's /stats?season=&club= does; the club tab is one tap away.
+    LaunchedEffect(seasonLink) {
+        val link = seasonLink ?: return@LaunchedEffect
+        tab = Tab.Profile
+        myGameOpen = true
+        season.open(link)
+        onSeasonLinkHandled()
+    }
+    // Profile is a padded, scrolling page; the season page brings its own
+    // list, and a lazy list inside a scrolling column is a crash.
+    val profilePage = tab == Tab.Profile && !myGameOpen
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -141,13 +167,13 @@ fun MainTabScreen(
                 .fillMaxSize()
                 .padding(inner)
                 // Chats fills the pane; the placeholders are centred in it.
-                .padding(if (tab == Tab.Profile) 24.dp else 0.dp)
+                .padding(if (profilePage) 24.dp else 0.dp)
                 // Profile is a scrolling page now that the umpiring record is
                 // on it, and a record grows with every review.
-                .then(if (tab == Tab.Profile) Modifier.verticalScroll(rememberScrollState()) else Modifier),
-            verticalArrangement = if (tab == Tab.Profile) Arrangement.spacedBy(12.dp)
+                .then(if (profilePage) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+            verticalArrangement = if (profilePage) Arrangement.spacedBy(12.dp)
             else Arrangement.Top,
-            horizontalAlignment = if (tab == Tab.Profile) Alignment.CenterHorizontally
+            horizontalAlignment = if (profilePage) Alignment.CenterHorizontally
             else Alignment.Start,
         ) {
             when (tab) {
@@ -197,14 +223,28 @@ fun MainTabScreen(
                     )
                 }
 
-                Tab.Clubs -> ClubsTab(
-                    clubs = clubs,
-                    detailFor = clubDetailFor,
-                    openClub = openClub,
-                    openClubName = openClubName,
-                    onOpen = { openClub = it.id; openClubName = it.name },
-                    onBack = { openClub = null },
-                )
+                Tab.Clubs -> if (clubSeasonOpen) {
+                    BackHandler { clubSeasonOpen = false }
+                    SeasonPage(
+                        season = season,
+                        meId = user?.id,
+                        onOpenFixtures = { clubSeasonOpen = false; tab = Tab.Fixtures },
+                        onOpenClubs = { clubSeasonOpen = false; openClub = null },
+                    )
+                } else {
+                    ClubsTab(
+                        clubs = clubs,
+                        detailFor = clubDetailFor,
+                        openClub = openClub,
+                        openClubName = openClubName,
+                        onOpen = { openClub = it.id; openClubName = it.name },
+                        onBack = { openClub = null },
+                        onOpenSeason = { clubId ->
+                            season.open(SeasonLink(tab = SeasonTab.Club, clubId = clubId))
+                            clubSeasonOpen = true
+                        },
+                    )
+                }
 
                 Tab.Fixtures -> {
                     val fixtureId = openFixture
@@ -240,12 +280,27 @@ fun MainTabScreen(
                     onBack = { openThread = null },
                 )
 
-                Tab.Profile -> {
+                Tab.Profile -> if (myGameOpen) {
+                    BackHandler { myGameOpen = false }
+                    SeasonPage(
+                        season = season,
+                        meId = user?.id,
+                        onOpenFixtures = { myGameOpen = false; tab = Tab.Fixtures },
+                        onOpenClubs = { myGameOpen = false; tab = Tab.Clubs },
+                    )
+                } else {
                     Text(
                         user?.name ?: t("rest.signed_in"),
                         style = MaterialTheme.typography.headlineSmall,
                     )
                     user?.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+
+                    // The player's own season, first after their name: it is
+                    // the part of a profile somebody opens it to see.
+                    OutlinedButton(onClick = {
+                        season.open(SeasonLink(tab = SeasonTab.Mine))
+                        myGameOpen = true
+                    }) { Text(t("ss.my_game")) }
 
                     val pendingState by pendingReviews.state.collectAsStateWithLifecycle()
                     LaunchedEffect(Unit) { pendingReviews.load() }
@@ -337,6 +392,27 @@ private fun ShopTab(
     }
 }
 
+/** Both tabs of the season page, wired to the one model they share. */
+@Composable
+private fun SeasonPage(
+    season: SeasonViewModel,
+    meId: String?,
+    onOpenFixtures: () -> Unit,
+    onOpenClubs: () -> Unit,
+) {
+    val state by season.state.collectAsStateWithLifecycle()
+    SeasonScreen(
+        state = state,
+        meId = meId,
+        onTab = season::selectTab,
+        onSeason = season::selectSeason,
+        onClub = season::selectClub,
+        onClose = season::close,
+        onOpenFixtures = onOpenFixtures,
+        onOpenClubs = onOpenClubs,
+    )
+}
+
 /** The clubs list, or one club's roster. Back closes the roster. */
 @Composable
 private fun ClubsTab(
@@ -346,6 +422,7 @@ private fun ClubsTab(
     openClubName: String,
     onOpen: (Club) -> Unit,
     onBack: () -> Unit,
+    onOpenSeason: (String) -> Unit,
 ) {
     if (openClub == null) {
         val state by clubs.state.collectAsStateWithLifecycle()
@@ -356,7 +433,11 @@ private fun ClubsTab(
         val state by model.state.collectAsStateWithLifecycle()
         LaunchedEffect(openClub) { model.load() }
         BackHandler(onBack = onBack)
-        ClubDetailScreen(clubName = openClubName, state = state)
+        ClubDetailScreen(
+            clubName = openClubName,
+            state = state,
+            onOpenSeason = { onOpenSeason(openClub) },
+        )
     }
 }
 

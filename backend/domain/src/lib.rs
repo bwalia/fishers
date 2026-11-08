@@ -26,6 +26,7 @@ pub mod platform;
 mod profile;
 mod rbac;
 /// Season stats + Play-Cricket (ECB) profile links.
+pub mod season;
 pub mod stats;
 /// Tournament generation is namespaced: `tournament::round_robin` etc.
 pub mod tournament;

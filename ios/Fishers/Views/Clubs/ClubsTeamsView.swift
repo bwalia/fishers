@@ -606,10 +606,12 @@ struct ClubDetailView: View {
 
             if isCricket {
                 Section(tr("Season stats")) {
+                    // The season from every match scored here: record,
+                    // leaderboards, and the secretary's close-the-season box.
                     NavigationLink {
-                        ClubStatsView(clubId: club.id, clubName: club.name)
+                        SeasonStatsView(tab: .club, clubId: club.id)
                     } label: {
-                        Label(t("cl.runs_wickets_play_cricket"), systemImage: "chart.bar")
+                        Label(t("ss.club_season"), systemImage: "chart.bar")
                     }
                 }
             }

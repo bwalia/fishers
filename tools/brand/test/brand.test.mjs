@@ -461,6 +461,15 @@ test("a brand's mobile identity is shell the workflows can append", () => {
   assert.equal(brand.id, "gullycricket");
 });
 
+test("the helm overlay tells the API whose email it is sending", () => {
+  const gully = parseYaml(helmValues(loadBrand(repoRoot, "gullycricket"), "prod"));
+  assert.equal(gully.config.brandName, "Gully Cricket");
+  assert.match(gully.config.brandColor, /^#[0-9a-f]{6}$/i);
+  assert.equal(gully.config.brandSupportEmail, "hello@gullycricket.app");
+  const fishers = parseYaml(helmValues(loadBrand(repoRoot, "fishers"), "prod"));
+  assert.equal(fishers.config.brandName, "Fishers");
+});
+
 test("the helm overlay carries the brand and its host", () => {
   const brand = loadBrand(repoRoot, "gullycricket");
   const values = helmValues(brand, "int");

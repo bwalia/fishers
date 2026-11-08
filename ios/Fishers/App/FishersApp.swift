@@ -81,6 +81,12 @@ struct FishersApp: App {
                     if phase == .active { CricketSyncService.shared.requestFlush() }
                 }
                 .onOpenURL { url in
+                    // The season email's link, if the system ever hands it to
+                    // the app: the same route the season_closed push takes.
+                    if let season = SeasonLink(url: url.absoluteString) {
+                        PushRegistrar.shared.pendingSeason = season
+                        return
+                    }
                     #if canImport(GoogleSignIn)
                     GIDSignIn.sharedInstance.handle(url)
                     #endif

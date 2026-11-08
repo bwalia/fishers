@@ -64,6 +64,13 @@ kong:
 # com.fishers.app.
 config:
   appleClientId: ${brand.mobile.bundleId}${sports}
+  # What the API's email says it is from: the name at the top, the colour of
+  # the buttons, the address to write back to. Unset, it said Fishers on every
+  # brand — a Gully Cricket player's sign-in code arrived "from FISHERS".
+  brandName: ${JSON.stringify(brand.name)}
+  brandColor: ${JSON.stringify(brand.ramp.primary600)}
+  brandTint: ${JSON.stringify(brand.source.primaryPale)}
+  brandSupportEmail: ${JSON.stringify(brand.support.email)}
 
 # The hostnames that land on this ring and are sent to the canonical one.
 #

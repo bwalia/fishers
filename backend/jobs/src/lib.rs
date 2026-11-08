@@ -94,8 +94,114 @@ async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> an
     if let Err(e) = chase_match_fees(pool, push, email).await {
         warn!(error = %e, "fee chasing failed");
     }
-    if let Err(e) = nudge_unfinished_profiles(pool, push).await {
+    if let Err(e) = nudge_unfinished_profiles(pool, push, &email.brand.name).await {
         warn!(error = %e, "profile nudges failed");
+    }
+    if let Err(e) = backfill_match_lines(pool).await {
+        warn!(error = %e, "backfilling match lines failed");
+    }
+    if let Err(e) = send_season_emails(pool, push, email).await {
+        warn!(error = %e, "season emails failed");
+    }
+    Ok(())
+}
+
+/// Each member's season, by email, once their club has closed it. A hundred a
+/// tick: a big club takes a few ticks, and a restart picks up where it left
+/// off because each one is marked as it goes.
+///
+/// Everybody also gets it in the bell and as a push — including those with no
+/// email address, who would otherwise hear nothing.
+async fn send_season_emails(pool: &PgPool, push: &PushService, email: &EmailService) -> anyhow::Result<()> {
+    use fishers_db::repos::season as season_repo;
+    use fishers_notifications::season_email::{render, SeasonContext};
+
+    let due = season_repo::due_season_emails(pool, 100).await?;
+    if due.is_empty() {
+        return Ok(());
+    }
+    let brand = &email.brand;
+    let mut sent = 0u32;
+    // The club's record is the same for everyone in it.
+    let mut records: std::collections::HashMap<(uuid::Uuid, i32), fishers_domain::season::SeasonRecordLine> =
+        Default::default();
+    for d in due {
+        let page_url = format!("{}/stats?season={}&club={}", brand.web_base, d.season_year, d.club_id);
+        if d.attempts == 0 {
+            let title = format!("Your {} season at {}", d.season_year, d.club_name);
+            let payload = serde_json::json!({
+                "url": format!("/stats?season={}&club={}", d.season_year, d.club_id),
+                "tag": format!("season:{}:{}", d.club_id, d.season_year),
+                "club_id": d.club_id,
+                "season": d.season_year,
+            });
+            if let Err(e) = push
+                .send(pool, d.user_id, "season_closed", &title, "The season's over — see how yours went.", payload)
+                .await
+            {
+                warn!(error = %e, "season push failed");
+            }
+        }
+        let Some(to) = d.email.clone().filter(|e| e.contains('@')) else {
+            season_repo::mark_season_email(pool, &d, Some("no_email")).await?;
+            continue;
+        };
+        if d.season_emails_off {
+            season_repo::mark_season_email(pool, &d, Some("opted_out")).await?;
+            continue;
+        }
+        let Some(game) =
+            season_repo::player_game(pool, d.user_id, Some(d.season_year), Some(d.club_id)).await?
+        else {
+            season_repo::mark_season_email(pool, &d, Some("no_user")).await?;
+            continue;
+        };
+        let key = (d.club_id, d.season_year);
+        if let std::collections::hash_map::Entry::Vacant(slot) = records.entry(key) {
+            slot.insert(season_repo::club_record(pool, d.club_id, d.season_year).await?);
+        }
+        let unsubscribe_url = format!("{}/unsubscribe/{}", brand.web_base, d.email_prefs_token);
+        let mail = render(
+            brand,
+            &game,
+            &SeasonContext {
+                club_name: &d.club_name,
+                season: d.season_year,
+                record: &records[&key],
+                page_url: &page_url,
+                unsubscribe_url: &unsubscribe_url,
+            },
+        );
+        match email.send_html(&to, &mail.subject, &mail.text, &mail.html).await {
+            Ok(()) => {
+                season_repo::mark_season_email(pool, &d, None).await?;
+                sent += 1;
+            }
+            Err(e) => {
+                warn!(error = %e, user = %d.user_id, "season email failed; will retry");
+                season_repo::retry_season_email(pool, &d).await?;
+            }
+        }
+    }
+    if sent > 0 {
+        info!(sent, "season emails sent");
+    }
+    Ok(())
+}
+
+/// Player lines for matches finished before lines existed, a few hundred a
+/// tick until there are none left; after that it is one cheap query.
+async fn backfill_match_lines(pool: &PgPool) -> anyhow::Result<()> {
+    let mut done = 0;
+    loop {
+        let n = fishers_db::repos::season::backfill_lines(pool, 50).await?;
+        done += n;
+        if n < 50 || done >= 500 {
+            break;
+        }
+    }
+    if done > 0 {
+        info!(matches = done, "backfilled player match lines");
     }
     Ok(())
 }
@@ -107,7 +213,7 @@ async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> an
 /// Only accounts made in the last fortnight. Shipping this must not message
 /// everybody who ever skipped a field, and an account that has sat untouched
 /// for weeks is not waiting on a reminder.
-async fn nudge_unfinished_profiles(pool: &PgPool, push: &PushService) -> anyhow::Result<()> {
+async fn nudge_unfinished_profiles(pool: &PgPool, push: &PushService, app: &str) -> anyhow::Result<()> {
     let due: Vec<(uuid::Uuid,)> = sqlx::query_as(
         r#"
         SELECT id FROM users
@@ -146,7 +252,7 @@ async fn nudge_unfinished_profiles(pool: &PgPool, push: &PushService) -> anyhow:
         });
         fishers_db::repos::notifications::record(pool, user_id, "profile_nudge", &payload).await?;
         if let Err(e) = push
-            .send(pool, user_id, "profile_nudge", "Finish your Fishers profile", &body, payload)
+            .send(pool, user_id, "profile_nudge", &format!("Finish your {app} profile"), &body, payload)
             .await
         {
             warn!(error = %e, "profile nudge push failed");

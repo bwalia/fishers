@@ -104,6 +104,14 @@ config:
   # six sports to a value somebody missed. A brand that wants fewer says so.
   sportsEnabled: ""
 
+  # The brand the API's email speaks for. Set per brand by `brand helm` from
+  # brands/<id>.yaml. Empty means Fishers, which is what every email said
+  # before these existed.
+  brandName: ""
+  brandColor: ""
+  brandTint: ""
+  brandSupportEmail: ""
+
   jwtAccessTtlSecs: 900
   jwtRefreshTtlSecs: 2592000
   rustLog: "fishers_api=info,fishers_notifications=info,fishers_jobs=info,tower_http=warn,sqlx=warn"
