@@ -34,6 +34,16 @@ pub fn router() -> Router<AppState> {
 }
 
 /// A year somebody could actually be closing.
+/// A season that can be closed: plausible, and already started.
+fn closable_season(year: i32) -> ApiResult<i32> {
+    let year = plausible_season(year)?;
+    if fishers_domain::season::can_close_season(year, chrono::Utc::now()) {
+        Ok(year)
+    } else {
+        Err(ApiError::bad_request(format!("the {year} season hasn't started yet")))
+    }
+}
+
 fn plausible_season(year: i32) -> ApiResult<i32> {
     let now = fishers_domain::season::season_of(chrono::Utc::now());
     if (2000..=now + 1).contains(&year) {
@@ -51,7 +61,7 @@ async fn close_preview(
     Path((id, year)): Path<(Uuid, i32)>,
 ) -> ApiResult<Json<fishers_domain::season::ClosePreview>> {
     require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
-    let year = plausible_season(year)?;
+    let year = closable_season(year)?;
     let mut preview = fishers_db::repos::season::close_preview(&state.pool, id, year).await?;
     // With no mail server, "33 emails on their way" would be untrue: nobody
     // gets one until mail is switched on. The in-app notice still goes.
@@ -80,7 +90,7 @@ async fn close_season(
     Path((id, year)): Path<(Uuid, i32)>,
 ) -> ApiResult<Json<Closed>> {
     require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
-    let year = plausible_season(year)?;
+    let year = closable_season(year)?;
     match fishers_db::repos::season::close_season(&state.pool, id, year, auth.user_id).await? {
         Some(queued) => {
             let email_on = state.email.enabled();

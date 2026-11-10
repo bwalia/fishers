@@ -900,6 +900,13 @@ pub fn season_of(at: DateTime<Utc>) -> i32 {
     at.year()
 }
 
+/// Whether a season can be closed yet: it has to have started. Closing next
+/// year by mistake would email every member a season with nothing in it, and
+/// a season closes only once.
+pub fn can_close_season(season: i32, now: DateTime<Utc>) -> bool {
+    season <= season_of(now)
+}
+
 // MARK: The club's season
 
 /// One line on a club leaderboard.
@@ -980,6 +987,14 @@ pub struct DueSeasonEmail {
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[test]
+    fn a_season_closes_only_once_it_has_started() {
+        let now = chrono::Utc.with_ymd_and_hms(2026, 11, 10, 9, 0, 0).unwrap();
+        assert!(can_close_season(2026, now));
+        assert!(can_close_season(2025, now));
+        assert!(!can_close_season(2027, now), "next year has not been played");
+    }
 
     fn line(year: i32, month: u32, f: impl FnOnce(&mut MatchLine)) -> MatchLine {
         let mut l = MatchLine {
