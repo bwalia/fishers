@@ -47,7 +47,12 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
       } catch (err) {
         const raw = err instanceof Error ? err.message : "";
         try {
-          setError(JSON.parse(raw).error ?? t("le.that_invite_could_not_be_used"));
+          const body = JSON.parse(raw);
+          setError(
+            body.code === "removed_from_club"
+              ? t("jl.removed_from_club")
+              : (body.error ?? t("le.that_invite_could_not_be_used")),
+          );
         } catch {
           setError(raw || t("le.that_invite_could_not_be_used"));
         }

@@ -260,11 +260,20 @@ async fn accept_invite(
     Path(token): Path<String>,
 ) -> ApiResult<Json<Invite>> {
     super::verification::require_verified(&state, auth.user_id).await?;
-    let (invite, joined) = invites_repo::accept_invite(&state.pool, &token, auth.user_id)
+    let accepted = invites_repo::accept_invite(&state.pool, &token, auth.user_id)
         .await?
         .ok_or_else(|| {
             ApiError::not_found("This invite has already been used or was turned off")
         })?;
+    let (invite, joined) = match accepted {
+        invites_repo::Accepted::Joined(invite, joined) => (invite, joined),
+        invites_repo::Accepted::RemovedByClub => {
+            return Err(ApiError::forbidden(
+                "The club removed you, so its open link can't let you back in. Ask the secretary to invite you.",
+            )
+            .with_code("removed_from_club"));
+        }
+    };
 
     // Close the loop for whoever sent it: they asked, and this is the answer.
     // Not again for somebody already in who followed the club link twice.
