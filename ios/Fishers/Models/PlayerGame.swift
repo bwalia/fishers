@@ -50,6 +50,8 @@ struct GameTotals: Decodable, Equatable {
     var catches = 0
     var stumpings = 0
     var playerOfMatch = 0
+    /// Times they made the ball a match turned on.
+    var magicMoments = 0
 
     enum CodingKeys: String, CodingKey {
         case matches, won, runs, fours, sixes, fifties, hundreds, ducks, overs, wickets, maidens
@@ -68,6 +70,7 @@ struct GameTotals: Decodable, Equatable {
         case bowlingStrikeRate = "bowling_strike_rate"
         case bestBowling = "best_bowling"
         case playerOfMatch = "player_of_match"
+        case magicMoments = "magic_moments"
     }
 
     init() {}
@@ -104,6 +107,7 @@ struct GameTotals: Decodable, Equatable {
         catches = int(.catches)
         stumpings = int(.stumpings)
         playerOfMatch = int(.playerOfMatch)
+        magicMoments = int(.magicMoments)
     }
 }
 
@@ -678,6 +682,13 @@ struct SeasonTile: Equatable, Identifiable {
                 id: "field", label: t("ss.catches"), value: String(held),
                 up: heldBefore.map { held > $0 } ?? false,
                 was: heldBefore.map(String.init)
+            ))
+        }
+        if now.magicMoments > 0 {
+            tiles.append(SeasonTile(
+                id: "magic", label: t("mm.title"), value: String(now.magicMoments),
+                up: before.map { now.magicMoments > $0.magicMoments } ?? false,
+                was: before.map { String($0.magicMoments) }
             ))
         }
         return tiles

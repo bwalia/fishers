@@ -36,6 +36,8 @@ export type Totals = {
   catches: number;
   stumpings: number;
   player_of_match: number;
+  /// Times they made the ball a match turned on. Absent from older servers.
+  magic_moments?: number;
 };
 
 export type FormEntry = {

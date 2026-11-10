@@ -42,6 +42,8 @@ pub struct MatchFigures {
     pub catches: i32,
     pub stumpings: i32,
     pub player_of_match: bool,
+    /// They made the ball the match turned on.
+    pub magic_moments: i32,
 }
 
 /// One set of figures per player who took part: everybody in either XI, and
@@ -112,6 +114,9 @@ pub fn match_figures(state: &MatchState) -> HashMap<Uuid, MatchFigures> {
             f.player_of_match = true;
         }
     }
+    if let Some(moment) = state.turning_point() {
+        out.entry(moment.player_id).or_default().magic_moments += 1;
+    }
     out
 }
 
@@ -145,6 +150,10 @@ pub struct MatchLine {
     pub catches: i32,
     pub stumpings: i32,
     pub player_of_match: bool,
+    /// Read back from rows written before the column existed as zero.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub magic_moments: i32,
 }
 
 impl MatchLine {
@@ -215,6 +224,8 @@ pub struct Totals {
     pub catches: i32,
     pub stumpings: i32,
     pub player_of_match: i32,
+    /// Times they made the ball a match turned on.
+    pub magic_moments: i32,
 }
 
 impl Totals {
@@ -262,6 +273,7 @@ impl Totals {
             if l.player_of_match {
                 t.player_of_match += 1;
             }
+            t.magic_moments += l.magic_moments;
         }
         t.batting_average = ratio(t.runs, t.batting_innings - t.not_outs).map(round1);
         t.strike_rate = ratio(t.runs * 100, t.balls_faced).map(round1);
@@ -988,6 +1000,45 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
+    /// Thirty dots, then sixes: the hitter turned it. Their figures for the
+    /// match say so, and player of the match given afterwards is there too.
+    #[test]
+    fn match_figures_carry_the_magic_moment_and_the_award() {
+        use crate::{DeliveryRecord, InningsState, MatchStatus};
+        let (blocker, hitter, bowler) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let ball = |label: &str, runs: u8, n: usize, batter: Uuid| DeliveryRecord {
+            over: (n / 6) as u16,
+            ball_in_over: (n % 6) as u8 + 1,
+            label: label.into(),
+            runs,
+            is_legal: true,
+            is_wicket: false,
+            batter_id: Some(batter),
+            bowler_id: Some(bowler),
+            shot: None,
+        };
+        let mut deliveries: Vec<_> = (0..30).map(|n| ball("0", 0, n, blocker)).collect();
+        deliveries.extend((30..47).map(|n| ball("6", 6, n, hitter)));
+        let state = MatchState {
+            status: MatchStatus::Complete,
+            winner: Some(MatchSide::Away),
+            overs_limit: 20,
+            target: Some(101),
+            away_xi: vec![blocker, hitter],
+            home_xi: vec![bowler],
+            player_of_the_match: Some(hitter),
+            innings: vec![
+                InningsState { index: 0, batting: MatchSide::Home, bowling: MatchSide::Away, runs: 100, legal_balls: 120, complete: true, ..InningsState::default() },
+                InningsState { index: 1, batting: MatchSide::Away, bowling: MatchSide::Home, runs: 102, legal_balls: 47, deliveries, complete: true, ..InningsState::default() },
+            ],
+            ..MatchState::default()
+        };
+        let figures = match_figures(&state);
+        assert_eq!(figures[&hitter].magic_moments, 1);
+        assert!(figures[&hitter].player_of_match);
+        assert_eq!(figures.values().map(|f| f.magic_moments).sum::<i32>(), 1);
+    }
+
     #[test]
     fn a_season_closes_only_once_it_has_started() {
         let now = chrono::Utc.with_ymd_and_hms(2026, 11, 10, 9, 0, 0).unwrap();
@@ -1024,6 +1075,7 @@ mod tests {
             catches: 0,
             stumpings: 0,
             player_of_match: false,
+            magic_moments: 0,
         };
         f(&mut l);
         l

@@ -308,6 +308,16 @@ function Headline({ t, now, before, season }: { t: T; now: Totals; before: Total
       was: before ? String(before.catches + before.stumpings) : undefined,
     });
   }
+  const magic = now.magic_moments ?? 0;
+  if (magic > 0) {
+    tiles.push({
+      key: "magic",
+      label: t("mm.title"),
+      value: String(magic),
+      up: before ? cmp(magic, before.magic_moments ?? 0) : null,
+      was: before ? String(before.magic_moments ?? 0) : undefined,
+    });
+  }
 
   return (
     <section className="season-tiles" aria-label={t("ss.season_numbers", { season })}>

@@ -914,6 +914,11 @@ async fn record_match_outcomes(
     .fetch_optional(&mut **tx)
     .await?;
 
+    // Match by match, every time a finished match is saved: player of the
+    // match is given after the last ball, and a card can be corrected. The
+    // season totals below are folded in once; the lines follow the match.
+    super::season::record_lines(tx, match_id, state).await?;
+
     let Some((event_id, club_id, season_year)) = claimed else {
         return Ok(()); // already folded in
     };
@@ -998,10 +1003,6 @@ async fn record_match_outcomes(
         .execute(&mut **tx)
         .await?;
     }
-
-    // 2b. The same match, kept match by match: form, bests and milestones
-    //     need to know which match a number came from.
-    super::season::record_lines(tx, match_id, state).await?;
 
     // 3. The club's season board. Until now only the Play-Cricket sync wrote
     //    this, so a club scoring its own matches showed "Played 0" forever.
