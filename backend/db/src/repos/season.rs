@@ -394,23 +394,47 @@ pub async fn close_season(
     Ok(Some(emailed))
 }
 
-/// The next season emails to send, oldest close first.
-pub async fn due_season_emails(pool: &PgPool, limit: i64) -> Result<Vec<DueSeasonEmail>, sqlx::Error> {
+/// The next rows with something still to do, oldest close first: a push not
+/// yet sent, or — only when this server can send mail — an email not yet
+/// settled. With mail off, the waiting emails are not even read, so they can
+/// never crowd a newly closed club's pushes out of the batch.
+pub async fn due_season_emails(
+    pool: &PgPool,
+    limit: i64,
+    mail_on: bool,
+) -> Result<Vec<DueSeasonEmail>, sqlx::Error> {
     sqlx::query_as(
         r#"
         SELECT e.club_id, c.name AS club_name, e.season_year, e.user_id,
-               u.email, u.season_emails_off, u.email_prefs_token, e.attempts
+               u.email, u.season_emails_off, u.email_prefs_token, e.attempts,
+               e.pushed_at, (e.sent_at IS NOT NULL OR e.skipped IS NOT NULL) AS email_done
         FROM season_emails e
         JOIN clubs c ON c.id = e.club_id
         JOIN users u ON u.id = e.user_id
-        WHERE e.sent_at IS NULL AND e.skipped IS NULL
+        WHERE e.pushed_at IS NULL
+           OR ($2 AND e.sent_at IS NULL AND e.skipped IS NULL)
         ORDER BY e.queued_at, e.user_id
         LIMIT $1
         "#,
     )
     .bind(limit)
+    .bind(mail_on)
     .fetch_all(pool)
     .await
+}
+
+/// The push for this row went.
+pub async fn mark_season_pushed(pool: &PgPool, due: &DueSeasonEmail) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE season_emails SET pushed_at = NOW()
+         WHERE club_id = $1 AND season_year = $2 AND user_id = $3",
+    )
+    .bind(due.club_id)
+    .bind(due.season_year)
+    .bind(due.user_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 /// `skipped` None means it went.

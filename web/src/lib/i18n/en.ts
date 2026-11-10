@@ -4425,6 +4425,9 @@ export const en = {
   "jl.link_already_used": "This invite has already been used.",
   "jl.ask_for_the_current_link": "Ask the club for its current link.",
 
+  // MARK: Season close, with mail off
+  "ss.close_email_off": "This server can't send email yet, so nobody is emailed now. Everyone still gets a notification in the app, and their season emails go once email is switched on.",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

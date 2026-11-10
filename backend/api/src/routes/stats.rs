@@ -52,15 +52,24 @@ async fn close_preview(
 ) -> ApiResult<Json<fishers_domain::season::ClosePreview>> {
     require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
     let year = plausible_season(year)?;
-    Ok(Json(fishers_db::repos::season::close_preview(&state.pool, id, year).await?))
+    let mut preview = fishers_db::repos::season::close_preview(&state.pool, id, year).await?;
+    // With no mail server, "33 emails on their way" would be untrue: nobody
+    // gets one until mail is switched on. The in-app notice still goes.
+    preview.email_on = state.email.enabled();
+    if !preview.email_on {
+        preview.will_email = 0;
+    }
+    Ok(Json(preview))
 }
 
 #[derive(Debug, Serialize)]
 struct Closed {
     season: i32,
     /// Emails that will go — an address on file, not opted out — over the
-    /// next few minutes.
+    /// next few minutes. Zero while this server cannot send mail.
     queued: i64,
+    /// False when this server cannot send mail: the emails wait until it can.
+    email_on: bool,
 }
 
 /// Close the season: every active member gets their season by email. Once a
@@ -73,7 +82,10 @@ async fn close_season(
     require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
     let year = plausible_season(year)?;
     match fishers_db::repos::season::close_season(&state.pool, id, year, auth.user_id).await? {
-        Some(queued) => Ok(Json(Closed { season: year, queued })),
+        Some(queued) => {
+            let email_on = state.email.enabled();
+            Ok(Json(Closed { season: year, queued: if email_on { queued } else { 0 }, email_on }))
+        }
         None => Err(ApiError::conflict("this season is already closed")),
     }
 }

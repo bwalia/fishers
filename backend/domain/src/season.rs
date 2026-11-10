@@ -947,11 +947,16 @@ pub struct ClosePreview {
     pub closed_at: Option<DateTime<Utc>>,
     /// Active members of the club.
     pub members: i64,
-    /// Of those, who will get an email: an address on file, not opted out.
+    /// Of those, who will get an email: an address on file, not opted out —
+    /// and none at all while this server cannot send mail.
     pub will_email: i64,
     /// Of those, who played this season and gets their figures; the rest
     /// get a thank-you.
     pub played: i64,
+    /// Whether this server can send mail at all. When it cannot, closing still
+    /// notifies everyone in the app, and the emails wait until mail is on.
+    #[sqlx(default)]
+    pub email_on: bool,
 }
 
 /// One season email waiting to go.
@@ -965,6 +970,10 @@ pub struct DueSeasonEmail {
     pub season_emails_off: bool,
     pub email_prefs_token: String,
     pub attempts: i32,
+    /// The "season closed" push, which goes once whatever the email does.
+    pub pushed_at: Option<DateTime<Utc>>,
+    /// Sent, or settled as not sending (no address, opted out, failed).
+    pub email_done: bool,
 }
 
 #[cfg(test)]

@@ -428,11 +428,15 @@ struct SeasonClosePreview: Decodable, Equatable {
     let members: Int
     let willEmail: Int
     let played: Int
+    /// False when the server cannot send mail yet: nobody is emailed until it
+    /// can. Absent from older servers, which is the same as on.
+    var emailOn: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case season, members, played
         case closedAt = "closed_at"
         case willEmail = "will_email"
+        case emailOn = "email_on"
     }
 }
 

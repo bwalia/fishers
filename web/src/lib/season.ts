@@ -133,6 +133,8 @@ export type ClosePreview = {
   members: number;
   will_email: number;
   played: number;
+  /// False when this server cannot send mail: nobody is emailed until it can.
+  email_on?: boolean;
 };
 
 export function fmt(v: number | null | undefined, dp = 1): string {

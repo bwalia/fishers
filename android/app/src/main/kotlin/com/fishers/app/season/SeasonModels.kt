@@ -190,6 +190,8 @@ data class ClosePreview(
     val members: Int = 0,
     @SerialName("will_email") val willEmail: Int = 0,
     val played: Int = 0,
+    /** False when the server cannot send mail yet; absent from older servers, which means on. */
+    @SerialName("email_on") val emailOn: Boolean? = null,
 )
 
 @Serializable

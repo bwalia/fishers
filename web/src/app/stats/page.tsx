@@ -685,6 +685,7 @@ function CloseSeason({ t, season, onClosed }: { t: T; season: ClubSeason; onClos
         <li>{t("ss.close_played", { n: preview.played })}</li>
         <li>{t("ss.close_thanks")}</li>
       </ul>
+      {preview.email_on === false && <p className="muted">{t("ss.close_email_off")}</p>}
       <button className="btn primary" type="button" disabled={busy} onClick={() => void close()}>
         <Icon name="mail" size={16} /> {t("ss.close_button", { season: season.season })}
       </button>

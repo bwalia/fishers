@@ -139,6 +139,9 @@ struct CloseSeasonSection: View {
                 fact("envelope", t("ss.close_will_email", vars: ["n": preview.willEmail, "members": preview.members]))
                 fact("figure.cricket", t("ss.close_played", vars: ["n": preview.played]))
                 fact("heart", t("ss.close_thanks"))
+                if preview.emailOn == false {
+                    fact("exclamationmark.circle", t("ss.close_email_off"))
+                }
             }
             .padding(.vertical, 4)
             Button {

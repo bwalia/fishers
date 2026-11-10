@@ -701,7 +701,8 @@ private fun CloseSeason(
             t("ss.close_will_email", vars = mapOf("n" to preview.willEmail, "members" to preview.members)),
             t("ss.close_played", vars = mapOf("n" to preview.played)),
             t("ss.close_thanks"),
-        ).forEach { Text("•  $it", style = MaterialTheme.typography.bodyMedium) }
+        ).plus(if (preview.emailOn == false) listOf(t("ss.close_email_off")) else emptyList())
+            .forEach { Text("•  $it", style = MaterialTheme.typography.bodyMedium) }
         Button(onClick = { confirming = true }, enabled = !isClosing) {
             Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
