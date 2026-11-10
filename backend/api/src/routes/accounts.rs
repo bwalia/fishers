@@ -1174,19 +1174,29 @@ async fn accept_payments(
             out.skipped.push(payment_id);
             continue;
         }
+        // What is left to book as income once any debt it pays is settled.
+        let mut amount_cents = s.amount_cents;
+        let mut note = "Paid in the app";
         if let Some(debt_id) = s.settles_debt_id {
             let debt = repo::debt_now(&mut tx, club_id, debt_id).await?;
             if let Some(debt) = debt.filter(|d| d.outstanding_now_cents > 0) {
+                let settled = s.amount_cents.min(debt.outstanding_now_cents);
                 let req = SettleDebtRequest {
                     kind: "payment".into(),
-                    amount_cents: s.amount_cents.min(debt.outstanding_now_cents),
+                    amount_cents: settled,
                     settled_on: s.paid_on,
                     money_account_id: Some(body.money_account_id),
                     note: Some("Paid in the app".into()),
                 };
                 settle(&mut tx, club_id, &debt, &req, Some(payment_id), auth.user_id).await?;
                 out.settled += 1;
-                continue;
+                // Paying more than was owed is still money in the bank: the
+                // rest is income, or the books come up short by exactly that.
+                amount_cents = s.amount_cents - settled;
+                if amount_cents <= 0 {
+                    continue;
+                }
+                note = "Paid in the app, more than was owed";
             }
         }
         let key = fee_category_key(&s.event_subtype);
@@ -1198,12 +1208,12 @@ async fn accept_payments(
             kind: EntryKind::Income,
             category_id: Some(category.id),
             money_account_id: Some(body.money_account_id),
-            amount_cents: s.amount_cents,
+            amount_cents,
             description: s.event_title.clone(),
             counterparty: Some(s.member_name.clone()),
             member_id: Some(s.member_id),
             event_id: Some(s.event_id),
-            note: Some("Paid in the app".into()),
+            note: Some(note.into()),
             receipt_url: None,
             extraordinary: false,
             authorised_on: None,
