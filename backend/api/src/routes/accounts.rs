@@ -184,10 +184,17 @@ async fn set_treasurer(
     if !owner {
         require_secretary(&state, club_id, auth.user_id).await?;
     }
-    if !repo::set_treasurer(&state.pool, club_id, user_id, body.is_treasurer).await? {
+    if !fishers_domain::can_set_treasurer(owner, true, user_id == auth.user_id, body.is_treasurer) {
+        return Err(ApiError::forbidden(
+            "A secretary can't make themselves treasurer. Ask the club owner.",
+        )
+        .with_code("treasurer_self_appointment"));
+    }
+    // The change and its line in the audit trail go together or not at all.
+    let mut tx = state.pool.begin().await?;
+    if !repo::set_treasurer(&mut tx, club_id, user_id, body.is_treasurer).await? {
         return Err(ApiError::not_found("they aren't an active member of this club"));
     }
-    let mut tx = state.pool.begin().await?;
     repo::audit(
         &mut tx,
         club_id,

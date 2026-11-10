@@ -44,7 +44,7 @@ pub async fn accounts_access(
 /// Make somebody the club's treasurer, or stop them being it. Only an active
 /// member can hold it. Returns `false` when they are not one.
 pub async fn set_treasurer(
-    pool: &PgPool,
+    conn: &mut PgConnection,
     club_id: Uuid,
     user_id: Uuid,
     is_treasurer: bool,
@@ -58,7 +58,7 @@ pub async fn set_treasurer(
     .bind(club_id)
     .bind(user_id)
     .bind(is_treasurer)
-    .execute(pool)
+    .execute(conn)
     .await?;
     Ok(done.rows_affected() > 0)
 }

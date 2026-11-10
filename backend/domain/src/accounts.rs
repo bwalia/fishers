@@ -23,6 +23,19 @@ pub fn can_open_accounts(is_owner: bool, is_active_treasurer: bool) -> bool {
     is_owner || is_active_treasurer
 }
 
+/// Who may change somebody's treasurer flag. The owner, for anybody. A
+/// secretary, for anybody but themselves: appointing yourself would turn "a
+/// secretary is not a treasurer" into one request. Stepping down is always
+/// allowed — giving up access is not the thing being guarded.
+pub fn can_set_treasurer(
+    is_owner: bool,
+    is_secretary: bool,
+    is_self: bool,
+    appointing: bool,
+) -> bool {
+    is_owner || (is_secretary && !(is_self && appointing))
+}
+
 // MARK: what the books hold
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1221,6 +1234,16 @@ mod tests {
         assert!(can_open_accounts(true, false));
         assert!(can_open_accounts(false, true));
         assert!(!can_open_accounts(false, false));
+    }
+
+    #[test]
+    fn a_secretary_cannot_make_themselves_treasurer() {
+        // (owner, secretary, self, appointing)
+        assert!(can_set_treasurer(true, false, true, true), "an owner may appoint themselves");
+        assert!(can_set_treasurer(false, true, false, true), "a secretary appoints somebody else");
+        assert!(!can_set_treasurer(false, true, true, true), "but not themselves");
+        assert!(can_set_treasurer(false, true, true, false), "stepping down is always allowed");
+        assert!(!can_set_treasurer(false, false, false, true), "a member appoints nobody");
     }
 
     #[test]
