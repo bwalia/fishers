@@ -266,7 +266,7 @@ async fn accept_invite(
             ApiError::not_found("This invite has already been used or was turned off")
         })?;
     let (invite, joined) = match accepted {
-        invites_repo::Accepted::Joined(invite, joined) => (invite, joined),
+        invites_repo::Accepted::Joined(invite, joined) => (*invite, joined),
         invites_repo::Accepted::RemovedByClub => {
             return Err(ApiError::forbidden(
                 "The club removed you, so its open link can't let you back in. Ask the secretary to invite you.",

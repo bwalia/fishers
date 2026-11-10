@@ -457,11 +457,11 @@ pub async fn accept_invite(
         InviteTarget::Event => {
             tx.commit().await?;
             invite_to_event(pool, inv.target_id, user_id, inv.invited_by).await?;
-            return Ok(Some(Accepted::Joined(inv, joined)));
+            return Ok(Some(Accepted::Joined(Box::new(inv), joined)));
         }
     }
     tx.commit().await?;
-    Ok(Some(Accepted::Joined(inv, joined)))
+    Ok(Some(Accepted::Joined(Box::new(inv), joined)))
 }
 
 /// What following an invite came to.
@@ -469,7 +469,7 @@ pub async fn accept_invite(
 pub enum Accepted {
     /// In. The bool is false when this changed nothing: somebody already in
     /// the club following its open link again.
-    Joined(Invite, bool),
+    Joined(Box<Invite>, bool),
     /// The club removed them, and this was its open link.
     RemovedByClub,
 }
