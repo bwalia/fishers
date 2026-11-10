@@ -57,6 +57,8 @@ data class Totals(
     val catches: Int = 0,
     val stumpings: Int = 0,
     @SerialName("player_of_match") val playerOfMatch: Int = 0,
+    /** Times they made the ball a match turned on. */
+    @SerialName("magic_moments") val magicMoments: Int = 0,
 )
 
 @Serializable
@@ -190,6 +192,8 @@ data class ClosePreview(
     val members: Int = 0,
     @SerialName("will_email") val willEmail: Int = 0,
     val played: Int = 0,
+    /** False when the server cannot send mail yet; absent from older servers, which means on. */
+    @SerialName("email_on") val emailOn: Boolean? = null,
 )
 
 @Serializable
@@ -404,6 +408,15 @@ fun headlineTiles(now: Totals, before: Totals?): List<HeadlineTile> {
             value = held.toString(),
             up = before?.let { held > it.catches + it.stumpings },
             was = before?.let { (it.catches + it.stumpings).toString() },
+        )
+    }
+    if (now.magicMoments > 0) {
+        tiles += HeadlineTile(
+            key = "magic",
+            label = t("mm.title"),
+            value = now.magicMoments.toString(),
+            up = before?.let { now.magicMoments > it.magicMoments },
+            was = before?.let { it.magicMoments.toString() },
         )
     }
     return tiles

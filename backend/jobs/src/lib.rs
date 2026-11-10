@@ -114,20 +114,21 @@ async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> an
 /// email address, who would otherwise hear nothing.
 async fn send_season_emails(pool: &PgPool, push: &PushService, email: &EmailService) -> anyhow::Result<()> {
     use fishers_db::repos::season as season_repo;
-    use fishers_notifications::season_email::{render, SeasonContext};
 
-    let due = season_repo::due_season_emails(pool, 100).await?;
+    // With no mail server the emails wait, still queued, until there is one:
+    // marking them sent would tell the club they went, and a season closes
+    // only once, so they could never be sent again.
+    let mail_on = email.enabled();
+    let due = season_repo::due_season_emails(pool, 100, mail_on).await?;
     if due.is_empty() {
         return Ok(());
     }
-    let brand = &email.brand;
     let mut sent = 0u32;
     // The club's record is the same for everyone in it.
     let mut records: std::collections::HashMap<(uuid::Uuid, i32), fishers_domain::season::SeasonRecordLine> =
         Default::default();
     for d in due {
-        let page_url = format!("{}/stats?season={}&club={}", brand.web_base, d.season_year, d.club_id);
-        if d.attempts == 0 {
+        if d.pushed_at.is_none() {
             let title = format!("Your {} season at {}", d.season_year, d.club_name);
             let payload = serde_json::json!({
                 "url": format!("/stats?season={}&club={}", d.season_year, d.club_id),
@@ -141,42 +142,18 @@ async fn send_season_emails(pool: &PgPool, push: &PushService, email: &EmailServ
             {
                 warn!(error = %e, "season push failed");
             }
+            // Once, whatever happened: a push that failed is not retried into
+            // somebody's phone every five minutes.
+            season_repo::mark_season_pushed(pool, &d).await?;
         }
-        let Some(to) = d.email.clone().filter(|e| e.contains('@')) else {
-            season_repo::mark_season_email(pool, &d, Some("no_email")).await?;
-            continue;
-        };
-        if d.season_emails_off {
-            season_repo::mark_season_email(pool, &d, Some("opted_out")).await?;
+        if !mail_on || d.email_done {
             continue;
         }
-        let Some(game) =
-            season_repo::player_game(pool, d.user_id, Some(d.season_year), Some(d.club_id)).await?
-        else {
-            season_repo::mark_season_email(pool, &d, Some("no_user")).await?;
-            continue;
-        };
-        let key = (d.club_id, d.season_year);
-        if let std::collections::hash_map::Entry::Vacant(slot) = records.entry(key) {
-            slot.insert(season_repo::club_record(pool, d.club_id, d.season_year).await?);
-        }
-        let unsubscribe_url = format!("{}/unsubscribe/{}", brand.web_base, d.email_prefs_token);
-        let mail = render(
-            brand,
-            &game,
-            &SeasonContext {
-                club_name: &d.club_name,
-                season: d.season_year,
-                record: &records[&key],
-                page_url: &page_url,
-                unsubscribe_url: &unsubscribe_url,
-            },
-        );
-        match email.send_html(&to, &mail.subject, &mail.text, &mail.html).await {
-            Ok(()) => {
-                season_repo::mark_season_email(pool, &d, None).await?;
-                sent += 1;
-            }
+        // One member's season failing to load must not stop everybody after
+        // them, and must not be tried for ever: it counts as an attempt.
+        match season_email_for(pool, email, &d, &mut records).await {
+            Ok(true) => sent += 1,
+            Ok(false) => {}
             Err(e) => {
                 warn!(error = %e, user = %d.user_id, "season email failed; will retry");
                 season_repo::retry_season_email(pool, &d).await?;
@@ -187,6 +164,55 @@ async fn send_season_emails(pool: &PgPool, push: &PushService, email: &EmailServ
         info!(sent, "season emails sent");
     }
     Ok(())
+}
+
+/// Send one member their season, or settle why not. True when it went.
+async fn season_email_for(
+    pool: &PgPool,
+    email: &EmailService,
+    d: &fishers_domain::season::DueSeasonEmail,
+    records: &mut std::collections::HashMap<(uuid::Uuid, i32), fishers_domain::season::SeasonRecordLine>,
+) -> anyhow::Result<bool> {
+    use fishers_db::repos::season as season_repo;
+    use fishers_notifications::season_email::{render, SeasonContext};
+
+    let brand = &email.brand;
+    let Some(to) = d.email.clone().filter(|e| e.contains('@')) else {
+        season_repo::mark_season_email(pool, d, Some("no_email")).await?;
+        return Ok(false);
+    };
+    if d.season_emails_off {
+        season_repo::mark_season_email(pool, d, Some("opted_out")).await?;
+        return Ok(false);
+    }
+    let Some(game) = season_repo::player_game(pool, d.user_id, Some(d.season_year), Some(d.club_id)).await?
+    else {
+        season_repo::mark_season_email(pool, d, Some("no_user")).await?;
+        return Ok(false);
+    };
+    let key = (d.club_id, d.season_year);
+    if let std::collections::hash_map::Entry::Vacant(slot) = records.entry(key) {
+        slot.insert(season_repo::club_record(pool, d.club_id, d.season_year).await?);
+    }
+    let page_url = format!("{}/stats?season={}&club={}", brand.web_base, d.season_year, d.club_id);
+    let unsubscribe_url = format!("{}/unsubscribe/{}", brand.web_base, d.email_prefs_token);
+    let mail = render(
+        brand,
+        &game,
+        &SeasonContext {
+            club_name: &d.club_name,
+            season: d.season_year,
+            record: &records[&key],
+            page_url: &page_url,
+            unsubscribe_url: &unsubscribe_url,
+        },
+    );
+    // What the mail provider POSTs to when somebody presses its unsubscribe
+    // button: the API itself, on the brand's host, with no page in between.
+    let one_click = format!("{}/api/v1/email/season/off/{}", brand.web_base, d.email_prefs_token);
+    email.send_bulk_html(&to, &mail.subject, &mail.text, &mail.html, &one_click).await?;
+    season_repo::mark_season_email(pool, d, None).await?;
+    Ok(true)
 }
 
 /// Player lines for matches finished before lines existed, a few hundred a

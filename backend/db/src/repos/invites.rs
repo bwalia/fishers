@@ -347,13 +347,12 @@ pub async fn list_attendees(
 /// invite (to an email, or to nobody in particular) can be accepted by whoever
 /// holds the link — that is what the link is for.
 ///
-/// The bool is false when this changed nothing: somebody already in the club
-/// following its open link again.
+/// `None` when there is no usable invite with that token.
 pub async fn accept_invite(
     pool: &PgPool,
     token: &str,
     user_id: Uuid,
-) -> Result<Option<(Invite, bool)>, sqlx::Error> {
+) -> Result<Option<Accepted>, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let invite = sqlx::query_as::<_, Invite>(
         r#"
@@ -415,6 +414,13 @@ pub async fn accept_invite(
         .fetch_one(&mut *tx)
         .await?;
         joined = !already;
+
+        // The open link is for anybody — except somebody this club removed.
+        // The link is still in their WhatsApp; following it must not undo the
+        // secretary's decision. A secretary's own invitation still can.
+        if !already && removed_from_club(&mut tx, &inv, user_id).await? {
+            return Ok(Some(Accepted::RemovedByClub));
+        }
         if joined {
             inv.uses = sqlx::query_scalar("UPDATE invites SET uses = uses + 1 WHERE id = $1 RETURNING uses")
                 .bind(inv.id)
@@ -451,11 +457,46 @@ pub async fn accept_invite(
         InviteTarget::Event => {
             tx.commit().await?;
             invite_to_event(pool, inv.target_id, user_id, inv.invited_by).await?;
-            return Ok(Some((inv, joined)));
+            return Ok(Some(Accepted::Joined(Box::new(inv), joined)));
         }
     }
     tx.commit().await?;
-    Ok(Some((inv, joined)))
+    Ok(Some(Accepted::Joined(Box::new(inv), joined)))
+}
+
+/// What following an invite came to.
+#[derive(Debug)]
+pub enum Accepted {
+    /// In. The bool is false when this changed nothing: somebody already in
+    /// the club following its open link again.
+    Joined(Box<Invite>, bool),
+    /// The club removed them, and this was its open link.
+    RemovedByClub,
+}
+
+/// Whether the club an invite leads into removed this person.
+async fn removed_from_club(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    inv: &Invite,
+    user_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        r#"
+        SELECT EXISTS (
+            SELECT 1 FROM club_members m
+            WHERE m.user_id = $3 AND m.removed_at IS NOT NULL AND m.status <> 'active'
+              AND m.club_id = CASE $1::invite_target
+                                  WHEN 'club' THEN $2
+                                  WHEN 'team' THEN (SELECT club_id FROM teams WHERE id = $2)
+                              END
+        )
+        "#,
+    )
+    .bind(inv.target_type)
+    .bind(inv.target_id)
+    .bind(user_id)
+    .fetch_one(&mut **tx)
+    .await
 }
 
 /// Active member, keeping any role they already hold — accepting an invite
@@ -469,7 +510,8 @@ async fn join_club(
         r#"
         INSERT INTO club_members (club_id, user_id, role, status)
         VALUES ($1, $2, 'member', 'active')
-        ON CONFLICT (club_id, user_id) DO UPDATE SET status = 'active'
+        ON CONFLICT (club_id, user_id) DO UPDATE
+            SET status = 'active', removed_at = NULL, removed_by = NULL
         "#,
     )
     .bind(club_id)

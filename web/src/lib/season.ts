@@ -36,6 +36,8 @@ export type Totals = {
   catches: number;
   stumpings: number;
   player_of_match: number;
+  /// Times they made the ball a match turned on. Absent from older servers.
+  magic_moments?: number;
 };
 
 export type FormEntry = {
@@ -133,6 +135,8 @@ export type ClosePreview = {
   members: number;
   will_email: number;
   played: number;
+  /// False when this server cannot send mail: nobody is emailed until it can.
+  email_on?: boolean;
 };
 
 export function fmt(v: number | null | undefined, dp = 1): string {

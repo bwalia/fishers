@@ -535,7 +535,7 @@ async fn remove_member(
             "this is the club's last secretary — appoint another one first",
         ));
     }
-    let removed = clubs_repo::remove_member(&state.pool, club_id, user_id).await?;
+    let removed = clubs_repo::remove_member(&state.pool, club_id, user_id, auth.user_id).await?;
     Ok(Json(serde_json::json!({ "removed": removed })))
 }
 

@@ -11,12 +11,15 @@ use fishers_domain::{MatchSide, MatchState};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-/// Write one line per player for a finished match. Idempotent: a second call
-/// for the same match writes nothing.
+/// Write one line per player for a finished match, replacing any it had.
+/// Called every time a finished match is saved, because the match goes on
+/// changing after the last ball: player of the match is given then, and a
+/// card can be corrected. A line written once would miss both.
 ///
 /// `club_id` is the club that scored it, `opponent_club_id` the other side if
 /// it was arranged against a club on the app. Each player is credited to the
-/// one of those two they are a member of — the scoring club first, if both.
+/// one of those two they are a member of — the scoring club first, if both —
+/// counting a club they have since left: they still played for it.
 /// The match, its fixture, the two clubs, when, and whether lines are done.
 type MatchContext = (Uuid, Uuid, Option<Uuid>, DateTime<Utc>, Option<DateTime<Utc>>);
 /// Club name, players ranked, and their rank by runs, wickets and catches.
@@ -38,12 +41,15 @@ pub async fn record_lines(
     .bind(match_id)
     .fetch_optional(&mut **tx)
     .await?;
-    let Some((event_id, club_id, opponent_club_id, played_at, done)) = ctx else {
+    let Some((event_id, club_id, opponent_club_id, played_at, _done)) = ctx else {
         return Ok(());
     };
-    if done.is_some() {
-        return Ok(());
-    }
+    // Rewritten whole: somebody taken out of the XI by a correction must not
+    // keep a line for a match they no longer played in.
+    sqlx::query("DELETE FROM player_match_lines WHERE match_id = $1")
+        .bind(match_id)
+        .execute(&mut **tx)
+        .await?;
 
     let season = fishers_domain::season::season_of(played_at);
     for (user_id, f) in match_figures(state) {
@@ -59,16 +65,17 @@ pub async fn record_lines(
                 match_id, user_id, event_id, club_id, season_year, played_at, opposition, won,
                 batting_innings, not_outs, runs, balls_faced, fours, sixes,
                 high_score, high_score_not_out, fifties, hundreds, ducks,
-                bowling_balls, bowling_runs, wickets, maidens, catches, stumpings, player_of_match
+                bowling_balls, bowling_runs, wickets, maidens, catches, stumpings, player_of_match,
+                magic_moments
             )
             SELECT $1, u.id, $3,
                    (SELECT cm.club_id FROM club_members cm
-                     WHERE cm.user_id = u.id AND cm.status = 'active'
+                     WHERE cm.user_id = u.id AND cm.status IN ('active', 'left')
                        AND cm.club_id IN ($4, $5)
-                     ORDER BY (cm.club_id = $4) DESC LIMIT 1),
+                     ORDER BY (cm.club_id = $4) DESC, (cm.status = 'active') DESC LIMIT 1),
                    $6, $7, $8, $9,
                    $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-                   $21, $22, $23, $24, $25, $26, $27
+                   $21, $22, $23, $24, $25, $26, $27, $28
             FROM users u WHERE u.id = $2
             ON CONFLICT (match_id, user_id) DO NOTHING
             "#,
@@ -100,6 +107,7 @@ pub async fn record_lines(
         .bind(f.catches)
         .bind(f.stumpings)
         .bind(f.player_of_match)
+        .bind(f.magic_moments)
         .execute(&mut **tx)
         .await?;
     }
@@ -149,7 +157,7 @@ const LINE_COLUMNS: &str = r#"
     l.opposition, l.won, l.batting_innings, l.not_outs, l.runs, l.balls_faced, l.fours,
     l.sixes, l.high_score, l.high_score_not_out, l.fifties, l.hundreds, l.ducks,
     l.bowling_balls, l.bowling_runs, l.wickets, l.maidens, l.catches, l.stumpings,
-    l.player_of_match
+    l.player_of_match, l.magic_moments
 "#;
 
 pub async fn lines_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<MatchLine>, sqlx::Error> {
@@ -394,23 +402,47 @@ pub async fn close_season(
     Ok(Some(emailed))
 }
 
-/// The next season emails to send, oldest close first.
-pub async fn due_season_emails(pool: &PgPool, limit: i64) -> Result<Vec<DueSeasonEmail>, sqlx::Error> {
+/// The next rows with something still to do, oldest close first: a push not
+/// yet sent, or — only when this server can send mail — an email not yet
+/// settled. With mail off, the waiting emails are not even read, so they can
+/// never crowd a newly closed club's pushes out of the batch.
+pub async fn due_season_emails(
+    pool: &PgPool,
+    limit: i64,
+    mail_on: bool,
+) -> Result<Vec<DueSeasonEmail>, sqlx::Error> {
     sqlx::query_as(
         r#"
         SELECT e.club_id, c.name AS club_name, e.season_year, e.user_id,
-               u.email, u.season_emails_off, u.email_prefs_token, e.attempts
+               u.email, u.season_emails_off, u.email_prefs_token, e.attempts,
+               e.pushed_at, (e.sent_at IS NOT NULL OR e.skipped IS NOT NULL) AS email_done
         FROM season_emails e
         JOIN clubs c ON c.id = e.club_id
         JOIN users u ON u.id = e.user_id
-        WHERE e.sent_at IS NULL AND e.skipped IS NULL
+        WHERE e.pushed_at IS NULL
+           OR ($2 AND e.sent_at IS NULL AND e.skipped IS NULL)
         ORDER BY e.queued_at, e.user_id
         LIMIT $1
         "#,
     )
     .bind(limit)
+    .bind(mail_on)
     .fetch_all(pool)
     .await
+}
+
+/// The push for this row went.
+pub async fn mark_season_pushed(pool: &PgPool, due: &DueSeasonEmail) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE season_emails SET pushed_at = NOW()
+         WHERE club_id = $1 AND season_year = $2 AND user_id = $3",
+    )
+    .bind(due.club_id)
+    .bind(due.season_year)
+    .bind(due.user_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 /// `skipped` None means it went.

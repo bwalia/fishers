@@ -30,10 +30,21 @@ pub fn router() -> Router<AppState> {
             get(close_preview).post(close_season),
         )
         .route("/email/season/off", post(season_emails_off))
+        .route("/email/season/off/{token}", post(season_emails_off_one_click))
         .route("/email/season/on", post(season_emails_on))
 }
 
 /// A year somebody could actually be closing.
+/// A season that can be closed: plausible, and already started.
+fn closable_season(year: i32) -> ApiResult<i32> {
+    let year = plausible_season(year)?;
+    if fishers_domain::season::can_close_season(year, chrono::Utc::now()) {
+        Ok(year)
+    } else {
+        Err(ApiError::bad_request(format!("the {year} season hasn't started yet")))
+    }
+}
+
 fn plausible_season(year: i32) -> ApiResult<i32> {
     let now = fishers_domain::season::season_of(chrono::Utc::now());
     if (2000..=now + 1).contains(&year) {
@@ -51,16 +62,25 @@ async fn close_preview(
     Path((id, year)): Path<(Uuid, i32)>,
 ) -> ApiResult<Json<fishers_domain::season::ClosePreview>> {
     require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
-    let year = plausible_season(year)?;
-    Ok(Json(fishers_db::repos::season::close_preview(&state.pool, id, year).await?))
+    let year = closable_season(year)?;
+    let mut preview = fishers_db::repos::season::close_preview(&state.pool, id, year).await?;
+    // With no mail server, "33 emails on their way" would be untrue: nobody
+    // gets one until mail is switched on. The in-app notice still goes.
+    preview.email_on = state.email.enabled();
+    if !preview.email_on {
+        preview.will_email = 0;
+    }
+    Ok(Json(preview))
 }
 
 #[derive(Debug, Serialize)]
 struct Closed {
     season: i32,
     /// Emails that will go — an address on file, not opted out — over the
-    /// next few minutes.
+    /// next few minutes. Zero while this server cannot send mail.
     queued: i64,
+    /// False when this server cannot send mail: the emails wait until it can.
+    email_on: bool,
 }
 
 /// Close the season: every active member gets their season by email. Once a
@@ -71,9 +91,12 @@ async fn close_season(
     Path((id, year)): Path<(Uuid, i32)>,
 ) -> ApiResult<Json<Closed>> {
     require_club_permission(&state, id, auth.user_id, Permission::ManageClubOps).await?;
-    let year = plausible_season(year)?;
+    let year = closable_season(year)?;
     match fishers_db::repos::season::close_season(&state.pool, id, year, auth.user_id).await? {
-        Some(queued) => Ok(Json(Closed { season: year, queued })),
+        Some(queued) => {
+            let email_on = state.email.enabled();
+            Ok(Json(Closed { season: year, queued: if email_on { queued } else { 0 }, email_on }))
+        }
         None => Err(ApiError::conflict("this season is already closed")),
     }
 }
@@ -90,6 +113,17 @@ async fn season_emails_off(
     Json(body): Json<PrefsToken>,
 ) -> ApiResult<Json<serde_json::Value>> {
     set_season_emails(&state, &body.token, true).await
+}
+
+/// The one-click unsubscribe a mail provider sends (RFC 8058): a POST to the
+/// URL in the email's List-Unsubscribe header, with a form body we do not
+/// need to read. The token in the path is the whole permission, as on the
+/// page.
+async fn season_emails_off_one_click(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    set_season_emails(&state, &token, true).await
 }
 
 async fn season_emails_on(

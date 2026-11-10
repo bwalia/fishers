@@ -4425,6 +4425,17 @@ export const en = {
   "jl.link_already_used": "This invite has already been used.",
   "jl.ask_for_the_current_link": "Ask the club for its current link.",
 
+  // MARK: Season close, with mail off
+  "ss.close_email_off": "This server can't send email yet, so nobody is emailed now. Everyone still gets a notification in the app, and their season emails go once email is switched on.",
+
+  // MARK: Removed from the club
+  "jl.removed_from_club": "The club removed you, so its open link can't let you back in. Ask the secretary to invite you.",
+
+  // MARK: Unsubscribe asks first
+  "ss.unsub_ask_title": "Stop season emails?",
+  "ss.unsub_ask_body": "You'll stop getting the email your club sends when it closes a season. Nothing else changes.",
+  "ss.unsub_button": "Stop season emails",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

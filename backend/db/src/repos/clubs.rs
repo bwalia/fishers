@@ -430,7 +430,7 @@ pub async fn add_member(
         INSERT INTO club_members (club_id, user_id, role, status)
         VALUES ($1, $2, $3, 'active')
         ON CONFLICT (club_id, user_id) DO UPDATE
-          SET role = EXCLUDED.role, status = 'active'
+          SET role = EXCLUDED.role, status = 'active', removed_at = NULL, removed_by = NULL
         RETURNING club_id, user_id, role, status, joined_at
         "#,
     )
@@ -723,16 +723,26 @@ pub async fn club_ids_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<Uuid>
 }
 
 /// Remove someone from a club. Their history stays; only the membership goes.
+/// Take somebody out of the club. Their role and the treasurer's flag go with
+/// them, and `removed_at` stops the club's open link letting them back in:
+/// only a secretary inviting or adding them again can.
 pub async fn remove_member(
     pool: &PgPool,
     club_id: Uuid,
     user_id: Uuid,
+    removed_by: Uuid,
 ) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
-        "UPDATE club_members SET status = 'left' WHERE club_id = $1 AND user_id = $2",
+        r#"
+        UPDATE club_members
+        SET status = 'left', role = 'member', is_treasurer = FALSE,
+            removed_at = NOW(), removed_by = $3
+        WHERE club_id = $1 AND user_id = $2
+        "#,
     )
     .bind(club_id)
     .bind(user_id)
+    .bind(removed_by)
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)

@@ -308,6 +308,16 @@ function Headline({ t, now, before, season }: { t: T; now: Totals; before: Total
       was: before ? String(before.catches + before.stumpings) : undefined,
     });
   }
+  const magic = now.magic_moments ?? 0;
+  if (magic > 0) {
+    tiles.push({
+      key: "magic",
+      label: t("mm.title"),
+      value: String(magic),
+      up: before ? cmp(magic, before.magic_moments ?? 0) : null,
+      was: before ? String(before.magic_moments ?? 0) : undefined,
+    });
+  }
 
   return (
     <section className="season-tiles" aria-label={t("ss.season_numbers", { season })}>
@@ -685,6 +695,7 @@ function CloseSeason({ t, season, onClosed }: { t: T; season: ClubSeason; onClos
         <li>{t("ss.close_played", { n: preview.played })}</li>
         <li>{t("ss.close_thanks")}</li>
       </ul>
+      {preview.email_on === false && <p className="muted">{t("ss.close_email_off")}</p>}
       <button className="btn primary" type="button" disabled={busy} onClick={() => void close()}>
         <Icon name="mail" size={16} /> {t("ss.close_button", { season: season.season })}
       </button>
