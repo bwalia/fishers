@@ -13,7 +13,7 @@ pub mod season_email;
 
 pub use brand::Brand;
 
-use lettre::message::header::ContentType;
+use lettre::message::header::{ContentType, HeaderName, HeaderValue};
 use lettre::message::{Mailbox, MultiPart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
@@ -219,23 +219,56 @@ impl EmailService {
 
     /// Plain text.
     pub async fn send(&self, to: &str, subject: &str, body: &str) -> anyhow::Result<()> {
-        self.deliver(to, subject, body, None).await
+        self.deliver(to, subject, body, None, None).await
     }
 
     /// Text and HTML alternatives: HTML for mail apps, text for the rest.
     pub async fn send_html(&self, to: &str, subject: &str, text: &str, html: &str) -> anyhow::Result<()> {
-        self.deliver(to, subject, text, Some(html)).await
+        self.deliver(to, subject, text, Some(html), None).await
     }
 
-    async fn deliver(&self, to: &str, subject: &str, text: &str, html: Option<&str>) -> anyhow::Result<()> {
+    /// Mail sent to a whole club: text and HTML, plus the one-click
+    /// unsubscribe (RFC 8058) that Gmail and Yahoo expect from bulk senders.
+    /// `unsubscribe_post_url` must turn the mail off on a bare POST, because
+    /// that is all the mail provider sends.
+    pub async fn send_bulk_html(
+        &self,
+        to: &str,
+        subject: &str,
+        text: &str,
+        html: &str,
+        unsubscribe_post_url: &str,
+    ) -> anyhow::Result<()> {
+        self.deliver(to, subject, text, Some(html), Some(unsubscribe_post_url)).await
+    }
+
+    async fn deliver(
+        &self,
+        to: &str,
+        subject: &str,
+        text: &str,
+        html: Option<&str>,
+        unsubscribe_post_url: Option<&str>,
+    ) -> anyhow::Result<()> {
         let Some(transport) = &self.transport else {
             info!(to, subject, "email off: not sent");
             return Ok(());
         };
-        let builder = Message::builder()
+        let mut builder = Message::builder()
             .from(self.from_address.parse::<Mailbox>()?)
             .to(to.parse::<Mailbox>()?)
             .subject(subject);
+        if let Some(url) = unsubscribe_post_url {
+            builder = builder
+                .raw_header(HeaderValue::new(
+                    HeaderName::new_from_ascii_str("List-Unsubscribe"),
+                    format!("<{url}>"),
+                ))
+                .raw_header(HeaderValue::new(
+                    HeaderName::new_from_ascii_str("List-Unsubscribe-Post"),
+                    "List-Unsubscribe=One-Click".into(),
+                ));
+        }
         let message = match html {
             Some(html) => builder.multipart(MultiPart::alternative_plain_html(
                 text.to_string(),

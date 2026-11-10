@@ -207,7 +207,10 @@ async fn season_email_for(
             unsubscribe_url: &unsubscribe_url,
         },
     );
-    email.send_html(&to, &mail.subject, &mail.text, &mail.html).await?;
+    // What the mail provider POSTs to when somebody presses its unsubscribe
+    // button: the API itself, on the brand's host, with no page in between.
+    let one_click = format!("{}/api/v1/email/season/off/{}", brand.web_base, d.email_prefs_token);
+    email.send_bulk_html(&to, &mail.subject, &mail.text, &mail.html, &one_click).await?;
     season_repo::mark_season_email(pool, d, None).await?;
     Ok(true)
 }

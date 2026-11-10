@@ -30,6 +30,7 @@ pub fn router() -> Router<AppState> {
             get(close_preview).post(close_season),
         )
         .route("/email/season/off", post(season_emails_off))
+        .route("/email/season/off/{token}", post(season_emails_off_one_click))
         .route("/email/season/on", post(season_emails_on))
 }
 
@@ -112,6 +113,17 @@ async fn season_emails_off(
     Json(body): Json<PrefsToken>,
 ) -> ApiResult<Json<serde_json::Value>> {
     set_season_emails(&state, &body.token, true).await
+}
+
+/// The one-click unsubscribe a mail provider sends (RFC 8058): a POST to the
+/// URL in the email's List-Unsubscribe header, with a form body we do not
+/// need to read. The token in the path is the whole permission, as on the
+/// page.
+async fn season_emails_off_one_click(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    set_season_emails(&state, &token, true).await
 }
 
 async fn season_emails_on(
