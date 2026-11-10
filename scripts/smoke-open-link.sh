@@ -117,6 +117,44 @@ check("second use does not",
 
 check("an unknown link is a 404", call("GET", "/invites/deadbeef")[0], 404)
 
+# --- Somebody the club removed stays removed --------------------------------
+# The link is still in their WhatsApp. Following it must not undo the
+# secretary's decision, nor hand back a role or the club's books.
+_, gone = call("POST", "/auth/signup", {
+    "name": "Removed Captain", "email": f"removedcaptain{STAMP}@t.test",
+    "password": "password123"})
+gone_tok, gone_id = gone["access_token"], gone["user"]["id"]
+_, live = call("POST", f"/clubs/{cid}/join-link", {}, sec)
+check("the removed-to-be joins through the link",
+      call("POST", f"/invites/{live['token']}/accept", token=gone_tok)[0], 200)
+check("is made a captain",
+      call("PATCH", f"/clubs/{cid}/members/{gone_id}", {"role": "team_captain"}, sec)[0], 200)
+check("and the treasurer",
+      call("PUT", f"/clubs/{cid}/members/{gone_id}/treasurer", {"is_treasurer": True}, sec)[0], 200)
+check("so can open the books", call("GET", f"/clubs/{cid}/my-role", token=gone_tok)[1]["can_open_accounts"], True)
+
+uses_before = call("GET", f"/clubs/{cid}/join-link", token=sec)[1]["uses"]
+check("the secretary removes them", call("DELETE", f"/clubs/{cid}/members/{gone_id}", token=sec)[0], 200)
+status, body = call("POST", f"/invites/{live['token']}/accept", token=gone_tok)
+check("the open link will not let them back in", status, 403)
+check("and says why", (body or {}).get("code"), "removed_from_club")
+_, members = call("GET", f"/clubs/{cid}/members", token=sec)
+check("they are not back in the club", gone_id in [m["user_id"] for m in members], False)
+check("nor in the books", call("GET", f"/clubs/{cid}/accounts", token=gone_tok)[0] in (403, 404), True)
+_, live_after = call("GET", f"/clubs/{cid}/join-link", token=sec)
+check("and the refusal counted nobody", live_after["uses"], uses_before)
+
+_, back = call("POST", "/invites", {
+    "target_type": "club", "target_id": cid, "invited_user_id": gone_id}, sec)
+check("a secretary's own invitation still readmits them",
+      call("POST", f"/invites/{back['token']}/accept", token=gone_tok)[0], 200)
+_, role = call("GET", f"/clubs/{cid}/my-role", token=gone_tok)
+check("as a member, not the captain they were", role["role"], "member")
+check("and not the treasurer", role["is_treasurer"], False)
+check("so not into the books", role["can_open_accounts"], False)
+check("once readmitted, the open link is fine again",
+      call("POST", f"/invites/{live['token']}/accept", token=gone_tok)[0], 200)
+
 print()
 if failures:
     print(f"{len(failures)} failed:")
