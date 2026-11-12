@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.decodeFromJsonElement
 
 data class ClubsState(
     val clubs: List<Club> = emptyList(),
@@ -46,6 +49,11 @@ data class ClubDetailState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val isFirstLoad: Boolean = true,
+    /** A secretary's: the open link card shows only for them. */
+    val canShareLink: Boolean = false,
+    val joinLink: ClubJoinLink? = null,
+    /** `<site>/invite/<token>` — what goes in the team WhatsApp group. */
+    val joinLinkUrl: String? = null,
 ) {
     /** Only people actually on the books. Somebody who was asked and never
      *  answered is not in the side, and counting them is how a Saturday goes
@@ -58,6 +66,8 @@ data class ClubDetailState(
 class ClubDetailViewModel(
     private val api: FishersApi,
     private val clubId: String,
+    /** The brand's site, which is where an invite link opens. */
+    private val webBase: String,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ClubDetailState())
@@ -71,7 +81,20 @@ class ClubDetailViewModel(
                     // Teams are a nicety; the roster is the reason somebody
                     // opened this. Failing to fetch them must not empty it.
                     val teams = runCatching { api.clubTeams(clubId) }.getOrDefault(emptyList())
+                    // So is the club link, and only a secretary may see it.
+                    val canShare = runCatching { api.myClubRole(clubId) }.getOrNull()
+                        ?.permissions?.contains("invite_to_club") == true
+                    val link = if (canShare) {
+                        runCatching { api.clubJoinLink(clubId) }.getOrNull()
+                            ?.takeIf { it !is JsonNull }
+                            ?.let { json.decodeFromJsonElement<ClubJoinLink>(it) }
+                    } else {
+                        null
+                    }
                     _state.value = ClubDetailState(
+                        canShareLink = canShare,
+                        joinLink = link,
+                        joinLinkUrl = link?.let(::urlOf),
                         // Whoever runs the club first, then captains, then
                         // everyone alphabetically — the order somebody scans
                         // when they are looking for who to ask.
@@ -90,5 +113,29 @@ class ClubDetailViewModel(
                     )
                 }
         }
+    }
+
+    /** Switch the club link on; `fresh` turns the old one off for a new one. */
+    fun makeJoinLink(fresh: Boolean) {
+        viewModelScope.launch {
+            runCatching { api.makeClubJoinLink(clubId, MakeJoinLink(fresh)) }
+                .onSuccess { _state.value = _state.value.copy(joinLink = it, joinLinkUrl = urlOf(it), error = null) }
+                .onFailure { _state.value = _state.value.copy(error = readableError(it)) }
+        }
+    }
+
+    /** Nobody new joins through it; whoever already did stays in. */
+    fun stopJoinLink() {
+        viewModelScope.launch {
+            runCatching { api.stopClubJoinLink(clubId) }
+                .onSuccess { _state.value = _state.value.copy(joinLink = null, joinLinkUrl = null, error = null) }
+                .onFailure { _state.value = _state.value.copy(error = readableError(it)) }
+        }
+    }
+
+    private fun urlOf(link: ClubJoinLink) = "${webBase.trimEnd('/')}/invite/${link.token}"
+
+    private companion object {
+        val json = Json { ignoreUnknownKeys = true }
     }
 }

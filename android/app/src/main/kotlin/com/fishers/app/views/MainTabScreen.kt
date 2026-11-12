@@ -437,6 +437,8 @@ private fun ClubsTab(
             clubName = openClubName,
             state = state,
             onOpenSeason = { onOpenSeason(openClub) },
+            onMakeLink = model::makeJoinLink,
+            onStopLink = model::stopJoinLink,
         )
     }
 }

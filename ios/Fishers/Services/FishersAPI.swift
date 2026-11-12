@@ -856,6 +856,29 @@ enum FishersAPI {
         )
     }
 
+    /// The club's open link — one the whole squad joins through — or nil
+    /// while it is off. Secretaries only.
+    static func clubJoinLink(clubId: UUID) async throws -> ClubInvite? {
+        try await NetworkService.shared.request(
+            "GET", path: "/clubs/\(clubId.uuidString)/join-link"
+        )
+    }
+
+    /// Switch the open link on, or get the one already on. `fresh` turns that
+    /// one off and makes a new one; whoever already joined stays in.
+    static func makeClubJoinLink(clubId: UUID, fresh: Bool) async throws -> ClubInvite {
+        struct Body: Encodable { let fresh: Bool }
+        return try await NetworkService.shared.request(
+            "POST", path: "/clubs/\(clubId.uuidString)/join-link", body: Body(fresh: fresh)
+        )
+    }
+
+    static func stopClubJoinLink(clubId: UUID) async throws {
+        try await NetworkService.shared.requestVoid(
+            "DELETE", path: "/clubs/\(clubId.uuidString)/join-link"
+        )
+    }
+
     static func acceptInvite(token: String) async throws -> ClubInvite {
         try await NetworkService.shared.request(
             "POST", path: "/invites/\(token)/accept"

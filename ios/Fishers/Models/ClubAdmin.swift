@@ -44,7 +44,8 @@ struct ClubMemberDetail: Codable, Identifiable, Equatable {
 }
 
 /// A link that puts whoever follows it into the club, once they have an
-/// account. Single use — the API refuses a second accept.
+/// account. One made for a person is single use; the club's open link is
+/// never used up, and `uses` counts who has joined through it.
 struct ClubInvite: Codable, Identifiable, Equatable {
     let id: UUID
     let targetType: String
@@ -52,9 +53,10 @@ struct ClubInvite: Codable, Identifiable, Equatable {
     let token: String
     var status: String
     var invitedEmail: String?
+    var uses: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, token, status
+        case id, token, status, uses
         case targetType = "target_type"
         case targetId = "target_id"
         case invitedEmail = "invited_email"

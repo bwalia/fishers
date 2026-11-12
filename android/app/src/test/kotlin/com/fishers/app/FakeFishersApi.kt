@@ -132,6 +132,13 @@ open class FakeFishersApi : FishersApi {
     override suspend fun clubTeams(id: String): List<Team> = error("clubTeams not expected")
     override suspend fun myClubRole(id: String): com.fishers.app.season.MyClubRole =
         error("myClubRole not expected")
+    override suspend fun clubJoinLink(id: String): kotlinx.serialization.json.JsonElement =
+        error("clubJoinLink not expected")
+    override suspend fun makeClubJoinLink(
+        id: String,
+        body: com.fishers.app.clubs.MakeJoinLink,
+    ): com.fishers.app.clubs.ClubJoinLink = error("makeClubJoinLink not expected")
+    override suspend fun stopClubJoinLink(id: String): Unit = error("stopClubJoinLink not expected")
 
     // ---- the season ----
     override suspend fun myGame(season: Int?, clubId: String?): com.fishers.app.season.PlayerGame =

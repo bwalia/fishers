@@ -65,6 +65,17 @@ data class ClubMemberDetail(
     val isOnTheBooks: Boolean get() = status == MembershipStatus.Active
 }
 
+/**
+ * The club's open link: addressed to nobody, never used up, good for everyone
+ * who follows it until the secretary turns it off. `uses` counts who has
+ * joined through it.
+ */
+@Serializable
+data class ClubJoinLink(val token: String, val uses: Int = 0)
+
+@Serializable
+data class MakeJoinLink(val fresh: Boolean)
+
 @Serializable
 data class Team(
     val id: String,

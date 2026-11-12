@@ -280,6 +280,21 @@ interface FishersApi {
     @GET("clubs/{id}/my-role")
     suspend fun myClubRole(@Path("id") id: String): com.fishers.app.season.MyClubRole
 
+    /** The club's open link, or a bare JSON `null` while it is off — which the
+     *  converter cannot decode into a class, hence the raw element. */
+    @GET("clubs/{id}/join-link")
+    suspend fun clubJoinLink(@Path("id") id: String): kotlinx.serialization.json.JsonElement
+
+    /** Switch it on, or get the one already on; `fresh` replaces it. */
+    @POST("clubs/{id}/join-link")
+    suspend fun makeClubJoinLink(
+        @Path("id") id: String,
+        @Body body: com.fishers.app.clubs.MakeJoinLink,
+    ): com.fishers.app.clubs.ClubJoinLink
+
+    @DELETE("clubs/{id}/join-link")
+    suspend fun stopClubJoinLink(@Path("id") id: String)
+
     // ---- the season ----
 
     /** This person's season. Both optional: the API picks the latest season

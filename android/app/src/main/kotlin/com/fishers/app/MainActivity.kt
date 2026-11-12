@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
                         threadFor = { id -> ChatThreadViewModel(app.network.api, id) },
                         fixtures = remember { FixturesViewModel(app.network.api) },
                         clubs = remember { ClubsViewModel(app.network.api) },
-                        clubDetailFor = { id -> ClubDetailViewModel(app.network.api, id) },
+                        clubDetailFor = { id -> ClubDetailViewModel(app.network.api, id, app.config.apiBaseUrl) },
                         home = remember { HomeViewModel(app.network.api) },
                         umpiring = remember { UmpireViewModel(app.network.api) },
                         pendingReviews = remember {
