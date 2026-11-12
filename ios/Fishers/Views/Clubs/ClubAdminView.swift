@@ -71,6 +71,8 @@ private struct RosterList: View {
     @State private var newIdentifier = ""
     @State private var newRole: ClubRole = .member
     @State private var editing: ClubMemberDetail?
+    @State private var confirmFreshLink = false
+    @State private var confirmStopLink = false
 
     var body: some View {
         List {
@@ -82,6 +84,8 @@ private struct RosterList: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 }
+            } else {
+                joinLinkSection
             }
 
             ForEach(ClubRole.rosterOrder, id: \.self) { role in
@@ -125,6 +129,15 @@ private struct RosterList: View {
         .sheet(isPresented: $isAdding) { addSheet }
         .task {
             if startAdding, canManage { isAdding = true }
+            if canManage { await store.loadJoinLink() }
+        }
+        .confirmationDialog(t("jl.confirm_new_link"), isPresented: $confirmFreshLink, titleVisibility: .visible) {
+            Button(t("jl.new_link")) { Task { await store.makeJoinLink(fresh: true) } }
+            Button(t("sc.cancel"), role: .cancel) {}
+        }
+        .confirmationDialog(t("jl.confirm_turn_off"), isPresented: $confirmStopLink, titleVisibility: .visible) {
+            Button(t("jl.turn_off"), role: .destructive) { Task { await store.stopJoinLink() } }
+            Button(t("sc.cancel"), role: .cancel) {}
         }
         .sheet(item: $editing) { member in
             RoleSheet(member: member) { choice in
@@ -172,6 +185,42 @@ private struct RosterList: View {
             }
         }
         .frame(minHeight: FishersTheme.minTap)
+    }
+
+    /// One link for the whole squad — the website's `ClubJoinLink`. An invite
+    /// made for a person is spent by the first one through it, so the link a
+    /// secretary drops into the team WhatsApp group let one player in and
+    /// told the rest it had been used. This one is never used up.
+    private var joinLinkSection: some View {
+        Section {
+            if let link = store.joinLink,
+               let url = link.url(webBase: AppConfig.webBaseURL.absoluteString) {
+                ShareLink(item: t("jl.whatsapp_message", vars: [
+                    "club": club.name, "brand": Brand.name, "url": url.absoluteString,
+                ])) {
+                    Label(url.absoluteString, systemImage: "square.and.arrow.up")
+                        .font(.footnote)
+                        .lineLimit(2)
+                }
+                Button(t("jl.new_link")) { confirmFreshLink = true }
+                Button(t("jl.turn_off"), role: .destructive) { confirmStopLink = true }
+            } else {
+                Button {
+                    Task { await store.makeJoinLink(fresh: false) }
+                } label: {
+                    Label(t("jl.make_link"), systemImage: "link")
+                }
+            }
+        } header: {
+            Text(t("jl.title"))
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(t("jl.explainer"))
+                if let uses = store.joinLink?.uses {
+                    Text(t("jl.joined_through_it", count: uses, vars: ["n": uses]))
+                }
+            }
+        }
     }
 
     private var trimmedIdentifier: String {

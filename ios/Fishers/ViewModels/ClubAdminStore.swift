@@ -16,6 +16,8 @@ final class ClubAdminStore: ObservableObject {
     @Published var errorMessage: String?
     /// Set once an invite is made, so the sheet can offer it to share.
     @Published var invite: ClubInvite?
+    /// The club's open link, which anyone can join through.
+    @Published var joinLink: ClubInvite?
 
     private let clubId: UUID
     private var saveTask: Task<Void, Never>?
@@ -69,6 +71,30 @@ final class ClubAdminStore: ObservableObject {
                 clubId: clubId,
                 email: (trimmed?.isEmpty ?? true) ? nil : trimmed
             )
+        } catch {
+            errorMessage = message(from: error)
+        }
+    }
+
+    // MARK: Club link
+
+    /// The open link for the team WhatsApp group: nil while it is off.
+    func loadJoinLink() async {
+        joinLink = try? await FishersAPI.clubJoinLink(clubId: clubId)
+    }
+
+    func makeJoinLink(fresh: Bool) async {
+        do {
+            joinLink = try await FishersAPI.makeClubJoinLink(clubId: clubId, fresh: fresh)
+        } catch {
+            errorMessage = message(from: error)
+        }
+    }
+
+    func stopJoinLink() async {
+        do {
+            try await FishersAPI.stopClubJoinLink(clubId: clubId)
+            joinLink = nil
         } catch {
             errorMessage = message(from: error)
         }

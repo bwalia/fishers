@@ -17,6 +17,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
+import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ClubsTest {
@@ -77,7 +78,7 @@ class ClubsTest {
                 member("4", "Amy Best"),
             )
             override suspend fun clubTeams(id: String) = emptyList<Team>()
-        }, "c1")
+        }, "c1", "https://www.gullycricket.app")
 
         model.load()
         advanceUntilIdle()
@@ -102,7 +103,7 @@ class ClubsTest {
                 member("3", "Gone Gary", status = MembershipStatus.Left),
             )
             override suspend fun clubTeams(id: String) = emptyList<Team>()
-        }, "c1")
+        }, "c1", "https://www.gullycricket.app")
 
         model.load()
         advanceUntilIdle()
@@ -120,7 +121,7 @@ class ClubsTest {
         val model = ClubDetailViewModel(object : FakeFishersApi() {
             override suspend fun clubMembers(id: String) = listOf(member("1", "Ravi Patel"))
             override suspend fun clubTeams(id: String): List<Team> = throw IOException("down")
-        }, "c1")
+        }, "c1", "https://www.gullycricket.app")
 
         model.load()
         advanceUntilIdle()
@@ -136,12 +137,66 @@ class ClubsTest {
             override suspend fun clubMembers(id: String): List<ClubMemberDetail> =
                 throw IOException("offline")
             override suspend fun clubTeams(id: String) = emptyList<Team>()
-        }, "c1")
+        }, "c1", "https://www.gullycricket.app")
 
         model.load()
         advanceUntilIdle()
 
         assertTrue(model.state.value.error!!.contains("connection"))
+    }
+
+    private fun linkApi(permissions: List<String>, link: String) = object : FakeFishersApi() {
+        var stopped = false
+        override suspend fun clubMembers(id: String) = listOf(member("1", "Ravi", UserRole.ClubAdmin))
+        override suspend fun clubTeams(id: String) = emptyList<Team>()
+        override suspend fun myClubRole(id: String) =
+            com.fishers.app.season.MyClubRole("club_admin", permissions)
+        override suspend fun clubJoinLink(id: String) = Json.parseToJsonElement(link)
+        override suspend fun makeClubJoinLink(id: String, body: MakeJoinLink) =
+            ClubJoinLink(if (body.fresh) "new" else "tok", uses = 0)
+        override suspend fun stopClubJoinLink(id: String) { stopped = true }
+    }
+
+    @Test
+    fun `a secretary sees the club link the squad joins through`() = runTest(dispatcher.scheduler) {
+        // The invite carries more than the app reads; the rest must not break it.
+        val api = linkApi(listOf("invite_to_club"), """{"token":"tok","uses":3,"open":true,"status":"pending"}""")
+        val model = ClubDetailViewModel(api, "c1", "https://www.gullycricket.app/")
+
+        model.load()
+        advanceUntilIdle()
+        assertTrue(model.state.value.canShareLink)
+        assertEquals("https://www.gullycricket.app/invite/tok", model.state.value.joinLinkUrl)
+        assertEquals(3, model.state.value.joinLink!!.uses)
+
+        model.makeJoinLink(fresh = true)
+        advanceUntilIdle()
+        assertEquals("https://www.gullycricket.app/invite/new", model.state.value.joinLinkUrl)
+
+        model.stopJoinLink()
+        advanceUntilIdle()
+        assertTrue(api.stopped)
+        assertNull(model.state.value.joinLinkUrl)
+        assertTrue(model.state.value.canShareLink)
+    }
+
+    @Test
+    fun `a club with its link off answers null, and the card offers to make one`() = runTest(dispatcher.scheduler) {
+        val model = ClubDetailViewModel(linkApi(listOf("invite_to_club"), "null"), "c1", "https://x")
+        model.load()
+        advanceUntilIdle()
+        assertTrue(model.state.value.canShareLink)
+        assertNull(model.state.value.joinLink)
+        assertNull(model.state.value.error)
+    }
+
+    @Test
+    fun `nobody but a secretary is shown the club link`() = runTest(dispatcher.scheduler) {
+        val model = ClubDetailViewModel(linkApi(listOf("view_club"), """{"token":"tok"}"""), "c1", "https://x")
+        model.load()
+        advanceUntilIdle()
+        assertEquals(false, model.state.value.canShareLink)
+        assertNull(model.state.value.joinLinkUrl)
     }
 
     @Test

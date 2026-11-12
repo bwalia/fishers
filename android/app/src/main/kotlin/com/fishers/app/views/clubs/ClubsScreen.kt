@@ -11,7 +11,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import android.content.Intent
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.fishers.app.R
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -84,6 +95,8 @@ fun ClubDetailScreen(
     state: ClubDetailState,
     modifier: Modifier = Modifier,
     onOpenSeason: (() -> Unit)? = null,
+    onMakeLink: (fresh: Boolean) -> Unit = {},
+    onStopLink: () -> Unit = {},
 ) {
     if (state.isFirstLoad && state.isLoading) {
         Box(modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -111,6 +124,9 @@ fun ClubDetailScreen(
                     style = MaterialTheme.typography.bodySmall)
             }
         }
+        if (state.canShareLink) {
+            item { JoinLinkCard(clubName, state, onMakeLink, onStopLink) }
+        }
         if (state.teams.isNotEmpty()) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -126,6 +142,69 @@ fun ClubDetailScreen(
             item { Heading(t("rest.asked_not_answered")) }
             items(state.invited, key = { it.userId }) { MemberRow(it, muted = true) }
         }
+    }
+}
+
+/**
+ * One link for the whole squad — the website's `ClubJoinLink`. An invite made
+ * for a person is spent by the first one through it, so the link a secretary
+ * dropped into the team WhatsApp group let one player in and told the rest it
+ * had been used. This one is never used up, until the secretary turns it off.
+ */
+@Composable
+private fun JoinLinkCard(
+    clubName: String,
+    state: ClubDetailState,
+    onMake: (fresh: Boolean) -> Unit,
+    onStop: () -> Unit,
+) {
+    val context = LocalContext.current
+    val brand = stringResource(R.string.brand_name)
+    // true: make a new link; false: turn it off. Both ask first, as the website does.
+    var confirm by remember { mutableStateOf<Boolean?>(null) }
+    val url = state.joinLinkUrl
+
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Heading(t("jl.title"))
+        Text(t("jl.explainer"), style = MaterialTheme.typography.bodySmall)
+        if (url == null) {
+            Button(onClick = { onMake(false) }) { Text(t("jl.make_link")) }
+        } else {
+            Text(url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    val message = t(
+                        "jl.whatsapp_message",
+                        vars = mapOf("club" to clubName, "brand" to brand, "url" to url),
+                    )
+                    val send = Intent(Intent.ACTION_SEND)
+                        .setType("text/plain")
+                        .putExtra(Intent.EXTRA_TEXT, message)
+                    context.startActivity(Intent.createChooser(send, null))
+                }) { Text(t("sc.share")) }
+                OutlinedButton(onClick = { confirm = true }) { Text(t("jl.new_link")) }
+            }
+            TextButton(onClick = { confirm = false }) { Text(t("jl.turn_off")) }
+            val uses = state.joinLink?.uses ?: 0
+            Text(
+                t("jl.joined_through_it", count = uses, vars = mapOf("n" to uses)),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+
+    confirm?.let { fresh ->
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            text = { Text(if (fresh) t("jl.confirm_new_link") else t("jl.confirm_turn_off")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirm = null
+                    if (fresh) onMake(true) else onStop()
+                }) { Text(if (fresh) t("jl.new_link") else t("jl.turn_off")) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text(t("sc.cancel")) } },
+        )
     }
 }
 
