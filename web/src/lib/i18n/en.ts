@@ -4447,6 +4447,18 @@ export const en = {
   "sc.send_before_handing_over": "The last balls have not gone up yet. Find a signal, then hand the book over.",
   "sc.live_scoreboard_headline": "{home} vs {away} — live scoreboard",
   "sc.books_disagree": "This phone's book and the server's do not agree. Open the match again to sort it out.",
+  "sc.fewer": "Fewer",
+  "sc.dls_par_line": "DLS par {par} · target {target}",
+  "sc.team_innings": "{team} innings",
+  "sc.team_bowling": "{team} bowling",
+  "sc.partnership_short": "P'ship {runs} ({balls})",
+  "sc.last_over": "Last over",
+  "sc.not_set_up_yet": "This match is not set up yet. Agree the terms, make the toss and name both sides, then score it here.",
+  "sc.n_balls_waiting_to_send.one": "{n} ball waiting to send",
+  "sc.n_balls_waiting_to_send.other": "{n} balls waiting to send",
+  "sc.wide_plus_runs": "One for the wide and {n} more — {total} to the side, all wides.",
+  "sc.no_ball_plus_bat": "One for the no ball and {n} off the bat — the batter gets {n}.",
+  "sc.no_ball_plus_byes": "One for the no ball and {n} as byes. Only the no ball goes against the bowler.",
 
 } as const;
 

@@ -4433,5 +4433,17 @@ export const pa: Dict = {
   "sc.send_before_handing_over": "ਆਖ਼ਰੀ ਗੇਂਦਾਂ ਅਜੇ ਭੇਜੀਆਂ ਨਹੀਂ ਗਈਆਂ। ਸਿਗਨਲ ਲੱਭੋ, ਫਿਰ ਸਕੋਰਬੁੱਕ ਸੌਂਪੋ।",
   "sc.live_scoreboard_headline": "{home} ਬਨਾਮ {away} — ਲਾਈਵ ਸਕੋਰਬੋਰਡ",
   "sc.books_disagree": "ਇਸ ਫ਼ੋਨ ਦੀ ਸਕੋਰਬੁੱਕ ਅਤੇ ਸਰਵਰ ਦੀ ਸਕੋਰਬੁੱਕ ਮੇਲ ਨਹੀਂ ਖਾਂਦੀਆਂ। ਠੀਕ ਕਰਨ ਲਈ ਮੈਚ ਦੁਬਾਰਾ ਖੋਲ੍ਹੋ।",
+  "sc.fewer": "ਘੱਟ",
+  "sc.dls_par_line": "DLS ਪਾਰ {par} · ਟੀਚਾ {target}",
+  "sc.team_innings": "{team} ਦੀ ਪਾਰੀ",
+  "sc.team_bowling": "{team} ਦੀ ਗੇਂਦਬਾਜ਼ੀ",
+  "sc.partnership_short": "ਸਾਂਝੇਦਾਰੀ {runs} ({balls})",
+  "sc.last_over": "ਪਿਛਲਾ ਓਵਰ",
+  "sc.not_set_up_yet": "ਇਹ ਮੈਚ ਅਜੇ ਸੈੱਟ ਨਹੀਂ ਹੋਇਆ। ਸ਼ਰਤਾਂ ਤੈਅ ਕਰੋ, ਟਾਸ ਕਰੋ ਅਤੇ ਦੋਵੇਂ ਟੀਮਾਂ ਚੁਣੋ, ਫਿਰ ਇੱਥੇ ਸਕੋਰ ਕਰੋ।",
+  "sc.n_balls_waiting_to_send.one": "{n} ਗੇਂਦ ਭੇਜਣ ਦੀ ਉਡੀਕ ਵਿੱਚ",
+  "sc.n_balls_waiting_to_send.other": "{n} ਗੇਂਦਾਂ ਭੇਜਣ ਦੀ ਉਡੀਕ ਵਿੱਚ",
+  "sc.wide_plus_runs": "ਵਾਈਡ ਦੀ ਇੱਕ ਅਤੇ {n} ਹੋਰ — ਟੀਮ ਨੂੰ {total}, ਸਾਰੀਆਂ ਵਾਈਡ।",
+  "sc.no_ball_plus_bat": "ਨੋ ਬਾਲ ਦੀ ਇੱਕ ਅਤੇ ਬੱਲੇ ਤੋਂ {n} — ਬੱਲੇਬਾਜ਼ ਨੂੰ {n} ਮਿਲਦੀਆਂ ਹਨ।",
+  "sc.no_ball_plus_byes": "ਨੋ ਬਾਲ ਦੀ ਇੱਕ ਅਤੇ {n} ਬਾਈ। ਗੇਂਦਬਾਜ਼ ਦੇ ਖ਼ਾਤੇ ਸਿਰਫ਼ ਨੋ ਬਾਲ ਜਾਂਦੀ ਹੈ।",
 
 };

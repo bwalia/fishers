@@ -6,6 +6,7 @@ import com.fishers.app.i18n.t
 import com.fishers.app.net.ScoringApi
 import com.fishers.app.session.readableError
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -360,6 +361,18 @@ class LiveScorerViewModel(
 
     /** The network came back. */
     fun onNetworkAvailable() = flush()
+
+    /**
+     * While the screen is in front: send whatever is waiting now, then try
+     * again every [every] ms for as long as anything is. The screen runs this
+     * and cancels it, so nothing retries once the scorer has gone.
+     */
+    suspend fun keepSending(every: Long = 15_000) {
+        while (true) {
+            if (_state.value.unsent > 0) send()
+            delay(every)
+        }
+    }
 
     /**
      * Send everything unconfirmed, oldest first, until nothing is left or
