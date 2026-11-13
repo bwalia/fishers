@@ -205,7 +205,7 @@ fun MainTabScreen(
                             state = state,
                             onOpenShop = { shopOpen = true },
                             onOpenScores = { scoresOpen = true },
-                            actions = { HomeActions() },
+                            actions = { HomeActions(offline = state.offline) },
                         )
                     }
 

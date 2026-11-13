@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.res.stringResource
@@ -68,30 +69,39 @@ fun HomeScreen(
                 style = MaterialTheme.typography.bodyMedium)
         }
 
+        // A tile that could not load says so, rather than "none" — which, for
+        // somebody in a club with no signal, would be a wrong fact.
         Tile(t("rest.next_up")) {
-            state.next?.let { NextFixture(it) }
-                ?: Text(t("ev.nothing_in_the_diary"), style = MaterialTheme.typography.bodyMedium)
+            when {
+                state.next != null -> NextFixture(state.next)
+                state.fixturesFailed -> CouldNotLoad(t("ld.could_not_load_your_fixtures"))
+                else -> Text(t("ev.nothing_in_the_diary"), style = MaterialTheme.typography.bodyMedium)
+            }
         }
 
         Tile(t("nav.chats")) {
             Text(
                 when (state.unreadChats) {
+                    null -> t("le.could_not_load_your_chats")
                     0L -> t("rest.nothing_unread")
                     1L -> t("rest.one_message_waiting")
                     else -> "${state.unreadChats} messages waiting."
                 },
                 style = MaterialTheme.typography.bodyMedium,
+                color = if (state.unreadChats == null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
             )
         }
 
         Tile(t("nav.clubs")) {
             Text(
                 when (state.clubCount) {
+                    null -> t("lc.could_not_load_your_clubs")
                     0 -> t("cl.not_in_a_club_yet")
                     1 -> t("rest.one_club")
                     else -> "${state.clubCount} clubs."
                 },
                 style = MaterialTheme.typography.bodyMedium,
+                color = if (state.clubCount == null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
             )
         }
 
@@ -131,6 +141,11 @@ private fun Tile(
             content()
         }
     }
+}
+
+@Composable
+private fun CouldNotLoad(text: String) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
