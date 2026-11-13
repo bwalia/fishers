@@ -2787,6 +2787,7 @@
   "sc.continue_to_the_toss": "Continue to the toss",
   "sc.correct_a_ball": "Correct a ball",
   "sc.correct_an_earlier_ball": "Correct an earlier ball",
+  "sc.could_not_save_ball": "This phone could not save that ball, so it was not scored. Free up some space and score it again.",
   "sc.counts_as_a_legal_ball": "Counts as a legal ball.",
   "sc.crr": "CRR {rate}",
   "sc.cut_the_overs": "Cut the overs",

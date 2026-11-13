@@ -307,10 +307,17 @@ class LiveScorerViewModel(
             _state.update { s -> s.copy(error = engine.reason(it)) }
             return false
         }
-        val book = store.update(eventId) { held ->
-            val base = held ?: StoredBook(eventId, id, _state.value.match)
-            base.copy(log = base.log + event, pending = base.pending + event.clientEventId)
-        }!!
+        // A ball that cannot be kept on the phone is not taken at all: shown
+        // but not saved, it would be lost the moment the app was.
+        val book = runCatching {
+            store.update(eventId) { held ->
+                val base = held ?: StoredBook(eventId, id, _state.value.match)
+                base.copy(log = base.log + event, pending = base.pending + event.clientEventId)
+            }!!
+        }.getOrElse {
+            _state.update { s -> s.copy(error = t("sc.could_not_save_ball")) }
+            return false
+        }
         log = log + event
         engineState = next
         val before = _state.value.view

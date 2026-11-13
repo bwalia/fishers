@@ -4459,6 +4459,7 @@ export const en = {
   "sc.wide_plus_runs": "One for the wide and {n} more — {total} to the side, all wides.",
   "sc.no_ball_plus_bat": "One for the no ball and {n} off the bat — the batter gets {n}.",
   "sc.no_ball_plus_byes": "One for the no ball and {n} as byes. Only the no ball goes against the bowler.",
+  "sc.could_not_save_ball": "This phone could not save that ball, so it was not scored. Free up some space and score it again.",
 
 } as const;
 

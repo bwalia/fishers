@@ -150,6 +150,30 @@ class OfflineBallsTest {
     }
 
     @Test
+    fun `a ball the phone cannot save is not scored, rather than shown and lost`() = runTest(dispatcher.scheduler) {
+        val server = FakeScoringApi()
+        val files = FileBallStore(disk.root)
+        var full = false
+        val store = object : BallStore by files {
+            override fun update(eventId: String, change: (StoredBook?) -> StoredBook?): StoredBook? {
+                if (full) throw java.io.IOException("No space left on device")
+                return files.update(eventId, change)
+            }
+        }
+        val model = LiveScorerViewModel(server, "e1", "phone-1", store, "u-me", newId = { "00000000-0000-4000-8000-%012d".format(++ids) }, now = { null })
+        model.load()
+        advanceUntilIdle()
+
+        full = true
+        assertTrue(!model.runs(4))
+        advanceUntilIdle()
+
+        assertEquals("0/0", model.score())
+        assertEquals(0, server.posted.size)
+        assertTrue(model.state.value.error!!.contains("could not save"))
+    }
+
+    @Test
     fun `the next ball sends the ones before it`() = runTest(dispatcher.scheduler) {
         val server = FakeScoringApi()
         val model = scorer(server)
