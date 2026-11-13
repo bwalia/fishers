@@ -4467,12 +4467,10 @@ export const en = {
 
   // MARK: Starting a match on Android — the hub, the quick start, the setup.
   // Online only for now, so these say nothing about working without signal.
-  "ms.no_fixture_needed": "No fixture needed — name the teams and start scoring.",
   "ms.your_team_name": "Your team's name",
   "ms.missing_team_name": "your team's name",
   "ms.your_team_explainer": "We'll set your team up with this so you can score straight away. Add players and the rest later.",
   "ms.or_start_a_club": "Or set up a full club instead",
-  "ms.find_them_or_type": "Find them by their code or name, or just type who turned up.",
   "ms.code_sent": "A code is on its way to {address}. It lasts ten minutes.",
   "ms.their_code": "Their club code",
   "ms.club_code": "Club code or link",
@@ -4529,6 +4527,11 @@ export const en = {
   "sc.no_ball_plus_bat": "One for the no ball and {n} off the bat — the batter gets {n}.",
   "sc.no_ball_plus_byes": "One for the no ball and {n} as byes. Only the no ball goes against the bowler.",
   "sc.could_not_save_ball": "This phone could not save that ball, so it was not scored. Free up some space and score it again.",
+  "ms.clubs_not_on_this_phone": "Your clubs are not saved on this phone yet, and there is no signal to fetch them. Open the app once with signal — after that you can start a match without any.",
+  "ms.no_signal_start": "No signal — you can still start. The match is kept on this phone and sent when there is signal.",
+  "ms.kept_on_this_phone": "Kept on this phone, and sent when there is signal.",
+  "ms.could_not_save_match": "This phone could not save the match. Free up some space and try again.",
+  "ms.no_signal_carry_on": "No signal. Carry on scoring — everything is kept here and sent when you are back online.",
 
 } as const;
 

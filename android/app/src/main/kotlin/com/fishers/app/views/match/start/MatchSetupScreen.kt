@@ -73,7 +73,8 @@ fun MatchSetupScreen(
         title = title,
         onBack = onBack,
         actions = {
-            if (state.step == SetupStep.Agreement) {
+            // Another captain agreeing on their own phone is news only with signal.
+            if (state.step == SetupStep.Agreement && !state.offline) {
                 IconButton(onClick = model::refresh) {
                     Icon(Icons.Filled.Refresh, contentDescription = t("sc.refresh"))
                 }
@@ -89,6 +90,7 @@ fun MatchSetupScreen(
             BigButton(t("ms.follow_the_match"), onClick = onFollow)
             return@StartPage
         }
+        if (state.offline) OfflineNote(t("ms.kept_on_this_phone"))
         Footnote(stepLabel(state.step))
         when (state.step) {
             SetupStep.Terms -> TermsStep(state, model, onPickOpposition)

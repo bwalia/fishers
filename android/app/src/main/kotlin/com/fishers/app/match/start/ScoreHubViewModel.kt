@@ -2,6 +2,7 @@ package com.fishers.app.match.start
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fishers.app.cricket.BallStore
 import com.fishers.app.i18n.t
 import com.fishers.app.net.MatchStartApi
 import kotlinx.coroutines.Job
@@ -37,7 +38,16 @@ data class ScoreHubState(
     val error: String? = null,
     /** Clubs where this person may score — whose live and half-set-up matches they can pick up. */
     val scoringClubs: Set<String> = emptySet(),
-)
+    /** Matches whose book is on this phone, read from the disk — there with no signal at all. */
+    val phone: List<PhoneMatch> = emptyList(),
+) {
+    /**
+     * "On this phone", as iOS lists it: what still has something to send, and
+     * what the server's list does not show — which, with no signal, is all of it.
+     */
+    val onThisPhone: List<PhoneMatch>
+        get() = phone.filter { match -> match.waiting || rows.none { it.eventId == match.eventId } }
+}
 
 /** Where tapping a row goes. */
 sealed interface HubDestination {
@@ -51,9 +61,20 @@ sealed interface HubDestination {
  *
  * Filtering, searching and paging happen in the database, as on iOS: a club
  * with a season behind it is not something to download and sift on a phone.
+ *
+ * Above them, "On this phone": the matches whose book is here, read from the
+ * disk, so a scorer who reopens the app at a ground with no signal gets back
+ * to the match they were scoring. Opening the hub also sends what those books
+ * are holding, when there is signal to send it with ([sweep]).
  */
 class ScoreHubViewModel(
     private val api: MatchStartApi,
+    /** This phone's books. */
+    private val store: BallStore,
+    /** Clubs and players kept for a day with no signal; refreshed from here while there is some. */
+    private val cache: OfflineCache,
+    /** Send what this phone's books hold — a match started offline first goes on the server. */
+    private val sweep: suspend () -> Unit = {},
     private val perPage: Int = 20,
     /** How long typing has to pause before the search goes out. */
     private val searchPause: Long = 350,
@@ -66,8 +87,22 @@ class ScoreHubViewModel(
     private var searchJob: Job? = null
 
     fun load() {
+        readPhone()
         reload()
         loadScoringClubs()
+        viewModelScope.launch {
+            val before = _state.value.phone.map { it.eventId }
+            runCatching { sweep() }
+            readPhone()
+            // A match started offline now has a fixture on the server, under
+            // the server's id: the list should show it.
+            if (_state.value.phone.map { it.eventId } != before) reload()
+        }
+    }
+
+    private fun readPhone() {
+        val books = runCatching { store.all() }.getOrDefault(emptyList())
+        _state.value = _state.value.copy(phone = phoneMatches(books))
     }
 
     fun setFilter(filter: HubFilter) {
@@ -172,15 +207,23 @@ class ScoreHubViewModel(
         )
     }
 
-    /** Which clubs this person may score in. Best effort: without it every row opens the scorecard. */
+    /**
+     * Which clubs this person may score in. Best effort: without it every row
+     * opens the scorecard. The clubs they may start a match for are saved on
+     * the way, with their players — this is the last screen with signal before
+     * the drive to a ground with none.
+     */
     private fun loadScoringClubs() {
         viewModelScope.launch {
-            val clubs = runCatching { api.myClubs() }.getOrDefault(emptyList())
-            val scoring = clubs.filter { club ->
-                runCatching { api.myClubRole(club.id) }.getOrNull()
-                    ?.permissions?.contains("score_match") == true
-            }.map { it.id }.toSet()
+            val clubs = runCatching { api.myClubs() }.getOrNull() ?: return@launch
+            val permissions = clubs.associate { club ->
+                club.id to runCatching { api.myClubRole(club.id) }.getOrNull()?.permissions.orEmpty()
+            }
+            val scoring = permissions.filterValues { "score_match" in it }.keys
             _state.value = _state.value.copy(scoringClubs = scoring)
+            val startable = clubs.filter { "manage_events" in permissions[it.id].orEmpty() }
+            cache.saveStartableClubs(startable)
+            cache.warm(api, startable)
         }
     }
 }

@@ -8,8 +8,11 @@ import com.fishers.app.match.start.ConfirmCode
 import com.fishers.app.match.start.CreatedFixture
 import com.fishers.app.match.start.MatchKind
 import com.fishers.app.match.start.NewClub
+import com.fishers.app.cricket.FileBallStore
 import com.fishers.app.match.start.NewFixture
+import com.fishers.app.match.start.OfflineCache
 import com.fishers.app.match.start.StartMatchViewModel
+import com.fishers.app.net.MatchStartApi
 import com.fishers.app.net.PublicUser
 import com.fishers.app.season.MyClubRole
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +36,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -45,9 +50,28 @@ class StartMatchTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
+    @get:Rule val disk = TemporaryFolder()
+
     private val noon = Instant.parse("2026-11-14T12:00:00Z")
 
     private val hemel = ClubIdentity(id = "hemel", name = "Hemel CC", clubId = "hemel", clubName = "Hemel CC")
+
+    private var ids = 0
+
+    private fun model(
+        server: MatchStartApi,
+        verifyChannel: String? = null,
+        onVerified: (PublicUser) -> Unit = {},
+    ) = StartMatchViewModel(
+        api = server,
+        cache = OfflineCache(File(disk.root, "cache")),
+        store = FileBallStore(File(disk.root, "books")),
+        deviceId = "device-1",
+        verifyChannel = verifyChannel,
+        onVerified = onVerified,
+        now = { noon },
+        newId = { "00000000-0000-4000-8000-%012d".format(++ids) },
+    )
 
     /** A server with clubs, roles and teams; records what was made. */
     private open inner class Server(
@@ -76,7 +100,7 @@ class StartMatchTest {
             clubs = listOf(Club("a", "Ashford CC"), Club("l", "Lords CC")),
             perms = mapOf("a" to listOf("view_club"), "l" to listOf("view_club", "manage_events")),
         )
-        val model = StartMatchViewModel(server)
+        val model = model(server)
         model.load()
         advanceUntilIdle()
 
@@ -93,7 +117,7 @@ class StartMatchTest {
             perms = mapOf("l" to listOf("manage_events")),
             teams = mapOf("l" to listOf(Team("t2", "l", "2nd XI"))),
         )
-        val model = StartMatchViewModel(server, now = { noon })
+        val model = model(server)
         model.load()
         advanceUntilIdle()
         model.selectTeam("t2")
@@ -112,14 +136,23 @@ class StartMatchTest {
         assertEquals("2026-11-14T12:00:00Z", sent.startAt)
         assertEquals("2026-11-14T16:00:00Z", sent.endAt)
         assertEquals(22, sent.capacity)
-        assertEquals(mapOf("opposition" to "Hemel CC", "home_name" to "Lords CC 2nd XI"), sent.metadata)
+        // iOS's two, and the phone's own id for the fixture — how a fixture
+        // whose answer was lost is found again rather than made twice.
+        assertEquals(
+            mapOf(
+                "opposition" to "Hemel CC",
+                "home_name" to "Lords CC 2nd XI",
+                "client_ref" to "00000000-0000-4000-8000-000000000001",
+            ),
+            sent.metadata,
+        )
         assertEquals("event-1", model.state.value.startedEventId)
     }
 
     @Test
     fun `you cannot play your own club, and you must say who you are playing`() = runTest(dispatcher.scheduler) {
         val server = Server(clubs = listOf(Club("l", "Lords CC")), perms = mapOf("l" to listOf("manage_events")))
-        val model = StartMatchViewModel(server)
+        val model = model(server)
         model.load()
         advanceUntilIdle()
 
@@ -138,7 +171,7 @@ class StartMatchTest {
     @Test
     fun `a player with no club names their team and the club, then the fixture, is made`() = runTest(dispatcher.scheduler) {
         val server = Server(clubs = emptyList())
-        val model = StartMatchViewModel(server, now = { noon })
+        val model = model(server)
         model.load()
         advanceUntilIdle()
 
@@ -168,10 +201,43 @@ class StartMatchTest {
     @Test
     fun `clubs you cannot make a fixture in count as no club`() = runTest(dispatcher.scheduler) {
         val server = Server(clubs = listOf(Club("a", "Ashford CC")), perms = mapOf("a" to listOf("view_club")))
-        val model = StartMatchViewModel(server)
+        val model = model(server)
         model.load()
         advanceUntilIdle()
         assertTrue(model.state.value.needsATeam)
+    }
+
+    /**
+     * The club is made, then the signal goes before the fixture's answer comes
+     * back. The match starts on the phone all the same — and the phone notes
+     * that the fixture was asked for, so the sync looks for it before asking again.
+     */
+    @Test
+    fun `the signal going at the fixture starts the match on the phone`() = runTest(dispatcher.scheduler) {
+        val server = object : Server() {
+            override suspend fun createEvent(body: NewFixture): CreatedFixture {
+                fixtures += body
+                throw java.io.IOException("the answer never arrived")
+            }
+        }
+        val model = model(server)
+        model.load()
+        advanceUntilIdle()
+        model.setNewTeamName("Gully Kings")
+        model.setOpposition("Southall", null)
+        model.start()
+        advanceUntilIdle()
+
+        val id = model.state.value.startedEventId!!
+        assertTrue(model.state.value.offline)
+        assertNull(model.state.value.error)
+        val create = FileBallStore(File(disk.root, "books")).read(id)!!.create!!
+        assertNull("the club is made already", create.club)
+        assertEquals("new-club", create.clubId)
+        assertTrue(create.fixtureAsked)
+        assertEquals(id, server.fixtures.single().metadata["client_ref"])
+        assertEquals(id, create.fixture?.metadata?.get("client_ref"))
+        assertEquals(1, server.madeClubs.size)
     }
 
     @Test
@@ -181,12 +247,12 @@ class StartMatchTest {
             override suspend fun createEvent(body: NewFixture): CreatedFixture {
                 if (failNext) {
                     failNext = false
-                    throw java.io.IOException("no signal")
+                    throw refused(503, "the server is busy")
                 }
                 return super.createEvent(body)
             }
         }
-        val model = StartMatchViewModel(server)
+        val model = model(server)
         model.load()
         advanceUntilIdle()
         model.setNewTeamName("Gully Kings")
@@ -229,7 +295,7 @@ class StartMatchTest {
                 return PublicUser(id = "u1", name = "Sunny")
             }
         }
-        val model = StartMatchViewModel(server, verifyChannel = "email", onVerified = { handedBack = it })
+        val model = model(server, verifyChannel = "email", onVerified = { handedBack = it })
         model.load()
         advanceUntilIdle()
         model.setNewTeamName("Gully Kings")

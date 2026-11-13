@@ -2,10 +2,12 @@ package com.fishers.app.match
 
 import com.fishers.app.EnglishStrings
 import com.fishers.app.clubs.Club
+import com.fishers.app.cricket.FileBallStore
 import com.fishers.app.match.start.FixturePage
 import com.fishers.app.match.start.FixtureRow
 import com.fishers.app.match.start.HubDestination
 import com.fishers.app.match.start.HubFilter
+import com.fishers.app.match.start.OfflineCache
 import com.fishers.app.match.start.ScoreHubViewModel
 import com.fishers.app.season.MyClubRole
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +23,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScoreHubTest {
@@ -31,6 +35,15 @@ class ScoreHubTest {
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
+
+    @get:Rule val disk = TemporaryFolder()
+
+    private fun hub(server: Server, searchPause: Long = 350) = ScoreHubViewModel(
+        api = server,
+        store = FileBallStore(File(disk.root, "books")),
+        cache = OfflineCache(File(disk.root, "cache")),
+        searchPause = searchPause,
+    )
 
     private data class Asked(val state: String?, val search: String?, val order: String, val page: Int)
 
@@ -50,7 +63,7 @@ class ScoreHubTest {
 
     @Test
     fun `each row goes where somebody in your shoes would want it to`() = runTest(dispatcher.scheduler) {
-        val model = ScoreHubViewModel(Server(listOf(FixturePage())))
+        val model = hub(Server(listOf(FixturePage())))
         model.load()
         advanceUntilIdle()
 
@@ -71,7 +84,7 @@ class ScoreHubTest {
                 FixturePage(items = listOf(row("e2", "mine", "live"), row("e1", "mine", "live")), total = 2, hasMore = false),
             ),
         )
-        val model = ScoreHubViewModel(server, searchPause = 10)
+        val model = hub(server, searchPause = 10)
         model.load()
         advanceUntilIdle()
         model.loadMore()

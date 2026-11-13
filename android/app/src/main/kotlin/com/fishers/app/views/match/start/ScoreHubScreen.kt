@@ -39,6 +39,7 @@ import com.fishers.app.fixtures.formatWhen
 import com.fishers.app.i18n.t
 import com.fishers.app.match.start.FixtureRow
 import com.fishers.app.match.start.HubFilter
+import com.fishers.app.match.start.PhoneMatch
 import com.fishers.app.match.start.ScoreHubState
 
 /** `ScoreHubPane`: start a match, pick up one under way, read one that is finished. */
@@ -53,6 +54,7 @@ fun ScoreHubScreen(
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
     onOpen: (FixtureRow) -> Unit,
+    onOpenPhone: (PhoneMatch) -> Unit,
 ) {
     StartPage(
         title = t("cl.matches"),
@@ -71,7 +73,7 @@ fun ScoreHubScreen(
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(t("sr.two_sides_right_now"), style = MaterialTheme.typography.titleMedium)
-                        Footnote(t("ms.no_fixture_needed"))
+                        Footnote(t("sc.no_fixture_needed"))
                         Button(
                             onClick = onStartMatch,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
@@ -82,6 +84,9 @@ fun ScoreHubScreen(
                         }
                     }
                 }
+            }
+            if (state.onThisPhone.isNotEmpty()) {
+                item { OnThisPhone(state.onThisPhone, onOpenPhone) }
             }
             item {
                 OutlinedTextField(
