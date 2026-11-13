@@ -526,6 +526,10 @@ pub struct MyFixture {
     pub my_answer: Option<String>,
     pub fee_amount_cents: Option<i32>,
     pub ticket_price_cents: Option<i32>,
+    /// What the scheduling app put on it — a session's note, and where it
+    /// sits in a weekly series (`series_index`, `series_count`), which the
+    /// list shows as "Week 3 of 8".
+    pub metadata: serde_json::Value,
 }
 
 /// Every fixture of either side the player belongs to, starting in
@@ -584,7 +588,7 @@ pub async fn my_fixtures(
                m.id AS match_id,
                -- 'invited' is the question, not an answer.
                CASE WHEN i.status IN ('going', 'maybe', 'not_going') THEN i.status::TEXT END AS my_answer,
-               e.fee_amount_cents, e.ticket_price_cents
+               e.fee_amount_cents, e.ticket_price_cents, e.metadata
         FROM events e
         JOIN clubs c ON c.id = e.club_id
         LEFT JOIN cricket_matches m ON m.event_id = e.id
