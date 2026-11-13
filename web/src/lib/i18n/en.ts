@@ -4431,6 +4431,35 @@ export const en = {
   // MARK: Removed from the club
   "jl.removed_from_club": "The club removed you, so its open link can't let you back in. Ask the secretary to invite you.",
 
+  // MARK: Profile and onboarding on Android. The sport and standard names
+  // are the ones iOS draws from the stored English; here they get a key so
+  // they can be translated like everything else.
+  "pf.sport.football": "Football",
+  "pf.sport.badminton": "Badminton",
+  "pf.sport.paddle": "Padel",
+  "pf.sport.pickleball": "Pickleball",
+  "pf.sport.tennis": "Tennis",
+  "pf.sport.other": "Other",
+  "pf.sport.hockey": "Hockey",
+  "pf.sport.netball": "Netball",
+  "pf.sport.rugby": "Rugby",
+  "pf.sport.basketball": "Basketball",
+  "pf.tier.intermediate": "Intermediate",
+  "pf.tier.advanced": "Advanced",
+  "pf.tier.elite": "Elite",
+  "pf.there": "there",
+  "pf.email_word": "email",
+  "pf.new_code_sent": "New code {verb} to {address}.",
+  "pf.invite_club": "A club invitation",
+  "pf.invite_team": "A team invitation",
+  "pf.invite_fixture": "A fixture invitation",
+  "pf.invite_from": "from {name}",
+  "pf.invite_sent": "sent {date}",
+  "pf.n_miles": "{n} miles",
+  "pf.spare_seats": "Spare seats",
+  "pf.season_year": "Season {year}",
+  "pf.figures_appear_when_scored": "{name}'s figures appear here once they play a match somebody scored on {brand}.",
+
   // MARK: Unsubscribe asks first
   "ss.unsub_ask_title": "Stop season emails?",
   "ss.unsub_ask_body": "You'll stop getting the email your club sends when it closes a season. Nothing else changes.",
