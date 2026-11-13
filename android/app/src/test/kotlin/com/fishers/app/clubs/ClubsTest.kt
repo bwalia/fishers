@@ -206,4 +206,66 @@ class ClubsTest {
         assertTrue(UserRole.ClubAdmin.runsTheClub)
         assertTrue(!UserRole.TeamCaptain.runsTheClub)
     }
+
+    @Test
+    fun `searching the list keeps the clubs whose name or description has it`() = runTest(dispatcher.scheduler) {
+        val model = ClubsViewModel(object : FakeFishersApi() {
+            override suspend fun myClubs() = listOf(
+                Club("1", "Lords CC", description = "Sunday friendlies"),
+                Club("2", "Ashford CC"),
+                Club("3", "Southall Strikers", description = "Midweek T20"),
+            )
+        })
+        model.load()
+        advanceUntilIdle()
+
+        model.search("  sunday ")
+        assertEquals(listOf("Lords CC"), model.state.value.shown.map { it.name })
+        model.search("cc")
+        assertEquals(listOf("Ashford CC", "Lords CC"), model.state.value.shown.map { it.name })
+
+        // Coming back to the tab reloads; what was typed stays.
+        model.load()
+        advanceUntilIdle()
+        assertEquals("cc", model.state.value.query)
+    }
+
+    /** The secretary's screen lists people under the role they hold. */
+    @Test
+    fun `the roster groups people on the books by role, strongest first`() = runTest(dispatcher.scheduler) {
+        val model = ClubDetailViewModel(object : FakeFishersApi() {
+            override suspend fun clubMembers(id: String) = listOf(
+                member("1", "Zoe", UserRole.Member),
+                member("2", "Tom", UserRole.TeamCaptain),
+                member("3", "Ravi", UserRole.ClubAdmin, captain = true),
+                member("4", "Amy", UserRole.Member),
+                member("5", "Hannah", status = MembershipStatus.Invited),
+                member("6", "Gary", status = MembershipStatus.Left),
+            )
+            override suspend fun clubTeams(id: String) = emptyList<Team>()
+        }, "c1", "https://x")
+        model.load()
+        advanceUntilIdle()
+
+        val groups = model.state.value.byRole.map { (role, people) -> role to people.map { it.name } }
+        assertEquals(
+            listOf(
+                UserRole.ClubAdmin to listOf("Ravi"),
+                UserRole.TeamCaptain to listOf("Tom"),
+                UserRole.Member to listOf("Amy", "Zoe"),
+            ),
+            groups,
+        )
+        assertEquals(listOf("Gary"), model.state.value.former.map { it.name })
+    }
+
+    @Test
+    fun `only a secretary can be a secretary who captains`() {
+        assertEquals(RoleChoice(UserRole.TeamCaptain), RoleChoice(UserRole.TeamCaptain, isCaptain = true))
+        assertEquals("Team captain", RoleChoice(UserRole.TeamCaptain, isCaptain = true).label)
+        assertEquals("Secretary & captain", RoleChoice(UserRole.ClubAdmin, isCaptain = true).label)
+        assertEquals("SEC · C", RoleChoice(UserRole.ClubAdmin, isCaptain = true).shortLabel)
+        assertEquals(6, RoleChoice.appointable.size)
+        assertTrue(RoleChoice.appointable.none { it.role == UserRole.SuperAdmin })
+    }
 }
