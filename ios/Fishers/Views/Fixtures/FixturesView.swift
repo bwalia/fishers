@@ -338,6 +338,12 @@ struct FixtureRow: View {
                             .font(FishersTheme.footnote)
                             .foregroundStyle(.secondary)
                         HStack(spacing: 6) {
+                            if let kind = Practice.label(fixture.eventSubtype) {
+                                tag(kind, FishersTheme.pitch)
+                            }
+                            if fixture.isPractice, let week = Practice.weekOf(fixture.metadata) {
+                                Text(week).font(FishersTheme.caption).foregroundStyle(.secondary)
+                            }
                             if fixture.isCancelled || fixture.isPostponed {
                                 tag(fixture.status.capitalized, FishersTheme.unavailable)
                             }
@@ -349,6 +355,12 @@ struct FixtureRow: View {
                             if let price = fixture.ticketPriceCents {
                                 tag("Tickets £\(price / 100)", FishersTheme.accent700)
                             }
+                        }
+                        if fixture.isPractice, let note = Practice.note(fixture.metadata) {
+                            Text(note)
+                                .font(FishersTheme.footnote)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
                         }
                     }
                     Spacer(minLength: 0)
@@ -362,7 +374,7 @@ struct FixtureRow: View {
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             } else {
-                FixtureAnswerControl(eventId: fixture.eventId, answer: $answer, title: t("ev.can_you_play", vars: ["fixture": fixture.title]))
+                FixtureAnswerControl(eventId: fixture.eventId, answer: $answer, title: Practice.question(subtype: fixture.eventSubtype, title: fixture.title))
             }
         }
         .padding(.vertical, 6)

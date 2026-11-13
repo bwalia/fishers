@@ -189,7 +189,7 @@ struct CalendarPane: View {
                             get: { vm.fixtures.first { $0.eventId == fixture.eventId }?.myAnswer },
                             set: { vm.setAnswer($0, for: fixture.eventId) }
                         ),
-                        title: t("ev.can_you_play", vars: ["fixture": fixture.title])
+                        title: Practice.question(subtype: fixture.eventSubtype, title: fixture.title)
                     )
                 }
                 .padding(12)

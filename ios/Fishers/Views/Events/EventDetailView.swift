@@ -26,7 +26,11 @@ struct EventDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     cricketScoringEntry(event)
-                    selectionCard(event)
+                    // Nets and training: everyone who comes, nobody picked.
+                    if !event.isPractice { selectionCard(event) }
+                    if event.isPractice {
+                        Text(t("np.are_you_coming")).font(FishersTheme.headline)
+                    }
                     rsvpRow
                     paymentRow(event)
                     // A dinner or quiz night sells places rather than asking
@@ -237,12 +241,24 @@ struct EventDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(event.title)
                 .font(FishersTheme.title)
-            Text(t("ev.sport_and_kind", vars: ["sport": tr(event.sport.capitalized), "kind": tr(event.eventSubtype.replacingOccurrences(of: "_", with: " "))]))
+            Text(t("ev.sport_and_kind", vars: [
+                "sport": tr(event.sport.capitalized),
+                "kind": Practice.label(event.eventSubtype) ?? tr(event.eventSubtype.replacingOccurrences(of: "_", with: " ")),
+            ]))
                 .foregroundStyle(FishersTheme.accent)
             Text(event.startAt.formatted(date: .abbreviated, time: .shortened)
                  + " – "
                  + event.endAt.formatted(date: .omitted, time: .shortened))
                 .foregroundStyle(.secondary)
+            if event.isPractice {
+                if let week = Practice.weekOf(event.metadata) {
+                    Text(week).font(.subheadline).foregroundStyle(.secondary)
+                }
+                if let note = Practice.note(event.metadata) {
+                    Label(note, systemImage: "note.text")
+                        .font(.subheadline)
+                }
+            }
             if let cap = event.capacity {
                 Text("Capacity \(attendees.filter { $0.status == .going }.count)/\(cap)")
                     .font(.subheadline)
@@ -338,7 +354,9 @@ struct EventDetailView: View {
             async let a = FishersAPI.attendees(eventId: eventId)
             (event, attendees) = try await (e, a)
             if let event { OfflineCache.saveEvent(event) }
-            board = try? await FishersAPI.selectionBoard(eventId: eventId)
+            if event?.isPractice != true {
+                board = try? await FishersAPI.selectionBoard(eventId: eventId)
+            }
             showingCached = false
             if let event {
                 if let role = try? await FishersAPI.myClubRole(clubId: event.clubId) {
