@@ -5,7 +5,7 @@ import type { Key } from "@/lib/i18n/en";
 /// The fixtures list and the availability calendar both read this, so they
 /// cannot disagree about whether you are playing.
 
-import { api, type EventRow, type Page } from "@/lib/api";
+import { api } from "@/lib/api";
 import { dayKey } from "@/lib/availability";
 import { isPractice } from "@/lib/sessions";
 
@@ -28,6 +28,8 @@ export type MyFixture = {
   my_answer: Answer | null;
   fee_amount_cents: number | null;
   ticket_price_cents: number | null;
+  /// What the scheduling app put on it: a session's note and its week.
+  metadata?: unknown;
 };
 
 /// Dictionary keys, not words: `label` is the button, `said` is how the answer
@@ -57,25 +59,12 @@ export function searchFixtureClubs(term: string): Promise<{ id: string; name: st
 }
 
 /// The metadata of each nets or training session in `fixtures`, by event id —
-/// its note, and which week of a series it is.
-///
-/// `GET /events/mine` does not carry an event's metadata, so it comes from the
-/// events list over the same dates: one call per kind on screen, and none at
-/// all when every fixture is a match.
+/// its note, and which week of a series it is. `GET /events/mine` carries it
+/// on each row, so this asks the server for nothing.
 export async function sessionMetadata(fixtures: MyFixture[]): Promise<Record<string, unknown>> {
-  const sessions = fixtures.filter((f) => isPractice(f.event_subtype));
-  if (sessions.length === 0) return {};
-  const times = sessions.map((f) => Date.parse(f.start_at));
-  const from = new Date(Math.min(...times)).toISOString();
-  const to = new Date(Math.max(...times)).toISOString();
-  const kinds = [...new Set(sessions.map((f) => f.event_subtype))];
-  const pages = await Promise.all(
-    kinds.map((subtype) => {
-      const q = new URLSearchParams({ subtype, from, to, per_page: "200" });
-      return api<Page<EventRow>>("GET", `/events?${q}`);
-    })
+  return Object.fromEntries(
+    fixtures.filter((f) => isPractice(f.event_subtype)).map((f) => [f.event_id, f.metadata ?? {}])
   );
-  return Object.fromEntries(pages.flatMap((p) => p.items.map((e) => [e.id, e.metadata])));
 }
 
 export function answerFixture(eventId: string, status: Answer): Promise<unknown> {
