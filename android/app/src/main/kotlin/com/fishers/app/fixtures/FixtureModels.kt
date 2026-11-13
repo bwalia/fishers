@@ -109,6 +109,12 @@ data class FishersEvent(
     val id: String,
     @SerialName("club_id") val clubId: String,
     val title: String,
+    /** `cricket`, `football`… — what the club plays. Only a cricket fixture has a scorebook. */
+    val sport: String = "cricket",
+    @SerialName("team_id") val teamId: String? = null,
+    /** The visiting club, when they are on the app too. */
+    @SerialName("opponent_club_id") val opponentClubId: String? = null,
+    val capacity: Int? = null,
     @SerialName("event_subtype") val subtype: EventSubtype = EventSubtype.Generic,
     val status: EventStatus = EventStatus.Scheduled,
     @SerialName("start_at") val startAt: String,
@@ -138,6 +144,21 @@ data class FishersEvent(
      */
     val isOff: Boolean
         get() = status == EventStatus.Cancelled || status == EventStatus.Postponed
+
+    /** A game of cricket, which is the only kind of fixture with a scorebook.
+     *  Nets and a quiz night are fixtures too, and offering to score one is
+     *  a button that leads nowhere. `EventDetailView.isCricketFixture`. */
+    val isCricketMatch: Boolean
+        get() = sport.equals("cricket", ignoreCase = true) && subtype in MATCH_KINDS
+
+    /** Whether somebody picks a side for it. A tournament's sides are picked
+     *  on the tournament, so only a friendly or a league game has a board here. */
+    val hasSelection: Boolean
+        get() = subtype == EventSubtype.Friendly || subtype == EventSubtype.LeagueMatch
+
+    private companion object {
+        val MATCH_KINDS = setOf(EventSubtype.Friendly, EventSubtype.LeagueMatch, EventSubtype.Tournament)
+    }
 }
 
 /** "Sat 27 Sep, 13:30" — short, and in the reader's own time zone. */
@@ -151,3 +172,24 @@ fun formatWhen(iso: String, zone: ZoneId = ZoneId.systemDefault()): String =
             .withZone(zone)
             .format(Instant.parse(iso))
     }.getOrDefault(iso)
+
+/** The app's own language, not the device's — see [formatWhen]. */
+internal fun appLocale(): Locale = Locale.forLanguageTag(Strings.language.code)
+
+/** "Saturday 27 September 2026". */
+fun formatDay(date: java.time.LocalDate): String =
+    DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", appLocale()).format(date)
+
+/** "13:30", or "1:30 PM" where that is how the language writes it. */
+fun formatTime(time: java.time.LocalTime): String =
+    DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT).withLocale(appLocale()).format(time)
+
+/** "Saturday 27 September, 13:30 – 18:30" — a fixture's whole afternoon, in the reader's zone. */
+fun formatSpan(startIso: String, endIso: String?, zone: ZoneId = ZoneId.systemDefault()): String =
+    runCatching {
+        val start = Instant.parse(startIso).atZone(zone)
+        val day = DateTimeFormatter.ofPattern("EEEE d MMMM", appLocale()).format(start)
+        val from = formatTime(start.toLocalTime())
+        val to = endIso?.let { runCatching { formatTime(Instant.parse(it).atZone(zone).toLocalTime()) }.getOrNull() }
+        if (to != null) "$day, $from – $to" else "$day, $from"
+    }.getOrDefault(startIso)
