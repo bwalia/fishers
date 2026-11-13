@@ -115,3 +115,7 @@ mobile:
   # between brands, it meant Gully Cricket shipped Fishers' scheme and every
   # Continue with Google ended in "missing URL scheme".
   googleIosClientId: 349950507807-0k4ui8eqljqnqhl4o3u5ooocshj028m1.apps.googleusercontent.com
+  # No androidCertSha256 yet: Fishers' Play App Signing fingerprint is not
+  # known here, and the website serves no assetlinks.json rather than a
+  # wrong one. Invite links open the website until it is added — see
+  # brands/gullycricket.yaml for where to find it.
