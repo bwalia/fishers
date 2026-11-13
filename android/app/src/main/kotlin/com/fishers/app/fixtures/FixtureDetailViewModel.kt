@@ -87,6 +87,13 @@ data class FixtureDetailState(
     /** Captains and secretaries: pick the side, call it off. */
     val canSelect: Boolean get() = role?.canSelect == true
 
+    /** Only a game of cricket has a match card: nets and training have no scorebook. */
+    val hasMatchCard: Boolean get() = event?.isCricketMatch == true
+
+    /** What the page asks above your answer. Nobody "plays" at nets. */
+    val question: String
+        get() = if (event?.subtype?.isPractice == true) t("np.are_you_coming") else t("ev.are_you_playing")
+
     /** Your row on the selection board, once a side has been picked. */
     fun myPlace(meId: String?): SelectionCandidate? =
         meId?.let { board?.candidate(it) }?.takeIf { it.state != SelectionState.Pool }

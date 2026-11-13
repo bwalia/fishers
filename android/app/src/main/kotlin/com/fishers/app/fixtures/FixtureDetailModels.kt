@@ -81,6 +81,22 @@ data class CreateEventBody(
     @SerialName("venue_id") val venueId: String? = null,
     @SerialName("start_at") val startAt: String,
     @SerialName("end_at") val endAt: String,
+    /** Nets and training only; a match sends none, as it always has. */
+    val metadata: SessionMetadata? = null,
+)
+
+/**
+ * What a nets or training session carries in `metadata`. The `series_*`
+ * fields are sent only for a weekly series: one id, minted on the phone and
+ * shared by every week, and each week's place in it from 0. The server
+ * notifies the club for week 0 alone.
+ */
+@Serializable
+data class SessionMetadata(
+    val note: String? = null,
+    @SerialName("series_id") val seriesId: String? = null,
+    @SerialName("series_index") val seriesIndex: Int? = null,
+    @SerialName("series_count") val seriesCount: Int? = null,
 )
 
 @Serializable

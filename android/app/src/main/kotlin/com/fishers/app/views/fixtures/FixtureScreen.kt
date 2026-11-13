@@ -77,7 +77,7 @@ import java.time.Instant
  * your place in the side; your answer; the captain's tools; who is coming.
  */
 @Composable
-internal fun FixtureScreen(eventId: String) {
+internal fun FixtureScreen(eventId: String, notice: String? = null) {
     val deps = LocalAppDeps.current
     val nav = LocalNavigator.current
     val meId = deps.user()?.id
@@ -112,7 +112,7 @@ internal fun FixtureScreen(eventId: String) {
             ) {
                 Header(event, state)
                 state.error?.let { ErrorText(it) }
-                state.message?.let {
+                (state.message ?: notice)?.let {
                     Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                 }
 
@@ -135,7 +135,7 @@ internal fun FixtureScreen(eventId: String) {
 
                 if (!event.isOff && event.isUpcoming()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionHeading(t("ev.are_you_playing"))
+                        SectionHeading(state.question)
                         AnswerChips(answer = state.myAnswer, enabled = !state.isAnswering, onAnswer = model::answer)
                     }
                 }
@@ -188,11 +188,15 @@ private fun Header(event: FishersEvent, state: FixtureDetailState) {
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.secondary,
         )
+        // Nets and training: which week of a series, and what to bring.
+        val practice = event.practice
+        practice?.weekOf?.let { Text(it, style = MaterialTheme.typography.labelLarge) }
         Labelled(t("ev.when"), formatSpan(event.startAt, event.endAt))
         Labelled(
             t("ev.where"),
             state.venue?.let { listOfNotNull(it.name, it.address).joinToString(", ") } ?: t("ev.not_decided_yet"),
         )
+        practice?.note?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         // Called off has to shout. A cancelled fixture that looks like any
         // other is how a side turns up to an empty ground.
         if (event.isOff) {
@@ -229,8 +233,7 @@ private fun Labelled(label: String, value: String) {
  */
 @Composable
 private fun MatchCard(state: FixtureDetailState, onAction: (MatchAction) -> Unit) {
-    val event = state.event ?: return
-    if (!event.isCricketMatch) return
+    if (!state.hasMatchCard) return
     val actions = state.matchActions()
     val match = when (val m = state.match) {
         is MatchOnFixture.SettingUp -> m.match
