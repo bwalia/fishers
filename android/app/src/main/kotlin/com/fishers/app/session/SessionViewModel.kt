@@ -77,6 +77,18 @@ class SessionViewModel(
         }
     }
 
+    /** Re-read the signed-in person — after their profile, photo or role changed. */
+    fun reloadUser() {
+        viewModelScope.launch {
+            runCatching { api.me() }.onSuccess { _state.value = _state.value.copy(user = it) }
+        }
+    }
+
+    /** A user the server already handed back from a save. */
+    fun setUser(user: com.fishers.app.net.PublicUser) {
+        _state.value = _state.value.copy(user = user)
+    }
+
     private val _googleClientId = MutableStateFlow<String?>(null)
 
     /**

@@ -16,6 +16,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,6 +42,8 @@ fun HomeScreen(
     /// here rather than from a tab, because a bottom bar stops being
     /// scannable past five.
     onOpenScores: () -> Unit = {},
+    /** Drawn under the greeting: what to do next. */
+    actions: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (state.isFirstLoad && state.isLoading) {
@@ -48,7 +52,7 @@ fun HomeScreen(
     }
 
     Column(
-        modifier.fillMaxSize().padding(16.dp),
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
@@ -56,6 +60,8 @@ fun HomeScreen(
                 ?: stringResource(R.string.brand_name),
             style = MaterialTheme.typography.headlineSmall,
         )
+
+        actions()
 
         state.error?.let {
             Text(it, color = MaterialTheme.colorScheme.error,

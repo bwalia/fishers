@@ -58,6 +58,9 @@ fun RootScreen(
     /** A tapped notification's destination; held until somebody is signed in to see it. */
     seasonLink: com.fishers.app.season.SeasonLink? = null,
     onSeasonLinkHandled: () -> Unit = {},
+    /** A screen to open once signed in — an invite link the app was opened with. */
+    pendingRoute: com.fishers.app.views.nav.Route? = null,
+    onPendingRouteHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -108,7 +111,7 @@ fun RootScreen(
                 )
             }
 
-            Destination.SignedIn -> MainTabScreen(
+            Destination.SignedIn -> com.fishers.app.views.onboarding.SignedInGate { MainTabScreen(
                 api = api,
                 user = state.user,
                 onSignOut = viewModel::signOut,
@@ -129,7 +132,9 @@ fun RootScreen(
                 season = season,
                 seasonLink = seasonLink,
                 onSeasonLinkHandled = onSeasonLinkHandled,
-            )
+                pendingRoute = pendingRoute,
+                onPendingRouteHandled = onPendingRouteHandled,
+            ) }
         }
     }
 }

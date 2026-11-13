@@ -1,5 +1,11 @@
 package com.fishers.app
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fishers.app.views.clubs.JoinByLinkRoute
+import com.fishers.app.views.nav.AppDeps
+import com.fishers.app.views.nav.LocalAppDeps
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -43,10 +49,14 @@ class MainActivity : ComponentActivity() {
      */
     private var seasonLink by mutableStateOf<SeasonLink?>(null)
 
+    /** An invite link the app was opened with (`/invite/{token}`), until it has been shown. */
+    private var inviteToken by mutableStateOf<String?>(null)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         linkFrom(intent)?.let { seasonLink = it }
+        inviteTokenFrom(intent)?.let { inviteToken = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,7 +64,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // Not on a recreation: the tap was handled the first time round, and
         // rotating the phone should not throw somebody back to the stats.
-        if (savedInstanceState == null) seasonLink = linkFrom(intent)
+        if (savedInstanceState == null) {
+            seasonLink = linkFrom(intent)
+            inviteToken = inviteTokenFrom(intent)
+        }
         val app = application as FishersApp
 
         setContent {
@@ -66,7 +79,18 @@ class MainActivity : ComponentActivity() {
                             SessionViewModel(app.network.api, app.session) as T
                     },
                 )
+                val session by model.state.collectAsStateWithLifecycle()
+                val deps = remember {
+                    AppDeps(
+                        network = app.network,
+                        config = app.config,
+                        user = { model.state.value.user },
+                        reloadUser = model::reloadUser,
+                        setUser = model::setUser,
+                    )
+                }
                 Scaffold(modifier = Modifier.fillMaxSize()) { inner ->
+                  CompositionLocalProvider(LocalAppDeps provides deps) {
                     RootScreen(
                         viewModel = model,
                         api = app.network.api,
@@ -90,12 +114,25 @@ class MainActivity : ComponentActivity() {
                         season = remember { SeasonViewModel(app.network.api) },
                         seasonLink = seasonLink,
                         onSeasonLinkHandled = { seasonLink = null },
+                        // Only once somebody is signed in to join with.
+                        pendingRoute = inviteToken
+                            ?.takeIf { session.isAuthenticated }
+                            ?.let { JoinByLinkRoute(it) },
+                        onPendingRouteHandled = { inviteToken = null },
                         modifier = Modifier.padding(inner),
                     )
+                  }
                 }
             }
         }
     }
+}
+
+/** `https://<site>/invite/<token>`, from an App Link; null for anything else. */
+internal fun inviteTokenFrom(intent: Intent?): String? {
+    val uri = intent?.data ?: return null
+    val segments = uri.pathSegments
+    return if (segments.size == 2 && segments[0] == "invite" && segments[1].isNotBlank()) segments[1] else null
 }
 
 /** `season_closed`, from a notification's extras; null for anything else. */

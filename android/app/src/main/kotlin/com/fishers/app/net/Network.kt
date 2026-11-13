@@ -36,10 +36,15 @@ class Network(config: AppConfig, session: Session) {
         },
     )
 
-    val api: FishersApi = Retrofit.Builder()
+    private val signed: Retrofit = Retrofit.Builder()
         .baseUrl(config.apiV1.trimEnd('/') + "/")
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
-        .create(FishersApi::class.java)
+
+    val api: FishersApi = signed.create(FishersApi::class.java)
+
+    /** Any other Retrofit interface, signed the same way. One per area of the
+     *  app, so two areas built at once do not both edit [FishersApi]. */
+    fun <T> service(type: Class<T>): T = signed.create(type)
 }
