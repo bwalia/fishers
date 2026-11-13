@@ -56,18 +56,26 @@ backup:
   minioPort: 9000
   # The same vault-synced Secret the API and MinIO itself use.
   secretsName: fishers-secrets
-  # quay.io, not Docker Hub — which refuses anonymous pulls from this cluster's
-  # nodes. A backup that cannot pull its uploader at 02:15 is a backup that
-  # silently does not happen.
-  mcImage: "quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z"
+  # Our mirror, not quay.io or Docker Hub: both now 401 on the manifest. A
+  # backup that can't pull its uploader at 02:15 silently doesn't happen. That
+  # was gullycricket-prod on 2026-11-11 and 11-13: the job landed on a node
+  # without the image cached and sat in ImagePullBackOff for the whole 3 h
+  # deadline. See fishers-minio/values.yaml for how the mirror is fed.
+  mcImage: "int-spectoncr.diytaxreturn.co.uk/fishers/minio-mc:RELEASE.2025-04-16T18-13-26Z"
+  # Created in every ring by the deploy workflow; needed for mcImage above.
+  imagePullSecrets:
+    - name: fishers-registry
   # pg_dump's -Fc compression level, 0-9.
   compression: 6
   # Room for the dump on the node's disk. Over this, the pod is evicted.
   workspaceSize: 2Gi
   # Missed the slot (the controller was down)? Still run, within the hour.
   startingDeadlineSeconds: 3600
-  # Three hours is far past a dump of this size: past it, something is wedged.
-  activeDeadlineSeconds: 10800
+  # A whole run takes ~10 s at ~1 MB of dump. Past 30 minutes something is
+  # wedged, usually a pull stuck in ImagePullBackOff, which never fails a Job
+  # by itself. The deadline is what turns that into a failed Job, and so into
+  # the KubeJobFailed alert. Three hours meant nobody heard until breakfast.
+  activeDeadlineSeconds: 1800
   # One retry. A dump that fails twice needs a person, not a third attempt.
   backoffLimit: 1
   successfulJobsHistoryLimit: 3

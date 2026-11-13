@@ -10,18 +10,28 @@
 env: int
 
 image:
-  # quay.io, not Docker Hub. MinIO publishes the same releases to both, and
-  # Docker Hub refuses anonymous pulls from this cluster's nodes —
-  # "insufficient_scope: authorization failed", a 401 on the manifest. int never
-  # noticed because its pod has had the image cached since the day it was first
-  # pulled; the first prod deploy landed on a node that had to fetch it and sat
-  # in ImagePullBackOff until helm gave up. Nothing here has Docker Hub
-  # credentials, and the registry secret this namespace does have is for the
-  # private registry only. quay.io needs no credentials and is already pulled
-  # successfully elsewhere on this cluster.
-  repository: quay.io/minio/minio
+  # Our own copy in spectoncr, not quay.io or Docker Hub. Both upstreams now
+  # answer 401 on the manifest, and `dl.min.io` is 410 Gone. A ring only kept
+  # running because some node still had the layer cached, and a pod that moved
+  # to any other node never started again.
+  #
+  # Mirrored 2026-11-13 from a node's containerd cache (same digest as
+  # upstream, sha256:a1ea29fa…), into the same registry and pull secret the
+  # API and web images use. To mirror a new tag, push it from any node
+  # that has it:
+  #   k3s ctr -n k8s.io images push --plain-http --platform linux/amd64 \
+  #     -u "$USER:$PASS" 127.0.0.1:30500/fishers/minio:<tag> quay.io/minio/minio:<tag>
+  repository: int-spectoncr.diytaxreturn.co.uk/fishers/minio
   tag: "RELEASE.2025-04-22T22-12-26Z"
   pullPolicy: IfNotPresent
+
+# The bucket job's client. Mirrored the same way as the server image.
+mcImage: "int-spectoncr.diytaxreturn.co.uk/fishers/minio-mc:RELEASE.2025-04-16T18-13-26Z"
+
+# Created by the deploy workflow in every ring ("Ensure namespace and registry
+# pull secret"), the same secret the API and web charts use.
+imagePullSecrets:
+  - name: fishers-registry
 
 # The vault-synced Secret (fishers-secrets release). MinIO's root credentials
 # are its S3_ACCESS_KEY / S3_SECRET_KEY.
@@ -59,24 +69,12 @@ podSecurityContext:
   runAsUser: 1000
   runAsNonRoot: true
 
-# Where MinIO may run.
-#
-# `quay.io/minio/minio` stopped answering anonymously: the manifest is a 401
-# from quay and from Docker Hub alike, and `dl.min.io` is 410 Gone. Every ring
-# is therefore running on a layer some node already had, and `pullPolicy:
-# IfNotPresent` is the only reason they are up at all — a pod that moves to a
-# node without that layer never starts again.
-#
-# That is what happened to fishers-int: it was rescheduled onto debworker00 and
-# sat in ImagePullBackOff for days. So MinIO is kept on the nodes that still
-# have the image, by label rather than by hostname, so draining one of them
-# moves it to another that works instead of to one that cannot.
-#
-#   kubectl label node <node> fishers.cloud/minio-image=cached
-#
-# When the image is mirrored into the private registry this becomes dead
-# weight and the selector comes out. Until then it is what keeps uploads up.
-nodeSelector:
-  fishers.cloud/minio-image: cached
+# Where MinIO may run: anywhere. It used to be pinned to nodes labelled
+# fishers.cloud/minio-image=cached, the only ones that could start it while
+# the image came from quay.io (fishers-int sat in ImagePullBackOff for days
+# after a move to debworker00). Now that the image is mirrored (see `image`),
+# any node can pull it, so the pin is gone. The node labels are harmless and
+# can be removed.
+nodeSelector: {}
 
 tolerations: []
