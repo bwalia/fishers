@@ -86,7 +86,7 @@ private fun CardTab(
     ) {
         header()
         item { Summary(view) }
-        if (dls != null && view.current?.index == 1 && !view.isFinished) {
+        if (dls != null && view.current?.index == 1 && !view.isFinished && view.oversWereLost) {
             item {
                 Text(
                     t("sc.dls_par_line", vars = mapOf("par" to dls.par, "target" to dls.target)),

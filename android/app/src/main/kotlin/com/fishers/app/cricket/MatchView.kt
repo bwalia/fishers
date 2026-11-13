@@ -126,10 +126,23 @@ data class MatchView(
             return if (tossDecision == "bowl") opposite(winner) else winner
         }
 
+    /** In, at either end, in any innings — a non-striker who has not faced yet is not out. */
+    private fun atTheCrease(id: String): Boolean =
+        innings.any { it.strikerId == id || it.nonStrikerId == id }
+
+    /**
+     * Whether any innings was given fewer overs than agreed — rain, bad light.
+     * DLS only means something then; on an uninterrupted short-handed match
+     * it reads an all-out side as one cut short and quotes a target twice the
+     * real one.
+     */
+    val oversWereLost: Boolean
+        get() = innings.any { it.oversAvailable in 1 until conditions.oversLimit }
+
     /** "c Smith b Jones", "run out (Patel)", "not out" — the card's line. */
     fun dismissalText(batter: BatterView): String {
         if (batter.retiredHurt && !batter.out) return t("out.retired_hurt")
-        if (!batter.out) return if (batter.hasBatted) t("out.not_out") else t("out.did_not_bat")
+        if (!batter.out) return if (batter.hasBatted || atTheCrease(batter.playerId)) t("out.not_out") else t("out.did_not_bat")
         val bowler = batter.bowlerId?.let { name(it) }
         // "c sub (Patel) b Jones" is not the same claim as "c Patel b Jones".
         val fielder = batter.fielderId?.let { if (it in substitutes) "sub (${name(it)})" else name(it) }

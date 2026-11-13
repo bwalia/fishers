@@ -321,7 +321,7 @@ private fun BowlerSheet(view: MatchView, model: LiveScorerViewModel, onClose: ()
     val perBowler = view.conditions.oversPerBowler
     Hint(
         if (perBowler > 0) {
-            t("sc.overs_each_no_two_in_row", vars = mapOf("n" to perBowler))
+            t("sc.overs_each_no_two_in_row", count = perBowler, vars = mapOf("n" to perBowler))
         } else {
             t("sc.no_allocation_agreed")
         },

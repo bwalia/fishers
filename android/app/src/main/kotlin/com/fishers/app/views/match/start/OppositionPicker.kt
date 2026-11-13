@@ -75,7 +75,7 @@ internal fun OppositionPicker(
             if (state.isLookingUp) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             else Text(t("ms.find_by_code"))
         }
-        Footnote(t("sc.qr_under_clubs"))
+        Footnote(t("ms.ask_for_their_code"))
         ErrorLine(state.message)
 
         SectionTitle(t("rest.search_by_name"))

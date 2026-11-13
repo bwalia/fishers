@@ -147,6 +147,7 @@ class MainActivity : ComponentActivity() {
                             ?.takeIf { session.isAuthenticated }
                             ?.let { JoinByLinkRoute(it) },
                         onPendingRouteHandled = { inviteToken = null },
+                        inviteToken = inviteToken,
                         modifier = Modifier.padding(inner),
                     )
                   }

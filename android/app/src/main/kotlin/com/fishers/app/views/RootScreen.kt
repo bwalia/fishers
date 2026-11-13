@@ -60,6 +60,8 @@ fun RootScreen(
     onSeasonLinkHandled: () -> Unit = {},
     /** A screen to open once signed in — an invite link the app was opened with. */
     pendingRoute: com.fishers.app.views.nav.Route? = null,
+    /** The invite link the app was opened with, shown on the sign-in form. */
+    inviteToken: String? = null,
     onPendingRouteHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -90,12 +92,20 @@ fun RootScreen(
                 val context = LocalContext.current
                 val scope = rememberCoroutineScope()
                 LaunchedEffect(Unit) { viewModel.loadGoogle() }
+                val deps = com.fishers.app.views.nav.LocalAppDeps.current
+                val invite by androidx.compose.runtime.produceState<com.fishers.app.clubs.InvitePreview?>(null, inviteToken) {
+                    value = inviteToken?.let { token ->
+                        runCatching { deps.service<com.fishers.app.net.ClubsApi>().invitePreview(token) }.getOrNull()
+                    }
+                }
 
                 AuthScreen(
                     state = state,
                     onSignIn = viewModel::signIn,
                     onSignUp = viewModel::signUp,
                     googleEnabled = googleClientId != null,
+                    invitedTo = invite?.let { it.clubName ?: it.teamName ?: it.eventTitle },
+                    invitedBy = invite?.invitedByName,
                     onGoogle = {
                         googleClientId?.let { clientId ->
                             scope.launch {
