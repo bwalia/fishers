@@ -4417,6 +4417,33 @@ export const pa: Dict = {
   // MARK: Removed from the club
   "jl.removed_from_club": "ਕਲੱਬ ਨੇ ਤੁਹਾਨੂੰ ਹਟਾ ਦਿੱਤਾ ਸੀ, ਇਸ ਲਈ ਇਸ ਦਾ ਖੁੱਲ੍ਹਾ ਲਿੰਕ ਤੁਹਾਨੂੰ ਵਾਪਸ ਨਹੀਂ ਜੋੜ ਸਕਦਾ। ਸਕੱਤਰ ਨੂੰ ਤੁਹਾਨੂੰ ਸੱਦਾ ਭੇਜਣ ਲਈ ਕਹੋ।",
 
+  // MARK: Profile and onboarding on Android
+  "pf.sport.football": "ਫੁੱਟਬਾਲ",
+  "pf.sport.badminton": "ਬੈਡਮਿੰਟਨ",
+  "pf.sport.paddle": "ਪੈਡਲ",
+  "pf.sport.pickleball": "ਪਿਕਲਬਾਲ",
+  "pf.sport.tennis": "ਟੈਨਿਸ",
+  "pf.sport.other": "ਹੋਰ",
+  "pf.sport.hockey": "ਹਾਕੀ",
+  "pf.sport.netball": "ਨੈੱਟਬਾਲ",
+  "pf.sport.rugby": "ਰਗਬੀ",
+  "pf.sport.basketball": "ਬਾਸਕਟਬਾਲ",
+  "pf.tier.intermediate": "ਦਰਮਿਆਨਾ",
+  "pf.tier.advanced": "ਉੱਨਤ",
+  "pf.tier.elite": "ਉੱਚ ਪੱਧਰੀ",
+  "pf.there": "ਜੀ",
+  "pf.email_word": "ਈਮੇਲ",
+  "pf.new_code_sent": "ਨਵਾਂ ਕੋਡ {address} ਉੱਤੇ {verb}।",
+  "pf.invite_club": "ਕਲੱਬ ਦਾ ਸੱਦਾ",
+  "pf.invite_team": "ਟੀਮ ਦਾ ਸੱਦਾ",
+  "pf.invite_fixture": "ਮੈਚ ਦਾ ਸੱਦਾ",
+  "pf.invite_from": "{name} ਵੱਲੋਂ",
+  "pf.invite_sent": "{date} ਨੂੰ ਭੇਜਿਆ",
+  "pf.n_miles": "{n} ਮੀਲ",
+  "pf.spare_seats": "ਖਾਲੀ ਸੀਟਾਂ",
+  "pf.season_year": "ਸੀਜ਼ਨ {year}",
+  "pf.figures_appear_when_scored": "{name} ਦੇ ਅੰਕੜੇ ਇੱਥੇ ਤਦ ਦਿਸਣਗੇ ਜਦੋਂ ਉਹ ਕੋਈ ਅਜਿਹਾ ਮੈਚ ਖੇਡਣਗੇ ਜਿਸ ਦਾ ਸਕੋਰ ਕਿਸੇ ਨੇ {brand} 'ਤੇ ਰੱਖਿਆ ਹੋਵੇ।",
+
   // MARK: Unsubscribe asks first
   "ss.unsub_ask_title": "ਕੀ ਸੀਜ਼ਨ ਈਮੇਲਾਂ ਬੰਦ ਕਰਨੀਆਂ ਹਨ?",
   "ss.unsub_ask_body": "ਜਦੋਂ ਤੁਹਾਡਾ ਕਲੱਬ ਸੀਜ਼ਨ ਬੰਦ ਕਰਦਾ ਹੈ ਤਾਂ ਭੇਜੀ ਜਾਂਦੀ ਈਮੇਲ ਤੁਹਾਨੂੰ ਮਿਲਣੀ ਬੰਦ ਹੋ ਜਾਵੇਗੀ। ਹੋਰ ਕੁਝ ਨਹੀਂ ਬਦਲੇਗਾ।",
