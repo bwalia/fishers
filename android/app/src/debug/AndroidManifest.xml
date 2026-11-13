@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A debug build talks to scripts/start.sh over plain http (10.0.2.2:7312 from
+  the emulator). Android refuses cleartext by default, and the app reports the
+  refusal as "No connection", so without this no debug build could reach the
+  local stack. Release builds are untouched: https only.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>
