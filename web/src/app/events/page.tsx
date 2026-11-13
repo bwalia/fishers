@@ -11,7 +11,36 @@ import {
   type Venue,
 } from "@/lib/api";
 import { dayKey, type Availability, type AvailabilityStatus } from "@/lib/availability";
-import { byDay, clashes, dayTitle, myFixtures, saidLabel, searchFixtureClubs, timeOf, type MyFixture } from "@/lib/fixtures";
+import {
+  byDay,
+  clashes,
+  dayTitle,
+  myFixtures,
+  saidLabel,
+  searchFixtureClubs,
+  sessionMetadata,
+  timeOf,
+  type MyFixture,
+} from "@/lib/fixtures";
+import {
+  DEFAULT_MINUTES,
+  DEFAULT_WEEKS,
+  MAX_WEEKS,
+  MIN_WEEKS,
+  PRACTICE_LABEL,
+  SESSION_MINUTES,
+  clampWeeks,
+  isPractice,
+  matchBody,
+  seriesWeek,
+  sessionBodies,
+  sessionNote,
+  sportOf,
+  toLocalInput,
+  type ScheduleKind,
+  type SessionBody,
+} from "@/lib/sessions";
+import { randomUUID } from "@/lib/uuid";
 import { FixtureAnswer } from "@/components/FixtureAnswer";
 import { OppositionPicker } from "@/components/OppositionPicker";
 import { Icon, type IconName } from "@/components/Icon";
@@ -47,12 +76,25 @@ export default function EventsPage() {
   const [view, setView] = useState<View>("upcoming");
   const [club, setClub] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [scheduling, setScheduling] = useState(false);
+  /// Which kind the schedule panel is making, while it is open.
+  const [scheduling, setScheduling] = useState<ScheduleKind | null>(null);
+  /// "3 sessions scheduled", once the panel has closed on them.
+  const [notice, setNotice] = useState<string | null>(null);
+  /// Each nets or training session's note and week, by event id.
+  const [meta, setMeta] = useState<Record<string, unknown>>({});
   const [guide, setGuide] = useState(false);
+
+  /// A session's note and week are not in the fixtures list; fetched beside
+  /// it, and a fixture shows without them rather than waiting.
+  const readSessions = useCallback((list: MyFixture[]) => {
+    sessionMetadata(list)
+      .then((found) => setMeta((had) => ({ ...had, ...found })))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     // ?new=1 from the getting-started guide: open the form on arrival.
-    if (new URLSearchParams(window.location.search).get("new") === "1") setScheduling(true);
+    if (new URLSearchParams(window.location.search).get("new") === "1") setScheduling("match");
     try {
       setGuide(localStorage.getItem(GUIDE_KEY) !== "1");
     } catch {
@@ -72,10 +114,11 @@ export default function EventsPage() {
       setFixtures(mine);
       setDays(Object.fromEntries(marked.map((a) => [a.date, a.status])));
       setError(null);
+      readSessions(mine);
     } catch (err) {
       setError(readErr(err, t("ld.could_not_load_your_fixtures")));
     }
-  }, [t]);
+  }, [t, readSessions]);
 
   useEffect(() => {
     if (!authed) return;
@@ -108,6 +151,7 @@ export default function EventsPage() {
     try {
       const list = await myFixtures(new Date(Date.now() - 120 * 864e5), new Date());
       setPast(list.reverse());
+      readSessions(list);
     } catch (err) {
       setError(readErr(err, t("ld.could_not_load_past_fixtures")));
     }
@@ -142,9 +186,28 @@ export default function EventsPage() {
         </div>
         <div className="fixtures-hero-actions">
           {schedulable.length > 0 && (
-            <button className="btn primary" type="button" onClick={() => setScheduling(true)}>
-              <Icon name="plus" size={16} /> {t("ev.schedule_a_match")}
-            </button>
+            <>
+              <button
+                className="btn primary"
+                type="button"
+                onClick={() => {
+                  setNotice(null);
+                  setScheduling("match");
+                }}
+              >
+                <Icon name="plus" size={16} /> {t("ev.schedule_a_match")}
+              </button>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => {
+                  setNotice(null);
+                  setScheduling("nets");
+                }}
+              >
+                <Icon name={SUBTYPE_ICON.nets} size={16} /> {t("np.schedule_nets_or_practice")}
+              </button>
+            </>
           )}
           <Link className="btn" href="/availability">
             <Icon name="calendar" size={16} /> {t("ev.your_calendar")}
@@ -153,13 +216,18 @@ export default function EventsPage() {
       </section>
 
       {error && <p className="error">{error}</p>}
+      {notice && <p className="notice" role="status">{notice}</p>}
 
       {scheduling && schedulable.length > 0 && (
         <ScheduleMatch
           clubs={schedulable}
-          onClose={() => setScheduling(false)}
-          onScheduled={() => {
-            setScheduling(false);
+          kind={scheduling}
+          onKind={setScheduling}
+          onClose={() => setScheduling(null)}
+          onSent={load}
+          onScheduled={(sessions) => {
+            setScheduling(null);
+            setNotice(sessions ? t("np.scheduled_sessions", { count: sessions, n: sessions }) : null);
             load();
           }}
         />
@@ -284,6 +352,7 @@ export default function EventsPage() {
             <FixtureCard
               key={f.event_id}
               f={f}
+              meta={meta[f.event_id]}
               past={view === "past"}
               clash={clashing.has(f.event_id)}
               dayStatus={days[key]}
@@ -298,12 +367,15 @@ export default function EventsPage() {
 
 function FixtureCard({
   f,
+  meta,
   past,
   clash,
   dayStatus,
   onAnswered,
 }: {
   f: MyFixture;
+  /// The event's metadata, when it is a session and it has been read.
+  meta?: unknown;
   past: boolean;
   clash: boolean;
   dayStatus?: AvailabilityStatus;
@@ -312,18 +384,25 @@ function FixtureCard({
   const t = useT();
   const hours = Math.round((Date.parse(f.end_at) - Date.parse(f.start_at)) / 3600e3);
   const state = f.my_answer ?? "none";
+  // Nets or training: a session to turn up to. No opposition, no squad, no
+  // scorecard — and "are you coming?" rather than "can you play?".
+  const session = isPractice(f.event_subtype) ? f.event_subtype : null;
+  const week = session ? seriesWeek(meta) : null;
+  const note = session ? sessionNote(meta) : null;
+  const mins = Math.round((Date.parse(f.end_at) - Date.parse(f.start_at)) / 60e3);
   return (
     <article className={`fx-card is-${state}${past ? " past" : ""}`}>
       <div className="fx-time">
         <strong className="num">{timeOf(f.start_at)}</strong>
-        {hours > 0 && <span>{hours}h</span>}
+        {session ? mins > 0 && <span>{t("np.n_minutes", { n: mins })}</span> : hours > 0 && <span>{hours}h</span>}
       </div>
       <div className="fx-body">
         <div className="fx-tags">
           <span className="tag">
             <Icon name={SUBTYPE_ICON[f.event_subtype] ?? "calendar"} size={12} />
-            {f.event_subtype.replaceAll("_", " ")}
+            {session ? t(PRACTICE_LABEL[session]) : f.event_subtype.replaceAll("_", " ")}
           </span>
+          {week && <span className="tag grey">{t("np.week_of", { i: week.i, n: week.n })}</span>}
           {f.status !== "scheduled" && <span className="tag gold">{f.status.replaceAll("_", " ")}</span>}
           {!past && !f.my_answer && <span className="tag gold">{t("ev.needs_your_answer")}</span>}
         </div>
@@ -333,7 +412,7 @@ function FixtureCard({
         <p className="fx-meta">
           <span>
             <Icon name="users" size={14} /> {f.club_name}
-            {f.opponent_club_name ? ` v ${f.opponent_club_name}` : ""}
+            {f.opponent_club_name && !session ? ` v ${f.opponent_club_name}` : ""}
           </span>
           {f.venue_name && (
             <span>
@@ -342,25 +421,30 @@ function FixtureCard({
           )}
           {f.fee_amount_cents != null && <span className="num">{t("ev.match_fee_amount", { amount: `£${(f.fee_amount_cents / 100).toFixed(2)}` })}</span>}
         </p>
+        {note && <p className="fx-meta">{note}</p>}
         {clash && <p className="fx-warn">{t("ev.clash_same_time")}</p>}
         {dayStatus === "unavailable" && f.my_answer !== "not_going" && (
           <p className="fx-warn">{t("ev.calendar_says_not_available")}</p>
         )}
-        <div className="fx-links">
-          <Link className="btn sm" href={`/events/${f.event_id}/selection`}>
-            <Icon name="users" size={14} /> Squad
-          </Link>
-          {f.match_id && (
-            <Link className="btn sm" href={`/score/${f.match_id}`}>
-              <Icon name="radio" size={14} /> {past ? t("ld.scorecard") : "Score"}
-            </Link>
-          )}
-          {f.ticket_price_cents != null && (
-            <Link className="btn sm" href={`/events/${f.event_id}/tickets`}>
-              {t("ev.tickets")}
-            </Link>
-          )}
-        </div>
+        {(!session || f.ticket_price_cents != null) && (
+          <div className="fx-links">
+            {!session && (
+              <Link className="btn sm" href={`/events/${f.event_id}/selection`}>
+                <Icon name="users" size={14} /> Squad
+              </Link>
+            )}
+            {f.match_id && !session && (
+              <Link className="btn sm" href={`/score/${f.match_id}`}>
+                <Icon name="radio" size={14} /> {past ? t("ld.scorecard") : "Score"}
+              </Link>
+            )}
+            {f.ticket_price_cents != null && (
+              <Link className="btn sm" href={`/events/${f.event_id}/tickets`}>
+                {t("ev.tickets")}
+              </Link>
+            )}
+          </div>
+        )}
       </div>
       <div className="fx-side">
         {past ? (
@@ -368,7 +452,12 @@ function FixtureCard({
         ) : (
           <>
             <span className={`fx-said is-${state}`}>{t(saidLabel(f.my_answer))}</span>
-            <FixtureAnswer eventId={f.event_id} answer={f.my_answer} onAnswered={onAnswered} label={t("fin.can_you_play_fixture", { fixture: f.title })} />
+            <FixtureAnswer
+              eventId={f.event_id}
+              answer={f.my_answer}
+              onAnswered={onAnswered}
+              label={session ? t("np.are_you_coming") : t("fin.can_you_play_fixture", { fixture: f.title })}
+            />
           </>
         )}
       </div>
@@ -376,21 +465,45 @@ function FixtureCard({
   );
 }
 
-/// Schedule a match against another club.
+/// Schedule a match against another club, or nets or training for your own.
 ///
 /// Naming the opposition here is what lets both sides be asked who is
 /// available — a fixture that only knows its host can only ask half a match.
+///
+/// Nets and training have no opposition. They have a length instead, a note,
+/// and can repeat every week: one event per week, made one after another,
+/// sharing a series id so only the first week notifies anybody.
 function ScheduleMatch({
   clubs,
+  kind,
+  onKind,
   onClose,
+  onSent,
   onScheduled,
 }: {
   /// Only the clubs this person can schedule for.
   clubs: Club[];
+  kind: ScheduleKind;
+  onKind: (kind: ScheduleKind) => void;
   onClose: () => void;
-  onScheduled: () => void;
+  /// Some weeks of a series were made before one failed: the list behind
+  /// should show them while the panel stays open to finish the rest.
+  onSent: () => void;
+  /// Done. `sessions` is how many nets or training sessions were made; a
+  /// match passes nothing.
+  onScheduled: (sessions?: number) => void;
 }) {
   const t = useT();
+  /// How many sessions are made, and — once a week has failed partway
+  /// through a series — the weeks still to send. Trying again sends only
+  /// those, so no week is ever made twice, and the form is held still so what
+  /// it shows is what they will be.
+  const [made, setMade] = useState(0);
+  const [left, setLeft] = useState<SessionBody[] | null>(null);
+  // Held to the kind of the weeks still to send, whichever button is pressed
+  // above the panel in the meantime.
+  const shown: ScheduleKind = left?.[0]?.event_subtype ?? kind;
+  const session = shown === "match" ? null : shown;
   const [clubId, setClubId] = useState(clubs[0]?.id ?? "");
   const [opponent, setOpponent] = useState<OpponentIdentity | null>(null);
   const [oppositionName, setOppositionName] = useState("");
@@ -399,6 +512,13 @@ function ScheduleMatch({
   const [venueId, setVenueId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Nets and training. `null` until touched, so each follows the kind: the
+  // name is "Nets" or "Training", the length two hours or ninety minutes.
+  const [name, setName] = useState<string | null>(null);
+  const [minutes, setMinutes] = useState<number | null>(null);
+  const [note, setNote] = useState("");
+  const [repeat, setRepeat] = useState(false);
+  const [weeks, setWeeks] = useState(String(DEFAULT_WEEKS));
 
   // The grounds belong to whichever club is hosting, so they follow the club.
   useEffect(() => {
@@ -411,24 +531,18 @@ function ScheduleMatch({
     setBusy(true);
     setError(null);
     try {
-      const from = new Date(start);
-      // A fixture runs most of an afternoon; nobody wants to type an end time
-      // as well.
-      const to = new Date(from.getTime() + 5 * 60 * 60 * 1000);
-      const club = clubs.find((c) => c.id === clubId);
-      const us = club?.name ?? "Us";
-      await api("POST", "/events", {
-        club_id: clubId,
-        opponent_club_id: opponent?.club_id ?? null,
-        // What the club plays. Hard-coding cricket here filed every fixture as
-        // a cricket match, whatever sport the club was actually turning out for.
-        sport: club?.sport_types[0] ?? "cricket",
-        event_subtype: "league_match",
-        title: `${us} v ${opponent?.name ?? (oppositionName || "opposition")}`,
-        venue_id: venueId || null,
-        start_at: from.toISOString(),
-        end_at: to.toISOString(),
-      });
+      await api(
+        "POST",
+        "/events",
+        matchBody({
+          clubId,
+          club: clubs.find((c) => c.id === clubId),
+          opponent,
+          oppositionName,
+          venueId,
+          start: new Date(start),
+        })
+      );
       onScheduled();
     } catch (err) {
       setError(readErr(err, t("ld.could_not_schedule_that")));
@@ -437,34 +551,117 @@ function ScheduleMatch({
     }
   };
 
+  const length = session ? minutes ?? DEFAULT_MINUTES[session] : 0;
+  const count = repeat ? clampWeeks(Number(weeks)) : 1;
+
+  const submitSessions = async () => {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    const queue =
+      left ??
+      sessionBodies({
+        kind: session,
+        clubId,
+        sport: sportOf(clubs.find((c) => c.id === clubId)?.sport_types),
+        title: name?.trim() || t(PRACTICE_LABEL[session]),
+        venueId: venueId || undefined,
+        start: new Date(start),
+        minutes: length,
+        note,
+        weeks: count,
+        seriesId: count > 1 ? randomUUID() : undefined,
+      });
+    // One after another, so a failure stops the series where it is rather
+    // than leaving a gap in the middle of it.
+    let sent = 0;
+    try {
+      for (const body of queue) {
+        await api("POST", "/events", body);
+        sent++;
+      }
+      onScheduled(made + sent);
+    } catch (err) {
+      setError(readErr(err, t("ld.could_not_schedule_that")));
+      if (made + sent > 0) {
+        setMade(made + sent);
+        setLeft(queue.slice(sent));
+        onSent();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // In the order the form asks, so the answer is always the next thing down
-  // the page rather than something they have to hunt for.
-  const missing = [
-    !clubId && t("ev.missing_which_club"),
-    !opponent && !oppositionName.trim() && t("ev.missing_who"),
-    !start && t("ev.missing_when"),
-  ]
-    .filter(Boolean)
-    .join(", ");
+  // the page rather than something they have to hunt for. A session cannot
+  // start in the past; the picker's `min` stops most of those, this the rest.
+  const earliest = toLocalInput(new Date());
+  const missing = left
+    ? ""
+    : [
+        !clubId && t("ev.missing_which_club"),
+        !session && !opponent && !oppositionName.trim() && t("ev.missing_who"),
+        (!start || (session && start < earliest)) && t("ev.missing_when"),
+      ]
+        .filter(Boolean)
+        .join(", ");
 
   return (
     <div className="panel setup-panel">
       <div className="panel-head">
-        <h2>{t("ev.schedule_a_match")}</h2>
+        <h2>{session ? t("np.schedule_nets_or_practice") : t("ev.schedule_a_match")}</h2>
         <button className="btn ghost sm" type="button" onClick={onClose}>{t("sc.cancel")}</button>
       </div>
 
-      <fieldset className="setup-group">
-        <legend>{t("ev.your_side")}</legend>
+      <fieldset className="chip-set" disabled={!!left}>
+        <legend>{t("np.what_kind")}</legend>
+        {(["match", "nets", "training"] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            className={`chip${shown === k ? " on" : ""}`}
+            aria-pressed={shown === k}
+            onClick={() => onKind(k)}
+          >
+            {t(k === "match" ? "np.match" : PRACTICE_LABEL[k])}
+          </button>
+        ))}
+      </fieldset>
+
+      <fieldset className="setup-group" disabled={!!left}>
+        <legend>{session ? t(PRACTICE_LABEL[session]) : t("ev.your_side")}</legend>
         <label>
           {t("ev.club")}
           <select value={clubId} onChange={(e) => setClubId(e.target.value)}>
             {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
+        {session && (
+          <>
+            <label>
+              {t("np.name")}
+              <input
+                value={name ?? t(PRACTICE_LABEL[session])}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("np.name_hint")}
+                maxLength={200}
+              />
+            </label>
+            <label>
+              {t("np.note")}
+              <textarea
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={t("np.note_hint")}
+              />
+            </label>
+          </>
+        )}
       </fieldset>
 
-      <fieldset className="setup-group">
+      <fieldset className="setup-group" disabled={!!left}>
         <legend>{t("ev.where")}</legend>
         {venues.length === 0 ? (
           <p className="muted">
@@ -473,7 +670,7 @@ function ScheduleMatch({
           </p>
         ) : (
           <label>
-            Ground
+            {t("cl.ground")}
             <select value={venueId} onChange={(e) => setVenueId(e.target.value)}>
               <option value="">{t("ev.not_decided_yet")}</option>
               {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
@@ -482,13 +679,16 @@ function ScheduleMatch({
         )}
       </fieldset>
 
-      <fieldset className="setup-group">
+      {/* Hidden rather than unmounted for nets and training: the picker keeps
+          its own state, and remounting it would show nothing chosen while the
+          opposition picked before it was hidden was still sent. */}
+      <fieldset className="setup-group" hidden={!!session}>
         <legend>{t("ev.the_opposition")}</legend>
         <OppositionPicker
           homeClubId={clubId}
-          onPick={(found, name) => {
+          onPick={(found, typed) => {
             setOpponent(found);
-            setOppositionName(name);
+            setOppositionName(typed);
           }}
         />
         {/* Only while nothing is chosen. Once it is, the picker's own panel
@@ -499,18 +699,65 @@ function ScheduleMatch({
         )}
       </fieldset>
 
-      <fieldset className="setup-group">
+      <fieldset className="setup-group" disabled={!!left}>
         <legend>{t("ev.when")}</legend>
         <label>
           {t("ev.date_and_time")}
           <input
             type="datetime-local"
             value={start}
+            min={session ? earliest : undefined}
             onChange={(e) => setStart(e.target.value)}
           />
         </label>
+        {session && (
+          <label className="check-row">
+            <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} />
+            <span>
+              <strong>{t("np.repeat_weekly")}</strong>
+            </span>
+          </label>
+        )}
+        {session && repeat && (
+          <label>
+            {t("np.for_weeks", { count, n: count })}
+            <input
+              type="number"
+              inputMode="numeric"
+              min={MIN_WEEKS}
+              max={MAX_WEEKS}
+              value={weeks}
+              onChange={(e) => setWeeks(e.target.value)}
+              onBlur={() => setWeeks(String(count))}
+            />
+          </label>
+        )}
       </fieldset>
 
+      {session && (
+        <fieldset className="setup-group" disabled={!!left}>
+          <legend>{t("rest.how_long")}</legend>
+          <div className="chips">
+            {SESSION_MINUTES.map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`chip${length === m ? " on" : ""}`}
+                aria-pressed={length === m}
+                onClick={() => setMinutes(m)}
+                // "120 min", not the chip's usual "120 Min".
+                style={{ textTransform: "none" }}
+              >
+                {t("np.n_minutes", { n: m })}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      {session && made > 0 && (
+        <p className="notice" role="status">{t("np.scheduled_sessions", { count: made, n: made })}</p>
+      )}
       {error && <p className="error">{error}</p>}
 
       {/* A dead button with no explanation reads as a broken app. Say which
@@ -523,12 +770,14 @@ function ScheduleMatch({
         className="btn primary lg"
         type="button"
         disabled={busy || !!missing}
-        onClick={submit}
+        onClick={session ? submitSessions : submit}
       >
-        {busy ? t("ld.scheduling") : t("ld.schedule_and_ask_who_is_available")}
+        {busy ? t("ld.scheduling") : session ? t("np.schedule") : t("ld.schedule_and_ask_who_is_available")}
       </button>
       <p className="subtle">
-        {t("ev.everyone_in_is_asked", { who: opponent ? t("ev.both_clubs") : t("ev.your_club") })}
+        {session
+          ? t("np.everyone_asked")
+          : t("ev.everyone_in_is_asked", { who: opponent ? t("ev.both_clubs") : t("ev.your_club") })}
       </p>
     </div>
   );

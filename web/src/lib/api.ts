@@ -244,6 +244,10 @@ export type EventRow = {
   /// Anyone signed in may buy, not only members of the hosting club.
   tickets_public?: boolean;
   status: string;
+  /// Free-form JSON. For nets and training: `note`, and `series_index` /
+  /// `series_count` when it is one week of a series — read with
+  /// `sessionNote` and `seriesWeek` in `lib/sessions.ts`.
+  metadata?: unknown;
 };
 
 export type ProductCondition = "new" | "used";
