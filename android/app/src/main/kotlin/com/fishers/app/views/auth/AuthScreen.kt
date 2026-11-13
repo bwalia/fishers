@@ -74,6 +74,9 @@ fun AuthScreen(
     modifier: Modifier = Modifier,
     googleEnabled: Boolean = false,
     onGoogle: () -> Unit = {},
+    /** Opened from an invite link: the club it leads into, and who sent it. */
+    invitedTo: String? = null,
+    invitedBy: String? = null,
 ) {
     var signingUp by rememberSaveable { mutableStateOf(false) }
     var name by rememberSaveable { mutableStateOf("") }
@@ -102,6 +105,20 @@ fun AuthScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(stringResource(R.string.brand_name), style = MaterialTheme.typography.headlineLarge)
+            // Somebody who followed a club's link should see where it leads
+            // before being asked for anything, as the website's invite page does.
+            invitedTo?.let { club ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        t("jl.join_club", vars = mapOf("club" to club)),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    invitedBy?.let {
+                        Text(t("jl.invited_by", vars = mapOf("name" to it)), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
             Text(
                 if (signingUp) t("rest.start_playing") else t("rest.welcome_back"),
                 style = MaterialTheme.typography.bodyLarge,

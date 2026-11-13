@@ -73,14 +73,19 @@ android {
     // a brand is a deliberate line here, beside the file it comes from.
     flavorDimensions += "brand"
 
+    // `appLinkHost` is the brand's production site (`rings.prod` in its brand
+    // file): the host whose /invite/ links open the app, and whose
+    // /.well-known/assetlinks.json has to vouch for this applicationId.
     productFlavors {
         create("fishers") {
             dimension = "brand"
             applicationId = "com.fishers.app"
+            manifestPlaceholders["appLinkHost"] = "www.fishers.cloud"
         }
         create("gullycricket") {
             dimension = "brand"
             applicationId = "app.gullycricket"
+            manifestPlaceholders["appLinkHost"] = "www.gullycricket.app"
         }
     }
 

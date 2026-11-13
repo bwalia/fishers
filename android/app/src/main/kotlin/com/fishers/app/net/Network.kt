@@ -19,6 +19,12 @@ class Network(config: AppConfig, session: Session) {
         // A field added server-side must never take the app down.
         ignoreUnknownKeys = true
         explicitNulls = false
+        // Send a field even when it holds its Kotlin default. Without this,
+        // `target_type = "club"` never reached the server, a club setting
+        // changed to 0 never saved, and a body whose server-side default
+        // differs from ours (`/share`'s `post_to_chat`) did the opposite of
+        // what the app asked. Nulls stay out, via explicitNulls.
+        encodeDefaults = true
     }
 
     /** Unsigned, and used only to renew: signing a refresh with the token that
@@ -36,10 +42,15 @@ class Network(config: AppConfig, session: Session) {
         },
     )
 
-    val api: FishersApi = Retrofit.Builder()
+    private val signed: Retrofit = Retrofit.Builder()
         .baseUrl(config.apiV1.trimEnd('/') + "/")
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
-        .create(FishersApi::class.java)
+
+    val api: FishersApi = signed.create(FishersApi::class.java)
+
+    /** Any other Retrofit interface, signed the same way. One per area of the
+     *  app, so two areas built at once do not both edit [FishersApi]. */
+    fun <T> service(type: Class<T>): T = signed.create(type)
 }

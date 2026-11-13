@@ -3,8 +3,6 @@ package com.fishers.app.cricket
 import com.fishers.app.i18n.t
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -24,12 +22,12 @@ import uniffi.fishers_ffi.wouldAccept
  * screen changes, it is the server's rules that decided it, so the phone and
  * the server cannot come to different views of who won.
  *
- * The state is kept as the JSON the engine handed back. Parsing it into Kotlin
- * classes would be another copy of the model to keep in step — the thing the
- * shared engine exists to stop — so the screen reads the few fields it draws
- * and leaves the rest alone.
+ * The state is kept as the JSON the engine handed back. The screens decode it
+ * into [MatchView] to draw it, and only to draw it: every question of what is
+ * allowed goes back to the engine ([accepts], [refusal]), never to a Kotlin
+ * copy of the Laws.
  */
-class Engine(private val json: Json = Json { ignoreUnknownKeys = true }) {
+class Engine(private val json: Json = Json { ignoreUnknownKeys = true; coerceInputValues = true }) {
 
     /** Build a match from its whole log. */
     fun replay(events: List<ScoringEvent>): Result<String> = runCatching {
@@ -41,6 +39,22 @@ class Engine(private val json: Json = Json { ignoreUnknownKeys = true }) {
         applyEvent(state, json.encodeToString(ScoringEvent.serializer(), event))
     }
 
+    /**
+     * The state after [event], given the [log] that made [state].
+     *
+     * One event is applied to the state as it stands — except an undo. The
+     * engine's undo stack is rebuilt by replaying and never travels in the
+     * JSON, so an undo applied to a state handed back across the boundary
+     * finds nothing to undo. An undo is folded from the whole log instead,
+     * which is exactly what the server does with it.
+     */
+    fun next(log: List<ScoringEvent>, state: String, event: ScoringEvent): Result<String> =
+        if (event.kind["type"]?.jsonPrimitive?.contentOrNull == "undo_last") {
+            replay(log + event)
+        } else {
+            apply(state, event)
+        }
+
     /** Whether the engine would take it — for grey-ing a button out rather
      *  than letting somebody tap it and be told no. */
     fun accepts(state: String, event: ScoringEvent): Boolean =
@@ -48,13 +62,28 @@ class Engine(private val json: Json = Json { ignoreUnknownKeys = true }) {
             wouldAccept(state, json.encodeToString(ScoringEvent.serializer(), event))
         }.getOrDefault(false)
 
+    /**
+     * Why the engine would refuse this, or null when it would take it.
+     *
+     * For laying out a choice — the bowlers who may bowl the next over, and
+     * the reason against each who may not — in the engine's words rather than
+     * a second copy of the Law here.
+     */
+    fun refusal(state: String, event: ScoringEvent): String? =
+        apply(state, event).exceptionOrNull()?.let(::reason)
+
     /** What the engine said when it refused, in its own words. */
     fun reason(cause: Throwable): String = when (cause) {
-        is EngineException.Refused -> cause.detail
+        is EngineException.Refused -> inTheScorersLanguage(cause.detail)
         is EngineException.Malformed ->
             t("rest.the_book_could_not_be_read", vars = mapOf("detail" to cause.detail))
         else -> cause.message ?: t("rest.the_book_would_not_take_that")
     }
+
+    /** The whole state, decoded for drawing. Null only if it is not a state at all. */
+    fun view(state: String): MatchView? = runCatching {
+        json.decodeFromString(MatchView.serializer(), state)
+    }.getOrNull()
 
     /**
      * The sequence number of the last event the engine has seen.
@@ -68,7 +97,7 @@ class Engine(private val json: Json = Json { ignoreUnknownKeys = true }) {
         json.parseToJsonElement(state).jsonObject["last_seq"]?.jsonPrimitive?.longOrNull ?: 0
     }.getOrDefault(0)
 
-    // --- the few fields the scoring screen draws ---
+    // --- the few fields the old scoring screen draws ---
 
     fun scoreline(state: String): Scoreline? = runCatching {
         val root = json.parseToJsonElement(state).jsonObject
@@ -124,34 +153,43 @@ data class Scoreline(
     }
 }
 
-/** Build the event kinds the scoring screen can send. */
-object Events {
-    fun delivery(runs: Int, shortRuns: Int = 0): JsonObject = jsonObject(
-        "type" to "delivery_recorded",
-        "runs" to runs,
-        "is_legal" to true,
-        "is_boundary_four" to (runs == 4),
-        "is_boundary_six" to (runs == 6),
-        "short_runs" to shortRuns,
-    )
+/*
+ * The engine's refusals are English sentences, written for a scorer. Those the
+ * app has words for are shown in the reader's language; anything else stays as
+ * the engine said it, which is still the right answer in English.
+ */
+private val plainRefusals = mapOf(
+    "no live innings" to "sc.no_live_innings",
+    "innings complete" to "sc.innings_complete",
+    "new batter required" to "sc.new_batter_required",
+    "nothing to undo" to "sc.nothing_to_undo",
+    "it is a free hit — only a run out can get them" to "sc.free_hit_only_run_out_lower",
+    "the two openers must be different players" to "sc.two_openers_must_differ",
+    "both sides need a team sheet before the first ball" to "sc.both_sides_need_team_sheet",
+    "only a batter who retired hurt can come back" to "sc.only_retired_hurt_can_return",
+    "this match already has a result" to "sc.match_already_has_result",
+    "batter not in innings" to "sc.batter_not_in_innings",
+    "no striker" to "sc.no_striker",
+    "no bowler" to "sc.no_bowler",
+    "no innings" to "sc.no_innings_lower",
+    "a penalty is at least one run" to "sc.penalty_at_least_one_run",
+)
 
-    fun extra(kind: String, runs: Int = 0): JsonObject = jsonObject(
-        "type" to "extras_recorded",
-        "kind" to kind,
-        "runs" to runs,
-        "boundary" to false,
-        "off_the_bat" to false,
-    )
+private val twoInARow =
+    Regex("^(.+) bowled the last over — (nobody bowls two in a row|change the bowler before the next one)$")
+private val usedUp = Regex("^(.+) has bowled their (\\d+) overs$")
+private val takenOff = Regex("^(.+) has been taken off and cannot bowl again this innings$")
 
-    fun undo(): JsonObject = jsonObject("type" to "undo_last")
-
-    private fun jsonObject(vararg pairs: Pair<String, Any>): JsonObject = JsonObject(
-        pairs.associate { (k, v) ->
-            k to when (v) {
-                is Int -> kotlinx.serialization.json.JsonPrimitive(v)
-                is Boolean -> kotlinx.serialization.json.JsonPrimitive(v)
-                else -> kotlinx.serialization.json.JsonPrimitive(v.toString())
-            }
-        },
-    )
+internal fun inTheScorersLanguage(detail: String): String {
+    plainRefusals[detail]?.let { return t(it) }
+    twoInARow.matchEntire(detail)?.let {
+        return t("sc.bowled_it_nobody_two_in_row", vars = mapOf("name" to it.groupValues[1]))
+    }
+    usedUp.matchEntire(detail)?.let {
+        return t("sc.has_bowled_their_overs", vars = mapOf("name" to it.groupValues[1], "n" to it.groupValues[2]))
+    }
+    takenOff.matchEntire(detail)?.let {
+        return t("sc.taken_off_cannot_bowl", vars = mapOf("name" to it.groupValues[1]))
+    }
+    return detail
 }

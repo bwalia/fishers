@@ -231,6 +231,13 @@ test("a bundle id that is not reverse-DNS is refused", () => {
   });
 });
 
+test("a signing fingerprint not in the form Play Console prints is refused", () => {
+  const broken = READABLE + '  androidCertSha256:\n    - "f4:23:dc:22"\n';
+  withBrands({ "test-brand.yaml": broken }, (dir) => {
+    assert.throws(() => loadBrand(dir, "test-brand"), /SHA-256 fingerprint/);
+  });
+});
+
 test("a file whose id disagrees with its name is refused", () => {
   withBrands({ "other.yaml": READABLE }, (dir) => {
     assert.throws(() => loadBrand(dir, "other"), /The file name is the id/);
@@ -263,6 +270,23 @@ test("the web constants carry only the two chrome colours", () => {
     [brand.dark.bg, brand.source.surface].sort(),
     "a colour other than the chrome pair leaked into the constants",
   );
+});
+
+/**
+ * What /.well-known/assetlinks.json vouches for. A brand whose Play signing
+ * key is not known carries none, and the site then serves nothing — never
+ * another brand's key, which would be a statement that is simply false.
+ */
+test("the web constants carry each brand's own app and only the keys its file gives", () => {
+  const gully = loadBrand(repoRoot, "gullycricket");
+  const [, gullyTs] = webFiles(gully, "/tmp/x");
+  assert.match(gullyTs.contents, /"androidPackage": "app\.gullycricket"/);
+  assert.match(gullyTs.contents, /"F4:23:DC:22:69:66:1D:55:7C:E5:71:68:07:E5:C6:79:5A:99:A4:1F:D0:94:CE:90:99:50:BA:C7:6F:F2:0F:D9"/);
+
+  const fishers = loadBrand(repoRoot, "fishers");
+  const [, fishersTs] = webFiles(fishers, "/tmp/x");
+  assert.match(fishersTs.contents, /"androidPackage": "com\.fishers\.app"/);
+  assert.match(fishersTs.contents, /"androidCertSha256": \[\]/);
 });
 
 test("android resources are written under the flavour's own directory", () => {

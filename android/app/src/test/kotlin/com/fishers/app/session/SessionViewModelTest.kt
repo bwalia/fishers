@@ -123,6 +123,50 @@ class SessionViewModelTest {
         assertFalse(model.state.value.isStarting)
     }
 
+    private class MemoryUserCache(var user: PublicUser? = null) : UserCache {
+        override fun load() = user
+        override fun save(user: PublicUser) { this.user = user }
+        override fun clear() { user = null }
+    }
+
+    /**
+     * At a ground with no signal. Signing a scorer out here strands the balls
+     * they just scored on the phone behind a sign-in form they cannot pass,
+     * which is what the app used to do.
+     */
+    @Test
+    fun `no signal at launch keeps them signed in as the person last seen`() = runTest(dispatcher.scheduler) {
+        val store = FakeStore(mutableMapOf(TokenStore.ACCESS to "good", TokenStore.REFRESH to "r"))
+        val session = Session(store)
+        val cache = MemoryUserCache(alice)
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun me(): PublicUser = throw java.io.IOException("no route to host")
+        }, session, cache)
+
+        model.bootstrap()
+        advanceUntilIdle()
+
+        assertTrue(model.state.value.isAuthenticated)
+        assertEquals(alice, model.state.value.user)
+        assertEquals("the tokens are kept for when the signal comes back", "good", session.access)
+    }
+
+    @Test
+    fun `the person last seen is remembered, and forgotten on sign out`() = runTest(dispatcher.scheduler) {
+        val cache = MemoryUserCache()
+        val model = SessionViewModel(object : FakeFishersApi() {
+            override suspend fun me() = alice
+        }, Session(FakeStore(mutableMapOf(TokenStore.ACCESS to "good"))), cache)
+
+        model.bootstrap()
+        advanceUntilIdle()
+        assertEquals(alice, cache.user)
+
+        model.signOut()
+        advanceUntilIdle()
+        assertNull(cache.user)
+    }
+
     // ---- signing in ----
 
     @Test

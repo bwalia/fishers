@@ -62,7 +62,10 @@ concurrency:
 jobs:
   e2e:
     name: Full match (${{ (github.event_name == 'pull_request' || inputs.target == 'ci') && 'ci' || 'int' }})
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: that moved to 26.04, and Playwright's chromium
+    # install refuses it ("does not support chromium on ubuntu26.04-x64"),
+    # so the job died before a single test ran. Move up with Playwright.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       TARGET: ${{ (github.event_name == 'pull_request' || inputs.target == 'ci') && 'ci' || 'int' }}

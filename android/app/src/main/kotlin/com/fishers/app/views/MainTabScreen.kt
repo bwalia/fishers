@@ -1,24 +1,10 @@
 package com.fishers.app.views
 
-import com.fishers.app.i18n.t
-import androidx.compose.material3.FilterChip
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.ui.platform.LocalContext
-import com.fishers.app.i18n.Language
-import com.fishers.app.i18n.Strings
-
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import com.fishers.app.umpire.UmpireViewModel
-import com.fishers.app.views.cricket.ScoringScreen
-import com.fishers.app.views.umpire.UmpiringCard
-import com.fishers.app.umpire.PendingUmpireReviewsViewModel
-import com.fishers.app.views.umpire.PendingUmpireReviewsCard
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.DateRange
@@ -26,66 +12,60 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fishers.app.chat.ChatListViewModel
-import com.fishers.app.clubs.Club
-import com.fishers.app.clubs.ClubDetailViewModel
-import com.fishers.app.clubs.ClubsViewModel
-import com.fishers.app.home.HomeViewModel
-import com.fishers.app.scores.WorldMatchViewModel
-import com.fishers.app.scores.WorldScoresViewModel
-import com.fishers.app.views.scores.WorldMatchScreen
-import com.fishers.app.views.scores.WorldScoresScreen
-import com.fishers.app.views.home.HomeScreen
-import com.fishers.app.views.clubs.ClubDetailScreen
-import com.fishers.app.views.clubs.ClubsScreen
-import com.fishers.app.fixtures.FixturesViewModel
-import com.fishers.app.views.fixtures.FixturesScreen
 import com.fishers.app.chat.ChatThreadViewModel
 import com.fishers.app.chat.ConversationSummary
-import com.fishers.app.net.PublicUser
+import com.fishers.app.clubs.ClubDetailViewModel
+import com.fishers.app.clubs.ClubsViewModel
+import com.fishers.app.fixtures.FixturesViewModel
+import com.fishers.app.home.HomeViewModel
+import com.fishers.app.i18n.t
 import com.fishers.app.net.FishersApi
-import com.fishers.app.views.profile.DeleteAccountCard
-import com.fishers.app.views.safety.BlockedListCard
-import com.fishers.app.views.chat.ChatListScreen
-import com.fishers.app.views.chat.ChatThreadScreen
+import com.fishers.app.net.PublicUser
+import com.fishers.app.scores.WorldMatchViewModel
+import com.fishers.app.scores.WorldScoresViewModel
+import com.fishers.app.season.SeasonLink
+import com.fishers.app.season.SeasonViewModel
 import com.fishers.app.shop.ListingViewModel
 import com.fishers.app.shop.MarketViewModel
+import com.fishers.app.umpire.PendingUmpireReviewsViewModel
+import com.fishers.app.umpire.UmpireViewModel
+import com.fishers.app.views.chat.ChatListScreen
+import com.fishers.app.views.chat.ChatThreadScreen
+import com.fishers.app.views.clubs.ClubsTabRoot
+import com.fishers.app.views.fixtures.FixturesTabRoot
+import com.fishers.app.views.home.HomeActions
+import com.fishers.app.views.home.HomeScreen
+import com.fishers.app.views.nav.LocalNavigator
+import com.fishers.app.views.nav.Navigator
+import com.fishers.app.views.nav.Route
+import com.fishers.app.views.profile.ProfileTabRoot
+import com.fishers.app.views.scores.WorldMatchScreen
+import com.fishers.app.views.scores.WorldScoresScreen
 import com.fishers.app.views.shop.ListingScreen
 import com.fishers.app.views.shop.MarketplaceScreen
-import com.fishers.app.season.SeasonLink
-import com.fishers.app.season.SeasonTab
-import com.fishers.app.season.SeasonViewModel
-import com.fishers.app.views.season.SeasonScreen
-import androidx.compose.material3.OutlinedButton
 
 /**
- * The five top-level destinations, in the order `MainTabView.swift` has them.
- *
- * Only Profile does anything yet. The other four say which screen is missing
- * rather than rendering blank — a placeholder that names itself is a to-do
- * list; one that does not is a bug report waiting to be filed.
+ * The five top-level destinations, in the order `MainTabView.swift` has them,
+ * with a stack of pushed screens over them ([Navigator]). Each tab's content
+ * lives in its own area's file; Home and the shared plumbing live here.
  */
 @Composable
 fun MainTabScreen(
@@ -110,231 +90,157 @@ fun MainTabScreen(
     /** Where a tapped `season_closed` notification wants to land, until it has. */
     seasonLink: SeasonLink? = null,
     onSeasonLinkHandled: () -> Unit = {},
+    /** An invite link the app was opened with, until it has been shown. */
+    pendingRoute: Route? = null,
+    onPendingRouteHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
+    val navigator = remember { Navigator() }
     // Which thread is open, if any. Saved, so rotating the phone mid-sentence
     // does not throw you back to the list.
     var openThread by rememberSaveable { mutableStateOf<String?>(null) }
     var openTitle by rememberSaveable { mutableStateOf("") }
-    var openClub by rememberSaveable { mutableStateOf<String?>(null) }
-    var openClubName by rememberSaveable { mutableStateOf("") }
     // The shop is two screens deep off Home: the marketplace, then one listing.
     var shopOpen by rememberSaveable { mutableStateOf(false) }
     var openListing by rememberSaveable { mutableStateOf<String?>(null) }
     // The world scores, one screen deep off Home.
     var scoresOpen by rememberSaveable { mutableStateOf(false) }
-    var openFixture by rememberSaveable { mutableStateOf<String?>(null) }
     // Which match's scorecard is open, if any.
     var openWorldMatch by rememberSaveable { mutableStateOf<String?>(null) }
-    // The season pages: the player's own off Profile, the club's off a club.
-    // Each opens on top of the tab it was reached from, so Back goes there.
+    // My game, off Profile. Held here because a notification tap opens it.
     var myGameOpen by rememberSaveable { mutableStateOf(false) }
-    var clubSeasonOpen by rememberSaveable { mutableStateOf(false) }
 
     // A notification tap. Lands on My game for the season it is about, as the
     // website's /stats?season=&club= does; the club tab is one tap away.
     LaunchedEffect(seasonLink) {
         val link = seasonLink ?: return@LaunchedEffect
+        navigator.popToRoot()
         tab = Tab.Profile
         myGameOpen = true
         season.open(link)
         onSeasonLinkHandled()
     }
-    // Profile is a padded, scrolling page; the season page brings its own
-    // list, and a lazy list inside a scrolling column is a crash.
-    val profilePage = tab == Tab.Profile && !myGameOpen
+    // An invite link: shown over whatever tab is open.
+    LaunchedEffect(pendingRoute) {
+        val route = pendingRoute ?: return@LaunchedEffect
+        navigator.push(route)
+        onPendingRouteHandled()
+    }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar {
-                Tab.entries.forEach { entry ->
-                    NavigationBarItem(
-                        selected = tab == entry,
-                        onClick = { tab = entry },
-                        icon = { Icon(entry.icon, contentDescription = null) },
-                        // Label as well as icon: an icon-only bar is a guessing
-                        // game, and the Laws of this app are hard enough.
-                        label = { Text(t(entry.titleKey)) },
-                    )
-                }
-            }
-        },
-    ) { inner ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(inner)
-                // Chats fills the pane; the placeholders are centred in it.
-                .padding(if (profilePage) 24.dp else 0.dp)
-                // Profile is a scrolling page now that the umpiring record is
-                // on it, and a record grows with every review.
-                .then(if (profilePage) Modifier.verticalScroll(rememberScrollState()) else Modifier),
-            verticalArrangement = if (profilePage) Arrangement.spacedBy(12.dp)
-            else Arrangement.Top,
-            horizontalAlignment = if (profilePage) Alignment.CenterHorizontally
-            else Alignment.Start,
-        ) {
-            when (tab) {
-                Tab.Home -> if (scoresOpen) {
-                    BackHandler {
-                        if (openWorldMatch != null) openWorldMatch = null else scoresOpen = false
+    CompositionLocalProvider(LocalNavigator provides navigator) {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            // MainActivity's Scaffold has already padded for the status and
+            // navigation bars; padding again left a band of nothing above
+            // the greeting and under the tabs.
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            bottomBar = {
+                NavigationBar(windowInsets = WindowInsets(0, 0, 0, 0)) {
+                    Tab.entries.forEach { entry ->
+                        NavigationBarItem(
+                            selected = tab == entry,
+                            onClick = {
+                                navigator.popToRoot()
+                                tab = entry
+                            },
+                            icon = { Icon(entry.icon, contentDescription = null) },
+                            // Label as well as icon: an icon-only bar is a guessing
+                            // game, and the Laws of this app are hard enough.
+                            label = { Text(t(entry.titleKey)) },
+                        )
                     }
-                    val match = openWorldMatch
-                    if (match == null) {
-                        val state by worldScores.state.collectAsStateWithLifecycle()
-                        // Polls our own API while the screen is open, which costs
-                        // a query and never one of the feed's daily allowance.
-                        LaunchedEffect(Unit) { worldScores.startPolling() }
-                        DisposableEffect(Unit) { onDispose { worldScores.stopPolling() } }
-                        WorldScoresScreen(state = state, onOpen = { openWorldMatch = it })
+                }
+            },
+        ) { inner ->
+            Box(Modifier.fillMaxSize().padding(inner)) {
+                val top = navigator.top
+                if (top != null) {
+                    BackHandler { navigator.pop() }
+                    // Keyed, so two pushes of the same kind of screen do not share state.
+                    key(navigator.stack.size, top) { top.Content() }
+                    return@Box
+                }
+                when (tab) {
+                    Tab.Home -> if (scoresOpen) {
+                        BackHandler {
+                            if (openWorldMatch != null) openWorldMatch = null else scoresOpen = false
+                        }
+                        val match = openWorldMatch
+                        if (match == null) {
+                            val state by worldScores.state.collectAsStateWithLifecycle()
+                            // Polls our own API while the screen is open, which costs
+                            // a query and never one of the feed's daily allowance.
+                            LaunchedEffect(Unit) { worldScores.startPolling() }
+                            DisposableEffect(Unit) { onDispose { worldScores.stopPolling() } }
+                            WorldScoresScreen(state = state, onOpen = { openWorldMatch = it })
+                        } else {
+                            val model = remember(match) { worldMatchFor(match) }
+                            val state by model.state.collectAsStateWithLifecycle()
+                            LaunchedEffect(match) { model.start() }
+                            DisposableEffect(match) { onDispose { model.stop() } }
+                            WorldMatchScreen(state = state, onOpenTab = model::openTab)
+                        }
+                    } else if (shopOpen) {
+                        ShopTab(
+                            market = market,
+                            api = api,
+                            listingFor = listingFor,
+                            openListing = openListing,
+                            onOpen = { openListing = it },
+                            onBack = { if (openListing != null) openListing = null else shopOpen = false },
+                            onOpenThread = { id, title ->
+                                openListing = null
+                                shopOpen = false
+                                openThread = id
+                                openTitle = title
+                                tab = Tab.Chats
+                            },
+                        )
                     } else {
-                        val model = remember(match) { worldMatchFor(match) }
-                        val state by model.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(match) { model.start() }
-                        DisposableEffect(match) { onDispose { model.stop() } }
-                        WorldMatchScreen(state = state, onOpenTab = model::openTab)
+                        val state by home.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(Unit) { home.load() }
+                        HomeScreen(
+                            name = user?.name,
+                            state = state,
+                            onOpenShop = { shopOpen = true },
+                            onOpenScores = { scoresOpen = true },
+                            actions = { HomeActions(offline = state.offline) },
+                        )
                     }
-                } else if (shopOpen) {
-                    ShopTab(
-                        market = market,
-                        api = api,
-                        listingFor = listingFor,
-                        openListing = openListing,
-                        onOpen = { openListing = it },
-                        onBack = { if (openListing != null) openListing = null else shopOpen = false },
-                        onOpenThread = { id, title ->
-                            openListing = null
-                            shopOpen = false
-                            openThread = id
-                            openTitle = title
-                            tab = Tab.Chats
-                        },
-                    )
-                } else {
-                    val state by home.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(Unit) { home.load() }
-                    HomeScreen(
-                        name = user?.name,
-                        state = state,
-                        onOpenShop = { shopOpen = true },
-                        onOpenScores = { scoresOpen = true },
-                    )
-                }
 
-                Tab.Clubs -> if (clubSeasonOpen) {
-                    BackHandler { clubSeasonOpen = false }
-                    SeasonPage(
-                        season = season,
-                        meId = user?.id,
-                        onOpenFixtures = { clubSeasonOpen = false; tab = Tab.Fixtures },
-                        onOpenClubs = { clubSeasonOpen = false; openClub = null },
-                    )
-                } else {
-                    ClubsTab(
+                    Tab.Clubs -> ClubsTabRoot(
                         clubs = clubs,
-                        detailFor = clubDetailFor,
-                        openClub = openClub,
-                        openClubName = openClubName,
-                        onOpen = { openClub = it.id; openClubName = it.name },
-                        onBack = { openClub = null },
-                        onOpenSeason = { clubId ->
-                            season.open(SeasonLink(tab = SeasonTab.Club, clubId = clubId))
-                            clubSeasonOpen = true
-                        },
-                    )
-                }
-
-                Tab.Fixtures -> {
-                    val fixtureId = openFixture
-                    if (fixtureId == null) {
-                        val state by fixtures.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(Unit) { fixtures.load() }
-                        FixturesScreen(
-                            state = state,
-                            onAnswer = fixtures::answer,
-                            onOpen = { openFixture = it.id },
-                        )
-                    } else {
-                        BackHandler { openFixture = null }
-                        val model = remember(fixtureId) { scoringFor(fixtureId) }
-                        val state by model.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(fixtureId) { model.load() }
-                        ScoringScreen(
-                            state = state,
-                            onRuns = model::runs,
-                            onExtra = { model.extra(it) },
-                            onUndo = model::undo,
-                        )
-                    }
-                }
-
-                Tab.Chats -> ChatsTab(
-                    api = api,
-                    chatList = chatList,
-                    threadFor = threadFor,
-                    openThread = openThread,
-                    openTitle = openTitle,
-                    onOpen = { openThread = it.id; openTitle = it.title },
-                    onBack = { openThread = null },
-                )
-
-                Tab.Profile -> if (myGameOpen) {
-                    BackHandler { myGameOpen = false }
-                    SeasonPage(
+                        clubDetailFor = clubDetailFor,
                         season = season,
                         meId = user?.id,
-                        onOpenFixtures = { myGameOpen = false; tab = Tab.Fixtures },
-                        onOpenClubs = { myGameOpen = false; tab = Tab.Clubs },
-                    )
-                } else {
-                    Text(
-                        user?.name ?: t("rest.signed_in"),
-                        style = MaterialTheme.typography.headlineSmall,
-                    )
-                    user?.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-
-                    // The player's own season, first after their name: it is
-                    // the part of a profile somebody opens it to see.
-                    OutlinedButton(onClick = {
-                        season.open(SeasonLink(tab = SeasonTab.Mine))
-                        myGameOpen = true
-                    }) { Text(t("ss.my_game")) }
-
-                    val pendingState by pendingReviews.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(Unit) { pendingReviews.load() }
-                    PendingUmpireReviewsCard(
-                        state = pendingState,
-                        onReview = { matchId, umpireId, rating, comment ->
-                            pendingReviews.review(matchId, umpireId, rating, comment)
-                            umpiring.load()
-                        },
+                        onOpenFixturesTab = { tab = Tab.Fixtures },
                     )
 
-                    val umpState by umpiring.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(Unit) { umpiring.load() }
-                    UmpiringCard(
-                        state = umpState,
-                        isMine = true,
-                        onWilling = umpiring::setWilling,
+                    Tab.Fixtures -> FixturesTabRoot(fixtures = fixtures, scoringFor = scoringFor)
+
+                    Tab.Chats -> ChatsTab(
+                        api = api,
+                        chatList = chatList,
+                        threadFor = threadFor,
+                        openThread = openThread,
+                        openTitle = openTitle,
+                        onOpen = { openThread = it.id; openTitle = it.title },
+                        onBack = { openThread = null },
                     )
 
-                    BlockedListCard(api = api)
-
-                    LanguagePicker()
-
-                    TextButton(onClick = onSignOut) { Text(t("nav.sign_out")) }
-
-                    DeleteAccountCard(onDelete = onDeleteAccount)
-                }
-
-                else -> {
-                    Text(t(tab.titleKey), style = MaterialTheme.typography.headlineSmall)
-                    Text(
-                        tab.missing,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
+                    Tab.Profile -> ProfileTabRoot(
+                        user = user,
+                        api = api,
+                        season = season,
+                        pendingReviews = pendingReviews,
+                        umpiring = umpiring,
+                        myGameOpen = myGameOpen,
+                        onMyGameOpen = { myGameOpen = it },
+                        onOpenFixturesTab = { tab = Tab.Fixtures },
+                        onOpenClubsTab = { tab = Tab.Clubs },
+                        onSignOut = onSignOut,
+                        onDeleteAccount = onDeleteAccount,
                     )
                 }
             }
@@ -392,57 +298,6 @@ private fun ShopTab(
     }
 }
 
-/** Both tabs of the season page, wired to the one model they share. */
-@Composable
-private fun SeasonPage(
-    season: SeasonViewModel,
-    meId: String?,
-    onOpenFixtures: () -> Unit,
-    onOpenClubs: () -> Unit,
-) {
-    val state by season.state.collectAsStateWithLifecycle()
-    SeasonScreen(
-        state = state,
-        meId = meId,
-        onTab = season::selectTab,
-        onSeason = season::selectSeason,
-        onClub = season::selectClub,
-        onClose = season::close,
-        onOpenFixtures = onOpenFixtures,
-        onOpenClubs = onOpenClubs,
-    )
-}
-
-/** The clubs list, or one club's roster. Back closes the roster. */
-@Composable
-private fun ClubsTab(
-    clubs: ClubsViewModel,
-    detailFor: (String) -> ClubDetailViewModel,
-    openClub: String?,
-    openClubName: String,
-    onOpen: (Club) -> Unit,
-    onBack: () -> Unit,
-    onOpenSeason: (String) -> Unit,
-) {
-    if (openClub == null) {
-        val state by clubs.state.collectAsStateWithLifecycle()
-        LaunchedEffect(Unit) { clubs.load() }
-        ClubsScreen(state = state, onOpen = onOpen)
-    } else {
-        val model = remember(openClub) { detailFor(openClub) }
-        val state by model.state.collectAsStateWithLifecycle()
-        LaunchedEffect(openClub) { model.load() }
-        BackHandler(onBack = onBack)
-        ClubDetailScreen(
-            clubName = openClubName,
-            state = state,
-            onOpenSeason = { onOpenSeason(openClub) },
-            onMakeLink = model::makeJoinLink,
-            onStopLink = model::stopJoinLink,
-        )
-    }
-}
-
 /**
  * The list, or a thread from it. Back closes the thread rather than the app —
  * the commonest reason somebody presses it here is to go and read another one.
@@ -476,37 +331,10 @@ private fun ChatsTab(
     }
 }
 
-private enum class Tab(val titleKey: String, val icon: ImageVector, val missing: String) {
-    Home("nav.home", Icons.Filled.Home, ""),
-    Fixtures("nav.fixtures", Icons.Filled.DateRange, ""),
-    Chats("nav.chats", Icons.Filled.Email, ""),
-    Clubs("nav.clubs", Icons.Filled.Person, ""),
-    Profile("nav.profile", Icons.Filled.AccountCircle, ""),
-}
-
-/**
- * Which language the app speaks.
- *
- * Each listed in its own script and never translated — a picker offering
- * "Punjabi" in English is no use to the person who needs it. Choosing one
- * redraws every screen: `t()` reads `Strings.language`, which is Compose
- * state, so the subscription is automatic.
- */
-@Composable
-private fun LanguagePicker() {
-    val context = LocalContext.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(t("lang.label"), style = MaterialTheme.typography.labelLarge)
-        Language.entries.forEach { language ->
-            FilterChip(
-                selected = Strings.language == language,
-                onClick = { Strings.set(context, language) },
-                label = { Text(language.native) },
-            )
-        }
-    }
+private enum class Tab(val titleKey: String, val icon: ImageVector) {
+    Home("nav.home", Icons.Filled.Home),
+    Fixtures("nav.fixtures", Icons.Filled.DateRange),
+    Chats("nav.chats", Icons.Filled.Email),
+    Clubs("nav.clubs", Icons.Filled.Person),
+    Profile("nav.profile", Icons.Filled.AccountCircle),
 }

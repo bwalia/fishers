@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- To hear the signal come back at a ground, and send what was scored without it. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -22,6 +24,20 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- An invite link — the club link a secretary drops in the team
+                 WhatsApp group — opens the app instead of the website.
+                 MainActivity reads the token (inviteTokenFrom) and shows the
+                 invite once somebody is signed in. Verified against the site's
+                 /.well-known/assetlinks.json; the host is the brand's
+                 production site, set per flavour in build.gradle.kts. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="${appLinkHost}" />
+                <data android:pathPrefix="/invite/" />
             </intent-filter>
         </activity>
     </application>

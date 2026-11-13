@@ -17,7 +17,27 @@ data class ClubsState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val isFirstLoad: Boolean = true,
-)
+    /** What the search box holds. Filtered here: the list is every club already. */
+    val query: String = "",
+) {
+    /** The clubs whose name or description has the search in it. */
+    val shown: List<Club>
+        get() {
+            val q = query.trim()
+            if (q.isEmpty()) return clubs
+            return clubs.filter {
+                it.name.contains(q, ignoreCase = true) ||
+                    it.description?.contains(q, ignoreCase = true) == true
+            }
+        }
+
+    /** Worth a search box: a list that fits on a screen does not need one. */
+    val isSearchable: Boolean get() = clubs.size > SEARCH_FROM
+
+    private companion object {
+        const val SEARCH_FROM = 6
+    }
+}
 
 class ClubsViewModel(private val api: FishersApi) : ViewModel() {
 
@@ -32,6 +52,7 @@ class ClubsViewModel(private val api: FishersApi) : ViewModel() {
                     _state.value = ClubsState(
                         clubs = it.sortedBy { c -> c.name.lowercase() },
                         isFirstLoad = false,
+                        query = _state.value.query,
                     )
                 }
                 .onFailure {
@@ -40,6 +61,10 @@ class ClubsViewModel(private val api: FishersApi) : ViewModel() {
                     )
                 }
         }
+    }
+
+    fun search(query: String) {
+        _state.value = _state.value.copy(query = query)
     }
 }
 
@@ -61,8 +86,27 @@ data class ClubDetailState(
     val onTheBooks: List<ClubMemberDetail> get() = members.filter { it.isOnTheBooks }
     val invited: List<ClubMemberDetail>
         get() = members.filter { it.status == MembershipStatus.Invited }
+
+    /** Who has left or been suspended: on the record, not in the side. */
+    val former: List<ClubMemberDetail>
+        get() = members.filter { it.status == MembershipStatus.Left || it.status == MembershipStatus.Suspended }
+
+    /**
+     * The people on the books, a heading per role — secretaries, captains,
+     * vice captains, members, guests — as the secretary's screen lists them.
+     * Roles nobody holds are left out rather than shown empty.
+     */
+    val byRole: List<Pair<UserRole, List<ClubMemberDetail>>>
+        get() = UserRole.rosterOrder.mapNotNull { role ->
+            onTheBooks.filter { it.role == role }.takeIf { it.isNotEmpty() }?.let { role to it }
+        }
 }
 
+/**
+ * A club's roster and its open link — the Members tab of Manage club. The
+ * secretary's changes to the roster go through [ClubAdminViewModel], which
+ * has this re-read once they land.
+ */
 class ClubDetailViewModel(
     private val api: FishersApi,
     private val clubId: String,

@@ -46,10 +46,17 @@ data class SessionState(
 class SessionViewModel(
     private val api: FishersApi,
     private val session: Session,
+    private val userCache: UserCache = UserCache.None,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SessionState())
     val state: StateFlow<SessionState> = _state.asStateFlow()
+
+    init {
+        // Whoever is signed in, as last seen — what the app opens with when
+        // there is no signal to ask the server.
+        viewModelScope.launch { _state.collect { s -> s.user?.let(userCache::save) } }
+    }
 
     /**
      * Pick up where the last launch left off.
@@ -71,10 +78,34 @@ class SessionViewModel(
                     _state.value = SessionState(user = it, isAuthenticated = true, isStarting = false)
                 }
                 .onFailure {
-                    session.clear()
-                    _state.value = SessionState(isStarting = false)
+                    if (it is retrofit2.HttpException && it.code() in 400..499) {
+                        // The server said no: revoked, expired past renewing, or deleted.
+                        signOut()
+                    } else {
+                        // No signal, or the server is down. A scorer at a ground
+                        // must not be signed out mid-match for that: carry on as
+                        // the person last seen, and let each screen say what it
+                        // could not load. Balls scored now are kept on the phone.
+                        _state.value = SessionState(
+                            user = userCache.load(),
+                            isAuthenticated = true,
+                            isStarting = false,
+                        )
+                    }
                 }
         }
+    }
+
+    /** Re-read the signed-in person — after their profile, photo or role changed. */
+    fun reloadUser() {
+        viewModelScope.launch {
+            runCatching { api.me() }.onSuccess { _state.value = _state.value.copy(user = it) }
+        }
+    }
+
+    /** A user the server already handed back from a save. */
+    fun setUser(user: com.fishers.app.net.PublicUser) {
+        _state.value = _state.value.copy(user = user)
     }
 
     private val _googleClientId = MutableStateFlow<String?>(null)
@@ -150,6 +181,7 @@ class SessionViewModel(
 
     fun signOut() {
         session.clear()
+        userCache.clear()
         _state.value = SessionState(isStarting = false)
     }
 
@@ -168,10 +200,7 @@ class SessionViewModel(
     fun deleteAccount(password: String, onError: (String) -> Unit) {
         viewModelScope.launch {
             runCatching { api.deleteAccount(DeleteAccountRequest(password.ifBlank { null })) }
-                .onSuccess {
-                    session.clear()
-                    _state.value = SessionState(isStarting = false)
-                }
+                .onSuccess { signOut() }
                 .onFailure {
                     onError(
                         if (it is retrofit2.HttpException && it.code() == 401) {

@@ -132,6 +132,14 @@ mobile:
   # brands/fishers.yaml: this is what the reversed URL scheme in Info.plist is
   # built from, and it has to match what /auth/google hands the phone.
   googleIosClientId: 243948798933-0jn6n9410404dfrj6c7leicq544girbv.apps.googleusercontent.com
+  # The SHA-256 of the key Google Play signs the app with (Play Console → Test
+  # and release → App integrity → App signing key certificate) — not the
+  # upload key, which never reaches a phone. The website serves it at
+  # /.well-known/assetlinks.json, and that is what lets an invite link
+  # (https://www.gullycricket.app/invite/…) open the app instead of the
+  # browser. A wrong one fails quietly: links just open the website.
+  androidCertSha256:
+    - "F4:23:DC:22:69:66:1D:55:7C:E5:71:68:07:E5:C6:79:5A:99:A4:1F:D0:94:CE:90:99:50:BA:C7:6F:F2:0F:D9"
 
 # Where the app can be downloaded. Only a listing that is live goes here: the
 # website draws a "Download on the App Store" badge at the top and the bottom
