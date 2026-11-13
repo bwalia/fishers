@@ -180,6 +180,65 @@ class FixturesTest {
         assertFalse(model.state.value.isFirstLoad)
     }
 
+    /**
+     * The diary call starts a day back. Last Saturday's match — and the way
+     * to its scorecard — must not vanish from the tab by Monday.
+     */
+    @Test
+    fun `played includes the last few months, each fixture once`() = runTest(dispatcher.scheduler) {
+        var asked: Pair<String, String>? = null
+        val model = FixturesViewModel(object : FakeFishersApi() {
+            override suspend fun myFixtures() = listOf(
+                event("yesterday", "2026-09-22T12:00:00Z"),
+                event("next", "2026-09-30T12:00:00Z"),
+            )
+        })
+        model.load(now)
+        model.loadHistory({ from, to ->
+            asked = from to to
+            listOf(event("yesterday", "2026-09-22T12:00:00Z"), event("saturday", "2026-09-19T12:00:00Z"))
+        }, now)
+        advanceUntilIdle()
+
+        assertEquals("2026-05-26T12:00:00Z" to "2026-09-23T12:00:00Z", asked)
+        assertEquals(listOf("yesterday", "saturday"), model.state.value.played.map { it.id })
+        assertEquals(listOf("next"), model.state.value.upcoming.map { it.id })
+    }
+
+    // ---- scheduling ----
+
+    /** Only somebody who can put a match in a club's diary is offered to. */
+    @Test
+    fun `schedule a match is offered to whoever may in any of their clubs`() = runTest(dispatcher.scheduler) {
+        val model = FixturesViewModel(object : FakeFishersApi() {
+            override suspend fun myClubs() = listOf(
+                com.fishers.app.clubs.Club("a", "A"),
+                com.fishers.app.clubs.Club("b", "B"),
+            )
+            override suspend fun myClubRole(id: String) = com.fishers.app.season.MyClubRole(
+                permissions = if (id == "b") listOf("manage_events") else emptyList(),
+            )
+        })
+
+        model.loadSchedulable()
+        advanceUntilIdle()
+
+        assertTrue(model.state.value.canSchedule)
+    }
+
+    @Test
+    fun `a club list that will not load offers nothing to schedule`() = runTest(dispatcher.scheduler) {
+        val model = FixturesViewModel(object : FakeFishersApi() {
+            override suspend fun myClubs(): List<com.fishers.app.clubs.Club> = throw IOException("down")
+        })
+
+        model.loadSchedulable()
+        advanceUntilIdle()
+
+        assertFalse(model.state.value.canSchedule)
+        assertNull("and does not cover the list with an error", model.state.value.error)
+    }
+
     // ---- formatting ----
 
     @Test

@@ -4446,5 +4446,12 @@ export const pa: Dict = {
   "ms.move_up": "ਉੱਪਰ ਕਰੋ",
   "ms.move_down": "ਹੇਠਾਂ ਕਰੋ",
   "ms.scorers": "ਸਕੋਰਰ",
+  // MARK: Fixtures, selection and the match on the day — the Android screens
+  "fix.cannot_schedule": "ਮੈਚ ਸਿਰਫ਼ ਕਲੱਬ ਦਾ ਸਕੱਤਰ ਜਾਂ ਕਪਤਾਨ ਹੀ ਤੈਅ ਕਰ ਸਕਦਾ ਹੈ। ਆਪਣਾ ਕਲੱਬ ਸ਼ੁਰੂ ਕਰੋ, ਜਾਂ ਆਪਣੇ ਕਲੱਬ ਨੂੰ ਕਹੋ ਕਿ ਤੁਹਾਨੂੰ ਕਪਤਾਨ ਬਣਾਏ।",
+  "fix.kind_of_match": "ਮੈਚ ਦੀ ਕਿਸਮ",
+  "fix.on_brand": "{brand} 'ਤੇ",
+  "fix.carry_on_setting_up": "ਮੈਚ ਤਿਆਰ ਕਰਨਾ ਜਾਰੀ ਰੱਖੋ",
+  "fix.follow_the_match": "ਮੈਚ ਵੇਖੋ",
+  "fix.n_confirmed": "{n} ਦੀ ਪੁਸ਼ਟੀ ਹੋਈ",
 
 };

@@ -4461,6 +4461,13 @@ export const en = {
   "ms.move_up": "Move up",
   "ms.move_down": "Move down",
   "ms.scorers": "Scorers",
+  // MARK: Fixtures, selection and the match on the day — the Android screens
+  "fix.cannot_schedule": "Only a club secretary or a captain can schedule a match. Start a club of your own, or ask yours to make you captain.",
+  "fix.kind_of_match": "Kind of match",
+  "fix.on_brand": "On {brand}",
+  "fix.carry_on_setting_up": "Carry on setting up",
+  "fix.follow_the_match": "Follow the match",
+  "fix.n_confirmed": "{n} confirmed",
 
 } as const;
 
