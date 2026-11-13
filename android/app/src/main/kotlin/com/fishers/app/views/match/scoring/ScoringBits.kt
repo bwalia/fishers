@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -60,6 +61,13 @@ internal object BallColours {
     val wicket = Color(0xFFB3261E)
     val extra = Color(0xFF9A6700)
 }
+
+/**
+ * None. A pushed screen sits inside the tab bar's Scaffold, which has already
+ * padded it clear of the status and navigation bars; a top bar that added
+ * them again would leave a status bar's height of empty space above it.
+ */
+internal val HostInsets = WindowInsets(0, 0, 0, 0)
 
 /** One ball in the over strip: "4", "W", "wd". */
 @Composable

@@ -32,6 +32,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.fishers.app.cricket.ScorecardViewModel
 import com.fishers.app.i18n.t
 import com.fishers.app.net.ScoringApi
+import com.fishers.app.umpire.RateUmpiresViewModel
+import com.fishers.app.views.umpire.RateUmpiresCard
 import com.fishers.app.views.match.ScoreMatchRoute
 import com.fishers.app.views.nav.LocalAppDeps
 import com.fishers.app.views.nav.LocalNavigator
@@ -56,9 +58,19 @@ internal fun ScorecardRouteContent(eventId: String) {
     }
 
     val view = state.view
+
+    // Only once it is over: rating the umpire at drinks is not a review of
+    // the afternoon. The card draws nothing when nobody was named.
+    val matchId = state.match?.id
+    val finished = view?.isFinished == true
+    val umpires = remember(matchId) { matchId?.let { RateUmpiresViewModel(deps.api, it) } }
+    LaunchedEffect(umpires, finished) { if (finished) umpires?.load() }
+
     Scaffold(
+        contentWindowInsets = HostInsets,
         topBar = {
             TopAppBar(
+                windowInsets = HostInsets,
                 title = {
                     Text(
                         view?.let { "${it.homeName} v ${it.awayName}" } ?: t("ld.scorecard"),
@@ -82,28 +94,40 @@ internal fun ScorecardRouteContent(eventId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(24.dp),
                 )
-                else -> ScorecardContent(view, dls = state.dls) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (view.status == "live") Banner(t("sc.live_caps"), BallColours.wicket)
-                            if (state.stale) {
-                                Text(
-                                    t("rest.no_connection_check_signal"),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                            // The person holding the book may open this too —
-                            // or anybody who may score, when nobody holds it.
-                            val match = state.match
-                            val me = deps.user()?.id
-                            val theirs = match?.activeScorerUserId
-                            if (match?.canScore == true && !view.isFinished && (theirs == null || theirs == me)) {
-                                BigButton(t("sc.continue_scoring")) { navigator.replace(ScoreMatchRoute(eventId)) }
+                else -> ScorecardContent(
+                    view,
+                    dls = state.dls,
+                    footer = {
+                        if (finished && umpires != null) {
+                            item {
+                                val rating by umpires.state.collectAsStateWithLifecycle()
+                                RateUmpiresCard(rating, onReview = umpires::review, onWithdraw = umpires::withdraw)
                             }
                         }
-                    }
-                }
+                    },
+                    header = {
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (view.status == "live") Banner(t("sc.live_caps"), BallColours.wicket)
+                                if (state.stale) {
+                                    Text(
+                                        t("rest.no_connection_check_signal"),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                                // The person holding the book may open this too —
+                                // or anybody who may score, when nobody holds it.
+                                val match = state.match
+                                val me = deps.user()?.id
+                                val theirs = match?.activeScorerUserId
+                                if (match?.canScore == true && !view.isFinished && (theirs == null || theirs == me)) {
+                                    BigButton(t("sc.continue_scoring")) { navigator.replace(ScoreMatchRoute(eventId)) }
+                                }
+                            }
+                        }
+                    },
+                )
             }
             MomentBanner(state.moment, state.momentCount, Modifier.align(Alignment.TopCenter))
         }

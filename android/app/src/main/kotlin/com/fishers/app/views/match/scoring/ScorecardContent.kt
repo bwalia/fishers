@@ -54,6 +54,8 @@ fun ScorecardContent(
     modifier: Modifier = Modifier,
     dls: DlsPar? = null,
     header: LazyListScope.() -> Unit = {},
+    /** After the card — the umpiring, once the match is over. */
+    footer: LazyListScope.() -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
@@ -63,7 +65,7 @@ fun ScorecardContent(
             Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text(t("sc.commentary")) })
         }
         when (tab) {
-            0 -> CardTab(view, dls, header)
+            0 -> CardTab(view, dls, header, footer)
             1 -> PerInnings(view, header) { inn -> item { WheelChart(view, inn) } }
             else -> PerInnings(view, header) { inn -> ballByBall(view, inn) }
         }
@@ -71,7 +73,12 @@ fun ScorecardContent(
 }
 
 @Composable
-private fun CardTab(view: MatchView, dls: DlsPar?, header: LazyListScope.() -> Unit) {
+private fun CardTab(
+    view: MatchView,
+    dls: DlsPar?,
+    header: LazyListScope.() -> Unit,
+    footer: LazyListScope.() -> Unit,
+) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -95,6 +102,7 @@ private fun CardTab(view: MatchView, dls: DlsPar?, header: LazyListScope.() -> U
         view.innings.reversed().forEach { inn ->
             item(key = "inn-${inn.index}") { InningsCard(view, inn) }
         }
+        footer()
     }
 }
 

@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 
 package com.fishers.app.views.match.scoring
 
@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -203,8 +205,10 @@ private fun ScorerScreen(
     if (fullCard && view != null) {
         BackHandler { fullCard = false }
         Scaffold(
+            contentWindowInsets = HostInsets,
             topBar = {
                 TopAppBar(
+                    windowInsets = HostInsets,
                     title = { Text(t("ld.scorecard")) },
                     navigationIcon = {
                         IconButton(onClick = { fullCard = false }) {
@@ -218,6 +222,7 @@ private fun ScorerScreen(
     }
 
     Scaffold(
+        contentWindowInsets = HostInsets,
         topBar = {
             ScorerTopBar(
                 title = view?.let { "${it.homeName} v ${it.awayName}" } ?: t("sc.loading_match"),
@@ -251,7 +256,11 @@ private fun ScorerScreen(
                     ) {
                         ScoreHeader(view)
                         Messages(state, model, onFollow)
-                        Phase(state, view, onSheet = { sheet = it }, onCard = { fullCard = true }, onBack = onBack, onSetUp = onSetUp)
+                        Phase(
+                            state, view,
+                            onSheet = { sheet = it }, onCard = { fullCard = true }, onBack = onBack, onSetUp = onSetUp,
+                            onUndo = if (state.canUndo && !view.abandoned) ({ model.undo() }) else null,
+                        )
                         RecentBalls(view)
                     }
                     if (state.canScore && view.current != null && !view.isFinished && !view.isInningsBreak) {
@@ -302,6 +311,7 @@ private fun ScorerTopBar(
     var more by remember { mutableStateOf(false) }
     val view = state.view
     TopAppBar(
+        windowInsets = HostInsets,
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             IconButton(onClick = onBack) {
@@ -557,13 +567,21 @@ private fun Phase(
     onCard: () -> Unit,
     onBack: () -> Unit,
     onSetUp: () -> Unit,
+    onUndo: (() -> Unit)?,
 ) {
     if (!state.canScore && !view.isFinished) return
+    // The ball that ended an innings, or the match, is as easy to mis-tap as any.
+    val undo: @Composable () -> Unit = {
+        if (onUndo != null) {
+            TextButton(onClick = onUndo, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("sc.undo_the_last_ball")) }
+        }
+    }
     when {
         view.needsASuperOver -> Panel {
             Text(t("sc.scores_level_super_over"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             BigButton(t("la.start_the_super_over")) { onSheet(ScorerSheet.Innings) }
             ResultActions(state, view, onSheet, onCard, onBack)
+            undo()
         }
         view.isFinished -> Panel {
             Text(
@@ -576,6 +594,7 @@ private fun Phase(
                 Text(t("sc.player_of_the_match_is", vars = mapOf("name" to view.name(it))), fontWeight = FontWeight.SemiBold)
             }
             ResultActions(state, view, onSheet, onCard, onBack)
+            undo()
         }
         view.isInningsBreak -> Panel {
             Text(t("sc.innings_break"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -599,6 +618,7 @@ private fun Phase(
                     else -> t("sc.start_innings")
                 },
             ) { onSheet(ScorerSheet.Innings) }
+            undo()
         }
         view.isReadyToStart -> Panel {
             Text(
@@ -622,7 +642,7 @@ private fun ResultActions(
     onCard: () -> Unit,
     onBack: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (state.canScore && !view.abandoned) {
             OutlinedButton(onClick = { onSheet(ScorerSheet.Award) }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(if (view.playerOfTheMatch == null) t("sh.award") else t("sc.change_award"))
