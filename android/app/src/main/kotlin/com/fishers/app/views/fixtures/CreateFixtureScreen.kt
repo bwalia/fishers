@@ -1,5 +1,7 @@
 package com.fishers.app.views.fixtures
 
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -255,20 +257,20 @@ private fun Form(state: CreateFixtureState, model: CreateFixtureViewModel, modif
 
         // ---- when ----
         Section(t("ev.when")) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { pickingDate = true },
-                    modifier = Modifier.weight(3f).heightIn(min = 48.dp),
-                ) {
-                    Icon(Icons.Filled.Event, contentDescription = null)
-                    Text(formatDay(state.date), Modifier.padding(start = 8.dp))
-                }
-                OutlinedButton(
-                    onClick = { pickingTime = true },
-                    modifier = Modifier.weight(2f).heightIn(min = 48.dp),
-                ) {
-                    Icon(Icons.Filled.Schedule, contentDescription = null)
-                    Text(formatTime(state.time), Modifier.padding(start = 8.dp))
+            // "Saturday 21 November 2026" does not fit beside the time on a
+            // narrow phone; the time then goes underneath rather than the
+            // date breaking over two lines.
+            ButtonRow(labels = listOf(formatDay(state.date), formatTime(state.time)), extra = 32.dp) { i, m ->
+                if (i == 0) {
+                    OutlinedButton(onClick = { pickingDate = true }, modifier = m.heightIn(min = 48.dp)) {
+                        Icon(Icons.Filled.Event, contentDescription = null)
+                        ButtonLabel(formatDay(state.date), Modifier.padding(start = 8.dp))
+                    }
+                } else {
+                    OutlinedButton(onClick = { pickingTime = true }, modifier = m.heightIn(min = 48.dp)) {
+                        Icon(Icons.Filled.Schedule, contentDescription = null)
+                        ButtonLabel(formatTime(state.time), Modifier.padding(start = 8.dp))
+                    }
                 }
             }
         }

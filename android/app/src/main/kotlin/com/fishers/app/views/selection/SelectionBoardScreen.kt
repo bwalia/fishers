@@ -1,5 +1,7 @@
 package com.fishers.app.views.selection
 
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -312,20 +314,25 @@ private fun AvailabilityDot(status: AvailabilityStatus) {
 @Composable
 private fun PublishBar(state: SelectionUiState, onSave: () -> Unit, onPublish: () -> Unit) {
     Surface(tonalElevation = 3.dp) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            OutlinedButton(
-                onClick = onSave,
-                enabled = !state.isSaving && !state.isPublishing,
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-            ) { Text(t("ld.save_as_a_draft")) }
-            Button(
-                onClick = onPublish,
-                enabled = state.selected.isNotEmpty() && !state.isPublishing && !state.isSaving,
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-            ) { Text(if (state.isPublishing) t("ld.announcing") else t("ld.publish_squad")) }
+        val publish = if (state.isPublishing) t("ld.announcing") else t("ld.publish_squad")
+        ButtonRow(
+            labels = listOf(t("ld.save_as_a_draft"), publish),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            spacing = 12.dp,
+        ) { i, m ->
+            if (i == 0) {
+                OutlinedButton(
+                    onClick = onSave,
+                    enabled = !state.isSaving && !state.isPublishing,
+                    modifier = m.heightIn(min = 48.dp),
+                ) { ButtonLabel(t("ld.save_as_a_draft")) }
+            } else {
+                Button(
+                    onClick = onPublish,
+                    enabled = state.selected.isNotEmpty() && !state.isPublishing && !state.isSaving,
+                    modifier = m.heightIn(min = 48.dp),
+                ) { ButtonLabel(publish) }
+            }
         }
     }
 }

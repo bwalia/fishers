@@ -1,5 +1,7 @@
 package com.fishers.app.views.profile
 
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -150,24 +152,24 @@ fun ProfileTabRoot(
             onPickPhoto = pickPhoto,
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = { nav.push(EditProfileRoute()) },
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-            ) {
-                Icon(Icons.Filled.Edit, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(t("cl.edit_profile"))
+        ButtonRow(labels = listOf(t("cl.edit_profile"), t("ss.my_game")), extra = 32.dp) { i, m ->
+            if (i == 0) {
+                Button(onClick = { nav.push(EditProfileRoute()) }, modifier = m.heightIn(min = 48.dp)) {
+                    Icon(Icons.Filled.Edit, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    ButtonLabel(t("cl.edit_profile"))
+                }
+            } else {
+                // The player's own season, near the top: it is the part of a
+                // profile somebody opens it to see.
+                OutlinedButton(
+                    onClick = {
+                        season.open(SeasonLink(tab = SeasonTab.Mine))
+                        onMyGameOpen(true)
+                    },
+                    modifier = m.heightIn(min = 48.dp),
+                ) { ButtonLabel(t("ss.my_game")) }
             }
-            // The player's own season, near the top: it is the part of a
-            // profile somebody opens it to see.
-            OutlinedButton(
-                onClick = {
-                    season.open(SeasonLink(tab = SeasonTab.Mine))
-                    onMyGameOpen(true)
-                },
-                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-            ) { Text(t("ss.my_game")) }
         }
 
         if (me == null) {

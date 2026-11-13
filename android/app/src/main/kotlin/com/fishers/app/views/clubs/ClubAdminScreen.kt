@@ -1,5 +1,7 @@
 package com.fishers.app.views.clubs
 
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -394,18 +396,21 @@ private fun JoinLinkCard(
                 }
             } else {
                 Text(url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        shareText(
-                            context,
-                            t("jl.whatsapp_message", vars = mapOf("club" to clubName, "brand" to brand, "url" to url)),
-                        )
-                    }, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text(t("sc.share"), modifier = Modifier.padding(start = 8.dp))
-                    }
-                    OutlinedButton(onClick = { confirm = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text(t("jl.new_link"))
+                ButtonRow(labels = listOf(t("sc.share"), t("jl.new_link")), extra = 26.dp) { i, m ->
+                    if (i == 0) {
+                        Button(onClick = {
+                            shareText(
+                                context,
+                                t("jl.whatsapp_message", vars = mapOf("club" to clubName, "brand" to brand, "url" to url)),
+                            )
+                        }, modifier = m.heightIn(min = 48.dp)) {
+                            Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            ButtonLabel(t("sc.share"), modifier = Modifier.padding(start = 8.dp))
+                        }
+                    } else {
+                        OutlinedButton(onClick = { confirm = true }, modifier = m.heightIn(min = 48.dp)) {
+                            ButtonLabel(t("jl.new_link"))
+                        }
                     }
                 }
                 TextButton(onClick = { confirm = false }, modifier = Modifier.heightIn(min = 48.dp)) {

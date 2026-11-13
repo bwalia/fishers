@@ -1,6 +1,27 @@
 package com.fishers.app.views.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.SportsCricket
+import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -60,22 +81,56 @@ fun HomeActions(offline: Boolean = false) {
             OnThisPhone(matches, onOpen = nav::open, note = t("ms.no_signal_carry_on"))
         }
         PendingInvitesSection()
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { nav.push(StartMatchRoute()) }, modifier = Modifier.weight(1f)) {
-                Text(t("cl.start_a_match"), textAlign = TextAlign.Center)
-            }
-            OutlinedButton(onClick = { nav.push(ScoreHubRoute()) }, modifier = Modifier.weight(1f)) {
-                Text(t("cl.matches"), textAlign = TextAlign.Center)
+        // The two things people open the app to do, side by side when both
+        // labels fit on one line and stacked when they would not.
+        ButtonRow(
+            labels = listOf(t("cl.start_a_match"), t("cl.matches")),
+            extra = 26.dp,
+        ) { i, m ->
+            if (i == 0) {
+                Button(onClick = { nav.push(StartMatchRoute()) }, modifier = m.heightIn(min = 52.dp)) {
+                    Icon(Icons.Filled.SportsCricket, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    ButtonLabel(t("cl.start_a_match"))
+                }
+            } else {
+                OutlinedButton(onClick = { nav.push(ScoreHubRoute()) }, modifier = m.heightIn(min = 52.dp)) {
+                    ButtonLabel(t("cl.matches"))
+                }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { nav.push(CreateFixtureRoute()) }, modifier = Modifier.weight(1f)) {
-                Text(t("ev.schedule_a_match"), textAlign = TextAlign.Center)
+        // The rest as a list, which never squeezes a long label into a pill.
+        Card(Modifier.fillMaxWidth()) {
+            ActionRow(Icons.Filled.DateRange, t("ev.schedule_a_match")) { nav.push(CreateFixtureRoute()) }
+            HorizontalDivider()
+            ActionRow(Icons.Filled.EventRepeat, t("np.schedule_nets_or_practice")) {
+                nav.push(CreateFixtureRoute(nets = true))
             }
-            OutlinedButton(onClick = { nav.push(CreateClubRoute()) }, modifier = Modifier.weight(1f)) {
-                Text(t("cl.start_a_club"), textAlign = TextAlign.Center)
-            }
+            HorizontalDivider()
+            ActionRow(Icons.Filled.Groups, t("cl.start_a_club")) { nav.push(CreateClubRoute()) }
         }
+    }
+}
+
+/** One thing to do: an icon, what it is, and a chevron that says it goes somewhere. */
+@Composable
+private fun ActionRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

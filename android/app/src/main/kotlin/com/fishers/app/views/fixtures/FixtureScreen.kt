@@ -1,5 +1,7 @@
 package com.fishers.app.views.fixtures
 
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -318,12 +320,15 @@ private fun MyPlaceCard(
             when (me.state) {
                 // Picked: say yes or no. Only somebody picked is asked — the
                 // server would otherwise put a left-out player straight in.
-                SelectionState.Selected -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onRespond(true) }, enabled = !busy, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                        Text(t("ev.im_playing"))
-                    }
-                    OutlinedButton(onClick = { onRespond(false) }, enabled = !busy, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                        Text(t("ev.cant_make_it"))
+                SelectionState.Selected -> ButtonRow(labels = listOf(t("ev.im_playing"), t("ev.cant_make_it"))) { i, m ->
+                    if (i == 0) {
+                        Button(onClick = { onRespond(true) }, enabled = !busy, modifier = m.heightIn(min = 48.dp)) {
+                            ButtonLabel(t("ev.im_playing"))
+                        }
+                    } else {
+                        OutlinedButton(onClick = { onRespond(false) }, enabled = !busy, modifier = m.heightIn(min = 48.dp)) {
+                            ButtonLabel(t("ev.cant_make_it"))
+                        }
                     }
                 }
                 SelectionState.Confirmed -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
