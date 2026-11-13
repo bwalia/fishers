@@ -7,8 +7,8 @@ use fishers_db::repos::events as events_repo;
 use fishers_db::repos::events::EventSort;
 use fishers_db::repos::invites as invites_repo;
 use fishers_domain::{
-    AttendeeSummary, CreateEventRequest, Event, EventInvite, Permission, RsvpRequest,
-    UpdateEventRequest,
+    AttendeeSummary, CreateEventRequest, Event, EventInvite, EventSubtype, Permission,
+    RsvpRequest, UpdateEventRequest,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -95,7 +95,16 @@ async fn create_event(
 /// picks a side from people who were never asked.
 async fn ask_who_is_available(state: &AppState, event: &Event, scheduler: Uuid) {
     let when = event.start_at.format("%a %-d %b, %H:%M");
-    let body = format!("{when}. Can you play?");
+    let body = if is_practice(event.event_subtype) {
+        format!("{when}. Are you coming?")
+    } else {
+        format!("{when}. Can you play?")
+    };
+    // A weekly series of nets is scheduled in one go, one event per week.
+    // Everyone is still asked about every week — the invite is what puts it
+    // in their diary — but only the first week notifies: eight "can you
+    // make nets?" pings in a row reads as spam, and the diary carries the rest.
+    let quiet = series_index(&event.metadata) > 0;
 
     for club in [Some(event.club_id), event.opponent_club_id]
         .into_iter()
@@ -114,8 +123,8 @@ async fn ask_who_is_available(state: &AppState, event: &Event, scheduler: Uuid) 
                 tracing::warn!(%error, "could not invite a member to the fixture");
                 continue;
             }
-            if member.user_id == scheduler {
-                continue; // they just made it
+            if member.user_id == scheduler || quiet {
+                continue; // they just made it, or the series' first week told them
             }
             state
                 .notify(
@@ -401,4 +410,30 @@ async fn invite_user(
     Ok(Json(
         invites_repo::invite_to_event(&state.pool, id, body.user_id, auth.user_id).await?,
     ))
+}
+
+/// Nets and training: a session to turn up to, not a side to be picked for.
+fn is_practice(subtype: EventSubtype) -> bool {
+    matches!(subtype, EventSubtype::Nets | EventSubtype::Training)
+}
+
+/// Where this event sits in a weekly series the apps scheduled together
+/// (`metadata.series_index`, from 0). A lone event is 0.
+fn series_index(metadata: &serde_json::Value) -> u64 {
+    metadata.get("series_index").and_then(|v| v.as_u64()).unwrap_or(0)
+}
+
+#[cfg(test)]
+mod series_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn only_the_first_week_of_a_series_notifies() {
+        assert_eq!(series_index(&json!({})), 0, "a lone event notifies");
+        assert_eq!(series_index(&json!({"series_index": 0})), 0, "so does week one");
+        assert_eq!(series_index(&json!({"series_index": 3})), 3, "week four does not");
+        assert!(is_practice(EventSubtype::Nets) && is_practice(EventSubtype::Training));
+        assert!(!is_practice(EventSubtype::LeagueMatch));
+    }
 }

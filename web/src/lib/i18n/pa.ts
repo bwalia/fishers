@@ -4518,4 +4518,23 @@ export const pa: Dict = {
   "ms.could_not_save_match": "ਇਹ ਫ਼ੋਨ ਮੈਚ ਸੰਭਾਲ ਨਹੀਂ ਸਕਿਆ। ਕੁਝ ਥਾਂ ਖ਼ਾਲੀ ਕਰੋ ਅਤੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
   "ms.no_signal_carry_on": "ਸਿਗਨਲ ਨਹੀਂ ਹੈ। ਸਕੋਰ ਕਰਦੇ ਰਹੋ — ਸਭ ਕੁਝ ਇੱਥੇ ਰੱਖਿਆ ਜਾਂਦਾ ਹੈ ਅਤੇ ਆਨਲਾਈਨ ਆਉਣ ਉੱਤੇ ਭੇਜ ਦਿੱਤਾ ਜਾਂਦਾ ਹੈ।",
 
+  // MARK: Nets and practice
+  "np.schedule_nets_or_practice": "ਨੈੱਟਸ ਜਾਂ ਅਭਿਆਸ ਤੈਅ ਕਰੋ",
+  "np.what_kind": "ਕਿਸ ਤਰ੍ਹਾਂ ਦਾ",
+  "np.match": "ਮੈਚ",
+  "np.name": "ਨਾਂ",
+  "np.name_hint": "ਬੁੱਧਵਾਰ ਦੇ ਨੈੱਟਸ",
+  "np.repeat_weekly": "ਹਰ ਹਫ਼ਤੇ ਦੁਹਰਾਓ",
+  "np.for_weeks.one": "{n} ਹਫ਼ਤੇ ਲਈ",
+  "np.for_weeks.other": "{n} ਹਫ਼ਤਿਆਂ ਲਈ",
+  "np.note": "ਕੀ ਲਿਆਉਣਾ ਜਾਂ ਜਾਣਨਾ ਹੈ",
+  "np.note_hint": "ਆਪਣਾ ਬੱਲਾ ਲਿਆਓ। ਬਾਲਿੰਗ ਮਸ਼ੀਨ ਬੁੱਕ ਹੈ।",
+  "np.everyone_asked": "ਕਲੱਬ ਦੇ ਹਰ ਮੈਂਬਰ ਤੋਂ ਪੁੱਛਿਆ ਜਾਂਦਾ ਹੈ ਕਿ ਉਹ ਆ ਰਹੇ ਹਨ ਜਾਂ ਨਹੀਂ। ਹਫ਼ਤਾਵਾਰੀ ਲੜੀ ਦੀ ਸੂਚਨਾ ਸਿਰਫ਼ ਇੱਕ ਵਾਰ, ਪਹਿਲੇ ਹਫ਼ਤੇ ਲਈ, ਜਾਂਦੀ ਹੈ।",
+  "np.scheduled_sessions.one": "{n} ਸੈਸ਼ਨ ਤੈਅ ਹੋਇਆ",
+  "np.scheduled_sessions.other": "{n} ਸੈਸ਼ਨ ਤੈਅ ਹੋਏ",
+  "np.week_of": "ਹਫ਼ਤਾ {i} / {n}",
+  "np.n_minutes": "{n} ਮਿੰਟ",
+  "np.are_you_coming": "ਕੀ ਤੁਸੀਂ ਆ ਰਹੇ ਹੋ?",
+  "np.schedule": "ਤੈਅ ਕਰੋ",
+
 };

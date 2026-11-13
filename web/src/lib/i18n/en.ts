@@ -4535,6 +4535,25 @@ export const en = {
   "ms.could_not_save_match": "This phone could not save the match. Free up some space and try again.",
   "ms.no_signal_carry_on": "No signal. Carry on scoring — everything is kept here and sent when you are back online.",
 
+  // MARK: Nets and practice — scheduling a session, once or every week
+  "np.schedule_nets_or_practice": "Schedule nets or practice",
+  "np.what_kind": "What kind",
+  "np.match": "Match",
+  "np.name": "Name",
+  "np.name_hint": "Wednesday nets",
+  "np.repeat_weekly": "Repeat every week",
+  "np.for_weeks.one": "For {n} week",
+  "np.for_weeks.other": "For {n} weeks",
+  "np.note": "Anything to bring or know",
+  "np.note_hint": "Bring your own bat. The bowling machine is booked.",
+  "np.everyone_asked": "Everyone in the club is asked whether they are coming. A weekly series sends one notification, for the first week.",
+  "np.scheduled_sessions.one": "{n} session scheduled",
+  "np.scheduled_sessions.other": "{n} sessions scheduled",
+  "np.week_of": "Week {i} of {n}",
+  "np.n_minutes": "{n} min",
+  "np.are_you_coming": "Are you coming?",
+  "np.schedule": "Schedule",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.
