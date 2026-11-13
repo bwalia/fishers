@@ -67,6 +67,10 @@ spec:
           # This pod reads the whole database and holds the keys to the bucket
           # it writes to; it has no business acquiring anything else.
           automountServiceAccountToken: false
+          {{- with .Values.backup.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -230,8 +234,14 @@ spec:
                   BUCKET="{{ .Values.backup.bucket }}"
                   # MinIO restarting on another node is a normal thing to find
                   # at 02:15, and the same wait is already in the bucket job.
+                  # Bounded like the dump's wait for Postgres: a MinIO that
+                  # isn't back in 5 minutes isn't coming back tonight, and an
+                  # unbounded loop would hold the job until the deadline.
+                  n=0
                   until mc alias set target "$ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY"; do
-                    echo "waiting for minio"; sleep 5
+                    n=$((n + 1))
+                    [ "$n" -lt 60 ] || { echo "no minio after 5 minutes"; exit 1; }
+                    echo "waiting for minio ($n)"; sleep 5
                   done
                   mc mb --ignore-existing "target/$BUCKET"
                   # Private, and made private again every night. The media
