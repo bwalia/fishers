@@ -4,6 +4,11 @@ import com.fishers.app.i18n.Strings
 import com.fishers.app.i18n.t
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -39,6 +44,45 @@ enum class EventSubtype {
             Training -> t("ev.training")
             Generic -> t("ev.event")
         }
+
+    /** Nets or training: a session, not a match. Nobody is picked, there is
+     *  no opposition and no scorebook, and the question is "Are you coming?". */
+    val isPractice: Boolean
+        get() = this == Nets || this == Training
+}
+
+/**
+ * What a nets or training session says beyond its fields — the note, and its
+ * place in a weekly series — from the event's free-form `metadata`.
+ *
+ * Read leniently, a field at a time: metadata is whatever whoever made the
+ * event wrote, and a fixture must never fail to show because of it.
+ */
+data class PracticeDetails(
+    val note: String? = null,
+    /** From 0. */
+    val seriesIndex: Int? = null,
+    val seriesCount: Int? = null,
+) {
+    /** "Week 3 of 8", for one week of a series; null for a session on its own. */
+    val weekOf: String?
+        get() {
+            val i = seriesIndex ?: return null
+            val n = seriesCount ?: return null
+            return if (n > 1 && i in 0 until n) t("np.week_of", vars = mapOf("i" to i + 1, "n" to n)) else null
+        }
+
+    companion object {
+        fun of(metadata: JsonElement?): PracticeDetails {
+            val fields = metadata as? JsonObject ?: return PracticeDetails()
+            fun field(key: String) = fields[key] as? JsonPrimitive
+            return PracticeDetails(
+                note = field("note")?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() },
+                seriesIndex = field("series_index")?.intOrNull,
+                seriesCount = field("series_count")?.intOrNull,
+            )
+        }
+    }
 }
 
 @Serializable
@@ -91,8 +135,14 @@ data class MyFixture(
     @SerialName("my_answer") val myRsvp: RsvpStatus? = null,
     @SerialName("fee_amount_cents") val feeAmountCents: Int? = null,
     @SerialName("ticket_price_cents") val ticketPriceCents: Int? = null,
+    /** Not sent by `GET /events/mine` yet; read when it is, for a session's note and week. */
+    val metadata: JsonElement? = null,
 ) {
     val startsAt: Instant? get() = runCatching { Instant.parse(startAt) }.getOrNull()
+
+    /** The note and the week, for nets or training; null for anything else. */
+    val practice: PracticeDetails?
+        get() = if (subtype.isPractice) PracticeDetails.of(metadata) else null
 
     /** Ahead of us. An unreadable date counts as upcoming rather than hidden:
      *  a captain would rather see a wrong-looking date than no fixture. */
@@ -127,8 +177,14 @@ data class FishersEvent(
     @SerialName("ticket_price_cents") val ticketPriceCents: Int? = null,
     /** This viewer's answer, when the server sends one with the fixture. */
     @SerialName("my_rsvp") val myRsvp: RsvpStatus? = null,
+    /** Free-form. For nets and training: `note`, and `series_index` of `series_count`. */
+    val metadata: JsonElement? = null,
 ) {
     val startsAt: Instant? get() = runCatching { Instant.parse(startAt) }.getOrNull()
+
+    /** The note and the week, for nets or training; null for anything else. */
+    val practice: PracticeDetails?
+        get() = if (subtype.isPractice) PracticeDetails.of(metadata) else null
 
     /**
      * Whether it is still ahead. A fixture with an unreadable date is treated
