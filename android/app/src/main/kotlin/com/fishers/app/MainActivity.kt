@@ -1,5 +1,12 @@
 package com.fishers.app
 
+import androidx.lifecycle.lifecycleScope
+import com.fishers.app.cricket.BookSweeper
+import com.fishers.app.cricket.DeviceId
+import com.fishers.app.cricket.FileBallStore
+import com.fishers.app.net.ScoringApi
+import kotlinx.coroutines.launch
+
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fishers.app.views.clubs.JoinByLinkRoute
@@ -51,6 +58,26 @@ class MainActivity : ComponentActivity() {
 
     /** An invite link the app was opened with (`/invite/{token}`), until it has been shown. */
     private var inviteToken by mutableStateOf<String?>(null)
+
+    /**
+     * Balls scored with no signal, from a match nobody has reopened, go up
+     * whenever the app comes back to the front — `CricketSyncService.swift`'s
+     * sweep. The scorer sends its own match's balls; this is everything else.
+     */
+    override fun onResume() {
+        super.onResume()
+        val app = application as FishersApp
+        if (!app.session.isSignedIn) return
+        lifecycleScope.launch {
+            runCatching {
+                BookSweeper(
+                    api = app.network.service(ScoringApi::class.java),
+                    store = FileBallStore.forApp(this@MainActivity),
+                    deviceId = DeviceId.get(this@MainActivity),
+                ).sendLeftovers()
+            }
+        }
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

@@ -19,6 +19,12 @@ class Network(config: AppConfig, session: Session) {
         // A field added server-side must never take the app down.
         ignoreUnknownKeys = true
         explicitNulls = false
+        // Send a field even when it holds its Kotlin default. Without this,
+        // `target_type = "club"` never reached the server, a club setting
+        // changed to 0 never saved, and a body whose server-side default
+        // differs from ours (`/share`'s `post_to_chat`) did the opposite of
+        // what the app asked. Nulls stay out, via explicitNulls.
+        encodeDefaults = true
     }
 
     /** Unsigned, and used only to renew: signing a refresh with the token that
