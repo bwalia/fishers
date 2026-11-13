@@ -23,7 +23,9 @@ data class ScoringState(
 }
 
 /**
- * Scoring a match.
+ * Scoring a match — the first cut, behind the Fixtures tab's old
+ * `ScoringScreen`. [LiveScorerViewModel] replaces it (the scorer behind
+ * `ScoreMatchRoute`); this stays only until nothing calls the old screen.
  *
  * The log is the record; the state is a fold over it, done by the engine in
  * `backend/ffi` — the same Rust the server scores with. So a ball is checked
@@ -46,6 +48,7 @@ class ScoringViewModel(
 
     /** The engine's own JSON, kept as it handed it back. */
     private var engineState: String? = null
+    private var book: List<ScoringEvent> = emptyList()
     private var matchId: String? = null
 
     fun load() {
@@ -58,6 +61,7 @@ class ScoringViewModel(
             }
                 .onSuccess { (match, log) ->
                     matchId = match.id
+                    book = log
                     engine.replay(log)
                         .onSuccess { state ->
                             engineState = state
@@ -113,11 +117,13 @@ class ScoringViewModel(
             kind = kind,
         )
 
-        engine.apply(current, event)
+        // `next`, not `apply`: an undo has to be folded from the whole log.
+        engine.next(book, current, event)
             .onFailure {
                 _state.value = _state.value.copy(error = engine.reason(it))
             }
             .onSuccess { next ->
+                book = book + event
                 engineState = next
                 _state.value = _state.value.copy(
                     score = engine.scoreline(next),

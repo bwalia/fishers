@@ -27,7 +27,8 @@ import com.fishers.app.cricket.ScoringState
 import com.fishers.app.theme.FishersTheme
 
 /**
- * The book — a first cut of `LiveScorerView.swift`.
+ * The book — a first cut of `LiveScorerView.swift`, replaced by the scorer
+ * behind `ScoreMatchRoute`. Kept only while the Fixtures tab still calls it.
  *
  * Runs, the four extras and undo. The shot picker, the wagon wheel, the wicket
  * sheet and the rest of what iOS offers are not here yet; what is here goes
