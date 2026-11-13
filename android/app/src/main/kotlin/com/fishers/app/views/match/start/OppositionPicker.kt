@@ -103,6 +103,7 @@ internal fun OppositionPicker(
         if (state.searched && state.results.isEmpty() && !state.isSearching) {
             Footnote(t("sc.nothing_found_type_name"))
         }
+        ErrorLine(state.searchError)
 
         SectionTitle(t("sc.or_just_type_it"))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

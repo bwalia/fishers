@@ -4,12 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fishers.app.i18n.t
 import com.fishers.app.net.MatchStartApi
+import com.fishers.app.session.readableError
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 data class OppositionState(
     val query: String = "",
@@ -17,6 +20,8 @@ data class OppositionState(
     val isSearching: Boolean = false,
     /** Searched, and nothing came back. */
     val searched: Boolean = false,
+    /** The search could not be made — no signal, say. Not the same as nobody by that name. */
+    val searchError: String? = null,
     val code: String = "",
     val isLookingUp: Boolean = false,
     val message: String? = null,
@@ -47,14 +52,23 @@ class OppositionViewModel(
         searchJob?.cancel()
         val term = text.trim()
         if (term.length < 2) {
-            _state.value = _state.value.copy(results = emptyList(), isSearching = false, searched = false)
+            _state.value = _state.value.copy(results = emptyList(), isSearching = false, searched = false, searchError = null)
             return
         }
         searchJob = viewModelScope.launch {
             _state.value = _state.value.copy(isSearching = true)
             delay(pause)
-            val found = runCatching { api.searchOpponents(term) }.getOrDefault(emptyList())
-            _state.value = _state.value.copy(results = found, isSearching = false, searched = true)
+            runCatching { api.searchOpponents(term) }
+                .onSuccess {
+                    _state.value = _state.value.copy(results = it, isSearching = false, searched = true, searchError = null)
+                }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    // "Nothing found" would be a wrong fact: nothing was asked.
+                    _state.value = _state.value.copy(
+                        results = emptyList(), isSearching = false, searched = false, searchError = readableError(it),
+                    )
+                }
         }
     }
 
@@ -72,7 +86,12 @@ class OppositionViewModel(
                 .onFailure {
                     _state.value = _state.value.copy(
                         isLookingUp = false,
-                        message = t("cl.code_isnt_one_of_ours"),
+                        // Only the server saying no means the code is not one of ours.
+                        message = if (it is HttpException && it.code() in 400..499 && it.code() != 401) {
+                            t("cl.code_isnt_one_of_ours")
+                        } else {
+                            readableError(it)
+                        },
                     )
                 }
         }
