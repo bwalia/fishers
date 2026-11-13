@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.SportsCricket
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -22,6 +23,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -55,6 +57,7 @@ fun FixturesScreen(
     onAnswer: (String, RsvpStatus) -> Unit,
     onOpen: (MyFixture) -> Unit = {},
     onSchedule: () -> Unit = {},
+    onScheduleNets: () -> Unit = {},
     onOpenCalendar: () -> Unit = {},
     onOpenScores: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -68,6 +71,7 @@ fun FixturesScreen(
             Header(
                 canSchedule = state.canSchedule,
                 onSchedule = onSchedule,
+                onScheduleNets = onScheduleNets,
                 onOpenCalendar = onOpenCalendar,
                 onOpenScores = onOpenScores,
             )
@@ -107,6 +111,7 @@ fun FixturesScreen(
 private fun Header(
     canSchedule: Boolean,
     onSchedule: () -> Unit,
+    onScheduleNets: () -> Unit,
     onOpenCalendar: () -> Unit,
     onOpenScores: () -> Unit,
 ) {
@@ -129,6 +134,10 @@ private fun Header(
             FilledTonalButton(onClick = onSchedule, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Icon(Icons.Filled.Add, contentDescription = null)
                 Text(t("ev.schedule_a_match"), Modifier.padding(start = 8.dp))
+            }
+            OutlinedButton(onClick = onScheduleNets, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Icon(Icons.Filled.EventRepeat, contentDescription = null)
+                Text(t("np.schedule_nets_or_practice"), Modifier.padding(start = 8.dp))
             }
         }
     }
@@ -187,6 +196,20 @@ private fun FixtureCard(
                 listOfNotNull(formatWhen(event.startAt), event.venueName, event.clubName).joinToString(" · "),
                 style = MaterialTheme.typography.bodyMedium,
             )
+
+            // Nets and training: which week of a series, and what to bring.
+            event.practice?.let { practice ->
+                practice.weekOf?.let { Text(it, style = MaterialTheme.typography.labelLarge) }
+                practice.note?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
 
             // Called off has to shout. A cancelled fixture that looks like any
             // other is how a side turns up to an empty ground.
