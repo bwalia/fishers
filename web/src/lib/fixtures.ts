@@ -5,8 +5,9 @@ import type { Key } from "@/lib/i18n/en";
 /// The fixtures list and the availability calendar both read this, so they
 /// cannot disagree about whether you are playing.
 
-import { api } from "@/lib/api";
+import { api, type EventRow, type Page } from "@/lib/api";
 import { dayKey } from "@/lib/availability";
+import { isPractice } from "@/lib/sessions";
 
 export type Answer = "going" | "maybe" | "not_going";
 
@@ -53,6 +54,28 @@ export function myFixtures(from: Date, to: Date): Promise<MyFixture[]> {
 export function searchFixtureClubs(term: string): Promise<{ id: string; name: string }[]> {
   const q = new URLSearchParams(term ? { q: term } : {});
   return api<{ id: string; name: string }[]>("GET", `/events/mine/clubs?${q}`);
+}
+
+/// The metadata of each nets or training session in `fixtures`, by event id —
+/// its note, and which week of a series it is.
+///
+/// `GET /events/mine` does not carry an event's metadata, so it comes from the
+/// events list over the same dates: one call per kind on screen, and none at
+/// all when every fixture is a match.
+export async function sessionMetadata(fixtures: MyFixture[]): Promise<Record<string, unknown>> {
+  const sessions = fixtures.filter((f) => isPractice(f.event_subtype));
+  if (sessions.length === 0) return {};
+  const times = sessions.map((f) => Date.parse(f.start_at));
+  const from = new Date(Math.min(...times)).toISOString();
+  const to = new Date(Math.max(...times)).toISOString();
+  const kinds = [...new Set(sessions.map((f) => f.event_subtype))];
+  const pages = await Promise.all(
+    kinds.map((subtype) => {
+      const q = new URLSearchParams({ subtype, from, to, per_page: "200" });
+      return api<Page<EventRow>>("GET", `/events?${q}`);
+    })
+  );
+  return Object.fromEntries(pages.flatMap((p) => p.items.map((e) => [e.id, e.metadata])));
 }
 
 export function answerFixture(eventId: string, status: Answer): Promise<unknown> {

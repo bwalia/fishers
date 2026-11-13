@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start --hostname :: -p ${WEB_PORT:-7311}",
     "lint": "eslint .",
+    "test": "TZ=Europe/London node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/*.test.mjs",
     "brand": "node ../tools/brand/ensure-installed.mjs generate ${BRAND:-fishers} --web",
     "brand:check": "node ../tools/brand/ensure-installed.mjs check",
     "prebuild": "npm run brand",

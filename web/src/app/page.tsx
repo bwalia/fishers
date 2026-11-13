@@ -22,6 +22,7 @@ import { PushPrompt } from "@/components/PushPrompt";
 import { ProfileStrength } from "@/components/ProfileStrength";
 import { WorldScoresPanel } from "@/components/WorldScores";
 import { overs, type MatchResponse } from "@/lib/cricket";
+import { PRACTICE_LABEL, isPractice, seriesWeek, sessionNote } from "@/lib/sessions";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
 import type { Key } from "@/lib/i18n/en";
@@ -64,8 +65,9 @@ export default function HomePage() {
         setClubs(c);
         setEvents(e);
         // Any cricket fixture may have a match on it; a 404 just means none.
+        // Nets and training never do, and a weekly series is a lot of 404s.
         const matches = await Promise.all(
-          e.filter((x) => x.sport === "cricket").map(async (x) => {
+          e.filter((x) => x.sport === "cricket" && !isPractice(x.event_subtype)).map(async (x) => {
             try {
               return await api<MatchResponse>("GET", `/events/${x.id}/cricket-match`);
             } catch {
@@ -209,20 +211,30 @@ export default function HomePage() {
               <h2>{t("rest.next_fixtures")}</h2>
               <Link href="/events">{t("rest.all_fixtures_arrow")}</Link>
             </div>
-            {upcoming.slice(0, 5).map((e) => (
-              <div className="row" key={e.id}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{e.title}</div>
-                  <div className="muted">
-                    {new Date(e.start_at).toLocaleString("en-GB", {
-                      weekday: "short", day: "numeric", month: "short",
-                      hour: "2-digit", minute: "2-digit",
-                    })}
+            {upcoming.slice(0, 5).map((e) => {
+              // Nets or training: labelled as one, with its note and week.
+              const session = isPractice(e.event_subtype) ? e.event_subtype : null;
+              const week = session ? seriesWeek(e.metadata) : null;
+              const note = session ? sessionNote(e.metadata) : null;
+              return (
+                <div className="row" key={e.id}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{e.title}</div>
+                    <div className="muted">
+                      {new Date(e.start_at).toLocaleString("en-GB", {
+                        weekday: "short", day: "numeric", month: "short",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                      {week && ` · ${t("np.week_of", { i: week.i, n: week.n })}`}
+                    </div>
+                    {note && <div className="muted">{note}</div>}
                   </div>
+                  <span className="tag">
+                    {session ? t(PRACTICE_LABEL[session]) : e.event_subtype.replaceAll("_", " ")}
+                  </span>
                 </div>
-                <span className="tag">{e.event_subtype.replaceAll("_", " ")}</span>
-              </div>
-            ))}
+              );
+            })}
             {upcoming.length === 0 && (
               <div className="empty">
                 <Icon name="calendar" size={28} />
