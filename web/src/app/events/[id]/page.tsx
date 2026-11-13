@@ -161,7 +161,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         <div className="hero-tags">
           {session && <span className="tag">{t(PRACTICE_LABEL[session])}</span>}
           {week && <span className="tag grey">{t("np.week_of", { i: week.i, n: week.n })}</span>}
-          <span className="tag">{t("ev.n_playing", { n: count("going") })}</span>
+          <span className="tag">{t(session ? "np.n_coming" : "ev.n_playing", { n: count("going") })}</span>
           {count("maybe") > 0 && <span className="tag gold">{t("ev.n_maybe", { n: count("maybe") })}</span>}
           {count("invited") > 0 && (
             <span className="tag grey">{t("ev.n_not_answered", { n: count("invited") })}</span>

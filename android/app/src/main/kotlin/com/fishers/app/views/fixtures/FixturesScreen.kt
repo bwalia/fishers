@@ -189,7 +189,11 @@ private fun FixtureCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                AssistChip(onClick = { onOpen(event) }, label = { Text(event.subtype.label) })
+                // The kind, unless the title already is it — a session called
+                // "Nets" does not need a "Nets" chip beside it.
+                if (!event.subtype.label.equals(event.title.trim(), ignoreCase = true)) {
+                    AssistChip(onClick = { onOpen(event) }, label = { Text(event.subtype.label, maxLines = 1) })
+                }
             }
 
             Text(

@@ -157,6 +157,7 @@ internal fun FixtureScreen(eventId: String, notice: String? = null) {
                 if (state.attendees.isNotEmpty()) {
                     WhoIsComing(
                         state.attendees,
+                        practice = state.event?.practice != null,
                         onOpen = { nav.push(PlayerProfileRoute(it.userId, it.name)) },
                     )
                 }
@@ -412,12 +413,12 @@ private fun MotmSection(poll: MotmPollView) {
 /** Everyone asked, available first, with the counts a captain reads before anything else. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WhoIsComing(attendees: List<Attendee>, onOpen: (Attendee) -> Unit) {
+private fun WhoIsComing(attendees: List<Attendee>, practice: Boolean = false, onOpen: (Attendee) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeading(t("ev.who_is_coming"))
         val n = { status: RsvpStatus -> attendees.count { it.status == status } }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(t("ev.n_playing", vars = mapOf("n" to n(RsvpStatus.Going))), style = MaterialTheme.typography.labelLarge)
+            Text(t(if (practice) "np.n_coming" else "ev.n_playing", vars = mapOf("n" to n(RsvpStatus.Going))), style = MaterialTheme.typography.labelLarge)
             Text(t("ev.n_maybe", vars = mapOf("n" to n(RsvpStatus.Maybe))), style = MaterialTheme.typography.labelLarge)
             Text(t("ev.n_not_answered", vars = mapOf("n" to n(RsvpStatus.Invited))), style = MaterialTheme.typography.labelLarge)
         }

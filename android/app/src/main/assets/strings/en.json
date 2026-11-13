@@ -2081,6 +2081,7 @@
   "np.for_weeks.one": "For {n} week",
   "np.for_weeks.other": "For {n} weeks",
   "np.match": "Match",
+  "np.n_coming": "{n} coming",
   "np.n_minutes": "{n} min",
   "np.name": "Name",
   "np.name_hint": "Wednesday nets",

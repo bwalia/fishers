@@ -1,5 +1,8 @@
 package com.fishers.app.views.match.start
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material3.AssistChip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -100,17 +103,29 @@ fun ScoreHubScreen(
             }
             item { Choices(HubFilter.entries, state.filter, { it.label }, onFilter) }
             item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (state.total > 0) {
-                        Footnote(
-                            t("cl.showing_range_of_total", vars = mapOf(
-                                "from" to 1, "to" to state.rows.size, "total" to state.total,
-                            )),
-                        )
+                // One chip that says the order and flips it: two chips beside
+                // the count did not fit a 360dp phone and stacked in a corner.
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.weight(1f)) {
+                        if (state.total > 0) {
+                            Footnote(
+                                t("cl.showing_range_of_total", vars = mapOf(
+                                    "from" to 1, "to" to state.rows.size, "total" to state.total,
+                                )),
+                            )
+                        }
                     }
-                    Box(Modifier.weight(1f))
-                    Choices(listOf(false, true), state.newestFirst,
-                        { if (it) t("ld.newest_first") else t("ld.soonest_first") }, onNewestFirst)
+                    AssistChip(
+                        onClick = { onNewestFirst(!state.newestFirst) },
+                        label = {
+                            Text(
+                                if (state.newestFirst) t("ld.newest_first") else t("ld.soonest_first"),
+                                maxLines = 1,
+                            )
+                        },
+                        leadingIcon = { Icon(Icons.Filled.SwapVert, contentDescription = null, Modifier.size(18.dp)) },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    )
                 }
             }
             state.error?.let { item { ErrorLine(it) } }

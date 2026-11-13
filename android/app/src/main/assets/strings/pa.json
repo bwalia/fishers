@@ -2081,6 +2081,7 @@
   "np.for_weeks.one": "{n} ਹਫ਼ਤੇ ਲਈ",
   "np.for_weeks.other": "{n} ਹਫ਼ਤਿਆਂ ਲਈ",
   "np.match": "ਮੈਚ",
+  "np.n_coming": "{n} ਆ ਰਹੇ ਹਨ",
   "np.n_minutes": "{n} ਮਿੰਟ",
   "np.name": "ਨਾਂ",
   "np.name_hint": "ਬੁੱਧਵਾਰ ਦੇ ਨੈੱਟਸ",

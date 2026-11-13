@@ -157,7 +157,12 @@ private fun NextFixture(event: MyFixture) {
     } else {
         // Nets or training says so: its name alone could be anything.
         Text(
-            listOfNotNull(event.subtype.label, formatWhen(event.startAt), practice.weekOf).joinToString(" · "),
+            // …unless the name already is the kind: "Nets" over "Nets · Fri…" says it twice.
+            listOfNotNull(
+                event.subtype.label.takeUnless { it.equals(event.title.trim(), ignoreCase = true) },
+                formatWhen(event.startAt),
+                practice.weekOf,
+            ).joinToString(" · "),
             style = MaterialTheme.typography.bodyMedium,
         )
         practice.note?.let {

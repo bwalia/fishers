@@ -4536,5 +4536,6 @@ export const pa: Dict = {
   "np.n_minutes": "{n} ਮਿੰਟ",
   "np.are_you_coming": "ਕੀ ਤੁਸੀਂ ਆ ਰਹੇ ਹੋ?",
   "np.schedule": "ਤੈਅ ਕਰੋ",
+  "np.n_coming": "{n} ਆ ਰਹੇ ਹਨ",
 
 };

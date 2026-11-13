@@ -1,5 +1,8 @@
 package com.fishers.app.views.match.start
 
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -168,14 +171,32 @@ internal fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = tru
 /** Pick one — chips that wrap rather than a segmented control that will not fit a long team name. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun <T> Choices(options: List<T>, selected: T?, label: (T) -> String, onSelect: (T) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+internal fun <T> Choices(
+    options: List<T>,
+    selected: T?,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    /** Every chip at least this wide — a grid of numbers lines up instead of
+     *  "5" sitting narrower than "50". */
+    minWidth: Dp = 0.dp,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
         options.forEach { option ->
             FilterChip(
                 selected = option == selected,
                 onClick = { onSelect(option) },
-                label = { Text(label(option)) },
-                modifier = Modifier.heightIn(min = 48.dp),
+                label = {
+                    Text(
+                        label(option),
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier = if (minWidth > 0.dp) Modifier.fillMaxWidth() else Modifier,
+                    )
+                },
+                modifier = Modifier.heightIn(min = 48.dp).widthIn(min = minWidth),
             )
         }
     }

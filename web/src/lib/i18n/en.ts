@@ -4553,6 +4553,7 @@ export const en = {
   "np.n_minutes": "{n} min",
   "np.are_you_coming": "Are you coming?",
   "np.schedule": "Schedule",
+  "np.n_coming": "{n} coming",
 
 } as const;
 
