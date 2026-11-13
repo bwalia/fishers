@@ -4422,4 +4422,16 @@ export const pa: Dict = {
   "ss.unsub_ask_body": "ਜਦੋਂ ਤੁਹਾਡਾ ਕਲੱਬ ਸੀਜ਼ਨ ਬੰਦ ਕਰਦਾ ਹੈ ਤਾਂ ਭੇਜੀ ਜਾਂਦੀ ਈਮੇਲ ਤੁਹਾਨੂੰ ਮਿਲਣੀ ਬੰਦ ਹੋ ਜਾਵੇਗੀ। ਹੋਰ ਕੁਝ ਨਹੀਂ ਬਦਲੇਗਾ।",
   "ss.unsub_button": "ਸੀਜ਼ਨ ਈਮੇਲਾਂ ਬੰਦ ਕਰੋ",
 
+  // MARK: The Android scorer and the follower's card
+  "sc.team_need_off": "{team} ਨੂੰ {balls} ਗੇਂਦਾਂ ਵਿੱਚ {runs} ਦੌੜਾਂ ਚਾਹੀਦੀਆਂ ਹਨ",
+  "sc.has_bowled_their_overs": "{name} ਆਪਣੇ {n} ਓਵਰ ਕਰਵਾ ਚੁੱਕੇ ਹਨ।",
+  "sc.taken_off_cannot_bowl": "{name} ਨੂੰ ਹਟਾ ਦਿੱਤਾ ਗਿਆ ਹੈ ਅਤੇ ਇਸ ਪਾਰੀ ਵਿੱਚ ਦੁਬਾਰਾ ਗੇਂਦਬਾਜ਼ੀ ਨਹੀਂ ਕਰ ਸਕਦੇ।",
+  "sc.no_match_on_this_fixture": "ਇਸ ਫਿਕਸਚਰ ਤੇ ਅਜੇ ਕੋਈ ਮੈਚ ਸੈੱਟ ਨਹੀਂ ਕੀਤਾ ਗਿਆ।",
+  "sc.book_would_not_replay": "ਇਸ ਮੈਚ ਦੀ ਸਕੋਰਬੁੱਕ ਦੁਬਾਰਾ ਨਹੀਂ ਚੱਲੀ: {detail}",
+  "sc.n_balls_could_not_be_added.one": "ਇਸ ਫ਼ੋਨ ਤੇ ਸਕੋਰ ਕੀਤੀ {n} ਗੇਂਦ ਜੋੜੀ ਨਹੀਂ ਜਾ ਸਕੀ — ਕਿਸੇ ਹੋਰ ਨੇ ਉਸ ਉੱਤੇ ਸਕੋਰ ਕਰ ਦਿੱਤਾ। ਇਹ ਇੱਥੇ ਸੰਭਾਲੀ ਹੋਈ ਹੈ।",
+  "sc.n_balls_could_not_be_added.other": "ਇਸ ਫ਼ੋਨ ਤੇ ਸਕੋਰ ਕੀਤੀਆਂ {n} ਗੇਂਦਾਂ ਜੋੜੀਆਂ ਨਹੀਂ ਜਾ ਸਕੀਆਂ — ਕਿਸੇ ਹੋਰ ਨੇ ਉਨ੍ਹਾਂ ਉੱਤੇ ਸਕੋਰ ਕਰ ਦਿੱਤਾ। ਇਹ ਇੱਥੇ ਸੰਭਾਲੀਆਂ ਹੋਈਆਂ ਹਨ।",
+  "sc.send_before_handing_over": "ਆਖ਼ਰੀ ਗੇਂਦਾਂ ਅਜੇ ਭੇਜੀਆਂ ਨਹੀਂ ਗਈਆਂ। ਸਿਗਨਲ ਲੱਭੋ, ਫਿਰ ਸਕੋਰਬੁੱਕ ਸੌਂਪੋ।",
+  "sc.live_scoreboard_headline": "{home} ਬਨਾਮ {away} — ਲਾਈਵ ਸਕੋਰਬੋਰਡ",
+  "sc.books_disagree": "ਇਸ ਫ਼ੋਨ ਦੀ ਸਕੋਰਬੁੱਕ ਅਤੇ ਸਰਵਰ ਦੀ ਸਕੋਰਬੁੱਕ ਮੇਲ ਨਹੀਂ ਖਾਂਦੀਆਂ। ਠੀਕ ਕਰਨ ਲਈ ਮੈਚ ਦੁਬਾਰਾ ਖੋਲ੍ਹੋ।",
+
 };

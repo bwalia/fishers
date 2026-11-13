@@ -4436,6 +4436,18 @@ export const en = {
   "ss.unsub_ask_body": "You'll stop getting the email your club sends when it closes a season. Nothing else changes.",
   "ss.unsub_button": "Stop season emails",
 
+  // MARK: The Android scorer and the follower's card
+  "sc.team_need_off": "{team} need {runs} off {balls}",
+  "sc.has_bowled_their_overs": "{name} has bowled their {n} overs.",
+  "sc.taken_off_cannot_bowl": "{name} has been taken off and cannot bowl again this innings.",
+  "sc.no_match_on_this_fixture": "No match has been set up on this fixture yet.",
+  "sc.book_would_not_replay": "This match's book would not replay: {detail}",
+  "sc.n_balls_could_not_be_added.one": "{n} ball scored on this phone could not be added — somebody else scored over it. It is kept here.",
+  "sc.n_balls_could_not_be_added.other": "{n} balls scored on this phone could not be added — somebody else scored over them. They are kept here.",
+  "sc.send_before_handing_over": "The last balls have not gone up yet. Find a signal, then hand the book over.",
+  "sc.live_scoreboard_headline": "{home} vs {away} — live scoreboard",
+  "sc.books_disagree": "This phone's book and the server's do not agree. Open the match again to sort it out.",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.
