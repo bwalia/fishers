@@ -1,5 +1,7 @@
 package com.fishers.app.views.fixtures
 
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -77,7 +79,7 @@ import java.time.Instant
  * your place in the side; your answer; the captain's tools; who is coming.
  */
 @Composable
-internal fun FixtureScreen(eventId: String) {
+internal fun FixtureScreen(eventId: String, notice: String? = null) {
     val deps = LocalAppDeps.current
     val nav = LocalNavigator.current
     val meId = deps.user()?.id
@@ -112,7 +114,7 @@ internal fun FixtureScreen(eventId: String) {
             ) {
                 Header(event, state)
                 state.error?.let { ErrorText(it) }
-                state.message?.let {
+                (state.message ?: notice)?.let {
                     Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                 }
 
@@ -135,7 +137,7 @@ internal fun FixtureScreen(eventId: String) {
 
                 if (!event.isOff && event.isUpcoming()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionHeading(t("ev.are_you_playing"))
+                        SectionHeading(state.question)
                         AnswerChips(answer = state.myAnswer, enabled = !state.isAnswering, onAnswer = model::answer)
                     }
                 }
@@ -155,6 +157,7 @@ internal fun FixtureScreen(eventId: String) {
                 if (state.attendees.isNotEmpty()) {
                     WhoIsComing(
                         state.attendees,
+                        practice = state.event?.practice != null,
                         onOpen = { nav.push(PlayerProfileRoute(it.userId, it.name)) },
                     )
                 }
@@ -188,11 +191,15 @@ private fun Header(event: FishersEvent, state: FixtureDetailState) {
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.secondary,
         )
+        // Nets and training: which week of a series, and what to bring.
+        val practice = event.practice
+        practice?.weekOf?.let { Text(it, style = MaterialTheme.typography.labelLarge) }
         Labelled(t("ev.when"), formatSpan(event.startAt, event.endAt))
         Labelled(
             t("ev.where"),
             state.venue?.let { listOfNotNull(it.name, it.address).joinToString(", ") } ?: t("ev.not_decided_yet"),
         )
+        practice?.note?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         // Called off has to shout. A cancelled fixture that looks like any
         // other is how a side turns up to an empty ground.
         if (event.isOff) {
@@ -229,8 +236,7 @@ private fun Labelled(label: String, value: String) {
  */
 @Composable
 private fun MatchCard(state: FixtureDetailState, onAction: (MatchAction) -> Unit) {
-    val event = state.event ?: return
-    if (!event.isCricketMatch) return
+    if (!state.hasMatchCard) return
     val actions = state.matchActions()
     val match = when (val m = state.match) {
         is MatchOnFixture.SettingUp -> m.match
@@ -315,12 +321,15 @@ private fun MyPlaceCard(
             when (me.state) {
                 // Picked: say yes or no. Only somebody picked is asked — the
                 // server would otherwise put a left-out player straight in.
-                SelectionState.Selected -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onRespond(true) }, enabled = !busy, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                        Text(t("ev.im_playing"))
-                    }
-                    OutlinedButton(onClick = { onRespond(false) }, enabled = !busy, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                        Text(t("ev.cant_make_it"))
+                SelectionState.Selected -> ButtonRow(labels = listOf(t("ev.im_playing"), t("ev.cant_make_it"))) { i, m ->
+                    if (i == 0) {
+                        Button(onClick = { onRespond(true) }, enabled = !busy, modifier = m.heightIn(min = 48.dp)) {
+                            ButtonLabel(t("ev.im_playing"))
+                        }
+                    } else {
+                        OutlinedButton(onClick = { onRespond(false) }, enabled = !busy, modifier = m.heightIn(min = 48.dp)) {
+                            ButtonLabel(t("ev.cant_make_it"))
+                        }
                     }
                 }
                 SelectionState.Confirmed -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -404,12 +413,12 @@ private fun MotmSection(poll: MotmPollView) {
 /** Everyone asked, available first, with the counts a captain reads before anything else. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WhoIsComing(attendees: List<Attendee>, onOpen: (Attendee) -> Unit) {
+private fun WhoIsComing(attendees: List<Attendee>, practice: Boolean = false, onOpen: (Attendee) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeading(t("ev.who_is_coming"))
         val n = { status: RsvpStatus -> attendees.count { it.status == status } }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(t("ev.n_playing", vars = mapOf("n" to n(RsvpStatus.Going))), style = MaterialTheme.typography.labelLarge)
+            Text(t(if (practice) "np.n_coming" else "ev.n_playing", vars = mapOf("n" to n(RsvpStatus.Going))), style = MaterialTheme.typography.labelLarge)
             Text(t("ev.n_maybe", vars = mapOf("n" to n(RsvpStatus.Maybe))), style = MaterialTheme.typography.labelLarge)
             Text(t("ev.n_not_answered", vars = mapOf("n" to n(RsvpStatus.Invited))), style = MaterialTheme.typography.labelLarge)
         }

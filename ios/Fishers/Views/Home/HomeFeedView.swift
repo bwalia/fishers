@@ -348,7 +348,7 @@ struct EventRow: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
 
-                Text(event.eventSubtype.replacingOccurrences(of: "_", with: " ").capitalized)
+                Text(Practice.label(event.eventSubtype) ?? event.eventSubtype.replacingOccurrences(of: "_", with: " ").capitalized)
                     .font(FishersTheme.overline)
                     .tracking(0.7)
                     .textCase(.uppercase)
@@ -357,6 +357,18 @@ struct EventRow: View {
                 Text(event.startAt.formatted(date: .abbreviated, time: .shortened))
                     .font(FishersTheme.subhead)
                     .foregroundStyle(.secondary)
+
+                if event.isPractice, let week = Practice.weekOf(event.metadata) {
+                    Text(week)
+                        .font(FishersTheme.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if event.isPractice, let note = Practice.note(event.metadata) {
+                    Text(note)
+                        .font(FishersTheme.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
             Spacer(minLength: 8)
             if let fee = event.feeAmountCents {

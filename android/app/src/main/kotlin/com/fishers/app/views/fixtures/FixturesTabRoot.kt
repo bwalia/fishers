@@ -41,6 +41,7 @@ fun FixturesTabRoot(
         onAnswer = fixtures::answer,
         onOpen = { nav.push(FixtureRoute(it.id)) },
         onSchedule = { nav.push(CreateFixtureRoute()) },
+        onScheduleNets = { nav.push(CreateFixtureRoute(nets = true)) },
         onOpenCalendar = { nav.push(AvailabilityCalendarRoute()) },
         onOpenScores = { nav.push(ScoreHubRoute()) },
     )

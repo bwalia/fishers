@@ -2,6 +2,7 @@
 
 package com.fishers.app.views.match.scoring
 
+import androidx.compose.foundation.layout.PaddingValues
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -725,26 +726,33 @@ private fun Controls(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(4, 5, 6).forEach { RunButton(it, enabled, Modifier.weight(1f), onScore) }
         }
+        // One row, always: these are thumbed between balls. The default 24dp
+        // side padding left "Undo" and its icon no room on a 360dp phone, so
+        // the words get it instead, and never break onto a second line.
+        val tight = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick = { onSheet(ScorerSheet.Extras) },
                 enabled = enabled,
+                contentPadding = tight,
                 modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-            ) { Text(t("la.extras"), style = MaterialTheme.typography.titleMedium) }
+            ) { Text(t("la.extras"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             Button(
                 onClick = { onSheet(ScorerSheet.Wicket) },
                 enabled = enabled,
+                contentPadding = tight,
                 colors = ButtonDefaults.buttonColors(containerColor = BallColours.wicket, contentColor = Color.White),
                 modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-            ) { Text(t("sc.wicket"), style = MaterialTheme.typography.titleMedium) }
+            ) { Text(t("sc.wicket"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             OutlinedButton(
                 onClick = { model.undo() },
                 enabled = state.canUndo,
+                contentPadding = tight,
                 modifier = Modifier.weight(1f).heightIn(min = 56.dp),
             ) {
                 Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = null)
                 Spacer(Modifier.width(4.dp))
-                Text(t("sc.undo"), style = MaterialTheme.typography.titleMedium)
+                Text(t("sc.undo"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.fishers.app.views.onboarding
 
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -83,30 +85,34 @@ fun ShareProfileCard(
             SelectionContainer {
                 Text(link, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, maxLines = 2)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = {
-                        clipboard.setText(AnnotatedString(link))
-                        copied = true
-                    },
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                ) {
-                    Icon(if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (copied) t("le.copied") else t("cl.copy"))
-                }
-                Button(
-                    onClick = {
-                        val send = Intent(Intent.ACTION_SEND)
-                            .setType("text/plain")
-                            .putExtra(Intent.EXTRA_TEXT, message)
-                        context.startActivity(Intent.createChooser(send, null))
-                    },
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                ) {
-                    Icon(Icons.Filled.Share, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(t("sc.share"))
+            val copyLabel = if (copied) t("le.copied") else t("cl.copy")
+            ButtonRow(labels = listOf(copyLabel, t("sc.share")), extra = 30.dp) { i, m ->
+                if (i == 0) {
+                    OutlinedButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(link))
+                            copied = true
+                        },
+                        modifier = m.heightIn(min = 48.dp),
+                    ) {
+                        Icon(if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        ButtonLabel(copyLabel)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            val send = Intent(Intent.ACTION_SEND)
+                                .setType("text/plain")
+                                .putExtra(Intent.EXTRA_TEXT, message)
+                            context.startActivity(Intent.createChooser(send, null))
+                        },
+                        modifier = m.heightIn(min = 48.dp),
+                    ) {
+                        Icon(Icons.Filled.Share, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        ButtonLabel(t("sc.share"))
+                    }
                 }
             }
             OutlinedButton(

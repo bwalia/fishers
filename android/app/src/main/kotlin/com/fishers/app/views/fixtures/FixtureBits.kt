@@ -1,5 +1,7 @@
 package com.fishers.app.views.fixtures
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -104,6 +106,7 @@ internal fun ErrorText(text: String) {
  * Can you play? The three answers, side by side, the one you gave lit. Each
  * a full 48dp target: this is tapped one-handed at the bus stop.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AnswerChips(
     answer: RsvpStatus?,
@@ -111,13 +114,16 @@ internal fun AnswerChips(
     onAnswer: (RsvpStatus) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // FlowRow, not Row: three answers fit side by side in English on any
+    // phone, but in Punjabi or at a large font the third goes to the next
+    // line instead of being squeezed until its word breaks.
+    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(RsvpStatus.Going, RsvpStatus.Maybe, RsvpStatus.NotGoing).forEach {
             FilterChip(
                 selected = answer == it,
                 onClick = { onAnswer(it) },
                 enabled = enabled,
-                label = { Text(it.label) },
+                label = { Text(it.label, maxLines = 1) },
                 modifier = Modifier.heightIn(min = 48.dp),
             )
         }

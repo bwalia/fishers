@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Map
@@ -155,6 +156,7 @@ internal fun ClubPage(clubId: String, name: String, welcome: Boolean) {
             onRetry = model::load,
             onStartMatch = { nav.push(StartMatchRoute(clubId)) },
             onSchedule = { nav.push(CreateFixtureRoute(clubId)) },
+            onScheduleNets = { nav.push(CreateFixtureRoute(clubId, nets = true)) },
             onSeason = { nav.push(ClubSeasonRoute(clubId, title)) },
             onRoster = { openRoster(false) },
             onTeam = { nav.push(TeamRoute(it.id, it.name)) },
@@ -211,6 +213,7 @@ private fun ClubPageBody(
     onRetry: () -> Unit,
     onStartMatch: () -> Unit,
     onSchedule: () -> Unit,
+    onScheduleNets: () -> Unit,
     onSeason: () -> Unit,
     onRoster: () -> Unit,
     onTeam: (Team) -> Unit,
@@ -306,6 +309,12 @@ private fun ClubPageBody(
                 OutlinedButton(onClick = onSchedule, modifier = Modifier.padding(top = 8.dp).heightIn(min = 48.dp)) {
                     Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text(t("ev.schedule_a_match"), modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+            item {
+                OutlinedButton(onClick = onScheduleNets, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Icon(Icons.Filled.EventRepeat, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(t("np.schedule_nets_or_practice"), modifier = Modifier.padding(start = 8.dp))
                 }
             }
         }

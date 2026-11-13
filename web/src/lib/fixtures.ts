@@ -7,6 +7,7 @@ import type { Key } from "@/lib/i18n/en";
 
 import { api } from "@/lib/api";
 import { dayKey } from "@/lib/availability";
+import { isPractice } from "@/lib/sessions";
 
 export type Answer = "going" | "maybe" | "not_going";
 
@@ -27,6 +28,8 @@ export type MyFixture = {
   my_answer: Answer | null;
   fee_amount_cents: number | null;
   ticket_price_cents: number | null;
+  /// What the scheduling app put on it: a session's note and its week.
+  metadata?: unknown;
 };
 
 /// Dictionary keys, not words: `label` is the button, `said` is how the answer
@@ -53,6 +56,15 @@ export function myFixtures(from: Date, to: Date): Promise<MyFixture[]> {
 export function searchFixtureClubs(term: string): Promise<{ id: string; name: string }[]> {
   const q = new URLSearchParams(term ? { q: term } : {});
   return api<{ id: string; name: string }[]>("GET", `/events/mine/clubs?${q}`);
+}
+
+/// The metadata of each nets or training session in `fixtures`, by event id —
+/// its note, and which week of a series it is. `GET /events/mine` carries it
+/// on each row, so this asks the server for nothing.
+export async function sessionMetadata(fixtures: MyFixture[]): Promise<Record<string, unknown>> {
+  return Object.fromEntries(
+    fixtures.filter((f) => isPractice(f.event_subtype)).map((f) => [f.event_id, f.metadata ?? {}])
+  );
 }
 
 export function answerFixture(eventId: string, status: Answer): Promise<unknown> {

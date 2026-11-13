@@ -2,6 +2,8 @@
 
 package com.fishers.app.views.match.scoring
 
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -177,15 +179,18 @@ internal fun WheelPicker(
                 color = if (angle == null) MaterialTheme.colorScheme.onSurfaceVariant else colour,
             )
             WordChoice(Shots.ordered(runs).map { it to Shots.label(it) }, kind) { kind = it }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = onSkip, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
-                    Text(t("sc.skip_just_the_runs"))
+            ButtonRow(labels = listOf(t("sc.skip_just_the_runs"), t("lc.save"))) { i, m ->
+                if (i == 0) {
+                    OutlinedButton(onClick = onSkip, modifier = m.heightIn(min = 56.dp)) {
+                        ButtonLabel(t("sc.skip_just_the_runs"))
+                    }
+                } else {
+                    Button(
+                        onClick = { angle?.let { onSave(Shot(it, kind, reach)) } },
+                        enabled = angle != null,
+                        modifier = m.heightIn(min = 56.dp),
+                    ) { ButtonLabel(t("lc.save")) }
                 }
-                Button(
-                    onClick = { angle?.let { onSave(Shot(it, kind, reach)) } },
-                    enabled = angle != null,
-                    modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-                ) { Text(t("lc.save")) }
             }
         }
     }

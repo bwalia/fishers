@@ -143,7 +143,7 @@ private fun TermsStep(state: MatchSetupState, model: MatchSetupViewModel, onPick
 
     SectionTitle(t("sc.format"))
     Text(t("sc.overs"), style = MaterialTheme.typography.labelLarge)
-    Choices(MatchConditions.overPresets, c.oversLimit, { it.toString() }, model::setOvers)
+    Choices(MatchConditions.overPresets, c.oversLimit, { it.toString() }, model::setOvers, minWidth = 64.dp)
     Stepper(
         t("sc.overs_per_bowler"),
         if (c.oversPerBowler == 0) t("sc.no_bowler_limit") else c.oversPerBowler.toString(),

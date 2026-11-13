@@ -151,7 +151,24 @@ private fun CouldNotLoad(text: String) {
 @Composable
 private fun NextFixture(event: MyFixture) {
     Text(event.title, style = MaterialTheme.typography.titleMedium)
-    Text(formatWhen(event.startAt), style = MaterialTheme.typography.bodyMedium)
+    val practice = event.practice
+    if (practice == null) {
+        Text(formatWhen(event.startAt), style = MaterialTheme.typography.bodyMedium)
+    } else {
+        // Nets or training says so: its name alone could be anything.
+        Text(
+            // …unless the name already is the kind: "Nets" over "Nets · Fri…" says it twice.
+            listOfNotNull(
+                event.subtype.label.takeUnless { it.equals(event.title.trim(), ignoreCase = true) },
+                formatWhen(event.startAt),
+                practice.weekOf,
+            ).joinToString(" · "),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        practice.note?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Preview(showBackground = true)
