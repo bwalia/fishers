@@ -547,6 +547,10 @@ struct ClubDetailView: View {
     @State private var startingMatch = false
     @State private var startedMatch: Event?
     @State private var pendingCreate: CreateEventBody?
+    @State private var schedulingNets = false
+    /// Nets or training just made, waiting for the sheet to close.
+    @State private var scheduledNets: ScheduledSessions?
+    @State private var openedNets: ScheduledSessions?
 
     private var isSecretary: Bool { role?.isSecretary ?? false }
     private var isCricket: Bool {
@@ -703,6 +707,11 @@ struct ClubDetailView: View {
                         EventRow(event: event)
                     }
                 }
+                if role?.permissions.contains("manage_events") == true {
+                    Button { schedulingNets = true } label: {
+                        Label(t("np.schedule_nets_or_practice"), systemImage: "sportscourt")
+                    }
+                }
             }
         }
         .fishersList()
@@ -747,6 +756,21 @@ struct ClubDetailView: View {
         .sheet(isPresented: $addingGround) {
             AddGroundSheet(clubId: club.id) { Task { await load() } }
         }
+        .sheet(isPresented: $schedulingNets, onDismiss: {
+            openedNets = scheduledNets
+            scheduledNets = nil
+        }) {
+            ScheduleMatchSheet(
+                clubs: [club],
+                startAs: .nets,
+                onScheduled: { Task { await load() } },
+                onSessions: { first, count in
+                    Task { await load() }
+                    scheduledNets = ScheduledSessions(eventId: first.id, count: count)
+                }
+            )
+        }
+        .navigationDestination(item: $openedNets) { EventDetailView(eventId: $0.eventId, notice: $0.notice) }
         .alert(tr("New tournament or tour"), isPresented: $isCreatingTournament) {
             TextField(t("cl.tournament_name_example"), text: $newTournamentName)
             Button(t("cl.create")) {

@@ -62,11 +62,14 @@ struct MyFixture: Codable, Identifiable, Hashable {
     var myAnswer: FixtureAnswer?
     var feeAmountCents: Int?
     var ticketPriceCents: Int?
+    /// A nets session's note and its week of a series, when the server sends
+    /// them; `GET /events/mine` does not yet.
+    var metadata: [String: JSONValue]?
 
     var id: UUID { eventId }
 
     enum CodingKeys: String, CodingKey {
-        case title, sport, status
+        case title, sport, status, metadata
         case eventId = "event_id"
         case eventSubtype = "event_subtype"
         case startAt = "start_at"
@@ -88,7 +91,7 @@ struct MyFixture: Codable, Identifiable, Hashable {
         switch eventSubtype {
         case "league_match", "tournament": return "trophy"
         case "friendly": return "figure.cricket"
-        case "nets": return "sportscourt"
+        case "nets", "training": return "sportscourt"
         case "social": return "person.3"
         default: return "calendar"
         }
