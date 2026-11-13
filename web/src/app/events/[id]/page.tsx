@@ -17,6 +17,7 @@ import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
 import type { Key } from "@/lib/i18n/en";
+import { PRACTICE_LABEL, isPractice, seriesWeek, sessionNote } from "@/lib/sessions";
 
 /// Everyone the fixture knows about, and what they said.
 type Attendee = {
@@ -141,6 +142,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
 
   const count = (s: string) => attendees.filter((a) => a.status === s).length;
   const owing = attendees.filter((a) => !a.paid && a.status === "going");
+  // Nets or training: a session to turn up to, with nobody to pick a side
+  // from — so no squad, and "are you coming?" rather than "are you playing?".
+  const session = isPractice(event.event_subtype) ? event.event_subtype : null;
+  const week = session ? seriesWeek(event.metadata) : null;
+  const sessionText = session ? sessionNote(event.metadata) : null;
 
   return (
     <main id="main">
@@ -151,7 +157,10 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           })}
         </p>
         <h1>{event.title}</h1>
+        {sessionText && <p>{sessionText}</p>}
         <div className="hero-tags">
+          {session && <span className="tag">{t(PRACTICE_LABEL[session])}</span>}
+          {week && <span className="tag grey">{t("np.week_of", { i: week.i, n: week.n })}</span>}
           <span className="tag">{t("ev.n_playing", { n: count("going") })}</span>
           {count("maybe") > 0 && <span className="tag gold">{t("ev.n_maybe", { n: count("maybe") })}</span>}
           {count("invited") > 0 && (
@@ -170,7 +179,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         <div className="pro-main">
           <div className="panel">
             <div className="panel-head">
-              <h2>{t("ev.are_you_playing")}</h2>
+              <h2>{session ? t("np.are_you_coming") : t("ev.are_you_playing")}</h2>
               {event.fee_amount_cents != null && (
                 <span className="tag gold">{t("ev.amount_match_fee", { amount: money(event.fee_amount_cents) })}</span>
               )}
@@ -196,9 +205,11 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           <div className="panel">
             <div className="panel-head">
               <h2>{t("ev.who_is_coming")}</h2>
-              <Link className="btn ghost sm" href={`/events/${id}/selection`}>
-                {t("ev.pick_the_squad")}
-              </Link>
+              {!session && (
+                <Link className="btn ghost sm" href={`/events/${id}/selection`}>
+                  {t("ev.pick_the_squad")}
+                </Link>
+              )}
             </div>
             {attendees.length === 0 ? (
               <p className="muted">{t("ev.nobody_asked_yet_invite_people_below")}</p>
