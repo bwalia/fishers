@@ -4436,6 +4436,32 @@ export const en = {
   "ss.unsub_ask_body": "You'll stop getting the email your club sends when it closes a season. Nothing else changes.",
   "ss.unsub_button": "Stop season emails",
 
+  // MARK: Starting a match on Android — the hub, the quick start, the setup.
+  // Online only for now, so these say nothing about working without signal.
+  "ms.no_fixture_needed": "No fixture needed — name the teams and start scoring.",
+  "ms.your_team_name": "Your team's name",
+  "ms.missing_team_name": "your team's name",
+  "ms.your_team_explainer": "We'll set your team up with this so you can score straight away. Add players and the rest later.",
+  "ms.or_start_a_club": "Or set up a full club instead",
+  "ms.find_them_or_type": "Find them by their code or name, or just type who turned up.",
+  "ms.code_sent": "A code is on its way to {address}. It lasts ten minutes.",
+  "ms.their_code": "Their club code",
+  "ms.club_code": "Club code or link",
+  "ms.find_by_code": "Find them",
+  "ms.on_brand": "On {brand}",
+  "ms.code_search_or_type": "Enter the other club's code, search for them, or type a name.",
+  "ms.step_of": "Step {n} of {total} — {name}",
+  "ms.fewer": "Fewer: {what}",
+  "ms.more": "More: {what}",
+  "ms.follow_the_match": "Follow the match",
+  "ms.sheet_needs_two": "A team sheet needs at least two players.",
+  "ms.book_would_not_replay": "This match's book would not replay: {reason}",
+  "ms.confirm_side": "Confirm {team} ({n})",
+  "ms.options_for": "Options for {name}",
+  "ms.move_up": "Move up",
+  "ms.move_down": "Move down",
+  "ms.scorers": "Scorers",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.
