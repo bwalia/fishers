@@ -2,6 +2,7 @@ package com.fishers.app.views
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -130,8 +131,12 @@ fun MainTabScreen(
     CompositionLocalProvider(LocalNavigator provides navigator) {
         Scaffold(
             modifier = modifier.fillMaxSize(),
+            // MainActivity's Scaffold has already padded for the status and
+            // navigation bars; padding again left a band of nothing above
+            // the greeting and under the tabs.
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
-                NavigationBar {
+                NavigationBar(windowInsets = WindowInsets(0, 0, 0, 0)) {
                     Tab.entries.forEach { entry ->
                         NavigationBarItem(
                             selected = tab == entry,
