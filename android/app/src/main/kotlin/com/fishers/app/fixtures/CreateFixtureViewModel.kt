@@ -18,9 +18,23 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.UUID
 
 /** The kinds of match the form offers. A cup is a tournament to the server. */
 val MATCH_KINDS = listOf(EventSubtype.LeagueMatch, EventSubtype.Friendly, EventSubtype.Tournament)
+
+/** What the form can make besides a match. */
+val PRACTICE_KINDS = listOf(EventSubtype.Nets, EventSubtype.Training)
+
+/** How long a session may run, in minutes. */
+val SESSION_MINUTES = listOf(60, 90, 120, 180)
+
+/** How many weeks a weekly series may run for, and how many it starts at. */
+val SERIES_WEEKS = 2..12
+const val DEFAULT_SERIES_WEEKS = 8
+
+/** Nets take a while to get everybody through; training is a shorter hour and a half. */
+fun defaultMinutes(kind: EventSubtype): Int = if (kind == EventSubtype.Training) 90 else 120
 
 data class CreateFixtureState(
     /** Only the clubs where this person may put a match in the diary. */
@@ -43,12 +57,24 @@ data class CreateFixtureState(
     val kind: EventSubtype = EventSubtype.LeagueMatch,
     val date: LocalDate,
     val time: LocalTime = LocalTime.of(13, 0),
+    /** Nets or training; null for a match, which is what the form has always made. */
+    val practice: EventSubtype? = null,
+    /** The session's name. Starts as the kind's own, "Nets" or "Training". */
+    val name: String = "",
+    val minutes: Int = defaultMinutes(EventSubtype.Nets),
+    val note: String = "",
+    val repeatWeekly: Boolean = false,
+    val weeks: Int = DEFAULT_SERIES_WEEKS,
     val isSaving: Boolean = false,
     val error: String? = null,
-    /** Set once the server has the fixture; the screen becomes it. */
+    /** Weeks of a series already on the server — said when a later week fails. */
+    val sessionsMade: Int = 0,
+    /** Set once the server has the fixture; the screen becomes it. For a series, the first week. */
     val createdEventId: String? = null,
 ) {
     val club: Club? get() = clubs.firstOrNull { it.id == clubId }
+
+    val isPractice: Boolean get() = practice != null
 
     /** Whoever was picked from the search, else whatever was typed. */
     val theirName: String get() = opponent?.displayName ?: oppositionName.trim()
@@ -60,6 +86,10 @@ data class CreateFixtureState(
  *
  * Saving asks everyone in the club (and in the opposition's, when they are on
  * the app) whether they can play; the server does that, not this.
+ *
+ * The same form schedules nets and training: no opposition and no kind of
+ * match, but a name, a length, a note, and optionally the same slot every
+ * week — one event per week, made one after another.
  */
 class CreateFixtureViewModel(
     private val api: FixturesApi,
@@ -80,6 +110,10 @@ class CreateFixtureViewModel(
     private var clubLoad: Job? = null
     /** Each club's answer to "what may I do here", asked once. */
     private val roles = mutableMapOf<String, ClubRole?>()
+
+    /** The sessions being made, as first planned, and the ids of those the server has. */
+    private var plan: List<CreateEventBody> = emptyList()
+    private val made = mutableListOf<String>()
 
     /** The clubs where you may schedule, each asked separately — as iOS does. */
     fun load() {
@@ -143,6 +177,44 @@ class CreateFixtureViewModel(
 
     fun setTime(time: LocalTime) {
         _state.value = _state.value.copy(time = time)
+    }
+
+    /**
+     * A match, nets or training. The name and the length follow the kind
+     * until somebody changes them: "Nets" becomes "Training", but "Wednesday
+     * nets" stays put.
+     */
+    fun setWhat(practice: EventSubtype?) {
+        val s = _state.value
+        if (practice == s.practice || (practice != null && !practice.isPractice)) return
+        val nameIsDefault = s.name.isBlank() || PRACTICE_KINDS.any { s.name == it.label }
+        val lengthIsDefault = PRACTICE_KINDS.any { s.minutes == defaultMinutes(it) }
+        _state.value = s.copy(
+            practice = practice,
+            name = if (practice != null && nameIsDefault) practice.label else s.name,
+            minutes = if (practice != null && lengthIsDefault) defaultMinutes(practice) else s.minutes,
+            error = null,
+        )
+    }
+
+    fun setName(name: String) {
+        _state.value = _state.value.copy(name = name)
+    }
+
+    fun setMinutes(minutes: Int) {
+        _state.value = _state.value.copy(minutes = minutes)
+    }
+
+    fun setNote(note: String) {
+        _state.value = _state.value.copy(note = note)
+    }
+
+    fun setRepeatWeekly(on: Boolean) {
+        _state.value = _state.value.copy(repeatWeekly = on)
+    }
+
+    fun setWeeks(weeks: Int) {
+        _state.value = _state.value.copy(weeks = weeks.coerceIn(SERIES_WEEKS))
     }
 
     /**
@@ -216,7 +288,8 @@ class CreateFixtureViewModel(
      */
     fun missing(state: CreateFixtureState = _state.value): List<String> = buildList {
         if (state.club == null) add(t("ev.missing_which_club"))
-        if (state.theirName.isEmpty()) add(t("ev.missing_who"))
+        // Nets have no opposition.
+        if (!state.isPractice && state.theirName.isEmpty()) add(t("ev.missing_who"))
         if (!startsAt(state).isAfter(now())) add(t("ev.missing_when"))
     }
 
@@ -224,6 +297,7 @@ class CreateFixtureViewModel(
         val s = _state.value
         val club = s.club ?: return
         if (s.isSaving || missing(s).isNotEmpty()) return
+        if (s.isPractice) return schedule(s)
         if (s.opponent?.clubId == club.id) {
             _state.value = s.copy(error = t("ld.your_side_and_the_opposition_are_the_s"))
             return
@@ -249,6 +323,71 @@ class CreateFixtureViewModel(
             runCatching { api.createEvent(body) }
                 .onSuccess { _state.value = _state.value.copy(isSaving = false, createdEventId = it.id) }
                 .onFailure { _state.value = _state.value.copy(isSaving = false, error = fixtureError(it)) }
+        }
+    }
+
+    /**
+     * What a nets or training session sends: one body, or one per week of a
+     * series. Each week is a week on in the scheduler's own zone, so seven
+     * o'clock nets stay at seven when the clocks change; each ends its length
+     * after it starts. No opposition, and no recurrence rule — every week is
+     * an event of its own, which is what puts it in everybody's diary.
+     */
+    fun sessions(
+        state: CreateFixtureState = _state.value,
+        seriesId: String = UUID.randomUUID().toString(),
+    ): List<CreateEventBody> {
+        val club = state.club ?: return emptyList()
+        val kind = state.practice ?: return emptyList()
+        val first = ZonedDateTime.of(state.date, state.time, zone)
+        val count = if (state.repeatWeekly) state.weeks else 1
+        val length = Duration.ofMinutes(state.minutes.toLong())
+        val note = state.note.trim().takeIf { it.isNotEmpty() }
+        return (0 until count).map { week ->
+            val start = first.plusWeeks(week.toLong()).toInstant()
+            CreateEventBody(
+                clubId = club.id,
+                teamId = state.teamId,
+                sport = club.sportTypes.firstOrNull() ?: "cricket",
+                subtype = kind,
+                title = state.name.trim().ifEmpty { kind.label },
+                venueId = state.venueId,
+                startAt = start.toString(),
+                endAt = start.plus(length).toString(),
+                metadata = SessionMetadata(
+                    note = note,
+                    seriesId = seriesId.takeIf { state.repeatWeekly },
+                    seriesIndex = week.takeIf { state.repeatWeekly },
+                    seriesCount = count.takeIf { state.repeatWeekly },
+                ),
+            )
+        }
+    }
+
+    /**
+     * Make the sessions one after another, stopping at the first refusal.
+     *
+     * Once any week is on the server the series is fixed: trying again sends
+     * only the weeks still missing, as first planned and under the same series
+     * id, so nobody is asked about the same Wednesday twice.
+     */
+    private fun schedule(s: CreateFixtureState) {
+        if (made.isEmpty()) plan = sessions(s)
+        val left = plan.drop(made.size)
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isSaving = true, error = null)
+            for (body in left) {
+                val event = runCatching { api.createEvent(body) }.getOrElse {
+                    _state.value = _state.value.copy(isSaving = false, sessionsMade = made.size, error = fixtureError(it))
+                    return@launch
+                }
+                made += event.id
+            }
+            _state.value = _state.value.copy(
+                isSaving = false,
+                sessionsMade = made.size,
+                createdEventId = made.first(),
+            )
         }
     }
 
