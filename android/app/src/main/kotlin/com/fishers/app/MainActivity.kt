@@ -5,6 +5,7 @@ import com.fishers.app.cricket.BookSweeper
 import com.fishers.app.cricket.DeviceId
 import com.fishers.app.cricket.FileBallStore
 import com.fishers.app.net.ScoringApi
+import com.fishers.app.session.UserCache
 import kotlinx.coroutines.launch
 
 import androidx.compose.runtime.CompositionLocalProvider
@@ -103,7 +104,7 @@ class MainActivity : ComponentActivity() {
                     factory = object : ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                            SessionViewModel(app.network.api, app.session) as T
+                            SessionViewModel(app.network.api, app.session, UserCache.prefs(app)) as T
                     },
                 )
                 val session by model.state.collectAsStateWithLifecycle()
