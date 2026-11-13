@@ -11,6 +11,56 @@ final class ClubsTour: APITourCase {
         tab.tap()
     }
 
+    /// One link for the whole squad, made on the phone: two players join
+    /// through the same link, a new one retires it, and it can be turned off.
+    func testASecretarySharesOneClubLinkTheWholeSquadJoinsThrough() throws {
+        try skipWithoutAnAPI()
+        let secretary = try makeAccount("link", name: "Lina Link", role: "secretary")
+        let clubName = "Link \(stamp % 100000) CC"
+        let club = try api("POST", "/clubs", token: secretary.access,
+                           body: ["name": clubName, "sport_types": ["cricket"]])
+        let clubId = try XCTUnwrap(club["id"] as? String)
+        launch(as: secretary)
+
+        openClubsTab()
+        // A tap while Home is still settling can land on nothing.
+        if !element(containing: clubName).waitForExistence(timeout: 10) { openClubsTab() }
+        reveal(clubName).tap()
+        reveal("1 member").tap()
+
+        XCTAssertTrue(element(containing: "Club link — anyone can join").waitForExistence(timeout: 20),
+                      "a secretary is not offered the club link")
+        app.buttons["Make a club link"].firstMatch.tap()
+
+        XCTAssertTrue(element(containing: "/invite/").waitForExistence(timeout: 15), "the link is not shown")
+        let first = try XCTUnwrap(api("GET", "/clubs/\(clubId)/join-link", token: secretary.access, body: nil)["token"] as? String)
+        XCTAssertTrue(element(containing: "/invite/\(first)").exists, "the link shown is not the club's")
+        capture("ClubLink-made")
+
+        // Two players through the one link — the second used to be told it had been used.
+        for name in ["Pat One", "Sam Two"] {
+            let player = try makeAccount("join\(name.prefix(3))", name: name, role: "player")
+            try api("POST", "/invites/\(first)/accept", token: player.access, body: nil)
+        }
+        app.navigationBars.buttons["BackButton"].firstMatch.tap()
+        reveal("3 members").tap()
+        XCTAssertTrue(element(containing: "2 people have joined through this link").waitForExistence(timeout: 15),
+                      "the count of who joined is wrong")
+        capture("ClubLink-two-joined")
+
+        app.buttons["Make a new link"].firstMatch.tap()
+        app.sheets.buttons["Make a new link"].firstMatch.tap()
+        XCTAssertTrue(element(containing: "/invite/\(first)").waitForNonExistence(timeout: 15), "the old link is still shown")
+        let second = try XCTUnwrap(api("GET", "/clubs/\(clubId)/join-link", token: secretary.access, body: nil)["token"] as? String)
+        XCTAssertNotEqual(first, second)
+        XCTAssertTrue(element(containing: "/invite/\(second)").waitForExistence(timeout: 15), "the new link is not shown")
+
+        app.buttons["Turn off"].firstMatch.tap()
+        app.sheets.buttons["Turn off"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Make a club link"].firstMatch.waitForExistence(timeout: 15), "turning it off did not stick")
+        capture("ClubLink-off")
+    }
+
     func testTheListIsSearchedOnTheServer() throws {
         try skipWithoutAnAPI()
         let secretary = try makeAccount("list", name: "Lee List", role: "secretary", verified: true)
