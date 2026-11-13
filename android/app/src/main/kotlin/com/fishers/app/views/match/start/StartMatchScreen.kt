@@ -55,6 +55,7 @@ fun StartMatchScreen(
             return@StartPage
         }
 
+        if (state.offline) OfflineNote(t("ms.no_signal_start"))
         SectionTitle(t("sr.your_side"))
         if (state.needsATeam) {
             // Somebody with no club to play for is asked one thing, and the club
@@ -100,7 +101,7 @@ fun StartMatchScreen(
         Footnote(
             state.opponent?.let {
                 t("sc.opponent_on_brand_sentence", vars = mapOf("club" to it.clubName.ifBlank { it.name }, "brand" to brand))
-            } ?: t("ms.find_them_or_type"),
+            } ?: t("sc.find_them_or_type"),
         )
 
         SectionTitle(t("sc.kind_of_match"))

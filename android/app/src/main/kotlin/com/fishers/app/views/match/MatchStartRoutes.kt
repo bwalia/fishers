@@ -9,18 +9,24 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fishers.app.cricket.BookSweeper
 import com.fishers.app.cricket.DeviceId
+import com.fishers.app.cricket.FileBallStore
 import com.fishers.app.match.start.HubDestination
+import com.fishers.app.match.start.MatchRegistrar
 import com.fishers.app.match.start.MatchSetupViewModel
+import com.fishers.app.match.start.OfflineCache
 import com.fishers.app.match.start.ScoreHubViewModel
 import com.fishers.app.match.start.SetupStep
 import com.fishers.app.match.start.StartMatchViewModel
 import com.fishers.app.net.MatchStartApi
+import com.fishers.app.net.ScoringApi
 import com.fishers.app.views.clubs.CreateClubRoute
 import com.fishers.app.views.match.start.MatchSetupScreen
 import com.fishers.app.views.match.start.OppositionPicker
 import com.fishers.app.views.match.start.ScoreHubScreen
 import com.fishers.app.views.match.start.StartMatchScreen
+import com.fishers.app.views.match.start.open
 import com.fishers.app.views.match.start.routeViewModel
 import com.fishers.app.views.nav.LocalAppDeps
 import com.fishers.app.views.nav.LocalNavigator
@@ -34,8 +40,26 @@ import com.fishers.app.views.profile.EditProfileRoute
 class ScoreHubRoute : Route {
     @Composable override fun Content() {
         val nav = LocalNavigator.current
-        val api = LocalAppDeps.current.service<MatchStartApi>()
-        val model = routeViewModel { ScoreHubViewModel(api) }
+        val deps = LocalAppDeps.current
+        val api = deps.service<MatchStartApi>()
+        val context = LocalContext.current
+        val model = routeViewModel {
+            val store = FileBallStore.forApp(context)
+            val deviceId = DeviceId.get(context)
+            ScoreHubViewModel(
+                api = api,
+                store = store,
+                cache = OfflineCache.forApp(context),
+                sweep = {
+                    BookSweeper(
+                        api = deps.service<ScoringApi>(),
+                        store = store,
+                        deviceId = deviceId,
+                        registrar = MatchRegistrar(api, store, deviceId),
+                    ).sendLeftovers()
+                },
+            )
+        }
         val state by model.state.collectAsStateWithLifecycle()
         LaunchedEffect(Unit) { model.load() }
         ScoreHubScreen(
@@ -54,6 +78,7 @@ class ScoreHubRoute : Route {
                     is HubDestination.Setup -> nav.push(MatchSetupRoute(to.eventId))
                 }
             },
+            onOpenPhone = nav::open,
         )
     }
 }
@@ -64,6 +89,7 @@ data class StartMatchRoute(val clubId: String? = null) : Route {
         val nav = LocalNavigator.current
         val deps = LocalAppDeps.current
         val api = deps.service<MatchStartApi>()
+        val context = LocalContext.current
         val user = deps.user()
         val channel = when {
             !user?.email.isNullOrBlank() -> "email"
@@ -71,7 +97,16 @@ data class StartMatchRoute(val clubId: String? = null) : Route {
             else -> null
         }
         val model = routeViewModel {
-            StartMatchViewModel(api, preferredClubId = clubId, verifyChannel = channel, onVerified = deps.setUser)
+            StartMatchViewModel(
+                api = api,
+                cache = OfflineCache.forApp(context),
+                store = FileBallStore.forApp(context),
+                deviceId = DeviceId.get(context),
+                myUserId = user?.id,
+                preferredClubId = clubId,
+                verifyChannel = channel,
+                onVerified = deps.setUser,
+            )
         }
         val state by model.state.collectAsStateWithLifecycle()
         var picking by rememberSaveable { mutableStateOf(false) }
@@ -116,8 +151,18 @@ data class MatchSetupRoute(val eventId: String) : Route {
         val api = deps.service<MatchStartApi>()
         val context = LocalContext.current
         val deviceId = remember { DeviceId.get(context) }
-        val userName = deps.user()?.name
-        val model = routeViewModel { MatchSetupViewModel(api, eventId, deviceId, userName) }
+        val user = deps.user()
+        val model = routeViewModel {
+            MatchSetupViewModel(
+                api = api,
+                eventId = eventId,
+                deviceId = deviceId,
+                userName = user?.name,
+                store = FileBallStore.forApp(context),
+                cache = OfflineCache.forApp(context),
+                myUserId = user?.id,
+            )
+        }
         val state by model.state.collectAsStateWithLifecycle()
         var picking by rememberSaveable { mutableStateOf(false) }
         LaunchedEffect(Unit) { model.load() }

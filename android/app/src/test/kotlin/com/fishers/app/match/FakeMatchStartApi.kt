@@ -9,6 +9,7 @@ import com.fishers.app.match.start.ClubIdentity
 import com.fishers.app.match.start.ConfirmCode
 import com.fishers.app.match.start.CreatedFixture
 import com.fishers.app.match.start.FixtureInfo
+import com.fishers.app.match.start.FixtureInfoPage
 import com.fishers.app.match.start.FixturePage
 import com.fishers.app.match.start.LookupOpponent
 import com.fishers.app.match.start.MatchSquads
@@ -43,6 +44,7 @@ open class FakeMatchStartApi : MatchStartApi {
     override suspend fun createClub(body: NewClub): Club = no()
     override suspend fun createEvent(body: NewFixture): CreatedFixture = no()
     override suspend fun event(eventId: String): FixtureInfo = no()
+    override suspend fun clubFixtures(clubId: String, from: String, to: String, perPage: Int): FixtureInfoPage = no()
     override suspend fun lookupOpponent(body: LookupOpponent): ClubIdentity = no()
     override suspend fun searchOpponents(query: String): List<ClubIdentity> = no()
     override suspend fun matchForEvent(eventId: String): SetupMatch = no()

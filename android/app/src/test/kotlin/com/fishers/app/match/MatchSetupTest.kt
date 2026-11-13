@@ -4,6 +4,7 @@ import com.fishers.app.EnglishStrings
 import com.fishers.app.clubs.ClubMemberDetail
 import com.fishers.app.cricket.Engine
 import com.fishers.app.cricket.Events
+import com.fishers.app.cricket.FileBallStore
 import com.fishers.app.cricket.ScoringEvent
 import com.fishers.app.match.start.ClaimScorer
 import com.fishers.app.match.start.FixtureInfo
@@ -11,6 +12,7 @@ import com.fishers.app.match.start.MatchPlayer
 import com.fishers.app.match.start.MatchSetupViewModel
 import com.fishers.app.match.start.MatchSquads
 import com.fishers.app.match.start.NewMatch
+import com.fishers.app.match.start.OfflineCache
 import com.fishers.app.match.start.Official
 import com.fishers.app.match.start.SetupBatch
 import com.fishers.app.match.start.SetupBook
@@ -44,6 +46,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.time.Instant
 
 // Player ids are user ids — UUIDs — and the engine refuses anything else.
@@ -165,12 +169,16 @@ class MatchSetupTest {
         }
     }
 
+    @get:Rule val disk = TemporaryFolder()
+
     private var ids = 0
     private fun model(server: Server) = MatchSetupViewModel(
         api = server,
         eventId = "e1",
         deviceId = "device-1",
         userName = "Ravi Patel",
+        store = FileBallStore(File(disk.root, "books")),
+        cache = OfflineCache(File(disk.root, "cache")),
         engine = engine,
         newId = { "00000000-0000-4000-8000-%012d".format(++ids) },
         now = { Instant.parse("2026-11-14T12:00:00Z") },
@@ -422,5 +430,68 @@ class MatchSetupTest {
         advanceUntilIdle()
         model.agree(Side.Away, "   ")
         assertEquals("Put a name against the agreement.", model.state.value.error)
+    }
+
+    /**
+     * Set up online as far as the terms, then the signal goes. The setup does
+     * not stop: the rest is written to the phone's book, on top of the
+     * server's log, and the screen opened again with no signal carries on
+     * from there.
+     */
+    @Test
+    fun `the signal going half way through carries on from the phone`() = runTest(dispatcher.scheduler) {
+        var online = true
+        val server = object : Server() {
+            fun reach() {
+                if (!online) throw java.io.IOException("no signal")
+            }
+            override suspend fun event(eventId: String): FixtureInfo = reach().let { super.event(eventId) }
+            override suspend fun matchForEvent(eventId: String): SetupMatch = reach().let { super.matchForEvent(eventId) }
+            override suspend fun matchEvents(matchId: String): List<ScoringEvent> = reach().let { super.matchEvents(matchId) }
+            override suspend fun postEvents(matchId: String, body: SetupBatch): SetupMatch =
+                reach().let { super.postEvents(matchId, body) }
+            override suspend fun squads(matchId: String): MatchSquads = reach().let { super.squads(matchId) }
+            override suspend fun clubMembers(clubId: String): List<ClubMemberDetail> =
+                reach().let { super.clubMembers(clubId) }
+        }
+        val model = model(server)
+        model.load()
+        advanceUntilIdle()
+        model.propose()
+        advanceUntilIdle()
+        assertEquals(2, server.log.size)
+        assertFalse(model.state.value.offline)
+
+        online = false
+        model.agree(Side.Away, "Imran Khan")
+        advanceUntilIdle()
+        assertTrue("said, not hidden", model.state.value.offline)
+        assertNull(model.state.value.error)
+        model.continueToToss()
+        model.recordToss()
+        advanceUntilIdle()
+        assertEquals(SetupStep.Sheets, model.state.value.step)
+        assertEquals("nothing more reached the server", 2, server.log.size)
+
+        val book = FileBallStore(File(disk.root, "books")).read("e1")!!
+        assertEquals(server.match!!.id, book.matchId)
+        assertEquals("the server's two, then this phone's two", 4, book.log.size)
+        assertEquals(server.log.map { it.clientEventId }, book.log.take(2).map { it.clientEventId })
+        assertEquals(book.log.drop(2).map { it.clientEventId }, book.pending)
+        assertNull("the server has the match: nothing to make", book.create)
+
+        // Opened again at the ground, still no signal: from the phone's book,
+        // and the club's players as they were saved.
+        val again = model(server)
+        again.load()
+        advanceUntilIdle()
+        assertTrue(again.state.value.offline)
+        assertEquals(SetupStep.Sheets, again.state.value.step)
+        assertEquals(listOf("Ravi Patel", "Tom Hardy", "Amy Best", "Zoe Adams"), again.state.value.clubPlayers.map { it.name })
+        again.state.value.clubPlayers.take(2).forEach { again.addPlayer(Side.Home, it) }
+        again.confirmSheet(Side.Home)
+        advanceUntilIdle()
+        assertTrue(again.state.value.named(Side.Home))
+        assertEquals("the agreement, the toss, the sheet", 3, FileBallStore(File(disk.root, "books")).read("e1")!!.pending.size)
     }
 }

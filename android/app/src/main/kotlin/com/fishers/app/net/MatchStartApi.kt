@@ -9,6 +9,7 @@ import com.fishers.app.match.start.ClubIdentity
 import com.fishers.app.match.start.ConfirmCode
 import com.fishers.app.match.start.CreatedFixture
 import com.fishers.app.match.start.FixtureInfo
+import com.fishers.app.match.start.FixtureInfoPage
 import com.fishers.app.match.start.FixturePage
 import com.fishers.app.match.start.LookupOpponent
 import com.fishers.app.match.start.MatchSquads
@@ -74,6 +75,16 @@ interface MatchStartApi {
 
     @GET("events/{id}")
     suspend fun event(@Path("id") eventId: String): FixtureInfo
+
+    /** A club's fixtures starting in a window — for finding one this phone
+     *  asked for when the answer never came back. */
+    @GET("events")
+    suspend fun clubFixtures(
+        @Query("club_id") clubId: String,
+        @Query("from") from: String,
+        @Query("to") to: String,
+        @Query("per_page") perPage: Int = 50,
+    ): FixtureInfoPage
 
     // ---- the opposition ----
 

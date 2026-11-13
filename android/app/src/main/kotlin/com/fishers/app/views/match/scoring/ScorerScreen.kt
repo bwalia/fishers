@@ -86,6 +86,8 @@ import com.fishers.app.cricket.SyncStatus
 import com.fishers.app.cricket.WheelMode
 import com.fishers.app.cricket.rate
 import com.fishers.app.i18n.t
+import com.fishers.app.match.start.MatchRegistrar
+import com.fishers.app.net.MatchStartApi
 import com.fishers.app.net.ScoringApi
 import com.fishers.app.views.match.MatchSetupRoute
 import com.fishers.app.views.match.ScorecardRoute
@@ -110,14 +112,18 @@ internal fun ScoreMatchContent(eventId: String) {
     val api = remember { deps.service<ScoringApi>() }
     val store = remember { FileBallStore.forApp(context) }
     val deviceId = remember { DeviceId.get(context) }
+    val registrar = remember { MatchRegistrar(deps.service<MatchStartApi>(), store, deviceId) }
     val model = remember(eventId) {
-        LiveScorerViewModel(api = api, eventId = eventId, deviceId = deviceId, store = store, myUserId = deps.user()?.id)
+        LiveScorerViewModel(
+            api = api, eventId = eventId, deviceId = deviceId, store = store,
+            myUserId = deps.user()?.id, registrar = registrar,
+        )
     }
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(model) {
         model.load()
         // Last weekend's match, if it left balls on this phone, goes up too.
-        BookSweeper(api, store, deviceId).sendLeftovers(skip = eventId)
+        BookSweeper(api, store, deviceId, registrar = registrar).sendLeftovers(skip = eventId)
     }
 
     // Anything waiting goes up the moment the app is in front again, and is
@@ -141,7 +147,9 @@ internal fun ScoreMatchContent(eventId: String) {
             WheelSetting.write(context, it)
         },
         onBack = navigator::pop,
-        onFollow = { navigator.replace(ScorecardRoute(eventId)) },
+        // The card is the server's, under its id for the fixture once a match
+        // started on this phone has one.
+        onFollow = { navigator.replace(ScorecardRoute(store.resolve(eventId))) },
         onSetUp = { navigator.push(MatchSetupRoute(eventId)) },
     )
 }
@@ -771,11 +779,15 @@ private fun SyncBar(state: ScorerState) {
         state.sync == SyncStatus.Syncing || state.unsent > 0 -> Icons.Filled.Sync to BallColours.extra
         else -> Icons.Filled.CheckCircle to MaterialTheme.colorScheme.primary
     }
+    // Balls are counted as balls: a match set up with no signal has its toss
+    // and team sheets waiting too, and "9 balls saved" after one ball is wrong.
     val label = when {
-        state.sync == SyncStatus.Offline && state.unsent > 0 ->
-            t("sync.offline_balls", count = state.unsent, vars = mapOf("n" to state.unsent))
+        state.sync == SyncStatus.Offline && state.unsentBalls > 0 ->
+            t("sync.offline_balls", count = state.unsentBalls, vars = mapOf("n" to state.unsentBalls))
         state.sync == SyncStatus.Offline -> t("rest.offline_saved_on_this_phone")
-        state.unsent > 0 -> t("sc.n_balls_waiting_to_send", count = state.unsent, vars = mapOf("n" to state.unsent))
+        state.unsentBalls > 0 ->
+            t("sc.n_balls_waiting_to_send", count = state.unsentBalls, vars = mapOf("n" to state.unsentBalls))
+        state.unsent > 0 -> t("ev.waiting_to_sync")
         state.sync == SyncStatus.Syncing -> t("le.syncing")
         else -> t("sync.saved")
     }

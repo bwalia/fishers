@@ -3,6 +3,7 @@ package com.fishers.app.cricket
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fishers.app.i18n.t
+import com.fishers.app.match.start.MatchRegistrar
 import com.fishers.app.net.ScoringApi
 import com.fishers.app.session.readableError
 import kotlinx.coroutines.CancellationException
@@ -43,8 +44,10 @@ data class ScorerState(
     val loading: Boolean = true,
     val match: CricketMatch? = null,
     val view: MatchView? = null,
-    /** Balls scored here that the server has not confirmed. */
+    /** Events written here that the server has not confirmed — balls, and the setup of a match started offline. */
     val unsent: Int = 0,
+    /** Of those, the balls: what the bar counts for the scorer. */
+    val unsentBalls: Int = 0,
     val sync: SyncStatus = SyncStatus.Saved,
     /** What the engine refused, in its own words — or why the match would not open. */
     val error: String? = null,
@@ -87,6 +90,8 @@ class LiveScorerViewModel(
     private val deviceId: String,
     private val store: BallStore,
     private val myUserId: String? = null,
+    /** Puts a match started with no signal on the server before its balls go. */
+    private val registrar: MatchRegistrar? = null,
     private val engine: Engine = Engine(),
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val now: () -> String? = { Instant.now().toString() },
@@ -110,9 +115,29 @@ class LiveScorerViewModel(
 
     internal suspend fun open() {
         _state.update { it.copy(loading = it.view == null, error = null) }
-        val stored = store.read(eventId)
+        val held = store.read(eventId)
+        var stored = held
+        // Started with no signal: the server has not heard of this match, so
+        // it is put there first — or, with no signal still, scored from here.
+        if (held?.create != null) {
+            val registered = registrar?.let { runCatching { it.register(eventId) } }
+                ?: Result.failure(IOException("not on the server yet"))
+            val book = registered.getOrElse { failure ->
+                if (failure is CancellationException) throw failure
+                openFromPhone(held, failure)
+                return
+            }
+            if (book.create != null) {
+                // Not set up far enough to put on the server yet.
+                openFromPhone(book, IOException("not on the server yet"))
+                return
+            }
+            stored = book
+        }
+        // The book follows the fixture to its id on the server.
+        val fixture = stored?.eventId ?: eventId
         val fetched = runCatching {
-            val match = api.matchForEvent(eventId)
+            val match = api.matchForEvent(fixture)
             match to api.events(match.id)
         }
         val (match, serverLog) = fetched.getOrElse { failure ->
@@ -155,7 +180,7 @@ class LiveScorerViewModel(
         }
         var folded = serverState
         val book = store.update(eventId) { held ->
-            engine.merge(eventId, match, serverLog, serverState, held).also { folded = it.state }.book
+            engine.merge(match.eventId, match, serverLog, serverState, held).also { folded = it.state }.book
         }!!
         matchId = match.id
         log = book.log
@@ -166,6 +191,7 @@ class LiveScorerViewModel(
                 match = match,
                 view = engine.view(folded),
                 unsent = book.pending.size,
+                unsentBalls = book.unsentBalls,
                 stranded = book.stranded.size,
                 error = if (book.stranded.isNotEmpty()) {
                     t("sc.n_balls_could_not_be_added", count = book.stranded.size, vars = mapOf("n" to book.stranded.size))
@@ -192,6 +218,7 @@ class LiveScorerViewModel(
                 match = book.match,
                 view = engine.view(folded),
                 unsent = book.pending.size,
+                unsentBalls = book.unsentBalls,
                 stranded = book.stranded.size,
                 sync = SyncStatus.Offline,
                 syncProblem = if (failure is IOException) null else serverWords(failure),
@@ -327,6 +354,7 @@ class LiveScorerViewModel(
             it.copy(
                 view = after,
                 unsent = book.pending.size,
+                unsentBalls = book.unsentBalls,
                 error = null,
                 moment = moment ?: it.moment,
                 momentCount = if (moment != null) it.momentCount + 1 else it.momentCount,
@@ -371,10 +399,31 @@ class LiveScorerViewModel(
         if (sending || _state.value.handedOver) return
         sending = true
         try {
+            // A match started with no signal goes on the server first; then
+            // it is opened again from there, which sends what is waiting.
+            if (store.read(eventId)?.create != null) {
+                val registrar = registrar ?: return
+                _state.update { it.copy(sync = SyncStatus.Syncing) }
+                val registered = try {
+                    registrar.register(eventId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    notSent(e)
+                    return
+                }
+                if (registered.create != null) {
+                    _state.update { it.copy(sync = SyncStatus.Offline) }
+                    return
+                }
+                sending = false
+                open()
+                return
+            }
             while (true) {
                 val unsent = store.read(eventId)?.unsent.orEmpty()
                 if (unsent.isEmpty()) {
-                    _state.update { it.copy(sync = SyncStatus.Saved, unsent = 0) }
+                    _state.update { it.copy(sync = SyncStatus.Saved, unsent = 0, unsentBalls = 0) }
                     return
                 }
                 _state.update { it.copy(sync = SyncStatus.Syncing) }
@@ -395,6 +444,7 @@ class LiveScorerViewModel(
                     it.copy(
                         match = reply,
                         unsent = book?.pending?.size ?: 0,
+                        unsentBalls = book?.unsentBalls ?: 0,
                         syncProblem = null,
                         bookElsewhere = false,
                     )

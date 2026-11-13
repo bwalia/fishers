@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fishers.app.clubs.Club
 import com.fishers.app.clubs.Team
+import com.fishers.app.cricket.BallStore
+import com.fishers.app.cricket.StoredBook
 import com.fishers.app.i18n.t
 import com.fishers.app.net.MatchStartApi
 import com.fishers.app.net.PublicUser
@@ -14,8 +16,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.IOException
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 /**
  * The server asked for a confirmed email or phone before it would make a club.
@@ -57,6 +61,8 @@ data class StartMatchState(
     val verification: Verification? = null,
     /** Set once the fixture is made: the screen moves on to the setup. */
     val startedEventId: String? = null,
+    /** No signal: the clubs are as this phone last saw them, and the match starts on the phone. */
+    val offline: Boolean = false,
 ) {
     /** Nowhere to put a fixture: ask for a team name and make the club. */
     val needsATeam: Boolean get() = !isLoading && loadError == null && clubs.isEmpty()
@@ -88,15 +94,26 @@ data class StartMatchState(
  * A match arranged in the car park: who is playing whom, then straight on to the
  * setup. `QuickMatchSheet` in `ScoreHubView.swift`.
  *
- * Online only. iOS also mints the fixture on the phone with no signal and posts
- * it later; that waits for an offline store on Android.
- *
  * Somebody with no club where they can make a fixture — a player who registered
  * a minute ago, say — is asked for their team's name and nothing else. The club
  * is made for them (informal, invite-only), then the fixture, in one go.
+ *
+ * With no signal, as on iOS, the match starts on the phone: the clubs are the
+ * ones saved the last time there was signal ([OfflineCache]), the fixture's id
+ * is minted here, and what the server must make — the club for a team with
+ * none, the fixture — is written into the match's book ([PendingCreate]) for
+ * [MatchRegistrar] to make when the signal comes back. A start that loses the
+ * signal half way carries on the same way, from wherever it got to.
  */
 class StartMatchViewModel(
     private val api: MatchStartApi,
+    /** Clubs, teams and players saved for a day with no signal. */
+    private val cache: OfflineCache,
+    /** Where a match started with no signal is kept. */
+    private val store: BallStore,
+    /** This install, which holds the book of a match started here. */
+    private val deviceId: String,
+    private val myUserId: String? = null,
     /** Club to start from, when the screen was opened from one. */
     private val preferredClubId: String? = null,
     /** Which contact a code can confirm: `email`, `phone`, or none. */
@@ -104,6 +121,7 @@ class StartMatchViewModel(
     /** Hand the confirmed account back to the app. */
     private val onVerified: (PublicUser) -> Unit = {},
     private val now: () -> Instant = Instant::now,
+    private val newId: () -> String = { UUID.randomUUID().toString() },
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(StartMatchState())
@@ -112,25 +130,47 @@ class StartMatchViewModel(
     /** The club made for a team with none, kept so a retry does not make a second. */
     private var madeClub: Club? = null
 
+    /** Every club this person was in when the list was read — to know a club a lost answer made. */
+    private var clubsBefore: List<String>? = null
+
     fun load() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, loadError = null)
             runCatching { api.myClubs() }
                 .onSuccess { all ->
-                    val startable = all.filter { club ->
-                        runCatching { api.myClubRole(club.id) }.getOrNull()
-                            ?.permissions?.contains("manage_events") == true
-                    }
+                    clubsBefore = all.map { it.id }
+                    val startable = startableOf(api, all)
+                    cache.saveStartableClubs(startable)
                     val pick = startable.firstOrNull { it.id == preferredClubId } ?: startable.firstOrNull()
                     _state.value = _state.value.copy(
                         isLoading = false,
                         clubs = startable,
                         clubId = pick?.id,
+                        offline = false,
                     )
                     pick?.let { loadTeams(it.id) }
+                    // The players too, while there is signal: a team sheet at a
+                    // ground with none is picked from what is saved now.
+                    viewModelScope.launch { cache.warm(api, startable) }
                 }
-                .onFailure {
-                    _state.value = _state.value.copy(isLoading = false, loadError = readableError(it))
+                .onFailure { failure ->
+                    val saved = if (failure is IOException) cache.startableClubs() else null
+                    _state.value = when {
+                        saved != null -> {
+                            val pick = saved.firstOrNull { it.id == preferredClubId } ?: saved.firstOrNull()
+                            _state.value.copy(
+                                isLoading = false,
+                                clubs = saved,
+                                clubId = pick?.id,
+                                teams = pick?.let { cache.teams(it.id) }.orEmpty(),
+                                offline = true,
+                            )
+                        }
+                        // Whether they have a club is not known here, and a guess
+                        // would make a second club for somebody who has one.
+                        failure is IOException -> _state.value.copy(isLoading = false, loadError = t("ms.clubs_not_on_this_phone"))
+                        else -> _state.value.copy(isLoading = false, loadError = readableError(failure))
+                    }
                 }
         }
     }
@@ -158,36 +198,115 @@ class StartMatchViewModel(
         _state.value = _state.value.copy(awayName = name.trim(), opponent = identity, error = null)
     }
 
-    /** Club (made first, when there is none), then the fixture. */
+    /**
+     * Club (made first, when there is none), then the fixture. With no signal —
+     * from the start, or lost on the way — the rest is made on the phone.
+     */
     fun start() {
         val s = _state.value
         if (s.isStarting || s.missing != null) return
         viewModelScope.launch {
             _state.value = _state.value.copy(isStarting = true, error = null)
-            val clubId = if (s.needsATeam) makeClub(s.newTeamName.trim()) else s.clubId
-            if (clubId == null) {
-                _state.value = _state.value.copy(isStarting = false)
+            // The phone's own id for the fixture: the book's name until the
+            // server gives it one, and how a fixture whose answer was lost is
+            // found again rather than made twice.
+            val ref = newId()
+            val at = now()
+            if (s.offline) {
+                startOffline(s, ref, at, clubId = if (s.needsATeam) madeClub?.id else s.clubId)
                 return@launch
             }
-            val away = s.awayName.trim()
-            val home = s.homeName
-            val at = now()
-            val body = NewFixture(
+            val clubId = if (s.needsATeam) {
+                when (val made = makeClub(s.newTeamName.trim())) {
+                    is MadeClub.Made -> made.id
+                    MadeClub.NoSignal -> {
+                        // It may have been made, answer lost: the sync looks
+                        // for it before asking again.
+                        startOffline(s, ref, at, clubId = null, clubAsked = true)
+                        return@launch
+                    }
+                    MadeClub.Refused -> {
+                        _state.value = _state.value.copy(isStarting = false)
+                        return@launch
+                    }
+                }
+            } else {
+                checkNotNull(s.clubId)
+            }
+            runCatching { api.createEvent(fixture(s, clubId, ref, at)) }
+                .onSuccess { _state.value = _state.value.copy(isStarting = false, startedEventId = it.id) }
+                .onFailure {
+                    if (it is IOException) {
+                        startOffline(s, ref, at, clubId = clubId, fixtureAsked = true)
+                    } else {
+                        _state.value = _state.value.copy(isStarting = false, error = apiWords(it))
+                    }
+                }
+        }
+    }
+
+    /** `CreateEventBody`, as `QuickMatchSheet.start()` fills it — and the phone's id for it in the metadata. */
+    private fun fixture(s: StartMatchState, clubId: String, ref: String, at: Instant): NewFixture {
+        val away = s.awayName.trim()
+        val home = s.homeName
+        return NewFixture(
+            clubId = clubId,
+            opponentClubId = s.opponent?.clubId,
+            teamId = if (s.needsATeam) null else s.teamId,
+            sport = "cricket",
+            eventSubtype = s.kind.wire,
+            title = "$home v $away",
+            startAt = at.toString(),
+            endAt = at.plus(Duration.ofHours(4)).toString(),
+            capacity = 22,
+            metadata = mapOf("opposition" to away, "home_name" to home, FixtureInfo.CLIENT_REF to ref),
+        )
+    }
+
+    /**
+     * The match started on the phone: its book, under the phone's id for the
+     * fixture, saying what the server still has to make. The setup runs on
+     * that book, and [MatchRegistrar] makes the rest when there is signal.
+     */
+    private fun startOffline(
+        s: StartMatchState,
+        ref: String,
+        at: Instant,
+        clubId: String?,
+        clubAsked: Boolean = false,
+        fixtureAsked: Boolean = false,
+    ) {
+        val matchId = newId()
+        val book = StoredBook(
+            eventId = ref,
+            matchId = matchId,
+            match = matchOnThePhone(
+                matchId = matchId,
+                eventId = ref,
+                homeName = s.homeName,
+                awayName = s.awayName.trim(),
+                oversLimit = 20,
                 clubId = clubId,
                 opponentClubId = s.opponent?.clubId,
-                teamId = if (s.needsATeam) null else s.teamId,
-                sport = "cricket",
-                eventSubtype = s.kind.wire,
-                title = "$home v $away",
-                startAt = at.toString(),
-                endAt = at.plus(Duration.ofHours(4)).toString(),
-                capacity = 22,
-                metadata = mapOf("opposition" to away, "home_name" to home),
-            )
-            runCatching { api.createEvent(body) }
-                .onSuccess { _state.value = _state.value.copy(isStarting = false, startedEventId = it.id) }
-                .onFailure { _state.value = _state.value.copy(isStarting = false, error = apiWords(it)) }
-        }
+                deviceId = deviceId,
+                userId = myUserId,
+            ),
+            create = PendingCreate(
+                club = if (clubId == null) newClub(s.newTeamName.trim()) else null,
+                clubId = clubId,
+                clubsBefore = clubsBefore,
+                clubAsked = clubAsked,
+                fixture = fixture(s, clubId.orEmpty(), ref, at),
+                fixtureAsked = fixtureAsked,
+            ),
+        )
+        runCatching { store.update(ref) { book } }
+            .onSuccess {
+                _state.value = _state.value.copy(isStarting = false, offline = true, startedEventId = ref)
+            }
+            .onFailure {
+                _state.value = _state.value.copy(isStarting = false, error = t("ms.could_not_save_match"))
+            }
     }
 
     /** The screen has moved on; do not move it again on the way back. */
@@ -245,42 +364,50 @@ class StartMatchViewModel(
 
     private fun loadTeams(clubId: String) {
         viewModelScope.launch {
-            val teams = runCatching { api.clubTeams(clubId) }.getOrDefault(emptyList())
+            val teams = runCatching { api.clubTeams(clubId) }
+                .onSuccess { cache.saveTeams(clubId, it) }
+                .getOrElse { cache.teams(clubId) }
             if (_state.value.clubId == clubId) _state.value = _state.value.copy(teams = teams)
         }
     }
 
-    /** The club for a team that has none. Null when it could not be made; the state says why. */
-    private suspend fun makeClub(name: String): String? {
-        madeClub?.let { return it.id }
-        return runCatching {
-            api.createClub(
-                NewClub(
-                    name = name,
-                    sportTypes = listOf("cricket"),
-                    isInformalGroup = true,
-                    visibility = "invite_only",
-                ),
-            )
-        }.fold(
+    private sealed interface MadeClub {
+        data class Made(val id: String) : MadeClub
+        /** Refused; the state says why. */
+        data object Refused : MadeClub
+        data object NoSignal : MadeClub
+    }
+
+    /** Informal and invite-only: a side that turned up, not a club with a committee. */
+    private fun newClub(name: String) = NewClub(
+        name = name,
+        sportTypes = listOf("cricket"),
+        isInformalGroup = true,
+        visibility = "invite_only",
+    )
+
+    /** The club for a team that has none. */
+    private suspend fun makeClub(name: String): MadeClub {
+        madeClub?.let { return MadeClub.Made(it.id) }
+        return runCatching { api.createClub(newClub(name)) }.fold(
             onSuccess = { club ->
                 madeClub = club
-                club.id
+                MadeClub.Made(club.id)
             },
             onFailure = { error ->
                 val refusal = refusalOf(error)
-                if (refusal?.code == "unverified") {
-                    _state.value = _state.value.copy(
+                when {
+                    error is IOException -> return MadeClub.NoSignal
+                    refusal?.code == "unverified" -> _state.value = _state.value.copy(
                         verification = Verification(
                             channel = verifyChannel,
                             refusedBy = "POST /clubs",
                             message = refusal.message,
                         ),
                     )
-                } else {
-                    _state.value = _state.value.copy(error = refusal?.message ?: readableError(error))
+                    else -> _state.value = _state.value.copy(error = refusal?.message ?: readableError(error))
                 }
-                null
+                MadeClub.Refused
             },
         )
     }

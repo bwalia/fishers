@@ -1,9 +1,12 @@
 package com.fishers.app.cricket
 
 import android.content.Context
+import com.fishers.app.match.start.PendingCreate
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
 /**
@@ -29,10 +32,31 @@ data class StoredBook(
      * offline. Never thrown away: they are the scorer's record of the over.
      */
     val stranded: List<ScoringEvent> = emptyList(),
+    /**
+     * A match started with no signal: what the server still has to be told
+     * before any of the log can go up — the club, the fixture, the match.
+     * Null once it has all three, and for every match that began online.
+     */
+    val create: PendingCreate? = null,
+    /**
+     * Left where a book used to be when it moved to the fixture's id on the
+     * server ([BallStore.move]), pointing on — so a screen opened before the
+     * move still finds the match by the id it was given.
+     */
+    @SerialName("moved_to") val movedTo: String? = null,
 ) {
     val unsent: List<ScoringEvent>
         get() = pending.toSet().let { ids -> log.filter { it.clientEventId in ids } }
+
+    /** Balls among the unsent. The setup's events go up too, but nobody calls those balls. */
+    val unsentBalls: Int
+        get() = unsent.count { it.kind["type"]?.jsonPrimitive?.contentOrNull in BALLS }
+
+    /** Anything at all the server has not got. */
+    val hasWork: Boolean get() = create != null || pending.isNotEmpty()
 }
+
+private val BALLS = setOf("delivery_recorded", "extras_recorded", "wicket_recorded")
 
 /** A book put back together, and the engine's state for its log. */
 internal class Merged(val book: StoredBook, val state: String)
@@ -81,6 +105,9 @@ internal fun Engine.merge(
  * Where books are kept. Every write is a read-modify-write of the stored copy
  * under one lock, never "save what I have in memory": two screens on the same
  * match (one leaving, one opening) must not overwrite each other's balls.
+ *
+ * A book that has moved ([move]) is still found by its old id: reads and
+ * writes follow it to where it went.
  */
 interface BallStore {
     fun read(eventId: String): StoredBook?
@@ -90,6 +117,18 @@ interface BallStore {
 
     /** Every book with something still to send — for a sweep at launch. */
     fun withUnsent(): List<StoredBook>
+
+    /** Every book on this phone, the most recently written first. */
+    fun all(): List<StoredBook>
+
+    /**
+     * File the book under [to] — the fixture's id on the server, once it has
+     * one — and leave [from] pointing there. Safe to repeat.
+     */
+    fun move(from: String, to: String): StoredBook?
+
+    /** The id a book is filed under now: [eventId], or where it moved to. */
+    fun resolve(eventId: String): String = read(eventId)?.eventId ?: eventId
 }
 
 /** One small JSON file a match, in the app's own storage. */
@@ -102,23 +141,42 @@ class FileBallStore(private val dir: File) : BallStore {
 
     private fun file(eventId: String) = File(dir, "${eventId.filter { it.isLetterOrDigit() || it == '-' }}.json")
 
-    override fun read(eventId: String): StoredBook? = synchronized(lock) { readLocked(eventId) }
+    override fun read(eventId: String): StoredBook? = synchronized(lock) { readLocked(where(eventId)) }
 
     override fun update(eventId: String, change: (StoredBook?) -> StoredBook?): StoredBook? = synchronized(lock) {
-        val next = change(readLocked(eventId))
+        val key = where(eventId)
+        val next = change(readLocked(key))
         if (next == null) {
-            file(eventId).delete()
+            file(key).delete()
         } else {
-            write(eventId, next)
+            write(key, next)
         }
         next
     }
 
-    override fun withUnsent(): List<StoredBook> = synchronized(lock) {
+    override fun withUnsent(): List<StoredBook> = all().filter { it.hasWork }
+
+    override fun all(): List<StoredBook> = synchronized(lock) {
         dir.listFiles { f -> f.name.endsWith(".json") }.orEmpty()
+            .sortedByDescending { it.lastModified() }
             .mapNotNull { readLocked(it.name.removeSuffix(".json")) }
-            .filter { it.pending.isNotEmpty() }
+            .filter { it.movedTo == null }
     }
+
+    override fun move(from: String, to: String): StoredBook? = synchronized(lock) {
+        if (from == to) return@synchronized readLocked(to)
+        val book = readLocked(from) ?: return@synchronized readLocked(to)
+        if (book.movedTo != null) return@synchronized readLocked(book.movedTo)
+        // The new file first: a phone that dies between the two writes has
+        // the book twice and moves it again next time — never none.
+        val moved = book.copy(eventId = to, match = book.match?.copy(eventId = to))
+        write(to, moved)
+        write(from, StoredBook(eventId = from, matchId = book.matchId, movedTo = to))
+        moved
+    }
+
+    /** Where [eventId]'s book is kept now: one step on, if it moved. */
+    private fun where(eventId: String): String = readLocked(eventId)?.movedTo ?: eventId
 
     private fun readLocked(eventId: String): StoredBook? {
         val f = file(eventId)

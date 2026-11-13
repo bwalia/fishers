@@ -76,7 +76,7 @@ class HomeTest {
         model.load(now)
         advanceUntilIdle()
 
-        assertEquals(7, model.state.value.unreadChats)
+        assertEquals(7L, model.state.value.unreadChats)
         assertEquals(2, model.state.value.clubCount)
     }
 
@@ -98,8 +98,30 @@ class HomeTest {
 
         assertEquals("next", model.state.value.next?.id)
         assertEquals(1, model.state.value.clubCount)
-        assertEquals("the tile that failed reads as zero", 0, model.state.value.unreadChats)
+        assertNull("the tile that failed is unknown, not zero", model.state.value.unreadChats)
         assertNull("and nothing shouts about it", model.state.value.error)
+    }
+
+    /**
+     * Opening the app at a ground with no signal: a secretary is not told
+     * they are in no club, and nobody is told there is nothing in the diary.
+     */
+    @Test
+    fun `no signal is unknown, not none, and offers the matches on this phone`() = runTest(dispatcher.scheduler) {
+        val model = HomeViewModel(object : FakeFishersApi() {
+            override suspend fun myFixtures(): List<MyFixture> = throw IOException("no signal")
+            override suspend fun conversations(): List<ConversationSummary> = throw IOException("no signal")
+            override suspend fun myClubs(): List<Club> = throw IOException("no signal")
+        })
+
+        model.load(now)
+        advanceUntilIdle()
+
+        val state = model.state.value
+        assertNull("not \"you're not in a club yet\"", state.clubCount)
+        assertNull(state.unreadChats)
+        assertTrue("not \"nothing in the diary\"", state.fixturesFailed)
+        assertTrue(state.offline)
     }
 
     /** Everything failing is worth saying, because the screen is then empty. */
