@@ -34,6 +34,49 @@ data class StoredBook(
         get() = pending.toSet().let { ids -> log.filter { it.clientEventId in ids } }
 }
 
+/** A book put back together, and the engine's state for its log. */
+internal class Merged(val book: StoredBook, val state: String)
+
+/**
+ * The server's book, with anything this phone scored that it has not got
+ * laid back on top — renumbered after the server's last ball, and each one
+ * checked by the engine again. One the engine now refuses (somebody else
+ * scored over it while this phone was offline) is kept aside, never dropped.
+ *
+ * Renumbering is what makes this safe: the server skips, without a word, an
+ * event whose number it already holds — so a ball sent under a stale number
+ * would be lost on the server even though it was sent.
+ */
+internal fun Engine.merge(
+    eventId: String,
+    match: CricketMatch,
+    serverLog: List<ScoringEvent>,
+    serverState: String,
+    held: StoredBook?,
+): Merged {
+    val serverIds = serverLog.map { it.clientEventId }.toSet()
+    val sameMatch = held?.matchId == match.id
+    val mine = held?.takeIf { sameMatch }?.unsent.orEmpty().filter { it.clientEventId !in serverIds }
+    val log = serverLog.toMutableList()
+    val pending = mutableListOf<String>()
+    val stranded = held?.stranded.orEmpty().toMutableList()
+    // The fixture's match was set up again under a new id: what this phone
+    // held for the old one cannot go into the new book, and must not vanish.
+    if (held != null && !sameMatch) stranded += held.unsent
+    var folded = serverState
+    for (event in mine) {
+        val renumbered = event.copy(seq = lastSeq(folded) + 1)
+        next(log, folded, renumbered)
+            .onSuccess {
+                folded = it
+                log += renumbered
+                pending += renumbered.clientEventId
+            }
+            .onFailure { stranded += event }
+    }
+    return Merged(StoredBook(eventId, match.id, match, log, pending, stranded), folded)
+}
+
 /**
  * Where books are kept. Every write is a read-modify-write of the stored copy
  * under one lock, never "save what I have in memory": two screens on the same

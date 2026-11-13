@@ -145,8 +145,7 @@ class LiveScorerViewModel(
      * scored over it while this phone was offline) is kept aside, never dropped.
      */
     private fun adopt(match: CricketMatch, serverLog: List<ScoringEvent>): Boolean {
-        val serverIds = serverLog.map { it.clientEventId }.toSet()
-        var folded = engine.replay(serverLog).getOrElse {
+        val serverState = engine.replay(serverLog).getOrElse {
             // The log is the record. If it will not replay, say so rather than
             // draw a score made up from the last event that happened to parse.
             _state.update { s ->
@@ -154,28 +153,9 @@ class LiveScorerViewModel(
             }
             return false
         }
+        var folded = serverState
         val book = store.update(eventId) { held ->
-            val sameMatch = held?.matchId == match.id
-            val mine = held?.takeIf { sameMatch }?.unsent.orEmpty()
-                .filter { it.clientEventId !in serverIds }
-            val log = serverLog.toMutableList()
-            val pending = mutableListOf<String>()
-            val stranded = held?.stranded.orEmpty().toMutableList()
-            // The fixture's match was set up again under a new id: what this
-            // phone held for the old one cannot go into the new book, and
-            // must not vanish either.
-            if (held != null && !sameMatch) stranded += held.unsent
-            for (event in mine) {
-                val renumbered = event.copy(seq = engine.lastSeq(folded) + 1)
-                engine.next(log, folded, renumbered)
-                    .onSuccess {
-                        folded = it
-                        log += renumbered
-                        pending += renumbered.clientEventId
-                    }
-                    .onFailure { stranded += event }
-            }
-            StoredBook(eventId, match.id, match, log, pending, stranded)
+            engine.merge(eventId, match, serverLog, serverState, held).also { folded = it.state }.book
         }!!
         matchId = match.id
         log = book.log

@@ -125,6 +125,31 @@ class OfflineBallsTest {
     }
 
     @Test
+    fun `a match nobody reopens still sends what it left on the phone`() = runTest(dispatcher.scheduler) {
+        val server = FakeScoringApi()
+        val before = server.log.size
+        val first = scorer(server)
+        first.load()
+        advanceUntilIdle()
+        server.online = false
+        assertTrue(first.runs(4))
+        assertTrue(first.extra("bye", runs = 1))
+        advanceUntilIdle()
+
+        // Meanwhile the scorer's phone is not the only thing that moved: the
+        // server took a ball from elsewhere, under the number this phone used.
+        server.online = true
+        server.log += ScoringEvent("00000000-0000-4000-8000-0000000000ff", before + 1L, Events.delivery(0))
+
+        val sent = BookSweeper(server, FileBallStore(disk.root), "phone-1").sendLeftovers()
+
+        assertEquals(2, sent)
+        assertEquals("renumbered past the server's ball, not lost under it", before + 3, server.log.size)
+        assertEquals(listOf(before + 2L, before + 3L), server.posted.map { it.seq })
+        assertEquals("nothing left to send", 0, FileBallStore(disk.root).withUnsent().size)
+    }
+
+    @Test
     fun `the next ball sends the ones before it`() = runTest(dispatcher.scheduler) {
         val server = FakeScoringApi()
         val model = scorer(server)

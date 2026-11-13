@@ -71,6 +71,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.fishers.app.cricket.BookSweeper
 import com.fishers.app.cricket.Commentary
 import com.fishers.app.cricket.DeviceId
 import com.fishers.app.cricket.FileBallStore
@@ -104,17 +105,18 @@ internal fun ScoreMatchContent(eventId: String) {
     val deps = LocalAppDeps.current
     val navigator = LocalNavigator.current
     val context = LocalContext.current
+    val api = remember { deps.service<ScoringApi>() }
+    val store = remember { FileBallStore.forApp(context) }
+    val deviceId = remember { DeviceId.get(context) }
     val model = remember(eventId) {
-        LiveScorerViewModel(
-            api = deps.service<ScoringApi>(),
-            eventId = eventId,
-            deviceId = DeviceId.get(context),
-            store = FileBallStore.forApp(context),
-            myUserId = deps.user()?.id,
-        )
+        LiveScorerViewModel(api = api, eventId = eventId, deviceId = deviceId, store = store, myUserId = deps.user()?.id)
     }
     val state by model.state.collectAsStateWithLifecycle()
-    LaunchedEffect(model) { model.load() }
+    LaunchedEffect(model) {
+        model.load()
+        // Last weekend's match, if it left balls on this phone, goes up too.
+        BookSweeper(api, store, deviceId).sendLeftovers(skip = eventId)
+    }
 
     // Anything waiting goes up the moment the app is in front again, and is
     // tried again every few seconds while it waits — which is how "when the
