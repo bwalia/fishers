@@ -3,6 +3,8 @@ import SwiftData
 
 struct EventDetailView: View {
     let eventId: UUID
+    /// Said once on arrival — "8 sessions scheduled" after a weekly series.
+    var notice: String? = nil
 
     @Environment(\.modelContext) private var modelContext
     @State private var event: Event?
@@ -18,6 +20,11 @@ struct EventDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if let notice {
+                    Label(notice, systemImage: "checkmark.circle.fill")
+                        .font(FishersTheme.subhead.weight(.semibold))
+                        .foregroundStyle(FishersTheme.available)
+                }
                 if let event {
                     header(event)
                     if showingCached {
