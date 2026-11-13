@@ -4497,6 +4497,14 @@ export const en = {
   "fix.carry_on_setting_up": "Carry on setting up",
   "fix.follow_the_match": "Follow the match",
   "fix.n_confirmed": "{n} confirmed",
+  // MARK: Clubs on Android — joining from the clubs list, confirming on the
+  // website, the policy steppers and the fees tab
+  "cl.join_with_the_club_link": "Got a link from your club's secretary? Open it on this phone and you join the club straight away.",
+  "cl.invitations_wait_on_home": "An invitation sent to your account waits on Home, ready to accept.",
+  "cl.confirm_on_the_website": "Confirm your email or mobile number on the {brand} website, then come back and try again.",
+  "cl.step_down": "Less: {what}",
+  "cl.step_up": "More: {what}",
+  "cl.fees_are_for_captains": "Outstanding fees are for the club's captains and secretary to chase.",
 
 } as const;
 

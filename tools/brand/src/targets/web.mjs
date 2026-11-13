@@ -197,6 +197,11 @@ function typescript(brand, mark) {
     // types the field as null for that brand, and the badge stops compiling
     // for the other. Every badge on the site renders nothing when it is "".
     appStoreUrl: brand.stores?.appStore ?? "",
+    // What /.well-known/assetlinks.json vouches for: the Android app, and the
+    // keys Play signs it with. Empty for a brand whose key is not known yet,
+    // and the route then serves nothing rather than a statement that is wrong.
+    androidPackage: brand.mobile.bundleId,
+    androidCertSha256: brand.mobile.androidCertSha256 ?? [],
   };
   return `/* Generated from brands/${brand.id}.yaml. Do not edit. */
 

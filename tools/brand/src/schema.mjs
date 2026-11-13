@@ -157,6 +157,30 @@ export function validate(brand, source) {
     );
   }
 
+  // Optional: a brand whose Play signing key is not known yet serves no
+  // assetlinks.json at all. One that lists keys must list them as Play
+  // Console prints them — a fingerprint in the wrong form does not fail
+  // anywhere visible, it just leaves every invite link opening the browser.
+  const certs = brand?.mobile?.androidCertSha256;
+  if (certs !== undefined) {
+    const fingerprint = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
+    if (!Array.isArray(certs) || certs.length === 0) {
+      problems.push(
+        `${where("mobile.androidCertSha256")} must be a list of SHA-256 fingerprints, ` +
+          `or left out for a brand whose signing key is not known yet`,
+      );
+    } else {
+      for (const cert of certs) {
+        if (typeof cert !== "string" || !fingerprint.test(cert)) {
+          problems.push(
+            `${where("mobile.androidCertSha256")} has "${cert}", which is not a SHA-256 ` +
+              `fingerprint as Play Console prints it (32 upper-case hex pairs joined by colons)`,
+          );
+        }
+      }
+    }
+  }
+
   // Optional: a brand with no live listing has no `stores`, and the website
   // draws no badge. One that has one must give a real App Store URL — the
   // badge links straight to it.

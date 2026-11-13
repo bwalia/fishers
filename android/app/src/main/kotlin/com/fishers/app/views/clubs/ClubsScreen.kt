@@ -1,102 +1,72 @@
 package com.fishers.app.views.clubs
 
-import com.fishers.app.i18n.t
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import android.content.Intent
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SportsCricket
 import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import com.fishers.app.R
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fishers.app.clubs.Club
-import com.fishers.app.clubs.ClubDetailState
-import com.fishers.app.clubs.ClubMemberDetail
 import com.fishers.app.clubs.ClubsState
+import com.fishers.app.clubs.UserRole
+import com.fishers.app.clubs.sportLabel
+import com.fishers.app.i18n.t
 import com.fishers.app.theme.FishersTheme
 
-/** The clubs this person belongs to — `ClubsTeamsView.swift`. */
+/**
+ * The clubs this person belongs to — `ClubsTeamsView.swift`: each club with
+ * what you are in it, a way to start one, and for somebody in none, how to get
+ * into one.
+ */
 @Composable
 fun ClubsScreen(
     state: ClubsState,
     onOpen: (Club) -> Unit,
+    onStartClub: () -> Unit,
+    onSearch: (String) -> Unit,
+    onShareProfile: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-) {
-    when {
-        state.isFirstLoad && state.isLoading ->
-            Box(modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-
-        state.clubs.isEmpty() -> Box(modifier.fillMaxSize().padding(32.dp), Alignment.Center) {
-            Text(
-                state.error ?: t("cl.not_in_a_club_yet"),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-
-        else -> LazyColumn(modifier.fillMaxSize()) {
-            items(state.clubs, key = { it.id }) { club ->
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpen(club) }
-                        .padding(16.dp),
-                ) {
-                    Text(club.name, style = MaterialTheme.typography.titleMedium)
-                    club.description?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        )
-                    }
-                }
-                HorizontalDivider()
-            }
-        }
-    }
-}
-
-/**
- * One club's roster.
- *
- * Whoever runs the club first, then captains, then everybody else — the order
- * somebody scans when they are working out who to ask. People who were invited
- * and have not answered sit apart, because they are not in the side yet and a
- * roster that counts them is wrong on a Saturday.
- */
-@Composable
-fun ClubDetailScreen(
-    clubName: String,
-    state: ClubDetailState,
-    modifier: Modifier = Modifier,
-    onOpenSeason: (() -> Unit)? = null,
-    onMakeLink: (fresh: Boolean) -> Unit = {},
-    onStopLink: () -> Unit = {},
+    profileError: String? = null,
 ) {
     if (state.isFirstLoad && state.isLoading) {
         Box(modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -105,161 +75,254 @@ fun ClubDetailScreen(
 
     LazyColumn(
         modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Text(clubName, style = MaterialTheme.typography.headlineSmall)
-        }
-        // The season's record and leaderboards, under the name: what a member
-        // opens a club to check after a Saturday, before who is on the books.
-        onOpenSeason?.let { open ->
-            item {
-                OutlinedButton(onClick = open) { Text(t("ss.club_season")) }
-            }
-        }
-        state.error?.let {
-            item {
-                Text(it, color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        if (state.canShareLink) {
-            item { JoinLinkCard(clubName, state, onMakeLink, onStopLink) }
-        }
-        if (state.teams.isNotEmpty()) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    state.teams.forEach { AssistChip(onClick = {}, label = { Text(it.name) }) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(t("nav.clubs"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                if (state.clubs.isNotEmpty()) {
+                    Button(onClick = onStartClub) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(t("cl.start_a_club"), modifier = Modifier.padding(start = 6.dp))
+                    }
                 }
             }
         }
-        if (state.onTheBooks.isNotEmpty()) {
-            item { Heading("${state.onTheBooks.size} on the books") }
-            items(state.onTheBooks, key = { it.userId }) { MemberRow(it) }
-        }
-        if (state.invited.isNotEmpty()) {
-            item { Heading(t("rest.asked_not_answered")) }
-            items(state.invited, key = { it.userId }) { MemberRow(it, muted = true) }
-        }
-    }
-}
 
-/**
- * One link for the whole squad — the website's `ClubJoinLink`. An invite made
- * for a person is spent by the first one through it, so the link a secretary
- * dropped into the team WhatsApp group let one player in and told the rest it
- * had been used. This one is never used up, until the secretary turns it off.
- */
-@Composable
-private fun JoinLinkCard(
-    clubName: String,
-    state: ClubDetailState,
-    onMake: (fresh: Boolean) -> Unit,
-    onStop: () -> Unit,
-) {
-    val context = LocalContext.current
-    val brand = stringResource(R.string.brand_name)
-    // true: make a new link; false: turn it off. Both ask first, as the website does.
-    var confirm by remember { mutableStateOf<Boolean?>(null) }
-    val url = state.joinLinkUrl
-
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Heading(t("jl.title"))
-        Text(t("jl.explainer"), style = MaterialTheme.typography.bodySmall)
-        if (url == null) {
-            Button(onClick = { onMake(false) }) { Text(t("jl.make_link")) }
-        } else {
-            Text(url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    val message = t(
-                        "jl.whatsapp_message",
-                        vars = mapOf("club" to clubName, "brand" to brand, "url" to url),
-                    )
-                    val send = Intent(Intent.ACTION_SEND)
-                        .setType("text/plain")
-                        .putExtra(Intent.EXTRA_TEXT, message)
-                    context.startActivity(Intent.createChooser(send, null))
-                }) { Text(t("sc.share")) }
-                OutlinedButton(onClick = { confirm = true }) { Text(t("jl.new_link")) }
+        state.error?.let { error ->
+            item {
+                Column {
+                    ErrorLine(error)
+                    TextButton(onClick = onRetry) { Text(t("rest.try_again")) }
+                }
             }
-            TextButton(onClick = { confirm = false }) { Text(t("jl.turn_off")) }
-            val uses = state.joinLink?.uses ?: 0
-            Text(
-                t("jl.joined_through_it", count = uses, vars = mapOf("n" to uses)),
-                style = MaterialTheme.typography.bodySmall,
-            )
         }
-    }
 
-    confirm?.let { fresh ->
-        AlertDialog(
-            onDismissRequest = { confirm = null },
-            text = { Text(if (fresh) t("jl.confirm_new_link") else t("jl.confirm_turn_off")) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirm = null
-                    if (fresh) onMake(true) else onStop()
-                }) { Text(if (fresh) t("jl.new_link") else t("jl.turn_off")) }
-            },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text(t("sc.cancel")) } },
-        )
+        if (state.clubs.isEmpty()) {
+            if (state.error == null) {
+                item { EmptyClubs(onStartClub, onShareProfile, profileError) }
+            }
+            return@LazyColumn
+        }
+
+        if (state.isSearchable) {
+            item {
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = onSearch,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    placeholder = { Text(t("cl.search_by_name_or_description")) },
+                )
+            }
+        }
+
+        val shown = state.shown
+        if (shown.isEmpty()) {
+            item {
+                Column(Modifier.padding(vertical = 16.dp)) {
+                    Text(t("cl.no_clubs_match"), style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = { onSearch("") }) { Text(t("cl.clear_filters")) }
+                }
+            }
+        }
+        itemsIndexed(shown, key = { _, club -> club.id }) { index, club ->
+            ClubRow(club, onOpen = { onOpen(club) })
+            if (index < shown.lastIndex) HorizontalDivider()
+        }
+
+        item {
+            SectionHeading(t("cl.your_player_profile"))
+            OutlinedButton(onClick = onShareProfile, modifier = Modifier.heightIn(min = 48.dp)) {
+                Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(t("cl.send_profile_to_another_club"), modifier = Modifier.padding(start = 8.dp))
+            }
+            profileError?.let { ErrorLine(it) }
+            Hint(t("cl.secretary_can_invite_you"), Modifier.padding(top = 4.dp))
+        }
+
+        item { HowClubsWork() }
+    }
+}
+
+/** One club in the list: its crest, what it is, and what you are in it. */
+@Composable
+private fun ClubRow(club: Club, onOpen: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onOpen)
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ClubCrest(club.name, club.id)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    club.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                club.roleLabel?.let { RolePill(it) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (club.isPublic) Icons.Filled.Public else Icons.Filled.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Hint(
+                    if (club.isPublic) t("lc.anyone_can_find_it") else t("lc.invite_only"),
+                    Modifier.padding(start = 4.dp),
+                )
+            }
+            club.description?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                club.memberCount?.let { n ->
+                    Count(Icons.Filled.Groups, n, t("cl.n_members", count = n, vars = mapOf("n" to n)))
+                }
+                club.teamCount?.let { n ->
+                    Count(Icons.Filled.Shield, n, t("cl.n_teams", count = n, vars = mapOf("n" to n)))
+                }
+                if (club.sportTypes.isNotEmpty()) {
+                    Hint(club.sportTypes.joinToString(" · ") { sportLabel(it) })
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun Heading(text: String) {
+private fun Count(icon: androidx.compose.ui.graphics.vector.ImageVector, n: Int, spoken: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = spoken },
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Hint("$n", Modifier.padding(start = 3.dp))
+    }
+}
+
+@Composable
+internal fun RolePill(label: String) {
     Text(
-        text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 8.dp),
+        label.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = Modifier
+            .padding(start = 6.dp)
+            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
 
+/**
+ * Somebody in no club yet: start one, or get into the one they play for.
+ * Getting in is a link from the secretary, or an invitation that waits on
+ * Home — said here, because a new player has no other way to know.
+ */
 @Composable
-private fun MemberRow(member: ClubMemberDetail, muted: Boolean = false) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            member.name,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (member.isCaptain) FontWeight.Bold else FontWeight.Normal,
-            color = if (muted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        // Only worth saying when it is not just "Member" — a column of the
-        // same word down the side of a roster is noise.
-        if (member.isCaptain || member.role.runsTheClub) {
-            Text(
-                if (member.isCaptain) t("sc.captain") else member.role.label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.secondary,
-            )
+private fun EmptyClubs(onStartClub: () -> Unit, onShareProfile: () -> Unit, profileError: String?) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(t("cl.not_in_a_club_yet"), style = MaterialTheme.typography.titleLarge)
+        Hint(t("cl.start_your_own_or_get_invited_into_the"))
+
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Groups, contentDescription = null)
+                    Text(t("cl.i_run_a_club"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 8.dp))
+                }
+                Hint(t("cl.set_it_up_in_a_minute_you_become_its_s"))
+                Button(onClick = onStartClub, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(t("cl.start_a_club"), modifier = Modifier.padding(start = 6.dp))
+                }
+            }
+        }
+
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.SportsCricket, contentDescription = null)
+                    Text(t("cl.i_play_for_a_club"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 8.dp))
+                }
+                Text(t("cl.join_with_the_club_link"), style = MaterialTheme.typography.bodyMedium)
+                Text(t("cl.invitations_wait_on_home"), style = MaterialTheme.typography.bodyMedium)
+                Hint(t("cl.send_your_profile_link_to_the_secretar"))
+                OutlinedButton(onClick = onShareProfile, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(t("rest.send_my_profile_to_a_club"), modifier = Modifier.padding(start = 8.dp))
+                }
+                profileError?.let { ErrorLine(it) }
+            }
+        }
+
+        HowClubsWork()
+    }
+}
+
+/** The four facts that explain the rest of the app. */
+@Composable
+private fun HowClubsWork() {
+    val steps = listOf(
+        t("cl.secretary_runs_the_club") to t("cl.members_roles_teams_grounds"),
+        t("cl.players_join_by_invite") to t("cl.added_by_email_or_link"),
+        t("cl.captains_pick_the_side") to t("cl.everyone_says_captain_picks"),
+        t("cl.matches_are_scored_live") to t("cl.ball_by_ball_public_page"),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeading(t("cl.how_clubs_work"))
+        steps.forEachIndexed { index, (title, detail) ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.semantics(mergeDescendants = true) {},
+            ) {
+                Box(
+                    Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("${index + 1}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary)
+                }
+                Column {
+                    Text(title, style = MaterialTheme.typography.titleSmall)
+                    Hint(detail)
+                }
+            }
         }
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun ClubDetailPreview() {
+private fun ClubsPreview() {
     FishersTheme {
-        ClubDetailScreen(
-            "Lords CC",
-            ClubDetailState(
+        ClubsScreen(
+            state = ClubsState(
                 isFirstLoad = false,
-                members = listOf(
-                    ClubMemberDetail("1", "Ravi Patel",
-                        role = com.fishers.app.clubs.UserRole.ClubAdmin),
-                    ClubMemberDetail("2", "Tom Hardy", isCaptain = true),
-                    ClubMemberDetail("3", "Sam Ali"),
+                clubs = listOf(
+                    Club("1", "Lords CC", listOf("cricket"), "Sunday friendlies", role = UserRole.ClubAdmin,
+                        isCaptain = true, memberCount = 18, teamCount = 2),
+                    Club("2", "Southall Strikers", listOf("cricket"), visibility = "public",
+                        role = UserRole.Member, memberCount = 31, teamCount = 3),
                 ),
             ),
+            onOpen = {}, onStartClub = {}, onSearch = {}, onShareProfile = {}, onRetry = {},
         )
     }
 }
