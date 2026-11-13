@@ -8,8 +8,9 @@ name: Web
 # reads as passing because it never ran is worse than no check, and the only
 # reliable way to keep it from going back to that is for CI to run it.
 #
-# `next build` is the type-check: the dashboard has no test suite of its own,
-# and the end-to-end journey in e2e.yml is what covers its behaviour.
+# `next build` is the type-check: beyond `npm test` on a few pure modules the
+# dashboard has no test suite of its own, and the end-to-end journey in
+# e2e.yml is what covers its behaviour.
 
 on:
   push:
@@ -71,6 +72,11 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # The few pure modules that have a test of their own — scheduling a
+      # weekly series of nets, for one, where a clock change moves 19:00.
+      - name: Unit tests
+        run: npm test
 
       # Nothing is set here on purpose: no NEXT_PUBLIC_API_PORT and no .env, so
       # this builds the way a fresh checkout does and the defaults in
