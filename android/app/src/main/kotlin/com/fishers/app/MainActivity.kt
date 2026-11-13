@@ -1,12 +1,17 @@
 package com.fishers.app
 
+import android.net.ConnectivityManager
+import android.net.Network
 import androidx.lifecycle.lifecycleScope
 import com.fishers.app.cricket.BookSweeper
 import com.fishers.app.cricket.DeviceId
 import com.fishers.app.cricket.FileBallStore
+import com.fishers.app.match.start.MatchRegistrar
+import com.fishers.app.net.MatchStartApi
 import com.fishers.app.net.ScoringApi
 import com.fishers.app.session.UserCache
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -64,20 +69,53 @@ class MainActivity : ComponentActivity() {
      * Balls scored with no signal, from a match nobody has reopened, go up
      * whenever the app comes back to the front — `CricketSyncService.swift`'s
      * sweep. The scorer sends its own match's balls; this is everything else.
+     * A match started with no signal is made on the server first.
      */
     override fun onResume() {
         super.onResume()
+        sweep()
+    }
+
+    /** One sweep at a time: the resume and the network coming back often arrive together. */
+    private val sweeping = AtomicBoolean(false)
+
+    private fun sweep() {
         val app = application as FishersApp
-        if (!app.session.isSignedIn) return
+        if (!app.session.isSignedIn || !sweeping.compareAndSet(false, true)) return
         lifecycleScope.launch {
-            runCatching {
-                BookSweeper(
-                    api = app.network.service(ScoringApi::class.java),
-                    store = FileBallStore.forApp(this@MainActivity),
-                    deviceId = DeviceId.get(this@MainActivity),
-                ).sendLeftovers()
+            try {
+                runCatching {
+                    val store = FileBallStore.forApp(this@MainActivity)
+                    val deviceId = DeviceId.get(this@MainActivity)
+                    BookSweeper(
+                        api = app.network.service(ScoringApi::class.java),
+                        store = store,
+                        deviceId = deviceId,
+                        registrar = MatchRegistrar(app.network.service(MatchStartApi::class.java), store, deviceId),
+                    ).sendLeftovers()
+                }
+            } finally {
+                sweeping.set(false)
             }
         }
+    }
+
+    /**
+     * The signal coming back at the ground, while the app is open on some
+     * other screen: what is waiting goes up then, not at the next resume.
+     */
+    private val networkBack = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = sweep()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        runCatching { getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(networkBack) }
+    }
+
+    override fun onStop() {
+        runCatching { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(networkBack) }
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {

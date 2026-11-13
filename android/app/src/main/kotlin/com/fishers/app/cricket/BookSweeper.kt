@@ -1,5 +1,6 @@
 package com.fishers.app.cricket
 
+import com.fishers.app.match.start.MatchRegistrar
 import com.fishers.app.net.ScoringApi
 import kotlinx.coroutines.CancellationException
 
@@ -8,8 +9,9 @@ import kotlinx.coroutines.CancellationException
  * killed mid-over and the scorer went home. `sweepOthers` in
  * `CricketSyncService.swift`.
  *
- * Each book is laid back on top of the server's, exactly as opening the
- * match would ([merge]), then sent. Anything that fails stays on the disk for
+ * A match started with no signal is put on the server first ([registrar]).
+ * Then each book is laid back on top of the server's, exactly as opening the
+ * match would ([merge]), and sent. Anything that fails stays on the disk for
  * the next sweep or the next time the match is opened; nothing here deletes a
  * ball.
  */
@@ -18,14 +20,23 @@ class BookSweeper(
     private val store: BallStore,
     private val deviceId: String,
     private val engine: Engine = Engine(),
+    /** Without one, a match the server has never heard of waits for a sweep that has one. */
+    private val registrar: MatchRegistrar? = null,
 ) {
     /** Send every book's unsent balls but [skip]'s — the match on screen sends its own. Returns how many went. */
     suspend fun sendLeftovers(skip: String? = null): Int {
+        // The screen may hold the phone's id for a book that has since moved.
+        val skipped = skip?.let(store::resolve)
         var sent = 0
-        for (book in store.withUnsent()) {
-            if (book.eventId == skip) continue
+        for (found in store.withUnsent()) {
+            if (found.eventId == skip || found.eventId == skipped) continue
             try {
-                sent += send(book)
+                var book = found
+                if (book.create != null) {
+                    book = registrar?.register(book.eventId) ?: continue
+                    if (book.create != null) continue
+                }
+                if (book.pending.isNotEmpty()) sent += send(book)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Throwable) {

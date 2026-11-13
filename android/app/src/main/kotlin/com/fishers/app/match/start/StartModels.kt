@@ -6,6 +6,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 
 // The wire shapes behind starting a match, named as the server names them —
 // `backend/api/src/routes/cricket.rs`, `events.rs`, `clubs.rs`. The app's JSON
@@ -111,7 +113,20 @@ data class FixtureInfo(
     @SerialName("team_id") val teamId: String? = null,
     @SerialName("opponent_club_id") val opponentClubId: String? = null,
     val metadata: JsonElement? = null,
-)
+) {
+    /** The phone's own id for a fixture it made — how it knows the fixture again. */
+    val clientRef: String?
+        get() = runCatching { (metadata?.jsonObject?.get(CLIENT_REF) as? JsonPrimitive)?.content }.getOrNull()
+
+    companion object {
+        /** The metadata key a quick start writes the phone's id for its fixture under. */
+        const val CLIENT_REF = "client_ref"
+    }
+}
+
+/** `GET /events`, a page of them. */
+@Serializable
+data class FixtureInfoPage(val items: List<FixtureInfo> = emptyList())
 
 /** A club or team as its code identifies it — `ClubIdentity.swift`. A name, nothing more. */
 @Serializable
