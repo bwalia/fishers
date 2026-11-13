@@ -558,24 +558,25 @@ function ScheduleMatch({
     if (!session) return;
     setBusy(true);
     setError(null);
-    const queue =
-      left ??
-      sessionBodies({
-        kind: session,
-        clubId,
-        sport: sportOf(clubs.find((c) => c.id === clubId)?.sport_types),
-        title: name?.trim() || t(PRACTICE_LABEL[session]),
-        venueId: venueId || undefined,
-        start: new Date(start),
-        minutes: length,
-        note,
-        weeks: count,
-        seriesId: count > 1 ? randomUUID() : undefined,
-      });
-    // One after another, so a failure stops the series where it is rather
-    // than leaving a gap in the middle of it.
+    let queue: SessionBody[] = [];
     let sent = 0;
     try {
+      queue =
+        left ??
+        sessionBodies({
+          kind: session,
+          clubId,
+          sport: sportOf(clubs.find((c) => c.id === clubId)?.sport_types),
+          title: name?.trim() || t(PRACTICE_LABEL[session]),
+          venueId: venueId || undefined,
+          start: new Date(start),
+          minutes: length,
+          note,
+          weeks: count,
+          seriesId: count > 1 ? randomUUID() : undefined,
+        });
+      // One after another, so a failure stops the series where it is rather
+      // than leaving a gap in the middle of it.
       for (const body of queue) {
         await api("POST", "/events", body);
         sent++;
