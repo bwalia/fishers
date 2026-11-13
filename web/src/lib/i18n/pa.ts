@@ -4422,4 +4422,13 @@ export const pa: Dict = {
   "ss.unsub_ask_body": "ਜਦੋਂ ਤੁਹਾਡਾ ਕਲੱਬ ਸੀਜ਼ਨ ਬੰਦ ਕਰਦਾ ਹੈ ਤਾਂ ਭੇਜੀ ਜਾਂਦੀ ਈਮੇਲ ਤੁਹਾਨੂੰ ਮਿਲਣੀ ਬੰਦ ਹੋ ਜਾਵੇਗੀ। ਹੋਰ ਕੁਝ ਨਹੀਂ ਬਦਲੇਗਾ।",
   "ss.unsub_button": "ਸੀਜ਼ਨ ਈਮੇਲਾਂ ਬੰਦ ਕਰੋ",
 
+  // MARK: Clubs on Android — joining from the clubs list, confirming on the
+  // website, the policy steppers and the fees tab
+  "cl.join_with_the_club_link": "ਕੀ ਤੁਹਾਨੂੰ ਆਪਣੇ ਕਲੱਬ ਦੇ ਸਕੱਤਰ ਤੋਂ ਲਿੰਕ ਮਿਲਿਆ ਹੈ? ਇਸ ਨੂੰ ਇਸ ਫ਼ੋਨ 'ਤੇ ਖੋਲ੍ਹੋ ਅਤੇ ਤੁਸੀਂ ਉਸੇ ਵੇਲੇ ਕਲੱਬ ਵਿੱਚ ਸ਼ਾਮਲ ਹੋ ਜਾਓਗੇ।",
+  "cl.invitations_wait_on_home": "ਤੁਹਾਡੇ ਖਾਤੇ ਨੂੰ ਭੇਜਿਆ ਸੱਦਾ ਮੁੱਖ ਸਕਰੀਨ 'ਤੇ ਤੁਹਾਡੀ ਉਡੀਕ ਕਰਦਾ ਹੈ, ਮਨਜ਼ੂਰ ਕਰਨ ਲਈ ਤਿਆਰ।",
+  "cl.confirm_on_the_website": "{brand} ਦੀ ਵੈੱਬਸਾਈਟ 'ਤੇ ਆਪਣੀ ਈਮੇਲ ਜਾਂ ਮੋਬਾਈਲ ਨੰਬਰ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ, ਫਿਰ ਵਾਪਸ ਆ ਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+  "cl.step_down": "ਘੱਟ: {what}",
+  "cl.step_up": "ਵੱਧ: {what}",
+  "cl.fees_are_for_captains": "ਬਕਾਇਆ ਫ਼ੀਸਾਂ ਦਾ ਪਿੱਛਾ ਕਲੱਬ ਦੇ ਕਪਤਾਨ ਅਤੇ ਸਕੱਤਰ ਕਰਦੇ ਹਨ।",
+
 };
