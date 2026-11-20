@@ -193,10 +193,12 @@ internal fun <T> Choices(
                         label(option),
                         maxLines = 1,
                         textAlign = TextAlign.Center,
-                        modifier = if (minWidth > 0.dp) Modifier.fillMaxWidth() else Modifier,
+                        // A minimum, not fillMaxWidth: in a FlowRow that stretched every
+                        // chip across the whole row, ten overs one under another.
+                        modifier = Modifier.widthIn(min = minWidth),
                     )
                 },
-                modifier = Modifier.heightIn(min = 48.dp).widthIn(min = minWidth),
+                modifier = Modifier.heightIn(min = 48.dp),
             )
         }
     }
