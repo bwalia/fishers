@@ -19,13 +19,14 @@ use sqlx::PgPool;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-/// Stored, then pushed — the same order the API uses. The title and body go
-/// in the stored payload too, so an app that doesn't know this kind of
-/// notification can still show it.
+/// Stored, then pushed — the same order the API uses. The title, body and
+/// kind go in the payload too, so an app that doesn't know this kind of
+/// notification can still show it, and a push can be routed by its kind.
 async fn notify(pool: &PgPool, push: &PushService, user: Uuid, kind: &str, title: &str, body: &str, mut payload: Value) {
     if let Value::Object(map) = &mut payload {
         map.entry("title").or_insert_with(|| json!(title));
         map.entry("body").or_insert_with(|| json!(body));
+        map.entry("kind").or_insert_with(|| json!(kind));
     }
     if let Err(error) = notifications_repo::record(pool, user, kind, &payload).await {
         warn!(%error, kind, "could not store a notification");

@@ -133,9 +133,9 @@ impl AppState {
     /// registered, a server with no APNs key, a browser whose subscription
     /// has lapsed. The app reads notifications back the next time it is
     /// opened, so "they'll be told" is true whether or not a device answered.
-    /// [`Self::notify`], with the title and body also kept in the stored
+    /// [`Self::notify`], with the title, body and kind also kept in the
     /// payload — so an app that doesn't know this kind of notification yet
-    /// can still show it in its list.
+    /// can still show it in its list, and a push can be routed by its kind.
     pub async fn notify_text(
         &self,
         user_id: uuid::Uuid,
@@ -147,6 +147,9 @@ impl AppState {
         if let serde_json::Value::Object(map) = &mut payload {
             map.entry("title").or_insert_with(|| serde_json::json!(title));
             map.entry("body").or_insert_with(|| serde_json::json!(body));
+            // The push carries the payload's keys, not the kind it was sent
+            // as; a payload with only a club id can't be routed without it.
+            map.entry("kind").or_insert_with(|| serde_json::json!(kind));
         }
         self.notify(user_id, kind, title, body, payload).await
     }

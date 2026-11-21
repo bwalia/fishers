@@ -1368,6 +1368,7 @@ async fn claim_payment(
     }
     let note = clean_note(body.note.as_deref())?;
     let ledger = Ledger::load(&state, club_id, Some(auth.user_id)).await?;
+    let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
     let settled = ledger.of(&Payer::Member(auth.user_id));
     if !(r.is_member || r.is_owner || settled.owed_cents > 0) {
         return Err(ApiError::forbidden("You're not a member of this club").with_code("not_member"));
@@ -1384,11 +1385,10 @@ async fn claim_payment(
     if amount <= 0 || amount > money::MAX_SHARE_CENTS {
         return Err(ApiError::bad_request(format!(
             "The amount has to be more than zero and at most {}",
-            fmt_money(money::MAX_SHARE_CENTS, "GBP")
+            fmt_money(money::MAX_SHARE_CENTS, &currency)
         ))
         .with_code("bad_amount"));
     }
-    let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
     let name = repo::user_name(&state.pool, auth.user_id).await?.unwrap_or_default();
     let (reference, payout) = if body.method == "transfer" {
         (Some(reference_for(&state, club_id, auth.user_id).await?), accounts(&state, club_id).await?.current().map(|a| a.id))
@@ -1594,21 +1594,21 @@ async fn record_payment(
     if !matches!(method, "cash" | "transfer") {
         return Err(ApiError::bad_request("method is cash or transfer"));
     }
-    if body.amount_cents <= 0 || body.amount_cents > money::MAX_SHARE_CENTS {
-        return Err(ApiError::bad_request(format!(
-            "The amount has to be more than zero and at most {}",
-            fmt_money(money::MAX_SHARE_CENTS, "GBP")
-        ))
-        .with_code("bad_amount"));
-    }
     let key = idempotency_key(&headers)?;
     if let Some(existing) = retried(&state, auth.user_id, club_id, key.as_deref()).await? {
         return Ok(Json(existing));
     }
     let note = clean_note(body.note.as_deref())?;
     let ledger = Ledger::load(&state, club_id, None).await?;
-    let (payer, name) = payer_for(&state, club_id, &body, &ledger).await?;
     let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
+    if body.amount_cents <= 0 || body.amount_cents > money::MAX_SHARE_CENTS {
+        return Err(ApiError::bad_request(format!(
+            "The amount has to be more than zero and at most {}",
+            fmt_money(money::MAX_SHARE_CENTS, &currency)
+        ))
+        .with_code("bad_amount"));
+    }
+    let (payer, name) = payer_for(&state, club_id, &body, &ledger).await?;
     let (user_id, guest) = match &payer {
         Payer::Member(id) => (Some(*id), None),
         Payer::Guest(_) => (None, Some(name.as_str())),
@@ -1667,16 +1667,16 @@ async fn refund(
     let note = clean_note(body.note.as_deref())?;
     let ledger = Ledger::load(&state, club_id, None).await?;
     let (payer, name) = payer_for(&state, club_id, &body, &ledger).await?;
+    let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
     let credit = ledger.of(&payer).credit_cents;
     if body.amount_cents <= 0 || body.amount_cents > credit {
         return Err(ApiError::bad_request(format!(
             "{} has {} of credit, so you can refund up to that",
             first_name(&name),
-            fmt_money(credit, "GBP")
+            fmt_money(credit, &currency)
         ))
         .with_code("more_than_credit"));
     }
-    let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
     let (user_id, guest) = match &payer {
         Payer::Member(id) => (Some(*id), None),
         Payer::Guest(_) => (None, Some(name.as_str())),

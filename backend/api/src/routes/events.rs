@@ -127,8 +127,13 @@ fn requested_cost(body: &CreateEventRequest) -> ApiResult<Option<(CostMode, i64,
     };
     let cap = if mode == CostMode::PerPlayer { MAX_SHARE_CENTS } else { MAX_BILL_CENTS };
     if amount <= 0 || amount > cap {
-        return Err(ApiError::bad_request("The cost has to be more than zero and at most £1,000 a head or £10,000 in total")
-            .with_code("amount_limit"));
+        let currency = body.fee_currency.as_deref().unwrap_or("GBP");
+        return Err(ApiError::bad_request(format!(
+            "The cost has to be more than zero and at most {} a head or {} in total",
+            fishers_domain::money::fmt_money(MAX_SHARE_CENTS, currency),
+            fishers_domain::money::fmt_money(MAX_BILL_CENTS, currency)
+        ))
+        .with_code("amount_limit"));
     }
     Ok(Some((mode, amount, note)))
 }
