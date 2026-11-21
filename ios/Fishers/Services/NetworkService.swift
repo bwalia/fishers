@@ -242,6 +242,22 @@ actor NetworkService {
         )
     }
 
+    /// Bytes in, bytes out: a payment screenshot sent as the raw image, or
+    /// one read back. Goes through the same refresh-and-retry as JSON, with
+    /// `headers` (the Idempotency-Key) kept on the retry.
+    func data(
+        _ method: String,
+        path: String,
+        rawBody: Data? = nil,
+        contentType: String = "application/octet-stream",
+        headers: [String: String] = [:]
+    ) async throws -> Data {
+        try await rawRequest(
+            method, path: path, body: nil, authorized: true, headers: headers,
+            raw: rawBody.map { ($0, contentType) }
+        )
+    }
+
     /// Send one file as multipart/form-data.
     ///
     /// Separate from `rawRequest` because the body is not JSON and the
@@ -308,6 +324,7 @@ actor NetworkService {
         body: (any Encodable)?,
         authorized: Bool,
         headers: [String: String] = [:],
+        raw: (Data, String)? = nil,
         hasRefreshed: Bool = false
     ) async throws -> Data {
         guard let url = URL(string: AppConfig.apiBaseURL.absoluteString + AppConfig.apiVersionPrefix + path) else {
@@ -315,7 +332,7 @@ actor NetworkService {
         }
         var req = URLRequest(url: url)
         req.httpMethod = method
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(raw?.1 ?? "application/json", forHTTPHeaderField: "Content-Type")
         if authorized, let token = accessToken {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -324,6 +341,8 @@ actor NetworkService {
         }
         if let body {
             req.httpBody = try encoder.encode(AnyEncodable(body))
+        } else if let raw {
+            req.httpBody = raw.0
         }
 
         let data: Data
@@ -344,7 +363,7 @@ actor NetworkService {
         if http.statusCode == 401, authorized, !hasRefreshed, refreshToken != nil {
             try await refreshAccessToken()
             return try await rawRequest(
-                method, path: path, body: body, authorized: true, headers: headers, hasRefreshed: true
+                method, path: path, body: body, authorized: true, headers: headers, raw: raw, hasRefreshed: true
             )
         }
 

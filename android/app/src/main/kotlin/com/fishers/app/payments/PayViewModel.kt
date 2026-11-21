@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 data class PayState(
     val pay: PayScreen? = null,
@@ -18,6 +20,13 @@ data class PayState(
     val isClaiming: Boolean = false,
     /** Which claim is being undone. */
     val undoing: String? = null,
+    /** Which claim a screenshot is going up for. */
+    val attaching: String? = null,
+    /**
+     * This phone has paid by transfer before: "Pay Aman as usual" instead of
+     * "First time? Here's how".
+     */
+    val guideSeen: Boolean = false,
     /** In red. */
     val error: String? = null,
     /** Said quietly: "Thanks — the club will confirm it." */
@@ -25,8 +34,9 @@ data class PayState(
 )
 
 /**
- * The pay screen: what you owe one club, the bank details and your reference
- * to copy into your banking app, and "I've paid".
+ * The pay screen: what you owe one club, who the money goes to, the four
+ * things to copy into your banking app, and "I've paid". After saying so, a
+ * screenshot can go with it, and a mistake can be undone.
  *
  * A claim makes the share "waiting", never "paid": only the club confirming
  * that the money arrived does that.
@@ -35,9 +45,10 @@ class PayViewModel(
     private val api: PaymentsApi,
     private val clubId: String,
     private val keys: AttemptKeys = AttemptKeys(),
+    private val guide: PayGuideMemory = PayGuideMemory.InMemory(),
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PayState())
+    private val _state = MutableStateFlow(PayState(guideSeen = guide.seen()))
     val state: StateFlow<PayState> = _state.asStateFlow()
 
     fun load() {
@@ -63,7 +74,15 @@ class PayViewModel(
             runCatching { api.claimPayment(clubId, key, ClaimBody(method = method.wire)) }
                 .onSuccess {
                     keys.settled(attempt)
-                    _state.update { it.copy(isClaiming = false, message = t("pay.thanks_club_will_confirm")) }
+                    // Paid by transfer once from this phone: next time it is "as usual".
+                    if (method == PaymentMethod.Transfer) guide.markSeen()
+                    _state.update {
+                        it.copy(
+                            isClaiming = false,
+                            guideSeen = guide.seen(),
+                            message = t("pay.thanks_club_will_confirm"),
+                        )
+                    }
                     load()
                 }
                 .onFailure { e ->
@@ -79,7 +98,7 @@ class PayViewModel(
                             message = if (quiet) refusal.message else null,
                         )
                     }
-                    if (quiet) load()
+                    if (quiet || refusal?.code == "already_decided") load()
                 }
         }
     }
@@ -100,7 +119,37 @@ class PayViewModel(
         }
     }
 
+    /**
+     * A picture of the payment, already shrunk by the picker to under a
+     * megabyte, for the treasurer to see beside it. Optional, and only for a
+     * claim still waiting.
+     */
+    fun attachScreenshot(paymentId: String, jpeg: ByteArray) {
+        if (_state.value.attaching != null) return
+        _state.update { it.copy(attaching = paymentId, error = null, message = null) }
+        viewModelScope.launch {
+            runCatching { api.uploadScreenshot(paymentId, jpeg.toRequestBody(JPEG)) }
+                .onSuccess {
+                    _state.update { it.copy(attaching = null, message = t("pa2.screenshot_added")) }
+                    load()
+                }
+                .onFailure { e ->
+                    val refusal = refusalOf(e)
+                    _state.update { it.copy(attaching = null, error = failureText(e, refusal)) }
+                    // Checked meanwhile: the list shows what happened to it.
+                    if (refusal?.meansReload == true) load()
+                }
+        }
+    }
+
+    /** The picker could not make anything of the picture: unreadable, or too big even shrunk. */
+    fun screenshotProblem(text: String) = _state.update { it.copy(error = text, message = null) }
+
     fun dismissMessage() = _state.update { it.copy(message = null, error = null) }
+
+    private companion object {
+        val JPEG = "image/jpeg".toMediaType()
+    }
 }
 
 data class DuesState(

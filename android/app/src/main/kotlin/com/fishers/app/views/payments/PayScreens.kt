@@ -1,5 +1,6 @@
 package com.fishers.app.views.payments
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,15 +12,24 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -27,12 +37,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +67,16 @@ import com.fishers.app.payments.PayViewModel
 import com.fishers.app.payments.Payment
 import com.fishers.app.payments.PaymentMethod
 import com.fishers.app.payments.Share
+import com.fishers.app.payments.detailsToSend
+import com.fishers.app.payments.oweHeadline
+import com.fishers.app.payments.payeeLine
+import com.fishers.app.payments.payeeShortName
 import com.fishers.app.payments.shortDay
+import com.fishers.app.payments.waitingLine
+import com.fishers.app.payments.whoseAccount
+import com.fishers.app.views.components.ButtonLabel
+import com.fishers.app.views.components.ButtonRow
+import kotlinx.coroutines.delay
 import com.fishers.app.views.clubs.ClubScreen
 import com.fishers.app.views.clubs.ErrorLine
 import com.fishers.app.views.clubs.Hint
@@ -61,15 +85,29 @@ import com.fishers.app.views.nav.LocalAppDeps
 import com.fishers.app.views.nav.LocalNavigator
 
 /**
- * Pay one club: the amount, the bank details and your reference, each to copy
- * into your banking app, then "I've paid".
+ * Pay one club, top to bottom in plain words (§5.2 of
+ * docs/CLUB_PAYMENTS_V2_PLAN.md): what you owe and what for, who the money
+ * goes to, the four things to copy into a banking app, a first-time guide,
+ * then "I've paid" or "I paid cash". After saying so: a screenshot, if you
+ * like, and Undo.
  */
 @Composable
 internal fun PayPage(clubId: String, clubName: String) {
     val deps = LocalAppDeps.current
-    val model = remember(clubId) { PayViewModel(deps.service<PaymentsApi>(), clubId) }
+    val context = LocalContext.current
+    val model = remember(clubId) {
+        PayViewModel(deps.service<PaymentsApi>(), clubId, guide = payGuidePrefs(context.applicationContext))
+    }
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(clubId) { model.load() }
+
+    // Which waiting payment the picker is choosing a picture for. Saved:
+    // the phone may let this screen go while the picker is open.
+    var picturing by rememberSaveable { mutableStateOf<String?>(null) }
+    val pickPicture = rememberScreenshotPicker(
+        onReady = { bytes -> picturing?.let { model.attachScreenshot(it, bytes) } },
+        onProblem = model::screenshotProblem,
+    )
 
     val name = state.pay?.clubName?.takeIf { it.isNotBlank() } ?: clubName
     ClubScreen(title = if (name.isBlank()) t("pay.pay_the_club") else t("pay.pay_club", vars = mapOf("club" to name))) {
@@ -85,6 +123,7 @@ internal fun PayPage(clubId: String, clubName: String) {
                 state = state,
                 onClaim = model::claim,
                 onUndo = model::undo,
+                onAddPicture = { claim -> picturing = claim.id; pickPicture() },
             )
         }
     }
@@ -96,64 +135,93 @@ private fun PayBody(
     state: PayState,
     onClaim: (PaymentMethod) -> Unit,
     onUndo: (Payment) -> Unit,
+    onAddPicture: (Payment) -> Unit,
 ) {
+    val context = LocalContext.current
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        // ---- how much ----
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (pay.owedCents > 0) {
-                Text(t("pay.you_owe"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                Text(money(pay.owedCents, pay.currency), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            } else if (pay.waitingCents <= 0) {
-                Text(t("pay.all_paid_up"), style = MaterialTheme.typography.titleLarge)
-            }
-            if (pay.waitingCents > 0) {
-                Hint(t("pay.amount_waiting_to_confirm", vars = mapOf("amount" to money(pay.waitingCents, pay.currency))))
+        // ---- 1. how much, and what for ----
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            when {
+                pay.owedCents > 0 -> Text(
+                    pay.oweHeadline(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { heading() },
+                )
+                pay.waitingCents <= 0 && pay.claims.isEmpty() ->
+                    Text(t("pay.all_paid_up"), style = MaterialTheme.typography.headlineSmall)
             }
             if (pay.creditCents > 0) {
-                Hint(t("pay.you_have_credit", vars = mapOf("amount" to money(pay.creditCents, pay.currency))))
+                Body(t("pay.you_have_credit", vars = mapOf("amount" to money(pay.creditCents, pay.currency))))
             }
         }
 
-        state.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
-        state.error?.let { ErrorLine(it) }
+        state.message?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary) }
+        state.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) }
 
-        // ---- where to ----
+        // ---- 6. said you've paid: waiting, with a picture and Undo ----
+        if (pay.claims.isNotEmpty()) {
+            WaitingCard(pay, state, onUndo = onUndo, onAddPicture = onAddPicture)
+        }
+
         if (pay.owedCents > 0) {
             val account = pay.account
             when (pay.accountState) {
                 AccountState.Active -> if (account != null) {
-                    BankDetailsCard(pay, account)
-                    Text(t("pay.pay_then_come_back"), style = MaterialTheme.typography.bodyMedium)
+                    // ---- 2. who the money goes to ----
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(account.payeeLine(), style = MaterialTheme.typography.titleLarge)
+                        Body(account.whoseAccount())
+                    }
+                    account.changedAt?.let { AmberNote(t("pay.details_changed_on", vars = mapOf("date" to shortDay(it)))) }
+
+                    // ---- 3. the four things to copy ----
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(vertical = 8.dp, horizontal = 16.dp)) {
+                            BigCopyRow(t("pa2.row_name"), account.holderName)
+                            HorizontalDivider()
+                            BigCopyRow(t("pay.sort_code"), account.sortCode, mono = true)
+                            HorizontalDivider()
+                            BigCopyRow(t("pay.account_number"), account.accountNumber, mono = true, sensitive = true)
+                            HorizontalDivider()
+                            BigCopyRow(t("pa2.row_reference"), pay.reference, mono = true)
+                        }
+                    }
+
+                    // ---- 4. first time? ----
+                    PayGuide(pay, account, seen = state.guideSeen)
+
+                    // ---- 5. the two big buttons ----
                     Button(
                         onClick = { onClaim(PaymentMethod.Transfer) },
                         enabled = !state.isClaiming,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    ) { Text(if (state.isClaiming) t("pay.sending") else t("pay.ive_paid"), style = MaterialTheme.typography.titleMedium) }
+                    CashButton(state, onClaim)
+
+                    // ---- 7. somebody else does the banking ----
+                    OutlinedButton(
+                        onClick = { shareAnywhere(context, pay.detailsToSend()) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    ) { Text(if (state.isClaiming) t("pay.sending") else t("pay.ive_paid")) }
+                    ) {
+                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(t("pa2.send_details"), modifier = Modifier.padding(start = 8.dp))
+                    }
+                    Body(t("pa2.send_details_hint"))
                 }
                 AccountState.Frozen -> StopNote(t("pay.details_being_checked"))
-                AccountState.None -> Hint(t("pay.no_details_pay_secretary"))
-                AccountState.Unreadable -> Hint(t("pay.details_need_entering_again"))
-                else -> Unit
-            }
-            // Smaller, and offered whatever the state of the details: cash
-            // at the ground is how a lot of clubs are still paid.
-            if (pay.accountState != AccountState.Frozen) {
-                TextButton(
-                    onClick = { onClaim(PaymentMethod.Cash) },
-                    enabled = !state.isClaiming,
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) { Text(t("pay.i_paid_cash")) }
-            }
-        }
-
-        // ---- claims waiting for the club ----
-        if (pay.claims.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                SectionHeading(t("pay.waiting_for_the_club"))
-                pay.claims.forEach { claim -> ClaimRow(claim, undoing = state.undoing == claim.id, onUndo = { onUndo(claim) }) }
+                AccountState.None -> {
+                    Body(t("pay.no_details_pay_secretary"))
+                    CashButton(state, onClaim)
+                }
+                AccountState.Unreadable -> {
+                    Body(t("pay.details_need_entering_again"))
+                    CashButton(state, onClaim)
+                }
+                else -> CashButton(state, onClaim)
             }
         }
 
@@ -167,65 +235,183 @@ private fun PayBody(
     }
 }
 
-/** Each detail with its own Copy, then Copy all: banking apps ask for them one box at a time. */
+/** "I paid cash": as big as "I've paid", but outlined — cash at the ground is how a lot of clubs are paid. */
 @Composable
-private fun BankDetailsCard(pay: PayScreen, account: BankDetails) {
-    val context = LocalContext.current
-    account.changedAt?.let { AmberNote(t("pay.details_changed_on", vars = mapOf("date" to shortDay(it)))) }
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            CopyRow(t("pay.amount"), money(pay.owedCents, pay.currency), copyAs = amountForBank(pay.owedCents)) {
-                copy(context, t("pay.amount"), it)
-            }
-            CopyRow(t("pay.account_name"), account.holderName) { copy(context, t("pay.account_name"), it) }
-            if (account.isPersonal) Hint(t("pay.personal_account"))
-            CopyRow(t("pay.sort_code"), account.sortCode, mono = true) { copy(context, t("pay.sort_code"), it) }
-            CopyRow(t("pay.account_number"), account.accountNumber, mono = true) {
-                copy(context, t("pay.account_number"), it, sensitive = true)
-            }
-            CopyRow(t("pay.reference"), pay.reference, mono = true) { copy(context, t("pay.reference"), it) }
-            Hint(t("pay.reference_explainer"))
-            OutlinedButton(
-                onClick = { copy(context, t("pay.copy_all"), pay.copyAll(), sensitive = true) },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 48.dp),
-            ) {
-                Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text(t("pay.copy_all"), modifier = Modifier.padding(start = 8.dp))
-            }
-        }
-    }
+private fun CashButton(state: PayState, onClaim: (PaymentMethod) -> Unit) {
+    OutlinedButton(
+        onClick = { onClaim(PaymentMethod.Cash) },
+        enabled = !state.isClaiming,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+    ) { Text(t("pay.i_paid_cash"), style = MaterialTheme.typography.titleMedium) }
 }
 
-/** "15.00": what a banking app's amount box takes — no symbol, two places. */
-private fun amountForBank(cents: Long): String = "%d.%02d".format(java.util.Locale.ROOT, cents / 100, cents % 100)
-
+/** Secondary words, still big enough to read on a phone held at arm's length. */
 @Composable
-private fun CopyRow(label: String, value: String, mono: Boolean = false, copyAs: String = value, onCopy: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Hint(label)
+internal fun Body(text: String, modifier: Modifier = Modifier) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = modifier)
+}
+
+/**
+ * One thing to copy: what it is, the value big, and a Copy button a thumb can
+ * hit — banking apps ask for them one box at a time. The button says
+ * "Copied" for a moment, because older phones show nothing when it works.
+ */
+@Composable
+private fun BigCopyRow(label: String, value: String, mono: Boolean = false, sensitive: Boolean = false) {
+    val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(2000)
+            copied = false
+        }
+    }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 8.dp)) {
+            Body(label)
             Text(
                 value,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 fontFamily = if (mono) FontFamily.Monospace else null,
             )
         }
-        IconButton(onClick = { onCopy(copyAs) }) {
-            Icon(Icons.Filled.ContentCopy, contentDescription = t("pay.copy_what", vars = mapOf("what" to label)))
+        OutlinedButton(
+            onClick = {
+                copy(context, label, value, sensitive = sensitive)
+                copied = true
+            },
+            modifier = Modifier.heightIn(min = 48.dp).semantics {
+                contentDescription = t("pay.copy_what", vars = mapOf("what" to label))
+            },
+        ) {
+            Icon(if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(if (copied) t("pay.copied") else t("pa2.copy"), modifier = Modifier.padding(start = 6.dp))
+        }
+    }
+}
+
+/**
+ * "First time? Here's how": three steps, each with its picture. Once this
+ * phone has paid by transfer, "Pay Aman as usual" instead — with the steps
+ * still a tap away.
+ */
+@Composable
+private fun PayGuide(pay: PayScreen, account: BankDetails, seen: Boolean) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (seen) Body(t("pa2.pay_as_usual", vars = mapOf("name" to account.payeeShortName)))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clickable(role = Role.Button) { open = !open },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Text(
+                if (seen) t("pa2.guide_again") else t("pa2.first_time"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 8.dp).weight(1f),
+            )
+            Icon(if (open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, contentDescription = null)
+        }
+        if (open) {
+            GuideStep(1, Icons.Filled.PhoneAndroid, t("pa2.guide_1_title"), t("pa2.guide_1_body"))
+            GuideStep(2, Icons.Filled.PersonAdd, t("pa2.guide_2_title"), t("pa2.guide_2_body"))
+            GuideStep(
+                3,
+                Icons.Filled.ContentPaste,
+                t("pa2.guide_3_title"),
+                t("pa2.guide_3_body", vars = mapOf("amount" to money(pay.owedCents, pay.currency), "reference" to pay.reference)),
+            )
         }
     }
 }
 
 @Composable
-private fun ClaimRow(claim: Payment, undoing: Boolean, onUndo: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(money(claim.amountCents, claim.currency), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-            Hint(listOfNotNull(claim.method.label.takeIf { it.isNotEmpty() }, claim.reference, shortDay(claim.createdAt).takeIf { it.isNotEmpty() }).joinToString(" · "))
+private fun GuideStep(n: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String) {
+    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.Top) {
+        Box(
+            Modifier.size(56.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
         }
-        TextButton(onClick = onUndo, enabled = !undoing, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("pay.undo")) }
+        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+            Text("$n. $title", style = MaterialTheme.typography.titleMedium)
+            Text(body, style = MaterialTheme.typography.bodyLarge)
+        }
     }
-    HorizontalDivider()
+}
+
+/**
+ * What you've said you paid, waiting for the club to check: each with a
+ * screenshot to add (for a transfer) and Undo.
+ */
+@Composable
+private fun WaitingCard(pay: PayScreen, state: PayState, onUndo: (Payment) -> Unit, onAddPicture: (Payment) -> Unit) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0), contentColor = Color(0xFF5C3600)),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(pay.account.waitingLine(), style = MaterialTheme.typography.titleMedium)
+            pay.claims.forEachIndexed { i, claim ->
+                if (i > 0) HorizontalDivider()
+                WaitingRow(
+                    claim = claim,
+                    payee = pay.account?.payeeShortName,
+                    undoing = state.undoing == claim.id,
+                    attaching = state.attaching == claim.id,
+                    onUndo = { onUndo(claim) },
+                    onAddPicture = { onAddPicture(claim) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WaitingRow(
+    claim: Payment,
+    payee: String?,
+    undoing: Boolean,
+    attaching: Boolean,
+    onUndo: () -> Unit,
+    onAddPicture: () -> Unit,
+) {
+    val amount = money(claim.amountCents, claim.currency)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            if (claim.method == PaymentMethod.Cash) t("pa2.paid_in_cash", vars = mapOf("amount" to amount))
+            else t("pa2.paid_by_transfer", vars = mapOf("amount" to amount)),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+        )
+        shortDay(claim.createdAt).takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        val canPicture = claim.method != PaymentMethod.Cash && !claim.hasScreenshot
+        when {
+            claim.hasScreenshot -> Text(t("pa2.screenshot_with_it"), style = MaterialTheme.typography.bodyMedium)
+            canPicture -> Text(
+                if (payee != null) t("pa2.screenshot_hint", vars = mapOf("name" to payee)) else t("pa2.screenshot_hint_club"),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        val labels = listOfNotNull(t("pa2.add_screenshot").takeIf { canPicture }, t("pay.undo"))
+        ButtonRow(labels = labels) { i, m ->
+            if (canPicture && i == 0) {
+                OutlinedButton(onClick = onAddPicture, enabled = !attaching, modifier = m.heightIn(min = 48.dp)) {
+                    ButtonLabel(if (attaching) t("pa2.screenshot_sending") else t("pa2.add_screenshot"))
+                }
+            } else {
+                TextButton(onClick = onUndo, enabled = !undoing, modifier = m.heightIn(min = 48.dp)) { ButtonLabel(t("pay.undo")) }
+            }
+        }
+    }
 }
 
 /** "Friday nets · Fri 20 Nov   £15.00 Owed". */

@@ -1,6 +1,7 @@
 package com.fishers.app.views.payments
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,11 +14,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,7 +46,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -53,6 +65,8 @@ import com.fishers.app.payments.EventCost
 import com.fishers.app.payments.EventMoney
 import com.fishers.app.payments.EventMoneyState
 import com.fishers.app.payments.EventMoneyViewModel
+import com.fishers.app.payments.LinkUse
+import com.fishers.app.payments.Outgoing
 import com.fishers.app.payments.Share
 import com.fishers.app.payments.amountText
 import com.fishers.app.payments.checkCost
@@ -88,6 +102,17 @@ fun EventMoneySection(eventId: String, inSeries: Boolean = false) {
     var removingCost by remember { mutableStateOf(false) }
     var cancelling by remember { mutableStateOf(false) }
     var lettingOff by remember { mutableStateOf<Share?>(null) }
+    var switchingOff by remember { mutableStateOf(false) }
+
+    // The link's words go to WhatsApp, or the link to the clipboard, once.
+    val context = LocalContext.current
+    LaunchedEffect(state.outgoing) {
+        when (val out = state.outgoing ?: return@LaunchedEffect) {
+            is Outgoing.Share -> shareToWhatsApp(context, out.text)
+            is Outgoing.Copy -> copy(context, t("pa2.pay_link"), out.url)
+        }
+        model.handled()
+    }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -98,6 +123,26 @@ fun EventMoneySection(eventId: String, inSeries: Boolean = false) {
             CostPart(money, state, onEdit = { editingCost = true }, onRemove = { removingCost = true })
 
             money.bill?.let { BillPart(money, state, onLetOff = { lettingOff = it }) }
+
+            // Billed, and this person runs it: share it to the group, and
+            // tick off cash handed over at the ground.
+            if (money.bill != null && money.canBill && !state.choosing) {
+                if (state.cashOpen) {
+                    WhoPaidCash(money, state, model)
+                } else {
+                    ShareToWhatsApp(state, model, onSwitchOff = { switchingOff = true })
+                    if (state.anyoneOwes) {
+                        OutlinedButton(
+                            onClick = model::startCash,
+                            enabled = !state.isBusy,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) {
+                            Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text(t("pa2.who_paid_cash"), modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            }
 
             if (state.choosing) {
                 WhoCame(money, state, model)
@@ -155,6 +200,23 @@ fun EventMoneySection(eventId: String, inSeries: Boolean = false) {
             destructive = true,
             onConfirm = { cancelling = false; model.cancelBill(it) },
             onDismiss = { cancelling = false },
+        )
+    }
+    if (switchingOff) {
+        AlertDialog(
+            onDismissRequest = { switchingOff = false },
+            title = { Text(t("pa2.switch_link_off_title")) },
+            text = { Text(t("pa2.switch_link_off_body")) },
+            confirmButton = {
+                TextButton(
+                    onClick = { switchingOff = false; model.switchLinkOff() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text(t("pa2.switch_link_off")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { switchingOff = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("sc.cancel")) }
+            },
         )
     }
     lettingOff?.let { share ->
@@ -228,6 +290,96 @@ private fun BillPart(money: EventMoney, state: EventMoneyState, onLetOff: (Share
         }
     } else if (bill.note != null) {
         Hint(bill.note)
+    }
+}
+
+/**
+ * Share the bill to the club's WhatsApp group, remind whoever hasn't paid,
+ * or copy the link. The words are the server's. Switching the link off is
+ * tucked behind ⋮, with a question first.
+ */
+@Composable
+private fun ShareToWhatsApp(state: EventMoneyState, model: EventMoneyViewModel, onSwitchOff: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    HorizontalDivider()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            t("pa2.share_to_whatsapp"),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f).semantics { heading() },
+        )
+        Box {
+            IconButton(onClick = { menu = true }, enabled = !state.isBusy) {
+                Icon(Icons.Filled.MoreVert, contentDescription = t("pa2.link_more"))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(t("pa2.switch_link_off")) },
+                    leadingIcon = { Icon(Icons.Filled.LinkOff, contentDescription = null) },
+                    onClick = { menu = false; onSwitchOff() },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                )
+            }
+        }
+    }
+    Body(t("pa2.share_hint"))
+    Button(
+        onClick = { model.share(LinkUse.Bill) },
+        enabled = !state.isBusy,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+    ) {
+        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(if (state.isBusy) t("pa2.getting_link") else t("pa2.share_the_bill"), modifier = Modifier.padding(start = 8.dp))
+    }
+    if (state.anyoneOwes) {
+        OutlinedButton(
+            onClick = { model.share(LinkUse.Reminder) },
+            enabled = !state.isBusy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) { Text(t("pa2.remind_who_hasnt_paid")) }
+    }
+    TextButton(onClick = { model.share(LinkUse.CopyLink) }, enabled = !state.isBusy, modifier = Modifier.heightIn(min = 48.dp)) {
+        Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(t("pa2.copy_link"), modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+/**
+ * Cash at the ground: tick who handed some over, then save. Only those who
+ * still owe are listed; each is recorded for what they still owe.
+ */
+@Composable
+private fun WhoPaidCash(money: EventMoney, state: EventMoneyState, model: EventMoneyViewModel) {
+    HorizontalDivider()
+    SectionHeading(t("pa2.who_paid_cash"))
+    Body(if (money.canManageMoney) t("pa2.who_paid_cash_hint") else t("pa2.who_paid_cash_hint_captain"))
+    state.cashCandidates.forEach { share ->
+        val ticked = share.id in state.cashTicked
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .toggleable(value = ticked, role = Role.Checkbox, onValueChange = { model.toggleCash(share.id) }),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = ticked, onCheckedChange = null)
+            Text(share.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp).weight(1f))
+            Text(money(share.leftCents, share.currency), style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+    val n = state.cashTicked.size
+    val save = if (n == 0) t("lc.save") else t("pa2.save_cash", count = n, vars = mapOf("n" to n))
+    ButtonRow(labels = listOf(save, t("pay.not_now"))) { i, m ->
+        if (i == 0) {
+            Button(onClick = model::saveCash, enabled = n > 0 && !state.isBusy, modifier = m.heightIn(min = 48.dp)) {
+                ButtonLabel(if (state.isBusy) t("pay.sending") else save)
+            }
+        } else {
+            TextButton(onClick = model::stopCash, enabled = !state.isBusy, modifier = m.heightIn(min = 48.dp)) {
+                ButtonLabel(t("pay.not_now"))
+            }
+        }
     }
 }
 

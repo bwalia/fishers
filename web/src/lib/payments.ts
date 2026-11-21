@@ -11,19 +11,26 @@
 /// of still renders under its own name rather than breaking the screen.
 
 import { useRef } from "react";
-import { api } from "./api";
+import { api, apiV1, usableToken } from "./api";
 import type { T } from "./i18n";
 import type { Key } from "./i18n/en";
+import { firstName, fingerprint, fitWithin } from "./pay-link";
 import { randomUUID } from "./uuid";
 
 /// `owed`, `part_paid`, `waiting` (somebody said they paid; not confirmed),
-/// `paid`, `waived` or `void`.
+/// `paid`, `waived`, `covered` (by a pass: nothing to pay) or `void`.
 export type ShareState = string;
 
 export type Share = {
   id: string;
   bill_id: string;
-  event_id: string;
+  /// The session it is for. Null for a line that is not from a session: a
+  /// monthly pass charge or a group fee.
+  event_id: string | null;
+  /// `event`, `pass` or `collection`. Older APIs leave it out, meaning `event`.
+  kind?: string;
+  /// When a pass charge or group fee falls due, as a date.
+  due_on?: string | null;
   title: string;
   event_start_at: string;
   user_id: string | null;
@@ -58,6 +65,10 @@ export type BankDetails = {
   account_number: string;
   is_personal: boolean;
   changed_at: string | null;
+  /// What the person who added personal details is to the club —
+  /// `secretary`, `treasurer` or `owner` — for "Pay Aman Gill, the club
+  /// secretary". Null for a club account.
+  payee_role?: string | null;
 };
 
 export type Payment = {
@@ -81,6 +92,13 @@ export type Payment = {
   decided_by_name: string | null;
   decided_at: string | null;
   decision_reason: string | null;
+  /// The line on a bill this pays, when it was said from a pay link or
+  /// ticked as cash at the ground.
+  share_id?: string | null;
+  /// Said from a WhatsApp pay link rather than in the app.
+  via_link?: string | null;
+  /// A picture of the payment came with it.
+  has_screenshot?: boolean;
 };
 
 /// `active`, `none`, `frozen`, `unreadable` or `nothing_owed`.
@@ -130,6 +148,15 @@ export type PayoutAccounts = {
   changed_at: string | null;
 };
 
+/// `GET /clubs/{id}/payments/defaults`: the club's usual prices, readable by
+/// any member (a captain scheduling nets), unlike the full settings.
+export type UsualPrices = {
+  default_nets_mode: CostMode | null;
+  default_nets_cents: number | null;
+  default_match_fee_cents: number | null;
+  currency: string;
+};
+
 export type PaymentSettings = {
   payments_enabled_at: string | null;
   auto_bill: boolean;
@@ -137,6 +164,11 @@ export type PaymentSettings = {
   round_shares_up: boolean;
   fee_chase_after_hours: number;
   fee_chase_max_reminders: number;
+  /// The club's usual nets price, offered on every new nets session.
+  default_nets_mode?: string | null;
+  default_nets_cents?: number | null;
+  /// The usual match fee, offered on every new match.
+  default_match_fee_cents?: number | null;
 };
 
 export type MemberBalance = {
@@ -150,7 +182,8 @@ export type MemberBalance = {
 
 export type BillSummary = {
   bill_id: string;
-  event_id: string;
+  /// Null for a bill that is not for a session: a group fee.
+  event_id: string | null;
   title: string;
   event_start_at: string;
   currency: string;
@@ -261,6 +294,7 @@ const STATE_LABEL: Record<string, Key> = {
   waiting: "pay.state_waiting",
   paid: "pay.state_paid",
   waived: "pay.state_waived",
+  covered: "pw2.state_covered",
   void: "pay.state_void",
 };
 
@@ -271,7 +305,7 @@ export function shareStateLabel(state: ShareState, t: T): string {
 
 /// The badge colour: owed stands out, settled recedes.
 export function shareStateTag(state: ShareState): string {
-  if (state === "paid") return "tag";
+  if (state === "paid" || state === "covered") return "tag";
   if (state === "owed" || state === "part_paid") return "tag gold";
   return "tag grey";
 }
@@ -288,6 +322,13 @@ export function parseAmount(raw: string): number | null {
 /// Minor units as somebody would type them: "7.50".
 export function toAmount(cents: number): string {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+}
+
+/// When a line is for: its session's day, or the day a pass charge or group
+/// fee falls due. Empty when neither is known.
+export function shareDate(s: { event_start_at?: string | null; due_on?: string | null }): string {
+  const when = s.event_start_at || s.due_on;
+  return when ? shortDate(when) : "";
 }
 
 /// "Fri 20 Nov".
@@ -345,4 +386,230 @@ export function shareGroups(amounts: number[]): { amount_cents: number; count: n
   const by = new Map<number, number>();
   for (const a of amounts) by.set(a, (by.get(a) ?? 0) + 1);
   return [...by.entries()].sort((a, b) => b[0] - a[0]).map(([amount_cents, count]) => ({ amount_cents, count }));
+}
+
+// MARK: easy paying (step A)
+
+/// `POST /events/{id}/bill/link`: the bill's pay link and the messages to
+/// post with it.
+export type PayLinkShare = {
+  url: string;
+  expires_at: string;
+  /// "🏏 Friday nets, Fri 20 Nov: £5.00 each.\nTap to pay: …"
+  bill_message: string;
+  /// "Still to pay for Friday nets: Josh and Imran.\nTap to pay: …"
+  reminder_message: string;
+  /// Who still owes, by full name.
+  still_to_pay: string[];
+};
+
+/// `GET /pay-links/{token}`: what the public pay page opens on.
+export type LinkPage = {
+  club_name: string;
+  title: string;
+  event_start_at: string;
+  currency: string;
+  expires_at: string;
+  /// Everybody on the bill, by name only.
+  people: { id: string; name: string }[];
+  /// Your own line, when you are signed in on this phone and on the bill.
+  me: string | null;
+  account_state: AccountState;
+  account: BankDetails | null;
+};
+
+/// A payment said from the link, waiting for the club to check it.
+export type LinkClaim = {
+  id: string;
+  /// `transfer` or `cash`.
+  method: string;
+  amount_cents: number;
+  created_at: string;
+  /// Taken back from this link, within the hour, while nobody has checked it.
+  can_undo: boolean;
+  has_screenshot: boolean;
+};
+
+/// `GET /pay-links/{token}/people/{id}`: one person's line on the bill.
+export type LinkPerson = Share & {
+  /// Still to pay on this bill: not paid, said to be paid or let off.
+  owed_cents: number;
+  /// What to write in the reference box.
+  reference: string;
+  claim: LinkClaim | null;
+};
+
+/// `POST /events/{id}/bill/cash`.
+export type CashRecorded = { recorded: number; total_cents: number; received: boolean };
+
+/// `POST /clubs/{id}/payments/confirm`.
+export type Confirmed = { confirmed: number; skipped: number };
+
+/// "Pay Aman Gill, the club secretary": who the money goes to, by name and
+/// what they are to the club.
+export function payeeLine(account: BankDetails, t: T): string {
+  const name = account.holder_name;
+  switch (account.payee_role) {
+    case "secretary":
+      return t("pw2.pay_name_secretary", { name });
+    case "treasurer":
+      return t("pw2.pay_name_treasurer", { name });
+    case "owner":
+      return t("pw2.pay_name_owner", { name });
+    default:
+      return t("pw2.pay_name", { name });
+  }
+}
+
+/// The first name of the person who checks the money arrived, where the
+/// details are somebody's own: "waiting for Aman to check". Null for a club
+/// account, which says "the club" instead.
+export function checker(account: BankDetails | null | undefined): string | null {
+  return account?.is_personal && account.payee_role ? firstName(account.holder_name) : null;
+}
+
+/// "You've paid these details before": kept as a fingerprint, so the
+/// browser's storage never holds an account number. Changed details make a
+/// different fingerprint, and the first-time guide comes back — which is
+/// right, because the player has a new payee to add.
+const paidBeforeKey = (a: BankDetails) =>
+  `fishers:paid-before:${fingerprint(`${a.holder_name}|${a.sort_code}|${a.account_number}`)}`;
+
+export function paidBefore(a: BankDetails): boolean {
+  try {
+    return localStorage.getItem(paidBeforeKey(a)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markPaidBefore(a: BankDetails) {
+  try {
+    localStorage.setItem(paidBeforeKey(a), "1");
+  } catch {
+    /* a private window: the guide shows again next time, which is harmless */
+  }
+}
+
+/// A call to the public pay link. It never needs a sign-in, but sends one
+/// when this browser has one so the page can open on the person's own name.
+///
+/// Not `api()`: that sends anybody whose session has lapsed to the sign-in
+/// screen, which is the one place a pay link must never take somebody.
+export async function linkApi<R>(
+  method: string,
+  path: string,
+  body?: unknown,
+  extra?: Record<string, string>,
+): Promise<R> {
+  const headers: Record<string, string> = { ...extra };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const token = await usableToken().catch(() => null);
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiV1()}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+    referrerPolicy: "no-referrer",
+  });
+  return answer<R>(res);
+}
+
+async function answer<R>(res: Response): Promise<R> {
+  if (!res.ok) {
+    const error = new Error((await res.text()) || `HTTP ${res.status}`);
+    (error as Error & { status?: number }).status = res.status;
+    throw error;
+  }
+  if (res.status === 204) return undefined as R;
+  return (await res.json()) as R;
+}
+
+/// Send a picture as the raw bytes the API wants. `link` calls go without
+/// needing a sign-in; the others are the signed-in payer's own.
+export async function postImage(path: string, image: Blob, link = false): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": image.type || "image/jpeg" };
+  const token = await usableToken().catch(() => null);
+  if (token) headers.Authorization = `Bearer ${token}`;
+  else if (!link) throw Object.assign(new Error("signed out"), { status: 401 });
+  const res = await fetch(`${apiV1()}${path}`, { method: "POST", headers, body: image, cache: "no-store" });
+  await answer<void>(res);
+}
+
+/// A picture only a signed-in money admin may see, as a blob for an
+/// object URL — an `<img src>` cannot carry the sign-in.
+export async function getImage(path: string): Promise<Blob> {
+  const token = await usableToken();
+  const res = await fetch(`${apiV1()}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const error = new Error((await res.text()) || `HTTP ${res.status}`);
+    (error as Error & { status?: number }).status = res.status;
+    throw error;
+  }
+  return res.blob();
+}
+
+/// The picture could not be opened in this browser — a format it cannot
+/// draw, or not a picture at all.
+export class UnreadablePicture extends Error {}
+
+/// The API takes at most a megabyte. A phone screenshot is several, so it is
+/// drawn again here: at most 1600 px on its long side, as a JPEG, a little
+/// rougher each time until it fits.
+const MAX_SIDE = 1600;
+const MAX_BYTES = 1_000_000;
+
+export async function shrinkScreenshot(file: File): Promise<Blob> {
+  const picture = await decode(file);
+  let side = MAX_SIDE;
+  for (let round = 0; round < 4; round++) {
+    const { width, height } = fitWithin(picture.width, picture.height, side);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new UnreadablePicture();
+    // A PNG with see-through parts would turn black as a JPEG.
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(picture.source, 0, 0, width, height);
+    for (const quality of [0.7, 0.55, 0.4]) {
+      const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/jpeg", quality));
+      if (!blob) throw new UnreadablePicture();
+      if (blob.size <= MAX_BYTES) {
+        picture.close();
+        return blob;
+      }
+    }
+    side = Math.round(side * 0.7);
+  }
+  picture.close();
+  throw new UnreadablePicture();
+}
+
+type Decoded = { source: CanvasImageSource; width: number; height: number; close: () => void };
+
+async function decode(file: File): Promise<Decoded> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
+    } catch {
+      /* older Safari: try an <img> below */
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return { source: img, width: img.naturalWidth, height: img.naturalHeight, close: () => URL.revokeObjectURL(url) };
+  } catch {
+    URL.revokeObjectURL(url);
+    throw new UnreadablePicture();
+  }
 }

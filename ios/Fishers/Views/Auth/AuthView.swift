@@ -14,6 +14,8 @@ struct AuthView: View {
     @State private var role: RoleIntent?
     @State private var googleConfig: SocialAuthConfig?
     @State private var appleEnabled = true
+    @StateObject private var whatsApp = WhatsAppSignInStore()
+    @State private var signingInWithWhatsApp = false
     @FocusState private var focused: Field?
 
     enum Mode { case login, signup }
@@ -78,6 +80,22 @@ struct AuthView: View {
                         }
 
                         socialButtons
+
+                        if mode == .login, whatsApp.isEnabled {
+                            Button {
+                                focused = nil
+                                signingInWithWhatsApp = true
+                            } label: {
+                                Label(tr("Sign in with WhatsApp"), systemImage: "message.fill")
+                                    .font(FishersTheme.headline)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(minHeight: FishersTheme.minTap)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                            .disabled(session.isLoading)
+                        }
 
                         VStack(spacing: 12) {
                             if mode == .signup {
@@ -172,6 +190,12 @@ struct AuthView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationBarTitleDisplayMode(.inline)
             .task { await loadSocialConfig() }
+            .task { await whatsApp.checkEnabled() }
+            .sheet(isPresented: $signingInWithWhatsApp) {
+                WhatsAppSignInSheet(store: whatsApp) { tokens in
+                    await session.signIn(with: tokens)
+                }
+            }
         }
         .tint(FishersTheme.accent)
     }

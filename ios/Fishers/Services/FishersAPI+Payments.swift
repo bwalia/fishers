@@ -59,6 +59,14 @@ extension FishersAPI {
         try await NetworkService.shared.request("GET", path: club(clubId) + "/money")
     }
 
+    /// The club's usual prices, readable by any member — a captain scheduling
+    /// nets included, who can't open the money overview.
+    static func usualPrices(clubId: UUID) async throws -> UsualPrices {
+        let settings: PaymentSettings = try await NetworkService.shared.request(
+            "GET", path: club(clubId) + "/payments/defaults")
+        return settings.usualPrices
+    }
+
     static func updatePaymentSettings(clubId: UUID, _ settings: PaymentSettings) async throws {
         try await NetworkService.shared.requestVoid(
             "PUT", path: club(clubId) + "/payments/settings", body: settings
@@ -174,5 +182,81 @@ extension FishersAPI {
     /// Undo a claim nobody has confirmed yet.
     static func cancelClaim(_ id: UUID) async throws {
         try await NetworkService.shared.requestVoid("DELETE", path: "/payments/\(id.uuidString)")
+    }
+
+    // MARK: Easy paying (step A)
+
+    /// The bill's pay link and the messages to post, reusing the open link.
+    /// `no_bill` (409) until the bill is sent.
+    static func billLink(eventId: UUID) async throws -> BillLink {
+        try await NetworkService.shared.request("POST", path: "/events/\(eventId.uuidString)/bill/link")
+    }
+
+    /// Closes every open link for the bill. Sharing again makes a new one.
+    static func disableBillLink(eventId: UUID) async throws {
+        try await NetworkService.shared.requestVoid("POST", path: "/events/\(eventId.uuidString)/bill/link/disable")
+    }
+
+    /// Cash at the ground: who handed money over, by share.
+    static func recordCash(eventId: UUID, shareIds: [UUID], key: UUID) async throws -> CashRecorded {
+        struct Body: Encodable { let share_ids: [UUID] }
+        return try await NetworkService.shared.request(
+            "POST", path: "/events/\(eventId.uuidString)/bill/cash",
+            body: Body(share_ids: shareIds), headers: idempotent(key)
+        )
+    }
+
+    /// All arrived. One already checked by somebody else comes back skipped.
+    static func confirmPayments(clubId: UUID, ids: [UUID], key: UUID) async throws -> ConfirmedMany {
+        struct Body: Encodable { let ids: [UUID] }
+        return try await NetworkService.shared.request(
+            "POST", path: club(clubId) + "/payments/confirm", body: Body(ids: ids), headers: idempotent(key)
+        )
+    }
+
+    /// The picture a payer attached, as bytes. Money admins only.
+    static func paymentScreenshot(_ id: UUID) async throws -> Data {
+        try await NetworkService.shared.data("GET", path: "/payments/\(id.uuidString)/screenshot")
+    }
+
+    /// The payer's own picture of the payment: JPEG bytes, at most 1 MB —
+    /// see `PaymentScreenshot`.
+    static func uploadPaymentScreenshot(_ id: UUID, jpeg: Data, key: UUID) async throws {
+        _ = try await NetworkService.shared.data(
+            "POST", path: "/payments/\(id.uuidString)/screenshot",
+            rawBody: jpeg, contentType: "image/jpeg", headers: idempotent(key)
+        )
+    }
+
+    /// The usual nets price and match fee, both at once; nil clears one.
+    static func setUsualPrices(clubId: UUID, _ prices: UsualPrices) async throws -> PaymentSettings {
+        try await NetworkService.shared.request(
+            "PUT", path: club(clubId) + "/payments/settings", body: UsualPricesBody(prices: prices)
+        )
+    }
+}
+
+// MARK: - Signing in with WhatsApp
+
+/// `network` is there for the tests, which answer from a stub.
+extension FishersAPI {
+    static func whatsAppSignIn(network: NetworkService = .shared) async throws -> WhatsAppSignInConfig {
+        try await network.request("GET", path: "/auth/whatsapp", authorized: false)
+    }
+
+    /// Errors: `bad_phone`, `whatsapp_off` (503), `slow_down` (429), `not_sent` (502).
+    static func startWhatsAppSignIn(phone: String, network: NetworkService = .shared) async throws -> WhatsAppCodeSent {
+        struct Body: Encodable { let phone: String }
+        return try await network.request(
+            "POST", path: "/auth/whatsapp/start", body: Body(phone: phone), authorized: false
+        )
+    }
+
+    /// The same tokens as signing in with a password. `wrong_code`, `slow_down`.
+    static func verifyWhatsAppSignIn(phone: String, code: String, network: NetworkService = .shared) async throws -> AuthTokens {
+        struct Body: Encodable { let phone, code: String }
+        return try await network.request(
+            "POST", path: "/auth/whatsapp/verify", body: Body(phone: phone, code: code), authorized: false
+        )
     }
 }

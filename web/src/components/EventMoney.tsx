@@ -22,16 +22,18 @@ import {
   toAmount,
   type BillResponse,
   type Candidate,
+  type CashRecorded,
   type EventCost,
   type Preview,
   type Share,
 } from "@/lib/payments";
 import { ReasonForm } from "@/components/ReasonForm";
+import { ShareBill } from "@/components/ShareBill";
 import type { T } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/provider";
 import type { Key } from "@/lib/i18n/en";
 
-type Open = "none" | "cost" | "who" | "cancel";
+type Open = "none" | "cost" | "who" | "cancel" | "cash";
 
 /// What a change came back with: the bill as it is now, when the call
 /// returns it (otherwise it is reloaded), and a better sentence than the
@@ -246,8 +248,20 @@ export function EventMoney({
             </ul>
           )}
 
+          {data.can_bill && (
+            <ShareBill
+              eventId={eventId}
+              refreshKey={`${bill.id}:${bill.version}:${bill.paid_cents}:${bill.waiting_cents}:${bill.owed_cents}`}
+            />
+          )}
+
           {data.can_bill && open === "none" && (
             <div className="field-row money-actions">
+              {owingShares(data.shares).length > 0 && (
+                <button className="btn" type="button" onClick={() => openForm("cash")}>
+                  {t("pw2.who_paid_cash")}
+                </button>
+              )}
               <button className="btn" type="button" onClick={() => openForm("who")}>
                 {t("pay.change_who_came")}
               </button>
@@ -265,6 +279,26 @@ export function EventMoney({
               error={formError}
               onSend={(body) => void sendBill(body, true)}
               onCancel={() => setOpen("none")}
+            />
+          )}
+          {data.can_bill && open === "cash" && (
+            <WhoPaidCash
+              shares={owingShares(data.shares)}
+              received={data.can_manage_money}
+              busy={busy}
+              error={formError}
+              onCancel={() => setOpen("none")}
+              onSave={(ids) =>
+                void run(async () => {
+                  const out = await api<CashRecorded>("POST", `/events/${eventId}/bill/cash`, { share_ids: ids });
+                  const amount = money(out.total_cents, cur);
+                  return {
+                    said: out.received
+                      ? t("pw2.cash_recorded", { count: out.recorded, n: out.recorded, amount })
+                      : t("pw2.cash_recorded_waiting", { count: out.recorded, n: out.recorded, amount }),
+                  };
+                }, t("pw2.cash_recorded", { count: 0, n: 0, amount: money(0, cur) }))
+              }
             />
           )}
           {data.can_bill && open === "cancel" && (
@@ -353,6 +387,85 @@ export function EventMoney({
         cost && !data.my_share && <p className="muted">{t("pay.billed_after")}</p>
       )}
     </section>
+  );
+}
+
+/// Still something to pay on: owed in full or in part, with nothing waiting
+/// to be checked against it.
+function owingShares(shares: Share[]): Share[] {
+  return shares.filter(
+    (s) => (s.state === "owed" || s.state === "part_paid") && s.amount_cents - s.paid_cents - s.waiting_cents > 0,
+  );
+}
+
+/// "Who paid cash?" at the ground: tick, then save. A money admin's tick
+/// counts as received; anybody else's — a captain who collected it — waits
+/// for the treasurer to have the cash in hand.
+function WhoPaidCash({
+  shares,
+  received,
+  busy,
+  error,
+  onSave,
+  onCancel,
+}: {
+  shares: Share[];
+  /// Whether a tick here counts as received straight away.
+  received: boolean;
+  busy: boolean;
+  error: string | null;
+  onSave: (shareIds: string[]) => void;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  const id = useId();
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const toggle = (sid: string) =>
+    setTicked((cur) => {
+      const next = new Set(cur);
+      if (next.has(sid)) next.delete(sid);
+      else next.add(sid);
+      return next;
+    });
+  const total = shares.filter((s) => ticked.has(s.id)).reduce((sum, s) => sum + s.amount_cents - s.paid_cents - s.waiting_cents, 0);
+  const cur = shares[0]?.currency ?? "GBP";
+
+  return (
+    <form
+      className="who-came cash-form"
+      aria-labelledby={`${id}-title`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ticked.size > 0) onSave([...ticked]);
+      }}
+    >
+      <h3 id={`${id}-title`}>{t("pw2.who_paid_cash")}</h3>
+      <p className="muted">{received ? t("pw2.who_paid_cash_help") : t("pw2.who_paid_cash_help_collector")}</p>
+      <fieldset className="who-list">
+        <legend className="sr-only">{t("pw2.who_paid_cash")}</legend>
+        {shares.map((s) => (
+          <label className="who-person" key={s.id}>
+            <input type="checkbox" checked={ticked.has(s.id)} onChange={() => toggle(s.id)} />
+            <span className="who-name">{s.name}</span>
+            <span className="num">{money(s.amount_cents - s.paid_cents - s.waiting_cents, s.currency)}</span>
+          </label>
+        ))}
+      </fieldset>
+      {ticked.size > 0 && (
+        <p className="money-preview" role="status">
+          <strong>{t("pw2.cash_total", { count: ticked.size, n: ticked.size, amount: money(total, cur) })}</strong>
+        </p>
+      )}
+      {error && <p className="field-error" role="alert">{error}</p>}
+      <div className="field-row">
+        <button className="btn primary" type="submit" disabled={busy || ticked.size === 0}>
+          {t("pw2.save_cash")}
+        </button>
+        <button className="btn" type="button" disabled={busy} onClick={onCancel}>
+          {t("pay.never_mind")}
+        </button>
+      </div>
+    </form>
   );
 }
 

@@ -1,11 +1,14 @@
 "use client";
 
-/// Paying the club: the amount, the club's bank details and your reference,
-/// each ready to copy into a banking app, then "I've paid".
+/// Paying the club, signed in (plan §5.2): what you owe and what for, who the
+/// money goes to, the four things your banking app asks for — each with a
+/// Copy button — then "I've paid" or "I paid cash". After that, "Thanks —
+/// waiting for Aman to check", with Undo and Add a screenshot.
 ///
 /// The app never touches the money. It goes from the player's bank to the
 /// club's; this page only says where, and records that they say they sent it.
-/// A treasurer confirms it once it shows up.
+/// A treasurer confirms it once it shows up. The same design as the public
+/// pay page (`/p/<token>`), so a player sees one thing whichever way in.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -13,18 +16,26 @@ import { useParams } from "next/navigation";
 import { api, errCode, money, readErr } from "@/lib/api";
 import {
   STALE_CODES,
+  checker,
   dateTime,
+  markPaidBefore,
+  postImage,
   postOnce,
+  shareDate,
   shareStateLabel,
   shareStateTag,
-  shortDate,
   useAttemptKey,
   type PayScreen,
   type Payment,
 } from "@/lib/payments";
-import { CopyButton } from "@/components/CopyButton";
+import { PayDetails, SendDetails } from "@/components/PayDetails";
+import { ScreenshotButton } from "@/components/ScreenshotButton";
 import { useRequireAuth } from "@/lib/require-auth";
 import { useT } from "@/lib/i18n/provider";
+import type { Key } from "@/lib/i18n/en";
+
+/// A screenshot is taken up to two hours after the payment is said.
+const SCREENSHOT_MS = 120 * 60_000;
 
 export default function PayPage() {
   const t = useT();
@@ -60,6 +71,14 @@ export default function PayPage() {
     );
   }
 
+  const owes = pay.owed_cents > 0;
+  const account = pay.account_state === "active" ? pay.account : null;
+  const who = checker(pay.account);
+  // What it's for, in one line when it is one thing: "You owe £5 for Friday nets".
+  const owing = pay.shares.filter((s) => s.state === "owed" || s.state === "part_paid");
+  const forTitle = owing.length === 1 ? owing[0].title : null;
+  const amount = money(pay.owed_cents, pay.currency);
+
   const claim = async (method: "transfer" | "cash") => {
     setBusy(method);
     setError(null);
@@ -67,13 +86,14 @@ export default function PayPage() {
     try {
       // Everything owed, in one go: the body names no amount. The key is the
       // same for every press of this button until one works, so tapping
-      // twice on a bad signal still makes one claim.
+      // twice on a bad signal still makes one payment.
       await postOnce<Payment>(`/clubs/${clubId}/payments`, { method }, attempt.key(`${method}:${pay.owed_cents}`));
       attempt.done();
-      setNotice(method === "transfer" ? t("pay.claimed_transfer") : t("pay.claimed_cash"));
+      if (method === "transfer" && account) markPaidBefore(account);
       await load();
+      document.getElementById("pay-waiting")?.focus();
     } catch (e) {
-      // `nothing_owed`: already claimed, perhaps on another device. The
+      // `nothing_owed`: already said, perhaps on another device. The
       // server's sentence says which, and the page catches up.
       if (STALE_CODES.has(errCode(e) ?? "")) {
         attempt.done();
@@ -100,9 +120,6 @@ export default function PayPage() {
     }
   };
 
-  const owes = pay.owed_cents > 0;
-  const account = pay.account_state === "active" ? pay.account : null;
-
   return (
     <main id="main" className="page pay-page">
       <p className="muted">
@@ -110,87 +127,83 @@ export default function PayPage() {
       </p>
       <h1>{t("pay.pay_club", { club: pay.club_name })}</h1>
 
-      {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
       <section className="panel pay-sum" aria-labelledby="pay-owe">
-        <p className="stat-label" id="pay-owe">{t("pay.you_owe")}</p>
-        <p className="pay-big num">{money(pay.owed_cents, pay.currency)}</p>
-        {pay.waiting_cents > 0 && (
+        <p className="pay-headline" id="pay-owe">
+          {owes
+            ? forTitle
+              ? t("pw2.you_owe_for", { amount, title: forTitle })
+              : t("pay.you_owe_amount", { amount })
+            : pay.waiting_cents > 0
+              ? t("pay.said_you_paid")
+              : t("pay.all_paid_up")}
+        </p>
+        {owes && pay.waiting_cents > 0 && (
           <p className="muted">{t("pay.amount_waiting", { amount: money(pay.waiting_cents, pay.currency) })}</p>
         )}
         {pay.credit_cents > 0 && (
           <p className="muted">{t("pay.amount_credit", { amount: money(pay.credit_cents, pay.currency) })}</p>
         )}
-        {!owes && pay.waiting_cents === 0 && <p>{t("pay.all_paid_up")}</p>}
-        {!owes && pay.waiting_cents > 0 && <p>{t("pay.said_you_paid")}</p>}
       </section>
 
       {owes && account && (
-        <section className="panel" aria-labelledby="pay-how">
-          <h2 id="pay-how">{t("pay.pay_by_bank_transfer")}</h2>
-          {account.changed_at && (
-            <p className="pay-warn" role="note">
-              {t("pay.details_changed_on", { date: shortDate(account.changed_at) })}
-            </p>
-          )}
-          {account.is_personal && (
-            <p className="muted">
-              <span className="tag gold">{t("pay.personal_account")}</span>{" "}
-              {t("pay.personal_account_note", { name: account.holder_name })}
-            </p>
-          )}
-          <dl className="pay-details">
-            <Detail term={t("pay.amount")} value={money(pay.owed_cents, pay.currency)} copy={(pay.owed_cents / 100).toFixed(2)} />
-            <Detail term={t("pay.account_name")} value={account.holder_name} />
-            <Detail term={t("pay.sort_code")} value={account.sort_code} />
-            <Detail term={t("pay.account_number")} value={account.account_number} />
-            <Detail term={t("pay.reference")} value={pay.reference} />
-          </dl>
-          <p className="subtle">{t("pay.reference_why")}</p>
-          <CopyButton
-            what={t("pay.all_the_details")}
-            label={t("pay.copy_all")}
-            text={[
-              `${t("pay.amount")}: ${money(pay.owed_cents, pay.currency)}`,
-              `${t("pay.account_name")}: ${account.holder_name}`,
-              `${t("pay.sort_code")}: ${account.sort_code}`,
-              `${t("pay.account_number")}: ${account.account_number}`,
-              `${t("pay.reference")}: ${pay.reference}`,
-            ].join("\n")}
-          />
-
-          <p className="pay-then">{t("pay.then_tap")}</p>
-          <div className="field-row">
-            <button className="btn primary lg" type="button" disabled={busy !== null} onClick={() => void claim("transfer")}>
+        <section className="panel" aria-label={t("pay.how_to_pay")}>
+          <PayDetails account={account} reference={pay.reference} amountCents={pay.owed_cents} currency={pay.currency} />
+          <p className="pay-then">{t("pw2.then_tap")}</p>
+          <div className="pay-buttons">
+            <button
+              className="btn primary xl"
+              type="button"
+              disabled={busy !== null}
+              aria-describedby={error ? "pay-error" : undefined}
+              onClick={() => void claim("transfer")}
+            >
               {busy === "transfer" ? t("pay.sending") : t("pay.ive_paid")}
             </button>
-            <button className="btn ghost" type="button" disabled={busy !== null} onClick={() => void claim("cash")}>
-              {t("pay.i_paid_cash")}
+            <button
+              className="btn xl"
+              type="button"
+              disabled={busy !== null}
+              aria-describedby={error ? "pay-error" : undefined}
+              onClick={() => void claim("cash")}
+            >
+              {busy === "cash" ? t("pay.sending") : t("pay.i_paid_cash")}
             </button>
           </div>
+          {error && <p className="field-error" id="pay-error" role="alert">{error}</p>}
+          <SendDetails
+            account={account}
+            reference={pay.reference}
+            amountCents={pay.owed_cents}
+            currency={pay.currency}
+            title={forTitle ?? pay.club_name}
+          />
         </section>
       )}
 
       {owes && !account && (
         <section className="panel" aria-labelledby="pay-how">
-          <h2 id="pay-how">{t("pay.how_to_pay")}</h2>
-          <p className={pay.account_state === "frozen" ? "pay-warn" : undefined} role="note">
-            {pay.account_state === "frozen"
-              ? t("pay.state_frozen")
-              : pay.account_state === "unreadable"
-                ? t("pay.state_unreadable")
-                : t("pay.state_none")}
-          </p>
-          <button className="btn" type="button" disabled={busy !== null} onClick={() => void claim("cash")}>
-            {t("pay.i_paid_cash")}
-          </button>
+          <AccountProblem state={pay.account_state} />
+          {/* "Don't pay yet" means it: no button to say otherwise. */}
+          {pay.account_state !== "frozen" && (
+            <div className="pay-buttons">
+              <button className="btn primary xl" type="button" disabled={busy !== null} onClick={() => void claim("cash")}>
+                {busy === "cash" ? t("pay.sending") : t("pay.i_paid_cash")}
+              </button>
+            </div>
+          )}
+          {error && <p className="field-error" role="alert">{error}</p>}
         </section>
       )}
 
+      {!owes && error && <p className="error" role="alert">{error}</p>}
+
       {pay.claims.length > 0 && (
-        <section className="panel" aria-labelledby="pay-claims">
-          <h2 id="pay-claims">{t("pay.waiting_for_the_club")}</h2>
+        <section className="panel pay-waiting" aria-labelledby="pay-waiting">
+          <h2 id="pay-waiting" tabIndex={-1}>
+            {who ? t("pw2.thanks_waiting", { first: who }) : t("pw2.thanks_waiting_club")}
+          </h2>
           <ul className="pay-list">
             {pay.claims.map((c) => (
               <li key={c.id}>
@@ -201,8 +214,22 @@ export default function PayPage() {
                     {" · "}
                     {dateTime(c.created_at)}
                   </span>
+                  {c.method === "transfer" && Date.now() - new Date(c.created_at).getTime() < SCREENSHOT_MS && (
+                    <ScreenshotButton
+                      done={!!c.has_screenshot}
+                      who={who}
+                      upload={(image) => postImage(`/payments/${c.id}/screenshot`, image)}
+                      onUploaded={load}
+                    />
+                  )}
                 </div>
-                <button className="btn" type="button" disabled={busy !== null} onClick={() => void undo(c)}>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy !== null}
+                  aria-label={t("pw2.undo_amount", { amount: money(c.amount_cents, c.currency) })}
+                  onClick={() => void undo(c)}
+                >
                   {t("pay.undo")}
                 </button>
               </li>
@@ -218,8 +245,8 @@ export default function PayPage() {
             {pay.shares.map((s) => (
               <li key={s.id}>
                 <div>
-                  <Link href={`/events/${s.event_id}#money`}>{s.title}</Link>
-                  <div className="muted">{shortDate(s.event_start_at)}</div>
+                  {s.event_id ? <Link href={`/events/${s.event_id}#money`}>{s.title}</Link> : <strong>{s.title}</strong>}
+                  <div className="muted">{shareDate(s)}</div>
                 </div>
                 <div className="pay-list-end">
                   <span className="num">{money(s.amount_cents, s.currency)}</span>
@@ -234,15 +261,19 @@ export default function PayPage() {
   );
 }
 
-/// One line of the details: what it is, the value, and a button to copy it.
-function Detail({ term, value, copy }: { term: string; value: string; copy?: string }) {
+/// Why there are no bank details to copy, in the same words as the pay link.
+function AccountProblem({ state }: { state: string }) {
+  const t = useT();
+  const [title, body]: [Key, Key] =
+    state === "frozen"
+      ? ["pw2.frozen_title", "pw2.frozen_body"]
+      : state === "unreadable"
+        ? ["pw2.unreadable_title", "pw2.unreadable_body"]
+        : ["pw2.none_title", "pw2.none_body"];
   return (
-    <div className="pay-detail">
-      <dt>{term}</dt>
-      <dd>
-        <span className="pay-value">{value}</span>
-        <CopyButton text={copy ?? value} what={term.toLowerCase()} />
-      </dd>
+    <div className={`paylink-state small is-${state}`} role="note">
+      <h2 id="pay-how">{t(title)}</h2>
+      <p>{t(body)}</p>
     </div>
   );
 }

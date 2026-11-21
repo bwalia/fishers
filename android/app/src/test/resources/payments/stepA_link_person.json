@@ -1,0 +1,19 @@
+{
+  "id": "7c5f2847-06a4-46a8-9b86-0aab4c69f714",
+  "bill_id": "236f7667-9923-4cfa-b90a-81187b9382ab",
+  "event_id": "6704aeb7-3825-4aee-8a03-8c500dbaa77a",
+  "title": "Friday nets",
+  "event_start_at": "2026-11-20T08:41:00Z",
+  "user_id": "1053c505-eac3-4b82-a124-e0124e0550b9",
+  "guest_name": null,
+  "name": "Ravi Sharma",
+  "amount_cents": 1500,
+  "paid_cents": 1500,
+  "waiting_cents": 0,
+  "currency": "GBP",
+  "state": "paid",
+  "reason": null,
+  "owed_cents": 0,
+  "reference": "SHARMA",
+  "claim": null
+}

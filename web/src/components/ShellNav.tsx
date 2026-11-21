@@ -14,6 +14,7 @@ import { LanguagePicker } from "@/components/LanguagePicker";
 import { useT } from "@/lib/i18n/provider";
 import type { Key } from "@/lib/i18n/en";
 import { brand } from "@/brand.generated";
+import { isPayLinkPath } from "@/lib/pay-link";
 
 /// `label` is a dictionary key, not words. The bar is built once at module
 /// scope but read in whatever language the viewer chose, so the words cannot
@@ -96,7 +97,9 @@ export function ShellNav() {
   // A public board or a club's own page is not the app: somebody arrives
   // there from a search result or a shared link, and the club chrome would
   // only ask them to sign in to something they are not part of.
-  if (pathname.startsWith("/live/") || pathname.startsWith("/c/")) {
+  // A WhatsApp pay link is the same: whoever opens it may never have signed
+  // in, and the page is one job done with big buttons.
+  if (pathname.startsWith("/live/") || pathname.startsWith("/c/") || isPayLinkPath(pathname)) {
     return null;
   }
 

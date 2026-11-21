@@ -2,6 +2,8 @@ package com.fishers.app.payments
 
 import com.fishers.app.net.PaymentsApi
 import kotlinx.serialization.json.Json
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
 
 /**
  * [PaymentsApi] with every call refusing by default, as the other fakes do: a
@@ -19,6 +21,7 @@ open class FakePaymentsApi : PaymentsApi {
     override suspend fun retirePayoutAccount(clubId: String, accountId: String): PayoutAccounts =
         error("retirePayoutAccount not expected")
     override suspend fun money(clubId: String): MoneyOverview = error("money not expected")
+    override suspend fun usualPrices(clubId: String): MoneySettings = error("usualPrices not expected")
     override suspend fun updateMoneySettings(clubId: String, body: MoneySettingsBody): MoneySettings =
         error("updateMoneySettings not expected")
     override suspend fun confirmPayment(paymentId: String): Payment = error("confirmPayment not expected")
@@ -38,6 +41,13 @@ open class FakePaymentsApi : PaymentsApi {
     override suspend fun claimPayment(clubId: String, idempotencyKey: String, body: ClaimBody): Payment =
         error("claimPayment not expected")
     override suspend fun cancelClaim(paymentId: String): Unit = error("cancelClaim not expected")
+    override suspend fun billLink(eventId: String): BillLink = error("billLink not expected")
+    override suspend fun disableBillLink(eventId: String): DisabledLinks = error("disableBillLink not expected")
+    override suspend fun cashAtGround(eventId: String, idempotencyKey: String, body: CashBody): CashRecorded =
+        error("cashAtGround not expected")
+    override suspend fun confirmMany(clubId: String, body: ConfirmManyBody): ConfirmedMany = error("confirmMany not expected")
+    override suspend fun screenshot(paymentId: String): ResponseBody = error("screenshot not expected")
+    override suspend fun uploadScreenshot(paymentId: String, image: RequestBody): Unit = error("uploadScreenshot not expected")
 }
 
 /** The responses captured from the running API (`.dev/payments/examples/`), as `Network` decodes them. */

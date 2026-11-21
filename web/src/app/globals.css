@@ -9341,3 +9341,229 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .bank-password { margin-top: var(--s3); max-width: 420px; }
 .confirm-box p { margin: 0; }
 .money-hours { max-width: 260px; margin-top: var(--s2); }
+
+/* ---------- Easy paying (step A) ----------
+   The pay link from WhatsApp and the signed-in pay screen share one design
+   (plan §5.2): big words, big buttons, one thing at a time. Somebody who
+   rarely uses a banking app should be able to read every line at arm's
+   length and hit every button with a thumb. */
+
+/* No App Store strip above a pay link: the page is one job. */
+body:has(main.paylink) .app-banner { display: none; }
+
+.paylink {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--s5) 0 var(--s6);
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+.paylink p { margin: 0 0 var(--s3); }
+.paylink .muted, .paylink .subtle { font-size: 1rem; }
+.paylink-head { margin-bottom: var(--s5); }
+.paylink-club {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 7vw, 2.4rem);
+  line-height: 1.1;
+}
+.paylink-event { color: var(--fg-muted); margin: var(--s1) 0 0; }
+.paylink-h { font-size: 1.5rem; margin: 0 0 var(--s1); }
+.paylink-sub { color: var(--fg-muted); }
+.paylink-loading { color: var(--fg-muted); }
+
+.paylink-names { list-style: none; margin: var(--s3) 0 0; padding: 0; display: grid; gap: var(--s2); }
+.paylink-name {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.paylink-name:hover { background: var(--surface-2); }
+.paylink-name:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.paylink-name > span:last-child { color: var(--fg-subtle); font-size: 1.6rem; }
+
+.paylink-who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  font-weight: 600;
+}
+
+.paylink-state {
+  margin: 0 0 var(--s5);
+  padding: var(--s5) var(--s4);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--gold-600);
+  border-radius: var(--radius);
+  background: var(--gold-100);
+}
+.paylink-state h1, .paylink-state h2 { margin: var(--s2) 0; font-size: 1.6rem; }
+.paylink-state h3 { margin: 0 0 var(--s1); font-size: 1.25rem; }
+.paylink-state.small { padding: var(--s3) var(--s4); margin: var(--s3) 0; }
+.paylink-state .btn { margin-top: var(--s3); }
+.paylink-state-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent);
+}
+.paylink-state-icon.ok { background: var(--pitch-50); color: var(--primary); }
+
+.paylink-waiting { margin-top: var(--s3); }
+.paylink-waiting .pay-headline { margin-top: var(--s3); }
+.paylink-undo { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border); }
+.paylink-foot { margin-top: var(--s6); padding-top: var(--s4); border-top: 1px solid var(--border); }
+
+/* The amount, the biggest thing on the page. */
+.pay-headline {
+  margin: 0 0 var(--s3);
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 7.5vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.pay-headline:focus { outline: none; }
+.pay-headline:focus-visible { outline: 3px solid var(--ring); outline-offset: 4px; }
+
+.pay-to { margin: var(--s4) 0; }
+.pay-payee { margin: 0 0 var(--s1); font-size: 1.3rem; line-height: 1.3; }
+.pay-own { color: var(--fg-muted); }
+.pay-rows .pay-detail { grid-template-columns: minmax(0, 1fr); gap: var(--s1); padding: var(--s3) 0; }
+.pay-rows .pay-detail dt { font-size: 1rem; }
+.pay-rows .pay-value { font-size: 1.55rem; letter-spacing: 0.03em; }
+.pay-rows .copy-wrap .btn, .pay-copy { min-height: 48px; min-width: 7em; font-size: 1rem; }
+.pay-usual { font-weight: 600; margin-top: var(--s3); }
+
+.pay-guide {
+  margin: var(--s3) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.pay-guide summary {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s4);
+  font-weight: 700;
+  cursor: pointer;
+}
+.pay-guide summary:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; border-radius: var(--radius); }
+.pay-guide ol { list-style: none; counter-reset: step; margin: 0; padding: 0 var(--s4) var(--s4); display: grid; gap: var(--s3); }
+.pay-guide li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+}
+.pay-guide-pic {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--primary);
+}
+.pay-guide-pic::after {
+  content: counter(step);
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.pay-buttons { display: grid; gap: var(--s3); margin: var(--s3) 0; }
+.btn.xl { width: 100%; min-height: 60px; font-size: 1.2rem; font-weight: 700; }
+
+.pay-send { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border); }
+.pay-send-title { margin: 0 0 var(--s1); font-size: 1.1rem; }
+
+.pay-shot { margin: var(--s4) 0; }
+.pay-shot .btn { min-height: 48px; }
+.pay-shot-done { display: flex; align-items: center; gap: var(--s2); color: var(--primary-ink); font-weight: 600; }
+.pay-page .pay-headline { font-size: clamp(1.6rem, 6vw, 2.2rem); }
+.pay-waiting h2:focus { outline: none; }
+.pay-waiting .pay-shot { margin: var(--s2) 0 0; }
+
+/* Share to WhatsApp, on a billed event. */
+.share-bill {
+  margin-top: var(--s4);
+  padding: var(--s3) var(--s4) var(--s4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.share-bill h3 { margin: 0 0 var(--s1); }
+.share-who { font-weight: 600; margin: var(--s2) 0; }
+.share-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s3) 0 var(--s2); }
+.share-actions .btn { min-height: 48px; }
+.share-off { margin-top: var(--s2); }
+
+/* The club's Payments page. */
+.all-arrived { margin: var(--s3) 0; }
+.check-shot { margin-top: var(--s2); }
+.check-shot figure { margin: 0; display: grid; gap: var(--s2); justify-items: start; }
+.check-shot img {
+  max-width: min(100%, 420px);
+  max-height: 70vh;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* The setup wizard. */
+.setup-wizard h2:focus { outline: none; }
+.setup-split { display: grid; gap: var(--s4); grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+.setup-preview h3 { margin: var(--s3) 0 var(--s1); }
+.setup-preview-card {
+  padding: var(--s4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.setup-done { padding-left: 1.4em; display: grid; gap: var(--s2); margin: var(--s3) 0 var(--s4); font-size: 1.05rem; }
+.usual-prices .setup-group { margin-bottom: var(--s3); }
+.usual-prices .field-row { margin-top: var(--s3); }
+
+/* WhatsApp sign-in. */
+.wa-signin-open { width: 100%; margin: 0 0 var(--s3); }
+.wa-signin { margin: 0 0 var(--s3); padding: var(--s3); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.wa-signin h3 { margin: 0; font-size: 1.05rem; }
+.wa-signin label > span:first-child { display: block; }
+/* Headings take focus when a pay view changes, for screen readers; the ring
+   is for keyboard focus only. */
+.paylink [tabindex="-1"]:focus, .pay-page [tabindex="-1"]:focus { outline: none; }
+.setup-preview-card .pay-headline { font-size: 1.6rem; }

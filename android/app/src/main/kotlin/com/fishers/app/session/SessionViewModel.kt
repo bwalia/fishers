@@ -154,6 +154,15 @@ class SessionViewModel(
     )
 
     /**
+     * Tokens somebody already earned another way — a WhatsApp code — taken as
+     * signing in. The same as a password sign-in from here on.
+     */
+    fun signedIn(tokens: com.fishers.app.net.AuthTokens) {
+        session.set(tokens.asTokens())
+        _state.value = SessionState(user = tokens.user, isAuthenticated = true, isStarting = false)
+    }
+
+    /**
      * `role` is asked on the form, before there is an account to save it on,
      * so it goes up straight after. Failing to save it is not worth failing
      * the sign-up for — it can be asked again.

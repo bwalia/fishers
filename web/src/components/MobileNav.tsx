@@ -8,6 +8,7 @@ import { ChatBadge } from "@/components/ChatBadge";
 import { getStoredUser } from "@/lib/api";
 import { useT } from "@/lib/i18n/provider";
 import type { Key } from "@/lib/i18n/en";
+import { isPayLinkPath } from "@/lib/pay-link";
 
 /// The four places somebody goes on a phone, and everything else behind More.
 ///
@@ -52,7 +53,7 @@ export function MobileNav() {
 
   // Public pages are not the app; somebody arriving from a shared link is not
   // a member and a tab bar would only offer them things to be refused from.
-  if (pathname.startsWith("/live/") || pathname.startsWith("/c/")) return null;
+  if (pathname.startsWith("/live/") || pathname.startsWith("/c/") || isPayLinkPath(pathname)) return null;
   // Marketing and auth screens are not the app shell.
   if (signedOut && (pathname === "/" || pathname === "/login" || pathname === "/register" || pathname === "/welcome" || pathname === "/docs" || pathname === "/privacy")) {
     return null;

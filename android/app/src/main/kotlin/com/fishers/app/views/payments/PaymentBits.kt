@@ -61,7 +61,7 @@ internal fun StateLabel(state: ShareState) {
         state.label,
         style = MaterialTheme.typography.labelLarge,
         color = when (state) {
-            ShareState.Paid -> Color(0xFF2E7D32)
+            ShareState.Paid, ShareState.Covered -> Color(0xFF2E7D32)
             ShareState.Waiting, ShareState.PartPaid -> AMBER
             ShareState.Owed -> MaterialTheme.colorScheme.error
             else -> MaterialTheme.colorScheme.onSurfaceVariant

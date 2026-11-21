@@ -19,6 +19,7 @@ struct EventMoneySection: View {
     @State private var lettingOff: ClubShare?
     @State private var letOffReason = ""
     @State private var openedOnce = false
+    @State private var tickingCash = false
 
     enum WhoCameMode: Identifiable {
         case send
@@ -66,6 +67,9 @@ struct EventMoneySection: View {
             }
             .sheet(item: $whoCame) { mode in
                 WhoCameSheet(store: store, page: page, version: mode.version)
+            }
+            .sheet(isPresented: $tickingCash) {
+                CashChecklistSheet(store: store, shares: stillOwing(page), countsAsPaid: page.canManageMoney)
             }
             .confirmationDialog(tr("Remove the cost"), isPresented: $confirmRemoveCost, titleVisibility: .hidden) {
                 Button(tr("Remove the cost"), role: .destructive) { Task { await store.removeCost() } }
@@ -224,6 +228,18 @@ struct EventMoneySection: View {
         }
 
         if page.canBill {
+            if !stillOwing(page).isEmpty {
+                Button {
+                    tickingCash = true
+                } label: {
+                    Label(tr("Who paid cash?"), systemImage: "banknote")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
+                }
+                .buttonStyle(.bordered)
+            }
+            BillShareBlock(store: store, anyoneOwes: bill.owedCents > 0)
+                .padding(.top, 4)
             ButtonRow {
                 Button(tr("Change who came")) { whoCame = .resplit(version: bill.version) }
                     .buttonStyle(.bordered)
@@ -231,6 +247,11 @@ struct EventMoneySection: View {
                     .buttonStyle(.bordered)
             }
         }
+    }
+
+    /// Who still has something to pay on the bill, for "Who paid cash?".
+    private func stillOwing(_ page: EventBillPage) -> [ClubShare] {
+        page.shares.filter { $0.state.stillOwed && $0.leftCents > 0 }
     }
 
     // MARK: The reader's own share

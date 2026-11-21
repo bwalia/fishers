@@ -2,10 +2,16 @@ package com.fishers.app.net
 
 import com.fishers.app.payments.AddBankDetailsBody
 import com.fishers.app.payments.BillBody
+import com.fishers.app.payments.BillLink
 import com.fishers.app.payments.BillPreview
+import com.fishers.app.payments.CashBody
+import com.fishers.app.payments.CashRecorded
 import com.fishers.app.payments.ClaimBody
+import com.fishers.app.payments.ConfirmManyBody
+import com.fishers.app.payments.ConfirmedMany
 import com.fishers.app.payments.CostBody
 import com.fishers.app.payments.CostResponse
+import com.fishers.app.payments.DisabledLinks
 import com.fishers.app.payments.Dues
 import com.fishers.app.payments.EventMoney
 import com.fishers.app.payments.MoneyOverview
@@ -17,6 +23,8 @@ import com.fishers.app.payments.PayoutAccounts
 import com.fishers.app.payments.ReasonBody
 import com.fishers.app.payments.RecordBody
 import com.fishers.app.payments.Share
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -67,6 +75,10 @@ interface PaymentsApi {
     /** 403 for anybody who is not the owner, a secretary or a treasurer. */
     @GET("clubs/{id}/money")
     suspend fun money(@Path("id") clubId: String): MoneyOverview
+
+    /** The club's usual prices, for anybody who schedules (a captain too) — only the price fields are filled. */
+    @GET("clubs/{id}/payments/defaults")
+    suspend fun usualPrices(@Path("id") clubId: String): MoneySettings
 
     @PUT("clubs/{id}/payments/settings")
     suspend fun updateMoneySettings(@Path("id") clubId: String, @Body body: MoneySettingsBody): MoneySettings
@@ -141,4 +153,44 @@ interface PaymentsApi {
     /** Undo a claim, while nobody has confirmed it. 409 `already_decided` after. */
     @DELETE("payments/{pid}")
     suspend fun cancelClaim(@Path("pid") paymentId: String)
+
+    // ---- easy paying (step A, `easy_paying.rs`) ----
+
+    /**
+     * The bill's pay link and the words to post with it, for whoever runs
+     * the session. Reuses the open link. 409 `no_bill` until the bill is sent.
+     */
+    @POST("events/{id}/bill/link")
+    suspend fun billLink(@Path("id") eventId: String): BillLink
+
+    /** Closes every open link for the bill. */
+    @POST("events/{id}/bill/link/disable")
+    suspend fun disableBillLink(@Path("id") eventId: String): DisabledLinks
+
+    /**
+     * Who handed over cash at the ground. A money admin's tick is received;
+     * anybody else's waits for the treasurer. A share already paid or said to
+     * be is skipped, so a retry cannot pay twice; the key is sent all the same.
+     */
+    @POST("events/{id}/bill/cash")
+    suspend fun cashAtGround(
+        @Path("id") eventId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CashBody,
+    ): CashRecorded
+
+    /** "All arrived". One somebody else already decided is skipped. */
+    @POST("clubs/{id}/payments/confirm")
+    suspend fun confirmMany(@Path("id") clubId: String, @Body body: ConfirmManyBody): ConfirmedMany
+
+    /** Money admins only: the picture that came with a payment, when `has_screenshot`. */
+    @GET("payments/{pid}/screenshot")
+    suspend fun screenshot(@Path("pid") paymentId: String): ResponseBody
+
+    /**
+     * Your own claim's picture: raw JPEG, PNG or WebP, at most 1 MB. 415
+     * `not_an_image`, 400 `too_big`, 409 `already_decided`.
+     */
+    @POST("payments/{pid}/screenshot")
+    suspend fun uploadScreenshot(@Path("pid") paymentId: String, @Body image: RequestBody)
 }

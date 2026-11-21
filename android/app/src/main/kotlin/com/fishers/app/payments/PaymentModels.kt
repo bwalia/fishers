@@ -21,7 +21,10 @@ import java.util.Locale
 
 /** A share's state, derived by the server. */
 enum class ShareState {
-    Owed, PartPaid, Waiting, Paid, Waived, Void, Unknown;
+    Owed, PartPaid, Waiting, Paid, Waived, Void,
+    /** A pass pays for it: nothing to pay, shown as paid is, in its own words. */
+    Covered,
+    Unknown;
 
     val label: String
         get() = when (this) {
@@ -31,6 +34,7 @@ enum class ShareState {
             Paid -> t("pay.state_paid")
             Waived -> t("pay.state_waived")
             Void -> t("pay.state_void")
+            Covered -> t("pa2.state_covered")
             Unknown -> ""
         }
 
@@ -42,17 +46,26 @@ enum class ShareState {
             "paid" -> Paid
             "waived" -> Waived
             "void" -> Void
+            "covered" -> Covered
             else -> Unknown
         }
     }
 }
 
-/** One person's part of a bill. */
+/**
+ * One person's part of a bill. Soon also a monthly pass charge or a group fee,
+ * which have no event: so `event_id` may be null, and `kind` and `due_on` may
+ * arrive. A null for a non-null field would fail the whole screen.
+ */
 @Serializable
 data class Share(
     val id: String,
-    @SerialName("bill_id") val billId: String = "",
-    @SerialName("event_id") val eventId: String = "",
+    @SerialName("bill_id") val billId: String? = null,
+    @SerialName("event_id") val eventId: String? = null,
+    /** `event`, `pass` or `collection`; absent from servers before passes. */
+    val kind: String? = null,
+    /** When a pass charge or a group fee is due: a date, not a time. */
+    @SerialName("due_on") val dueOn: String? = null,
     val title: String = "",
     @SerialName("event_start_at") val eventStartAt: String? = null,
     @SerialName("user_id") val userId: String? = null,
@@ -136,6 +149,12 @@ data class BankDetails(
     @SerialName("is_personal") val isPersonal: Boolean = false,
     /** When these replaced older details, if recently. */
     @SerialName("changed_at") val changedAt: String? = null,
+    /**
+     * What the person who added personal details is to the club: `secretary`,
+     * `treasurer`, `owner`, or null for a club account. Kept as sent; an
+     * unknown word just leaves the role unsaid.
+     */
+    @SerialName("payee_role") val payeeRole: String? = null,
 ) {
     /** No account number: this is what `toString` would otherwise put in a crash report. */
     override fun toString(): String = "BankDetails($label, $sortCode, ••••${accountNumber.takeLast(4)})"
@@ -215,6 +234,12 @@ data class Payment(
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("decided_by_name") val decidedByName: String? = null,
     @SerialName("decision_reason") val decisionReason: String? = null,
+    /** The line on a bill it was said against, from a pay link or cash at the ground. */
+    @SerialName("share_id") val shareId: String? = null,
+    /** The pay link it was said on, when it was: nobody signed in. */
+    @SerialName("via_link") val viaLink: String? = null,
+    /** A picture of the payment came with it; money admins can open it. */
+    @SerialName("has_screenshot") val hasScreenshot: Boolean = false,
 ) {
     val method: PaymentMethod get() = PaymentMethod.of(methodName)
     val isClaimed: Boolean get() = status == "claimed"
@@ -307,14 +332,38 @@ data class MoneySettings(
     @SerialName("auto_bill") val autoBill: Boolean = true,
     @SerialName("auto_bill_after_hours") val autoBillAfterHours: Int = 24,
     @SerialName("round_shares_up") val roundSharesUp: Boolean = false,
+    /** The usual nets price, which the schedule form starts from: `split_total` or `per_player`. */
+    @SerialName("default_nets_mode") val defaultNetsMode: String? = null,
+    @SerialName("default_nets_cents") val defaultNetsCents: Long? = null,
+    /** The usual match fee, a head. */
+    @SerialName("default_match_fee_cents") val defaultMatchFeeCents: Long? = null,
+) {
+    /** The usual nets price, when the club has one. */
+    val usualNets: EventCost?
+        get() = defaultNetsCents?.takeIf { it > 0 }?.let { EventCost(modeName = defaultNetsMode ?: "", amountCents = it) }
+
+    val hasUsualPrices: Boolean get() = usualNets != null || (defaultMatchFeeCents ?: 0) > 0
+}
+
+/** `{ "mode": "per_player", "amount_cents": 500 }`: a usual price. */
+@Serializable
+data class DefaultPrice(
+    val mode: String,
+    @SerialName("amount_cents") val amountCents: Long,
 )
 
-/** `PUT /clubs/{id}/payments/settings`: only what is sent changes. */
+/**
+ * `PUT /clubs/{id}/payments/settings`: only what is sent changes. Nulls stay
+ * out of the body (`explicitNulls = false`), so a usual price left null is left
+ * as it is, never cleared.
+ */
 @Serializable
 data class MoneySettingsBody(
     @SerialName("auto_bill") val autoBill: Boolean? = null,
     @SerialName("auto_bill_after_hours") val autoBillAfterHours: Int? = null,
     @SerialName("round_shares_up") val roundSharesUp: Boolean? = null,
+    @SerialName("default_nets") val defaultNets: DefaultPrice? = null,
+    @SerialName("default_match_fee_cents") val defaultMatchFeeCents: Long? = null,
 )
 
 /** Somebody who owes, is waiting, or has credit. A guest has no user id. */
@@ -340,7 +389,8 @@ data class MoneyTotals(
 @Serializable
 data class BillSummary(
     @SerialName("bill_id") val billId: String,
-    @SerialName("event_id") val eventId: String,
+    /** Null for a bill with no session behind it: a pass charge or a group fee, soon. */
+    @SerialName("event_id") val eventId: String? = null,
     val title: String = "",
     @SerialName("event_start_at") val eventStartAt: String? = null,
     val currency: String = "GBP",

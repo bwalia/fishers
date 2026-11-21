@@ -7,7 +7,7 @@
 /// The API decides who may open this (a 403 on /money), and this page says so
 /// in words rather than showing an empty page.
 
-import { useCallback, useEffect, useId, useRef, useState, type InputHTMLAttributes } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, errCode, isForbidden, money, readErr } from "@/lib/api";
@@ -26,7 +26,11 @@ import {
   type PaymentSettings,
   type PayoutAccount,
   type PayoutAccounts,
+  getImage,
+  type Confirmed,
 } from "@/lib/payments";
+import { BankDetailsForm } from "@/components/BankDetailsForm";
+import { SetupWizard, UsualPrices, needsSetup, setupPutOff, setupPutOffKey } from "@/components/PaySetup";
 import { ReasonForm } from "@/components/ReasonForm";
 import { useRequireAuth } from "@/lib/require-auth";
 import { useT } from "@/lib/i18n/provider";
@@ -39,11 +43,16 @@ export default function ClubPaymentsPage() {
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /// The setup wizard, decided once when the page first loads: saving the
+  /// bank details in step 1 must not make it vanish before step 2.
+  const [wizard, setWizard] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     if (!authed || !clubId) return;
     try {
-      setOverview(await api<MoneyOverview>("GET", `/clubs/${clubId}/money`));
+      const o = await api<MoneyOverview>("GET", `/clubs/${clubId}/money`);
+      setOverview(o);
+      setWizard((w) => w ?? (needsSetup(o.account, o.settings) && !setupPutOff(clubId)));
     } catch (e) {
       if (isForbidden(e)) setForbidden(true);
       else setError(readErr(e, t("le.something_went_wrong")));
@@ -99,6 +108,38 @@ export default function ClubPaymentsPage() {
   };
 
   const cur = overview.currency;
+  if (wizard) {
+    return (
+      <main id="main" className="page money-page">
+        <p className="muted">
+          <Link href={`/clubs/${clubId}`}>{t("rest.back_to_the_club")}</Link>
+        </p>
+        <h1>{t("pw2.setup_title")}</h1>
+        <p className="muted">{t("pw2.setup_intro")}</p>
+        <SetupWizard
+          clubId={clubId}
+          currency={cur}
+          settings={overview.settings}
+          onAccounts={(account) => setOverview({ ...overview, account })}
+          onSettings={(settings) => setOverview({ ...overview, settings })}
+          onClose={(putOff) => {
+            if (putOff) {
+              try {
+                localStorage.setItem(setupPutOffKey(clubId), "1");
+              } catch {
+                /* private window: it asks again next time */
+              }
+            }
+            setWizard(false);
+            setNotice(putOff ? null : t("pw2.setup_finished"));
+            void load();
+            window.scrollTo({ top: 0 });
+          }}
+        />
+      </main>
+    );
+  }
+
   return (
     <main id="main" className="page money-page">
       <p className="muted">
@@ -137,7 +178,7 @@ export default function ClubPaymentsPage() {
         onStale={stale}
       />
 
-      <ToCheck payments={overview.to_check} onDone={done} onStale={stale} />
+      <ToCheck clubId={clubId} payments={overview.to_check} onDone={done} onStale={stale} />
 
       <WhoOwes clubId={clubId} members={overview.members} currency={cur} onDone={done} />
 
@@ -150,7 +191,7 @@ export default function ClubPaymentsPage() {
             {overview.bills.map((b) => (
               <li key={b.bill_id}>
                 <div>
-                  <Link href={`/events/${b.event_id}#money`}>{b.title}</Link>
+                  {b.event_id ? <Link href={`/events/${b.event_id}#money`}>{b.title}</Link> : <strong>{b.title}</strong>}
                   <div className="muted">
                     {shortDate(b.event_start_at)} · {t("pay.n_people", { count: b.people, n: b.people })}
                     {b.unpaid > 0 && ` · ${t("pay.n_unpaid", { n: b.unpaid })}`}
@@ -164,6 +205,21 @@ export default function ClubPaymentsPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="panel" aria-labelledby="usual-prices">
+        <h2 id="usual-prices">{t("pw2.usual_prices")}</h2>
+        <p className="muted">{t("pw2.usual_prices_help")}</p>
+        <UsualPrices
+          clubId={clubId}
+          currency={cur}
+          settings={overview.settings}
+          onSaved={(settings) => {
+            setOverview({ ...overview, settings });
+            setNotice(t("pw2.usual_prices_saved"));
+            setError(null);
+          }}
+        />
       </section>
 
       <Settings
@@ -380,231 +436,15 @@ function BankDetailsCard({
   );
 }
 
-type FieldErrors = Partial<Record<"holder" | "sort" | "number" | "again" | "label" | "password", string>>;
-
-/// Add or change the club's bank details.
-///
-/// The account number is typed twice because there is no modulus check yet:
-/// one wrong digit would send every player's money somewhere else. The
-/// numbers are dropped from the page as soon as they are saved.
-function BankDetailsForm({
-  clubId,
-  changing,
-  onCancel,
-  onSaved,
-}: {
-  clubId: string;
-  changing: boolean;
-  onCancel?: () => void;
-  onSaved: (view: PayoutAccounts) => void;
-}) {
-  const t = useT();
-  const id = useId();
-  const [holder, setHolder] = useState("");
-  const [sort, setSort] = useState("");
-  const [number, setNumber] = useState("");
-  const [again, setAgain] = useState("");
-  const [label, setLabel] = useState("");
-  const [personal, setPersonal] = useState(false);
-  const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const passwordField = useRef<HTMLInputElement>(null);
-
-  const digits = (s: string) => s.replace(/[\s-]/g, "");
-
-  /// The API's own rules, checked here first so each mistake shows under its
-  /// own field. The API checks them again.
-  const check = (): FieldErrors => {
-    const e: FieldErrors = {};
-    const name = holder.trim().replace(/\s+/g, " ");
-    if (!name) e.holder = t("pay.err_holder_missing");
-    else if (name.length > 70) e.holder = t("pay.err_holder_long");
-    else if (!new RegExp("^[\\p{L}\\p{N} &'\\-.,/()]+$", "u").test(name)) e.holder = t("pay.err_holder_chars");
-    if (!/^\d{6}$/.test(digits(sort))) e.sort = t("pay.err_sort_code");
-    const n = digits(number);
-    if (!/^\d{7,8}$/.test(n)) e.number = t("pay.err_account_number");
-    else if (digits(again) !== n) e.again = t("pay.err_numbers_differ");
-    if (label.trim().length > 60) e.label = t("pay.err_label_long");
-    return e;
-  };
-
-  const submit = async () => {
-    const found = check();
-    setErrors(found);
-    setFormError(null);
-    if (Object.keys(found).length > 0) {
-      document.getElementById(`${id}-${Object.keys(found)[0]}`)?.focus();
-      return;
-    }
-    setBusy(true);
-    try {
-      const view = await api<PayoutAccounts>("POST", `/clubs/${clubId}/payout-account`, {
-        holder_name: holder.trim(),
-        sort_code: digits(sort),
-        account_number: digits(number),
-        label: label.trim() || undefined,
-        is_personal: personal,
-        password: password || undefined,
-      });
-      setNumber("");
-      setAgain("");
-      setPassword("");
-      onSaved(view);
-    } catch (e) {
-      const code = errCode(e);
-      const said = readErr(e, t("le.that_did_not_work"));
-      // A missing or mistyped password is a question for this form, not a
-      // lapsed session: the API answers 428 or 403 so nobody is signed out.
-      if (code === "reauth_required" || code === "wrong_password") {
-        setErrors({ password: said });
-        setPassword("");
-        passwordField.current?.focus();
-      } else {
-        setFormError(said);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const field = (
-    key: keyof FieldErrors,
-    labelText: string,
-    input: InputHTMLAttributes<HTMLInputElement>,
-    hint?: string,
-  ) => {
-    const err = errors[key];
-    const described = [hint ? `${id}-${key}-hint` : "", err ? `${id}-${key}-error` : ""].filter(Boolean).join(" ");
-    return (
-      <label htmlFor={`${id}-${key}`}>
-        {/* Named by the label text alone; the hint and any error are read
-            as its description rather than run into its name. */}
-        <span id={`${id}-${key}-label`}>{labelText}</span>
-        <input
-          {...input}
-          id={`${id}-${key}`}
-          aria-labelledby={`${id}-${key}-label`}
-          aria-invalid={err ? true : undefined}
-          aria-describedby={described || undefined}
-        />
-        {hint && (
-          <span className="subtle" id={`${id}-${key}-hint`}>
-            {hint}
-          </span>
-        )}
-        {err && (
-          <span className="field-error" id={`${id}-${key}-error`}>
-            {err}
-          </span>
-        )}
-      </label>
-    );
-  };
-
-  return (
-    <form
-      className="bank-form"
-      aria-labelledby={`${id}-title`}
-      noValidate
-      onSubmit={(e) => {
-        e.preventDefault();
-        void submit();
-      }}
-    >
-      <h3 id={`${id}-title`}>{changing ? t("pay.change_bank_details") : t("pay.add_bank_details")}</h3>
-      {changing && <p className="pay-warn" role="note">{t("pay.change_waits")}</p>}
-      <div className="setup-fields">
-        {field(
-          "holder",
-          t("pay.account_name_exact"),
-          { value: holder, maxLength: 70, autoComplete: "off", onChange: (e) => setHolder(e.target.value) },
-          t("pay.account_name_hint"),
-        )}
-        {field(
-          "sort",
-          t("pay.sort_code"),
-          { value: sort, inputMode: "numeric", maxLength: 8, autoComplete: "off", placeholder: "12-34-56", onChange: (e) => setSort(e.target.value) },
-        )}
-        {field(
-          "number",
-          t("pay.account_number"),
-          { value: number, inputMode: "numeric", maxLength: 10, autoComplete: "off", onChange: (e) => setNumber(e.target.value) },
-        )}
-        {field(
-          "again",
-          t("pay.account_number_again"),
-          {
-            value: again,
-            inputMode: "numeric",
-            maxLength: 10,
-            autoComplete: "off",
-            onChange: (e) => setAgain(e.target.value),
-            // Typed, not pasted: a pasted copy repeats the same mistake.
-            onPaste: (e) => e.preventDefault(),
-          },
-          t("pay.account_number_again_hint"),
-        )}
-        {field(
-          "label",
-          t("pay.nickname_optional"),
-          { value: label, maxLength: 60, placeholder: t("pay.nickname_hint"), onChange: (e) => setLabel(e.target.value) },
-        )}
-      </div>
-      <label className="check-row">
-        <input type="checkbox" checked={personal} onChange={(e) => setPersonal(e.target.checked)} />
-        <span>
-          <strong>{t("pay.this_is_personal")}</strong>
-          <span className="subtle">{t("pay.this_is_personal_hint")}</span>
-        </span>
-      </label>
-      <div className="setup-fields bank-password">
-        <label htmlFor={`${id}-password`}>
-          <span id={`${id}-password-label`}>{t("pay.your_password")}</span>
-          <input
-            ref={passwordField}
-            id={`${id}-password`}
-            aria-labelledby={`${id}-password-label`}
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            aria-invalid={errors.password ? true : undefined}
-            aria-describedby={[`${id}-password-hint`, errors.password ? `${id}-password-error` : ""].filter(Boolean).join(" ")}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <span className="subtle" id={`${id}-password-hint`}>
-            {t("pay.your_password_hint")}
-          </span>
-          {errors.password && (
-            <span className="field-error" id={`${id}-password-error`}>
-              {errors.password}
-            </span>
-          )}
-        </label>
-      </div>
-      {formError && <p className="error" role="alert">{formError}</p>}
-      <div className="field-row">
-        <button className="btn primary" type="submit" disabled={busy}>
-          {busy ? t("pay.saving") : changing ? t("pay.save_change") : t("pay.save_bank_details")}
-        </button>
-        {onCancel && (
-          <button className="btn" type="button" disabled={busy} onClick={onCancel}>
-            {t("pay.never_mind")}
-          </button>
-        )}
-      </div>
-    </form>
-  );
-}
-
 // MARK: payments to check
 
 function ToCheck({
+  clubId,
   payments,
   onDone,
   onStale,
 }: {
+  clubId: string;
   payments: Payment[];
   onDone: (said: string) => Promise<void>;
   onStale: (e: unknown) => Promise<void>;
@@ -613,6 +453,27 @@ function ToCheck({
   const [busy, setBusy] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  /// "Mark all 3 as arrived?" is open.
+  const [allAsk, setAllAsk] = useState(false);
+  const [allError, setAllError] = useState<string | null>(null);
+
+  /// All arrived: every payment on the list, in one go. One somebody else
+  /// ticked meanwhile is skipped, not an error.
+  const allArrived = async () => {
+    setBusy("all");
+    setAllError(null);
+    try {
+      const out = await api<Confirmed>("POST", `/clubs/${clubId}/payments/confirm`, { ids: payments.map((p) => p.id) });
+      setAllAsk(false);
+      const said = [t("pw2.all_arrived_done", { count: out.confirmed, n: out.confirmed })];
+      if (out.skipped > 0) said.push(t("pw2.all_arrived_skipped", { count: out.skipped, n: out.skipped }));
+      await onDone(said.join(" "));
+    } catch (e) {
+      setAllError(readErr(e, t("le.that_did_not_work")));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const decide = async (p: Payment, confirm: boolean, reason?: string) => {
     setBusy(p.id);
@@ -653,6 +514,39 @@ function ToCheck({
       ) : (
         <>
           <p className="muted">{t("pay.to_check_help")}</p>
+          {payments.length > 1 &&
+            (allAsk ? (
+              <div className="confirm-box" role="group" aria-label={t("pw2.all_arrived")}>
+                <p>
+                  <strong>{t("pw2.all_arrived_confirm", { count: payments.length, n: payments.length })}</strong>
+                </p>
+                <p className="subtle">{t("pw2.all_arrived_hint")}</p>
+                {allError && <p className="field-error" role="alert">{allError}</p>}
+                <div className="field-row">
+                  <button className="btn primary" type="button" disabled={busy !== null} onClick={() => void allArrived()}>
+                    {t("pw2.yes_all_arrived")}
+                  </button>
+                  <button className="btn" type="button" disabled={busy !== null} onClick={() => setAllAsk(false)}>
+                    {t("pay.never_mind")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="field-row all-arrived">
+                <button
+                  className="btn primary"
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setAllError(null);
+                    setRejecting(null);
+                    setAllAsk(true);
+                  }}
+                >
+                  {t("pw2.all_arrived")}
+                </button>
+              </div>
+            ))}
           <ul className="pay-list check-list">
             {payments.map((p) => (
               <li key={p.id}>
@@ -668,6 +562,8 @@ function ToCheck({
                     {dateTime(p.created_at)}
                   </div>
                   {p.note && <div className="muted">{p.note}</div>}
+                  {p.via_link && <div className="subtle">{t("pw2.from_the_link")}</div>}
+                  {p.has_screenshot && <Screenshot payment={p} />}
                 </div>
                 {rejecting !== p.id && (
                   <div className="pay-list-end">
@@ -711,6 +607,62 @@ function ToCheck({
         </>
       )}
     </section>
+  );
+}
+
+/// The picture a player sent with their payment. Fetched signed in — only
+/// the club's money admins may see it — and shown from an object URL, which
+/// is let go as soon as it is hidden.
+function Screenshot({ payment: p }: { payment: Payment }) {
+  const t = useT();
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(
+    () => () => {
+      if (url) URL.revokeObjectURL(url);
+    },
+    [url],
+  );
+
+  const open = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setUrl(URL.createObjectURL(await getImage(`/payments/${p.id}/screenshot`)));
+    } catch (e) {
+      setError(readErr(e, t("pw2.screenshot_not_opened")));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="check-shot">
+      {url ? (
+        <figure>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a blob: URL, not something next/image can fetch */}
+          <img src={url} alt={t("pw2.screenshot_alt", { name: p.name })} />
+          <figcaption>
+            <button className="btn" type="button" onClick={() => setUrl(null)}>
+              {t("pw2.hide_screenshot")}
+            </button>
+          </figcaption>
+        </figure>
+      ) : (
+        <button
+          className="btn"
+          type="button"
+          disabled={busy}
+          aria-label={t("pw2.see_screenshot_from", { name: p.name })}
+          onClick={() => void open()}
+        >
+          {t("pw2.see_screenshot")}
+        </button>
+      )}
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </div>
   );
 }
 

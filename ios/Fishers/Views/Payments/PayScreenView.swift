@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -21,7 +22,7 @@ enum Clipboard {
     }
 }
 
-/// One thing a banking app asks for, with its own Copy button.
+/// One thing a banking app asks for, big, with its own Copy button.
 struct CopyRow: View {
     let label: String
     let value: String
@@ -33,33 +34,54 @@ struct CopyRow: View {
     @State private var copied = false
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(FishersTheme.caption)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(monospaced ? FishersTheme.body.monospacedDigit().weight(.semibold) : FishersTheme.body.weight(.semibold))
-                    .textSelection(.enabled)
-                    .privacySensitive(sensitive)
-            }
-            Spacer(minLength: 8)
-            Button {
-                Clipboard.copy(copyValue ?? value, sensitive: sensitive)
-                copied = true
-                Task {
-                    try? await Task.sleep(for: .seconds(2))
-                    copied = false
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(FishersTheme.subhead)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            // The value and its button side by side while they fit; the
+            // button goes underneath at the largest text sizes rather than
+            // squeezing a sort code into a column one digit wide.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 12) {
+                    valueText
+                    Spacer(minLength: 8)
+                    copyButton
                 }
-            } label: {
-                Label(copied ? tr("Copied") : tr("Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
-                    .font(FishersTheme.subhead.weight(.semibold))
-                    .frame(minWidth: 72, minHeight: FishersTheme.minTap)
+                VStack(alignment: .leading, spacing: 8) {
+                    valueText
+                    copyButton
+                }
             }
-            .buttonStyle(.bordered)
-            .accessibilityLabel(tr("Copy {what}", vars: ["what": label.lowercased()]))
         }
+        .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
+    }
+
+    private var valueText: some View {
+        Text(value)
+            .font(monospaced ? Font.title3.monospacedDigit().weight(.semibold) : Font.title3.weight(.semibold))
+            .textSelection(.enabled)
+            .privacySensitive(sensitive)
+    }
+
+    private var copyButton: some View {
+        Button {
+            Clipboard.copy(copyValue ?? value, sensitive: sensitive)
+            copied = true
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                copied = false
+            }
+        } label: {
+            Label(copied ? tr("Copied") : tr("Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
+                .font(FishersTheme.subhead.weight(.semibold))
+                .lineLimit(1)
+                .fixedSize()
+                .frame(minWidth: 72, minHeight: FishersTheme.minTap)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityLabel(tr("Copy {what}", vars: ["what": label.lowercased()]))
     }
 }
 
@@ -79,7 +101,7 @@ struct ShareStateBadge: View {
 
     private var colour: Color {
         switch state {
-        case .paid: return FishersTheme.available
+        case .paid, .covered: return FishersTheme.available
         case .waiting, .partPaid: return FishersTheme.maybe
         case .owed: return FishersTheme.unavailable
         default: return .secondary
@@ -87,7 +109,9 @@ struct ShareStateBadge: View {
     }
 }
 
-/// Paying one club: how much, where to, the reference, and "I've paid".
+/// Paying one club, for somebody who doesn't use banking apps much: what is
+/// owed and for what, who the money goes to, four things to copy, how to do
+/// it the first time, then "I've paid" — with Undo and a screenshot after.
 ///
 /// The full account number is shown here and nowhere else, held in memory
 /// for as long as the screen is open and never written to disk or a log.
@@ -96,11 +120,16 @@ struct PayScreenView: View {
     var clubName: String? = nil
 
     @StateObject private var store: PayScreenStore
+    @State private var guideOpen: Bool
+    @State private var sendingDetails = false
 
     init(clubId: UUID, clubName: String? = nil) {
         self.clubId = clubId
         self.clubName = clubName
-        _store = StateObject(wrappedValue: PayScreenStore(clubId: clubId))
+        let store = PayScreenStore(clubId: clubId)
+        _store = StateObject(wrappedValue: store)
+        // Open the first time; folded away once they've paid this club before.
+        _guideOpen = State(initialValue: !store.hasPaidBefore)
     }
 
     var body: some View {
@@ -113,9 +142,21 @@ struct PayScreenView: View {
                             .font(FishersTheme.subhead)
                     }
                 }
-                detailsSection(screen)
+                if let account = screen.payableAccount {
+                    payeeSection(screen, account)
+                    if screen.owedCents > 0 {
+                        guideSection(screen, account)
+                    }
+                } else if let why = screen.accountState.explanation, screen.owedCents > 0 || screen.waitingCents > 0 {
+                    Section {
+                        Label(why, systemImage: screen.accountState == .frozen ? "hand.raised.fill" : "info.circle")
+                            .font(FishersTheme.subhead)
+                            .foregroundStyle(screen.accountState == .frozen ? FishersTheme.unavailable : .primary)
+                    }
+                }
                 actionSection(screen)
                 claimsSection(screen)
+                sendSection(screen)
                 sharesSection(screen)
             } else if store.isLoading {
                 Section { ProgressView().frame(maxWidth: .infinity) }
@@ -127,6 +168,13 @@ struct PayScreenView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
         .refreshable { await store.load() }
+        .sheet(isPresented: $sendingDetails) {
+            if let text = store.screen?.detailsToSend {
+                // No Copy in this sheet: the account number reaches the
+                // pasteboard only through the rows above.
+                ShareSheet(items: [text], excluded: [.copyToPasteboard]) { sendingDetails = false }
+            }
+        }
         .alert(tr("Something went wrong"), isPresented: store.errorBinding) {
             Button(t("rest.ok"), role: .cancel) { store.errorMessage = nil }
         } message: {
@@ -134,18 +182,16 @@ struct PayScreenView: View {
         }
     }
 
-    // MARK: Sections
+    // MARK: 1. What is owed
 
     private func amountSection(_ screen: PayScreen) -> some View {
         Section {
             VStack(alignment: .leading, spacing: 6) {
                 if screen.owedCents > 0 {
-                    Text(tr("You owe"))
-                        .font(FishersTheme.subhead)
-                        .foregroundStyle(.secondary)
-                    Text(Money.format(screen.owedCents, screen.currency))
-                        .font(FishersTheme.figure(.largeTitle))
+                    Text(screen.owedHeadline)
+                        .font(.title.weight(.bold))
                         .foregroundStyle(FishersTheme.pitch)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else if screen.waitingCents == 0 {
                     Label(tr("You're all paid up."), systemImage: "checkmark.seal.fill")
                         .font(FishersTheme.headline)
@@ -175,91 +221,95 @@ struct PayScreenView: View {
         }
     }
 
-    @ViewBuilder
-    private func detailsSection(_ screen: PayScreen) -> some View {
-        if let account = screen.payableAccount {
-            Section {
-                if let changed = account.changedAt {
-                    Label(
-                        tr("These bank details changed on {date}. If your banking app warns you the name doesn't match, stop and check with the club before paying.",
-                           vars: ["date": changed.formatted(.dateTime.day().month(.abbreviated))]),
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .font(FishersTheme.subhead.weight(.semibold))
-                    .foregroundStyle(FishersTheme.maybe)
-                }
-                if screen.owedCents > 0 {
-                    CopyRow(
-                        label: tr("Amount"),
-                        value: Money.format(screen.owedCents, screen.currency),
-                        copyValue: Money.plain(screen.owedCents, screen.currency),
-                        monospaced: true
-                    )
-                }
-                CopyRow(label: tr("Account name"), value: account.holderName)
-                CopyRow(label: tr("Sort code"), value: account.sortCode, monospaced: true)
-                CopyRow(label: tr("Account number"), value: account.accountNumber, sensitive: true, monospaced: true)
-                CopyRow(label: tr("Reference"), value: screen.reference, monospaced: true)
-                if let all = screen.copyAllText {
-                    Button {
-                        Clipboard.copy(all, sensitive: true)
-                        store.notice = tr("Copied {what}", vars: ["what": tr("all the details")])
-                    } label: {
-                        Label(tr("Copy all"), systemImage: "doc.on.clipboard")
-                            .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
-                    }
-                }
-            } header: {
-                HStack {
-                    Text(tr("Pay by bank transfer"))
-                    if account.isPersonal {
-                        Spacer()
-                        Text(tr("Personal account"))
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(FishersTheme.maybe)
-                    }
-                }
-            } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    if account.isPersonal {
-                        Text(tr("This is {name}'s own account, which the club uses to collect money.", vars: ["name": account.holderName]))
-                    }
-                    Text(tr("Use this reference so the club can tell your payment from everyone else's. It's the same every time you pay this club."))
+    // MARK: 2–3. Who to pay, and the four things to copy
+
+    private func payeeSection(_ screen: PayScreen, _ account: BankDetails) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(account.payeeSentence)
+                    .font(FishersTheme.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let own = account.ownAccountSentence {
+                    Text(own)
+                        .font(FishersTheme.subhead)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        } else if let why = screen.accountState.explanation, screen.owedCents > 0 || screen.waitingCents > 0 {
-            Section {
-                Label(why, systemImage: screen.accountState == .frozen ? "hand.raised.fill" : "info.circle")
-                    .font(FishersTheme.subhead)
-                    .foregroundStyle(screen.accountState == .frozen ? FishersTheme.unavailable : .primary)
+            .padding(.vertical, 4)
+            .accessibilityElement(children: .combine)
+            if let changed = account.changedAt {
+                Label(
+                    tr("These bank details changed on {date}. If your banking app warns you the name doesn't match, stop and check with the club before paying.",
+                       vars: ["date": changed.formatted(.dateTime.day().month(.abbreviated))]),
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(FishersTheme.subhead.weight(.semibold))
+                .foregroundStyle(FishersTheme.maybe)
+            }
+            CopyRow(label: tr("Name"), value: account.holderName)
+            CopyRow(label: tr("Sort code"), value: account.sortCode, monospaced: true)
+            CopyRow(label: tr("Account number"), value: account.accountNumber, sensitive: true, monospaced: true)
+            CopyRow(label: tr("What to write in the reference box"), value: screen.reference, monospaced: true)
+        } footer: {
+            Text(tr("Use this reference so the club can tell your payment from everyone else's. It's the same every time you pay this club."))
+        }
+    }
+
+    // MARK: 4. How to do it
+
+    private func guideSection(_ screen: PayScreen, _ account: BankDetails) -> some View {
+        Section {
+            DisclosureGroup(isExpanded: $guideOpen) {
+                PayGuideStep(number: 1, symbol: "building.columns", text: tr("Open your banking app."))
+                PayGuideStep(number: 2, symbol: "person.badge.plus",
+                          text: tr("Add a new payee. Copy each line above and paste it in."))
+                PayGuideStep(number: 3, symbol: "checkmark.circle",
+                          text: tr("Send {amount}, then come back here and tap I've paid.",
+                                   vars: ["amount": Money.format(screen.owedCents, screen.currency)]))
+            } label: {
+                Text(store.hasPaidBefore
+                     ? tr("Pay {name} as usual.", vars: ["name": account.payeeShortName])
+                     : tr("First time? Here's how"))
+                    .font(FishersTheme.headline)
+                    .frame(minHeight: FishersTheme.minTap)
             }
         }
     }
+
+    // MARK: 5. I've paid, I paid cash
 
     @ViewBuilder
     private func actionSection(_ screen: PayScreen) -> some View {
         if screen.owedCents > 0 {
             Section {
-                if screen.payableAccount != nil {
-                    Button {
-                        Task { await store.claim(method: "transfer") }
-                    } label: {
-                        Group {
-                            if store.isWorking { ProgressView() } else { Text(tr("I've paid")).font(FishersTheme.headline) }
+                VStack(spacing: 12) {
+                    if screen.payableAccount != nil {
+                        Button {
+                            Task { await store.claim(method: "transfer") }
+                        } label: {
+                            Group {
+                                if store.isWorking { ProgressView() } else { Text(tr("I've paid")).lineLimit(1) }
+                            }
+                            .font(.title3.weight(.bold))
+                            .frame(maxWidth: .infinity, minHeight: 56)
                         }
-                        .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
+                        .buttonStyle(.borderedProminent)
+                        .tint(FishersTheme.pitch)
                     }
-                    .buttonStyle(.borderedProminent)
+                    Button {
+                        Task { await store.claim(method: "cash") }
+                    } label: {
+                        Text(tr("I paid cash"))
+                            .lineLimit(1)
+                            .font(.title3.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                    }
+                    .buttonStyle(.bordered)
                     .tint(FishersTheme.pitch)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
                 }
-                Button(tr("I paid cash")) {
-                    Task { await store.claim(method: "cash") }
-                }
-                .font(FishersTheme.subhead)
-                .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
                 .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
             } footer: {
                 if screen.payableAccount != nil {
                     Text(tr("Pay in your banking app, then come back and tap I've paid."))
@@ -269,29 +319,39 @@ struct PayScreenView: View {
         }
     }
 
+    // MARK: 6. Waiting: Undo, and a screenshot
+
     @ViewBuilder
     private func claimsSection(_ screen: PayScreen) -> some View {
         if !screen.claims.isEmpty {
             Section {
                 ForEach(screen.claims) { claim in
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(Money.format(claim.amountCents, claim.currency)) · \(claim.methodLabel)")
-                                .font(FishersTheme.subhead.weight(.semibold))
-                            Text([claim.reference, claim.createdAt.formatted(date: .abbreviated, time: .shortened)]
-                                .compactMap { $0 }.joined(separator: " · "))
-                                .font(FishersTheme.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button(tr("Undo")) { Task { await store.undo(claim) } }
-                            .buttonStyle(.bordered)
-                            .frame(minHeight: FishersTheme.minTap)
-                            .disabled(store.isWorking)
-                    }
+                    WaitingPaymentRow(store: store, payment: claim)
                 }
             } header: {
                 Text(tr("Waiting for the club to confirm"))
+            } footer: {
+                if screen.claims.contains(where: { $0.method == "transfer" && !$0.hasScreenshot }) {
+                    Text(tr("A screenshot of the payment from your banking app helps the club find it. You don't have to add one."))
+                }
+            }
+        }
+    }
+
+    // MARK: 7. For someone else to pay
+
+    @ViewBuilder
+    private func sendSection(_ screen: PayScreen) -> some View {
+        if screen.owedCents > 0, screen.detailsToSend != nil {
+            Section {
+                Button {
+                    sendingDetails = true
+                } label: {
+                    Label(tr("Send these details to someone"), systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap, alignment: .leading)
+                }
+            } footer: {
+                Text(tr("For a son or daughter, say, who does your banking."))
             }
         }
     }
@@ -304,6 +364,108 @@ struct PayScreenView: View {
                     ShareLine(share: share)
                 }
             }
+        }
+    }
+}
+
+/// One step of "First time? Here's how": a picture and a sentence.
+private struct PayGuideStep: View {
+    let number: Int
+    let symbol: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(FishersTheme.pitch)
+                .frame(width: 44, height: 44)
+                .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 10))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "\(number)")
+                    .font(FishersTheme.overline)
+                    .foregroundStyle(.secondary)
+                Text(text)
+                    .font(FishersTheme.body)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A payment the club hasn't checked yet: Undo, and — for a transfer — an
+/// optional screenshot from the photo library.
+private struct WaitingPaymentRow: View {
+    @ObservedObject var store: PayScreenStore
+    let payment: ClubPayment
+
+    @State private var picked: PhotosPickerItem?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "\(Money.format(payment.amountCents, payment.currency)) · \(payment.methodLabel)")
+                    .font(FishersTheme.subhead.weight(.semibold))
+                Text(payment.createdAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(FishersTheme.footnote)
+                    .foregroundStyle(.secondary)
+                if payment.hasScreenshot {
+                    Label(tr("Screenshot added"), systemImage: "photo.badge.checkmark")
+                        .font(FishersTheme.footnote)
+                        .foregroundStyle(FishersTheme.available)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { buttons }
+                VStack(alignment: .leading, spacing: 8) { buttons }
+            }
+        }
+        .padding(.vertical, 4)
+        .onChange(of: picked) { _, item in
+            guard let item else { return }
+            Task {
+                defer { picked = nil }
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    await store.addScreenshot(data, to: payment)
+                } else {
+                    store.errorMessage = tr("That picture couldn't be read. Try a screenshot instead.")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var buttons: some View {
+        Button {
+            Task { await store.undo(payment) }
+        } label: {
+            Text(tr("Undo"))
+                .lineLimit(1)
+                .fixedSize()
+                .frame(minHeight: FishersTheme.minTap)
+        }
+        .buttonStyle(.bordered)
+        .disabled(store.isWorking)
+        if payment.method == "transfer", !payment.hasScreenshot {
+            let uploading = store.addingScreenshotTo == payment.id
+            PhotosPicker(selection: $picked, matching: .images, photoLibrary: .shared()) {
+                Group {
+                    if uploading {
+                        ProgressView()
+                    } else {
+                        Label(tr("Add a screenshot"), systemImage: "photo.badge.plus")
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+                .frame(minHeight: FishersTheme.minTap)
+            }
+            .buttonStyle(.bordered)
+            .disabled(store.addingScreenshotTo != nil)
         }
     }
 }

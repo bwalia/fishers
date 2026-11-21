@@ -89,17 +89,21 @@ final class PaymentsTour: APITourCase {
         row.tap()
 
         let paid = app.buttons["I've paid"].firstMatch
+        XCTAssertTrue(element(containing: "You owe").waitForExistence(timeout: 15), "no headline saying what is owed")
+        XCTAssertTrue(element(containing: "Pay ").exists, "the pay screen does not say who to pay")
         XCTAssertTrue(reveal("Account number").exists, "the pay screen has no account number")
-        XCTAssertTrue(element(containing: "Reference").exists, "the pay screen has no reference")
-        XCTAssertTrue(element(containing: "Copy all").exists, "no Copy all")
+        XCTAssertTrue(element(containing: "reference box").exists, "the pay screen has no reference")
         capture("Pay-3-pay-screen")
         let copy = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Copy'")).firstMatch
         if copy.exists { copy.tap(); capture("Pay-4-copied") }
 
         XCTAssertTrue(reveal("I've paid").exists, "no I've paid button")
+        // Just below the two big buttons, while something is still owed.
+        if element(containing: "Send these details to someone").exists { capture("Pay-3b-send-these-details") }
         paid.tap()
         XCTAssertTrue(element(containing: "Waiting for the club to confirm").waitForExistence(timeout: 15),
                       "the claim does not show as waiting")
+        XCTAssertTrue(reveal("Add a screenshot").exists, "no Add a screenshot once it is waiting")
         capture("Pay-5-waiting")
 
         let after = try dues(player, club: clubId)
@@ -185,6 +189,9 @@ final class PaymentsTour: APITourCase {
         send.tap()
         sleep(3)
         capture("Secretary-3-billed")
+        XCTAssertTrue(reveal("Who paid cash?").exists, "no Who paid cash? on a billed event")
+        XCTAssertTrue(reveal("Share the bill").exists, "no Share the bill once the bill is sent")
+        capture("Secretary-4-tell-the-group")
 
         let bill = try api("GET", "/events/\(eventId)/bill", token: secretary.access, body: nil)
         let shares = bill["shares"] as? [[String: Any]] ?? []

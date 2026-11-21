@@ -97,27 +97,35 @@ test("a secretary adds bank details, a player pays by transfer, the treasurer co
   await page.goto(`${WEB}/clubs/${club.id}`);
   await expect(page.getByRole("link", { name: "Open payments" })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("link", { name: "Open payments" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Payments" })).toBeVisible();
+  // A club with no bank details and no usual prices starts on the setup
+  // wizard, whose first step is the same bank details form.
+  await expect(page.getByRole("heading", { level: 1, name: "Set up payments" })).toBeVisible();
 
   const form = page.locator("form.bank-form");
   await form.getByLabel("Account name, exactly as on the account").fill("Transfer Cricket Club");
   await form.getByLabel("Sort code").fill("20-00-00");
   await form.getByLabel("Account number", { exact: true }).fill("12345678");
   await form.getByLabel("Account number again").fill("12345670");
-  await form.getByRole("button", { name: "Save bank details" }).click();
+  await form.getByRole("button", { name: "Save and carry on" }).click();
   // Typed twice to catch a wrong digit: the mismatch is said under the field.
   await expect(form.getByText("The two account numbers don't match.")).toBeVisible();
 
   await form.getByLabel("Account number again").fill("12345678");
-  await form.getByRole("button", { name: "Save bank details" }).click();
+  await form.getByRole("button", { name: "Save and carry on" }).click();
   // No password: the API asks for it (428) and the page asks the person —
   // it does not sign them out.
   await expect(form.getByText("Type your password to change the club's bank details")).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/clubs/${club.id}/payments`));
 
   await form.getByLabel("Your password").fill(PASSWORD);
-  await form.getByRole("button", { name: "Save bank details" }).click();
-  await expect(page.getByText("Bank details added. Players can pay into them now.")).toBeVisible();
+  await form.getByRole("button", { name: "Save and carry on" }).click();
+  // Saved: on to the usual prices, which this club skips, and done.
+  await expect(page.getByRole("heading", { name: "What you usually charge" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip this step" }).click();
+  await expect(page.getByRole("heading", { name: "You're ready" })).toBeVisible();
+  await page.getByRole("button", { name: "Go to payments" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Payments" })).toBeVisible();
+  await expect(page.getByText("Payments are set up.")).toBeVisible();
   const bank = page.locator("#bank-details");
   await expect(bank).toContainText("Players pay into");
   await expect(bank).toContainText("Transfer Cricket Club");
@@ -147,8 +155,10 @@ test("a secretary adds bank details, a player pays by transfer, the treasurer co
   await page.getByRole("link", { name: `Pay ${clubName} £15.00` }).click();
 
   await expect(page.getByRole("heading", { level: 1, name: `Pay ${clubName}` })).toBeVisible();
+  await expect(page.getByText("You owe £15.00 for E2E nets")).toBeVisible();
+  // A club account, so the money goes to the club by name.
+  await expect(page.getByRole("heading", { name: "Pay Transfer Cricket Club" })).toBeVisible();
   const details = page.locator(".pay-details");
-  await expect(details).toContainText("£15.00");
   await expect(details).toContainText("Transfer Cricket Club");
   await expect(details).toContainText("20-00-00");
   await expect(details).toContainText("12345678");
@@ -163,9 +173,9 @@ test("a secretary adds bank details, a player pays by transfer, the treasurer co
   await page.screenshot({ path: `${SHOTS}/pay-4-pay-screen.png`, fullPage: true });
 
   await page.getByRole("button", { name: "I've paid" }).click();
-  await expect(page.getByText("Thanks. The club will confirm it once the money shows up in their account.")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Waiting for the club to confirm" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Thanks — waiting for the club to check" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add a screenshot" })).toBeVisible();
 
   // A player cannot open the club's Payments page, and is told why.
   await page.goto(`${WEB}/clubs/${club.id}/payments`);

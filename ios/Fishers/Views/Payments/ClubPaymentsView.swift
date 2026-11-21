@@ -16,6 +16,10 @@ struct ClubPaymentsView: View {
     @State private var rejecting: ClubPayment?
     @State private var rejectReason = ""
     @State private var recording: PayerAction?
+    @State private var settingUp = false
+    @State private var confirmingAll = false
+    @State private var viewingScreenshot: ClubPayment?
+    @State private var editingPrices = false
 
     /// Record cash for somebody, or refund their credit.
     struct PayerAction: Identifiable {
@@ -33,10 +37,14 @@ struct ClubPaymentsView: View {
                         Label(notice, systemImage: "info.circle").font(FishersTheme.subhead)
                     }
                 }
+                if overview.needsSetup {
+                    setupSection
+                }
                 bankDetailsSection(overview.account)
                 toCheckSection(overview)
                 whoOwesSection(overview)
                 billsSection(overview)
+                usualPricesSection(overview)
                 settingsSection(overview.settings)
             } else if store.forbidden {
                 Section {
@@ -60,6 +68,24 @@ struct ClubPaymentsView: View {
         }
         .sheet(item: $recording) { action in
             RecordPaymentSheet(store: store, action: action, currency: store.overview?.currency ?? Money.fallbackCurrency)
+        }
+        .sheet(isPresented: $settingUp) {
+            PaymentSetupWizard(store: store)
+        }
+        .sheet(isPresented: $editingPrices) {
+            UsualPricesSheet(store: store)
+        }
+        .sheet(item: $viewingScreenshot) { payment in
+            PaymentScreenshotSheet(store: store, payment: payment)
+        }
+        .confirmationDialog(
+            tr("Mark all {n} as arrived?", vars: ["n": store.overview?.toCheck.count ?? 0]),
+            isPresented: $confirmingAll, titleVisibility: .visible
+        ) {
+            Button(tr("Yes, they all arrived")) { Task { await store.confirmAll() } }
+            Button(tr("Never mind"), role: .cancel) {}
+        } message: {
+            Text(tr("Only if you've seen every one in your banking app."))
         }
         .alert(tr("Why are you freezing them? (optional)"), isPresented: Binding(get: { freezing != nil }, set: { if !$0 { freezing = nil } })) {
             TextField(tr("Say why, in a few words."), text: $freezeReason)
@@ -107,6 +133,32 @@ struct ClubPaymentsView: View {
             Button(t("rest.ok"), role: .cancel) { store.errorMessage = nil }
         } message: {
             Text(store.errorMessage ?? "")
+        }
+    }
+
+    // MARK: Setting up
+
+    private var setupSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(tr("Get the club ready to collect money"))
+                    .font(FishersTheme.headline)
+                Text(tr("A few minutes: where players send money, and what you usually charge."))
+                    .font(FishersTheme.subhead)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    settingUp = true
+                } label: {
+                    Text(tr("Set up payments"))
+                        .font(FishersTheme.headline)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(FishersTheme.pitch)
+            }
+            .padding(.vertical, 4)
         }
     }
 
@@ -232,6 +284,18 @@ struct ClubPaymentsView: View {
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             }
+            if overview.toCheck.count > 1 {
+                Button {
+                    confirmingAll = true
+                } label: {
+                    Label(tr("All arrived"), systemImage: "checkmark.circle.fill")
+                        .font(FishersTheme.headline)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(FishersTheme.available)
+            }
             ForEach(overview.toCheck) { payment in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline) {
@@ -246,6 +310,16 @@ struct ClubPaymentsView: View {
                         .foregroundStyle(.secondary)
                     if let note = payment.note {
                         Text(note).font(FishersTheme.footnote)
+                    }
+                    if payment.hasScreenshot {
+                        Button {
+                            viewingScreenshot = payment
+                        } label: {
+                            Label(tr("See the screenshot"), systemImage: "photo")
+                                .lineLimit(1)
+                                .frame(minHeight: FishersTheme.minTap)
+                        }
+                        .buttonStyle(.borderless)
                     }
                     // Side by side when both fit on one line each; stacked
                     // otherwise (large text), never a label wrapped in two.
@@ -371,25 +445,33 @@ struct ClubPaymentsView: View {
         if !overview.bills.isEmpty {
             Section(tr("Recent bills")) {
                 ForEach(overview.bills) { bill in
-                    NavigationLink {
-                        EventDetailView(eventId: bill.eventId)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(bill.title).font(FishersTheme.subhead.weight(.medium))
-                                Spacer()
-                                Text(Money.format(bill.totalCents, bill.currency))
-                                    .font(FishersTheme.subhead.monospacedDigit())
-                            }
-                            Text(billLine(bill))
-                                .font(FishersTheme.footnote)
-                                .foregroundStyle(.secondary)
+                    if let eventId = bill.eventId {
+                        NavigationLink {
+                            EventDetailView(eventId: eventId)
+                        } label: {
+                            billRow(bill)
                         }
-                        .frame(minHeight: FishersTheme.minTap)
+                    } else {
+                        billRow(bill)
                     }
                 }
             }
         }
+    }
+
+    private func billRow(_ bill: BillSummary) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(bill.title).font(FishersTheme.subhead.weight(.medium))
+                Spacer()
+                Text(Money.format(bill.totalCents, bill.currency))
+                    .font(FishersTheme.subhead.monospacedDigit())
+            }
+            Text(billLine(bill))
+                .font(FishersTheme.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(minHeight: FishersTheme.minTap)
     }
 
     /// "Fri 20 Nov · 4 people · 2 unpaid · 1 to check".
@@ -402,6 +484,30 @@ struct ClubPaymentsView: View {
         if bill.waiting > 0 { parts.append(tr("{n} to check", vars: ["n": bill.waiting])) }
         if bill.unpaid == 0, bill.waiting == 0 { parts.append(tr("Paid")) }
         return parts.joined(separator: " · ")
+    }
+
+    // MARK: Usual prices
+
+    private func usualPricesSection(_ overview: MoneyOverview) -> some View {
+        let prices = overview.settings.usualPrices
+        return Section {
+            Button {
+                editingPrices = true
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    LabeledContent(tr("Nets"), value: prices.nets.map { $0.mode.describe($0.amountCents, overview.currency) } ?? tr("Not set"))
+                    LabeledContent(tr("Match fee"), value: prices.matchFeeCents.map {
+                        tr("{amount} each", vars: ["amount": Money.format($0, overview.currency)])
+                    } ?? tr("Not set"))
+                }
+                .foregroundStyle(.primary)
+                .frame(minHeight: FishersTheme.minTap)
+            }
+        } header: {
+            Text(tr("Usual prices"))
+        } footer: {
+            Text(tr("New nets and matches start from these. You can change the price each time."))
+        }
     }
 
     // MARK: Settings
@@ -447,21 +553,100 @@ struct ClubPaymentsView: View {
 
 // MARK: - Add or change bank details
 
-/// The account number is typed twice — there is no modulus check yet — and
-/// the password once, because a live session on a borrowed phone must not be
-/// enough to redirect the club's money.
+/// What the bank details form holds while it is typed.
+struct BankDetailsDraft: Equatable {
+    var nickname = ""
+    var holder = ""
+    var sortCode = ""
+    var account = ""
+    var accountAgain = ""
+    var isPersonal = false
+    var password = ""
+
+    /// The form's own sentence, or nil when it can be sent.
+    var problem: String? {
+        BankDetailsCheck.problem(holder: holder, sortCode: sortCode, account: account, again: accountAgain)
+    }
+
+    var body: NewPayoutAccount {
+        let label = nickname.trimmingCharacters(in: .whitespaces)
+        return NewPayoutAccount(
+            holderName: holder.trimmingCharacters(in: .whitespaces),
+            sortCode: BankDetailsCheck.digits(sortCode),
+            accountNumber: BankDetailsCheck.digits(account),
+            label: label.isEmpty ? nil : label,
+            isPersonal: isPersonal,
+            password: password.isEmpty ? nil : password
+        )
+    }
+}
+
+/// The fields of the bank details form, shared by the form and the setup
+/// wizard. The account number is typed twice — there is no modulus check
+/// yet — and the password once, because a live session on a borrowed phone
+/// must not be enough to redirect the club's money.
+struct BankDetailsFields: View {
+    @Binding var draft: BankDetailsDraft
+    let passwordProblem: String?
+    var passwordFocused: FocusState<Bool>.Binding
+
+    var body: some View {
+        Section {
+            TextField(tr("Account name"), text: $draft.holder)
+                .textContentType(.name)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+        } header: {
+            Text(tr("Account name, exactly as on the account"))
+        } footer: {
+            Text(tr("Players' banks check this name when they pay (Confirmation of Payee). If it doesn't match, they get a warning, and many will stop."))
+        }
+
+        Section {
+            TextField(tr("Sort code"), text: Binding(
+                get: { draft.sortCode },
+                set: { draft.sortCode = BankDetailsCheck.formatSortCode($0) }
+            ))
+            .keyboardType(.numberPad)
+            .textContentType(.none)
+            SecureField(tr("Account number"), text: $draft.account)
+                .keyboardType(.numberPad)
+                .textContentType(.none)
+            SecureField(tr("Account number again"), text: $draft.accountAgain)
+                .keyboardType(.numberPad)
+                .textContentType(.none)
+        } header: {
+            Text(tr("Bank details"))
+        } footer: {
+            Text(tr("Typed a second time, to catch a wrong digit before anybody pays into it."))
+        }
+
+        Section {
+            TextField(tr("Nickname (optional)"), text: $draft.nickname, prompt: Text(tr("Club account")))
+            Toggle(tr("This is a personal account"), isOn: $draft.isPersonal)
+        } footer: {
+            Text(tr("Somebody's own account rather than the club's. Players are told."))
+        }
+
+        Section {
+            SecureField(tr("Your password"), text: $draft.password)
+                .textContentType(.password)
+                .focused(passwordFocused)
+            if let passwordProblem {
+                Text(passwordProblem).foregroundStyle(FishersTheme.unavailable)
+            }
+        } footer: {
+            Text(tr("Typed again, because these details decide where everyone's money goes. If you sign in with Google or Apple, leave it empty."))
+        }
+    }
+}
+
 struct BankDetailsForm: View {
     @ObservedObject var store: ClubMoneyStore
     let isChange: Bool
 
     @Environment(\.dismiss) private var dismiss
-    @State private var nickname = ""
-    @State private var holder = ""
-    @State private var sortCode = ""
-    @State private var account = ""
-    @State private var accountAgain = ""
-    @State private var isPersonal = false
-    @State private var password = ""
+    @State private var draft = BankDetailsDraft()
     @State private var problem: String?
     @State private var passwordProblem: String?
     @FocusState private var passwordFocused: Bool
@@ -469,53 +654,7 @@ struct BankDetailsForm: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField(tr("Account name"), text: $holder)
-                        .textContentType(.name)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text(tr("Account name, exactly as on the account"))
-                } footer: {
-                    Text(tr("Players' banks check this name when they pay (Confirmation of Payee). If it doesn't match, they get a warning, and many will stop."))
-                }
-
-                Section {
-                    TextField(tr("Sort code"), text: Binding(
-                        get: { sortCode },
-                        set: { sortCode = BankDetailsCheck.formatSortCode($0) }
-                    ))
-                    .keyboardType(.numberPad)
-                    .textContentType(.none)
-                    SecureField(tr("Account number"), text: $account)
-                        .keyboardType(.numberPad)
-                        .textContentType(.none)
-                    SecureField(tr("Account number again"), text: $accountAgain)
-                        .keyboardType(.numberPad)
-                        .textContentType(.none)
-                } header: {
-                    Text(tr("Bank details"))
-                } footer: {
-                    Text(tr("Typed a second time, to catch a wrong digit before anybody pays into it."))
-                }
-
-                Section {
-                    TextField(tr("Nickname (optional)"), text: $nickname, prompt: Text(tr("Club account")))
-                    Toggle(tr("This is a personal account"), isOn: $isPersonal)
-                } footer: {
-                    Text(tr("Somebody's own account rather than the club's. Players are told."))
-                }
-
-                Section {
-                    SecureField(tr("Your password"), text: $password)
-                        .textContentType(.password)
-                        .focused($passwordFocused)
-                    if let passwordProblem {
-                        Text(passwordProblem).foregroundStyle(FishersTheme.unavailable)
-                    }
-                } footer: {
-                    Text(tr("Typed again, because these details decide where everyone's money goes. If you sign in with Google or Apple, leave it empty."))
-                }
+                BankDetailsFields(draft: $draft, passwordProblem: passwordProblem, passwordFocused: $passwordFocused)
 
                 if isChange {
                     Section {
@@ -548,27 +687,18 @@ struct BankDetailsForm: View {
 
     private func save() async {
         passwordProblem = nil
-        if let local = BankDetailsCheck.problem(holder: holder, sortCode: sortCode, account: account, again: accountAgain) {
+        if let local = draft.problem {
             problem = local
             return
         }
         problem = nil
-        let label = nickname.trimmingCharacters(in: .whitespaces)
-        let outcome = await store.saveBankDetails(NewPayoutAccount(
-            holderName: holder.trimmingCharacters(in: .whitespaces),
-            sortCode: BankDetailsCheck.digits(sortCode),
-            accountNumber: BankDetailsCheck.digits(account),
-            label: label.isEmpty ? nil : label,
-            isPersonal: isPersonal,
-            password: password.isEmpty ? nil : password
-        ))
-        switch outcome {
+        switch await store.saveBankDetails(draft.body) {
         case .saved:
             dismiss()
         case .needsPassword(let message):
             // Not signed out: only the password was wrong or missing.
             passwordProblem = message
-            password = ""
+            draft.password = ""
             passwordFocused = true
         case .refused(let message):
             problem = message

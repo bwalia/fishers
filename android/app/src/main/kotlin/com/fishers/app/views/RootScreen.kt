@@ -93,6 +93,15 @@ fun RootScreen(
                 val scope = rememberCoroutineScope()
                 LaunchedEffect(Unit) { viewModel.loadGoogle() }
                 val deps = com.fishers.app.views.nav.LocalAppDeps.current
+                // Sign in with a WhatsApp code: asked whether it is on, and
+                // offered only if so.
+                val whatsApp = androidx.compose.runtime.remember {
+                    com.fishers.app.session.WhatsAppSignInViewModel(
+                        deps.service<com.fishers.app.net.WhatsAppSignInApi>(),
+                        onSignedIn = viewModel::signedIn,
+                    )
+                }
+                LaunchedEffect(Unit) { whatsApp.loadConfig() }
                 val invite by androidx.compose.runtime.produceState<com.fishers.app.clubs.InvitePreview?>(null, inviteToken) {
                     value = inviteToken?.let { token ->
                         runCatching { deps.service<com.fishers.app.net.ClubsApi>().invitePreview(token) }.getOrNull()
@@ -106,6 +115,7 @@ fun RootScreen(
                     googleEnabled = googleClientId != null,
                     invitedTo = invite?.let { it.clubName ?: it.teamName ?: it.eventTitle },
                     invitedBy = invite?.invitedByName,
+                    whatsApp = whatsApp,
                     onGoogle = {
                         googleClientId?.let { clientId ->
                             scope.launch {

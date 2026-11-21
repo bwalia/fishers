@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 // The screens of "pay the club by bank transfer": a player's pay screen and
 // dues, an event's money section, and the treasurer's overview. Each store
@@ -65,16 +66,26 @@ final class PayScreenStore: ObservableObject {
     /// somebody got there first.
     @Published var notice: String?
 
+    /// The payment a screenshot is on its way to.
+    @Published private(set) var addingScreenshotTo: UUID?
+
     let clubId: UUID
     private var attempt = PaymentAttempt()
+    private var screenshotAttempt = PaymentAttempt()
+    private let defaults: UserDefaults
 
-    init(clubId: UUID) {
+    init(clubId: UUID, defaults: UserDefaults = .standard) {
         self.clubId = clubId
+        self.defaults = defaults
     }
 
     var errorBinding: Binding<Bool> {
         Binding(get: { self.errorMessage != nil }, set: { if !$0 { self.errorMessage = nil } })
     }
+
+    /// Said they paid this club by transfer on this phone before: the guide
+    /// steps back to "Pay Aman as usual".
+    var hasPaidBefore: Bool { PayGuide.hasPaidBefore(clubId: clubId, defaults: defaults) }
 
     func load() async {
         isLoading = true
@@ -95,6 +106,7 @@ final class PayScreenStore: ObservableObject {
         do {
             _ = try await FishersAPI.claimPayment(clubId: clubId, method: method, key: key)
             attempt.finished()
+            if method == "transfer" { PayGuide.rememberPaid(clubId: clubId, defaults: defaults) }
             notice = method == "cash"
                 ? tr("Thanks. The club will confirm it once they've got the cash.")
                 : tr("Thanks. The club will confirm it once the money shows up in their account.")
@@ -118,6 +130,33 @@ final class PayScreenStore: ObservableObject {
             notice = tr("Undone. You still owe it.")
             await load()
         } catch let error as APIError where error.isStale {
+            notice = error.friendlyMessage
+            await load()
+        } catch {
+            errorMessage = paymentMessage(error)
+        }
+    }
+
+    /// A picture of the payment, from the photo library: redrawn as a small
+    /// JPEG first, because the server takes nothing over a megabyte and a
+    /// phone photo is HEIC and several.
+    func addScreenshot(_ picture: Data, to claim: ClubPayment) async {
+        guard addingScreenshotTo == nil else { return }
+        addingScreenshotTo = claim.id
+        defer { addingScreenshotTo = nil }
+        let jpeg = await Task.detached(priority: .userInitiated) { PaymentScreenshot.jpeg(from: picture) }.value
+        guard let jpeg else {
+            errorMessage = tr("That picture couldn't be read. Try a screenshot instead.")
+            return
+        }
+        let key = screenshotAttempt.key(for: "screenshot:\(claim.id)")
+        do {
+            try await FishersAPI.uploadPaymentScreenshot(claim.id, jpeg: jpeg, key: key)
+            screenshotAttempt.finished()
+            notice = tr("Screenshot added. The club sees it when they check your payment.")
+            await load()
+        } catch let error as APIError where error.isStale {
+            screenshotAttempt.finished()
             notice = error.friendlyMessage
             await load()
         } catch {
@@ -253,6 +292,62 @@ final class EventMoneyStore: ObservableObject {
     func waive(_ share: ClubShare, reason: String) async {
         await performHere { _ = try await FishersAPI.waiveShare(share.id, reason: reason) }
     }
+
+    // MARK: Telling the group
+
+    /// The pay link and its messages, fetched when somebody taps to share —
+    /// never on opening the page, which would make a link nobody asked for.
+    /// Nil after a failure, which is shown as an alert.
+    func billLink() async -> BillLink? {
+        guard !isWorking else { return nil }
+        isWorking = true
+        defer { isWorking = false }
+        notice = nil
+        do {
+            return try await FishersAPI.billLink(eventId: eventId)
+        } catch let error as APIError where error.isStale {
+            notice = error.friendlyMessage
+            await load()
+        } catch {
+            errorMessage = paymentMessage(error)
+        }
+        return nil
+    }
+
+    func switchLinkOff() async {
+        await performHere { try await FishersAPI.disableBillLink(eventId: eventId) }
+        if errorMessage == nil, notice == nil {
+            notice = tr("The link is off. Sharing the bill again makes a new one.")
+        }
+    }
+
+    // MARK: Cash at the ground
+
+    private var cashAttempt = PaymentAttempt()
+
+    /// Who handed over cash. From the "Who paid cash?" sheet, which shows its
+    /// own failures; the key is kept after one, so trying again is the same.
+    func recordCash(_ shareIds: [UUID]) async -> PaymentWrite {
+        let ids = shareIds.sorted { $0.uuidString < $1.uuidString }
+        let key = cashAttempt.key(for: "cash-" + ids.map(\.uuidString).joined(separator: ","))
+        var result: CashRecorded?
+        let outcome = await perform {
+            result = try await FishersAPI.recordCash(eventId: eventId, shareIds: ids, key: key)
+        }
+        if !outcome.isFailure { cashAttempt.finished() }
+        if let result { notice = Self.cashNotice(result, currency: page?.bill?.currency ?? Money.fallbackCurrency) }
+        return outcome
+    }
+
+    nonisolated static func cashNotice(_ result: CashRecorded, currency: String) -> String {
+        guard result.recorded > 0 else {
+            return tr("Nothing new to note. They had already paid, or said they had.")
+        }
+        let amount = Money.format(result.totalCents, currency)
+        return result.received
+            ? tr("{amount} in cash, marked as paid.", vars: ["amount": amount])
+            : tr("{amount} in cash noted. The treasurer ticks it off once they have it.", vars: ["amount": amount])
+    }
 }
 
 // MARK: - The treasurer's overview
@@ -366,6 +461,33 @@ final class ClubMoneyStore: ObservableObject {
         await performHere { _ = try await FishersAPI.rejectPayment(payment.id, reason: reason) }
     }
 
+    /// All arrived: every payment waiting to be checked, in one go.
+    func confirmAll() async {
+        let ids = (overview?.toCheck ?? []).filter(\.isWaiting).map(\.id)
+        guard !ids.isEmpty else { return }
+        let key = attempt.key(for: "confirm-" + ids.map(\.uuidString).joined(separator: ","))
+        var result: ConfirmedMany?
+        await performHere {
+            result = try await FishersAPI.confirmPayments(clubId: clubId, ids: ids, key: key)
+        }
+        guard let result else { return }
+        attempt.finished()
+        notice = Self.arrivedNotice(result)
+    }
+
+    nonisolated static func arrivedNotice(_ result: ConfirmedMany) -> String {
+        let done = tr("{n} marked as arrived.", vars: ["n": result.confirmed])
+        guard result.skipped > 0 else { return done }
+        return done + " " + tr("{n} had already been checked by someone else.", vars: ["n": result.skipped])
+    }
+
+    /// The picture a payer attached. Thrown failures are shown where it opens.
+    func screenshot(of payment: ClubPayment) async throws -> UIImage {
+        let bytes = try await FishersAPI.paymentScreenshot(payment.id)
+        guard let image = UIImage(data: bytes) else { throw APIError.empty }
+        return image
+    }
+
     // MARK: Who owes what
 
     /// Cash at the ground, or a transfer nobody claimed. From a sheet, which
@@ -405,6 +527,12 @@ final class ClubMoneyStore: ObservableObject {
     }
 
     // MARK: Settings
+
+    /// The usual nets price and match fee. From a sheet, which shows its own
+    /// failures.
+    func saveUsualPrices(_ prices: UsualPrices) async -> PaymentWrite {
+        await perform { _ = try await FishersAPI.setUsualPrices(clubId: clubId, prices) }
+    }
 
     /// Applied at once on screen, saved once the taps stop — a stepper fires
     /// on every tap.

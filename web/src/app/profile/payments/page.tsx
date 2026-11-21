@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, money, readErr } from "@/lib/api";
-import { shareStateLabel, shareStateTag, shortDate, type Dues } from "@/lib/payments";
+import { shareDate, shareStateLabel, shareStateTag, type Dues } from "@/lib/payments";
 import { useRequireAuth } from "@/lib/require-auth";
 import { useT } from "@/lib/i18n/provider";
 
@@ -70,9 +70,9 @@ export default function YourPaymentsPage() {
               {c.shares.map((s) => (
                 <li key={s.id}>
                   <div>
-                    <Link href={`/events/${s.event_id}#money`}>{s.title}</Link>
+                    {s.event_id ? <Link href={`/events/${s.event_id}#money`}>{s.title}</Link> : <strong>{s.title}</strong>}
                     <div className="muted">
-                      {shortDate(s.event_start_at)}
+                      {shareDate(s)}
                       {s.state === "waiting" && ` · ${t("pay.waiting_for_the_club")}`}
                       {s.state === "part_paid" &&
                         ` · ${t("pay.paid_of", { paid: money(s.paid_cents, s.currency), amount: money(s.amount_cents, s.currency) })}`}

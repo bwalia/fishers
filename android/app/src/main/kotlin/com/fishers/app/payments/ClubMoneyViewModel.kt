@@ -21,6 +21,12 @@ data class BankForm(
     val error: String? = null,
 )
 
+/** The setup wizard's three steps (§5.3): where money goes, what you charge, then how to share. */
+enum class SetupStep { Bank, Prices, Done }
+
+/** A payment's screenshot, opened by a money admin: [bytes] once they have come. */
+class OpenScreenshot(val payment: Payment, val bytes: ByteArray? = null)
+
 data class ClubMoneyState(
     val overview: MoneyOverview? = null,
     val isLoading: Boolean = true,
@@ -34,10 +40,39 @@ data class ClubMoneyState(
     val form: BankForm? = null,
     val error: String? = null,
     val message: String? = null,
+    /** The setup wizard, while it is open. */
+    val setup: SetupStep? = null,
+    /** Somebody said "not now" to the wizard: it waits behind a card until they come back to it. */
+    val setupPutOff: Boolean = false,
+    /** The usual prices form: its problems, by field. Open when not null. */
+    val prices: PricesForm? = null,
+    /** "All arrived" is being sent. */
+    val confirmingAll: Boolean = false,
+    /** A screenshot being looked at; its bytes once they have come. */
+    val screenshot: OpenScreenshot? = null,
 ) {
     val account: PayoutAccounts? get() = overview?.account
     val currency: String get() = overview?.currency ?: "GBP"
+
+    /** The card that opens the wizard, for a money admin who put it off. */
+    val offerSetup: Boolean get() = setup == null && overview?.needsSetup == true
 }
+
+/** The usual prices being typed: the wizard's second step, or Settings → Usual prices. */
+data class PricesForm(
+    val netsProblem: String? = null,
+    val feeProblem: String? = null,
+    val isSaving: Boolean = false,
+)
+
+/**
+ * A club with nothing set up: no bank details at all, and no usual prices.
+ * Only for somebody who can add the details; others could not finish it.
+ */
+val MoneyOverview.needsSetup: Boolean
+    get() = account.canManage &&
+        account.current == null && account.pending == null && account.frozen == null &&
+        !settings.hasUsualPrices
 
 /**
  * Club → Manage → Payments: the bank details, the payments to check, who owes
@@ -63,7 +98,21 @@ class ClubMoneyViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
             runCatching { api.money(clubId) }
-                .onSuccess { o -> _state.update { it.copy(overview = o, isLoading = false, notAllowed = null, loadError = null) } }
+                .onSuccess { o ->
+                    _state.update {
+                        // Straight into the wizard the first time a club with
+                        // nothing set up is opened, unless they put it off.
+                        val first = it.overview == null && it.setup == null && !it.setupPutOff && o.needsSetup
+                        it.copy(
+                            overview = o,
+                            isLoading = false,
+                            notAllowed = null,
+                            loadError = null,
+                            setup = if (first) SetupStep.Bank else it.setup,
+                            form = if (first) BankForm() else it.form,
+                        )
+                    }
+                }
                 .onFailure { e ->
                     val refusal = refusalOf(e)
                     _state.update {
@@ -110,6 +159,45 @@ class ClubMoneyViewModel(
             load()
         }
     }
+
+    /**
+     * "All arrived": every payment on the list, checked against the bank in
+     * one go. Ones somebody else decided meanwhile are skipped, and said so.
+     */
+    fun confirmAll() {
+        val ids = _state.value.overview?.toCheck?.map { it.id }.orEmpty()
+        if (ids.isEmpty() || _state.value.confirmingAll) return
+        _state.update { it.copy(confirmingAll = true, deciding = it.deciding + ids, error = null, message = null) }
+        viewModelScope.launch {
+            runCatching { api.confirmMany(clubId, ConfirmManyBody(ids)) }
+                .onSuccess { done ->
+                    val n = done.confirmed
+                    val said = t("pa2.all_arrived_done", count = n, vars = mapOf("n" to n))
+                    val skipped = done.skipped.takeIf { it > 0 }?.let { s ->
+                        t("pa2.all_arrived_skipped", count = s, vars = mapOf("n" to s))
+                    }
+                    _state.update { it.copy(message = listOfNotNull(said, skipped).joinToString(" ")) }
+                }
+                .onFailure { e -> _state.update { it.copy(error = failureText(e)) } }
+            _state.update { it.copy(confirmingAll = false, deciding = it.deciding - ids.toSet()) }
+            load()
+        }
+    }
+
+    /** The picture that came with a payment. Only money admins can fetch it, and this page is theirs. */
+    fun openScreenshot(payment: Payment) {
+        if (!payment.hasScreenshot) return
+        _state.update { it.copy(screenshot = OpenScreenshot(payment), error = null) }
+        viewModelScope.launch {
+            runCatching { api.screenshot(payment.id).use { it.bytes() } }
+                .onSuccess { bytes ->
+                    _state.update { s -> if (s.screenshot?.payment?.id == payment.id) s.copy(screenshot = OpenScreenshot(payment, bytes)) else s }
+                }
+                .onFailure { e -> _state.update { it.copy(screenshot = null, error = failureText(e)) } }
+        }
+    }
+
+    fun closeScreenshot() = _state.update { it.copy(screenshot = null) }
 
     // ---- who owes what ----
 
@@ -217,6 +305,9 @@ class ClubMoneyViewModel(
                             form = null,
                             overview = s.overview?.copy(account = accounts),
                             message = if (accounts.pending != null) t("pay.details_waiting_to_go_live") else t("pay.details_saved"),
+                            // In the wizard: on to what the club charges.
+                            setup = if (s.setup == SetupStep.Bank) SetupStep.Prices else s.setup,
+                            prices = if (s.setup == SetupStep.Bank) PricesForm() else s.prices,
                         )
                     }
                 }
@@ -256,6 +347,72 @@ class ClubMoneyViewModel(
                     val refusal = refusalOf(e)
                     _state.update { it.copy(isBusy = false, error = failureText(e, refusal)) }
                     if (refusal?.meansReload == true) load()
+                }
+        }
+    }
+
+    // ---- the setup wizard ----
+
+    /** Open the wizard from its card, at the first step. */
+    fun startSetup() = _state.update { it.copy(setup = SetupStep.Bank, form = BankForm(), setupPutOff = false, error = null, message = null) }
+
+    /** "Not now": the normal page, with a card to come back to it. */
+    fun putOffSetup() = _state.update { it.copy(setup = null, form = null, prices = null, setupPutOff = true) }
+
+    /** "Skip this step". */
+    fun skipSetupStep() = _state.update {
+        when (it.setup) {
+            SetupStep.Bank -> it.copy(setup = SetupStep.Prices, form = null, prices = PricesForm())
+            SetupStep.Prices -> it.copy(setup = SetupStep.Done, prices = null)
+            else -> it.copy(setup = null)
+        }
+    }
+
+    fun finishSetup() = _state.update { it.copy(setup = null, form = null, prices = null) }
+
+    // ---- the usual prices ----
+
+    /** Settings → Usual prices. */
+    fun openPrices() = _state.update { it.copy(prices = PricesForm(), error = null, message = null) }
+
+    fun closePrices() = _state.update { it.copy(prices = null) }
+
+    /**
+     * The usual nets price and match fee, which the schedule form starts
+     * from. Either may be left empty; nothing empty is cleared.
+     */
+    fun saveUsualPrices(netsMode: CostMode, nets: String, fee: String) {
+        val form = _state.value.prices ?: return
+        if (form.isSaving) return
+        val body = when (val check = checkUsualPrices(netsMode, nets, fee)) {
+            is UsualPricesCheck.Invalid -> {
+                _state.update { it.copy(prices = form.copy(netsProblem = check.netsProblem, feeProblem = check.feeProblem)) }
+                return
+            }
+            is UsualPricesCheck.Ok -> check.body
+        }
+        val inWizard = _state.value.setup == SetupStep.Prices
+        if (body.defaultNets == null && body.defaultMatchFeeCents == null) {
+            // Nothing typed: the same as skipping.
+            _state.update { if (inWizard) it.copy(setup = SetupStep.Done, prices = null) else it.copy(prices = null) }
+            return
+        }
+        _state.update { it.copy(prices = form.copy(isSaving = true, netsProblem = null, feeProblem = null)) }
+        viewModelScope.launch {
+            runCatching { api.updateMoneySettings(clubId, body) }
+                .onSuccess { saved ->
+                    _state.update { s ->
+                        s.copy(
+                            overview = s.overview?.copy(settings = saved),
+                            prices = null,
+                            setup = if (s.setup == SetupStep.Prices) SetupStep.Done else s.setup,
+                            message = if (s.setup == SetupStep.Prices) null else t("pa2.usual_prices_saved"),
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    val said = failureText(e)
+                    _state.update { s -> s.copy(prices = s.prices?.copy(isSaving = false, netsProblem = said)) }
                 }
         }
     }

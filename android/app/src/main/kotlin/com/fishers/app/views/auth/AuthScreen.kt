@@ -22,7 +22,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +36,8 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +57,10 @@ import androidx.compose.ui.unit.dp
 import com.fishers.app.R
 import com.fishers.app.session.RoleIntent
 import com.fishers.app.session.SessionState
+import com.fishers.app.session.WhatsAppSignInState
+import com.fishers.app.session.WhatsAppSignInViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import com.fishers.app.theme.FishersTheme
 
 /**
@@ -77,7 +87,10 @@ fun AuthScreen(
     /** Opened from an invite link: the club it leads into, and who sent it. */
     invitedTo: String? = null,
     invitedBy: String? = null,
+    /** Sign in with a WhatsApp code; offered only when the server has it on. */
+    whatsApp: WhatsAppSignInViewModel? = null,
 ) {
+    val wa = whatsApp?.state?.collectAsStateWithLifecycle()?.value ?: WhatsAppSignInState()
     var signingUp by rememberSaveable { mutableStateOf(false) }
     var name by rememberSaveable { mutableStateOf("") }
     var identifier by rememberSaveable { mutableStateOf("") }
@@ -119,120 +132,222 @@ fun AuthScreen(
                     }
                 }
             }
-            Text(
-                if (signingUp) t("rest.start_playing") else t("rest.welcome_back"),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-
-            if (googleEnabled) {
-                GoogleButton(onClick = onGoogle, enabled = !state.isLoading)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    HorizontalDivider(Modifier.weight(1f))
-                    Text(
-                        t("rest.or_with_email"),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
-                    HorizontalDivider(Modifier.weight(1f))
-                }
-            }
-
-            if (signingUp) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(t("rest.your_name")) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            if (whatsApp != null && wa.open) {
+                WhatsAppForm(whatsApp, wa)
+            } else {
+                Text(
+                    if (signingUp) t("rest.start_playing") else t("rest.welcome_back"),
+                    style = MaterialTheme.typography.bodyLarge,
                 )
-            }
 
-            OutlinedTextField(
-                value = identifier,
-                onValueChange = { identifier = it },
-                label = { Text(t("rest.email_or_mobile")) },
-                supportingText = { Text(t("rest.either_works_server_sorts")) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next,
-                ),
-            )
+                // Switched off since the form opened, or never reached: said here.
+                wa.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
 
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text(t("cl.password")) },
-                supportingText = {
-                    if (signingUp) Text(t("rest.eight_characters_or_more"))
-                },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done,
-                ),
-            )
-
-            if (signingUp) {
-                Text(t("rest.what_brings_you_here"), style = MaterialTheme.typography.titleSmall)
-                Column(Modifier.selectableGroup()) {
-                    RoleIntent.entries.forEach { option ->
-                        RoleOption(
-                            selected = role == option,
-                            label = option.title,
-                            onSelect = { role = option },
-                        )
+                if (whatsApp != null && wa.enabled) {
+                    OutlinedButton(
+                        onClick = whatsApp::open,
+                        enabled = !state.isLoading,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) {
+                        Icon(Icons.Filled.Sms, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(t("pa2.wa_sign_in"))
                     }
                 }
-            }
 
-            state.error?.let {
-                Text(
-                    it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            Button(
-                onClick = {
-                    if (signingUp) onSignUp(name, identifier, password, role)
-                    else onSignIn(identifier, password)
-                },
-                enabled = canSubmit,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .height(20.dp)
-                            .semantics { contentDescription = t("rest.signing_in") },
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Text(if (signingUp) t("le.create_account") else t("rest.sign_in"))
+                if (googleEnabled) GoogleButton(onClick = onGoogle, enabled = !state.isLoading)
+                if (googleEnabled || (whatsApp != null && wa.enabled)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        HorizontalDivider(Modifier.weight(1f))
+                        Text(
+                            t("rest.or_with_email"),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                        HorizontalDivider(Modifier.weight(1f))
+                    }
                 }
-            }
 
-            TextButton(
-                onClick = { signingUp = !signingUp },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    if (signingUp) t("rest.i_already_have_an_account")
-                    else t("rest.i_am_new_here")
+                if (signingUp) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text(t("rest.your_name")) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    )
+                }
+
+                OutlinedTextField(
+                    value = identifier,
+                    onValueChange = { identifier = it },
+                    label = { Text(t("rest.email_or_mobile")) },
+                    supportingText = { Text(t("rest.either_works_server_sorts")) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next,
+                    ),
                 )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(t("cl.password")) },
+                    supportingText = {
+                        if (signingUp) Text(t("rest.eight_characters_or_more"))
+                    },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done,
+                    ),
+                )
+
+                if (signingUp) {
+                    Text(t("rest.what_brings_you_here"), style = MaterialTheme.typography.titleSmall)
+                    Column(Modifier.selectableGroup()) {
+                        RoleIntent.entries.forEach { option ->
+                            RoleOption(
+                                selected = role == option,
+                                label = option.title,
+                                onSelect = { role = option },
+                            )
+                        }
+                    }
+                }
+
+                state.error?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        if (signingUp) onSignUp(name, identifier, password, role)
+                        else onSignIn(identifier, password)
+                    },
+                    enabled = canSubmit,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .height(20.dp)
+                                .semantics { contentDescription = t("rest.signing_in") },
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text(if (signingUp) t("le.create_account") else t("rest.sign_in"))
+                    }
+                }
+
+                TextButton(
+                    onClick = { signingUp = !signingUp },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        if (signingUp) t("rest.i_already_have_an_account")
+                        else t("rest.i_am_new_here")
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
         }
+    }
+}
+
+/**
+ * Mobile number, then the six-digit code WhatsApp delivers. Every refusal is
+ * the server's own sentence: a wrong number, a code asked for too soon, a
+ * wrong code, or a message WhatsApp would not take.
+ */
+@Composable
+private fun WhatsAppForm(model: WhatsAppSignInViewModel, state: WhatsAppSignInState) {
+    var phone by rememberSaveable { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+    Text(t("pa2.wa_sign_in"), style = MaterialTheme.typography.titleLarge)
+
+    val sentTo = state.sentTo
+    if (sentTo == null) {
+        OutlinedTextField(
+            value = phone,
+            onValueChange = { typed -> phone = typed.filter { it.isDigit() || it in "+ ()-" }.take(20) },
+            label = { Text(t("pa2.wa_number")) },
+            supportingText = { Text(t("pa2.wa_number_hint")) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { model.sendCode(phone) }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+        Button(
+            onClick = { model.sendCode(phone) },
+            enabled = phone.any(Char::isDigit) && !state.isBusy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) { Text(if (state.isBusy) t("pay.sending") else t("pa2.wa_send_code")) }
+    } else {
+        Text(t("pa2.wa_code_sent", vars = mapOf("phone" to sentTo)), style = MaterialTheme.typography.bodyLarge)
+        OutlinedTextField(
+            value = code,
+            onValueChange = { typed -> code = typed.filter(Char::isDigit).take(WhatsAppSignInViewModel.CODE_LENGTH) },
+            label = { Text(t("pa2.wa_code")) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { model.verify(code) }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+        Button(
+            onClick = { model.verify(code) },
+            enabled = code.length == WhatsAppSignInViewModel.CODE_LENGTH && !state.isBusy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) {
+            if (state.isBusy) {
+                CircularProgressIndicator(
+                    modifier = Modifier.height(20.dp).semantics { contentDescription = t("rest.signing_in") },
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(t("rest.sign_in"))
+            }
+        }
+        // Another code, once the server's wait is over: counted down so the
+        // button is never dead with no reason given.
+        var wait by remember { mutableIntStateOf(model.secondsUntilResend()) }
+        LaunchedEffect(state.resendAtMs) {
+            while (true) {
+                wait = model.secondsUntilResend()
+                if (wait == 0) break
+                delay(1000)
+            }
+        }
+        TextButton(
+            onClick = { code = ""; model.resend() },
+            enabled = wait == 0 && !state.isBusy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) {
+            Text(if (wait == 0) t("pa2.wa_new_code") else t("pa2.wa_new_code_in", count = wait, vars = mapOf("n" to wait)))
+        }
+        TextButton(
+            onClick = { code = ""; model.changeNumber() },
+            enabled = !state.isBusy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) { Text(t("pa2.wa_different_number")) }
+    }
+    TextButton(onClick = model::close, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        Text(t("pa2.wa_use_email"))
     }
 }
 
