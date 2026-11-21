@@ -187,6 +187,18 @@ struct EventMoneySection: View {
 
     // MARK: The bill
 
+    /// What hasn't come in yet, naming only the parts there are.
+    private func stillToCome(_ bill: EventBill) -> String? {
+        let waiting = Money.format(bill.waitingCents, bill.currency)
+        let owed = Money.format(bill.owedCents, bill.currency)
+        switch (bill.waitingCents > 0, bill.owedCents > 0) {
+        case (true, true): return tr("{waiting} waiting to be checked · {owed} still owed", vars: ["waiting": waiting, "owed": owed])
+        case (false, true): return tr("{amount} still owed", vars: ["amount": owed])
+        case (true, false): return tr("{amount} to check", vars: ["amount": waiting])
+        case (false, false): return nil
+        }
+    }
+
     @ViewBuilder
     private func billBlock(_ page: EventBillPage, _ bill: EventBill) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -195,13 +207,11 @@ struct EventMoneySection: View {
                 "total": Money.format(bill.totalCents, bill.currency),
             ]))
             .font(FishersTheme.subhead.weight(.semibold))
-            if bill.waitingCents > 0 || bill.owedCents > 0 {
-                Text(tr("{waiting} waiting to be checked · {owed} still owed", vars: [
-                    "waiting": Money.format(bill.waitingCents, bill.currency),
-                    "owed": Money.format(bill.owedCents, bill.currency),
-                ]))
-                .font(FishersTheme.footnote)
-                .foregroundStyle(bill.owedCents > 0 ? FishersTheme.unavailable : FishersTheme.maybe)
+            // Only the parts there are: not "£0.00 waiting to be checked".
+            if let left = stillToCome(bill) {
+                Text(left)
+                    .font(FishersTheme.footnote)
+                    .foregroundStyle(bill.owedCents > 0 ? FishersTheme.unavailable : FishersTheme.maybe)
             }
             if bill.surplusCents > 0 {
                 Text(tr("Shares are rounded up, so {amount} extra goes to the club.", vars: ["amount": Money.format(bill.surplusCents, bill.currency)]))

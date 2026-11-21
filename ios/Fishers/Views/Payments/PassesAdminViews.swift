@@ -304,7 +304,7 @@ struct AddToPassSheet: View {
                             Task { await add(member) }
                         } label: {
                             HStack {
-                                Text(member.name).foregroundStyle(.primary)
+                                Text(member.name).foregroundStyle(Color.primary)
                                 Spacer()
                                 Image(systemName: "plus.circle").foregroundStyle(FishersTheme.pitch)
                             }
@@ -396,13 +396,16 @@ struct NewPassSheet: View {
                             .frame(width: 44, height: 44)
                             .background(FishersTheme.raised, in: RoundedRectangle(cornerRadius: 10))
                             .accessibilityHidden(true)
+                        // Colours, not .primary/.secondary: inside a button
+                        // those are shades of the tint, and the blurb came
+                        // out pale green on white.
                         VStack(alignment: .leading, spacing: 2) {
                             Text(template.title)
                                 .font(FishersTheme.headline)
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.primary)
                             Text(template.blurb)
                                 .font(FishersTheme.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }

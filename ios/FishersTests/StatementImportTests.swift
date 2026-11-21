@@ -408,6 +408,29 @@ final class StatementImportTests: XCTestCase {
         XCTAssertNil(older.coverWords)
     }
 
+    /// The month the standing order pays reads as that on the pay screen, not
+    /// "Owed": the total above it leaves it out.
+    func testTheStandingOrdersMonthIsSaidApartFromWhatsOwed() throws {
+        let pass = try XCTUnwrap(try decode([PassHolder].self, "pay_stepD_me_passes").first)
+        let screen = try decode(PayScreen.self, "pay_stepD_pay_screen_friends")
+        let november = try XCTUnwrap(screen.shares.first { $0.kind == "pass" })
+        let before = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-22T12:00:00Z"))
+        let after = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-12-01T12:00:00Z"))
+        XCTAssertTrue(pass.standingOrderPays(november, today: before))
+        XCTAssertFalse(pass.standingOrderPays(november, today: after), "past its due day it's caught up by hand")
+        XCTAssertFalse(screen.shares.filter { $0.kind != "pass" }.contains { pass.standingOrderPays($0, today: before) },
+                       "a session or a group fee is still owed")
+
+        // Something already paid towards it isn't the standing order's to pay.
+        let started = try decode(PayScreen.self, "pay_stepD_pay_screen_friends", replacing: [
+            (#""paid_cents": 0,\#n            "waiting_cents": 0,\#n            "currency": "GBP",\#n            "state": "owed""#,
+             #""paid_cents": 0,\#n            "waiting_cents": 562,\#n            "currency": "GBP",\#n            "state": "part_paid""#),
+        ])
+        let part = try XCTUnwrap(started.shares.first { $0.kind == "pass" })
+        XCTAssertEqual(part.state, .partPaid)
+        XCTAssertFalse(pass.standingOrderPays(part, today: before))
+    }
+
     func testWhoPaysForWhomIsTheServers() throws {
         let members = try decode([MoneyMember].self, "pay_stepD_money_members")
         XCTAssertEqual(members.count, 8)

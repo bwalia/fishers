@@ -407,12 +407,20 @@ struct PayScreenView: View {
         }
     }
 
+    /// This month's charge on the reader's own monthly pass, which their
+    /// standing order is about to pay: left out of the total above, so not
+    /// "Owed" here either.
+    private func standingOrderPays(_ share: ClubShare, _ screen: PayScreen) -> Bool {
+        screen.standingOrderCents > 0
+            && passes.passes.contains { passes.isMine($0) && $0.standingOrderPays(share) }
+    }
+
     @ViewBuilder
     private func sharesSection(_ screen: PayScreen) -> some View {
         if !screen.shares.isEmpty {
             Section(tr("What it's for")) {
                 ForEach(screen.shares) { share in
-                    ShareLine(share: share)
+                    ShareLine(share: share, standingOrderPays: standingOrderPays(share, screen))
                 }
             }
         }
@@ -501,9 +509,9 @@ private struct WaitingPaymentRow: View {
         Button {
             Task { await store.undo(payment, forSomeoneElse: forName != nil) }
         } label: {
+            // No fixedSize: at the largest text sizes it pushed the row
+            // wider than the screen and clipped both edges.
             Text(tr("Undo"))
-                .lineLimit(1)
-                .fixedSize()
                 .frame(minHeight: FishersTheme.minTap)
         }
         .buttonStyle(.bordered)
@@ -516,8 +524,7 @@ private struct WaitingPaymentRow: View {
                         ProgressView()
                     } else {
                         Label(tr("Add a screenshot"), systemImage: "photo.badge.plus")
-                            .lineLimit(1)
-                            .fixedSize()
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .frame(minHeight: FishersTheme.minTap)
@@ -537,41 +544,91 @@ struct ShareLine: View {
     var showsName = false
     /// A line of somebody the reader pays for: "their pass", not "your pass".
     var forSomeoneElse = false
+    /// This month's pass charge, which the reader's standing order pays:
+    /// said so, with no "Owed" badge beside a line not to pay by hand.
+    var standingOrderPays = false
+
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// At the largest text sizes the amount goes under the title: side by
+    /// side, both were squeezed into columns that broke "£20.00" and
+    /// "November" in two.
+    private var stacked: Bool { typeSize.isAccessibilitySize }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(showsName ? share.name : share.title)
-                    .font(FishersTheme.subhead.weight(.medium))
-                    .fixedSize(horizontal: false, vertical: true)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(FishersTheme.footnote)
-                        .foregroundStyle(.secondary)
+        Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 6) {
+                    details
+                    status
                 }
-                // A covered line is worded from `cover`, not the server's
-                // English reason; a let-off keeps the reason the treasurer gave.
-                if showsName, share.state == .covered {
-                    Text(share.coveredByWords).font(FishersTheme.footnote).foregroundStyle(.secondary)
-                } else if let reason = share.reason, share.state == .waived {
-                    Text(reason).font(FishersTheme.footnote).foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            if share.state == .covered, !showsName {
-                Text(share.coveredWords(forSomeoneElse: forSomeoneElse))
-                    .font(FishersTheme.footnote.weight(.semibold))
-                    .foregroundStyle(FishersTheme.available)
-                    .multilineTextAlignment(.trailing)
             } else {
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(Money.format(share.amountCents, share.currency))
-                        .font(FishersTheme.subhead.monospacedDigit())
-                    ShareStateBadge(state: share.state)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    details
+                    Spacer()
+                    status
                 }
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(showsName ? share.name : share.title)
+                .font(FishersTheme.subhead.weight(.medium))
+                .fixedSize(horizontal: false, vertical: true)
+            if let subtitle {
+                Text(subtitle)
+                    .font(FishersTheme.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            // A covered line is worded from `cover`, not the server's
+            // English reason; a let-off keeps the reason the treasurer gave.
+            if showsName, share.state == .covered {
+                Text(share.coveredByWords).font(FishersTheme.footnote).foregroundStyle(.secondary)
+            } else if let reason = share.reason, share.state == .waived {
+                Text(reason).font(FishersTheme.footnote).foregroundStyle(.secondary)
+            }
+            if standingOrderPays {
+                Label(tr("Your standing order pays this month too. Don't pay it by hand."),
+                      systemImage: "arrow.triangle.2.circlepath")
+                    .font(FishersTheme.footnote.weight(.semibold))
+                    .foregroundStyle(FishersTheme.available)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if share.state == .covered, !showsName {
+            Text(share.coveredWords(forSomeoneElse: forSomeoneElse))
+                .font(FishersTheme.footnote.weight(.semibold))
+                .foregroundStyle(FishersTheme.available)
+                .multilineTextAlignment(stacked ? .leading : .trailing)
+        } else {
+            let amount = Text(Money.format(share.amountCents, share.currency))
+                .font(FishersTheme.subhead.monospacedDigit())
+            if stacked {
+                // Never "£20.0" over "0": the badge goes underneath first.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        amount.fixedSize()
+                        if !standingOrderPays { ShareStateBadge(state: share.state) }
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        amount.fixedSize()
+                        if !standingOrderPays { ShareStateBadge(state: share.state) }
+                    }
+                }
+            } else {
+                VStack(alignment: .trailing, spacing: 4) {
+                    amount
+                    if !standingOrderPays { ShareStateBadge(state: share.state) }
+                }
+            }
+        }
     }
 
     private var subtitle: String? {

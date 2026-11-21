@@ -260,10 +260,17 @@ struct ClubPaymentsView: View {
                 .font(FishersTheme.subhead.monospacedDigit())
                 .foregroundStyle(.secondary)
             HStack(spacing: 6) {
-                Text(account.label)
+                // Details saved before the server's default nickname changed
+                // are called "Personal account": not that twice in a row.
+                let personal = tr("Personal account")
+                let label = account.isPersonal
+                    && account.label.caseInsensitiveCompare(personal) == .orderedSame ? "" : account.label
+                if !label.isEmpty {
+                    Text(label)
+                }
                 if account.isPersonal {
-                    Text(verbatim: "·")
-                    Text(tr("Personal account")).foregroundStyle(FishersTheme.maybe)
+                    if !label.isEmpty { Text(verbatim: "·") }
+                    Text(personal).foregroundStyle(FishersTheme.maybe)
                 }
             }
             .font(FishersTheme.footnote)

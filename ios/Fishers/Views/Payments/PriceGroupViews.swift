@@ -33,12 +33,14 @@ struct PriceGroupsView: View {
                     Button {
                         editing = EditedGroup(group: group, name: group.name, free: group.free, forGuests: group.forGuests)
                     } label: {
+                        // Colours, not .primary/.secondary: in a button
+                        // those are shades of the tint, pale green on white.
                         HStack {
-                            Text(group.name).foregroundStyle(.primary)
+                            Text(group.name).foregroundStyle(Color.primary)
                             Spacer()
                             Text(group.tags.joined(separator: " · "))
                                 .font(FishersTheme.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.secondary)
                         }
                         .frame(minHeight: FishersTheme.minTap)
                     }
@@ -229,9 +231,9 @@ struct MemberPricesView: View {
                         editing = member
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(member.name).foregroundStyle(.primary)
+                            Text(member.name).foregroundStyle(Color.primary)
                             ForEach(store.lines(member), id: \.self) { line in
-                                Text(line).font(FishersTheme.footnote).foregroundStyle(.secondary)
+                                Text(line).font(FishersTheme.footnote).foregroundStyle(Color.secondary)
                             }
                         }
                         .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap, alignment: .leading)
@@ -294,6 +296,9 @@ private struct MemberMoneySheet: View {
                             Text(group.name).tag(UUID?.some(group.id))
                         }
                     }
+                    // The header names it: the label beside it as well
+                    // squeezed "They pay for themselves" to "They p…mselves".
+                    .labelsHidden()
                     .frame(minHeight: FishersTheme.minTap)
                 } header: {
                     Text(tr("Their price"))
@@ -307,6 +312,7 @@ private struct MemberMoneySheet: View {
                             Text(other.name).tag(UUID?.some(other.userId))
                         }
                     }
+                    .labelsHidden()
                     .frame(minHeight: FishersTheme.minTap)
                 } header: {
                     Text(tr("Who pays for them"))
@@ -380,6 +386,7 @@ private struct AddJuniorSheet: View {
                             Text(member.name).tag(UUID?.some(member.userId))
                         }
                     }
+                    .labelsHidden()
                     .frame(minHeight: FishersTheme.minTap)
                 } header: {
                     Text(tr("Who pays for them"))
@@ -394,6 +401,7 @@ private struct AddJuniorSheet: View {
                                 Text(group.name).tag(UUID?.some(group.id))
                             }
                         }
+                        .labelsHidden()
                         .frame(minHeight: FishersTheme.minTap)
                     }
                 }

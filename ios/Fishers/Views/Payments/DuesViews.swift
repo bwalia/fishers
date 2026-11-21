@@ -61,6 +61,12 @@ struct YouOweSection: View {
 /// them as their own block under the club, then one Pay for everyone.
 struct DuesListView: View {
     @ObservedObject var store: DuesStore
+    /// Pay for everyone, as it stood when tapped. A button rather than a
+    /// NavigationLink: a link in a list drops the button style and reads as a
+    /// plain row with a chevron, not the one big thing to tap. Held here so
+    /// the reload after paying doesn't change, or take away, the screen that
+    /// says it's paid.
+    @State private var payingForEveryone: DuesGroup?
 
     var body: some View {
         List {
@@ -105,8 +111,8 @@ struct DuesListView: View {
                     }
                     if group.canPayForEveryone {
                         Section {
-                            NavigationLink {
-                                PayForEveryoneView(group: group) { await store.load() }
+                            Button {
+                                payingForEveryone = group
                             } label: {
                                 Label(tr("Pay for everyone"), systemImage: "person.3.fill")
                                     .font(FishersTheme.headline)
@@ -133,6 +139,14 @@ struct DuesListView: View {
         .fishersList()
         .navigationTitle(tr("Payments"))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: Binding(
+            get: { payingForEveryone != nil },
+            set: { if !$0 { payingForEveryone = nil } }
+        )) {
+            if let group = payingForEveryone {
+                PayForEveryoneView(group: group) { await store.load() }
+            }
+        }
         .task { await store.load() }
         .refreshable { await store.load() }
     }

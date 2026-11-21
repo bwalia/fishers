@@ -428,13 +428,28 @@ struct PayForEveryoneView: View {
     var body: some View {
         List {
             Section {
-                Text(tr("You owe {amount} for {who}.", vars: [
-                    "amount": Money.format(group.totalOwedCents, group.currency), "who": group.whoWords,
-                ]))
-                .font(.title.weight(.bold))
-                .foregroundStyle(FishersTheme.pitch)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.vertical, 6)
+                // Once it's said, it's waiting, not owed: "You owe" over
+                // "Thanks…" reads as though the payment didn't go through.
+                if finished {
+                    Label(
+                        tr("{amount} waiting for the club to confirm", vars: [
+                            "amount": Money.format(group.totalOwedCents, group.currency),
+                        ]),
+                        systemImage: "clock"
+                    )
+                    .font(FishersTheme.headline)
+                    .foregroundStyle(FishersTheme.maybe)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 6)
+                } else {
+                    Text(tr("You owe {amount} for {who}.", vars: [
+                        "amount": Money.format(group.totalOwedCents, group.currency), "who": group.whoWords,
+                    ]))
+                    .font(.title.weight(.bold))
+                    .foregroundStyle(FishersTheme.pitch)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 6)
+                }
                 if let mine = group.mine, mine.owedCents > 0 {
                     LabeledContent(tr("You"), value: Money.format(mine.owedCents, mine.currency))
                 }

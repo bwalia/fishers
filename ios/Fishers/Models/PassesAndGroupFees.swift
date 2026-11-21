@@ -554,6 +554,17 @@ struct PassHolder: Decodable, Identifiable, Equatable {
         }
     }
 
+    /// `share` is this month's charge and the standing order is about to pay
+    /// it: owed, not yet past its due day, on a running monthly pass. The pay
+    /// screen's total leaves it out, so it mustn't read "Owed" beside it.
+    func standingOrderPays(_ share: ClubShare, today: Date = .now) -> Bool {
+        billing == .monthly && standingOrder != nil && !isCancelled
+            && share.kind == "pass" && share.state == .owed
+            && (share.userId == nil || share.userId == userId)
+            && share.title.hasPrefix(planName)
+            && !DayDate.isPast(share.dueOn, today: today)
+    }
+
     /// Where the pass stands, for the person it's for (or whoever pays for
     /// them): "Covered until 31 Mar", "3 sessions left", "A payment is late:
     /// pay it to stay covered".
