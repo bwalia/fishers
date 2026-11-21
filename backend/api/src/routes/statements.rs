@@ -258,6 +258,18 @@ async fn apply(
             }
             ("record", _, Some(user)) => {
                 let name = line.name.clone().unwrap_or_default();
+                // A transfer of exactly a pass charge's amount is the standing
+                // order's: it goes to that charge (the oldest still unpaid),
+                // not to whatever else is owed first.
+                let (shares, payments) = repo::ledger(&state.pool, club_id, Some(user)).await?;
+                let mine: Vec<_> = shares.iter().map(|s| s.ledger()).collect();
+                let theirs: Vec<_> = payments.iter().map(|p| p.ledger()).collect();
+                let settled = fishers_domain::money::settle(&mine, &theirs);
+                let for_pass = shares
+                    .iter()
+                    .filter(|s| s.kind == "pass" && s.amount_cents == line.amount_cents)
+                    .find(|s| settled.shares.get(&s.id).is_some_and(|p| p.paid_cents + p.waiting_cents < s.amount_cents))
+                    .map(|s| s.id);
                 let note = format!("From the bank statement, {}", line.date.format("%-d %b"));
                 let key = format!("statement:{}", line.hash);
                 let mut tx = state.pool.begin().await?;
@@ -282,7 +294,7 @@ async fn apply(
                         idempotency_key: Some(&key),
                         created_by: Some(auth.user_id),
                         via_link: None,
-                        share_id: None,
+                        share_id: for_pass,
                     },
                 )
                 .await?;

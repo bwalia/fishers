@@ -193,6 +193,10 @@ pub struct LedgerShare {
     pub amount_cents: i64,
     /// When its bill was sent. Payments go to the oldest share first.
     pub issued_at: DateTime<Utc>,
+    /// Paid after everything else: a monthly pass charge the member's
+    /// standing order is about to pay. Money paid by hand goes to what's
+    /// owed by hand first, so the standing order isn't left overpaying.
+    pub last: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -209,6 +213,10 @@ pub enum LedgerKind {
 pub struct LedgerPayment {
     pub amount_cents: i64,
     pub kind: LedgerKind,
+    /// A payment made for one share (from a pay link, cash at the ground, a
+    /// standing order's month) goes to that share first; the rest of it, and
+    /// every other payment, oldest share first.
+    pub share: Option<Uuid>,
 }
 
 /// Where one share stands.
@@ -280,29 +288,50 @@ pub struct Settlement {
 /// waived share or a cancelled bill can't leave a stale allocation behind.
 pub fn settle(shares: &[LedgerShare], payments: &[LedgerPayment]) -> Settlement {
     let mut ordered: Vec<&LedgerShare> = shares.iter().collect();
-    ordered.sort_by(|a, b| a.issued_at.cmp(&b.issued_at).then(a.id.cmp(&b.id)));
+    ordered.sort_by(|a, b| a.last.cmp(&b.last).then(a.issued_at.cmp(&b.issued_at)).then(a.id.cmp(&b.id)));
+    let at: HashMap<Uuid, usize> = ordered.iter().enumerate().map(|(i, s)| (s.id, i)).collect();
+    let mut paid = vec![0i64; ordered.len()];
+    let mut waiting = vec![0i64; ordered.len()];
 
-    let sum = |kind: LedgerKind| -> i64 {
-        payments.iter().filter(|p| p.kind == kind).map(|p| p.amount_cents.max(0)).sum()
+    // Money for one share goes to it first (up to what it owes); what's left
+    // of it joins everything else, which goes oldest share first.
+    let earmark = |kind: LedgerKind, room: &dyn Fn(usize) -> i64, into: &mut Vec<i64>| -> i64 {
+        let mut pool = 0;
+        for p in payments.iter().filter(|p| p.kind == kind) {
+            let amount = p.amount_cents.max(0);
+            match p.share.and_then(|s| at.get(&s)).copied() {
+                Some(i) => {
+                    let take = amount.min((room(i) - into[i]).max(0));
+                    into[i] += take;
+                    pool += amount - take;
+                }
+                None => pool += amount,
+            }
+        }
+        pool
     };
-    let mut confirmed = (sum(LedgerKind::Confirmed) - sum(LedgerKind::Refund)).max(0);
-    let mut claimed = sum(LedgerKind::Claimed);
-
-    let mut out = Settlement::default();
-    for share in &ordered {
-        let paid = share.amount_cents.min(confirmed);
-        confirmed -= paid;
-        out.shares.insert(share.id, ShareProgress { paid_cents: paid, waiting_cents: 0 });
+    let amount_of = |i: usize| ordered[i].amount_cents;
+    let refunds: i64 = payments.iter().filter(|p| p.kind == LedgerKind::Refund).map(|p| p.amount_cents.max(0)).sum();
+    let mut confirmed = (earmark(LedgerKind::Confirmed, &amount_of, &mut paid) - refunds).max(0);
+    for i in 0..ordered.len() {
+        let take = (ordered[i].amount_cents - paid[i]).max(0).min(confirmed);
+        paid[i] += take;
+        confirmed -= take;
     }
-    out.credit_cents = confirmed;
-    for share in &ordered {
-        let progress = out.shares.get_mut(&share.id).expect("inserted above");
-        let left = share.amount_cents - progress.paid_cents;
-        let waiting = left.min(claimed);
-        claimed -= waiting;
-        progress.waiting_cents = waiting;
-        out.waiting_cents += waiting;
-        out.owed_cents += left - waiting;
+    let paid_now = paid.clone();
+    let room_left = |i: usize| ordered[i].amount_cents - paid_now[i];
+    let mut claimed = earmark(LedgerKind::Claimed, &room_left, &mut waiting);
+    for i in 0..ordered.len() {
+        let take = (ordered[i].amount_cents - paid[i] - waiting[i]).max(0).min(claimed);
+        waiting[i] += take;
+        claimed -= take;
+    }
+
+    let mut out = Settlement { credit_cents: confirmed, ..Default::default() };
+    for (i, share) in ordered.iter().enumerate() {
+        out.shares.insert(share.id, ShareProgress { paid_cents: paid[i], waiting_cents: waiting[i] });
+        out.waiting_cents += waiting[i];
+        out.owed_cents += share.amount_cents - paid[i] - waiting[i];
     }
     out
 }
@@ -313,7 +342,7 @@ pub fn settle(shares: &[LedgerShare], payments: &[LedgerPayment]) -> Settlement 
 /// which [`settle`] decides. Money beyond every share is left unallocated.
 pub fn allocate(shares: &[LedgerShare], payments: &[(Uuid, i64)]) -> HashMap<Uuid, Vec<(Uuid, i64)>> {
     let mut ordered: Vec<&LedgerShare> = shares.iter().collect();
-    ordered.sort_by(|a, b| a.issued_at.cmp(&b.issued_at).then(a.id.cmp(&b.id)));
+    ordered.sort_by(|a, b| a.last.cmp(&b.last).then(a.issued_at.cmp(&b.issued_at)).then(a.id.cmp(&b.id)));
     let mut left: Vec<i64> = ordered.iter().map(|s| s.amount_cents.max(0)).collect();
     let mut at = 0;
     let mut out: HashMap<Uuid, Vec<(Uuid, i64)>> = HashMap::new();
@@ -740,10 +769,10 @@ mod tests {
     // ── settle ─────────────────────────────────────────────────────────
 
     fn share(id: u128, amount: i64, at: i64) -> LedgerShare {
-        LedgerShare { id: Uuid::from_u128(id), amount_cents: amount, issued_at: t(at) }
+        LedgerShare { id: Uuid::from_u128(id), amount_cents: amount, issued_at: t(at), last: false }
     }
     fn pay(amount: i64, kind: LedgerKind) -> LedgerPayment {
-        LedgerPayment { amount_cents: amount, kind }
+        LedgerPayment { amount_cents: amount, kind, share: None }
     }
 
     #[test]
@@ -1010,8 +1039,8 @@ mod tests {
         let t = |h: i64| Utc::now() - chrono::Duration::hours(h);
         let (a, b, c) = (Uuid::from_bytes([1; 16]), Uuid::from_bytes([2; 16]), Uuid::from_bytes([3; 16]));
         let shares = vec![
-            LedgerShare { id: b, amount_cents: 600, issued_at: t(1) },
-            LedgerShare { id: a, amount_cents: 500, issued_at: t(5) },
+            LedgerShare { id: b, amount_cents: 600, issued_at: t(1), last: false },
+            LedgerShare { id: a, amount_cents: 500, issued_at: t(5), last: false },
         ];
         let (p1, p2, p3) = (Uuid::from_bytes([11; 16]), Uuid::from_bytes([12; 16]), Uuid::from_bytes([13; 16]));
         let got = allocate(&shares, &[(p1, 700), (p2, 300), (p3, 900)]);
@@ -1019,5 +1048,37 @@ mod tests {
         assert_eq!(got[&p2], vec![(b, 300)]);
         assert_eq!(got[&p3], vec![(b, 100)], "the rest is credit, unallocated");
         let _ = c;
+    }
+    #[test]
+    fn a_standing_orders_month_is_paid_last_and_its_own_money_goes_to_it() {
+        // November's pass charge (the standing order's), issued first; then a
+        // match and a group fee, owed by hand.
+        let pass = LedgerShare { id: Uuid::from_u128(1), amount_cents: 2000, issued_at: t(30), last: true };
+        let shares = vec![pass.clone(), share(2, 2500, 20), share(3, 562, 10)];
+        // He pays what he owes by hand: it all goes to the match and the fee.
+        let by_hand = settle(&shares, &[pay(3062, LedgerKind::Confirmed)]);
+        assert_eq!(by_hand.shares[&Uuid::from_u128(1)].paid_cents, 0);
+        assert_eq!(by_hand.owed_cents, 2000, "only the standing order's month is left");
+        // The standing order's money, earmarked for the month, pays it — even
+        // arriving before he's paid the rest.
+        let so = LedgerPayment { amount_cents: 2000, kind: LedgerKind::Confirmed, share: Some(Uuid::from_u128(1)) };
+        let first = settle(&shares, std::slice::from_ref(&so));
+        assert_eq!(first.shares[&Uuid::from_u128(1)].paid_cents, 2000);
+        assert_eq!(first.owed_cents, 3062);
+        let both = settle(&shares, &[so, pay(3062, LedgerKind::Confirmed)]);
+        assert_eq!((both.owed_cents, both.credit_cents), (0, 0));
+    }
+
+    #[test]
+    fn an_earmarked_claim_waits_on_its_own_share() {
+        let shares = vec![share(1, 500, 30), share(2, 500, 10)];
+        let claim = LedgerPayment { amount_cents: 500, kind: LedgerKind::Claimed, share: Some(Uuid::from_u128(2)) };
+        let s = settle(&shares, &[claim]);
+        assert_eq!(s.shares[&Uuid::from_u128(2)].waiting_cents, 500);
+        assert_eq!(s.shares[&Uuid::from_u128(1)].waiting_cents, 0);
+        // More than the share owes: the rest goes oldest first.
+        let big = LedgerPayment { amount_cents: 800, kind: LedgerKind::Confirmed, share: Some(Uuid::from_u128(2)) };
+        let s = settle(&shares, &[big]);
+        assert_eq!((s.shares[&Uuid::from_u128(2)].paid_cents, s.shares[&Uuid::from_u128(1)].paid_cents), (500, 300));
     }
 }

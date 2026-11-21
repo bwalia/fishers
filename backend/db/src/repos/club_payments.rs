@@ -740,16 +740,22 @@ pub struct ShareRow {
     pub due_on: Option<chrono::NaiveDate>,
     /// For a pass charge: whose pass.
     pub pass_holder_id: Option<Uuid>,
+    /// A monthly pass charge, not yet past its due day, that a standing
+    /// order is about to pay: settled after everything owed by hand.
+    pub standing_order: bool,
 }
 
 const SHARE_SELECT: &str = "SELECT s.id, s.bill_id, s.club_id, s.user_id, s.guest_name, s.name, s.amount_cents, \
     s.status, s.reason, s.reminders_sent, s.last_reminded_at, s.created_at, s.covered_by, \
-    b.event_id, b.title, b.event_start_at, b.currency, b.issued_at, b.kind, b.due_on, b.pass_holder_id \
+    b.event_id, b.title, b.event_start_at, b.currency, b.issued_at, b.kind, b.due_on, b.pass_holder_id, \
+    (b.kind = 'pass' AND b.due_on >= CURRENT_DATE AND EXISTS ( \
+        SELECT 1 FROM pass_holders sh JOIN pass_plans sp ON sp.id = sh.plan_id \
+        WHERE sh.id = b.pass_holder_id AND sh.cancelled_at IS NULL AND sp.billing = 'monthly')) AS standing_order \
     FROM bill_shares s JOIN event_bills b ON b.id = s.bill_id";
 
 impl ShareRow {
     pub fn ledger(&self) -> LedgerShare {
-        LedgerShare { id: self.id, amount_cents: self.amount_cents, issued_at: self.issued_at }
+        LedgerShare { id: self.id, amount_cents: self.amount_cents, issued_at: self.issued_at, last: self.standing_order }
     }
 
     /// Who this share belongs to, for matching payments: a member, or a guest
@@ -1239,6 +1245,8 @@ pub struct LedgerRow {
     pub method: String,
     /// claimed or confirmed
     pub status: String,
+    /// The share it was made for, if one: it goes there first.
+    pub share_id: Option<Uuid>,
 }
 
 impl LedgerRow {
@@ -1252,7 +1260,7 @@ impl LedgerRow {
             (_, "confirmed") => LedgerKind::Confirmed,
             _ => LedgerKind::Claimed,
         };
-        LedgerPayment { amount_cents: self.amount_cents, kind }
+        LedgerPayment { amount_cents: self.amount_cents, kind, share: self.share_id }
     }
 }
 
@@ -1278,11 +1286,11 @@ pub async fn ledger(
     .await?;
     let payments = sqlx::query_as::<_, LedgerRow>(
         r#"
-        SELECT user_id, guest_name, amount_cents, method, status
+        SELECT user_id, guest_name, amount_cents, method, status, share_id
         FROM member_payments
         WHERE club_id = $1 AND status IN ('claimed', 'confirmed') AND ($2::uuid IS NULL OR user_id = $2)
         UNION ALL
-        SELECT p.user_id, NULL, p.amount_cents::bigint, 'card', 'confirmed'
+        SELECT p.user_id, NULL, p.amount_cents::bigint, 'card', 'confirmed', NULL::uuid
         FROM payments p
         WHERE p.status = 'succeeded' AND p.order_id IS NULL AND ($2::uuid IS NULL OR p.user_id = $2)
           AND EXISTS (

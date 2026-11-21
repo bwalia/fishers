@@ -1368,6 +1368,9 @@ struct ClubDues {
     owed_cents: i64,
     waiting_cents: i64,
     credit_cents: i64,
+    /// What the standing order is about to pay (this month's pass charge):
+    /// left out of `owed_cents`, which is what to pay by hand.
+    standing_order_cents: i64,
     /// Still to pay or waiting, then the most recent paid ones.
     shares: Vec<ShareView>,
 }
@@ -1406,13 +1409,15 @@ fn dues_for(club_id: Uuid, club_name: String, ledger: &Ledger, payer: &Payer) ->
     paid.truncate(10);
     let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
     open.extend(paid);
+    let standing_order_cents = standing_order_owed(ledger, payer);
     ClubDues {
         club_id,
         club_name,
         currency,
-        owed_cents: settled.owed_cents,
+        owed_cents: (settled.owed_cents - standing_order_cents).max(0),
         waiting_cents: settled.waiting_cents,
         credit_cents: settled.credit_cents,
+        standing_order_cents,
         shares: open,
     }
 }
@@ -1596,28 +1601,20 @@ pub(crate) struct FriendOwing {
 /// to pay — those not yet past their due day: not for paying by hand, or the
 /// month is paid twice. A charge past its due day wasn't paid by the
 /// standing order, so that one can be caught up by hand.
-pub(crate) async fn standing_order_part(state: &AppState, club_id: Uuid, user_id: Uuid, ledger: &Ledger) -> ApiResult<i64> {
-    let holders: std::collections::HashSet<Uuid> = fishers_db::repos::passes::standing_orders(&state.pool, club_id)
-        .await?
-        .into_iter()
-        .filter(|h| h.user_id == user_id)
-        .map(|h| h.id)
-        .collect();
-    if holders.is_empty() {
-        return Ok(0);
-    }
-    let today = Utc::now().date_naive();
-    Ok(ledger
+pub(crate) async fn standing_order_part(_state: &AppState, _club_id: Uuid, user_id: Uuid, ledger: &Ledger) -> ApiResult<i64> {
+    Ok(standing_order_owed(ledger, &Payer::Member(user_id)))
+}
+
+/// What a payer's standing order is about to pay: their monthly pass charges
+/// not yet past the due day, less money that has arrived for them. The
+/// ledger settles these last, so money paid by hand never lands on them.
+fn standing_order_owed(ledger: &Ledger, payer: &Payer) -> i64 {
+    ledger
         .shares
         .iter()
-        .filter(|s| s.user_id == Some(user_id) && s.pass_holder_id.is_some_and(|h| holders.contains(&h)))
-        .filter(|s| s.due_on.is_some_and(|d| d >= today))
-        // Less only money that has arrived. An "I've paid" by hand still
-        // waiting is settled against the oldest line first — often this very
-        // charge — so counting it here would let the next tap claim the
-        // standing order's month again.
+        .filter(|s| s.standing_order && &s.payer() == payer)
         .map(|s| (s.amount_cents - ledger.progress(s).unwrap_or_default().paid_cents).max(0))
-        .sum())
+        .sum()
 }
 
 async fn pays_for_someone_owing(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<bool> {
@@ -1743,7 +1740,7 @@ async fn pay_screen(
         .filter(|p| p.status == "claimed")
         .collect();
     let friends = friends_owing(&state, club_id, auth.user_id).await?;
-    let standing_order_cents = standing_order_part(&state, club_id, auth.user_id, &ledger).await?;
+    let standing_order_cents = dues.standing_order_cents;
     Ok(Json(PayScreen {
         friends,
         standing_order_cents,
@@ -1752,7 +1749,7 @@ async fn pay_screen(
         currency: dues.currency.clone(),
         // The pay screen is for paying by hand: what the standing order is
         // about to pay isn't in it (it's still in `shares`, and said apart).
-        owed_cents: (dues.owed_cents - standing_order_cents).max(0),
+        owed_cents: dues.owed_cents,
         waiting_cents: dues.waiting_cents,
         credit_cents: dues.credit_cents,
         shares: dues.shares.into_iter().filter(|s| s.state != ShareState::Paid).collect(),

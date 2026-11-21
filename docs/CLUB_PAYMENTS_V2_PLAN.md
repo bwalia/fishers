@@ -614,3 +614,11 @@ These apply to every app.
   - **The bill preview's shares gain `cover`.**
   - **Statement lines gain `reference`** (the member reference found) **and `said_cents`** (for
     `different_amount`: what was said in the "I've paid"s still waiting).
+- **The ledger and the standing order (built):**
+  - Money paid by hand is settled against everything owed by hand before it touches a monthly
+    pass charge that a standing order is about to pay.
+  - A payment made for one line goes to that line first. That covers a pay-link claim, cash at
+    the ground, and a statement transfer of exactly a pass charge's amount.
+  - So neither order of arrival leaves someone looking behind or the standing order overpaying.
+  - `GET /me/dues` now matches the pay screen: each club's `owed_cents` is what to pay by hand,
+    with `standing_order_cents` alongside, for the person and for each of `people`.
