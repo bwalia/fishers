@@ -5,7 +5,7 @@
 //! bill is here too ([`issue_bill`]) so the API and the scheduler share one
 //! path: the same split, the same checks, the same rows.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use fishers_domain::money::{self, CostMode, LedgerKind, LedgerPayment, LedgerShare, Rounding, SplitError};
 use serde::Serialize;
 use serde_json::Value;
@@ -1611,3 +1611,59 @@ pub async fn attachment(pool: &PgPool, payment_id: Uuid) -> Result<Option<(Strin
         .fetch_optional(pool)
         .await
 }
+
+// MARK: bank statement import
+
+/// Every member's reference with the club: `(code, user_id)`.
+pub async fn club_references(pool: &PgPool, club_id: Uuid) -> Result<Vec<(String, Uuid)>, sqlx::Error> {
+    sqlx::query_as("SELECT code, user_id FROM payment_references WHERE club_id = $1").bind(club_id).fetch_all(pool).await
+}
+
+/// Bank transfers members said they made and nobody has ticked:
+/// `(payment id, member, amount, day said)`.
+pub async fn open_transfer_claims(
+    pool: &PgPool,
+    club_id: Uuid,
+) -> Result<Vec<(Uuid, Uuid, i64, NaiveDate)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT id, user_id, amount_cents, created_at::date FROM member_payments
+         WHERE club_id = $1 AND status = 'claimed' AND method = 'transfer' AND user_id IS NOT NULL",
+    )
+    .bind(club_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Which of these statement lines were applied already.
+pub async fn applied_lines(pool: &PgPool, club_id: Uuid, hashes: &[String]) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar("SELECT line_hash FROM statement_lines WHERE club_id = $1 AND line_hash = ANY($2)")
+        .bind(club_id)
+        .bind(hashes)
+        .fetch_all(pool)
+        .await
+}
+
+/// Take a statement line for applying; `false` when it was applied already.
+pub async fn take_line(conn: &mut PgConnection, club_id: Uuid, hash: &str, by: Uuid) -> Result<bool, sqlx::Error> {
+    Ok(sqlx::query(
+        "INSERT INTO statement_lines (club_id, line_hash, applied_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+    )
+    .bind(club_id)
+    .bind(hash)
+    .bind(by)
+    .execute(conn)
+    .await?
+    .rows_affected()
+        == 1)
+}
+
+pub async fn set_line_payment(conn: &mut PgConnection, club_id: Uuid, hash: &str, payment_id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE statement_lines SET payment_id = $3 WHERE club_id = $1 AND line_hash = $2")
+        .bind(club_id)
+        .bind(hash)
+        .bind(payment_id)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
