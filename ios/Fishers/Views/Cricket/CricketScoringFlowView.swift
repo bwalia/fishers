@@ -103,6 +103,14 @@ struct CricketScoringFlowView: View {
         .onDisappear {
             CricketSyncService.shared.unregister(store: store)
         }
+        // Picks are kept on the phone until both sides are named, so leaving
+        // the sheets half way loses nothing.
+        .onChange(of: draft) { _, new in
+            if step == .sheets { new.save(eventId: event.id) }
+        }
+        .onChange(of: step) { _, new in
+            if new == .openers || new == .live { SheetDraft.clear(eventId: event.id) }
+        }
         .sheet(isPresented: $isPickingOpposition) {
             OppositionPickerView { name, identity in
                 awayName = name
@@ -634,6 +642,28 @@ struct CricketScoringFlowView: View {
 
     /// Pick up where the device left off — a match half scored, the app killed,
     /// the phone rebooted at tea.
+    /// The sheets as picked so far.
+    private var draft: SheetDraft {
+        SheetDraft(home: homeSheet, away: awaySheet,
+                   homeCaptain: homeCaptain, awayCaptain: awayCaptain,
+                   homeKeeper: homeKeeper, awayKeeper: awayKeeper)
+    }
+
+    /// Picks made before leaving the screen, for any side not yet named.
+    private func restoreDraft() {
+        guard step == .sheets, let saved = SheetDraft.load(eventId: event.id) else { return }
+        if store.state.players(for: .home).isEmpty, homeSheet.isEmpty, !saved.home.isEmpty {
+            homeSheet = saved.home
+            homeCaptain = saved.homeCaptain
+            homeKeeper = saved.homeKeeper
+        }
+        if store.state.players(for: .away).isEmpty, awaySheet.isEmpty, !saved.away.isEmpty {
+            awaySheet = saved.away
+            awayCaptain = saved.awayCaptain
+            awayKeeper = saved.awayKeeper
+        }
+    }
+
     private func resumeOrPrepare() async {
         if let opposition = event.metadata?["opposition"], case let .string(name) = opposition {
             awayName = name
@@ -667,6 +697,7 @@ struct CricketScoringFlowView: View {
         case .scheduled:
             step = .setup
         }
+        restoreDraft()
         CricketSyncService.shared.register(store: store)
     }
 
