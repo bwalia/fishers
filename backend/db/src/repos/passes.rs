@@ -375,6 +375,42 @@ pub async fn set_told_standing(pool: &PgPool, id: Uuid, from: &str, to: &str) ->
         == 1)
 }
 
+/// What a bundle says when a bill brings it down to its last session or
+/// uses it up; nothing otherwise.
+pub fn sessions_left_notice(plan_name: &str, left: i64) -> Option<(String, &'static str)> {
+    match left {
+        1 => Some((format!("1 session left on your {plan_name}"), "Get another from the club's pay screen when it runs out.")),
+        0 => Some((
+            format!("Your {plan_name} is used up"),
+            "Your next sessions are paid as usual. Get another from the club's pay screen.",
+        )),
+        _ => None,
+    }
+}
+
+/// Passes running at a club that are a payment behind or paused, as the
+/// scheduler last found them.
+pub async fn passes_behind(pool: &PgPool, club_id: Uuid) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pass_holders WHERE club_id = $1 AND told_standing <> 'up_to_date'
+           AND (ends_on IS NULL OR ends_on >= CURRENT_DATE)",
+    )
+    .bind(club_id)
+    .fetch_one(pool)
+    .await
+}
+
+/// Monthly passes still being paid at a club: whoever has a standing order.
+pub async fn standing_orders(pool: &PgPool, club_id: Uuid) -> Result<Vec<Holder>, sqlx::Error> {
+    sqlx::query_as::<_, Holder>(&format!(
+        "{HOLDER_SELECT} JOIN pass_plans p ON p.id = h.plan_id
+         WHERE h.club_id = $1 AND h.cancelled_at IS NULL AND p.billing = 'monthly'"
+    ))
+    .bind(club_id)
+    .fetch_all(pool)
+    .await
+}
+
 /// Sessions a holder's pass has covered on bills still standing.
 pub async fn sessions_used(pool: &PgPool, holder_id: Uuid, except_event: Option<Uuid>) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar(

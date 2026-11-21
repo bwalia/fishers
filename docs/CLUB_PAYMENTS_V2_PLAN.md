@@ -448,7 +448,10 @@ keep_covering, plan_name, billing, standing, sessions_left, running, next_charge
 
 The scheduler charges each month (or instalment) on the day it falls. The holder (and whoever
 pays for them) is told once when a pass falls behind and again if it's suspended; the club is told
-at suspension.
+at suspension. A bundle says so at one session left and when it's used up. When the club's bank
+details change, everybody paying a monthly pass by standing order is told to change it (no
+account numbers in the notice). `GET /clubs/{id}/money` gains `passes_behind`, for "3 passes
+behind" on the treasurer's screen.
 
 ### Group fees (money admins)
 

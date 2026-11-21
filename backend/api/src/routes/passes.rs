@@ -628,6 +628,19 @@ async fn my_passes(State(state): State<AppState>, auth: AuthUser) -> ApiResult<J
     Ok(Json(out))
 }
 
+/// After a session is billed: a bundle down to its last session, or used
+/// up, says so — once, on the bill that did it.
+pub(crate) async fn bundle_notices(state: &AppState, holder_ids: &[Uuid]) {
+    for id in holder_ids {
+        let Ok(Some(h)) = passes_repo::holder(&state.pool, *id).await else { continue };
+        let Ok(Some(plan)) = passes_repo::plan(&state.pool, h.plan_id).await else { continue };
+        let Some(limit) = plan.sessions else { continue };
+        let Ok(used) = passes_repo::sessions_used(&state.pool, h.id, None).await else { continue };
+        let Some((title, body)) = passes_repo::sessions_left_notice(&plan.name, i64::from(limit) - used) else { continue };
+        notify_holder(state, &h, "pass_sessions_left", &title, body).await;
+    }
+}
+
 // MARK: group fees
 
 #[derive(Debug, Deserialize)]

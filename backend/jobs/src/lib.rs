@@ -96,7 +96,7 @@ async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> an
     if let Err(e) = chase_match_fees(pool, push, email).await {
         warn!(error = %e, "fee chasing failed");
     }
-    if let Err(e) = club_payments::retire_replaced_accounts(pool).await {
+    if let Err(e) = club_payments::retire_replaced_accounts(pool, push).await {
         warn!(error = %e, "retiring replaced bank details failed");
     }
     if let Err(e) = club_payments::prompt_who_came(pool, push).await {

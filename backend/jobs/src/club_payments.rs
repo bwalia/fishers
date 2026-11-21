@@ -96,6 +96,13 @@ pub async fn auto_bill(pool: &PgPool, push: &PushService) -> anyhow::Result<()> 
         };
         let mode = CostMode::parse(&e.mode).unwrap_or(CostMode::PerPlayer);
         let people = fishers_db::repos::passes::priced(pool, &facts, mode, people).await?;
+        let bundles: Vec<Uuid> = people
+            .iter()
+            .filter_map(|p| match &p.cover {
+                Some(repo::Cover::Pass { holder_id, .. }) => Some(*holder_id),
+                _ => None,
+            })
+            .collect();
         if people.is_empty() {
             repo::mark_auto_bill_skipped(pool, e.event_id).await?;
             notify(
@@ -171,6 +178,7 @@ pub async fn auto_bill(pool: &PgPool, push: &PushService) -> anyhow::Result<()> 
         .await?;
         tx.commit().await?;
         sent += 1;
+        bundle_notices(pool, push, &bundles).await;
 
         let club = repo::club_name(pool, e.club_id).await?.unwrap_or_default();
         for (user, amount) in &outcome.changed {
@@ -294,7 +302,7 @@ pub async fn nudge_stale_claims(pool: &PgPool, push: &PushService) -> anyhow::Re
 
 /// Once a replacement goes live, the old details are retired: their sealed
 /// number is wiped and only the name and last four digits stay.
-pub async fn retire_replaced_accounts(pool: &PgPool) -> anyhow::Result<()> {
+pub async fn retire_replaced_accounts(pool: &PgPool, push: &PushService) -> anyhow::Result<()> {
     for club_id in repo::clubs_with_replaced_accounts(pool).await? {
         let accounts = repo::payout_accounts(pool, club_id).await?;
         let timelines: Vec<_> = accounts.iter().map(|a| a.timeline()).collect();
@@ -304,11 +312,22 @@ pub async fn retire_replaced_accounts(pool: &PgPool) -> anyhow::Result<()> {
                 continue;
             }
             let mut tx = pool.begin().await?;
-            if repo::retire_payout_account(&mut tx, account.id, None).await? {
+            let retired = repo::retire_payout_account(&mut tx, account.id, None).await?;
+            if retired {
                 repo::audit(&mut tx, club_id, None, "retire_replaced_bank_details", "payout_account", Some(account.id),
                     Some(json!({ "holder_name": account.holder_name, "last4": account.last4 })), None).await?;
             }
             tx.commit().await?;
+            // A standing order keeps paying the old account until its owner
+            // changes it, and nothing else would tell them: say so, once, as
+            // the new details take over. No account numbers in a notification.
+            if retired {
+                let club = repo::club_name(pool, club_id).await?.unwrap_or_default();
+                for h in passes::standing_orders(pool, club_id).await? {
+                    notify_pass(pool, push, &h, "pass_bank_changed", &format!("{club}'s bank details changed"),
+                        "Change your standing order to the new details: open the club's pay screen in the app to see them.").await;
+                }
+            }
         }
     }
     Ok(())
@@ -416,4 +435,17 @@ pub async fn pass_standing_notices(pool: &PgPool, push: &PushService) -> anyhow:
         }
     }
     Ok(())
+}
+
+/// A bundle down to its last session, or used up, says so — once, on the
+/// bill that did it. (The API does the same for a bill sent by hand.)
+async fn bundle_notices(pool: &PgPool, push: &PushService, holder_ids: &[Uuid]) {
+    for id in holder_ids {
+        let Ok(Some(h)) = passes::holder(pool, *id).await else { continue };
+        let Ok(Some(plan)) = passes::plan(pool, h.plan_id).await else { continue };
+        let Some(limit) = plan.sessions else { continue };
+        let Ok(used) = passes::sessions_used(pool, h.id, None).await else { continue };
+        let Some((title, body)) = passes::sessions_left_notice(&plan.name, i64::from(limit) - used) else { continue };
+        notify_pass(pool, push, &h, "pass_sessions_left", &title, body).await;
+    }
 }

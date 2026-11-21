@@ -1145,6 +1145,13 @@ async fn send_bill(
     let people = attendees_for(&mut tx, event.club_id, &body).await?;
     let people = priced(&state, &event, cost.mode(), people).await?;
     let came: Vec<Uuid> = people.iter().filter_map(|p| p.user_id).collect();
+    let bundles: Vec<Uuid> = people
+        .iter()
+        .filter_map(|p| match &p.cover {
+            Some(repo::Cover::Pass { holder_id, .. }) => Some(*holder_id),
+            _ => None,
+        })
+        .collect();
     let outcome = repo::issue_bill(
         &mut tx,
         &BillInput {
@@ -1196,6 +1203,9 @@ async fn send_bill(
     tx.commit().await?;
 
     tell_players_about_bill(&state, &outcome.bill, &outcome.changed, outcome.resplit, Some(auth.user_id)).await;
+    if !outcome.resplit {
+        super::passes::bundle_notices(&state, &bundles).await;
+    }
     for user in outcome.removed.iter().filter(|u| **u != auth.user_id) {
         state
             .notify_text(
@@ -2011,6 +2021,8 @@ struct BillSummary {
 #[derive(Debug, Serialize)]
 struct MoneyOverview {
     currency: String,
+    /// Passes a payment behind or paused: "3 passes behind".
+    passes_behind: i64,
     settings: PaymentSettings,
     account: PayoutAccountsView,
     to_check: Vec<PaymentRow>,
@@ -2087,8 +2099,10 @@ async fn money_overview(
     let currency = bills.first().map(|b| b.currency.clone()).unwrap_or_else(|| "GBP".into());
     let mut to_check = repo::club_payments(&state.pool, club_id, Some("claimed"), 200).await?;
     to_check.reverse(); // oldest first: the longest-waiting at the top
+    let passes_behind = fishers_db::repos::passes::passes_behind(&state.pool, club_id).await?;
     Ok(Json(MoneyOverview {
         currency,
+        passes_behind,
         settings,
         account: accounts(&state, club_id).await?.view(&state, r),
         to_check,
