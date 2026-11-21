@@ -793,6 +793,9 @@ pub struct BillOutcome {
     pub surplus_cents: i64,
 }
 
+/// A share on the version being re-split: user, guest, amount, status, reason.
+type PriorShare = (Option<Uuid>, Option<String>, i64, String, Option<String>);
+
 /// Send a bill, or re-split the live one.
 ///
 /// One transaction, with the event's live bill locked. With no live bill a
@@ -804,7 +807,9 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
     let split = money::split(input.mode, input.amount_cents, input.attendees.len(), input.rounding)
         .map_err(BillError::Split)?;
     let live = live_bill_locked(conn, input.event_id).await?;
-    let mut waived: std::collections::HashMap<Uuid, Option<String>> = std::collections::HashMap::new();
+    // Keyed by payer — a member by id, a guest by name — so a guest who was
+    // let off stays let off too.
+    let mut waived: std::collections::HashMap<Payer, Option<String>> = std::collections::HashMap::new();
 
     let (bill, resplit, before) = match (live, input.expected_version) {
         (None, None) => {
@@ -837,19 +842,21 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
             if live.version != expected {
                 return Err(BillError::VersionConflict { current: live.version });
             }
-            let before: Vec<(Option<Uuid>, i64, String, Option<String>)> = sqlx::query_as(
-                "SELECT user_id, amount_cents, status, reason FROM bill_shares
+            let rows: Vec<PriorShare> = sqlx::query_as(
+                "SELECT user_id, guest_name, amount_cents, status, reason FROM bill_shares
                  WHERE bill_id = $1 AND status IN ('live', 'waived')",
             )
             .bind(live.id)
             .fetch_all(&mut *conn)
             .await?;
             // Somebody let off stays let off: their new share is waived too.
-            for (user, _, status, reason) in &before {
-                if let (Some(user), "waived") = (user, status.as_str()) {
-                    waived.insert(*user, reason.clone());
+            for (user, guest, _, status, reason) in &rows {
+                if status == "waived" {
+                    waived.insert(Payer::of(*user, guest.as_deref()), reason.clone());
                 }
             }
+            let before: Vec<(Option<Uuid>, i64, String, Option<String>)> =
+                rows.into_iter().map(|(u, _, a, st, r)| (u, a, st, r)).collect();
             sqlx::query(
                 "UPDATE bill_shares SET status = 'void', reason = 're-split', decided_by = $2, decided_at = NOW()
                  WHERE bill_id = $1 AND status IN ('live', 'waived')",
@@ -881,7 +888,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
 
     let mut changed = Vec::new();
     for (attendee, amount) in input.attendees.iter().zip(&split.shares) {
-        let waiver = attendee.user_id.and_then(|u| waived.get(&u));
+        let waiver = waived.get(&Payer::of(attendee.user_id, Some(attendee.name.as_str())));
         sqlx::query(
             "INSERT INTO bill_shares (bill_id, club_id, user_id, guest_name, name, amount_cents, status, reason,
                                       decided_by, decided_at)
