@@ -499,3 +499,53 @@ behind" on the treasurer's screen.
      opened, Share to WhatsApp, and cancel.
    - **Who pays for whom** on a member's page, and **Add a junior by name**.
 
+
+---
+
+## 12. Step D: the contract (built, except UPI)
+
+### Bank statement import (money admins)
+
+| Call | Returns |
+|---|---|
+| `POST /clubs/{id}/statement/preview` (body: the CSV file as text) | `{currency, summary: {credits, confirm, record, check, unknown, already}, lines: [{hash, row, date, amount_cents, text, action, user_id, name, payment_id, why}]}`. Changes nothing. |
+| `POST /clubs/{id}/statement/apply {csv, lines: [hash]}` | `{confirmed, recorded, skipped}` |
+
+- **The actions:** `confirm` ticks their "I've paid". `record` means their reference, but they
+  hadn't said, so it's recorded as paid. `check` needs a person to look: `why` is
+  `different_amount` or `shared_name`. `unknown` is nobody's reference. `already` means it was
+  applied before.
+- **Money going out is left out.**
+- **Errors:** `empty_statement`, `unknown_statement` (no date or amount column found) and
+  `statement_too_long` (more than 5,000 lines), all 422.
+- **Nothing of the statement is stored.** Only a fingerprint of each applied line is kept, so
+  applying the same statement twice changes nothing.
+- **Apply reads the statement again,** so the phone only chooses which of the server's matches to
+  apply.
+
+What the apps build: on the treasurer's payments screen, **Import a bank statement**. Pick the CSV
+from the bank, then see three groups:
+- "Ticked off: 8", ready to apply;
+- "Needs a look: 2", each with why;
+- "Not recognised: 5", folded away.
+
+Then **Apply 8**.
+
+### Payments into the club's books (web: the accounts page)
+
+- **`GET …/periods/{pid}/suggestions`** gains `transfers`:
+  `[{payment_id, paid_on, amount_cents, currency, method: transfer|cash, member_id, member_name,
+  category_key, paid_for: [title], parts: [{title, amount_cents}]}]`. `category_key` is
+  `net_fees`, `match_fees`, `subscriptions` or `misc`.
+- **`POST …/periods/{pid}/accept-transfers {payment_ids, bank_account_id, cash_account_id?}`**
+  returns `{posted, skipped}`.
+  - Transfers go to the bank and cash to the cash tin. Without a cash account, cash payments wait.
+  - A payment is only ever taken in once.
+  - A payment covering two kinds goes on the line it paid most of, with the split in the note.
+- **Fixed:** billed sessions are no longer raised as unpaid fees.
+
+### UPI: held
+
+UPI for rupee clubs is not built yet, because no app can make a club charge in rupees: the
+schedule forms send pounds only. It comes after a **club currency** setting, which is in the apps'
+settings and in event costs. Without that, UPI would be unreachable.
