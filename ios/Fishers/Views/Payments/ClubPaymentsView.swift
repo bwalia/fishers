@@ -247,23 +247,11 @@ struct ClubPaymentsView: View {
                     if let note = payment.note {
                         Text(note).font(FishersTheme.footnote)
                     }
-                    HStack {
-                        Button {
-                            Task { await store.confirm(payment) }
-                        } label: {
-                            Label(tr("Received"), systemImage: "checkmark")
-                                .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(FishersTheme.available)
-                        Button {
-                            rejecting = payment
-                        } label: {
-                            Label(tr("Not received"), systemImage: "xmark")
-                                .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(FishersTheme.unavailable)
+                    // Side by side when both fit on one line each; stacked
+                    // otherwise (large text), never a label wrapped in two.
+                    ViewThatFits(in: .horizontal) {
+                        HStack { decisionButtons(payment) }
+                        VStack { decisionButtons(payment) }
                     }
                 }
                 .padding(.vertical, 4)
@@ -286,6 +274,31 @@ struct ClubPaymentsView: View {
                 Text(tr("Check each one arrived in your banking app, then tick it off."))
             }
         }
+    }
+
+    /// Received and Not received: one line each, never a wrapped label.
+    @ViewBuilder
+    private func decisionButtons(_ payment: ClubPayment) -> some View {
+        Button {
+            Task { await store.confirm(payment) }
+        } label: {
+            Text(tr("Received"))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(FishersTheme.available)
+        Button {
+            rejecting = payment
+        } label: {
+            Text(tr("Not received"))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
+        }
+        .buttonStyle(.bordered)
+        .tint(FishersTheme.unavailable)
     }
 
     // MARK: Who owes what
