@@ -5924,4 +5924,9 @@ export const pa: Dict = {
   "pi4.file_not_opened": "ਇਹ ਫ਼ਾਈਲ ਖੁੱਲ੍ਹ ਨਹੀਂ ਸਕੀ। ਇਸਨੂੰ ਦੁਬਾਰਾ ਚੁਣ ਕੇ ਵੇਖੋ।",
   "pi4.each_told_arrived": "ਹਰੇਕ ਨੂੰ ਦੱਸਿਆ ਜਾਂਦਾ ਹੈ ਕਿ ਉਨ੍ਹਾਂ ਦਾ ਭੁਗਤਾਨ ਪਹੁੰਚ ਗਿਆ ਹੈ।",
 
+  // MARK: The standing order pays the month: words for the pay screen and the pass
+  "pw5.so_pays_amount": "ਤੁਹਾਡਾ ਸਟੈਂਡਿੰਗ ਆਰਡਰ ਤੁਹਾਡੇ ਪਾਸ ਲਈ {amount} ਭਰਦਾ ਹੈ। ਹੱਥੀਂ ਕੁਝ ਨਹੀਂ ਭਰਨਾ।",
+  "pw5.join_monthly": "{amount} ਮਹੀਨਾ, ਤੁਹਾਡੀ ਬੈਂਕਿੰਗ ਐਪ ਵਿੱਚ ਲਾਏ ਸਟੈਂਡਿੰਗ ਆਰਡਰ ਨਾਲ। ਇਹ ਆਪੇ ਭਰਦਾ ਹੈ, ਇਸ ਮਹੀਨੇ ਦਾ ਵੀ।",
+  "pw5.joined_monthly": "ਤੁਸੀਂ {pass} ਵਿੱਚ ਹੋ। ਹੁਣ ਹੇਠਾਂ ਦਿੱਤਾ ਸਟੈਂਡਿੰਗ ਆਰਡਰ ਲਾਓ: ਇਹ ਇਸ ਮਹੀਨੇ ਦਾ ਵੀ ਭਰ ਦੇਵੇਗਾ।",
+
 };

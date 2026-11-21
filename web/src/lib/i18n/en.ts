@@ -5943,6 +5943,11 @@ export const en = {
   "pi4.file_not_opened": "That file couldn't be opened. Try choosing it again.",
   "pi4.each_told_arrived": "Each person is told their payment arrived.",
 
+  // MARK: The standing order pays the month: words for the pay screen and the pass
+  "pw5.so_pays_amount": "Your standing order pays {amount} for your pass. There's nothing to pay by hand.",
+  "pw5.join_monthly": "{amount} a month, paid by a standing order you set up in your banking app. It pays itself, this month included.",
+  "pw5.joined_monthly": "You're on {pass}. Now set up the standing order below: it pays this month too.",
+
 } as const;
 
 /// Every key the product can say. Derived, never written by hand.

@@ -182,6 +182,11 @@ private fun PayBody(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.semantics { heading() },
                 )
+                pay.waitingCents <= 0 && pay.claims.isEmpty() && pay.standingOrderCents > 0 ->
+                    Text(
+                        t("pw5.so_pays_amount", vars = mapOf("amount" to money(pay.standingOrderCents, pay.currency))),
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
                 pay.waitingCents <= 0 && pay.claims.isEmpty() ->
                     Text(t("pay.all_paid_up"), style = MaterialTheme.typography.headlineSmall)
             }

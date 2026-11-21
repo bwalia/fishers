@@ -136,6 +136,9 @@ export type PayScreen = {
   /// People still owing on bills you're on, and what they owe on those bills
   /// only: the list for "I'm paying for friends too". Older APIs leave it out.
   friends?: Friend[];
+  /// What your standing order is about to pay (this month's pass charge):
+  /// already left out of `owed_cents`, which is what to pay by hand.
+  standing_order_cents?: number;
 };
 
 /// Somebody on a bill with you who still owes on it, and how much: the most

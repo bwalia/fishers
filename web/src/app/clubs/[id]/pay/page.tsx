@@ -211,7 +211,9 @@ export default function PayPage() {
                 : t("pay.you_owe_amount", { amount })
             : pay.waiting_cents > 0
               ? t("pay.said_you_paid")
-              : t("pay.all_paid_up")}
+              : (pay.standing_order_cents ?? 0) > 0
+                ? t("pw5.so_pays_amount", { amount: money(pay.standing_order_cents ?? 0, pay.currency) })
+                : t("pay.all_paid_up")}
         </p>
         {forOthers && (
           <ul className="pay-people-sum">

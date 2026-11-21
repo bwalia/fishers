@@ -207,6 +207,14 @@ struct PayScreenView: View {
                         .font(.title.weight(.bold))
                         .foregroundStyle(FishersTheme.pitch)
                         .fixedSize(horizontal: false, vertical: true)
+                } else if screen.waitingCents == 0, screen.standingOrderCents > 0 {
+                    Label(
+                        tr("Your standing order pays {amount} for your pass. There's nothing to pay by hand.",
+                           vars: ["amount": Money.format(screen.standingOrderCents, screen.currency)]),
+                        systemImage: "arrow.triangle.2.circlepath"
+                    )
+                    .font(FishersTheme.headline)
+                    .foregroundStyle(FishersTheme.available)
                 } else if screen.waitingCents == 0 {
                     Label(tr("You're all paid up."), systemImage: "checkmark.seal.fill")
                         .font(FishersTheme.headline)

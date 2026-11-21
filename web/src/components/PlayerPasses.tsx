@@ -125,7 +125,7 @@ export function PlayerPasses({
         who
           ? t("pw3.joined_for", { name: who.name, pass: plan.name })
           : plan.billing === "monthly"
-            ? t("pw3.joined_monthly", { pass: plan.name })
+            ? t("pw5.joined_monthly", { pass: plan.name })
             : t("pw3.joined", { pass: plan.name }),
       );
       await Promise.all([load(), onChanged()]);
@@ -281,7 +281,7 @@ function JoinConfirm({
       </p>
       <p>
         {p.billing === "monthly"
-          ? t("pw3.join_monthly", { amount: charge })
+          ? t("pw5.join_monthly", { amount: charge })
           : p.billing === "instalments"
             ? t("pw3.join_parts", { amount: charge })
             : t("pw3.join_once", { amount: charge })}

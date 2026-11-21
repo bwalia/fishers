@@ -739,9 +739,13 @@ struct PayScreen: Codable, Equatable {
     /// People still owing on bills the reader is on, and what they owe on
     /// those bills only: "I'm paying for friends too".
     let friends: [FriendOwing]
+    /// What the standing order is about to pay (this month's pass charge):
+    /// already left out of `owedCents`, which is what to pay by hand.
+    let standingOrderCents: Int
 
     enum CodingKeys: String, CodingKey {
         case currency, shares, account, reference, claims, friends
+        case standingOrderCents = "standing_order_cents"
         case clubId = "club_id"
         case clubName = "club_name"
         case owedCents = "owed_cents"
@@ -764,6 +768,7 @@ struct PayScreen: Codable, Equatable {
         reference = try c.decodeIfPresent(String.self, forKey: .reference) ?? ""
         claims = try c.decodeIfPresent([ClubPayment].self, forKey: .claims) ?? []
         friends = (try? c.decodeIfPresent([FriendOwing].self, forKey: .friends)) ?? []
+        standingOrderCents = (try? c.decodeIfPresent(Int.self, forKey: .standingOrderCents)) ?? 0
     }
 
     /// Details to copy, only when the server says they are good to pay into.

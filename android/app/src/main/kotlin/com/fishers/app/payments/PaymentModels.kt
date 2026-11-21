@@ -237,6 +237,8 @@ data class PayScreen(
      * `for-others` takes for each.
      */
     val friends: List<Friend> = emptyList(),
+    /** What your standing order is about to pay; already left out of [owedCents], which is what to pay by hand. */
+    @SerialName("standing_order_cents") val standingOrderCents: Long = 0,
 ) {
     val accountState: AccountState get() = AccountState.of(accountStateName)
 

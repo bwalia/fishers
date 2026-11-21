@@ -154,7 +154,7 @@ test("passes, a junior price, a group fee, and a parent paying for two juniors w
   await passes.getByRole("button", { name: "Get Monthly nets" }).click();
   await expect(passes.getByText("Get Monthly nets?")).toBeVisible();
   await passes.getByRole("button", { name: "Yes, get it" }).click();
-  await expect(passes.getByText("You're on Monthly nets. Pay the first month, then set up the standing order below.")).toBeVisible();
+  await expect(passes.getByText("You're on Monthly nets. Now set up the standing order below: it pays this month too.")).toBeVisible();
   const order = passes.locator(".standing-order");
   await expect(order.getByRole("heading", { name: "Set up your standing order" })).toBeVisible();
   await expect(order).toContainText("Sana Sharma");
@@ -168,8 +168,10 @@ test("passes, a junior price, a group fee, and a parent paying for two juniors w
   // The pass says what it covers, from the pass itself.
   await expect(passes.locator(".pass-card")).toContainText("Covers nets");
   await expect(order.getByText("Somebody else does your banking?")).toBeVisible();
-  // The first month is in "You owe", like any session.
-  await expect(player.locator("#pay-owe")).toContainText("You owe £20.00 for Monthly nets — ");
+  // The first month is the standing order's to pay, not a hand payment.
+  await expect(player.locator("#pay-owe")).toContainText(
+    "Your standing order pays £20.00 for your pass. There's nothing to pay by hand.",
+  );
   await player.screenshot({ path: `${SHOTS}/pass-3-standing-order.png`, fullPage: true });
 
   // 4. Tomorrow's nets, £6 each, £3 for juniors — set on the session's own
