@@ -549,3 +549,54 @@ Then **Apply 8**.
 UPI for rupee clubs is not built yet, because no app can make a club charge in rupees: the
 schedule forms send pounds only. It comes after a **club currency** setting, which is in the apps'
 settings and in event costs. Without that, UPI would be unreachable.
+
+---
+
+## 13. Changes after the security review (built)
+
+These apply to every app.
+
+- **`busy` (409) on any payment POST:** another request is saving a payment for the same person at
+  that moment, for example after a double tap. Retry once, quietly, after about a second, with the
+  **same** Idempotency-Key. It returns the first payment.
+- **Pay link claims carry a secret.** The reply to `POST /pay-links/{t}/people/{id}/claim`
+  includes `claim_secret`, and a retry with the same key gets it again; nobody else does.
+  - Keep it on the phone (for example in sessionStorage, keyed by the payment id).
+  - Send it as `X-Claim-Secret` on `DELETE /pay-links/{t}/claims/{pid}` and on
+    `POST …/claims/{pid}/screenshot`.
+  - Without it, those calls return 404. Being signed in as the payer, or as the person who paid
+    for them, also works.
+  - Show Undo and Add a screenshot only when the phone holds the secret.
+- **The pay link's person view:**
+  - It no longer has `user_id`.
+  - `reason` is only kept for covered lines, so a waived line has no reason.
+  - A 404 `not_on_bill` means: go back to the names.
+- **`GET /clubs/{id}/pay`:**
+  - It shows the bank details to anyone with something to pay: their own dues, those of somebody
+    they pay for, or a monthly pass paid by standing order. `nothing_owed` now really means
+    nothing.
+  - It gains `friends: [{user_id, name, owed_cents}]`: people still owing on bills you're on, and
+    what they owe on those bills only. That's the list for "I'm paying for friends too", and the
+    most `for-others` takes for a friend.
+  - `claims` includes payments you made for somebody else. You can take them back with
+    `DELETE /payments/{pid}`, or add a screenshot.
+- **Shares** gain `cover`: `pass` or `free` on a covered line. Word it from this, not from the
+  English `reason`.
+- **`GET /clubs/{id}/money` `bills[]`** gain `kind`. A `collection` opens the group fee, a `pass`
+  opens nothing, and an `event` opens the session.
+- **`GET /clubs/{id}/payments/members`** (money admins) returns `[{user_id, name, price_type_id,
+  payer_id, payer_name, managed}]`. It's the list for "Prices and who pays".
+- **`GET /bills/{bill_id}/link`** returns the group fee's open link, or `null`, and never makes one.
+- **`POST /clubs/{id}/collections`** honours Idempotency-Key. Send one.
+- **`GET /me/passes`** gains `covers`, `valid_until` and `sessions`.
+- **`standing_order`:**
+  - `reference` is now always the pass holder's own, including for a junior's pass paid by a
+    parent.
+  - `first_payment_on` is never before tomorrow. When a month's charge is still unpaid, the
+    standing order pays it: say "Your standing order pays this month too. Don't pay it by hand."
+- **Notifications:**
+  - `paid_for_you`: somebody paid for you.
+  - `pass_suspended_club`: for money admins. Open the payments overview. `pass_suspended` is now
+    only the holder's.
+- **Statement preview:** a line's `payment_ids` (plural) replaces `payment_id`. One bank line can
+  tick several claims, for example a parent's one transfer for two juniors.
