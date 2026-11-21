@@ -1,6 +1,6 @@
 # Paying the club by bank transfer
 
-> **Status: plan, not built.** Written 2026-11-21. Decisions still open are at the end.
+> **Status: phase 1 being built** (API done; apps in progress). Written 2026-11-21. What was built, and the contract the apps use, is in §11.
 
 A secretary adds the club's bank details once. When a match or nets session has a cost,
 the app works out each player's share from who actually came. It shows them the bank
@@ -310,9 +310,9 @@ Errors have a stable code and a sentence the apps can show:
 
 ---
 
-## 10. Decisions still open
+## 10. Decisions (agreed 2026-11-21: the recommendations)
 
-| | Recommendation |
+| | Decided |
 |---|---|
 | Who can add or change bank details? | Owner, secretaries and treasurers, with every change announced to all of them and a 24-hour wait. |
 | Who confirms payments? | The same people. |
@@ -321,3 +321,128 @@ Errors have a stable code and a sentence the apps can show:
 | Can players see who else has paid? | No. Only admins see the list. |
 | UK only first, or UPI too? | UK first, unless Indian clubs are a priority now. |
 | Card payments (Stripe) | Keep them as an optional extra, off unless a club asks; bank transfer is the default. |
+
+---
+
+## 11. Built in phase 1: the contract the apps use
+
+The API is the source of truth: `backend/api/src/routes/club_payments.rs`, summarised in
+`backend/api/openapi.yaml` under **Club payments**. Money is always `*_cents` (integer minor
+units) plus a `currency` (ISO code). Errors are `{ "error": "<sentence to show>", "code": "<stable>" }`.
+
+Two simplifications from the plan above:
+- **One set of bank details per club**, plus at most one change waiting to go live. "Paid to"
+  choices come later.
+- **No modulus check yet.** The apps ask for the account number twice instead.
+
+### Who sees what
+
+| | Owner | Secretary | Treasurer | Captain who runs the event | Member |
+|---|---|---|---|---|---|
+| Add or change bank details, freeze them | ✓ | ✓ | ✓ | | |
+| Unfreeze bank details | ✓ | | | | |
+| Confirm or reject payments, record cash, refund, waive, see the money overview | ✓ | ✓ | ✓ | | |
+| Set an event's cost; send, re-split or cancel its bill | ✓ | ✓ | ✓ | ✓ | |
+| See their own shares; see full bank details while they owe something | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+Use the flags the API returns rather than working these out:
+- `can_manage` on the bank details;
+- `can_bill` and `can_manage_money` on a bill;
+- a 403 on `/clubs/{id}/money`.
+
+### Endpoints
+
+| Call | Used by | Notes |
+|---|---|---|
+| `GET /clubs/{id}/payout-account` | Bank details card | `{can_manage, is_owner, current, pending, frozen, changed_at}`. Each is `{id, label, holder_name, is_personal, sort_code "12-34-56", last4, state, live_from, created_by_name, freeze_reason, readable}`. Never the full number. |
+| `POST /clubs/{id}/payout-account` | Add/change form | `{holder_name, sort_code, account_number, label?, is_personal?, password}`. A missing password gives **428** `reauth_required`; a wrong one gives **403** `wrong_password` (this is *not* a 401, so don't sign the person out). Other errors: `invalid_bank_details` (400, show `error`), `same_details` (409). |
+| `POST …/payout-account/{aid}/freeze` · `/unfreeze` · `/retire` | Bank details card | Freeze takes `{reason?}`. Unfreeze is owner only (`owner_only`). Retire removes the details, or cancels a change still waiting. |
+| `PUT /clubs/{id}/payments/settings` | Money settings | `{auto_bill?, auto_bill_after_hours? 1–336, round_shares_up?}` |
+| `GET /clubs/{id}/money` | Treasurer's overview | `{currency, settings, account, to_check:[Payment], members:[{user_id, guest_name, name, owed_cents, waiting_cents, credit_cents}], totals, bills:[{bill_id, event_id, title, event_start_at, total_cents, paid_cents, waiting_cents, owed_cents, people, unpaid, waiting}]}` |
+| `POST /payments/{pid}/confirm` · `/reject {reason}` | To-check list | `already_decided` (409) means somebody else got there first: refresh. |
+| `POST /clubs/{id}/payments/record` | "Record cash" | `{user_id \| guest_name, amount_cents, method: cash\|transfer, note?}` + `Idempotency-Key`. Confirmed at once. |
+| `POST /clubs/{id}/payments/refund` | "Refund credit" | Same body; at most the credit (`more_than_credit`). |
+| `POST /shares/{sid}/waive {reason}` | Bill screen | Lets somebody off their share. |
+| `GET /clubs/{id}/payments/audit` | History | Newest first. |
+| `POST /events` with `cost_mode`, `cost_amount_cents`, `cost_note` | Schedule form | Optional, sent together. Each week of a weekly series is created with the same cost. |
+| `PUT /events/{id}/cost {mode, amount_cents, note?, apply_to_series?}` · `DELETE` | Event: cost | `already_billed` (409) once billed: re-split instead. |
+| `GET /events/{id}/bill` | Event: money section | `{cost, bill, can_bill, can_manage_money, shares, my_share, candidates, guests, has_payout_account, round_shares_up, event_status, end_at}`. `bill` has `version` and the `paid_cents`/`waiting_cents`/`owed_cents` totals. `candidates` is `[{user_id, name, rsvp, attended, suggested}]`: tick `suggested` to start with. |
+| `POST /events/{id}/bill/preview` | Who-came screen, live total | `{attendees:[user_id], guests:[name]}` gives `{shares:[{user_id, name, amount_cents}], total_cents, surplus_cents, currency}`. Errors: `no_attendees` / `bad_amount` / `amount_limit` (422). |
+| `POST /events/{id}/bill` | Send / re-split | Same body. Add `version` to re-split, `note?`. Errors: `no_cost`, `already_billed`, `version_conflict` (409: reload and show the message); `not_members` (400). |
+| `POST /events/{id}/bill/void {reason}` | Cancel bill | Anything paid becomes credit. |
+| `GET /me/dues` | "You owe" card and list | `{clubs:[{club_id, club_name, currency, owed_cents, waiting_cents, credit_cents, shares:[Share]}]}` |
+| `GET /clubs/{id}/pay` | Pay screen | `{owed_cents, waiting_cents, credit_cents, shares, account_state, account, reference, claims}`. `account` is `{holder_name, sort_code, account_number, label, is_personal, changed_at}`. |
+| `POST /clubs/{id}/payments {method: transfer\|cash, amount_cents?, note?}` | "I've paid" / "I paid cash" | **Always send `Idempotency-Key`**: a UUID made once per attempt and reused on retry. The amount defaults to everything owed. `nothing_owed` (409) is not a failure: refresh. |
+| `DELETE /payments/{pid}` | Undo a claim | Only while it is still claimed. |
+
+A share's `state` is `owed`, `part_paid`, `waiting` (somebody said they paid; not confirmed),
+`paid`, `waived` or `void`. Decode unknown values leniently. The pay screen's `account_state`
+can be:
+- `active`: show the details;
+- `none`: "Your club hasn't added bank details yet. Pay your secretary directly.";
+- `frozen`: "The club's bank details are being checked. Don't pay yet.";
+- `unreadable`: "Ask your secretary to enter the bank details again.";
+- `nothing_owed`: "You're all paid up."
+
+### Notifications
+
+Stored and pushed. The stored payload always has `title` and `body`, so an unknown kind still
+shows. Route by the payload: an `event_id` opens that event's money section; otherwise a
+`club_id` opens the pay screen, or the money overview for admins.
+
+| Kind | To | Opens |
+|---|---|---|
+| `bill_issued`, `bill_updated`, `bill_cancelled` | Players on the bill | Event |
+| `bill_who_came`, `bill_auto_sent`, `bill_not_sent` | Whoever scheduled it | Event (who came) |
+| `fee_reminder` | Players who owe | Pay screen |
+| `payment_claimed`, `payments_to_check` | Treasurers (or owner and secretaries) | Money overview |
+| `payment_confirmed`, `payment_rejected` | The payer | Pay screen |
+| `payout_details_changed`, `payout_details_frozen` | Owner, secretaries, treasurers | Bank details |
+
+### Screens (all three apps)
+
+1. **Pay screen.**
+   - Shows the amount, then the holder name, sort code, account number and reference, each with
+     **Copy**, plus **Copy all**.
+   - Says "Pay in your banking app, then come back and tap **I've paid**", with a smaller
+     **I paid cash**.
+   - "Personal account" when `is_personal`.
+   - An amber "These bank details changed on {date}" when `changed_at` is set.
+   - Claims waiting for the treasurer appear with **Undo**.
+2. **You owe.**
+   - A card on Home and in Profile when any club has `owed_cents > 0`. It opens a list by club,
+     then the pay screen.
+   - Waiting amounts read "Waiting for the club to confirm".
+3. **Event money section** (fixture and nets detail).
+   - **Cost**, for `can_bill`: set or change it while unbilled.
+   - **Who came?**, once there is a cost and no bill:
+     - checkboxes from `candidates`, ticked by `suggested`;
+     - a field to add guests;
+     - a live preview total from `/bill/preview`;
+     - **Send the bill**.
+   - **With a bill:**
+     - collected, waiting and owed totals;
+     - the list of shares with their states;
+     - **Change who came** (a re-split, sending `version`);
+     - **Cancel bill** (asks for a reason);
+     - **Let off** on a share (asks for a reason) for `can_manage_money`.
+   - **For a player:**
+     - their share and state;
+     - **Pay**, which opens the pay screen.
+4. **Club → Manage → Payments** (money admins).
+   - **Bank details card:**
+     - add or change, typing the account number twice, the holder name "exactly as on the
+       account" (players' banks check it), the personal tick and the password;
+     - a pending change with its go-live time;
+     - **Freeze**, **Unfreeze** (owner) and **Remove**.
+   - **Payments to check**, with **Received** and **Not received** (asks for a reason).
+   - **Who owes what**, with **Record cash** and **Refund** (when they have credit).
+   - **Recent bills**, which open the event.
+   - **Settings:** auto-send the bill (on/off and after how many hours), and round shares up to 10p.
+5. **Schedule form.**
+   - An optional **Cost** section: *Split a total* or *Same for everyone*, plus the amount.
+   - Ask for confirmation above £100 a head (`amount_limit` is the hard stop).
+
+Demo data for building against the local API: `python3 .dev/payments/seed_demo.py` (the
+accounts and story are in its docstring). Real responses are in `.dev/payments/examples/`
+after `--examples`.
