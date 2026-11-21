@@ -788,6 +788,8 @@ pub struct BillOutcome {
     pub resplit: bool,
     /// Members whose share is new or changed: they are the ones to tell.
     pub changed: Vec<(Uuid, i64)>,
+    /// Members a re-split took off the bill: they are told too.
+    pub removed: Vec<Uuid>,
     pub surplus_cents: i64,
 }
 
@@ -904,7 +906,13 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
             }
         }
     }
-    Ok(BillOutcome { bill, resplit, changed, surplus_cents: split.surplus_cents })
+    let removed = before
+        .iter()
+        .filter(|(_, _, status, _)| status == "live")
+        .filter_map(|(u, _, _, _)| *u)
+        .filter(|u| !input.attendees.iter().any(|a| a.user_id == Some(*u)))
+        .collect();
+    Ok(BillOutcome { bill, resplit, changed, removed, surplus_cents: split.surplus_cents })
 }
 
 // MARK: payments

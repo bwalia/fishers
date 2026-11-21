@@ -1040,6 +1040,17 @@ async fn send_bill(
     tx.commit().await?;
 
     tell_players_about_bill(&state, &outcome.bill, &outcome.changed, outcome.resplit, Some(auth.user_id)).await;
+    for user in outcome.removed.iter().filter(|u| **u != auth.user_id) {
+        state
+            .notify_text(
+                *user,
+                "bill_updated",
+                &outcome.bill.title,
+                "You've been taken off this bill, so you don't owe anything for it. Anything you'd paid counts as credit.",
+                json!({ "event_id": event_id, "club_id": event.club_id }),
+            )
+            .await;
+    }
     Ok(Json(bill_response(&state, &event, auth.user_id).await?))
 }
 
