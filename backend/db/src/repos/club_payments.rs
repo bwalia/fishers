@@ -1563,8 +1563,6 @@ pub async fn share_on_bill(pool: &PgPool, bill_id: Uuid, share_id: Uuid) -> Resu
     .await
 }
 
-/// A claim still waiting for the treasurer, for one share — so a second tap
-/// on the link shows that claim instead of making another.
 /// The claim a link request with this Idempotency-Key made, if any: a retry
 /// by the same phone.
 pub async fn link_claim_by_key(pool: &PgPool, link_id: Uuid, key: &str) -> Result<Option<PaymentRow>, sqlx::Error> {
@@ -1575,6 +1573,8 @@ pub async fn link_claim_by_key(pool: &PgPool, link_id: Uuid, key: &str) -> Resul
         .await
 }
 
+/// A claim still waiting for the treasurer, for one share — so a second tap
+/// on the link shows that claim instead of making another.
 pub async fn open_claim_for_share(pool: &PgPool, share_id: Uuid) -> Result<Option<PaymentRow>, sqlx::Error> {
     sqlx::query_as::<_, PaymentRow>(&format!(
         "{PAYMENT_SELECT} WHERE p.share_id = $1 AND p.status = 'claimed' ORDER BY p.created_at DESC LIMIT 1"
@@ -1710,6 +1710,12 @@ pub async fn try_lock_payer(conn: &mut PgConnection, club_id: Uuid, payer: &Paye
         Payer::Member(u) => format!("pay|{club_id}|m|{u}"),
         Payer::Guest(n) => format!("pay|{club_id}|g|{n}"),
     };
+    try_lock_key(conn, &key).await
+}
+
+/// Any transaction-long lock by name, without waiting: `false` when another
+/// request holds it.
+pub async fn try_lock_key(conn: &mut PgConnection, key: &str) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))").bind(key).fetch_one(conn).await
 }
 

@@ -33,7 +33,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::club_payments::{
-    accounts, club_bank_details, decide, event_or_404, first_name, idempotency_key, lock_payer, reference_for,
+    accounts, club_bank_details, decide, event_or_404, first_name, idempotency_key, lock_payer, reference_for, save_slot,
     require_can_bill, require_money_admin, share_view, status, BankDetails, Ledger, ShareView,
 };
 use crate::auth::{decode_token, AuthUser};
@@ -55,14 +55,13 @@ const MAX_SCREENSHOT_BYTES: usize = 1_000_000;
 // Every limit here is per link. Behind the ingress every caller can arrive
 // from one address (Traefik replaces the forwarded one), so a limit on an
 // address alone would let one person shut every pay link for everybody.
-/// Opening one link, from one address.
-static VIEWS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(120, StdDuration::from_secs(60)));
+/// Opening one link, from one address — which may be everybody: generous,
+/// so a whole club opening it at once is fine.
+static VIEWS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(600, StdDuration::from_secs(60)));
 /// Tokens that aren't links. A forged token can't be found (it's an HMAC),
 /// so this only slows somebody trying, and touches nobody else's limit.
 static BAD_TOKENS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(30, StdDuration::from_secs(60)));
-/// "I've paid" on one link, from one address: a whole club on the ground's
-/// Wi-Fi shares one. One open claim per person bounds the rest.
-static CLAIMS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(40, StdDuration::from_secs(3600)));
+
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -233,7 +232,7 @@ async fn person(state: &AppState, link: &repo::PayLinkRow, share: &ShareRow) -> 
     // line was let off ("hardship") — only that a pass covers it.
     let mut view = view;
     view.user_id = None;
-    if view.state != ShareState::Covered {
+    if view.cover != Some("pass") {
         view.reason = None;
     }
     Ok(PersonOnLink { share: view, owed_cents: owed, reference, claim, claim_secret: None })
@@ -275,7 +274,13 @@ async fn link_claim(
         .await?
         .ok_or_else(|| ApiError::not_found("That name isn't on this bill any more. Open the link again.").with_code("not_on_bill"))?;
 
+    // A link making dozens of claims an hour is being abused, whichever
+    // replica the requests land on. Checked before anything is locked.
+    if repo::recent_link_claims(&state.pool, link.id).await? >= CLAIMS_PER_LINK_HOUR {
+        return Err(ApiError::too_many("Too many payments from here. Try again later.").with_code("slow_down"));
+    }
     // One at a time for this person, so two taps at once can't both record.
+    let _slot = save_slot().await?;
     let mut tx = state.pool.begin().await?;
     lock_payer(&mut tx, link.club_id, &share.payer()).await?;
     // A retry by the same phone (the same key): its claim, and its secret.
@@ -299,12 +304,6 @@ async fn link_claim(
             _ => "There's nothing left to pay on this one.",
         })
         .with_code("nothing_owed"));
-    }
-    let ip = crate::services::pay_links::client_ip(&headers);
-    if !CLAIMS.allow(&format!("{ip}|{}", link.id))
-        || repo::recent_link_claims(&state.pool, link.id).await? >= CLAIMS_PER_LINK_HOUR
-    {
-        return Err(ApiError::too_many("Too many payments from here. Try again later.").with_code("slow_down"));
     }
 
     let payer = share.payer();
@@ -362,7 +361,9 @@ async fn link_claim(
         }
     }
     let mut out = person(&state, &link, &share).await?;
-    out.claim_secret = Some(state.pay_links.claim_secret(row.id));
+    // The key may have been used for somebody else's name: their secret
+    // isn't this caller's to have.
+    out.claim_secret = (row.share_id == Some(share.id)).then(|| state.pay_links.claim_secret(row.id));
     Ok(Json(out))
 }
 
@@ -727,11 +728,16 @@ async fn cash_at_ground(
     }
     let collector = repo::user_name(&state.pool, auth.user_id).await?.unwrap_or_default();
     let shares = repo::bill_shares(&state.pool, bill.id).await?;
+    // The same line ticked twice in one request is ticked once.
+    let mut ids = body.share_ids.clone();
+    ids.sort();
+    ids.dedup();
     // Everybody ticked is locked first, then what they owe is read: a double
     // tap can't record their cash twice.
+    let _slot = save_slot().await?;
     let mut tx = state.pool.begin().await?;
     let mut payers: Vec<Payer> =
-        shares.iter().filter(|s| body.share_ids.contains(&s.id)).map(|s| s.payer()).collect();
+        shares.iter().filter(|s| ids.contains(&s.id)).map(|s| s.payer()).collect();
     payers.sort();
     payers.dedup();
     for p in &payers {
@@ -741,7 +747,7 @@ async fn cash_at_ground(
     // `already_paid`: ticked people who owe nothing now — on a retry after a
     // lost reply, the ones the first tap recorded.
     let (mut recorded, mut already, mut total) = (0, 0, 0i64);
-    for sid in body.share_ids {
+    for sid in ids {
         let Some(share) = shares.iter().find(|s| s.id == sid && s.status == "live") else { continue };
         let p = ledger.progress(share).unwrap_or_default();
         let owed = share.amount_cents - p.paid_cents - p.waiting_cents;

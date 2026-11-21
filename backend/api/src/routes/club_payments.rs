@@ -87,6 +87,20 @@ pub(crate) fn busy() -> ApiError {
     status(StatusCode::CONFLICT, "Hold on, that's still being saved. Try again in a moment.", "busy")
 }
 
+/// How many payments are saved at once, per replica. Each save holds a pooled
+/// connection for its transaction and reads balances through another, so
+/// without a limit a burst of saves for different people could take every
+/// connection in the pool (10) and freeze the API. Waiters hold none.
+static SAVES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(3);
+
+/// A turn to save a payment, or "busy" after ten seconds of waiting.
+pub(crate) async fn save_slot() -> ApiResult<tokio::sync::SemaphorePermit<'static>> {
+    match tokio::time::timeout(std::time::Duration::from_secs(10), SAVES.acquire()).await {
+        Ok(Ok(permit)) => Ok(permit),
+        _ => Err(busy()),
+    }
+}
+
 /// Lock a payer for this transaction, or say they're busy.
 pub(crate) async fn lock_payer(tx: &mut sqlx::PgConnection, club_id: Uuid, payer: &Payer) -> ApiResult<()> {
     if repo::try_lock_payer(tx, club_id, payer).await? { Ok(()) } else { Err(busy()) }
@@ -1581,6 +1595,12 @@ async fn pays_for_someone_owing(state: &AppState, club_id: Uuid, user_id: Uuid) 
 
 /// What each of `people` owes on the bills `user_id` is on: the most a friend
 /// may pay for them, and all a friend sees of their dues.
+///
+/// Two limits, the lower wins: what's still unpaid on those bills, and their
+/// lines' full amounts less everything you've already paid for that person.
+/// The second matters because payments settle the oldest debt first: a
+/// friend's money can go to an older private bill and leave the shared one
+/// "owed", so without it you could pay again and again for their other dues.
 pub(crate) async fn owed_on_shared_bills(
     state: &AppState,
     club_id: Uuid,
@@ -1588,15 +1608,35 @@ pub(crate) async fn owed_on_shared_bills(
     ledger: &Ledger,
 ) -> ApiResult<HashMap<Uuid, (String, i64)>> {
     let bills: std::collections::HashSet<Uuid> = repo::bills_with(&state.pool, club_id, user_id).await?.into_iter().collect();
-    let mut out: HashMap<Uuid, (String, i64)> = HashMap::new();
+    let paid_by_me: HashMap<Uuid, i64> = sqlx::query_as::<_, (Uuid, i64)>(
+        "SELECT user_id, SUM(amount_cents)::BIGINT FROM member_payments
+         WHERE club_id = $1 AND created_by = $2 AND user_id IS NOT NULL AND user_id <> $2
+           AND status IN ('claimed', 'confirmed') AND method IN ('transfer', 'cash')
+         GROUP BY user_id",
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await?
+    .into_iter()
+    .collect();
+    // person → (name, unpaid on shared bills, full amount of their shared lines)
+    let mut per: HashMap<Uuid, (String, i64, i64)> = HashMap::new();
     for s in ledger.shares.iter().filter(|s| bills.contains(&s.bill_id)) {
         let Some(u) = s.user_id.filter(|u| *u != user_id) else { continue };
         let p = ledger.progress(s).unwrap_or_default();
         let left = (s.amount_cents - p.paid_cents - p.waiting_cents).max(0);
-        let e = out.entry(u).or_insert_with(|| (s.name.clone(), 0));
+        let e = per.entry(u).or_insert_with(|| (s.name.clone(), 0, 0));
         e.1 += left;
+        e.2 += s.amount_cents;
     }
-    Ok(out)
+    Ok(per
+        .into_iter()
+        .map(|(u, (name, unpaid, whole))| {
+            let room = (whole - paid_by_me.get(&u).copied().unwrap_or(0)).max(0);
+            (u, (name, unpaid.min(room)))
+        })
+        .collect())
 }
 
 async fn friends_owing(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<Vec<FriendOwing>> {
@@ -1698,6 +1738,7 @@ async fn claim_payment(
     let key = idempotency_key(&headers)?;
     // One at a time for this member: the balance read below is then the one
     // the payment is recorded against.
+    let _slot = save_slot().await?;
     let mut tx = state.pool.begin().await?;
     lock_payer(&mut tx, club_id, &Payer::Member(auth.user_id)).await?;
     // A retry of a claim already made (a bad signal, a double tap) answers
@@ -2016,6 +2057,12 @@ async fn refund(
     let note = clean_note(body.note.as_deref())?;
     let ledger = Ledger::load(&state, club_id, None).await?;
     let (payer, name) = payer_for(&state, club_id, &body, &ledger).await?;
+    // Locked, then the credit read again: two refunds at once can't both
+    // take the same credit.
+    let _slot = save_slot().await?;
+    let mut tx = state.pool.begin().await?;
+    lock_payer(&mut tx, club_id, &payer).await?;
+    let ledger = Ledger::load(&state, club_id, None).await?;
     let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
     let credit = ledger.of(&payer).credit_cents;
     if body.amount_cents <= 0 || body.amount_cents > credit {
@@ -2030,7 +2077,6 @@ async fn refund(
         Payer::Member(id) => (Some(*id), None),
         Payer::Guest(_) => (None, Some(name.as_str())),
     };
-    let mut tx = state.pool.begin().await?;
     let (row, created) = repo::insert_payment(
         &mut tx,
         &NewPayment {

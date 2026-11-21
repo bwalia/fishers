@@ -818,6 +818,29 @@ async fn create_collection(
     let currency = repo::club_currency(&state.pool, club_id).await?;
     let payout = accounts(&state, club_id).await?.current().map(|a| a.id);
     let mut tx = state.pool.begin().await?;
+    // Two sends with the same key at once: one makes it, the other finds it.
+    if let Some(k) = key.as_deref() {
+        if !repo::try_lock_key(&mut tx, &format!("collection|{club_id}|{k}")).await? {
+            return Err(super::club_payments::busy());
+        }
+        let made: Option<Uuid> = sqlx::query_scalar(
+            "SELECT entity_id FROM club_payment_audit WHERE club_id = $1 AND actor_id = $2
+               AND action = 'create_collection' AND after->>'key' = $3 LIMIT 1",
+        )
+        .bind(club_id)
+        .bind(auth.user_id)
+        .bind(k)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
+        if let Some(id) = made {
+            drop(tx);
+            if let Some(bill) = repo::bill_by_id(&state.pool, id).await? {
+                return Ok(Json(collection_view(&state, bill, None).await?));
+            }
+            return Err(super::club_payments::busy());
+        }
+    }
     let (bill, told) = passes_repo::create_collection(
         &mut tx,
         &passes_repo::NewCollection {
@@ -1053,6 +1076,7 @@ async fn pay_for_others(
         }
     }
     // Everybody in it is locked first, then what they owe is read.
+    let _slot = super::club_payments::save_slot().await?;
     let mut tx = state.pool.begin().await?;
     let mut locked: Vec<Payer> = people.iter().map(|p| Payer::Member(*p)).collect();
     locked.sort();

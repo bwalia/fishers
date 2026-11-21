@@ -88,8 +88,6 @@ impl PayLinkKeys {
         (diff == 0).then_some(id)
     }
 
-    /// The caller's address, hashed: enough to see one phone hammering a
-    /// link in the audit trail, never an address kept in the clear.
     /// The secret handed to whoever said "I've paid" on a link, and only to
     /// them: taking it back or adding its screenshot needs it, so somebody
     /// else holding the same link can't.
@@ -107,6 +105,8 @@ impl PayLinkKeys {
         want.len() == given.len() && want.bytes().zip(given.bytes()).fold(0u8, |d, (a, b)| d | (a ^ b)) == 0
     }
 
+    /// The caller's address, hashed: enough to see one phone hammering a
+    /// link in the audit trail, never an address kept in the clear.
     pub fn ip_hash(&self, headers: &HeaderMap) -> String {
         let ip = client_ip(headers);
         let mut mac = <HmacSha256 as Mac>::new_from_slice(&self.ip_key).expect("any key length");

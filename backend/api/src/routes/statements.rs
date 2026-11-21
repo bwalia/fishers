@@ -199,9 +199,21 @@ async fn apply(
     for line in preview.lines.iter().filter(|l| wanted.contains(l.hash.as_str())) {
         match (line.action, line.payment_ids.first().copied(), line.user_id) {
             ("confirm", Some(first), Some(_)) => {
+                // All of a line's "I've paid"s must still be waiting: one
+                // taken back meanwhile leaves the whole line for a person,
+                // rather than half of it ticked.
+                let mut all_waiting = true;
+                for pid in &line.payment_ids {
+                    if repo::payment(&state.pool, *pid).await?.is_none_or(|p| p.status != "claimed") {
+                        all_waiting = false;
+                    }
+                }
+                if !all_waiting {
+                    out.skipped += 1;
+                    continue;
+                }
                 // Each ticked like any other (the member hears it arrived),
-                // and only then is the line marked applied: an "I've paid"
-                // taken back meanwhile leaves the line for next time.
+                // and only then is the line marked applied.
                 let mut ticked = 0;
                 for pid in &line.payment_ids {
                     if decide(&state, auth.user_id, *pid, true, None).await.is_ok() {

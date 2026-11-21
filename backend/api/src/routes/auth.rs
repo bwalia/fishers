@@ -462,35 +462,42 @@ async fn whatsapp_start(
     let number = state.whatsapp.normalize(&body.phone).ok_or_else(bad_number)?;
     let _ = &headers;
     let [minute, hour, everyone] = signin_throttle();
-    // The same limits and the same reply whether or not the number has an
-    // account, so neither gives that away. Limits are per number: behind the
-    // ingress every caller can share one address, so an address limit would
-    // let one person switch sign-in off for everybody. The service-wide cap
-    // bounds what a flood can cost in messages.
-    if !hour.allow(&number) || !minute.allow(&number) || !everyone.allow("all") {
+    // Limits per number, the same whether or not it has an account. Behind
+    // the ingress every caller can share one address, so a limit on address
+    // would let one person switch sign-in off for everybody.
+    if !hour.allow(&number) || !minute.allow(&number) {
         return Err(ApiError::too_many("A code is already on its way. Wait a minute before asking for another.")
             .with_code("slow_down"));
     }
-    let sent = serde_json::json!({ "sent": true, "expires_in": SIGNIN_CODE_SECS, "resend_after": 60 });
-    let Some(user) = user_by_whatsapp(&state, &number).await? else {
-        return Ok(Json(sent));
-    };
-    use rand::Rng;
-    let code = format!("{:06}", rand::rngs::OsRng.gen_range(0..1_000_000u32));
-    let hash = super::verification::hash_code(&state.jwt_secret, user.id, SIGNIN, &number, &code);
-    fishers_db::repos::verification::create(&state.pool, user.id, SIGNIN, &number, &hash, SIGNIN_CODE_SECS).await?;
-    // Sent after replying: how long WhatsApp takes, or that it failed, would
-    // otherwise say this number has an account.
-    let (whatsapp, pool) = (state.whatsapp.clone(), state.pool.clone());
+    // Everything else happens after the reply — finding the account, making
+    // the code, sending it — so neither how long it takes nor whether it
+    // fails says this number has an account. The service-wide cap (what a
+    // flood can cost in messages) only counts numbers that have one, so made-
+    // up numbers can't use it up and switch sign-in off for real people.
+    let state = state.clone();
     tokio::spawn(async move {
-        if let Err(error) = whatsapp.send_code(&number, &code).await {
+        let Ok(Some(user)) = user_by_whatsapp(&state, &number).await else { return };
+        if !everyone.allow("all") {
+            tracing::warn!("sign-in codes: the hourly cap is spent; not sending");
+            return;
+        }
+        use rand::Rng;
+        let code = format!("{:06}", rand::rngs::OsRng.gen_range(0..1_000_000u32));
+        let hash = super::verification::hash_code(&state.jwt_secret, user.id, SIGNIN, &number, &code);
+        if let Err(error) =
+            fishers_db::repos::verification::create(&state.pool, user.id, SIGNIN, &number, &hash, SIGNIN_CODE_SECS).await
+        {
+            tracing::warn!(%error, "sign-in code not saved");
+            return;
+        }
+        if let Err(error) = state.whatsapp.send_code(&number, &code).await {
             tracing::warn!(%error, "sign-in code not delivered");
-            if let Ok(Some(live)) = fishers_db::repos::verification::active(&pool, user.id, SIGNIN).await {
-                let _ = fishers_db::repos::verification::consume(&pool, live.id).await;
+            if let Ok(Some(live)) = fishers_db::repos::verification::active(&state.pool, user.id, SIGNIN).await {
+                let _ = fishers_db::repos::verification::consume(&state.pool, live.id).await;
             }
         }
     });
-    Ok(Json(sent))
+    Ok(Json(serde_json::json!({ "sent": true, "expires_in": SIGNIN_CODE_SECS, "resend_after": 60 })))
 }
 
 async fn whatsapp_verify(
