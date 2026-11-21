@@ -629,6 +629,10 @@ impl Ledger {
         }
         for p in &payments {
             grouped.entry(p.payer()).or_default().1.push(p.ledger());
+            // A guest who has only ever paid (cash, no share yet) still has a name.
+            if let Some(guest) = p.guest_name.as_deref() {
+                names.entry(p.payer()).or_insert_with(|| guest.to_string());
+            }
         }
         let by_payer = grouped.into_iter().map(|(k, (s, p))| (k, money::settle(&s, &p))).collect();
         Self { shares, by_payer, names }

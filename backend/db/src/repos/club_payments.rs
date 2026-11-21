@@ -509,18 +509,20 @@ pub struct Candidate {
     pub attended: Option<bool>,
 }
 
-/// The home club's members who were asked, with their answer and whether
-/// they turned up. The opposition's players are never billed.
+/// The home club's active members, with their answer and whether they
+/// turned up: those who were asked first, then everyone else (a member who
+/// joined after it was scheduled can still have come). The opposition's
+/// players are never billed. `rsvp` is `not_invited` for the latter.
 pub async fn candidates(pool: &PgPool, event_id: Uuid) -> Result<Vec<Candidate>, sqlx::Error> {
     sqlx::query_as::<_, Candidate>(
         r#"
-        SELECT i.user_id, u.name, i.status::text AS rsvp, i.attended
-        FROM event_invites i
-        JOIN events e ON e.id = i.event_id
-        JOIN users u ON u.id = i.user_id
-        JOIN club_members m ON m.club_id = e.club_id AND m.user_id = i.user_id AND m.status = 'active'
-        WHERE i.event_id = $1
-        ORDER BY lower(u.name), u.id
+        SELECT m.user_id, u.name, COALESCE(i.status::text, 'not_invited') AS rsvp, i.attended
+        FROM events e
+        JOIN club_members m ON m.club_id = e.club_id AND m.status = 'active'
+        JOIN users u ON u.id = m.user_id
+        LEFT JOIN event_invites i ON i.event_id = e.id AND i.user_id = m.user_id
+        WHERE e.id = $1
+        ORDER BY (i.user_id IS NULL), lower(u.name), u.id
         "#,
     )
     .bind(event_id)
