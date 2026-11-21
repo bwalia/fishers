@@ -1578,8 +1578,9 @@ struct PayScreen {
     /// People on the bills you're on who still owe on them, and how much:
     /// for "I'm paying for friends too".
     friends: Vec<FriendOwing>,
-    /// Of `owed_cents`, what your standing order pays (monthly pass charges):
-    /// not part of "I've paid", which claims the rest.
+    /// What your standing order is about to pay (monthly pass charges not yet
+    /// past their due day). Left out of `owed_cents`, which is what to pay by
+    /// hand — and what "I've paid" claims.
     standing_order_cents: i64,
 }
 
@@ -1749,7 +1750,9 @@ async fn pay_screen(
         club_id,
         club_name,
         currency: dues.currency.clone(),
-        owed_cents: dues.owed_cents,
+        // The pay screen is for paying by hand: what the standing order is
+        // about to pay isn't in it (it's still in `shares`, and said apart).
+        owed_cents: (dues.owed_cents - standing_order_cents).max(0),
         waiting_cents: dues.waiting_cents,
         credit_cents: dues.credit_cents,
         shares: dues.shares.into_iter().filter(|s| s.state != ShareState::Paid).collect(),
