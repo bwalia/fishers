@@ -111,6 +111,24 @@ fun BankDetails?.waitingLine(): String =
     else t("pa2.waiting_for_the_club")
 
 /**
+ * A payment waiting for the club, as the pay screen lists it: "£5.00 by bank
+ * transfer"; "For Jas Gill: £5.63 by bank transfer" when you paid for
+ * somebody else; "Paid for you: …" when somebody paid for you. [me] is who is
+ * signed in; without it, every one reads as your own.
+ */
+fun Payment.waitingWords(me: String?): String {
+    val amount = money(amountCents, currency)
+    val what = if (method == PaymentMethod.Cash) t("pa2.paid_in_cash", vars = mapOf("amount" to amount))
+    else t("pa2.paid_by_transfer", vars = mapOf("amount" to amount))
+    return when {
+        me == null -> what
+        userId != me -> t("pa4.claim_for_name", vars = mapOf("name" to name, "what" to what))
+        createdBy != null && createdBy != me -> t("pa4.claim_paid_for_you", vars = mapOf("what" to what))
+        else -> what
+    }
+}
+
+/**
  * Everything somebody else needs to pay on your behalf — a son or daughter
  * who does the banking. Sent by the person, from their own phone, to someone
  * they chose: the only place the app puts the account number into words.

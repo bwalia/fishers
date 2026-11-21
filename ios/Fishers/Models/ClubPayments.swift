@@ -481,9 +481,12 @@ struct ClubShare: Codable, Identifiable, Equatable {
     let kind: String?
     /// When a pass charge or a group fee falls due, as the server wrote it.
     let dueOn: String?
+    /// On a covered line, what covers it: `pass` or `free` (a free price
+    /// group). Worded from this, never from the English `reason`.
+    let cover: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, name, currency, state, reason, kind
+        case id, title, name, currency, state, reason, kind, cover
         case dueOn = "due_on"
         case billId = "bill_id"
         case eventId = "event_id"
@@ -513,6 +516,7 @@ struct ClubShare: Codable, Identifiable, Equatable {
         reason = try c.decodeIfPresent(String.self, forKey: .reason)
         kind = try? c.decodeIfPresent(String.self, forKey: .kind)
         dueOn = try? c.decodeIfPresent(String.self, forKey: .dueOn)
+        cover = try? c.decodeIfPresent(String.self, forKey: .cover)
     }
 
     var isGuest: Bool { userId == nil }
@@ -657,9 +661,13 @@ struct ClubPayment: Codable, Identifiable, Equatable {
     let viaLink: UUID?
     /// The payer added a picture of the payment.
     let hasScreenshot: Bool
+    /// Who said it was paid: the person it's for, or somebody paying for
+    /// them (a parent, a friend).
+    let createdBy: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, name, currency, method, reference, status, note
+        case createdBy = "created_by"
         case shareId = "share_id"
         case viaLink = "via_link"
         case hasScreenshot = "has_screenshot"
@@ -693,7 +701,12 @@ struct ClubPayment: Codable, Identifiable, Equatable {
         shareId = try? c.decodeIfPresent(UUID.self, forKey: .shareId)
         viaLink = try? c.decodeIfPresent(UUID.self, forKey: .viaLink)
         hasScreenshot = (try? c.decodeIfPresent(Bool.self, forKey: .hasScreenshot)) ?? false
+        createdBy = try? c.decodeIfPresent(UUID.self, forKey: .createdBy)
     }
+
+    /// Whose reference it went under: whoever said it was paid. That is who
+    /// a bank statement line names.
+    var payerId: UUID? { createdBy ?? userId }
 
     /// Waiting for a money admin to check it.
     var isWaiting: Bool { status == .claimed }
@@ -721,11 +734,14 @@ struct PayScreen: Codable, Equatable {
     let accountState: PayAccountState
     let account: BankDetails?
     let reference: String
-    /// Your claims nobody has confirmed yet.
+    /// Your claims nobody has confirmed yet, and those you made for others.
     let claims: [ClubPayment]
+    /// People still owing on bills the reader is on, and what they owe on
+    /// those bills only: "I'm paying for friends too".
+    let friends: [FriendOwing]
 
     enum CodingKeys: String, CodingKey {
-        case currency, shares, account, reference, claims
+        case currency, shares, account, reference, claims, friends
         case clubId = "club_id"
         case clubName = "club_name"
         case owedCents = "owed_cents"
@@ -747,6 +763,7 @@ struct PayScreen: Codable, Equatable {
         account = try c.decodeIfPresent(BankDetails.self, forKey: .account)
         reference = try c.decodeIfPresent(String.self, forKey: .reference) ?? ""
         claims = try c.decodeIfPresent([ClubPayment].self, forKey: .claims) ?? []
+        friends = (try? c.decodeIfPresent([FriendOwing].self, forKey: .friends)) ?? []
     }
 
     /// Details to copy, only when the server says they are good to pay into.
@@ -779,6 +796,40 @@ struct PayScreen: Codable, Equatable {
         ]
         .map { $0.joined(separator: ": ") }
         return ([tr("Please pay {club} for me:", vars: ["club": clubName])] + lines).joined(separator: "\n")
+    }
+
+    /// Why there are no details to pay into, for a screen that would show
+    /// them: none added, frozen, or unreadable. Nil while there are details,
+    /// and for `nothing_owed`, where there is nothing to pay anyway.
+    var noDetailsReason: String? {
+        switch accountState {
+        case .active, .nothingOwed: return nil
+        default: return accountState.explanation
+        }
+    }
+}
+
+/// Somebody on a bill the reader is on who still owes on it.
+struct FriendOwing: Codable, Identifiable, Equatable {
+    let userId: UUID
+    let name: String
+    /// What they owe on the bills the reader shares with them, and nothing
+    /// of their other dues: the most "for-others" takes for them.
+    let owedCents: Int
+
+    var id: UUID { userId }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case userId = "user_id"
+        case owedCents = "owed_cents"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        owedCents = (try? c.decodeIfPresent(Int.self, forKey: .owedCents)) ?? 0
     }
 }
 
@@ -900,11 +951,14 @@ struct BillSummary: Codable, Identifiable, Equatable {
     let people: Int
     let unpaid: Int
     let waiting: Int
+    /// `event` opens the session, `collection` the group fee, `pass`
+    /// nothing. Nil from servers before passes: a session's, if it has one.
+    let kind: String?
 
     var id: UUID { billId }
 
     enum CodingKeys: String, CodingKey {
-        case title, currency, people, unpaid, waiting
+        case title, currency, people, unpaid, waiting, kind
         case billId = "bill_id"
         case eventId = "event_id"
         case eventStartAt = "event_start_at"
@@ -928,7 +982,11 @@ struct BillSummary: Codable, Identifiable, Equatable {
         people = try c.decodeIfPresent(Int.self, forKey: .people) ?? 0
         unpaid = try c.decodeIfPresent(Int.self, forKey: .unpaid) ?? 0
         waiting = try c.decodeIfPresent(Int.self, forKey: .waiting) ?? 0
+        kind = try? c.decodeIfPresent(String.self, forKey: .kind)
     }
+
+    /// A group fee's bill, which opens the group fee rather than a session.
+    var isGroupFee: Bool { kind == "collection" }
 }
 
 /// `GET /clubs/{id}/money`. A 403 here is how the app learns somebody is not

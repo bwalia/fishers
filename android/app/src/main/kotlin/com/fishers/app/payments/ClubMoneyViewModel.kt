@@ -231,7 +231,7 @@ class ClubMoneyViewModel(
         val key = keys.keyFor(attempt)
         _state.update { it.copy(isBusy = true, error = null, message = null) }
         viewModelScope.launch {
-            runCatching { call(key) }
+            runCatching { retryIfBusy { call(key) } }
                 .onSuccess {
                     keys.settled(attempt)
                     _state.update { it.copy(isBusy = false, message = done) }

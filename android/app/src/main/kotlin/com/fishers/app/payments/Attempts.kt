@@ -3,6 +3,11 @@ package com.fishers.app.payments
 import com.fishers.app.clubs.Refusal
 import com.fishers.app.clubs.refusalOf
 import com.fishers.app.clubs.saidWhy
+import kotlinx.coroutines.delay
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 import java.util.UUID
 
 /**
@@ -29,9 +34,11 @@ class AttemptKeys(private val mint: () -> String = { UUID.randomUUID().toString(
     /**
      * After a failure: forget the key only if the server answered it. Takes
      * the refusal already read, because an error body can be read only once.
+     * `busy` is no answer: the payment it was busy saving may be this one,
+     * so the next tap must carry the same key to be recognised.
      */
     fun failed(attempt: Any, refusal: Refusal?) {
-        if ((refusal?.status ?: 0) in 400..499) settled(attempt)
+        if ((refusal?.status ?: 0) in 400..499 && refusal?.code != "busy") settled(attempt)
     }
 }
 
@@ -45,3 +52,32 @@ val Refusal.meansReload: Boolean
 
 /** The server's own sentence for a refusal, the app's words for anything else. */
 fun failureText(error: Throwable, refusal: Refusal? = refusalOf(error)): String = saidWhy(error, refusal)
+
+/** How long a payment waits before its one retry after `busy`. */
+const val BUSY_RETRY_MS = 1_000L
+
+private val JSON = "application/json".toMediaType()
+
+/**
+ * A payment POST, tried once more if the server says `busy` (409): another
+ * request is saving a payment for the same person this moment — a double tap,
+ * usually. After about a second, quietly, with the same Idempotency-Key, so
+ * the retry answers with the first payment. Anything else, or `busy` twice,
+ * goes to the caller as it came.
+ *
+ * Reading the refusal uses up its body, so a 409 that is not `busy`
+ * (`nothing_owed`, `already_decided`) is handed on as a fresh copy the caller
+ * can still read.
+ */
+suspend fun <T> retryIfBusy(waitMs: Long = BUSY_RETRY_MS, call: suspend () -> T): T {
+    try {
+        return call()
+    } catch (e: HttpException) {
+        if (e.code() != 409) throw e
+        val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull().orEmpty()
+        fun copy() = HttpException(Response.error<Any>(409, body.toResponseBody(JSON)))
+        if (refusalOf(copy())?.code != "busy") throw copy()
+    }
+    delay(waitMs)
+    return call()
+}

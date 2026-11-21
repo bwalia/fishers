@@ -9584,6 +9584,25 @@ body:has(main.paylink) .app-banner { display: none; }
 .pay-for-who { font-weight: 600; margin: var(--s3) 0 0; }
 .pay-friends-body { padding: 0 var(--s4) var(--s4); }
 .pay-friends-body p { margin: 0 0 var(--s2); }
+.pay-friends .who-amount { font-weight: 600; }
+
+/* Importing a bank statement: what it ticks off, what needs a look. */
+.statement-h { margin: var(--s4) 0 var(--s1); font-size: 1.15rem; }
+.statement-lines { list-style: none; margin: 0 0 var(--s3); padding: 0; }
+.statement-line { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--border); }
+.statement-lines > li:last-child, .statement-lines > li:last-child .statement-line { border-bottom: none; }
+label.statement-line { cursor: pointer; min-height: 44px; font-size: 1rem; font-weight: 400; color: var(--fg); }
+.statement-who .pay-warn { margin: 2px 0; justify-self: start; }
+.statement-line input[type="checkbox"] { width: 22px; height: 22px; flex: none; }
+.statement-who { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.statement-who .subtle { overflow-wrap: anywhere; }
+.statement-fold { margin: var(--s3) 0; }
+.statement-fold > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+
+/* Payments into the books: what each paid for, and the line it goes on. */
+.acc-pick .acc-sub { display: block; }
+.acc-transfer-into { display: flex; flex-wrap: wrap; gap: 0 var(--s4); }
+.acc-transfer-into .acc-into { flex: 1 1 240px; }
 
 /* A covered line: nothing to pay, so it reads as done. */
 .due-list li.is-covered .tag { color: var(--primary-ink); background: var(--pitch-50); }

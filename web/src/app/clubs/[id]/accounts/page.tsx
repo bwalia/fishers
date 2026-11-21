@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, isForbidden, readErr } from "@/lib/api";
+import { api, isForbidden, money as moneyIn, readErr } from "@/lib/api";
+import { listWords } from "@/lib/payments";
 import {
   day,
   downloadCsv,
@@ -24,6 +25,8 @@ import {
   type ReportResponse,
   type StockPosition,
   type Suggestions,
+  type TransferSuggestion,
+  type TransfersAccepted,
 } from "@/lib/accounts";
 import {
   BalanceSheet,
@@ -192,6 +195,7 @@ export default function ClubAccountsPage() {
             <DebtsTab
               clubId={clubId}
               period={period}
+              categories={overview.categories}
               accounts={overview.money_accounts}
               onError={fail}
               onDone={flash}
@@ -659,10 +663,15 @@ function AddTransaction({
 function DebtsTab({
   clubId,
   period,
+  categories,
   accounts,
   onError,
   onDone,
-}: TabProps & { accounts: AccountsOverview["money_accounts"]; onDone: (m: string) => void }) {
+}: TabProps & {
+  categories: AccountCategory[];
+  accounts: AccountsOverview["money_accounts"];
+  onDone: (m: string) => void;
+}) {
   const t = useT();
   const { locale } = useLocale();
   const [debts, setDebts] = useState<DebtPosition[]>([]);
@@ -849,6 +858,21 @@ function DebtsTab({
         </section>
       )}
 
+      {open && sugg?.transfers && sugg.transfers.length > 0 && (
+        <TransfersIn
+          clubId={clubId}
+          period={period}
+          transfers={sugg.transfers}
+          categories={categories}
+          accounts={liveAccounts}
+          onError={onError}
+          onDone={async (said) => {
+            await reload();
+            onDone(said);
+          }}
+        />
+      )}
+
       {open && unraised.length > 0 && (
         <section className="panel">
           <h2>{t("acc.fees_still_unpaid")}</h2>
@@ -874,6 +898,129 @@ function DebtsTab({
         {table("creditor")}
       </section>
     </>
+  );
+}
+
+/// Payments by bank transfer and cash that were ticked off on the Payments
+/// page, taken into the books: each on the income line it paid for, into the
+/// bank or the cash tin. Nothing goes in until the treasurer says so, and a
+/// payment only ever goes in once.
+function TransfersIn({
+  clubId,
+  period,
+  transfers,
+  categories,
+  accounts,
+  onError,
+  onDone,
+}: TabProps & {
+  transfers: TransferSuggestion[];
+  categories: AccountCategory[];
+  accounts: AccountsOverview["money_accounts"];
+  onDone: (said: string) => Promise<void>;
+}) {
+  const t = useT();
+  const { locale } = useLocale();
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(transfers.map((p) => p.payment_id)));
+  useEffect(() => setPicked(new Set(transfers.map((p) => p.payment_id))), [transfers]);
+  const banks = accounts.filter((a) => a.kind !== "cash");
+  const tins = accounts.filter((a) => a.kind === "cash");
+  const [bank, setBank] = useState(banks.find((a) => a.kind === "bank")?.id ?? banks[0]?.id ?? "");
+  const [tin, setTin] = useState(tins[0]?.id ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const total = transfers.reduce((sum, p) => sum + p.amount_cents, 0);
+  const currency = transfers[0]?.currency ?? period.currency;
+  const anyCash = transfers.some((p) => p.method === "cash" && picked.has(p.payment_id));
+  /// The income line, by the name the club gave it.
+  const line = (key: string) =>
+    categories.find((c) => c.kind === "income" && c.system_key === key && !c.archived)?.name ??
+    (key === "subscriptions" ? t("pw4.line_passes") : key.replaceAll("_", " "));
+
+  const accept = async () => {
+    setBusy(true);
+    try {
+      const out = await api<TransfersAccepted>(
+        "POST",
+        `/clubs/${clubId}/accounts/periods/${period.id}/accept-transfers`,
+        { payment_ids: [...picked], bank_account_id: bank, cash_account_id: anyCash && tin ? tin : undefined },
+      );
+      const said = [t("pw4.transfers_taken_in", { count: out.posted, n: out.posted })];
+      if (out.skipped.length > 0) {
+        said.push(t("pw4.transfers_skipped", { n: out.skipped.length }));
+      }
+      await onDone(said.join(" "));
+    } catch (e) {
+      onError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel acc-transfers" aria-labelledby="acc-transfers">
+      <h2 id="acc-transfers">
+        {t("pw4.transfers_title", { count: transfers.length, n: transfers.length, amount: moneyIn(total, currency) })}
+      </h2>
+      <p className="muted">{t("pw4.transfers_help")}</p>
+      <ul className="acc-pick">
+        {transfers.map((p) => (
+          <li key={p.payment_id}>
+            <label>
+              <input
+                type="checkbox"
+                checked={picked.has(p.payment_id)}
+                onChange={(e) => {
+                  const next = new Set(picked);
+                  if (e.target.checked) next.add(p.payment_id);
+                  else next.delete(p.payment_id);
+                  setPicked(next);
+                }}
+              />
+              <span>
+                {day(p.paid_on, locale)} · {p.member_name} ·{" "}
+                {p.method === "cash" ? t("pay.method_cash") : t("pay.method_transfer")}
+                <span className="muted small acc-sub">
+                  {p.paid_for.length > 0 ? t("pw3.for_name", { name: listWords(p.paid_for, t) }) : t("pw4.paid_ahead")}
+                </span>
+                <span className="muted small acc-sub">{t("pw4.goes_on", { line: line(p.category_key) })}</span>
+              </span>
+              <span className="num">{figure(p.amount_cents)}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="acc-transfer-into">
+        <label className="field acc-into">
+          <span>{t("pw4.transfers_go_into")}</span>
+          <select value={bank} onChange={(e) => setBank(e.target.value)}>
+            {banks.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {anyCash && tins.length > 0 && (
+          <label className="field acc-into">
+            <span>{t("pw4.cash_goes_into")}</span>
+            <select value={tin} onChange={(e) => setTin(e.target.value)}>
+              {tins.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+              <option value="">{t("pw4.leave_cash_for_now")}</option>
+            </select>
+          </label>
+        )}
+      </div>
+      {anyCash && tins.length === 0 && <p className="muted small">{t("pw4.no_cash_account")}</p>}
+      {!bank && <p className="muted small">{t("acc.add_an_account_first")}</p>}
+      <button className="btn primary" disabled={busy || picked.size === 0 || !bank} onClick={() => void accept()}>
+        {t("acc.take_into_the_books", { count: picked.size, n: picked.size })}
+      </button>
+    </section>
   );
 }
 

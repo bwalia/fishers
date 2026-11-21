@@ -1,7 +1,7 @@
 [
   {
-    "id": "84e74cc3-dfcc-472e-8d64-4d6f9d37573e",
-    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+    "id": "890e6450-42e3-4ed7-b611-09a0724d6829",
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
     "name": "Junior",
     "free": false,
     "for_guests": false,
@@ -9,8 +9,8 @@
     "archived_at": null
   },
   {
-    "id": "0ae2fa46-1ba1-4bf8-95bd-22619aaa8e7e",
-    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+    "id": "7e15ed43-5d26-43fb-81ed-b4edf3fe9adb",
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
     "name": "Coach",
     "free": true,
     "for_guests": false,
@@ -18,21 +18,12 @@
     "archived_at": null
   },
   {
-    "id": "e07c38cd-b957-4e4f-8ec1-8062b1e74b6a",
-    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+    "id": "4938c749-dc08-4fe6-987b-7af606dbd864",
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
     "name": "Guest",
     "free": false,
     "for_guests": true,
     "sort_order": 3,
-    "archived_at": null
-  },
-  {
-    "id": "5f36b059-5a1b-465b-a4a2-197a453392d0",
-    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
-    "name": "junior",
-    "free": false,
-    "for_guests": false,
-    "sort_order": 4,
     "archived_at": null
   }
 ]

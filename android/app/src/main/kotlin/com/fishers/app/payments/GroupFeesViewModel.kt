@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.decodeFromJsonElement
 
 data class GroupFeesState(
     /** The 50 newest, totals only. */
@@ -29,6 +32,10 @@ data class GroupFeesState(
     val draftProblem: String? = null,
     /** One opened, with everybody's lines. */
     val open: GroupFee? = null,
+    /** The opened one's pay link, once read: null while it has none (Share makes it). */
+    val link: BillLink? = null,
+    /** Whether [link] has been read for the opened one: "no link yet" only once it is known. */
+    val linkRead: Boolean = false,
     val isBusy: Boolean = false,
     val error: String? = null,
     val message: String? = null,
@@ -102,7 +109,7 @@ class GroupFeesViewModel(
         val key = keys.keyFor(attempt)
         _state.update { it.copy(isBusy = true, draftProblem = null, error = null, message = null) }
         viewModelScope.launch {
-            runCatching { api.addGroupFee(clubId, key, body) }
+            runCatching { retryIfBusy { api.addGroupFee(clubId, key, body) } }
                 .onSuccess { made ->
                     keys.settled(attempt)
                     _state.update {
@@ -110,6 +117,9 @@ class GroupFeesViewModel(
                             isBusy = false,
                             draft = null,
                             open = made,
+                            // Just made: nobody has shared it yet.
+                            link = null,
+                            linkRead = true,
                             message = t("pa3.fee_made", count = made.people, vars = mapOf("title" to made.title, "n" to made.people)),
                         )
                     }
@@ -125,15 +135,25 @@ class GroupFeesViewModel(
 
     // ---- one opened ----
 
+    /** One group fee with everybody's lines, and its pay link if it has one — read, never made. */
     fun open(billId: String) {
+        if (_state.value.open?.id != billId) _state.update { it.copy(link = null, linkRead = false) }
         viewModelScope.launch {
             runCatching { api.groupFee(billId) }
                 .onSuccess { fee -> _state.update { it.copy(open = fee) } }
                 .onFailure { e -> _state.update { it.copy(error = failureText(e)) } }
         }
+        viewModelScope.launch {
+            runCatching { api.currentGroupFeeLink(billId) }
+                .onSuccess { found ->
+                    val link = found.takeIf { it !is JsonNull }?.let { json.decodeFromJsonElement<BillLink>(it) }
+                    _state.update { s -> if (s.open == null || s.open.id == billId) s.copy(link = link, linkRead = true) else s }
+                }
+            // Not read: the buttons still work, and Share makes one.
+        }
     }
 
-    fun close() = _state.update { it.copy(open = null) }
+    fun close() = _state.update { it.copy(open = null, link = null, linkRead = false) }
 
     /**
      * Share it, remind who hasn't paid, or copy the link: the words are the
@@ -143,6 +163,8 @@ class GroupFeesViewModel(
         busy({ api.groupFeeLink(fee.id) }) { link ->
             _state.update {
                 it.copy(
+                    link = link,
+                    linkRead = true,
                     outgoing = when (use) {
                         LinkUse.Bill -> Outgoing.Share(link.billMessage)
                         LinkUse.Reminder -> Outgoing.Share(link.reminderMessage)
@@ -157,7 +179,7 @@ class GroupFeesViewModel(
     fun handled() = _state.update { it.copy(outgoing = null) }
 
     fun switchLinkOff(fee: GroupFee) {
-        busy({ api.disableGroupFeeLink(fee.id) }) { _state.update { it.copy(message = t("pa2.link_switched_off")) } }
+        busy({ api.disableGroupFeeLink(fee.id) }) { _state.update { it.copy(link = null, message = t("pa2.link_switched_off")) } }
     }
 
     /** Cancelled, with why: anything paid becomes credit, and its link closes. */
@@ -165,10 +187,13 @@ class GroupFeesViewModel(
         val why = reason.trim()
         if (why.isEmpty()) return
         busy({ api.cancelGroupFee(fee.id, ReasonBody(why)) }) { done ->
-            _state.update { it.copy(open = done, message = t("pa3.fee_cancelled", vars = mapOf("title" to fee.title))) }
+            // Its link closes with it.
+            _state.update { it.copy(open = done, link = null, message = t("pa3.fee_cancelled", vars = mapOf("title" to fee.title))) }
             load()
         }
     }
+
+    private val json = Json { ignoreUnknownKeys = true }
 
     private fun <T> busy(call: suspend () -> T, done: (T) -> Unit) {
         if (_state.value.isBusy) return

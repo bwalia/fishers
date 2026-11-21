@@ -10,6 +10,11 @@ import { API_PORT, WEB_PORT } from "../lib/ports";
 /// ticks both off with "All arrived". A link with one character changed gets
 /// the friendly wrong-link page.
 ///
+/// Only the phone that said "I've paid" can take it back or add its
+/// screenshot (plan §13): the claim's secret stays in that tab. Another phone
+/// with the same link sees it was said, with nothing to change; the API
+/// refuses both without the secret; the player, signed in, still can.
+///
 /// Self-contained — it makes its own club, people and session through the
 /// API, so it runs against any local stack:
 ///
@@ -175,7 +180,47 @@ test("a pay link from WhatsApp: pay without signing in, add a screenshot, undo, 
   await expect(guest.getByText("You said you paid £15.00 by bank transfer.")).toBeVisible();
   await guest.locator('input[type="file"]').setInputFiles({ name: "payment.png", mimeType: "image/png", buffer: PNG });
   await expect(guest.getByText("Screenshot added. Thank you.")).toBeVisible();
+  await expect(guest.getByRole("button", { name: "Undo" })).toBeVisible();
   await guest.screenshot({ path: `${SHOTS}/link-4-waiting.png`, fullPage: true });
+
+  // The reply to "I've paid" carried the claim's secret, kept in this tab
+  // by its payment id — and in no URL.
+  const linkPage = await call(request, null, "GET", `/pay-links/${token}`);
+  const patLine = linkPage.people.find((p: { name: string }) => p.name === "Pat Patel");
+  expect(patLine.user_id, "the link's names carry no member ids").toBeUndefined();
+  const patNow = await call(request, null, "GET", `/pay-links/${token}/people/${patLine.id}`);
+  const pid: string = patNow.claim.id;
+  expect(patNow.claim_secret, "nobody else is ever given the secret").toBeUndefined();
+  const secret = await guest.evaluate((id) => sessionStorage.getItem(`fishers:claim-secret:${id}`), pid);
+  expect(secret).toBeTruthy();
+  expect(guest.url()).not.toContain(secret!);
+
+  // Without it, the link can't take the payment back or add a picture.
+  const undoBlind = await request.delete(`${API}/pay-links/${token}/claims/${pid}`);
+  expect(undoBlind.status()).toBe(404);
+  const shotBlind = await request.post(`${API}/pay-links/${token}/claims/${pid}/screenshot`, {
+    headers: { "X-Claim-Secret": "not-the-secret", "Content-Type": "image/png" },
+    data: PNG,
+  });
+  expect(shotBlind.status()).toBe(404);
+
+  // Another phone with the same link: it was said, and there's nothing here
+  // to change.
+  const other = await browser.newContext(PHONE);
+  const friend = await other.newPage();
+  await friend.goto(`${WEB}/pay/${token}`);
+  await friend.getByRole("button", { name: "Pat Patel" }).click({ timeout: 30_000 });
+  await expect(friend.getByRole("heading", { name: "Thanks — waiting for Sana to check" })).toBeVisible();
+  await expect(friend.getByText("Said from another phone. If that's wrong, tell Sana.")).toBeVisible();
+  await expect(friend.getByRole("button", { name: "Undo" })).toHaveCount(0);
+  await expect(friend.getByRole("button", { name: "Add a screenshot" })).toHaveCount(0);
+  await friend.screenshot({ path: `${SHOTS}/link-4b-another-phone.png`, fullPage: true });
+  // Pat, signed in on that phone, opens on their own name and may change it.
+  await signIn(friend, pat);
+  await friend.goto(`${WEB}/pay/${token}`);
+  await expect(friend.getByText("Paying as Pat Patel")).toBeVisible({ timeout: 30_000 });
+  await expect(friend.getByRole("button", { name: "Undo" })).toBeVisible();
+  await other.close();
 
   // 4. Tapped by mistake: undo, and the amount is owed again.
   await guest.getByRole("button", { name: "Undo" }).click();

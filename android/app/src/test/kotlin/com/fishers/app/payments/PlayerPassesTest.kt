@@ -102,7 +102,7 @@ class PlayerPassesTest {
         val own = s.ownPasses.single()
         assertEquals("Monthly nets", own.planName)
         assertEquals("SHARMA", own.standingOrder?.reference)
-        assertEquals("Covers nets and training", s.planOf(own)?.coversLine())
+        assertEquals("Covers nets and training", own.coversLine())
         assertTrue(s.theirPasses.isEmpty())
         // Monthly nets is his; Season is for the secretary to add.
         assertEquals(listOf("5 nets", "Junior nets"), s.offered.map { it.name })
@@ -242,7 +242,6 @@ class PlayerPassesTest {
         assertEquals("the retry carries the same key", "key-1", second.first)
         assertEquals(ForOthersBody(method = "transfer", people = listOf(arjun, jas).sorted(), includeMe = true), second.second)
         assertTrue("never the single claim", api.claims.isEmpty())
-        assertEquals(1500L, model.state.value.paidForOthers?.totalCents)
         assertEquals("Thanks. The club will confirm it once the money has arrived.", model.state.value.message)
 
         // A new payment is a new attempt.

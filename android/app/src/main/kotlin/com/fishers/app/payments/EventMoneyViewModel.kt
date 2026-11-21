@@ -317,7 +317,7 @@ class EventMoneyViewModel(
         val attempt = "cash:$eventId:$ids"
         val key = keys.keyFor(attempt)
         busy(
-            call = { api.cashAtGround(eventId, key, CashBody(ids)) },
+            call = { retryIfBusy { api.cashAtGround(eventId, key, CashBody(ids)) } },
             failed = { refusal -> keys.failed(attempt, refusal) },
         ) { done ->
             keys.settled(attempt)

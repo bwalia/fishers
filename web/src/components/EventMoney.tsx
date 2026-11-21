@@ -16,6 +16,7 @@ import {
   MAX_SHARE_CENTS,
   STALE_CODES,
   parseAmount,
+  retryBusy,
   shareGroups,
   shareStateTag,
   shareTag,
@@ -292,7 +293,11 @@ export function EventMoney({
               onCancel={() => setOpen("none")}
               onSave={(ids) =>
                 void run(async () => {
-                  const out = await api<CashRecorded>("POST", `/events/${eventId}/bill/cash`, { share_ids: ids });
+                  // A tick already being saved for one of them (a double
+                  // tap) answers `busy`: once more, a second later.
+                  const out = await retryBusy(() =>
+                    api<CashRecorded>("POST", `/events/${eventId}/bill/cash`, { share_ids: ids }),
+                  );
                   const amount = money(out.total_cents, cur);
                   return {
                     said: out.received
@@ -500,7 +505,7 @@ function MyShare({ share: s, clubId }: { share: Share; clubId: string }) {
         ) : (
           <p className="pay-big num">{money(s.amount_cents, s.currency)}</p>
         )}
-        <span className={shareStateTag(s.state)}>{shareTag(s, t)}</span>
+        <span className={shareStateTag(s.state)}>{shareTag(s, t, true)}</span>
         {s.state === "waiting" && <p className="muted">{t("pay.waiting_for_the_club")}</p>}
         {s.state === "part_paid" && (
           <p className="muted">
@@ -720,7 +725,16 @@ function WhoCame({
             )}
             {covered.length > 0 && (
               <span>
-                {t("pw3.owe_nothing", { names: covered.map((s) => `${s.name} (${s.covered})`).join(", ") })}
+                {t("pw3.owe_nothing", {
+                  names: covered
+                    .map((s) => {
+                      // Worded from `cover`; an older API's English otherwise.
+                      const why =
+                        s.cover === "free" ? t("le.free") : s.cover === "pass" ? t("pw4.covered_by_a_pass") : s.covered;
+                      return `${s.name} (${why})`;
+                    })
+                    .join(", "),
+                })}
               </span>
             )}
             {preview.surplus_cents > 0 && (

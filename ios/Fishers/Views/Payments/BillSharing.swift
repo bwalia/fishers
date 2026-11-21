@@ -17,9 +17,17 @@ struct BillShareBlock: View {
     let switchOff: () async -> Void
     /// Somebody still owes: worth a reminder.
     let anyoneOwes: Bool
+    /// Whether a link is open now, where the caller has asked (a group fee
+    /// reads it with `GET /bills/{id}/link`). Nil when not known: switching
+    /// it off is offered anyway.
+    let linkIsOpen: Bool?
 
-    init(anyoneOwes: Bool, makeLink: @escaping () async -> BillLink?, switchOff: @escaping () async -> Void) {
+    init(
+        anyoneOwes: Bool, linkIsOpen: Bool? = nil,
+        makeLink: @escaping () async -> BillLink?, switchOff: @escaping () async -> Void
+    ) {
         self.anyoneOwes = anyoneOwes
+        self.linkIsOpen = linkIsOpen
         self.makeLink = makeLink
         self.switchOff = switchOff
     }
@@ -107,16 +115,18 @@ struct BillShareBlock: View {
             }
             .buttonStyle(.bordered)
         }
-        Menu {
-            Button(tr("Switch the pay link off"), role: .destructive) { confirmOff = true }
-        } label: {
-            Label(tr("More"), systemImage: "ellipsis.circle")
-                .lineLimit(1)
-                .fixedSize()
-                .frame(minHeight: FishersTheme.minTap)
+        if linkIsOpen != false {
+            Menu {
+                Button(tr("Switch the pay link off"), role: .destructive) { confirmOff = true }
+            } label: {
+                Label(tr("More"), systemImage: "ellipsis.circle")
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(minHeight: FishersTheme.minTap)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel(tr("More about the pay link"))
         }
-        .buttonStyle(.bordered)
-        .accessibilityLabel(tr("More about the pay link"))
     }
 
     private func share(_ message: Message, viaWhatsApp: Bool) async {

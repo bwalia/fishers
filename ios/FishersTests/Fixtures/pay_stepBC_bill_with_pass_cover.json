@@ -64,7 +64,8 @@
       "waiting_cents": 0,
       "currency": "GBP",
       "state": "covered",
-      "reason": "Covered by Monthly nets"
+      "reason": "Covered by Monthly nets",
+      "cover": "pass"
     },
     {
       "id": "d9a939ae-2148-4159-9446-90c9d4ee0532",

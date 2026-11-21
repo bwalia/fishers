@@ -9,6 +9,11 @@
 ///   your name → what you owe and where to send it → "I've paid" →
 ///   "Thanks — waiting for Aman to check", with Undo and Add a screenshot.
 ///
+/// Undo and Add a screenshot are only for the phone that said it: the reply
+/// to "I've paid" carries a secret, kept in this tab, and sent back with
+/// either. Anybody else holding the link sees that it was said, and nothing
+/// to change (being signed in as that person works too).
+///
 /// A signed-in phone sends its session along and opens straight on the
 /// person's own name. What anybody can do here is deliberately small: say
 /// they have paid. The treasurer still checks the bank before it counts.
@@ -20,9 +25,13 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { errCode, money, readErr } from "@/lib/api";
 import {
   checker,
+  claimSecret,
+  forgetClaimSecret,
+  keepClaimSecret,
   linkApi,
   markPaidBefore,
   postImage,
+  retryBusy,
   shortDate,
   useAttemptKey,
   type LinkPage,
@@ -187,10 +196,13 @@ export function PayLinkPage({ token }: { token: string }) {
     try {
       // One key for every press of this button for this person until one
       // works: a double tap or a retry on a bad signal makes one payment.
-      const next = await linkApi<LinkPerson>("POST", `${base}/people/${person.id}/claim`, { method }, {
-        "Idempotency-Key": attempt.key(`${person.id}:${method}`),
-      });
+      const key = attempt.key(`${person.id}:${method}`);
+      const next = await retryBusy(() =>
+        linkApi<LinkPerson>("POST", `${base}/people/${person.id}/claim`, { method }, { "Idempotency-Key": key }),
+      );
       attempt.done();
+      // The proof this phone said it: kept for Undo and the screenshot.
+      if (next.claim && next.claim_secret) keepClaimSecret(next.claim.id, next.claim_secret);
       if (method === "transfer" && account) markPaidBefore(account);
       setPerson(next);
     } catch (e) {
@@ -210,13 +222,22 @@ export function PayLinkPage({ token }: { token: string }) {
     }
   };
 
+  /// What proves this phone may change the claim: its secret, when it made
+  /// it. A phone signed in as the person needs none — its sign-in goes along.
+  const proof = (pid: string): Record<string, string> | undefined => {
+    const secret = claimSecret(pid);
+    return secret ? { "X-Claim-Secret": secret } : undefined;
+  };
+
   const undo = async () => {
     if (!person?.claim) return;
+    const pid = person.claim.id;
     setBusy("undo");
     setError(null);
     setNotice(null);
     try {
-      await linkApi<void>("DELETE", `${base}/claims/${person.claim.id}`);
+      await linkApi<void>("DELETE", `${base}/claims/${pid}`, undefined, proof(pid));
+      forgetClaimSecret(pid);
       setNotice(t("pay.claim_undone"));
     } catch (e) {
       setError(readErr(e, t("le.that_did_not_work")));
@@ -225,6 +246,11 @@ export function PayLinkPage({ token }: { token: string }) {
       setBusy(null);
     }
   };
+
+  // The claim waiting on the open line, and whether this phone may change it:
+  // it said it (it holds the secret), or it is signed in as that person.
+  const waiting = person?.claim ?? null;
+  const mine = !!waiting && (chosen === page.me || claimSecret(waiting.id) != null);
 
   return (
     <main id="main" className="paylink">
@@ -365,7 +391,7 @@ export function PayLinkPage({ token }: { token: string }) {
         </section>
       )}
 
-      {view === "waiting" && person?.claim && (
+      {view === "waiting" && person && waiting && (
         <section aria-labelledby="paylink-waiting" className="paylink-waiting">
           <span className="paylink-state-icon ok" aria-hidden="true">
             <Icon name="check" size={32} />
@@ -374,12 +400,12 @@ export function PayLinkPage({ token }: { token: string }) {
             {who ? t("pw2.thanks_waiting", { first: who }) : t("pw2.thanks_waiting_club")}
           </h2>
           <p>
-            {person.claim.method === "cash"
-              ? t("pw2.said_cash", { amount: money(person.claim.amount_cents, person.currency) })
-              : t("pw2.said_transfer", { amount: money(person.claim.amount_cents, person.currency) })}
+            {waiting.method === "cash"
+              ? t("pw2.said_cash", { amount: money(waiting.amount_cents, person.currency) })
+              : t("pw2.said_transfer", { amount: money(waiting.amount_cents, person.currency) })}
           </p>
           <p className="muted">
-            {person.claim.method === "cash"
+            {waiting.method === "cash"
               ? who
                 ? t("pw2.waiting_cash_help", { first: who })
                 : t("pw2.waiting_cash_help_club")
@@ -388,17 +414,22 @@ export function PayLinkPage({ token }: { token: string }) {
                 : t("pw2.waiting_transfer_help_club")}
           </p>
 
-          {person.claim.method === "transfer" &&
-            Date.now() - new Date(person.claim.created_at).getTime() < SCREENSHOT_MS && (
+          {mine &&
+            waiting.method === "transfer" &&
+            Date.now() - new Date(waiting.created_at).getTime() < SCREENSHOT_MS && (
               <ScreenshotButton
-                done={person.claim.has_screenshot}
+                done={waiting.has_screenshot}
                 who={who}
-                upload={(image) => postImage(`${base}/claims/${person.claim!.id}/screenshot`, image, true)}
+                upload={(image) => postImage(`${base}/claims/${waiting.id}/screenshot`, image, true, proof(waiting.id))}
                 onUploaded={() => loadPerson(person.id)}
               />
             )}
 
-          {person.claim.can_undo && (
+          {!mine && (
+            <p className="subtle">{who ? t("pw4.said_elsewhere", { first: who }) : t("pw4.said_elsewhere_club")}</p>
+          )}
+
+          {mine && waiting.can_undo && (
             <div className="paylink-undo">
               <p className="subtle">{t("pw2.undo_help")}</p>
               <button className="btn" type="button" disabled={busy !== null} onClick={() => void undo()}>
@@ -430,7 +461,9 @@ function Settled({ person, heading }: { person: LinkPerson; heading: RefObject<H
       : person.state === "waived"
         ? ["pay.you_were_let_off", "pw2.nothing_to_pay"]
         : person.state === "covered"
-          ? ["pw2.state_covered", "pw2.nothing_to_pay"]
+          ? person.cover === "free"
+            ? ["pw2.nothing_to_pay", null]
+            : ["pw2.state_covered", "pw2.nothing_to_pay"]
           : person.state === "waiting" || person.waiting_cents > 0
             ? ["pay.said_you_paid", null]
             : ["pw2.nothing_to_pay", null];

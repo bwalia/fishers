@@ -2,27 +2,27 @@
   "clubs": [],
   "people": [
     {
-      "user_id": "7cc084d9-f373-4722-8ac4-072c4b4f7c97",
+      "user_id": "d705f1f8-9ce8-4062-a7a6-15bcf85ffea3",
       "name": "Arjun Gill",
       "managed": true,
-      "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+      "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
       "dues": {
-        "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
-        "club_name": "Step BC 1795290361",
+        "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+        "club_name": "Step BC 1795293315",
         "currency": "GBP",
         "owed_cents": 600,
         "waiting_cents": 0,
         "credit_cents": 0,
         "shares": [
           {
-            "id": "c5f71644-4243-4087-8c71-16b8d22a12db",
-            "bill_id": "f487a034-7a83-42b8-a607-02d53aa0b558",
-            "event_id": "8bd7d125-1b59-45e8-a9f7-0b5c58a8c9d6",
+            "id": "535f4f51-fbcf-4449-9ed7-985aa06ec941",
+            "bill_id": "0e70ea25-e887-4a31-9bdd-74af0d671bb9",
+            "event_id": "abb59628-eba0-4e37-9339-e3f6ff975923",
             "kind": "event",
             "due_on": null,
             "title": "Junior nets",
-            "event_start_at": "2026-11-21T17:46:32.727477Z",
-            "user_id": "7cc084d9-f373-4722-8ac4-072c4b4f7c97",
+            "event_start_at": "2026-11-21T18:35:27.409637Z",
+            "user_id": "d705f1f8-9ce8-4062-a7a6-15bcf85ffea3",
             "guest_name": null,
             "name": "Arjun Gill",
             "amount_cents": 600,
@@ -30,33 +30,34 @@
             "waiting_cents": 0,
             "currency": "GBP",
             "state": "owed",
-            "reason": null
+            "reason": null,
+            "cover": null
           }
         ]
       }
     },
     {
-      "user_id": "461ac7a0-c62f-4c92-a5ff-1f834fb180f7",
+      "user_id": "f227b1d0-3f9e-45e3-a17b-e9b76bbfe5ff",
       "name": "Jas Gill",
       "managed": false,
-      "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+      "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
       "dues": {
-        "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
-        "club_name": "Step BC 1795290361",
+        "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+        "club_name": "Step BC 1795293315",
         "currency": "GBP",
         "owed_cents": 900,
         "waiting_cents": 0,
         "credit_cents": 0,
         "shares": [
           {
-            "id": "fcd53a8b-f6ea-4ba7-b37b-3521e09b860a",
-            "bill_id": "8b42978c-91fc-4403-961a-d5862921c2a1",
-            "event_id": "0da12d77-39b5-42e1-998e-8dcc31b2b9c9",
+            "id": "dddd92f5-eab6-4935-ad78-70dc4918dd80",
+            "bill_id": "f19774b3-b02c-4c4a-bf90-1f6b09a662b8",
+            "event_id": "e05dbc22-580a-445f-a344-6b7e03c14321",
             "kind": "event",
             "due_on": null,
             "title": "Tuesday nets",
-            "event_start_at": "2026-11-21T16:46:27.045889Z",
-            "user_id": "461ac7a0-c62f-4c92-a5ff-1f834fb180f7",
+            "event_start_at": "2026-11-21T17:35:24.095286Z",
+            "user_id": "f227b1d0-3f9e-45e3-a17b-e9b76bbfe5ff",
             "guest_name": null,
             "name": "Jas Gill",
             "amount_cents": 300,
@@ -64,17 +65,18 @@
             "waiting_cents": 0,
             "currency": "GBP",
             "state": "owed",
-            "reason": null
+            "reason": null,
+            "cover": null
           },
           {
-            "id": "be347b2d-846e-4ce5-bc36-2c5a993a39a5",
-            "bill_id": "f487a034-7a83-42b8-a607-02d53aa0b558",
-            "event_id": "8bd7d125-1b59-45e8-a9f7-0b5c58a8c9d6",
+            "id": "93f30160-4d49-4c7e-8bbe-5a3b85fac51c",
+            "bill_id": "0e70ea25-e887-4a31-9bdd-74af0d671bb9",
+            "event_id": "abb59628-eba0-4e37-9339-e3f6ff975923",
             "kind": "event",
             "due_on": null,
             "title": "Junior nets",
-            "event_start_at": "2026-11-21T17:46:32.727477Z",
-            "user_id": "461ac7a0-c62f-4c92-a5ff-1f834fb180f7",
+            "event_start_at": "2026-11-21T18:35:27.409637Z",
+            "user_id": "f227b1d0-3f9e-45e3-a17b-e9b76bbfe5ff",
             "guest_name": null,
             "name": "Jas Gill",
             "amount_cents": 600,
@@ -82,7 +84,8 @@
             "waiting_cents": 0,
             "currency": "GBP",
             "state": "owed",
-            "reason": null
+            "reason": null,
+            "cover": null
           }
         ]
       }

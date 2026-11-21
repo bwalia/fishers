@@ -35,7 +35,8 @@ class PassesModelsTest {
         assertEquals(PassStanding.UpToDate, mine.standing)
         assertEquals(2000L, mine.standingOrder?.amountCents)
         assertEquals("SHARMA", mine.standingOrder?.reference)
-        assertEquals("2026-11-21", mine.standingOrder?.firstPaymentOn)
+        assertEquals("never before tomorrow", "2026-11-22", mine.standingOrder?.firstPaymentOn)
+        assertEquals("/me/passes says what it covers, so no plan is read for it", "Covers nets and training", mine.coversLine())
         assertTrue(mine.clubName.startsWith("Step BC"))
 
         assertEquals(PassStanding.Suspended, Captured.read<List<PassHolder>>("stepBC_me_passes_suspended").single().standing)
@@ -46,7 +47,7 @@ class PassesModelsTest {
         assertEquals(3334L, season.chargeCents)
 
         val types = Captured.read<List<PriceType>>("stepBC_price_types")
-        assertEquals(listOf("Junior", "Coach", "Guest", "junior"), types.map { it.name })
+        assertEquals(listOf("Junior", "Coach", "Guest"), types.map { it.name })
         assertTrue(types[1].free)
         assertTrue(types[2].forGuests)
 

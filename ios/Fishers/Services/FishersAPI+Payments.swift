@@ -17,6 +17,21 @@ extension FishersAPI {
         ["idempotency-key": key.uuidString]
     }
 
+    /// Every payment POST goes through this. A `busy` (409) means another
+    /// request is saving a payment for the same person at that moment — a
+    /// double tap, say. One quiet retry after about a second, with the same
+    /// Idempotency-Key (the caller's closure carries it), gets the first
+    /// payment back. Busy twice is shown like any other failure, and the key
+    /// is kept for the person's own retry.
+    static func retryingBusy<T>(_ work: () async throws -> T) async throws -> T {
+        do {
+            return try await work()
+        } catch let error as APIError where error.code == "busy" {
+            try await Task.sleep(for: .seconds(1))
+            return try await work()
+        }
+    }
+
     // MARK: Bank details
 
     static func payoutAccounts(clubId: UUID) async throws -> PayoutAccounts {
@@ -95,16 +110,20 @@ extension FishersAPI {
 
     /// Cash at the ground, or a transfer nobody claimed. Confirmed at once.
     static func recordPayment(clubId: UUID, _ body: PayerBody, key: UUID) async throws -> ClubPayment {
-        try await NetworkService.shared.request(
-            "POST", path: club(clubId) + "/payments/record", body: body, headers: idempotent(key)
-        )
+        try await retryingBusy {
+            try await NetworkService.shared.request(
+                "POST", path: club(clubId) + "/payments/record", body: body, headers: idempotent(key)
+            )
+        }
     }
 
     /// At most the credit they hold (`more_than_credit`).
     static func refundCredit(clubId: UUID, _ body: PayerBody, key: UUID) async throws -> ClubPayment {
-        try await NetworkService.shared.request(
-            "POST", path: club(clubId) + "/payments/refund", body: body, headers: idempotent(key)
-        )
+        try await retryingBusy {
+            try await NetworkService.shared.request(
+                "POST", path: club(clubId) + "/payments/refund", body: body, headers: idempotent(key)
+            )
+        }
     }
 
     static func waiveShare(_ id: UUID, reason: String) async throws -> ClubShare {
@@ -172,14 +191,19 @@ extension FishersAPI {
 
     /// "I've paid" (`transfer`) or "I paid cash". The amount defaults to
     /// everything owed. `nothing_owed` is not a failure: refresh.
-    static func claimPayment(clubId: UUID, method: String, key: UUID) async throws -> ClubPayment {
+    static func claimPayment(
+        clubId: UUID, method: String, key: UUID, network: NetworkService = .shared
+    ) async throws -> ClubPayment {
         struct Body: Encodable { let method: String }
-        return try await NetworkService.shared.request(
-            "POST", path: club(clubId) + "/payments", body: Body(method: method), headers: idempotent(key)
-        )
+        return try await retryingBusy {
+            try await network.request(
+                "POST", path: club(clubId) + "/payments", body: Body(method: method), headers: idempotent(key)
+            )
+        }
     }
 
-    /// Undo a claim nobody has confirmed yet.
+    /// Undo a claim nobody has confirmed yet: the reader's own, or one they
+    /// made for somebody else.
     static func cancelClaim(_ id: UUID) async throws {
         try await NetworkService.shared.requestVoid("DELETE", path: "/payments/\(id.uuidString)")
     }
@@ -200,18 +224,22 @@ extension FishersAPI {
     /// Cash at the ground: who handed money over, by share.
     static func recordCash(eventId: UUID, shareIds: [UUID], key: UUID) async throws -> CashRecorded {
         struct Body: Encodable { let share_ids: [UUID] }
-        return try await NetworkService.shared.request(
-            "POST", path: "/events/\(eventId.uuidString)/bill/cash",
-            body: Body(share_ids: shareIds), headers: idempotent(key)
-        )
+        return try await retryingBusy {
+            try await NetworkService.shared.request(
+                "POST", path: "/events/\(eventId.uuidString)/bill/cash",
+                body: Body(share_ids: shareIds), headers: idempotent(key)
+            )
+        }
     }
 
     /// All arrived. One already checked by somebody else comes back skipped.
     static func confirmPayments(clubId: UUID, ids: [UUID], key: UUID) async throws -> ConfirmedMany {
         struct Body: Encodable { let ids: [UUID] }
-        return try await NetworkService.shared.request(
-            "POST", path: club(clubId) + "/payments/confirm", body: Body(ids: ids), headers: idempotent(key)
-        )
+        return try await retryingBusy {
+            try await NetworkService.shared.request(
+                "POST", path: club(clubId) + "/payments/confirm", body: Body(ids: ids), headers: idempotent(key)
+            )
+        }
     }
 
     /// The picture a payer attached, as bytes. Money admins only.
@@ -222,10 +250,12 @@ extension FishersAPI {
     /// The payer's own picture of the payment: JPEG bytes, at most 1 MB —
     /// see `PaymentScreenshot`.
     static func uploadPaymentScreenshot(_ id: UUID, jpeg: Data, key: UUID) async throws {
-        _ = try await NetworkService.shared.data(
-            "POST", path: "/payments/\(id.uuidString)/screenshot",
-            rawBody: jpeg, contentType: "image/jpeg", headers: idempotent(key)
-        )
+        _ = try await retryingBusy {
+            try await NetworkService.shared.data(
+                "POST", path: "/payments/\(id.uuidString)/screenshot",
+                rawBody: jpeg, contentType: "image/jpeg", headers: idempotent(key)
+            )
+        }
     }
 
     /// The usual nets price and match fee, both at once; nil clears one.
@@ -233,6 +263,41 @@ extension FishersAPI {
         try await NetworkService.shared.request(
             "PUT", path: club(clubId) + "/payments/settings", body: UsualPricesBody(prices: prices)
         )
+    }
+
+    // MARK: Importing a bank statement (step D)
+
+    /// What each payment in the statement matches. Changes nothing. The body
+    /// is the CSV file as text; it is sent and dropped, never written down
+    /// or logged here. `empty_statement`, `unknown_statement` (no date or
+    /// amount column) and `statement_too_long` (more than 5,000 lines) are
+    /// 422s whose sentence says what to do.
+    static func previewStatement(clubId: UUID, csv: String, network: NetworkService = .shared) async throws -> StatementPreview {
+        let bytes = try await network.data(
+            "POST", path: club(clubId) + "/statement/preview",
+            rawBody: Data(csv.utf8), contentType: "text/csv"
+        )
+        do {
+            return try FishersJSONDecoder.make().decode(StatementPreview.self, from: bytes)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+
+    /// Applies the chosen lines. The server reads the statement again, so the
+    /// phone only picks which of its matches to apply.
+    static func applyStatement(
+        clubId: UUID, csv: String, lines: [String], network: NetworkService = .shared
+    ) async throws -> StatementApplied {
+        struct Body: Encodable { let csv: String; let lines: [String] }
+        return try await network.request(
+            "POST", path: club(clubId) + "/statement/apply", body: Body(csv: csv, lines: lines)
+        )
+    }
+
+    /// Money admins: everybody's price group and who pays for them.
+    static func moneyMembers(clubId: UUID, network: NetworkService = .shared) async throws -> [MoneyMember] {
+        try await network.request("GET", path: club(clubId) + "/payments/members")
     }
 }
 

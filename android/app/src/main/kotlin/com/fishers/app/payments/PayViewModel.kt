@@ -54,13 +54,14 @@ data class PayState(
     val forEveryone: Boolean = false,
     /** Friends ticked under "I'm paying for friends too", by user id. */
     val friendsTicked: Set<String> = emptySet(),
-    /** What the last payment for others came to, said until it is checked. */
-    val paidForOthers: ForOthers? = null,
 ) {
     /** Your own passes in this club, cancelled ones included until they end. */
     val ownPasses: List<PassHolder>
         get() {
-            val mineOnPlans = plans.mapNotNull { it.mine }
+            // A plan's `mine` has no `covers`: it takes its plan's, which is all it stands in for.
+            val mineOnPlans = plans.mapNotNull { p ->
+                p.mine?.let { m -> if (m.covers != null) m else m.copy(covers = p.covers, validUntil = p.validUntil, sessions = p.sessions) }
+            }
             val ids = mineOnPlans.map { it.id }.toSet()
             val fromMe = passes.filter { if (me != null) it.userId == me else it.id in ids }
             // /me/passes has the standing order; a plan's `mine` stands in if it could not be read.
@@ -80,7 +81,17 @@ data class PayState(
     /** Whether there is anything at all to show under "Passes". */
     val hasPasses: Boolean get() = ownPasses.isNotEmpty() || theirPasses.isNotEmpty() || offered.isNotEmpty()
 
-    fun planOf(holder: PassHolder): PassPlan? = plans.firstOrNull { it.id == holder.planId }
+    /**
+     * This month's charge for a monthly pass is still on the screen to pay,
+     * while its standing order is set up: the standing order pays it too, so
+     * it must not be paid by hand as well.
+     */
+    fun standingOrderPaysThisMonth(holder: PassHolder): Boolean {
+        if (holder.standingOrder == null || holder.billing != PassBilling.Monthly) return false
+        val lines = pay?.shares.orEmpty() + people.flatMap { it.dues.shares }
+        // A pass charge is titled "Monthly nets — November 2026".
+        return lines.any { it.kind == "pass" && it.userId == holder.userId && it.leftCents > 0 && it.title.startsWith(holder.planName) }
+    }
 
     /** Everybody you pay for who owes something here. */
     val othersOwing: List<PersonDues> get() = people.filter { it.dues.owedCents > 0 }
@@ -186,7 +197,7 @@ class PayViewModel(
         val key = keys.keyFor(attempt)
         _state.update { it.copy(isClaiming = true, error = null, message = null) }
         viewModelScope.launch {
-            runCatching { api.claimPayment(clubId, key, ClaimBody(method = method.wire)) }
+            runCatching { retryIfBusy { api.claimPayment(clubId, key, ClaimBody(method = method.wire)) } }
                 .onSuccess {
                     keys.settled(attempt)
                     // Paid by transfer once from this phone: next time it is "as usual".
@@ -218,13 +229,26 @@ class PayViewModel(
         }
     }
 
-    /** Take back a claim nobody has confirmed — tapped by mistake, or not paid after all. */
+    /**
+     * Take back a claim nobody has confirmed — tapped by mistake, or not paid
+     * after all. One made for somebody else (a junior, a friend) is taken
+     * back the same way, and they owe it again.
+     */
     fun undo(claim: Payment) {
         if (_state.value.undoing != null) return
         _state.update { it.copy(undoing = claim.id, error = null, message = null) }
+        val me = _state.value.me
+        val theirs = me != null && claim.userId != me
         viewModelScope.launch {
             runCatching { api.cancelClaim(claim.id) }
-                .onSuccess { _state.update { it.copy(undoing = null, message = t("pay.claim_undone")) } }
+                .onSuccess {
+                    _state.update {
+                        it.copy(
+                            undoing = null,
+                            message = if (theirs) t("pa4.claim_undone_for", vars = mapOf("name" to claim.name)) else t("pay.claim_undone"),
+                        )
+                    }
+                }
                 .onFailure { e ->
                     val refusal = refusalOf(e)
                     _state.update { it.copy(undoing = null, error = failureText(e, refusal)) }
@@ -269,6 +293,9 @@ class PayViewModel(
         it.copy(friendsTicked = if (userId in it.friendsTicked) it.friendsTicked - userId else it.friendsTicked + userId)
     }
 
+    /** "I'm paying for friends too" switched off: nobody else is in this payment. */
+    fun clearFriends() = _state.update { it.copy(friendsTicked = emptySet()) }
+
     /**
      * One payment for you and the others in it: everybody you pay for, or
      * the friends ticked. Each is recorded for what they owe, under your
@@ -284,15 +311,14 @@ class PayViewModel(
         val key = keys.keyFor(attempt)
         _state.update { it.copy(isClaiming = true, error = null, message = null) }
         viewModelScope.launch {
-            runCatching { api.payForOthers(clubId, key, ForOthersBody(method = method.wire, people = people, includeMe = includeMe)) }
-                .onSuccess { done ->
+            runCatching { retryIfBusy { api.payForOthers(clubId, key, ForOthersBody(method = method.wire, people = people, includeMe = includeMe)) } }
+                .onSuccess {
                     keys.settled(attempt)
                     if (method == PaymentMethod.Transfer) guide.markSeen()
                     _state.update {
                         it.copy(
                             isClaiming = false,
                             guideSeen = guide.seen(),
-                            paidForOthers = done,
                             friendsTicked = emptySet(),
                             message = t("pay.thanks_club_will_confirm"),
                         )

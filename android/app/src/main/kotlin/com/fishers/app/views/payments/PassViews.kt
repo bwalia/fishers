@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fishers.app.clubs.money
 import com.fishers.app.i18n.t
+import com.fishers.app.payments.AccountState
 import com.fishers.app.payments.BankDetails
 import com.fishers.app.payments.PassBilling
 import com.fishers.app.payments.PassHolder
@@ -64,16 +65,18 @@ internal fun PassesPart(
     var getting by remember { mutableStateOf<PassPlan?>(null) }
     var cancelling by remember { mutableStateOf<PassHolder?>(null) }
     val account = state.pay?.account
+    val accountState = state.pay?.accountState ?: AccountState.Unknown
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionHeading(t("pa3.passes"))
         state.ownPasses.forEach { holder ->
             PassCard(
                 holder = holder,
-                plan = state.planOf(holder),
                 title = holder.planName,
                 own = true,
                 account = account,
+                accountState = accountState,
+                paysThisMonth = state.standingOrderPaysThisMonth(holder),
                 clubName = clubName,
                 busy = state.cancelling == holder.id,
                 onCancel = { cancelling = holder },
@@ -82,10 +85,11 @@ internal fun PassesPart(
         state.theirPasses.forEach { holder ->
             PassCard(
                 holder = holder,
-                plan = state.planOf(holder),
                 title = t("pa3.name_and_pass", vars = mapOf("name" to holder.name, "pass" to holder.planName)),
                 own = false,
                 account = account,
+                accountState = accountState,
+                paysThisMonth = state.standingOrderPaysThisMonth(holder),
                 clubName = clubName,
                 busy = state.cancelling == holder.id,
                 onCancel = { cancelling = holder },
@@ -139,11 +143,13 @@ private fun OfferRow(plan: PassPlan, onlyFor: String?, busy: Boolean, onGet: () 
 @Composable
 private fun PassCard(
     holder: PassHolder,
-    plan: PassPlan?,
     title: String,
     /** Yours, or somebody's you pay for: "Cancel my pass" or "Cancel this pass". */
     own: Boolean,
     account: BankDetails?,
+    accountState: AccountState,
+    /** This month's charge is still on the screen: the standing order pays it. */
+    paysThisMonth: Boolean,
     clubName: String,
     busy: Boolean,
     onCancel: () -> Unit,
@@ -154,12 +160,12 @@ private fun PassCard(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
-            val words = holder.standingWords(plan?.validUntil)
+            val words = holder.standingWords()
             if (holder.needsPaying) AmberNote(words) else Text(words, style = MaterialTheme.typography.bodyLarge)
-            plan?.let { Body(it.coversLine()) }
+            holder.coversLine()?.let { Body(it) }
             holder.nextPaymentWords()?.let { Body(it) }
             holder.standingOrder?.let { order ->
-                StandingOrderCard(holder, order, account, clubName, own)
+                StandingOrderCard(holder, order, account, accountState, paysThisMonth, clubName, own)
             }
             // Cancelling is for a monthly pass: the others are paid for already.
             if (holder.billing == PassBilling.Monthly && !holder.isCancelled) {
@@ -178,23 +184,39 @@ private fun PassCard(
  * "Set up your standing order": exactly what the banking app asks for, one
  * row at a time with Copy — who, the amount, every month, the first payment
  * and the reference — and a way to send it to whoever does the banking.
+ *
+ * Whoever pays a monthly pass by standing order is shown the bank details,
+ * a parent for a junior's too. Only when the club has none, or has to enter
+ * them again, is the secretary asked; frozen ones are not to be paid into.
  */
 @Composable
-private fun StandingOrderCard(holder: PassHolder, order: StandingOrder, account: BankDetails?, clubName: String, own: Boolean) {
+private fun StandingOrderCard(
+    holder: PassHolder,
+    order: StandingOrder,
+    account: BankDetails?,
+    accountState: AccountState,
+    paysThisMonth: Boolean,
+    clubName: String,
+    own: Boolean,
+) {
     val context = LocalContext.current
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text(t("pa3.so_title"), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             Body(t("pa3.so_body"))
-            if (account != null) {
-                BigCopyRow(t("pa3.so_who"), account.holderName)
-                HorizontalDivider()
-                BigCopyRow(t("pay.sort_code"), account.sortCode, mono = true)
-                HorizontalDivider()
-                BigCopyRow(t("pay.account_number"), account.accountNumber, mono = true, sensitive = true)
-                HorizontalDivider()
-            } else {
-                Body(t("pa3.so_ask_for_details"), Modifier.padding(vertical = 8.dp))
+            if (paysThisMonth) AmberNote(t("pw4.so_pays_this_month"), Modifier.padding(vertical = 8.dp))
+            when {
+                accountState == AccountState.Active && account != null -> {
+                    BigCopyRow(t("pa3.so_who"), account.holderName)
+                    HorizontalDivider()
+                    BigCopyRow(t("pay.sort_code"), account.sortCode, mono = true)
+                    HorizontalDivider()
+                    BigCopyRow(t("pay.account_number"), account.accountNumber, mono = true, sensitive = true)
+                    HorizontalDivider()
+                }
+                accountState == AccountState.Frozen -> StopNote(t("pay.details_being_checked"), Modifier.padding(vertical = 8.dp))
+                accountState == AccountState.None || accountState == AccountState.Unreadable ->
+                    Body(t("pa3.so_ask_for_details"), Modifier.padding(vertical = 8.dp))
             }
             BigCopyRow(t("pay.amount"), money(order.amountCents, holder.currency))
             HorizontalDivider()

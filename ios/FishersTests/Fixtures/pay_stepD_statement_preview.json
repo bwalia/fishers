@@ -1,0 +1,89 @@
+{
+  "currency": "GBP",
+  "summary": {
+    "credits": 6,
+    "confirm": 2,
+    "record": 1,
+    "check": 2,
+    "unknown": 1,
+    "already": 0
+  },
+  "lines": [
+    {
+      "hash": "2103fbcdda59a175415aad332daa648c",
+      "row": 2,
+      "date": "2026-11-22",
+      "amount_cents": 600,
+      "text": "ROHIT SHARMA SHARMA 2",
+      "action": "confirm",
+      "user_id": "a130fe80-8c24-4c22-80b8-3999469425a9",
+      "name": "Rohit Sharma",
+      "payment_ids": [
+        "85ea6e49-7983-4196-828e-fc0830d72c94"
+      ],
+      "why": null
+    },
+    {
+      "hash": "dcac820d69016fc2531baec054004598",
+      "row": 3,
+      "date": "2026-11-22",
+      "amount_cents": 600,
+      "text": "J TURNER TURNER",
+      "action": "confirm",
+      "user_id": "f448067b-8f87-4409-be24-2eaa19658e32",
+      "name": "Josh Turner",
+      "payment_ids": [
+        "758f7aa5-f111-43dc-8a30-ad9617aa17af"
+      ],
+      "why": null
+    },
+    {
+      "hash": "d8d58e0731148f6409f84a9f714c68e5",
+      "row": 4,
+      "date": "2026-11-22",
+      "amount_cents": 900,
+      "text": "T BENNETT BENNETT",
+      "action": "check",
+      "user_id": "c7843556-1507-4d47-a71c-0e6597178930",
+      "name": "Tom Bennett",
+      "payment_ids": [],
+      "why": "different_amount"
+    },
+    {
+      "hash": "855bd0429f0ebe945b320f794c3fde63",
+      "row": 5,
+      "date": "2026-11-22",
+      "amount_cents": 600,
+      "text": "N PATEL PATEL",
+      "action": "record",
+      "user_id": "7e423e88-1b1f-43e5-acf8-636036c9643d",
+      "name": "Neha Patel",
+      "payment_ids": [],
+      "why": null
+    },
+    {
+      "hash": "64b1e15aca11c13d4bb755d53334f084",
+      "row": 6,
+      "date": "2026-11-22",
+      "amount_cents": 600,
+      "text": "R SHARMA SHARMA",
+      "action": "check",
+      "user_id": null,
+      "name": null,
+      "payment_ids": [],
+      "why": "shared_name"
+    },
+    {
+      "hash": "584f02f3f758d5e1dc1664def4ca76d2",
+      "row": 8,
+      "date": "2026-11-22",
+      "amount_cents": 12,
+      "text": "INTEREST",
+      "action": "unknown",
+      "user_id": null,
+      "name": null,
+      "payment_ids": [],
+      "why": null
+    }
+  ]
+}

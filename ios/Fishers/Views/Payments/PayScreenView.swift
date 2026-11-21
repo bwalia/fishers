@@ -119,6 +119,7 @@ struct PayScreenView: View {
     let clubId: UUID
     var clubName: String? = nil
 
+    @EnvironmentObject private var session: SessionStore
     @StateObject private var store: PayScreenStore
     @StateObject private var passes: PlayerPassesStore
     @State private var guideOpen: Bool
@@ -336,10 +337,11 @@ struct PayScreenView: View {
     // MARK: Paying for friends too
 
     /// "I'm paying for friends too": one payment for the reader and friends
-    /// from the same sessions. Only while there is a session to pay for.
+    /// still owing on the bills they're on — the server's list, each with
+    /// what they owe on those bills.
     @ViewBuilder
     private func friendsSection(_ screen: PayScreen) -> some View {
-        if screen.owedCents > 0, screen.owedShares.contains(where: { $0.eventId != nil }) {
+        if !screen.friends.isEmpty {
             Section {
                 Button {
                     payingForFriends = true
@@ -360,7 +362,7 @@ struct PayScreenView: View {
         if !screen.claims.isEmpty {
             Section {
                 ForEach(screen.claims) { claim in
-                    WaitingPaymentRow(store: store, payment: claim)
+                    WaitingPaymentRow(store: store, payment: claim, forName: forName(claim))
                 }
             } header: {
                 Text(tr("Waiting for the club to confirm"))
@@ -370,6 +372,13 @@ struct PayScreenView: View {
                 }
             }
         }
+    }
+
+    /// Whom a payment the reader made for somebody else is for; nil for
+    /// their own.
+    private func forName(_ claim: ClubPayment) -> String? {
+        guard let me = session.user?.id, let them = claim.userId, them != me else { return nil }
+        return claim.name
     }
 
     // MARK: 7. For someone else to pay
@@ -431,10 +440,13 @@ private struct PayGuideStep: View {
 }
 
 /// A payment the club hasn't checked yet: Undo, and — for a transfer — an
-/// optional screenshot from the photo library.
+/// optional screenshot from the photo library. One made for somebody else
+/// says who it's for.
 private struct WaitingPaymentRow: View {
     @ObservedObject var store: PayScreenStore
     let payment: ClubPayment
+    /// Who it's for, when the reader paid it for somebody else.
+    var forName: String?
 
     @State private var picked: PhotosPickerItem?
 
@@ -443,6 +455,10 @@ private struct WaitingPaymentRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: "\(Money.format(payment.amountCents, payment.currency)) · \(payment.methodLabel)")
                     .font(FishersTheme.subhead.weight(.semibold))
+                if let forName {
+                    Text(tr("For {name}", vars: ["name": forName]))
+                        .font(FishersTheme.footnote.weight(.semibold))
+                }
                 Text(payment.createdAt.formatted(date: .abbreviated, time: .shortened))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
@@ -475,7 +491,7 @@ private struct WaitingPaymentRow: View {
     @ViewBuilder
     private var buttons: some View {
         Button {
-            Task { await store.undo(payment) }
+            Task { await store.undo(payment, forSomeoneElse: forName != nil) }
         } label: {
             Text(tr("Undo"))
                 .lineLimit(1)
@@ -525,7 +541,11 @@ struct ShareLine: View {
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                 }
-                if let reason = share.reason, share.state == .waived || (showsName && share.state == .covered) {
+                // A covered line is worded from `cover`, not the server's
+                // English reason; a let-off keeps the reason the treasurer gave.
+                if showsName, share.state == .covered {
+                    Text(share.coveredByWords).font(FishersTheme.footnote).foregroundStyle(.secondary)
+                } else if let reason = share.reason, share.state == .waived {
                     Text(reason).font(FishersTheme.footnote).foregroundStyle(.secondary)
                 }
             }

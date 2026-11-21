@@ -7,8 +7,9 @@
 ///
 /// A parent (plan §4) sees each junior they pay for as their own block, and
 /// one payment covers everyone: "I've paid for everyone". "I'm paying for
-/// friends too" adds friends from the same sessions. Below it all, the
-/// club's passes (plan §3).
+/// friends too" adds friends still owing on bills you're on, each with what
+/// they owe there, before anything is sent. Below it all, the club's passes
+/// (plan §3).
 ///
 /// The app never touches the money. It goes from the player's bank to the
 /// club's; this page only says where, and records that they say they sent it.
@@ -30,6 +31,7 @@ import {
   useAttemptKey,
   type Dues,
   type ForOthers,
+  type Friend,
   type PayScreen,
   type Payment,
   type PersonDues,
@@ -45,9 +47,6 @@ import type { Key } from "@/lib/i18n/en";
 /// A screenshot is taken up to two hours after the payment is said.
 const SCREENSHOT_MS = 120 * 60_000;
 
-/// Somebody from your sessions you could pay for.
-type Friend = { user_id: string; name: string };
-
 export default function PayPage() {
   const t = useT();
   const authed = useRequireAuth();
@@ -59,8 +58,9 @@ export default function PayPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  /// Friends ticked under "I'm paying for friends too".
-  const [friends, setFriends] = useState<Friend[]>([]);
+  /// Friends ticked under "I'm paying for friends too", by id: what each
+  /// owes is always read from the page as it is now.
+  const [friendIds, setFriendIds] = useState<string[]>([]);
   /// What the last payment for others said, until the page is left.
   const [paidFor, setPaidFor] = useState<ForOthers | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
@@ -100,14 +100,20 @@ export default function PayPage() {
   }
 
   const othersCents = owingPeople.reduce((sum, p) => sum + p.dues.owed_cents, 0);
-  const total = pay.owed_cents + othersCents;
-  const owes = total > 0;
+  // Friends who still owe on your bills: not you, and not those you pay for
+  // already (they're in the payment anyway).
+  const friendList = (pay.friends ?? []).filter(
+    (f) => f.user_id !== meId && f.owed_cents > 0 && !people.some((p) => p.user_id === f.user_id),
+  );
+  const friends = friendList.filter((f) => friendIds.includes(f.user_id));
+  // Friends ticked come in at what they owe on your bills: the most the club
+  // takes for them, and what goes in the one transfer.
+  const friendsCents = friends.reduce((sum, f) => sum + f.owed_cents, 0);
+  const owes = pay.owed_cents + othersCents > 0;
+  const total = pay.owed_cents + othersCents + friendsCents;
   /// One payment for more than yourself.
   const forOthers = owingPeople.length > 0 || friends.length > 0;
   const account = pay.account_state === "active" ? pay.account : null;
-  // A parent who owes nothing themselves is not shown the details (the API
-  // keeps them for those who owe): the same words as "none".
-  const accountState = pay.account_state === "nothing_owed" && othersCents > 0 ? "hidden" : pay.account_state;
   const who = checker(pay.account);
   // What it's for, in one line when it is one thing: "You owe £5 for Friday nets".
   const owing = pay.shares.filter((s) => s.state === "owed" || s.state === "part_paid");
@@ -140,7 +146,7 @@ export default function PayPage() {
         );
         attempt.done();
         setPaidFor(out);
-        setFriends([]);
+        setFriendIds([]);
       } else {
         // Everything owed, in one go: the body names no amount.
         await postOnce<Payment>(`/clubs/${clubId}/payments`, { method }, attempt.key(`${method}:${pay.owed_cents}`));
@@ -198,7 +204,7 @@ export default function PayPage() {
       <section className="panel pay-sum" aria-labelledby="pay-owe">
         <p className="pay-headline" id="pay-owe">
           {owes
-            ? owingPeople.length > 0
+            ? forOthers
               ? t("pw3.you_owe_everyone", { amount })
               : forTitle
                 ? t("pw2.you_owe_for", { amount, title: forTitle })
@@ -207,7 +213,7 @@ export default function PayPage() {
               ? t("pay.said_you_paid")
               : t("pay.all_paid_up")}
         </p>
-        {owingPeople.length > 0 && (
+        {forOthers && (
           <ul className="pay-people-sum">
             {pay.owed_cents > 0 && (
               <li>
@@ -217,6 +223,11 @@ export default function PayPage() {
             {owingPeople.map((p) => (
               <li key={p.user_id}>
                 <span>{p.name}</span> <strong className="num">{money(p.dues.owed_cents, p.dues.currency)}</strong>
+              </li>
+            ))}
+            {friends.map((f) => (
+              <li key={f.user_id}>
+                <span>{f.name}</span> <strong className="num">{money(f.owed_cents, pay.currency)}</strong>
               </li>
             ))}
           </ul>
@@ -232,15 +243,8 @@ export default function PayPage() {
       {owes && account && (
         <section className="panel" aria-label={t("pay.how_to_pay")}>
           <PayDetails account={account} reference={pay.reference} amountCents={total} currency={pay.currency} />
-          {pay.owed_cents > 0 && (
-            <FriendsToo
-              clubId={clubId}
-              pay={pay}
-              meId={meId}
-              skip={people.map((p) => p.user_id)}
-              ticked={friends}
-              onTicked={setFriends}
-            />
+          {friendList.length > 0 && (
+            <FriendsToo names={friendList} currency={pay.currency} ticked={friendIds} onTicked={setFriendIds} />
           )}
           {forOthers && (
             <p className="pay-for-who" role="status">
@@ -281,9 +285,9 @@ export default function PayPage() {
 
       {owes && !account && (
         <section className="panel" aria-labelledby="pay-how">
-          <AccountProblem state={accountState} />
+          <AccountProblem state={pay.account_state} />
           {/* "Don't pay yet" means it: no button to say otherwise. */}
-          {accountState !== "frozen" && (
+          {pay.account_state !== "frozen" && (
             <div className="pay-buttons">
               <button className="btn primary xl" type="button" disabled={busy !== null} onClick={() => void claim("cash")}>
                 {busy === "cash" ? t("pay.sending") : cashLabel}
@@ -313,6 +317,10 @@ export default function PayPage() {
               {pay.claims.map((c) => (
                 <li key={c.id}>
                   <div>
+                    {/* One you made for somebody else: yours to take back too. */}
+                    {meId && c.user_id && c.user_id !== meId && (
+                      <span className="tag grey">{t("pw3.for_name", { name: c.name })}</span>
+                    )}{" "}
                     <strong className="num">{money(c.amount_cents, c.currency)}</strong>{" "}
                     <span className="muted">
                       {c.method === "cash" ? t("pay.in_cash") : t("pay.by_transfer_ref", { reference: c.reference ?? "" })}
@@ -371,6 +379,8 @@ export default function PayPage() {
         clubId={clubId}
         meId={meId}
         account={account}
+        accountState={pay.account_state}
+        owing={[...pay.shares, ...people.flatMap((p) => p.dues.shares)]}
         people={people.map((p) => ({ user_id: p.user_id, name: p.name }))}
         refreshKey={`${pay.owed_cents}:${pay.waiting_cents}`}
         onChanged={load}
@@ -379,81 +389,40 @@ export default function PayPage() {
   );
 }
 
-/// "I'm paying for friends too": tick who else you're covering, from the
-/// sessions you owe for. Their lines go into your one payment, each for what
-/// they owe; the club still checks it arrived.
+/// "I'm paying for friends too": tick who else you're covering, from those
+/// still owing on bills you're on. Each shows what they owe there — the most
+/// your payment takes for them — and the total above grows as they're
+/// ticked. The club still checks it arrived.
 function FriendsToo({
-  clubId,
-  pay,
-  meId,
-  skip,
+  names,
+  currency,
   ticked,
   onTicked,
 }: {
-  clubId: string;
-  pay: PayScreen;
-  meId: string | null;
-  /// Already in the payment: those you pay for.
-  skip: string[];
-  ticked: Friend[];
-  onTicked: (f: Friend[]) => void;
+  names: Friend[];
+  currency: string;
+  ticked: string[];
+  onTicked: (ids: string[]) => void;
 }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
-  const [names, setNames] = useState<Friend[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const sessions = useMemo(
-    () => [
-      ...new Set(
-        pay.shares
-          .filter((s) => s.event_id && (s.state === "owed" || s.state === "part_paid"))
-          .map((s) => s.event_id as string),
-      ),
-    ],
-    [pay.shares],
-  );
-
-  useEffect(() => {
-    if (!open || names) return;
-    // Who was at the same sessions. The API checks each one is on a bill
-    // with you before it takes the payment.
-    type Attendee = { user_id: string; name: string; status: string; club_id?: string | null };
-    Promise.all(sessions.slice(0, 6).map((e) => api<Attendee[]>("GET", `/events/${e}/attendees`).catch(() => [] as Attendee[])))
-      .then((lists) => {
-        const seen = new Map<string, Friend>();
-        for (const a of lists.flat()) {
-          if (a.user_id === meId || skip.includes(a.user_id) || a.status === "not_going") continue;
-          if (a.club_id && a.club_id !== clubId) continue;
-          seen.set(a.user_id, { user_id: a.user_id, name: a.name });
-        }
-        setNames([...seen.values()].sort((a, b) => a.name.localeCompare(b.name)));
-      })
-      .catch((e) => setError(readErr(e, t("le.something_went_wrong"))));
-  }, [open, names, sessions, meId, skip, clubId, t]);
-
-  if (sessions.length === 0) return null;
-  const has = (id: string) => ticked.some((f) => f.user_id === id);
-  const toggle = (f: Friend) => onTicked(has(f.user_id) ? ticked.filter((x) => x.user_id !== f.user_id) : [...ticked, f]);
+  const has = (id: string) => ticked.includes(id);
+  const toggle = (id: string) => onTicked(has(id) ? ticked.filter((x) => x !== id) : [...ticked, id]);
 
   return (
-    <details className="pay-guide pay-friends" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+    <details className="pay-guide pay-friends">
       <summary>{t("pw3.paying_for_friends")}</summary>
       <div className="pay-friends-body">
-        <p className="muted">{t("pw3.friends_help")}</p>
-        {error && <p className="field-error" role="alert">{error}</p>}
-        {!names && !error && <div className="skeleton" style={{ height: 88 }} />}
-        {names && names.length === 0 && <p className="muted">{t("pw3.no_friends")}</p>}
-        {names && names.length > 0 && (
-          <fieldset className="who-list">
-            <legend className="sr-only">{t("pw3.paying_for_friends")}</legend>
-            {names.map((f) => (
-              <label className="who-person" key={f.user_id}>
-                <input type="checkbox" checked={has(f.user_id)} onChange={() => toggle(f)} />
-                <span className="who-name">{f.name}</span>
-              </label>
-            ))}
-          </fieldset>
-        )}
+        <p className="muted">{t("pw4.friends_help")}</p>
+        <fieldset className="who-list">
+          <legend className="sr-only">{t("pw3.paying_for_friends")}</legend>
+          {names.map((f) => (
+            <label className="who-person" key={f.user_id}>
+              <input type="checkbox" checked={has(f.user_id)} onChange={() => toggle(f.user_id)} />
+              <span className="who-name">{f.name}</span>
+              <span className="num who-amount">{money(f.owed_cents, currency)}</span>
+            </label>
+          ))}
+        </fieldset>
       </div>
     </details>
   );
@@ -467,9 +436,7 @@ function AccountProblem({ state }: { state: string }) {
       ? ["pw2.frozen_title", "pw2.frozen_body"]
       : state === "unreadable"
         ? ["pw2.unreadable_title", "pw2.unreadable_body"]
-        : state === "hidden"
-          ? ["pw3.details_hidden_title", "pw3.details_hidden_body"]
-          : ["pw2.none_title", "pw2.none_body"];
+        : ["pw2.none_title", "pw2.none_body"];
   return (
     <div className={`paylink-state small is-${state}`} role="note">
       <h2 id="pay-how">{t(title)}</h2>

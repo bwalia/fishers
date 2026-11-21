@@ -4,6 +4,7 @@ import com.fishers.app.clubs.ClubMemberDetail
 import com.fishers.app.clubs.Team
 import com.fishers.app.net.PaymentsApi
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
 
@@ -71,14 +72,20 @@ open class FakePaymentsApi : PaymentsApi {
     override suspend fun groupFees(clubId: String): List<GroupFee> = error("groupFees not expected")
     override suspend fun groupFee(billId: String): GroupFee = error("groupFee not expected")
     override suspend fun cancelGroupFee(billId: String, body: ReasonBody): GroupFee = error("cancelGroupFee not expected")
+    override suspend fun currentGroupFeeLink(billId: String): JsonElement = error("currentGroupFeeLink not expected")
     override suspend fun groupFeeLink(billId: String): BillLink = error("groupFeeLink not expected")
     override suspend fun disableGroupFeeLink(billId: String): DisabledLinks = error("disableGroupFeeLink not expected")
     override suspend fun setPayer(clubId: String, memberId: String, body: PayerBody): Unit = error("setPayer not expected")
     override suspend fun addJunior(clubId: String, body: ManagedMemberBody): ManagedMember = error("addJunior not expected")
     override suspend fun payForOthers(clubId: String, idempotencyKey: String, body: ForOthersBody): ForOthers =
         error("payForOthers not expected")
+    override suspend fun moneyMembers(clubId: String): List<MoneyMember> = error("moneyMembers not expected")
     override suspend fun clubMembers(clubId: String): List<ClubMemberDetail> = error("clubMembers not expected")
     override suspend fun clubTeams(clubId: String): List<Team> = error("clubTeams not expected")
+
+    // ---- step D ----
+    override suspend fun previewStatement(clubId: String, csv: RequestBody): StatementPreview = error("previewStatement not expected")
+    override suspend fun applyStatement(clubId: String, body: StatementBody): StatementApplied = error("applyStatement not expected")
 }
 
 /** The responses captured from the running API (`.dev/payments/examples/`), as `Network` decodes them. */

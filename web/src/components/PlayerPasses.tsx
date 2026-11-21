@@ -21,6 +21,7 @@ import {
   type PassHolder,
   type PassPlan,
   type PriceType,
+  type Share,
 } from "@/lib/payments";
 import { longDay, passState } from "@/lib/passes";
 import { firstName } from "@/lib/pay-link";
@@ -33,6 +34,8 @@ export function PlayerPasses({
   clubId,
   meId,
   account,
+  accountState,
+  owing,
   people,
   refreshKey,
   onChanged,
@@ -41,6 +44,11 @@ export function PlayerPasses({
   meId: string | null;
   /// The club's bank details, when the pay screen has them to show.
   account: BankDetails | null;
+  /// Why there are none, when there aren't: the pay screen's `account_state`.
+  accountState: string;
+  /// Every line on the pay screen — yours and those you pay for — so a
+  /// standing-order card can tell when this month's charge is still to pay.
+  owing: Share[];
   /// Those you pay for in this club, who can be put on a pass too.
   people: Person[];
   /// Changes when the pay screen reloads, so a pass charged meanwhile shows.
@@ -173,6 +181,14 @@ export function PlayerPasses({
           plan={planOf(h)}
           mine={!meId || h.user_id === meId}
           account={account}
+          accountState={accountState}
+          owedNow={owing.some(
+            (s) =>
+              s.kind === "pass" &&
+              (s.state === "owed" || s.state === "part_paid") &&
+              s.user_id === h.user_id &&
+              s.title.startsWith(h.plan_name),
+          )}
           asking={asking === `cancel:${h.id}`}
           askError={askError}
           busy={busy}
@@ -310,6 +326,8 @@ function OwnPass({
   plan,
   mine,
   account,
+  accountState,
+  owedNow,
   asking,
   askError,
   busy,
@@ -321,6 +339,9 @@ function OwnPass({
   plan: PassPlan | undefined;
   mine: boolean;
   account: BankDetails | null;
+  accountState: string;
+  /// A charge for this pass is still owed on the pay screen.
+  owedNow: boolean;
   asking: boolean;
   askError: string | null;
   busy: boolean;
@@ -330,7 +351,12 @@ function OwnPass({
 }) {
   const t = useT();
   const id = useId();
-  const state = passState(h, plan ?? undefined);
+  // The pass carries its plan's terms, so one no longer on offer still says
+  // what it covers and until when.
+  const state = passState(h, { valid_until: h.valid_until ?? plan?.valid_until ?? null });
+  const terms = h.covers
+    ? { covers: h.covers, valid_until: h.valid_until ?? null, sessions: h.sessions ?? null }
+    : plan;
   const first = firstName(h.name);
   const monthly = h.billing === "monthly";
 
@@ -366,6 +392,7 @@ function OwnPass({
         <h3 id={`${id}-name`}>{h.plan_name}</h3>
         {!mine && <span className="tag grey">{t("pw3.for_name", { name: h.name })}</span>}
       </div>
+      {terms && <p className="muted pass-covers">{passCovers(terms, t)}</p>}
       <p className={warn ? "pay-warn pass-state" : "pass-state"} role={warn ? "note" : undefined}>
         {state.kind !== "suspended" && state.kind !== "behind" && state.kind !== "cancelled" && "✓ "}
         {line}
@@ -379,7 +406,7 @@ function OwnPass({
       )}
 
       {h.standing_order && (
-        <StandingOrderCard pass={h} account={account} />
+        <StandingOrderCard pass={h} account={account} accountState={accountState} owedNow={owedNow} />
       )}
       {monthly && h.cancelled_at && (
         <p className="pay-warn" role="note">
@@ -418,8 +445,20 @@ function OwnPass({
 }
 
 /// "Set up your standing order": what the banking app asks for, one big row
-/// each with Copy, and "Send to someone who pays for me".
-function StandingOrderCard({ pass: h, account }: { pass: MyPass; account: BankDetails | null }) {
+/// each with Copy, and "Send to someone who pays for me". When this month's
+/// charge is still owed, the standing order pays that too: it says so, so it
+/// isn't paid twice.
+function StandingOrderCard({
+  pass: h,
+  account,
+  accountState,
+  owedNow,
+}: {
+  pass: MyPass;
+  account: BankDetails | null;
+  accountState: string;
+  owedNow: boolean;
+}) {
   const t = useT();
   const so = h.standing_order;
   if (!so) return null;
@@ -452,8 +491,24 @@ function StandingOrderCard({ pass: h, account }: { pass: MyPass; account: BankDe
         <PayRow term={t("pw3.so_first_payment")} value={start} what={t("pw3.what_first_payment")} />
         <PayRow term={t("pw2.row_reference")} value={so.reference} what={t("pw2.what_reference")} />
       </dl>
-      {!account && <p className="subtle">{t("pw3.so_same_details")}</p>}
-      <p className="subtle">{t("pw3.so_not_twice")}</p>
+      {!account && (
+        <p className={accountState === "frozen" ? "pay-warn" : "subtle"} role={accountState === "frozen" ? "note" : undefined}>
+          {accountState === "frozen"
+            ? t("pay.state_frozen")
+            : accountState === "none"
+              ? t("pay.state_none")
+              : accountState === "unreadable"
+                ? t("pay.state_unreadable")
+                : t("pw3.so_same_details")}
+        </p>
+      )}
+      {owedNow ? (
+        <p className="pay-warn" role="note">
+          {t("pw4.so_pays_this_month")}
+        </p>
+      ) : (
+        <p className="subtle">{t("pw3.so_not_twice")}</p>
+      )}
       <SendText
         title={t("pw3.so_send_title")}
         help={t("pw2.send_details_help")}

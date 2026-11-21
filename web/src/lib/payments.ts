@@ -11,7 +11,7 @@
 /// of still renders under its own name rather than breaking the screen.
 
 import { useRef } from "react";
-import { api, apiV1, money, usableToken } from "./api";
+import { api, apiV1, errCode, money, usableToken } from "./api";
 import type { T } from "./i18n";
 import type { Key } from "./i18n/en";
 import { firstName, fingerprint, fitWithin } from "./pay-link";
@@ -43,6 +43,9 @@ export type Share = {
   currency: string;
   state: ShareState;
   reason: string | null;
+  /// On a covered line: `pass` (a pass covers it) or `free` (a free price,
+  /// a coach's say). Word it from this, never from the English `reason`.
+  cover?: string | null;
 };
 
 export type ClubDues = {
@@ -127,9 +130,17 @@ export type PayScreen = {
   account_state: AccountState;
   account: BankDetails | null;
   reference: string;
-  /// Your claims nobody has confirmed yet.
+  /// Your claims nobody has confirmed yet, and those you made for somebody
+  /// else (`user_id` is theirs, `created_by` yours).
   claims: Payment[];
+  /// People still owing on bills you're on, and what they owe on those bills
+  /// only: the list for "I'm paying for friends too". Older APIs leave it out.
+  friends?: Friend[];
 };
+
+/// Somebody on a bill with you who still owes on it, and how much: the most
+/// you can pay for them.
+export type Friend = { user_id: string; name: string; owed_cents: number };
 
 /// One set of bank details as an admin sees it. Never the full number.
 export type PayoutAccount = {
@@ -194,6 +205,9 @@ export type MemberBalance = {
 
 export type BillSummary = {
   bill_id: string;
+  /// `event` (opens the session), `collection` (opens the group fee) or
+  /// `pass` (opens nothing). Older APIs leave it out.
+  kind?: string;
   /// Null for a bill that is not for a session: a group fee.
   event_id: string | null;
   title: string;
@@ -293,9 +307,15 @@ export type BillResponse = {
 export type TypePrice = { price_type_id: string; name: string; amount_cents: number };
 
 export type Preview = {
-  /// `covered` is why somebody owes nothing ("Covered by Monthly nets",
-  /// "Free: Coach"), or null.
-  shares: { user_id: string | null; name: string; amount_cents: number; covered?: string | null }[];
+  /// `covered` is why somebody owes nothing, in the server's English, or
+  /// null; `cover` is the same as `pass` or `free`, to word it from.
+  shares: {
+    user_id: string | null;
+    name: string;
+    amount_cents: number;
+    covered?: string | null;
+    cover?: string | null;
+  }[];
   total_cents: number;
   surplus_cents: number;
   currency: string;
@@ -359,12 +379,16 @@ export function shareWhen(s: Pick<Share, "kind" | "event_start_at" | "due_on">, 
   return s.event_start_at ? shortDate(s.event_start_at) : "";
 }
 
-/// The badge on a line. A covered one says why, in the server's words
-/// ("Covered by Monthly nets", "Free: Coach"), with a tick: there is nothing
-/// to pay and nothing to tap.
-export function shareTag(s: Pick<Share, "state" | "reason">, t: T): string {
-  if (s.state === "covered") return `${s.reason || t("pw2.state_covered")} ✓`;
-  return shareStateLabel(s.state, t);
+/// The badge on a line. A covered one says why, with a tick: there is
+/// nothing to pay and nothing to tap. Worded from `cover`, so it reads in the
+/// reader's language: "Covered by your pass ✓" on your own line, "Covered by a
+/// pass ✓" on somebody else's, "Free ✓" for a free price.
+export function shareTag(s: Pick<Share, "state" | "reason" | "cover">, t: T, own = false): string {
+  if (s.state !== "covered") return shareStateLabel(s.state, t);
+  if (s.cover === "free") return `${t("le.free")} ✓`;
+  if (s.cover === "pass" || !s.reason) return `${own ? t("pw2.state_covered") : t("pw4.covered_by_a_pass")} ✓`;
+  // An API from before `cover`: its own words are all there is.
+  return `${s.reason} ✓`;
 }
 
 /// "Fri 20 Nov".
@@ -387,13 +411,31 @@ export function dateTime(iso: string): string {
 /// reload, and show the server's sentence.
 export const STALE_CODES = new Set(["version_conflict", "already_billed", "already_decided", "nothing_owed", "no_bill"]);
 
+/// How long to wait before the one quiet retry after `busy`.
+const BUSY_RETRY_MS = 1000;
+
+/// A payment POST, tried once more after `busy` (409): another request was
+/// saving a payment for the same person at that moment — the other half of a
+/// double tap, usually. A second later, with the same Idempotency-Key, the
+/// server answers with that first payment. Only once: a second `busy` is
+/// shown like any other refusal.
+export async function retryBusy<R>(send: () => Promise<R>): Promise<R> {
+  try {
+    return await send();
+  } catch (e) {
+    if (errCode(e) !== "busy") throw e;
+    await new Promise((done) => setTimeout(done, BUSY_RETRY_MS));
+    return send();
+  }
+}
+
 /// A POST that must happen once however many times it is sent.
 ///
 /// The server keeps the first answer for an `Idempotency-Key` and gives it
 /// back to every retry, so a double tap or a lost reply on bad signal can
 /// never make two payments.
 export function postOnce<R>(path: string, body: unknown, key: string): Promise<R> {
-  return api<R>("POST", path, body, true, false, undefined, { "Idempotency-Key": key });
+  return retryBusy(() => api<R>("POST", path, body, true, false, undefined, { "Idempotency-Key": key }));
 }
 
 /// One key per attempt, kept until it succeeds.
@@ -473,7 +515,40 @@ export type LinkPerson = Share & {
   /// What to write in the reference box.
   reference: string;
   claim: LinkClaim | null;
+  /// Only in the reply to "I've paid" (and its retry with the same key): the
+  /// proof that this phone made the claim. Sent back as `X-Claim-Secret` to
+  /// take it back or add its screenshot; nobody else ever gets it.
+  claim_secret?: string;
 };
+
+/// Claim secrets live in this tab only, by payment id. Closing the tab ends
+/// them, which is as long as Undo (an hour) and a screenshot (two) last
+/// anyway. Never in a URL, never logged.
+const secretKey = (paymentId: string) => `fishers:claim-secret:${paymentId}`;
+
+export function keepClaimSecret(paymentId: string, secret: string) {
+  try {
+    sessionStorage.setItem(secretKey(paymentId), secret);
+  } catch {
+    /* storage refused: Undo and the screenshot are not offered, which is safe */
+  }
+}
+
+export function claimSecret(paymentId: string): string | null {
+  try {
+    return sessionStorage.getItem(secretKey(paymentId));
+  } catch {
+    return null;
+  }
+}
+
+export function forgetClaimSecret(paymentId: string) {
+  try {
+    sessionStorage.removeItem(secretKey(paymentId));
+  } catch {
+    /* nothing kept, nothing to forget */
+  }
+}
 
 /// `POST /events/{id}/bill/cash`.
 export type CashRecorded = { recorded: number; total_cents: number; received: boolean };
@@ -567,6 +642,11 @@ export type MyPass = PassHolder & {
   charge_cents: number;
   currency: string;
   standing_order: StandingOrder | null;
+  /// The plan's own terms, so a pass on a plan no longer offered still says
+  /// what it covers. Older APIs leave them out.
+  covers?: string[];
+  valid_until?: string | null;
+  sessions?: number | null;
 };
 
 /// A group fee: a bill not tied to a session.
@@ -592,6 +672,19 @@ export type GroupFee = {
   people: number;
   /// Everyone's for an admin; empty in the list.
   shares: Share[];
+};
+
+/// `GET /clubs/{id}/payments/members` (money admins): each member's group and
+/// who pays for them, for "Prices and who pays".
+export type PayingMember = {
+  user_id: string;
+  name: string;
+  /// Their group's price, or null for the usual one.
+  price_type_id: string | null;
+  payer_id: string | null;
+  payer_name: string | null;
+  /// Added by name, with no sign-in of their own: a junior.
+  managed: boolean;
 };
 
 /// `POST /clubs/{id}/payments/for-others`.
@@ -761,10 +854,22 @@ async function answer<R>(res: Response): Promise<R> {
   return (await res.json()) as R;
 }
 
+/// A signed-in POST whose body is plain text: a bank statement, sent as the
+/// file it was read from. Never logged and never in a URL — it holds the
+/// club's other banking too.
+export async function postText<R>(path: string, text: string): Promise<R> {
+  const headers: Record<string, string> = { "Content-Type": "text/csv; charset=utf-8" };
+  const token = await usableToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiV1()}${path}`, { method: "POST", headers, body: text, cache: "no-store" });
+  return answer<R>(res);
+}
+
 /// Send a picture as the raw bytes the API wants. `link` calls go without
-/// needing a sign-in; the others are the signed-in payer's own.
-export async function postImage(path: string, image: Blob, link = false): Promise<void> {
-  const headers: Record<string, string> = { "Content-Type": image.type || "image/jpeg" };
+/// needing a sign-in (with `extra` carrying the claim's secret); the others
+/// are the signed-in payer's own.
+export async function postImage(path: string, image: Blob, link = false, extra?: Record<string, string>): Promise<void> {
+  const headers: Record<string, string> = { ...extra, "Content-Type": image.type || "image/jpeg" };
   const token = await usableToken().catch(() => null);
   if (token) headers.Authorization = `Bearer ${token}`;
   else if (!link) throw Object.assign(new Error("signed out"), { status: 401 });

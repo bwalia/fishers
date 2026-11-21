@@ -186,7 +186,10 @@ final class PassesTests: XCTestCase {
         XCTAssertTrue(mine.running)
         XCTAssertTrue(mine.isInGoodStanding)
         XCTAssertEqual(mine.standingWords(today: today), "Covered. Next payment \(DayDate.short("2026-12-21")!).")
-        XCTAssertEqual(mine.standingWords(validUntil: "2027-03-31", today: today), "Covered until \(DayDate.short("2027-03-31")!).")
+        // The pass's own end comes with it from /me/passes now.
+        let toMarch = try decode([PassHolder].self, "pay_stepD_me_passes",
+                                 replacing: #""valid_until": null"#, with: #""valid_until": "2027-03-31""#)[0]
+        XCTAssertEqual(toMarch.standingWords(today: today), "Covered until \(DayDate.short("2027-03-31")!).")
         XCTAssertEqual(mine.adminStanding, "Up to date")
 
         let paused = try XCTUnwrap(try decode([PassHolder].self, "pay_stepBC_me_passes_suspended").first)
@@ -562,9 +565,16 @@ final class PassesTests: XCTestCase {
             let item = try notification(kind, ["club_id": club.uuidString, "title": "t", "body": "b"])
             XCTAssertEqual(item.moneyRoute, .payScreen(club), kind)
         }
-        // Told to the holder and to the club's money admins: the server decides.
+        // Since the security review `pass_suspended` is the holder's only;
+        // money admins get `pass_suspended_club`, which opens the overview.
         XCTAssertEqual(try notification("pass_suspended", ["club_id": club.uuidString, "title": "t", "body": "b"]).moneyRoute,
+                       .payScreen(club))
+        XCTAssertEqual(try notification("pass_suspended_club", ["club_id": club.uuidString, "pass_holder_id": UUID().uuidString,
+                                                               "title": "t", "body": "b"]).moneyRoute,
                        .overview(club))
+        XCTAssertEqual(try notification("paid_for_you", ["club_id": club.uuidString, "payment_id": UUID().uuidString,
+                                                        "title": "t", "body": "b"]).moneyRoute,
+                       .payScreen(club))
     }
 
     // MARK: - Words

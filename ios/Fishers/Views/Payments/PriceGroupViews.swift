@@ -191,11 +191,11 @@ private struct PriceGroupSheet: View {
 
 // MARK: - Who pays for whom
 
-/// Each member's price group and who pays for them, and juniors added by
-/// name. What was set on this screen shows beside each name.
+/// Each member's price group and who pays for them, as the server has them,
+/// and juniors added by name.
 struct MemberPricesView: View {
     @StateObject private var store: PriceGroupsStore
-    @State private var editing: ClubMemberDetail?
+    @State private var editing: MoneyMember?
     @State private var addingJunior = false
     @State private var search = ""
 
@@ -203,7 +203,7 @@ struct MemberPricesView: View {
         _store = StateObject(wrappedValue: PriceGroupsStore(clubId: clubId))
     }
 
-    private var members: [ClubMemberDetail] {
+    private var members: [MoneyMember] {
         store.members.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
     }
 
@@ -230,7 +230,7 @@ struct MemberPricesView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(member.name).foregroundStyle(.primary)
-                            ForEach(lines(member), id: \.self) { line in
+                            ForEach(store.lines(member), id: \.self) { line in
                                 Text(line).font(FishersTheme.footnote).foregroundStyle(.secondary)
                             }
                         }
@@ -262,44 +262,36 @@ struct MemberPricesView: View {
             Text(store.errorMessage ?? "")
         }
     }
-
-    /// "Price: Junior", "Paid for by Neha Gill" — what was set here.
-    private func lines(_ member: ClubMemberDetail) -> [String] {
-        var out: [String] = []
-        if let group = store.groupSet[member.userId] {
-            out.append(tr("Price: {group}", vars: ["group": store.groupName(group)]))
-        }
-        if let payer = store.payerSet[member.userId] {
-            out.append(payer == nil
-                       ? tr("Pays for themselves")
-                       : tr("Paid for by {name}", vars: ["name": store.memberName(payer)]))
-        }
-        return out
-    }
 }
 
-/// One member's price group and who pays for them.
+/// One member's price group and who pays for them, starting from what they
+/// are now.
 private struct MemberMoneySheet: View {
     @ObservedObject var store: PriceGroupsStore
-    let member: ClubMemberDetail
-
-    enum GroupPick: Hashable { case unchanged, standard, group(UUID) }
-    enum PayerPick: Hashable { case unchanged, themselves, member(UUID) }
+    let member: MoneyMember
 
     @Environment(\.dismiss) private var dismiss
-    @State private var group: GroupPick = .unchanged
-    @State private var payer: PayerPick = .unchanged
+    /// Nil: the standard price.
+    @State private var group: UUID?
+    /// Nil: they pay for themselves.
+    @State private var payer: UUID?
     @State private var problem: String?
+
+    init(store: PriceGroupsStore, member: MoneyMember) {
+        self.store = store
+        self.member = member
+        _group = State(initialValue: member.priceTypeId)
+        _payer = State(initialValue: member.payerId)
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     Picker(tr("Their price"), selection: $group) {
-                        Text(tr("Leave as it is")).tag(GroupPick.unchanged)
-                        Text(tr("Standard price")).tag(GroupPick.standard)
+                        Text(tr("Standard price")).tag(UUID?.none)
                         ForEach(store.groups.inUse.filter { !$0.forGuests }) { group in
-                            Text(group.name).tag(GroupPick.group(group.id))
+                            Text(group.name).tag(UUID?.some(group.id))
                         }
                     }
                     .frame(minHeight: FishersTheme.minTap)
@@ -310,10 +302,9 @@ private struct MemberMoneySheet: View {
                 }
                 Section {
                     Picker(tr("Who pays for them"), selection: $payer) {
-                        Text(tr("Leave as it is")).tag(PayerPick.unchanged)
-                        Text(tr("They pay for themselves")).tag(PayerPick.themselves)
-                        ForEach(store.members.filter { $0.userId != member.userId }) { other in
-                            Text(other.name).tag(PayerPick.member(other.userId))
+                        Text(tr("They pay for themselves")).tag(UUID?.none)
+                        ForEach(store.payers.filter { $0.userId != member.userId }) { other in
+                            Text(other.name).tag(UUID?.some(other.userId))
                         }
                     }
                     .frame(minHeight: FishersTheme.minTap)
@@ -338,7 +329,7 @@ private struct MemberMoneySheet: View {
                         ProgressView()
                     } else {
                         Button(tr("Save")) { Task { await save() } }
-                            .disabled(group == .unchanged && payer == .unchanged)
+                            .disabled(group == member.priceTypeId && payer == member.payerId)
                     }
                 }
             }
@@ -346,22 +337,18 @@ private struct MemberMoneySheet: View {
         }
     }
 
+    /// Only what changed is sent.
     private func save() async {
         problem = nil
-        switch group {
-        case .unchanged: break
-        case .standard:
-            if let failure = await store.setGroup(member, to: nil).failure { problem = failure; return }
-        case .group(let id):
-            if let failure = await store.setGroup(member, to: id).failure { problem = failure; return }
+        if group != member.priceTypeId,
+           let failure = await store.setGroup(member, to: group).failure {
+            problem = failure
+            return
         }
-        group = .unchanged
-        switch payer {
-        case .unchanged: break
-        case .themselves:
-            if let failure = await store.setPayer(member, to: nil).failure { problem = failure; return }
-        case .member(let id):
-            if let failure = await store.setPayer(member, to: id).failure { problem = failure; return }
+        if payer != member.payerId,
+           let failure = await store.setPayer(member, to: payer).failure {
+            problem = failure
+            return
         }
         dismiss()
     }
@@ -389,7 +376,7 @@ private struct AddJuniorSheet: View {
                 Section {
                     Picker(tr("Who pays for them"), selection: $payer) {
                         Text(tr("Pick somebody")).tag(UUID?.none)
-                        ForEach(store.members) { member in
+                        ForEach(store.payers) { member in
                             Text(member.name).tag(UUID?.some(member.userId))
                         }
                     }

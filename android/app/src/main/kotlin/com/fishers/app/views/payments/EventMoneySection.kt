@@ -286,7 +286,8 @@ private fun BillPart(money: EventMoney, state: EventMoneyState, onLetOff: (Share
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(share.name, style = MaterialTheme.typography.bodyLarge)
-                        share.reason?.let { Body(it) }
+                        // A let-off's reason; a covered line says why in its label.
+                        share.reason?.takeIf { !share.isCovered }?.let { Body(it) }
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         if (!share.isCovered) Text(money(share.amountCents, share.currency), style = MaterialTheme.typography.bodyMedium)

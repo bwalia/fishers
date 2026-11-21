@@ -49,9 +49,11 @@ struct PlayerPassesSection: View {
     private var yourPasses: some View {
         Section {
             ForEach(store.passes) { holder in
-                PassStandingRow(holder: holder, mine: store.isMine(holder), validUntil: store.validUntil(holder))
+                PassStandingRow(holder: holder, mine: store.isMine(holder))
                 if holder.billing == .monthly, let order = holder.standingOrder, !holder.isCancelled {
-                    StandingOrderRows(order: order, screen: screen) { text in
+                    StandingOrderRows(
+                        order: order, screen: screen, chargeOwed: store.chargeOwed(holder, myShares: screen.shares)
+                    ) { text in
                         sending = SharedText(text: text)
                     }
                 }
@@ -161,7 +163,6 @@ struct PlayerPassesSection: View {
 struct PassStandingRow: View {
     let holder: PassHolder
     let mine: Bool
-    var validUntil: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -173,7 +174,13 @@ struct PassStandingRow: View {
                     .font(FishersTheme.footnote)
                     .foregroundStyle(.secondary)
             }
-            Label(holder.standingWords(validUntil: validUntil), systemImage: symbol)
+            if let covers = holder.coverWords {
+                Text(covers)
+                    .font(FishersTheme.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Label(holder.standingWords(), systemImage: symbol)
                 .font(FishersTheme.subhead.weight(.semibold))
                 .foregroundStyle(colour)
                 .fixedSize(horizontal: false, vertical: true)
@@ -196,11 +203,13 @@ struct PassStandingRow: View {
 
 /// "Set up your standing order": who, how much, every month, from when and
 /// what to write in the reference box, each with Copy, as the banking app
-/// asks for them. The bank details are the pay screen's, shown only while
-/// the club's pay screen shows them.
+/// asks for them. The bank details are the pay screen's, which the server
+/// shows to anybody paying a monthly pass by standing order.
 struct StandingOrderRows: View {
     let order: StandingOrder
     let screen: PayScreen
+    /// A charge for this pass is still owed: the standing order pays it.
+    var chargeOwed = false
     let send: (String) -> Void
 
     @State private var open = true
@@ -210,14 +219,23 @@ struct StandingOrderRows: View {
             Text(tr("In your banking app, set up a standing order with these details. It pays the club every month by itself."))
                 .font(FishersTheme.subhead)
                 .fixedSize(horizontal: false, vertical: true)
+            if chargeOwed {
+                Label(tr("Your standing order pays this month too. Don't pay it by hand."), systemImage: "exclamationmark.circle.fill")
+                    .font(FishersTheme.subhead.weight(.semibold))
+                    .foregroundStyle(FishersTheme.maybe)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let account = screen.payableAccount {
                 CopyRow(label: tr("Who to pay"), value: account.holderName)
                 CopyRow(label: tr("Sort code"), value: account.sortCode, monospaced: true)
                 CopyRow(label: tr("Account number"), value: account.accountNumber, sensitive: true, monospaced: true)
-            } else {
-                Text(tr("The club's bank details show here while a payment is due. Your club secretary can give them to you too."))
+            } else if let why = screen.noDetailsReason {
+                // None added, frozen, or unreadable: the one time there are
+                // no details to show, and what to do instead.
+                Label(why, systemImage: screen.accountState == .frozen ? "hand.raised.fill" : "info.circle")
                     .font(FishersTheme.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(screen.accountState == .frozen ? FishersTheme.unavailable : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             CopyRow(label: tr("Amount"), value: Money.format(order.amountCents, screen.currency),
                     copyValue: Money.plain(order.amountCents, screen.currency))
@@ -240,28 +258,29 @@ struct StandingOrderRows: View {
 
 // MARK: - I'm paying for friends too
 
-/// Tick friends from the same sessions; one payment covers the reader and
-/// everyone ticked, under the reader's reference.
+/// Tick friends still owing on the bills the reader is on — the server's
+/// list, each with what they owe on those bills — and see the one amount to
+/// send. One payment covers the reader and everyone ticked, under the
+/// reader's reference.
 struct FriendsPaySheet: View {
     let screen: PayScreen
 
-    @EnvironmentObject private var session: SessionStore
     @Environment(\.dismiss) private var dismiss
     @StateObject private var payer: PayForOthersStore
-    @State private var friends: [Friend] = []
-    @State private var loaded = false
     @State private var ticked: Set<UUID> = []
     @State private var finished = false
-
-    struct Friend: Identifiable, Equatable {
-        let id: UUID
-        let name: String
-        let sessions: [String]
-    }
 
     init(screen: PayScreen) {
         self.screen = screen
         _payer = StateObject(wrappedValue: PayForOthersStore(clubId: screen.clubId))
+    }
+
+    private var payment: FriendsPayment {
+        FriendsPayment(
+            mineCents: screen.owedCents,
+            friends: screen.friends.filter { ticked.contains($0.userId) },
+            currency: screen.currency
+        )
     }
 
     var body: some View {
@@ -281,20 +300,24 @@ struct FriendsPaySheet: View {
                     }
                 } else {
                     pickSection
+                    if !ticked.isEmpty {
+                        paySection
+                    }
                     if let problem = payer.problem {
                         Section { Text(problem).foregroundStyle(FishersTheme.unavailable) }
                     }
                     Section {
                         VStack(spacing: 12) {
-                            bigButton(tr("I've paid for us all"), prominent: true) { Task { await pay("transfer") } }
-                            bigButton(tr("I paid cash for us all"), prominent: false) { Task { await pay("cash") } }
+                            if screen.payableAccount != nil {
+                                bigButton(tr("I've paid for us all"), prominent: true) { Task { await pay("transfer") } }
+                            }
+                            bigButton(tr("I paid cash for us all"), prominent: screen.payableAccount == nil) {
+                                Task { await pay("cash") }
+                            }
                         }
                         .disabled(ticked.isEmpty || payer.isWorking)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
-                    } footer: {
-                        Text(tr("Pay in your banking app first: one payment with your reference, {reference}. Each friend's part is what they owe the club.",
-                                vars: ["reference": screen.reference]))
                     }
                 }
             }
@@ -308,35 +331,55 @@ struct FriendsPaySheet: View {
                 }
             }
             .interactiveDismissDisabled(payer.isWorking)
-            .task { await loadFriends() }
         }
     }
 
-    @ViewBuilder
     private var pickSection: some View {
         Section {
-            if !loaded {
-                ProgressView().frame(maxWidth: .infinity)
-            } else if friends.isEmpty {
-                Text(tr("Nobody else from your sessions to pick."))
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(friends) { friend in
+            ForEach(screen.friends) { friend in
                 Toggle(isOn: Binding(
-                    get: { ticked.contains(friend.id) },
-                    set: { on in if on { ticked.insert(friend.id) } else { ticked.remove(friend.id) } }
+                    get: { ticked.contains(friend.userId) },
+                    set: { on in if on { ticked.insert(friend.userId) } else { ticked.remove(friend.userId) } }
                 )) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline) {
                         Text(friend.name)
-                        Text(friend.sessions.joined(separator: ", "))
-                            .font(FishersTheme.footnote)
+                        Spacer(minLength: 8)
+                        Text(Money.format(friend.owedCents, screen.currency))
+                            .font(FishersTheme.subhead.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
                 }
                 .frame(minHeight: FishersTheme.minTap)
             }
+            if screen.owedCents > 0 {
+                LabeledContent(tr("You"), value: Money.format(screen.owedCents, screen.currency))
+                    .frame(minHeight: FishersTheme.minTap)
+            }
         } header: {
             Text(tr("Who are you paying for?"))
+        } footer: {
+            Text(tr("Tick who you're paying for. What each of them owes is added to your total: send it all in one transfer, with your reference."))
+        }
+    }
+
+    /// The one amount to send, and where: everything the banking app asks.
+    private var paySection: some View {
+        Section {
+            Text(payment.sentence)
+                .font(FishersTheme.headline)
+                .fixedSize(horizontal: false, vertical: true)
+            CopyRow(label: tr("Amount"), value: Money.format(payment.totalCents, screen.currency),
+                    copyValue: Money.plain(payment.totalCents, screen.currency))
+            if let account = screen.payableAccount {
+                CopyRow(label: tr("Name"), value: account.holderName)
+                CopyRow(label: tr("Sort code"), value: account.sortCode, monospaced: true)
+                CopyRow(label: tr("Account number"), value: account.accountNumber, sensitive: true, monospaced: true)
+            }
+            CopyRow(label: tr("What to write in the reference box"), value: screen.reference, monospaced: true)
+        } footer: {
+            if screen.payableAccount != nil {
+                Text(tr("Pay in your banking app, then come back and tap I've paid."))
+            }
         }
     }
 
@@ -357,29 +400,8 @@ struct FriendsPaySheet: View {
         }
     }
 
-    /// Everybody who said they'd come to the sessions the reader owes for.
-    private func loadFriends() async {
-        defer { loaded = true }
-        let me = session.user?.id
-        var found: [UUID: Friend] = [:]
-        var order: [UUID] = []
-        let sessions = Dictionary(grouping: screen.owedShares.filter { $0.eventId != nil }, by: { $0.eventId! })
-        for (eventId, shares) in sessions {
-            guard let people = try? await FishersAPI.attendees(eventId: eventId) else { continue }
-            let title = shares.first?.title ?? ""
-            for person in people where person.status == .going && person.userId != me {
-                let before = found[person.userId]
-                if before == nil { order.append(person.userId) }
-                found[person.userId] = Friend(
-                    id: person.userId, name: person.name, sessions: (before?.sessions ?? []) + [title]
-                )
-            }
-        }
-        friends = order.compactMap { found[$0] }.sorted { $0.name < $1.name }
-    }
-
     private func pay(_ method: String) async {
-        let outcome = await payer.pay(method: method, people: Array(ticked), includeMe: screen.owedCents > 0)
+        let outcome = await payer.pay(method: method, people: Array(ticked), includeMe: payment.includeMe)
         if !outcome.isFailure { finished = true }
     }
 }
@@ -469,12 +491,16 @@ struct PayForEveryoneView: View {
             } footer: {
                 Text(tr("One payment for everyone, with this reference. The club sees who it's for."))
             }
-        } else if screen.screen != nil || screen.errorMessage != nil {
+        } else if let why = screen.screen?.noDetailsReason {
+            // Whoever pays for somebody gets the details now; only none
+            // added, frozen or unreadable leaves them out.
             Section {
-                Label(tr("The club's bank details aren't showing here. Ask your club secretary for them, then pay and come back."),
-                      systemImage: "info.circle")
+                Label(why, systemImage: screen.screen?.accountState == .frozen ? "hand.raised.fill" : "info.circle")
                     .font(FishersTheme.subhead)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+        } else if screen.screen != nil || screen.errorMessage != nil {
+            EmptyView()
         } else {
             Section { ProgressView().frame(maxWidth: .infinity) }
         }

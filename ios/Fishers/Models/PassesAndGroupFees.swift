@@ -273,6 +273,28 @@ enum SessionKind: LenientState, CaseIterable {
         guard words.count > 1 else { return last }
         return tr("{a} and {b}", vars: ["a": words.dropLast().joined(separator: ", "), "b": last])
     }
+
+    /// What a pass covers, in one sentence, for an offer and for a pass
+    /// somebody has: "Covers nets and training.", "Covers 10 sessions of
+    /// nets.", "Covers nets until 31 Mar.", or what a plain membership is.
+    static func coverWords(_ covers: [SessionKind], sessions: Int?, validUntil: String?) -> String {
+        let what = list(covers)
+        if covers.isEmpty {
+            if let until = DayDate.short(validUntil) {
+                return tr("A membership, until {date}. Sessions are paid as usual.", vars: ["date": until])
+            }
+            return tr("A membership. Sessions are paid as usual.")
+        }
+        if let sessions {
+            return sessions == 1
+                ? tr("Covers 1 session of {what}.", vars: ["what": what])
+                : tr("Covers {n} sessions of {what}.", vars: ["n": sessions, "what": what])
+        }
+        if let until = DayDate.short(validUntil) {
+            return tr("Covers {what} until {date}.", vars: ["what": what, "date": until])
+        }
+        return tr("Covers {what}.", vars: ["what": what])
+    }
 }
 
 /// What a pass costs and covers. `mine` is the reader's own running pass on
@@ -355,22 +377,7 @@ struct PassPlan: Decodable, Identifiable, Equatable {
     /// "Covers nets and training.", "Covers 10 sessions of nets.", "Covers
     /// nets until 31 Mar.", or what a plain membership is.
     var coverWords: String {
-        let what = SessionKind.list(covers)
-        if covers.isEmpty {
-            if let until = DayDate.short(validUntil) {
-                return tr("A membership, until {date}. Sessions are paid as usual.", vars: ["date": until])
-            }
-            return tr("A membership. Sessions are paid as usual.")
-        }
-        if let sessions {
-            return sessions == 1
-                ? tr("Covers 1 session of {what}.", vars: ["what": what])
-                : tr("Covers {n} sessions of {what}.", vars: ["n": sessions, "what": what])
-        }
-        if let until = DayDate.short(validUntil) {
-            return tr("Covers {what} until {date}.", vars: ["what": what, "date": until])
-        }
-        return tr("Covers {what}.", vars: ["what": what])
+        SessionKind.coverWords(covers, sessions: sessions, validUntil: validUntil)
     }
 
     /// "Only for Junior members."
@@ -477,9 +484,15 @@ struct PassHolder: Decodable, Identifiable, Equatable {
     let chargeCents: Int?
     let currency: String?
     let standingOrder: StandingOrder?
+    /// The pass's own terms, from `/me/passes`: what it covers, its last
+    /// day, and how many sessions a card is for.
+    let covers: [SessionKind]
+    let validUntil: String?
+    let sessions: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, billing, standing, running, currency
+        case id, name, billing, standing, running, currency, covers, sessions
+        case validUntil = "valid_until"
         case planId = "plan_id"
         case clubId = "club_id"
         case userId = "user_id"
@@ -516,15 +529,35 @@ struct PassHolder: Decodable, Identifiable, Equatable {
         chargeCents = try? c.decodeIfPresent(Int.self, forKey: .chargeCents)
         currency = try? c.decodeIfPresent(String.self, forKey: .currency)
         standingOrder = try? c.decodeIfPresent(StandingOrder.self, forKey: .standingOrder)
+        covers = (try? c.decodeIfPresent([SessionKind].self, forKey: .covers)) ?? []
+        validUntil = try? c.decodeIfPresent(String.self, forKey: .validUntil)
+        sessions = try? c.decodeIfPresent(Int.self, forKey: .sessions)
     }
 
     var isCancelled: Bool { cancelledAt != nil }
 
+    /// "Covers nets and training." Nil from a server that doesn't say, or
+    /// from a list (a pass's own holders) that doesn't carry the terms.
+    var coverWords: String? {
+        guard !covers.isEmpty || validUntil != nil || sessions != nil else { return nil }
+        return SessionKind.coverWords(covers, sessions: sessions, validUntil: validUntil)
+    }
+
+    /// A charge for this pass still to pay, among `shares` (the pay screen's,
+    /// or the dues of whoever the reader pays for). A monthly pass's standing
+    /// order pays it, so it mustn't be paid by hand as well.
+    func hasChargeOwed(in shares: [ClubShare]) -> Bool {
+        shares.contains { share in
+            share.kind == "pass" && share.state.stillOwed
+                && (share.userId == nil || share.userId == userId)
+                && share.title.hasPrefix(planName)
+        }
+    }
+
     /// Where the pass stands, for the person it's for (or whoever pays for
     /// them): "Covered until 31 Mar", "3 sessions left", "A payment is late:
-    /// pay it to stay covered". `validUntil` is the pass's own end, which
-    /// the holder doesn't carry.
-    func standingWords(validUntil: String? = nil, today: Date = .now) -> String {
+    /// pay it to stay covered".
+    func standingWords(today: Date = .now) -> String {
         if isCancelled {
             if let end = DayDate.short(endsOn), !DayDate.isPast(endsOn, today: today) {
                 return tr("Cancelled. It covers you until {date}.", vars: ["date": end])
@@ -986,7 +1019,8 @@ struct DuesGroup: Identifiable, Equatable {
     /// "you, Jas and Arjun", "Jas and Arjun".
     var whoWords: String {
         let first = peopleOwing.map { $0.name.split(separator: " ").first.map(String.init) ?? $0.name }
-        let names = (includeMe ? [tr("you")] : []) + first
+        let you = tr("you")
+        let names = (includeMe ? [you] : []) + first
         guard let last = names.last else { return "" }
         guard names.count > 1 else { return last }
         return tr("{a} and {b}", vars: ["a": names.dropLast().joined(separator: ", "), "b": last])
@@ -1075,12 +1109,17 @@ extension ClubShare {
         return eventStartAt.formatted(date: .abbreviated, time: .omitted)
     }
 
+    /// A free price group covers it, rather than a pass.
+    var isFreeCover: Bool { cover == "free" }
+
     /// What a covered line says to the person it's for: nothing to pay, and
-    /// why. A free price ("Free: Coach") isn't a pass.
+    /// why. Worded from `cover`; the `reason` is the server's English. A line
+    /// from a server without `cover` reads as a pass's.
     func coveredWords(forSomeoneElse: Bool = false) -> String {
-        // The server writes "Free: Coach" for a free price, and "Covered by
-        // Monthly nets" for a pass.
-        if reason?.lowercased().hasPrefix("free") == true { return tr("Free ✓") }
+        if isFreeCover { return tr("Free ✓") }
         return forSomeoneElse ? tr("Covered by their pass ✓") : tr("Covered by your pass ✓")
     }
+
+    /// Beside somebody's name in a list a money admin reads.
+    var coveredByWords: String { isFreeCover ? tr("Free") : tr("Covered by a pass") }
 }

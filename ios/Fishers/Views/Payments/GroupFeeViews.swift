@@ -102,6 +102,11 @@ struct GroupFeeDetailView: View {
         _store = StateObject(wrappedValue: GroupFeeStore(billId: fee.id, fee: fee))
     }
 
+    /// From the payments overview, which knows only the bill.
+    init(billId: UUID) {
+        _store = StateObject(wrappedValue: GroupFeeStore(billId: billId))
+    }
+
     var body: some View {
         List {
             if let fee = store.fee {
@@ -141,6 +146,7 @@ struct GroupFeeDetailView: View {
                     Section {
                         BillShareBlock(
                             anyoneOwes: fee.owedCents > 0,
+                            linkIsOpen: store.linkKnown ? store.link != nil : nil,
                             makeLink: { await store.billLink() },
                             switchOff: { await store.switchLinkOff() }
                         )
@@ -172,6 +178,7 @@ struct GroupFeeDetailView: View {
         .navigationTitle(store.fee?.title ?? tr("Group fees"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
+        .task { await store.loadLink() }
         .refreshable { await store.load() }
         .alert(tr("Why is it being cancelled?"), isPresented: $cancelling) {
             TextField(tr("Say why, in a few words."), text: $cancelReason)

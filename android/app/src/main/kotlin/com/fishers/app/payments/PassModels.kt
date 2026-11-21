@@ -173,6 +173,17 @@ fun coversWords(covers: List<String>): String? {
     }
 }
 
+/** "Covers nets and training", "Covers 10 sessions: nets", "Covers nets until 31 Mar", "Membership". */
+fun passCoversLine(covers: List<String>, validUntil: String?, sessions: Int?): String {
+    val what = coversWords(covers) ?: return t("pa3.covers_membership")
+    val until = dayMonth(validUntil).takeIf { it.isNotEmpty() }
+    return when {
+        sessions != null -> t("pa3.covers_sessions", count = sessions, vars = mapOf("n" to sessions, "what" to what))
+        until != null -> t("pa3.covers_until", vars = mapOf("what" to what, "date" to until))
+        else -> t("pa3.covers", vars = mapOf("what" to what))
+    }
+}
+
 /** A pass the club offers: `GET /clubs/{id}/passes`, one entry. */
 @Serializable
 data class PassPlan(
@@ -218,15 +229,7 @@ data class PassPlan(
     private fun Long.orPrice(): Long = if (this > 0) this else priceCents
 
     /** "Covers nets and training", "Covers 10 sessions: nets", "Covers nets until 31 Mar", "Membership". */
-    fun coversLine(): String {
-        val what = coversWords(covers) ?: return t("pa3.covers_membership")
-        val until = dayMonth(validUntil).takeIf { it.isNotEmpty() }
-        return when {
-            sessions != null -> t("pa3.covers_sessions", count = sessions, vars = mapOf("n" to sessions, "what" to what))
-            until != null -> t("pa3.covers_until", vars = mapOf("what" to what, "date" to until))
-            else -> t("pa3.covers", vars = mapOf("what" to what))
-        }
-    }
+    fun coversLine(): String = passCoversLine(covers, validUntil, sessions)
 
     /** "Only for Junior members", when it is kept for one group and the group is known. */
     fun onlyForWords(types: List<PriceType>): String? =
@@ -265,16 +268,23 @@ data class PassHolder(
     val currency: String = "GBP",
     /** Exactly what to type into a banking app, for a monthly pass not cancelled. */
     @SerialName("standing_order") val standingOrder: StandingOrder? = null,
+    /** What the pass covers, until when, for how many sessions: `/me/passes` says, so no plan has to be read for it. */
+    val covers: List<String>? = null,
+    @SerialName("valid_until") val validUntil: String? = null,
+    val sessions: Int? = null,
 ) {
     val billing: PassBilling get() = PassBilling.of(billingName)
     val standing: PassStanding get() = PassStanding.of(standingName)
     val isCancelled: Boolean get() = cancelledAt != null
 
+    /** "Covers nets and training"; null where the server did not say (a money admin's list). */
+    fun coversLine(): String? = covers?.let { passCoversLine(it, validUntil, sessions) }
+
     /**
      * How the pass stands, as the person on it (or who pays for them) would
      * want it said: the problem first, then what it still covers.
      */
-    fun standingWords(validUntil: String? = null): String {
+    fun standingWords(validUntil: String? = this.validUntil): String {
         val until = dayMonth(endsOn ?: validUntil).takeIf { it.isNotEmpty() }
         return when {
             isCancelled -> if (until != null) t("pa3.cancelled_covers_until", vars = mapOf("date" to until)) else t("pa3.pass_cancelled_short")
@@ -644,6 +654,21 @@ data class ForOthers(
     val payments: List<Payment> = emptyList(),
     @SerialName("total_cents") val totalCents: Long = 0,
     val reference: String? = null,
+)
+
+/**
+ * A member as "Prices and who pays" sees them: `GET /clubs/{id}/payments/members`,
+ * with their price group (null: the standard price) and who pays for them
+ * (null: themselves). [managed] means added by name, with no sign-in.
+ */
+@Serializable
+data class MoneyMember(
+    @SerialName("user_id") val userId: String,
+    val name: String = "",
+    @SerialName("price_type_id") val priceTypeId: String? = null,
+    @SerialName("payer_id") val payerId: String? = null,
+    @SerialName("payer_name") val payerName: String? = null,
+    val managed: Boolean = false,
 )
 
 /** Somebody on a bill you're on who still owes: for "I'm paying for friends too". */

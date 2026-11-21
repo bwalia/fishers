@@ -114,8 +114,14 @@ extension FishersAPI {
 
     // MARK: Group fees
 
-    static func createGroupFee(clubId: UUID, _ body: NewGroupFeeBody) async throws -> GroupFee {
-        try await NetworkService.shared.request("POST", path: club(clubId) + "/collections", body: body)
+    /// Kept across a retry, so a second tap is the same group fee rather
+    /// than everybody billed twice.
+    static func createGroupFee(clubId: UUID, _ body: NewGroupFeeBody, key: UUID) async throws -> GroupFee {
+        try await retryingBusy {
+            try await NetworkService.shared.request(
+                "POST", path: club(clubId) + "/collections", body: body, headers: idempotent(key)
+            )
+        }
     }
 
     /// The 50 newest, totals only.
@@ -135,7 +141,14 @@ extension FishersAPI {
         )
     }
 
-    /// A group fee's pay link and messages, the same shape as a session's.
+    /// The group fee's open link, or nil. Never makes one, so it is safe to
+    /// ask on opening the page.
+    static func openGroupFeeLink(billId: UUID) async throws -> BillLink? {
+        try await NetworkService.shared.request("GET", path: "/bills/\(billId.uuidString)/link")
+    }
+
+    /// A group fee's pay link and messages, the same shape as a session's:
+    /// the open one, or a new one.
     static func groupFeeLink(billId: UUID) async throws -> BillLink {
         try await NetworkService.shared.request("POST", path: "/bills/\(billId.uuidString)/link")
     }
@@ -183,9 +196,11 @@ extension FishersAPI {
     static func payForOthers(
         clubId: UUID, _ body: ForOthersBody, key: UUID, network: NetworkService = .shared
     ) async throws -> PaidForOthers {
-        try await network.request(
-            "POST", path: club(clubId) + "/payments/for-others", body: body, headers: idempotent(key)
-        )
+        try await retryingBusy {
+            try await network.request(
+                "POST", path: club(clubId) + "/payments/for-others", body: body, headers: idempotent(key)
+            )
+        }
     }
 
     /// Prices on a session's cost: given, they replace the session's prices;

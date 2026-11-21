@@ -67,9 +67,13 @@ final class PlayerPassesStore: ObservableObject {
         return out
     }
 
-    /// The pass's own end, which the holder doesn't carry.
-    func validUntil(_ holder: PassHolder) -> String? {
-        plans.first { $0.id == holder.planId }?.validUntil
+    /// A charge for this pass still owed: the reader's own lines for their
+    /// pass, the dues of whoever they pay for for theirs.
+    func chargeOwed(_ holder: PassHolder, myShares: [ClubShare]) -> Bool {
+        let shares = isMine(holder)
+            ? myShares
+            : people.first { $0.userId == holder.userId }?.dues.shares ?? []
+        return holder.hasChargeOwed(in: shares)
     }
 
     /// True when something changed, so the pay screen reloads what is owed.
@@ -307,27 +311,27 @@ final class PassesAdminStore: MoneyAdminStore {
 }
 
 /// Prices for juniors, students, guests: the groups, each member's group,
-/// who pays for whom, and juniors added by name.
+/// who pays for whom, and juniors added by name. Each member's group and
+/// payer are the server's (`/payments/members`), read again after a change.
 @MainActor
 final class PriceGroupsStore: MoneyAdminStore {
     @Published private(set) var groups: [PriceType] = []
-    @Published private(set) var members: [ClubMemberDetail] = []
-    /// What was set on this screen, to show beside the name. The server has
-    /// no way to read a member's group or payer back yet.
-    @Published private(set) var groupSet: [UUID: UUID?] = [:]
-    @Published private(set) var payerSet: [UUID: UUID?] = [:]
+    @Published private(set) var members: [MoneyMember] = []
 
     override func load() async {
         defer { hasLoaded = true }
         async let groups = FishersAPI.priceTypes(clubId: clubId)
-        async let members = try? FishersAPI.clubMembers(clubId: clubId)
+        async let members = try? FishersAPI.moneyMembers(clubId: clubId)
         do {
             self.groups = try await groups
         } catch {
             if hasLoaded { errorMessage = paymentMessage(error) }
         }
-        self.members = (await members)?.filter(\.isActive).sorted { $0.name < $1.name } ?? self.members
+        self.members = (await members)?.sorted { $0.name < $1.name } ?? self.members
     }
+
+    /// Who can pay for somebody: a member who signs in themselves.
+    var payers: [MoneyMember] { members.filter { !$0.managed } }
 
     func create(name: String, free: Bool, forGuests: Bool) async -> PaymentWrite {
         let clean = name.split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -349,20 +353,16 @@ final class PriceGroupsStore: MoneyAdminStore {
         await perform { _ = try await FishersAPI.updatePriceType(group.id, archived: true) }
     }
 
-    func setGroup(_ member: ClubMemberDetail, to group: UUID?) async -> PaymentWrite {
-        let outcome = await perform {
+    func setGroup(_ member: MoneyMember, to group: UUID?) async -> PaymentWrite {
+        await perform {
             try await FishersAPI.setMemberPriceType(clubId: clubId, userId: member.userId, priceTypeId: group)
         }
-        if outcome == .done { groupSet[member.userId] = .some(group) }
-        return outcome
     }
 
-    func setPayer(_ member: ClubMemberDetail, to payer: UUID?) async -> PaymentWrite {
-        let outcome = await perform {
+    func setPayer(_ member: MoneyMember, to payer: UUID?) async -> PaymentWrite {
+        await perform {
             try await FishersAPI.setPayer(clubId: clubId, memberId: member.userId, payerId: payer)
         }
-        if outcome == .done { payerSet[member.userId] = .some(payer) }
-        return outcome
     }
 
     /// A junior by name, looked after by whoever pays, on the juniors'
@@ -378,8 +378,6 @@ final class PriceGroupsStore: MoneyAdminStore {
             }
         }
         if let added {
-            payerSet[added.userId] = .some(payer)
-            if let group { groupSet[added.userId] = .some(group) }
             notice = tr("{name} is in the club. Whoever pays for them sees what they owe.", vars: ["name": added.name])
             // The second step can fail after the first worked: the junior is
             // there, so say so rather than "try again", which would add them twice.
@@ -396,9 +394,17 @@ final class PriceGroupsStore: MoneyAdminStore {
         return groups.first { $0.id == id }?.name ?? ""
     }
 
-    func memberName(_ id: UUID?) -> String {
-        guard let id else { return tr("Pays for themselves") }
-        return members.first { $0.userId == id }?.name ?? ""
+    /// "Price: Junior", "Paid for by Neha Gill", "No sign-in of their own".
+    func lines(_ member: MoneyMember) -> [String] {
+        var out: [String] = []
+        if member.priceTypeId != nil {
+            out.append(tr("Price: {group}", vars: ["group": groupName(member.priceTypeId)]))
+        }
+        if let payer = member.payerName ?? members.first(where: { $0.userId == member.payerId })?.name {
+            out.append(tr("Paid for by {name}", vars: ["name": payer]))
+        }
+        if member.managed { out.append(tr("No sign-in of their own")) }
+        return out
     }
 }
 
@@ -411,6 +417,7 @@ final class GroupFeesStore: MoneyAdminStore {
     @Published private(set) var members: [ClubMemberDetail] = []
 
     let currency: String
+    private var attempt = PaymentAttempt()
 
     init(clubId: UUID, currency: String) {
         self.currency = currency
@@ -435,10 +442,24 @@ final class GroupFeesStore: MoneyAdminStore {
 
     /// The new group fee, to share straight away; nil after a failure,
     /// which comes back as the write's outcome.
+    ///
+    /// The Idempotency-Key is kept until the server has answered, so Send
+    /// tapped again after a dropped connection doesn't bill everybody twice.
+    /// A changed form is a different group fee.
     func create(_ body: NewGroupFeeBody) async -> (PaymentWrite, GroupFee?) {
+        let key = attempt.key(for: Self.scope(body))
         var made: GroupFee?
-        let outcome = await perform { made = try await FishersAPI.createGroupFee(clubId: clubId, body) }
+        let outcome = await perform { made = try await FishersAPI.createGroupFee(clubId: clubId, body, key: key) }
+        if !outcome.isFailure { attempt.finished() }
         return (outcome, made)
+    }
+
+    /// The same form, the same key.
+    nonisolated static func scope(_ body: NewGroupFeeBody) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let json = (try? encoder.encode(body)).flatMap { String(data: $0, encoding: .utf8) } ?? UUID().uuidString
+        return "group-fee:\(json)"
     }
 }
 
@@ -446,6 +467,10 @@ final class GroupFeesStore: MoneyAdminStore {
 @MainActor
 final class GroupFeeStore: ObservableObject {
     @Published private(set) var fee: GroupFee?
+    /// The open pay link, once asked for; nil while there is none.
+    @Published private(set) var link: BillLink?
+    /// Whether `link` is the server's answer yet, rather than not asked.
+    @Published private(set) var linkKnown = false
     @Published private(set) var isWorking = false
     @Published var errorMessage: String?
     @Published var notice: String?
@@ -455,6 +480,18 @@ final class GroupFeeStore: ObservableObject {
     init(billId: UUID, fee: GroupFee? = nil) {
         self.billId = billId
         self.fee = fee
+    }
+
+    /// The link already open, if any: `GET` never makes one, so opening the
+    /// page doesn't put a link into the world nobody asked for.
+    func loadLink() async {
+        do {
+            link = try await FishersAPI.openGroupFeeLink(billId: billId)
+            linkKnown = true
+        } catch {
+            // Not known: the share block offers everything, as it did
+            // before servers could say.
+        }
     }
 
     var errorBinding: Binding<Bool> {
@@ -469,14 +506,19 @@ final class GroupFeeStore: ObservableObject {
         }
     }
 
-    /// Made when somebody taps to share, never on opening the page.
+    /// The open link, or a new one made when somebody taps to share —
+    /// never on opening the page.
     func billLink() async -> BillLink? {
+        if let link { return link }
         guard !isWorking else { return nil }
         isWorking = true
         defer { isWorking = false }
         notice = nil
         do {
-            return try await FishersAPI.groupFeeLink(billId: billId)
+            let made = try await FishersAPI.groupFeeLink(billId: billId)
+            link = made
+            linkKnown = true
+            return made
         } catch let error as APIError where error.isStale {
             notice = error.friendlyMessage
             await load()
@@ -492,6 +534,8 @@ final class GroupFeeStore: ObservableObject {
         defer { isWorking = false }
         do {
             try await FishersAPI.disableGroupFeeLink(billId: billId)
+            link = nil
+            linkKnown = true
             notice = tr("The link is off. Sharing the bill again makes a new one.")
         } catch {
             errorMessage = paymentMessage(error)
@@ -504,6 +548,8 @@ final class GroupFeeStore: ObservableObject {
         defer { isWorking = false }
         do {
             fee = try await FishersAPI.cancelGroupFee(billId: billId, reason: reason)
+            // Cancelling closes its pay link.
+            link = nil
             notice = tr("Cancelled. Anything already paid towards it becomes credit.")
         } catch let error as APIError where error.isStale {
             notice = error.friendlyMessage

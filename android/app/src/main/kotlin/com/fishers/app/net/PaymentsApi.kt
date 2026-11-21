@@ -25,6 +25,7 @@ import com.fishers.app.payments.KeepCoveringBody
 import com.fishers.app.payments.ManagedMember
 import com.fishers.app.payments.ManagedMemberBody
 import com.fishers.app.payments.MemberPriceTypeBody
+import com.fishers.app.payments.MoneyMember
 import com.fishers.app.payments.MoneyOverview
 import com.fishers.app.payments.MoneySettings
 import com.fishers.app.payments.MoneySettingsBody
@@ -42,6 +43,10 @@ import com.fishers.app.payments.PriceTypeBody
 import com.fishers.app.payments.ReasonBody
 import com.fishers.app.payments.RecordBody
 import com.fishers.app.payments.Share
+import com.fishers.app.payments.StatementApplied
+import com.fishers.app.payments.StatementBody
+import com.fishers.app.payments.StatementPreview
+import kotlinx.serialization.json.JsonElement
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.http.Body
@@ -62,8 +67,10 @@ import retrofit2.http.Query
  * not what they look like: 428 `reauth_required` and 403 `wrong_password` on
  * the bank details form mean "type your password", never "signed out".
  *
- * The three calls that make a payment carry an `Idempotency-Key`: one per
- * attempt, the same on a retry, so a tap on a bad signal is one payment.
+ * The calls that make a payment carry an `Idempotency-Key`: one per attempt,
+ * the same on a retry, so a tap on a bad signal is one payment. Any of them
+ * may answer 409 `busy` (another request is saving a payment for the same
+ * person this moment): [com.fishers.app.payments.retryIfBusy] tries once more.
  */
 interface PaymentsApi {
 
@@ -271,9 +278,8 @@ interface PaymentsApi {
     suspend fun myPasses(): List<PassHolder>
 
     /**
-     * A group fee. Everybody in it is told. The key is sent as on every money
-     * call, though the server does not read it here yet. 422 for an amount it
-     * cannot split.
+     * A group fee. Everybody in it is told. The same key on a retry is the
+     * same group fee. 422 for an amount it cannot split.
      */
     @POST("clubs/{id}/collections")
     suspend fun addGroupFee(
@@ -294,7 +300,15 @@ interface PaymentsApi {
     @POST("collections/{bill_id}/void")
     suspend fun cancelGroupFee(@Path("bill_id") billId: String, @Body body: ReasonBody): GroupFee
 
-    /** A group fee's pay link and the words to post with it: the same shape as a session's. */
+    /**
+     * The group fee's open link and its words, or a bare JSON `null` when it
+     * has none yet — which the converter cannot decode into a class, hence
+     * the raw element. Never makes one: [groupFeeLink] does, on Share.
+     */
+    @GET("bills/{bill_id}/link")
+    suspend fun currentGroupFeeLink(@Path("bill_id") billId: String): JsonElement
+
+    /** A group fee's pay link (made if there is none) and the words to post with it: the same shape as a session's. */
     @POST("bills/{bill_id}/link")
     suspend fun groupFeeLink(@Path("bill_id") billId: String): BillLink
 
@@ -320,11 +334,29 @@ interface PaymentsApi {
         @Body body: ForOthersBody,
     ): ForOthers
 
-    /** The roster, for picking who goes on a pass, a group fee, or pays for whom. */
+    /** Money admins: every member with their price group and who pays for them, for "Prices and who pays". */
+    @GET("clubs/{id}/payments/members")
+    suspend fun moneyMembers(@Path("id") clubId: String): List<MoneyMember>
+
+    /** The roster, for picking who goes on a pass or a group fee. */
     @GET("clubs/{id}/members")
     suspend fun clubMembers(@Path("id") clubId: String): List<ClubMemberDetail>
 
     /** The club's teams, for "a group fee for the 1st XI". */
     @GET("clubs/{id}/teams")
     suspend fun clubTeams(@Path("id") clubId: String): List<Team>
+
+    // ---- a bank statement (step D, `statements.rs`) ----
+
+    /**
+     * What each payment in the bank's CSV matches. The body is the file's
+     * text as it is. Changes nothing. 422 `empty_statement`,
+     * `unknown_statement` (no date or amount column), `statement_too_long`.
+     */
+    @POST("clubs/{id}/statement/preview")
+    suspend fun previewStatement(@Path("id") clubId: String, @Body csv: RequestBody): StatementPreview
+
+    /** Tick off the chosen lines. The statement is read again, so the phone only picks among the server's matches. */
+    @POST("clubs/{id}/statement/apply")
+    suspend fun applyStatement(@Path("id") clubId: String, @Body body: StatementBody): StatementApplied
 }

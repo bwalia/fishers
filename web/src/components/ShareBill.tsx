@@ -9,10 +9,10 @@
 /// `wa.me` address, or the phone's share sheet where there is one. Neither
 /// carries bank details: the link does that, behind its own limits.
 ///
-/// A group fee (`billId`) shares the same way. It has no "only look" call, so
-/// its link is made on the first Share and refreshed from then on.
+/// A group fee (`billId`) shares the same way: opening it only looks
+/// (`GET /bills/{id}/link`), and its link is made on the first Share.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, errCode, readErr } from "@/lib/api";
 import { shortDate, type PayLinkShare } from "@/lib/payments";
 import { whatsappUrl } from "@/lib/pay-link";
@@ -36,7 +36,6 @@ export function ShareBill({
   const t = useT();
   const base = billId ? `/bills/${billId}/link` : `/events/${eventId}/bill/link`;
   const [link, setLink] = useState<PayLinkShare | null>(null);
-  const shown = useRef(false);
   const [none, setNone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /// Switched off here: not made again until somebody asks.
@@ -53,15 +52,7 @@ export function ShareBill({
   const [noLink, setNoLink] = useState(false);
   const fetchLink = useCallback(async () => {
     try {
-      // A group fee can only be asked by making (or reusing) its link: do
-      // that only once somebody has shared it here.
-      if (billId && !shown.current) {
-        setNoLink(true);
-        return;
-      }
-      const open = billId
-        ? await api<PayLinkShare>("POST", base)
-        : await api<PayLinkShare | null>("GET", base);
+      const open = await api<PayLinkShare | null>("GET", base);
       setLink(open);
       setNoLink(!open);
       setError(null);
@@ -69,7 +60,7 @@ export function ShareBill({
       if (errCode(e) === "no_bill") setNone(true);
       else setError(readErr(e, t("pw2.link_not_made")));
     }
-  }, [base, billId, t]);
+  }, [base, t]);
 
   /// The first share: make the link (the same one each time after, until it
   /// is switched off or runs out), then open WhatsApp with the bill.
@@ -78,7 +69,6 @@ export function ShareBill({
     setError(null);
     try {
       const made = await api<PayLinkShare>("POST", base);
-      shown.current = true;
       setLink(made);
       setNoLink(false);
       window.open(whatsappUrl(made.bill_message), "_blank", "noopener,noreferrer");
@@ -102,7 +92,6 @@ export function ShareBill({
     setError(null);
     try {
       await api("POST", `${base}/disable`);
-      shown.current = false;
       setOff(true);
       setLink(null);
       setAsking(false);

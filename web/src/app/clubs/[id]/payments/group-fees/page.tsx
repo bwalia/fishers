@@ -6,7 +6,7 @@
 /// much (a total to split, or the same from each), and a date to pay by.
 /// Then the list, one opened, Share to WhatsApp, and cancel.
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, errCode, money, readErr, type ClubMemberRow, type Team } from "@/lib/api";
 import {
@@ -58,6 +58,23 @@ function GroupFees({ clubId, currency }: { clubId: string; currency: string }) {
     void load();
   }, [load]);
 
+  // The Payments page's recent bills open one fee here: `?fee=<bill id>`.
+  // Read in an effect, as the accounts page reads its tab, so the page needs
+  // no Suspense boundary.
+  const asked = useRef<string | null>(null);
+  useEffect(() => {
+    const fee = new URLSearchParams(window.location.search).get("fee");
+    if (fee) {
+      asked.current = fee;
+      setOpened(fee);
+    }
+  }, []);
+  useEffect(() => {
+    if (!fees || !asked.current) return;
+    document.getElementById(`fee-${asked.current}`)?.scrollIntoView({ block: "start" });
+    asked.current = null;
+  }, [fees]);
+
   return (
     <>
       {error && <p className="error" role="alert">{error}</p>}
@@ -98,7 +115,7 @@ function GroupFees({ clubId, currency }: { clubId: string; currency: string }) {
         ) : (
           <ul className="pay-list">
             {fees.map((f) => (
-              <li key={f.id}>
+              <li key={f.id} id={`fee-${f.id}`}>
                 <div>
                   <strong>{f.title}</strong> {f.status === "void" && <span className="tag grey">{t("pay.state_void")}</span>}
                   <div className="muted">

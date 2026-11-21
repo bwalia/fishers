@@ -37,8 +37,8 @@ class MoneyAdminTest {
     @After fun tearDown() = Dispatchers.resetMain()
 
     private val club = "417a6102-8f61-4685-90c7-cdd3be22bbbc"
-    private val neha = ClubMemberDetail("4d032087-744b-4fe5-ade1-273a69dbcfb3", "Neha Gill")
     private val sam = ClubMemberDetail("b5889fe5-3401-40b4-b4c1-7755e91d22ef", "Sam Student")
+    private val nehaPays = MoneyMember("4d032087-744b-4fe5-ade1-273a69dbcfb3", "Neha Gill")
 
     private open class Admin : FakePaymentsApi() {
         var plans = Captured.read<List<PassPlan>>("stepBC_passes_member")
@@ -297,10 +297,11 @@ class MoneyAdminTest {
         val juniors = mutableListOf<ManagedMemberBody>()
         val added = mutableListOf<PriceTypeBody>()
         override suspend fun priceTypes(clubId: String): List<PriceType> = Captured.read("stepBC_price_types")
-        override suspend fun clubMembers(clubId: String): List<ClubMemberDetail> = listOf(
-            ClubMemberDetail("85490ff5-c175-4232-9c04-6d95c6be3c84", "Jas Gill"),
-            ClubMemberDetail("4d032087-744b-4fe5-ade1-273a69dbcfb3", "Neha Gill"),
+        var members = listOf(
+            MoneyMember("85490ff5-c175-4232-9c04-6d95c6be3c84", "Jas Gill", managed = true),
+            MoneyMember("4d032087-744b-4fe5-ade1-273a69dbcfb3", "Neha Gill"),
         )
+        override suspend fun moneyMembers(clubId: String): List<MoneyMember> = members
         override suspend fun setMemberPriceType(clubId: String, userId: String, body: MemberPriceTypeBody) {
             groups += userId to body
         }
@@ -318,20 +319,23 @@ class MoneyAdminTest {
     }
 
     @Test
-    fun `a member's group and payer are sent together, and the page remembers them`() = runTest(dispatcher.scheduler) {
+    fun `a member's group and payer are sent together, and the page shows them`() = runTest(dispatcher.scheduler) {
         val api = People()
         val model = PricesAdminViewModel(api, club)
         model.load()
         advanceUntilIdle()
         val jas = model.state.value.roster.first()
         val junior = model.state.value.inUse.first()
+        assertEquals("a junior added by name pays for nobody", listOf("Neha Gill"), model.state.value.payers.map { it.name })
 
-        model.saveMember(jas, Pick(junior), Pick(neha))
+        model.saveMember(jas, Pick(junior), Pick(nehaPays))
         advanceUntilIdle()
 
         assertEquals(jas.userId to MemberPriceTypeBody(junior.id), api.groups.single())
-        assertEquals(jas.userId to PayerBody(neha.userId), api.payers.single())
-        assertEquals(MemberMoney(groupSet = true, groupId = junior.id, payerSet = true, payerId = neha.userId), model.state.value.known[jas.userId])
+        assertEquals(jas.userId to PayerBody(nehaPays.userId), api.payers.single())
+        val now = model.state.value.roster.first()
+        assertEquals(junior, model.state.value.groupOf(now))
+        assertEquals("Neha Gill", now.payerName)
         assertEquals("Jas Gill pays the Junior price. Neha Gill now pays for Jas Gill.", model.state.value.message)
 
         // Back to the standard price, payer untouched: only the group is sent.
@@ -349,12 +353,12 @@ class MoneyAdminTest {
         model.load()
         advanceUntilIdle()
         assertEquals("Pick who pays for them.", model.addJunior("Arjun Gill", null))
-        assertEquals("Type their name, up to 70 letters.", model.addJunior("  ", neha))
+        assertEquals("Type their name, up to 70 letters.", model.addJunior("  ", nehaPays))
         assertTrue(api.juniors.isEmpty())
 
-        assertNull(model.addJunior("  Arjun   Gill ", neha))
+        assertNull(model.addJunior("  Arjun   Gill ", nehaPays))
         advanceUntilIdle()
-        assertEquals(ManagedMemberBody("Arjun Gill", neha.userId), api.juniors.single())
+        assertEquals(ManagedMemberBody("Arjun Gill", nehaPays.userId), api.juniors.single())
         assertEquals("Arjun Gill added. Neha Gill pays for them.", model.state.value.message)
     }
 
@@ -387,7 +391,7 @@ class MoneyAdminTest {
         val model = EventMoneyViewModel(api, "3529a322-89e3-4338-8e8b-4daefe8c05ab")
         model.load()
         advanceUntilIdle()
-        assertEquals(4, model.state.value.priceTypes.size)
+        assertEquals(3, model.state.value.priceTypes.size)
 
         model.saveCost(CostMode.PerPlayer, 600, null, false, prices = listOf(PriceIn("c44e0090-460a-4716-a97c-a186f401198e", 300)))
         advanceUntilIdle()

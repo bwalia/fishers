@@ -2,7 +2,8 @@
 
 /// The club's money, for whoever looks after it: the owner, its secretaries
 /// and its treasurers. The bank details players pay into, payments to check
-/// against the bank, who owes what, recent bills and the settings.
+/// against the bank (by hand, or from a bank statement), who owes what,
+/// recent bills and the settings.
 ///
 /// The API decides who may open this (a 403 on /money), and this page says so
 /// in words rather than showing an empty page.
@@ -33,6 +34,7 @@ import { BankDetailsForm } from "@/components/BankDetailsForm";
 import { MoneyNav } from "@/components/MoneyAdmin";
 import { SetupWizard, UsualPrices, needsSetup, setupPutOff, setupPutOffKey } from "@/components/PaySetup";
 import { ReasonForm } from "@/components/ReasonForm";
+import { StatementImport } from "@/components/StatementImport";
 import { useRequireAuth } from "@/lib/require-auth";
 import { useT } from "@/lib/i18n/provider";
 
@@ -183,6 +185,8 @@ export default function ClubPaymentsPage() {
 
       <ToCheck clubId={clubId} payments={overview.to_check} onDone={done} onStale={stale} />
 
+      <StatementImport clubId={clubId} toCheck={overview.to_check} onDone={done} />
+
       <WhoOwes clubId={clubId} members={overview.members} currency={cur} onDone={done} />
 
       <section className="panel" aria-labelledby="recent-bills">
@@ -194,7 +198,15 @@ export default function ClubPaymentsPage() {
             {overview.bills.map((b) => (
               <li key={b.bill_id}>
                 <div>
-                  {b.event_id ? <Link href={`/events/${b.event_id}#money`}>{b.title}</Link> : <strong>{b.title}</strong>}
+                  {/* A session opens its money, a group fee opens itself, and a
+                      pass charge has nowhere to go. */}
+                  {b.kind === "collection" ? (
+                    <Link href={`/clubs/${clubId}/payments/group-fees?fee=${b.bill_id}`}>{b.title}</Link>
+                  ) : b.event_id && b.kind !== "pass" ? (
+                    <Link href={`/events/${b.event_id}#money`}>{b.title}</Link>
+                  ) : (
+                    <strong>{b.title}</strong>
+                  )}
                   <div className="muted">
                     {shortDate(b.event_start_at)} · {t("pay.n_people", { count: b.people, n: b.people })}
                     {b.unpaid > 0 && ` · ${t("pay.n_unpaid", { n: b.unpaid })}`}

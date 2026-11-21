@@ -4,7 +4,8 @@
 /// 2026") and group fees ("Match balls, by Sun 6 Dec") all read the same way.
 /// A line links to its session only when it has one. A covered line says why,
 /// with a tick, and shows no amount: there is nothing to pay and nothing to
-/// tap.
+/// tap. `label` names somebody else's lines (a parent's junior), which read
+/// "Covered by a pass" rather than "your pass".
 
 import Link from "next/link";
 import { money } from "@/lib/api";
@@ -33,7 +34,7 @@ export function DueList({ shares, label }: { shares: Share[]; label?: string }) 
             </div>
             <div className="pay-list-end">
               {!covered && <span className="num">{money(s.amount_cents, s.currency)}</span>}
-              <span className={shareStateTag(s.state)}>{shareTag(s, t)}</span>
+              <span className={shareStateTag(s.state)}>{shareTag(s, t, !label)}</span>
             </div>
           </li>
         );

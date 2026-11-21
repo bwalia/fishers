@@ -71,17 +71,18 @@ internal fun StateLabel(state: ShareState) {
 }
 
 /**
- * A line's state as a word. A covered line says why it is nothing to pay:
- * "Covered by your pass ✓", or "Free ✓" for a free price (a coach). For the
- * people running it ([admin]) it is just "Covered", with the reason beside it.
+ * A line's state as a word. A covered line says why it is nothing to pay,
+ * from the server's `cover` and never its English: "Free ✓" for a free price
+ * (a coach), otherwise "Covered by your pass ✓" — or, for the people running
+ * it ([admin]), "Covered by a pass ✓".
  */
 @Composable
 internal fun StateLabel(share: Share, admin: Boolean = false) {
     if (!share.isCovered) return StateLabel(share.state)
     Text(
         when {
-            admin -> t("pa3.covered")
             share.isFreePrice -> t("pa3.free_tick")
+            admin -> t("pw4.covered_by_a_pass")
             else -> t("pa3.covered_by_your_pass")
         },
         style = MaterialTheme.typography.labelLarge,

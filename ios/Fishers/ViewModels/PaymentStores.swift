@@ -121,13 +121,17 @@ final class PayScreenStore: ObservableObject {
         }
     }
 
-    func undo(_ claim: ClubPayment) async {
+    /// Takes back an "I've paid": the reader's own, or one they made for
+    /// somebody else (`forSomeoneElse`), who then still owes it.
+    func undo(_ claim: ClubPayment, forSomeoneElse: Bool = false) async {
         guard !isWorking else { return }
         isWorking = true
         defer { isWorking = false }
         do {
             try await FishersAPI.cancelClaim(claim.id)
-            notice = tr("Undone. You still owe it.")
+            notice = forSomeoneElse
+                ? tr("Undone. {name} still owes it.", vars: ["name": claim.name])
+                : tr("Undone. You still owe it.")
             await load()
         } catch let error as APIError where error.isStale {
             notice = error.friendlyMessage

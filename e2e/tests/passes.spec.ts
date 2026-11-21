@@ -9,9 +9,12 @@ import { API_PORT, WEB_PORT } from "../lib/ports";
 ///     template;
 ///   - a player gets the pass and sees the standing order to set up;
 ///   - the secretary gives the session a junior price, and the bill covers
-///     the pass holder ("Covered by Monthly nets ✓");
+///     the pass holder ("Covered by a pass ✓"; "Covered by your pass ✓" to
+///     the player);
 ///   - a group fee for the whole club, shared to WhatsApp;
 ///   - a parent pays for themselves and two juniors with one button;
+///   - a player pays for a friend too, seeing what the friend owes before
+///     paying, then takes the friend's part back;
 ///   - the player cancels the pass and is reminded about the bank.
 ///
 /// Self-contained — it makes its own club, people and session through the
@@ -160,6 +163,10 @@ test("passes, a junior price, a group fee, and a parent paying for two juniors w
   await expect(order).toContainText("Every month");
   await expect(order).toContainText("RAMAN");
   await expect(order.getByRole("button", { name: "Copy reference" })).toBeVisible();
+  // The first month is still owed, and the standing order will pay it.
+  await expect(order.getByText("Your standing order pays this month too. Don't pay it by hand.")).toBeVisible();
+  // The pass says what it covers, from the pass itself.
+  await expect(passes.locator(".pass-card")).toContainText("Covers nets");
   await expect(order.getByText("Somebody else does your banking?")).toBeVisible();
   // The first month is in "You owe", like any session.
   await expect(player.locator("#pay-owe")).toContainText("You owe £20.00 for Monthly nets — ");
@@ -200,12 +207,12 @@ test("passes, a junior price, a group fee, and a parent paying for two juniors w
   expect(line(arjun.user_id).amount_cents).toBe(300);
 
   await page.reload();
-  await expect(money).toContainText("Covered by Monthly nets ✓", { timeout: 30_000 });
+  await expect(money).toContainText("Covered by a pass ✓", { timeout: 30_000 });
   await page.screenshot({ path: `${SHOTS}/pass-4-bill.png`, fullPage: true });
 
   await player.goto(`${WEB}/profile/payments`);
   const covered = player.locator("li", { hasText: "Pass nets" });
-  await expect(covered).toContainText("Covered by Monthly nets ✓", { timeout: 30_000 });
+  await expect(covered).toContainText("Covered by your pass ✓", { timeout: 30_000 });
   await expect(covered).not.toContainText("£6.00");
   await player.screenshot({ path: `${SHOTS}/pass-5-covered.png`, fullPage: true });
 
@@ -258,6 +265,38 @@ test("passes, a junior price, a group fee, and a parent paying for two juniors w
   expect(new Set(claims.map((p: { reference: string }) => p.reference))).toEqual(new Set(["NAGRA"]));
   expect(claims.reduce((sum: number, p: { amount_cents: number }) => sum + p.amount_cents, 0)).toBe(2100);
   await parentPhone.close();
+
+  // 6b. Pat pays for Ravi too: Ravi's match balls, on a bill they're both on.
+  //     What Ravi owes there shows before anything is sent.
+  const patPhone = await browser.newContext(PHONE);
+  const patPage = await patPhone.newPage();
+  await signIn(patPage, pat);
+  await patPage.goto(`${WEB}/clubs/${club.id}/pay`);
+  // £6 for nets and £5 for the balls.
+  await expect(patPage.locator("#pay-owe")).toHaveText("You owe £11.00.", { timeout: 30_000 });
+  await patPage.locator(".pay-friends summary", { hasText: "I'm paying for friends too" }).click();
+  const ravisLine = patPage.locator(".pay-friends label", { hasText: "Ravi Raman" });
+  await expect(ravisLine).toContainText("£5.00");
+  // Neha, Kiran and Arjun are waiting on Neha's payment: nothing for a friend to pay.
+  await expect(patPage.locator(".pay-friends")).not.toContainText("Neha Nagra");
+  await ravisLine.getByRole("checkbox").check();
+  await expect(patPage.locator("#pay-owe")).toHaveText("You owe £16.00 for everyone");
+  await expect(patPage.getByText("One payment for you and Ravi Raman.")).toBeVisible();
+  await patPage.screenshot({ path: `${SHOTS}/pass-8b-friend.png`, fullPage: true });
+  await patPage.getByRole("button", { name: "I've paid for everyone" }).click();
+  await expect(patPage.getByText("You said you paid £16.00, for you and Ravi Raman.")).toBeVisible();
+
+  // The part paid for Ravi is Pat's to take back, like Pat's own.
+  const forRavi = patPage.locator(".pay-waiting li", { hasText: "For Ravi Raman" });
+  await expect(forRavi).toContainText("£5.00");
+  await forRavi.getByRole("button", { name: "Undo £5.00" }).click();
+  await expect(patPage.getByText("Undone. You still owe it.")).toBeVisible();
+  await expect(patPage.locator(".pay-waiting li", { hasText: "For Ravi Raman" })).toHaveCount(0);
+  const ravisClaims = (await call(request, secretary, "GET", `/clubs/${club.id}/money`)).to_check.filter(
+    (p: { user_id: string }) => p.user_id === ravi.user.id,
+  );
+  expect(ravisClaims).toHaveLength(0);
+  await patPhone.close();
 
   // 7. Ravi cancels the pass, and is told to cancel the standing order too.
   await player.goto(`${WEB}/clubs/${club.id}/pay`);

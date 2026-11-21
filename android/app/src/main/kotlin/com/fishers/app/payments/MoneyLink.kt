@@ -26,12 +26,14 @@ sealed interface MoneyLink {
             // (or those of somebody they pay for), so the pay screen.
             "pass_started", "pass_charge", "pass_behind", "pass_cancelled", "pass_price_changed",
             "pass_sessions_left", "pass_bank_changed", "collection_issued",
+            // Your own pass paused; somebody said they paid for you.
+            "pass_suspended", "paid_for_you",
         )
 
-        // "pass_suspended" goes to the person and to money admins alike: the
-        // money page, which sends a player on to their pay screen.
         private val ADMIN_KINDS = setOf(
-            "payment_claimed", "payments_to_check", "payout_details_changed", "payout_details_frozen", "pass_suspended",
+            "payment_claimed", "payments_to_check", "payout_details_changed", "payout_details_frozen",
+            // Somebody's pass paused: the money admins are told, to the overview.
+            "pass_suspended_club",
         )
 
         fun fromPush(kind: String?, eventId: String?, clubId: String?): MoneyLink? {

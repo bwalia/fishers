@@ -74,11 +74,14 @@ import java.time.LocalDate
  * one sit in place of the list; Back returns to it.
  */
 @Composable
-internal fun GroupFeesPage(clubId: String, currency: String) {
+internal fun GroupFeesPage(clubId: String, currency: String, openBillId: String? = null) {
     val deps = LocalAppDeps.current
     val model = remember(clubId) { GroupFeesViewModel(deps.service<PaymentsApi>(), clubId) }
     val state by model.state.collectAsStateWithLifecycle()
-    LaunchedEffect(clubId) { model.load() }
+    LaunchedEffect(clubId) {
+        model.load()
+        openBillId?.let(model::open)
+    }
 
     // The link's words go to WhatsApp, or the link to the clipboard, once.
     val context = LocalContext.current
@@ -315,25 +318,39 @@ private fun OneFee(fee: GroupFee, state: GroupFeesState, model: GroupFeesViewMod
             AmountLine(t("pay.still_owed"), money(fee.owedCents, fee.currency))
 
             // ---- share to WhatsApp ----
+            // The link as it stands is read first; only Share makes one.
+            val link = state.link
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             Text(t("pa2.share_to_whatsapp"), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { heading() })
             Body(t("pa2.share_hint"))
+            when {
+                link != null -> Body(
+                    listOfNotNull(
+                        link.url,
+                        dayMonth(link.expiresAt).takeIf { it.isNotEmpty() }?.let { t("pa4.link_works_until", vars = mapOf("date" to it)) },
+                    ).joinToString(" · "),
+                )
+                state.linkRead -> Body(t("pa4.no_link_yet"))
+            }
             Button(onClick = { model.share(fee, LinkUse.Bill) }, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text(if (state.isBusy) t("pa2.getting_link") else t("pa3.share_group_fee"), modifier = Modifier.padding(start = 8.dp))
             }
-            if (fee.anyoneOwes) {
-                OutlinedButton(onClick = { model.share(fee, LinkUse.Reminder) }, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                    Text(t("pa2.remind_who_hasnt_paid"))
+            // Reminding, copying and switching off are for a link already posted.
+            if (link != null) {
+                if (fee.anyoneOwes) {
+                    OutlinedButton(onClick = { model.share(fee, LinkUse.Reminder) }, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Text(t("pa2.remind_who_hasnt_paid"))
+                    }
                 }
-            }
-            Row {
-                TextButton(onClick = { model.share(fee, LinkUse.CopyLink) }, enabled = !state.isBusy, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(t("pa2.copy_link"), modifier = Modifier.padding(start = 8.dp))
-                }
-                TextButton(onClick = { switchingOff = true }, enabled = !state.isBusy, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text(t("pa2.switch_link_off"))
+                Row {
+                    TextButton(onClick = { model.share(fee, LinkUse.CopyLink) }, enabled = !state.isBusy, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(t("pa2.copy_link"), modifier = Modifier.padding(start = 8.dp))
+                    }
+                    TextButton(onClick = { switchingOff = true }, enabled = !state.isBusy, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(t("pa2.switch_link_off"))
+                    }
                 }
             }
         }
@@ -346,7 +363,8 @@ private fun OneFee(fee: GroupFee, state: GroupFeesState, model: GroupFeesViewMod
                     Column(Modifier.weight(1f)) {
                         Text(share.name, style = MaterialTheme.typography.bodyLarge)
                         if (share.userId == null) Body(t("pay.guest"))
-                        share.reason?.let { Body(it) }
+                        // A let-off's reason; a covered line says why in its label.
+                        share.reason?.takeIf { !share.isCovered }?.let { Body(it) }
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         if (!share.isCovered) Text(money(share.amountCents, share.currency), style = MaterialTheme.typography.bodyMedium)

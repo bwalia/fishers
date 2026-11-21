@@ -196,14 +196,18 @@ struct AppNotification: Codable, Identifiable, Equatable {
         }
         guard eventId == nil, let clubId else { return nil }
         switch type {
-        case "fee_reminder", "payment_confirmed", "payment_rejected":
+        // Somebody paid for the reader: what's left, if anything, is there.
+        case "fee_reminder", "payment_confirmed", "payment_rejected", "paid_for_you":
             return .payScreen(clubId)
         // A pass or a group fee is about the reader's own money (or that of
         // somebody they pay for): their pay screen, whatever their role.
-        case "pass_started", "pass_charge", "pass_behind", "pass_cancelled", "pass_sessions_left",
-             "pass_price_changed", "collection_issued":
+        // `pass_suspended` is the holder's (and their payer's) only.
+        case "pass_started", "pass_charge", "pass_behind", "pass_suspended", "pass_cancelled",
+             "pass_sessions_left", "pass_price_changed", "collection_issued":
             return .payScreen(clubId)
-        case "payment_claimed", "payments_to_check", "payout_details_changed", "payout_details_frozen":
+        // For money admins: somebody's pass paused for late payments.
+        case "payment_claimed", "payments_to_check", "payout_details_changed", "payout_details_frozen",
+             "pass_suspended_club":
             return .overview(clubId)
         default:
             // A kind this build doesn't know, sent the way money ones are

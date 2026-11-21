@@ -200,6 +200,8 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
                 )
             }
         }
+        // The bank's statement ticks these off in one go, and finds the ones nobody said.
+        item { ChargeRow(t("pw4.import_statement"), t("pa4.import_statement_hint"), onClick = { nav.push(StatementRoute(model.clubId)) }) }
 
         // ---- who owes what ----
         item { SectionHeading(t("pay.who_owes_what")) }
@@ -226,7 +228,15 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
         if (overview.bills.isNotEmpty()) {
             item { SectionHeading(t("pay.recent_bills")) }
             items(overview.bills, key = { "bill-${it.billId}" }) { bill ->
-                BillRow(bill, onOpen = bill.eventId?.let { id -> { nav.push(FixtureRoute(id)) } })
+                BillRow(
+                    bill,
+                    onOpen = when (bill.kind) {
+                        "collection" -> { { nav.push(GroupFeesRoute(model.clubId, currency, openBillId = bill.billId)) } }
+                        // A pass charge has no page of its own.
+                        "pass" -> null
+                        else -> bill.eventId?.let { id -> { nav.push(FixtureRoute(id)) } }
+                    },
+                )
             }
         }
 

@@ -76,7 +76,10 @@ data class Share(
     @SerialName("waiting_cents") val waitingCents: Long = 0,
     val currency: String = "GBP",
     @SerialName("state") val stateName: String = "",
+    /** A let-off's reason as the admin typed it; for a covered line, the server's English. */
     val reason: String? = null,
+    /** On a covered line, what covers it: `pass` or `free` (a free price, a coach). */
+    val cover: String? = null,
 ) {
     val state: ShareState get() = ShareState.of(stateName)
 
@@ -89,12 +92,8 @@ data class Share(
     /** A pass or a free price pays for it: nothing to pay, nothing to tap. */
     val isCovered: Boolean get() = state == ShareState.Covered
 
-    /**
-     * Covered because their group is free (a coach), not by a pass. The
-     * server says which only in its English reason — "Free: Coach" against
-     * "Covered by Monthly nets" — so anything else reads as a pass.
-     */
-    val isFreePrice: Boolean get() = isCovered && reason?.startsWith("Free") == true
+    /** Covered because their group is free (a coach), not by a pass: the server's `cover`, never its English. */
+    val isFreePrice: Boolean get() = isCovered && cover == "free"
 
     /**
      * When, under the title: "by 6 Dec" for a pass charge or a group fee with
@@ -230,12 +229,12 @@ data class PayScreen(
     @SerialName("account_state") val accountStateName: String = "",
     val account: BankDetails? = null,
     val reference: String = "",
-    /** Your claims nobody has confirmed yet. */
+    /** Your claims nobody has confirmed yet, and those you made for somebody else (or they for you). */
     val claims: List<Payment> = emptyList(),
     /**
-     * Friends on a bill you're on who still owe, for "I'm paying for friends
-     * too". Not sent by the server yet (it has nowhere a player can read who
-     * else is on their bill); the option stays hidden until it is.
+     * People still owing on bills you're on, and what they owe on those bills
+     * only: the list for "I'm paying for friends too", and the most
+     * `for-others` takes for each.
      */
     val friends: List<Friend> = emptyList(),
 ) {
@@ -303,6 +302,8 @@ data class Payment(
     @SerialName("via_link") val viaLink: String? = null,
     /** A picture of the payment came with it; money admins can open it. */
     @SerialName("has_screenshot") val hasScreenshot: Boolean = false,
+    /** Who said it was paid: somebody else than [userId] when a parent or a friend paid for them. */
+    @SerialName("created_by") val createdBy: String? = null,
 ) {
     val method: PaymentMethod get() = PaymentMethod.of(methodName)
     val isClaimed: Boolean get() = status == "claimed"
@@ -452,8 +453,10 @@ data class MoneyTotals(
 @Serializable
 data class BillSummary(
     @SerialName("bill_id") val billId: String,
-    /** Null for a bill with no session behind it: a pass charge or a group fee, soon. */
+    /** Null for a bill with no session behind it: a pass charge or a group fee. */
     @SerialName("event_id") val eventId: String? = null,
+    /** `event`, `pass` or `collection` (a group fee): which screen opens it. */
+    val kind: String? = null,
     val title: String = "",
     @SerialName("event_start_at") val eventStartAt: String? = null,
     val currency: String = "GBP",

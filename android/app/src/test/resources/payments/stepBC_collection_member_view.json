@@ -1,22 +1,22 @@
 {
-  "id": "06bfb05b-93b6-465e-b4b9-2f885e06472d",
+  "id": "2e9de15d-af2d-462d-bbe0-dacab7a86a4e",
   "event_id": null,
-  "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+  "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
   "title": "Match balls",
-  "event_start_at": "2026-11-21T19:46:34.710985Z",
+  "event_start_at": "2026-11-21T20:35:28.805475Z",
   "mode": "split_total",
   "amount_cents": 4500,
   "total_cents": 4500,
   "currency": "GBP",
   "rounding": "exact",
-  "payout_account_id": "cfe78b48-3f25-44d4-9b67-d655de499b6b",
+  "payout_account_id": "e28ed573-c68c-40a2-ad3f-962704ba90e3",
   "status": "issued",
   "version": 1,
   "auto": false,
   "note": null,
-  "issued_by": "b88bf410-a7e5-4238-ab18-0dc33a836f33",
-  "issued_at": "2026-11-21T19:46:34.710985Z",
-  "updated_at": "2026-11-21T19:46:34.710985Z",
+  "issued_by": "7f179733-a04f-41f1-b13d-6d961ab9d011",
+  "issued_at": "2026-11-21T20:35:28.805475Z",
+  "updated_at": "2026-11-21T20:35:28.805475Z",
   "voided_at": null,
   "void_reason": null,
   "kind": "collection",
@@ -29,14 +29,14 @@
   "people": 3,
   "shares": [
     {
-      "id": "98b861f2-dac7-48b1-995c-1c2b257dffaa",
-      "bill_id": "06bfb05b-93b6-465e-b4b9-2f885e06472d",
+      "id": "00d364c5-405d-4aa0-be7c-1070c770928f",
+      "bill_id": "2e9de15d-af2d-462d-bbe0-dacab7a86a4e",
       "event_id": null,
       "kind": "collection",
       "due_on": "2026-12-06",
       "title": "Match balls",
-      "event_start_at": "2026-11-21T19:46:34.710985Z",
-      "user_id": "b576727b-e4c0-41a2-a2fe-6523fa7421ce",
+      "event_start_at": "2026-11-21T20:35:28.805475Z",
+      "user_id": "654cd3be-4bc9-47fb-8312-74ecafd2e35b",
       "guest_name": null,
       "name": "Sam Student",
       "amount_cents": 1500,
@@ -44,7 +44,8 @@
       "waiting_cents": 0,
       "currency": "GBP",
       "state": "owed",
-      "reason": null
+      "reason": null,
+      "cover": null
     }
   ]
 }

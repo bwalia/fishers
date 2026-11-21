@@ -40,9 +40,14 @@ data class PassesAdminRoute(val clubId: String, val currency: String = "GBP") : 
     @Composable override fun Content() = PassesAdminPage(clubId, currency)
 }
 
-/** Payments → Group fees, for money admins. */
-data class GroupFeesRoute(val clubId: String, val currency: String = "GBP") : Route {
-    @Composable override fun Content() = GroupFeesPage(clubId, currency)
+/** Payments → Group fees, for money admins. [openBillId] opens one straight away: a group fee tapped on the overview. */
+data class GroupFeesRoute(val clubId: String, val currency: String = "GBP", val openBillId: String? = null) : Route {
+    @Composable override fun Content() = GroupFeesPage(clubId, currency, openBillId)
+}
+
+/** Payments → Import a bank statement, for money admins. */
+data class StatementRoute(val clubId: String) : Route {
+    @Composable override fun Content() = StatementPage(clubId)
 }
 
 /** Payments → Prices for juniors, students…, and who pays for whom. */

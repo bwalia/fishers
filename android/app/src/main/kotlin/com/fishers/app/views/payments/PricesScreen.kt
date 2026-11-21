@@ -42,9 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.fishers.app.clubs.ClubMemberDetail
 import com.fishers.app.i18n.t
 import com.fishers.app.net.PaymentsApi
+import com.fishers.app.payments.MoneyMember
 import com.fishers.app.payments.Pick
 import com.fishers.app.payments.PriceType
 import com.fishers.app.payments.PriceTypeBody
@@ -70,7 +70,7 @@ internal fun PricesPage(clubId: String) {
 
     var adding by remember { mutableStateOf(false) }
     var changing by remember { mutableStateOf<PriceType?>(null) }
-    var member by remember { mutableStateOf<ClubMemberDetail?>(null) }
+    var member by remember { mutableStateOf<MoneyMember?>(null) }
     var addingJunior by remember { mutableStateOf(false) }
 
     ClubScreen(title = t("pa3.prices_title")) {
@@ -148,7 +148,7 @@ internal fun PricesPage(clubId: String) {
     }
     if (addingJunior) {
         AddJuniorDialog(
-            payers = state.roster,
+            payers = state.payers,
             onAdd = { name, payer -> model.addJunior(name, payer).also { if (it == null) addingJunior = false } },
             onDismiss = { addingJunior = false },
         )
@@ -164,13 +164,12 @@ private fun GroupRow(type: PriceType, action: String, busy: Boolean, onAction: (
     HorizontalDivider()
 }
 
-/** A member, with what was set for them here: "Junior · Neha Gill pays". */
+/** A member, with their price and who pays: "Junior · Neha Gill pays". */
 @Composable
-private fun MemberRow(person: ClubMemberDetail, state: PricesAdminState, onOpen: () -> Unit) {
-    val known = state.known[person.userId]
-    val said = listOfNotNull(
-        known?.takeIf { it.groupSet }?.let { k -> k.groupId?.let { id -> state.types.firstOrNull { it.id == id }?.name } ?: t("pa3.standard_price") },
-        known?.takeIf { it.payerSet }?.let { k -> k.payerId?.let { state.nameOf(it) }?.let { t("pa3.name_pays", vars = mapOf("name" to it)) } ?: t("pa3.pays_themselves") },
+private fun MemberRow(person: MoneyMember, state: PricesAdminState, onOpen: () -> Unit) {
+    val said = listOf(
+        state.groupOf(person)?.name ?: t("pa3.standard_price"),
+        person.payerName?.let { t("pa3.name_pays", vars = mapOf("name" to it)) } ?: t("pa3.pays_themselves"),
     )
     Column(
         Modifier
@@ -180,7 +179,7 @@ private fun MemberRow(person: ClubMemberDetail, state: PricesAdminState, onOpen:
             .padding(vertical = 8.dp),
     ) {
         Text(person.name, style = MaterialTheme.typography.bodyLarge)
-        Body(if (said.isEmpty()) t("pa3.tap_to_set") else said.joinToString(" · "))
+        Body(said.joinToString(" · "))
     }
     HorizontalDivider()
 }
@@ -286,14 +285,13 @@ private fun ChangeGroupDialog(type: PriceType, onSave: (PriceTypeBody) -> Unit, 
  */
 @Composable
 private fun MemberMoneyDialog(
-    member: ClubMemberDetail,
+    member: MoneyMember,
     state: PricesAdminState,
-    onSave: (Pick<PriceType?>?, Pick<ClubMemberDetail?>?) -> Unit,
+    onSave: (Pick<PriceType?>?, Pick<MoneyMember?>?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val known = state.known[member.userId]
-    var group by remember { mutableStateOf(known?.takeIf { it.groupSet }?.let { k -> Pick(state.types.firstOrNull { it.id == k.groupId }) }) }
-    var payer by remember { mutableStateOf(known?.takeIf { it.payerSet }?.let { k -> Pick(state.members.firstOrNull { it.userId == k.payerId }) }) }
+    var group by remember { mutableStateOf(Pick(state.groupOf(member))) }
+    var payer by remember { mutableStateOf(Pick(member.payerId?.let { id -> state.members.firstOrNull { it.userId == id } })) }
     var changedGroup by remember { mutableStateOf(false) }
     var changedPayer by remember { mutableStateOf(false) }
     AlertDialog(
@@ -302,14 +300,14 @@ private fun MemberMoneyDialog(
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(t("pa3.their_price"), style = MaterialTheme.typography.titleSmall)
-                ChoiceRow(t("pa3.standard_price"), group != null && group?.value == null) { group = Pick(null); changedGroup = true }
+                ChoiceRow(t("pa3.standard_price"), group.value == null) { group = Pick(null); changedGroup = true }
                 state.inUse.filter { !it.forGuests }.forEach { type ->
-                    ChoiceRow(type.label, group?.value?.id == type.id) { group = Pick(type); changedGroup = true }
+                    ChoiceRow(type.label, group.value?.id == type.id) { group = Pick(type); changedGroup = true }
                 }
                 Text(t("pa3.who_pays_for_them"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-                ChoiceRow(t("pa3.they_pay_themselves"), payer != null && payer?.value == null) { payer = Pick(null); changedPayer = true }
-                state.roster.filter { it.userId != member.userId }.forEach { other ->
-                    ChoiceRow(other.name, payer?.value?.userId == other.userId) { payer = Pick(other); changedPayer = true }
+                ChoiceRow(t("pa3.they_pay_themselves"), payer.value == null) { payer = Pick(null); changedPayer = true }
+                state.payers.filter { it.userId != member.userId }.forEach { other ->
+                    ChoiceRow(other.name, payer.value?.userId == other.userId) { payer = Pick(other); changedPayer = true }
                 }
             }
         },
@@ -326,9 +324,9 @@ private fun MemberMoneyDialog(
 
 /** "Add a junior by name": no sign-in of their own; a member who pays for them. */
 @Composable
-private fun AddJuniorDialog(payers: List<ClubMemberDetail>, onAdd: (String, ClubMemberDetail?) -> String?, onDismiss: () -> Unit) {
+private fun AddJuniorDialog(payers: List<MoneyMember>, onAdd: (String, MoneyMember?) -> String?, onDismiss: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
-    var payer by remember { mutableStateOf<ClubMemberDetail?>(null) }
+    var payer by remember { mutableStateOf<MoneyMember?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,

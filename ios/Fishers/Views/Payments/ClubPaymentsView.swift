@@ -20,6 +20,7 @@ struct ClubPaymentsView: View {
     @State private var confirmingAll = false
     @State private var viewingScreenshot: ClubPayment?
     @State private var editingPrices = false
+    @State private var importing = false
 
     /// Record cash for somebody, or refund their credit.
     struct PayerAction: Identifiable {
@@ -42,6 +43,7 @@ struct ClubPaymentsView: View {
                 }
                 bankDetailsSection(overview.account)
                 toCheckSection(overview)
+                statementSection
                 whoOwesSection(overview)
                 moreWaysSection(overview)
                 billsSection(overview)
@@ -78,6 +80,9 @@ struct ClubPaymentsView: View {
         }
         .sheet(item: $viewingScreenshot) { payment in
             PaymentScreenshotSheet(store: store, payment: payment)
+        }
+        .sheet(isPresented: $importing, onDismiss: { Task { await store.load() } }) {
+            StatementImportSheet(clubId: store.clubId, waiting: store.overview?.toCheck ?? [])
         }
         .confirmationDialog(
             tr("Mark all {n} as arrived?", vars: ["n": store.overview?.toCheck.count ?? 0]),
@@ -376,6 +381,23 @@ struct ClubPaymentsView: View {
         .tint(FishersTheme.unavailable)
     }
 
+    // MARK: A bank statement
+
+    /// Tick off a week of transfers in one go, from the bank's own export.
+    private var statementSection: some View {
+        Section {
+            Button {
+                importing = true
+            } label: {
+                Label(tr("Import a bank statement"), systemImage: "doc.text.magnifyingglass")
+                    .font(FishersTheme.headline)
+                    .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap, alignment: .leading)
+            }
+        } footer: {
+            Text(tr("Tick off payments from your bank's CSV file in one go"))
+        }
+    }
+
     // MARK: Who owes what
 
     @ViewBuilder
@@ -445,8 +467,16 @@ struct ClubPaymentsView: View {
     private func billsSection(_ overview: MoneyOverview) -> some View {
         if !overview.bills.isEmpty {
             Section(tr("Recent bills")) {
+                // A session opens the session, a group fee the group fee,
+                // and a pass charge nothing: it's on the pass.
                 ForEach(overview.bills) { bill in
-                    if let eventId = bill.eventId {
+                    if bill.isGroupFee {
+                        NavigationLink {
+                            GroupFeeDetailView(billId: bill.billId)
+                        } label: {
+                            billRow(bill)
+                        }
+                    } else if let eventId = bill.eventId, bill.kind == nil || bill.kind == "event" {
                         NavigationLink {
                             EventDetailView(eventId: eventId)
                         } label: {

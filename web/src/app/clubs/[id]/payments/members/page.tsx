@@ -4,23 +4,20 @@
 /// after the club's money (plan §2, §4):
 ///   - name the groups with a price of their own, and mark one free (coaches)
 ///     or the price for guests;
-///   - set each member's group, and who pays for them (a parent for a
-///     junior);
+///   - see and set each member's group, and who pays for them (a parent for
+///     a junior);
 ///   - add a junior by name, who has no sign-in of their own.
 ///
 /// Each session's prices by group are set on the session's own cost.
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { api, readErr, type ClubMemberRow } from "@/lib/api";
-import { postOnce, useAttemptKey, type PriceType } from "@/lib/payments";
+import { api, readErr } from "@/lib/api";
+import { postOnce, useAttemptKey, type PayingMember, type PriceType } from "@/lib/payments";
 import { juniorGroup } from "@/lib/passes";
 import { MoneyAdminPage } from "@/components/MoneyAdmin";
 import { useT } from "@/lib/i18n/provider";
 
-/// "Leave as it is" in a picker: the API has no way to read a member's
-/// current group or payer back, so nothing is assumed.
-const KEEP = "__keep__";
 /// The usual price, or paying for themselves.
 const NONE = "";
 
@@ -34,22 +31,18 @@ export default function PricesAndPayersPage() {
   );
 }
 
-/// What was set here this visit, so the row can say so.
-type Said = { group?: string; payer?: string };
-
 function PricesAndPayers({ clubId }: { clubId: string }) {
   const t = useT();
   const [groups, setGroups] = useState<PriceType[] | null>(null);
-  const [members, setMembers] = useState<ClubMemberRow[]>([]);
+  const [members, setMembers] = useState<PayingMember[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [said, setSaid] = useState<Record<string, Said>>({});
 
   const load = useCallback(async () => {
     try {
       const [g, m] = await Promise.all([
         api<PriceType[]>("GET", `/clubs/${clubId}/price-types`),
-        api<ClubMemberRow[]>("GET", `/clubs/${clubId}/members`),
+        api<PayingMember[]>("GET", `/clubs/${clubId}/payments/members`),
       ]);
       setGroups(g.filter((x) => !x.archived_at));
       setMembers(m);
@@ -63,38 +56,21 @@ function PricesAndPayers({ clubId }: { clubId: string }) {
     void load();
   }, [load]);
 
+  /// Every change ends the same way: say so, and show everybody as they are
+  /// now — the server's word on each member's group and payer.
   const done = async (message: string) => {
     setNotice(message);
     setError(null);
     await load();
   };
-  const remember = (userId: string, s: Said) => setSaid((cur) => ({ ...cur, [userId]: { ...cur[userId], ...s } }));
 
   return (
     <>
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
       <Groups clubId={clubId} groups={groups} onDone={done} />
-      <Members
-        clubId={clubId}
-        groups={groups ?? []}
-        members={members}
-        said={said}
-        onSaved={(userId, s, message) => {
-          remember(userId, s);
-          setNotice(message);
-          setError(null);
-        }}
-      />
-      <AddJunior
-        clubId={clubId}
-        groups={groups ?? []}
-        members={members}
-        onAdded={async (userId, s, message) => {
-          remember(userId, s);
-          await done(message);
-        }}
-      />
+      <Members clubId={clubId} groups={groups ?? []} members={members} onSaved={done} />
+      <AddJunior clubId={clubId} groups={groups ?? []} members={members} onAdded={done} />
     </>
   );
 }
@@ -264,19 +240,17 @@ function Groups({
   );
 }
 
-/// Each member's group and who pays for them.
+/// Each member's group and who pays for them, as they are now.
 function Members({
   clubId,
   groups,
   members,
-  said,
   onSaved,
 }: {
   clubId: string;
   groups: PriceType[];
-  members: ClubMemberRow[];
-  said: Record<string, Said>;
-  onSaved: (userId: string, s: Said, message: string) => void;
+  members: PayingMember[];
+  onSaved: (message: string) => Promise<void>;
 }) {
   const t = useT();
   const id = useId();
@@ -301,21 +275,19 @@ function Members({
       )}
       <ul className="pay-list">
         {shown.map((m) => {
-          const s = said[m.user_id];
+          const group = m.price_type_id ? groups.find((g) => g.id === m.price_type_id)?.name : undefined;
           return (
             <li key={m.user_id}>
               <div>
                 <strong>{m.name}</strong>
-                {s && (
-                  <div className="muted">
-                    {[
-                      s.group != null ? (s.group ? t("pw3.group_price", { group: s.group }) : t("pw3.usual_price")) : "",
-                      s.payer != null ? (s.payer ? t("pw3.paid_for_by", { name: s.payer }) : t("pw3.pays_for_self")) : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                )}
+                <div className="muted">
+                  {[
+                    group ? t("pw3.group_price", { group }) : t("pw3.usual_price"),
+                    m.payer_name ? t("pw3.paid_for_by", { name: m.payer_name }) : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
               </div>
               {open !== m.user_id && (
                 <div className="pay-list-end">
@@ -336,9 +308,9 @@ function Members({
                   groups={groups}
                   members={members}
                   onCancel={() => setOpen(null)}
-                  onSaved={(s, message) => {
+                  onSaved={async (message) => {
                     setOpen(null);
-                    onSaved(m.user_id, s, message);
+                    await onSaved(message);
                   }}
                 />
               )}
@@ -359,37 +331,40 @@ function MemberForm({
   onSaved,
 }: {
   clubId: string;
-  member: ClubMemberRow;
+  member: PayingMember;
   groups: PriceType[];
-  members: ClubMemberRow[];
+  members: PayingMember[];
   onCancel: () => void;
-  onSaved: (s: Said, message: string) => void;
+  onSaved: (message: string) => Promise<void>;
 }) {
   const t = useT();
   const id = useId();
-  const [group, setGroup] = useState(KEEP);
-  const [payer, setPayer] = useState(KEEP);
+  // Each picker starts on what the member has now.
+  const [group, setGroup] = useState(m.price_type_id ?? NONE);
+  const [payer, setPayer] = useState(m.payer_id ?? NONE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const groupChanged = group !== (m.price_type_id ?? NONE);
+  const payerChanged = payer !== (m.payer_id ?? NONE);
 
   const save = async () => {
     setBusy(true);
     setError(null);
-    const s: Said = {};
+    let saved = false;
     try {
-      if (group !== KEEP) {
+      if (groupChanged) {
         await api("PUT", `/clubs/${clubId}/members/${m.user_id}/price-type`, { price_type_id: group || null });
-        s.group = groups.find((g) => g.id === group)?.name ?? "";
+        saved = true;
       }
-      if (payer !== KEEP) {
+      if (payerChanged) {
         await api("PUT", `/clubs/${clubId}/members/${m.user_id}/payer`, { payer_id: payer || null });
-        s.payer = members.find((x) => x.user_id === payer)?.name ?? "";
       }
-      onSaved(s, t("pw3.saved_for", { name: m.name }));
+      await onSaved(t("pw3.saved_for", { name: m.name }));
     } catch (e) {
-      setError(readErr(e, t("le.that_did_not_work")));
-      // Whatever went through before the refusal still went through.
-      if (Object.keys(s).length > 0) onSaved(s, readErr(e, t("le.that_did_not_work")));
+      // Whatever went through before the refusal still went through: show
+      // the page as it is now, with the refusal.
+      if (saved) await onSaved(readErr(e, t("le.that_did_not_work")));
+      else setError(readErr(e, t("le.that_did_not_work")));
     } finally {
       setBusy(false);
     }
@@ -408,7 +383,6 @@ function MemberForm({
         <label htmlFor={`${id}-group`}>
           {t("pw3.their_price")}
           <select id={`${id}-group`} value={group} onChange={(e) => setGroup(e.target.value)}>
-            <option value={KEEP}>{t("pw3.leave_as_it_is")}</option>
             <option value={NONE}>{t("pw3.usual_price")}</option>
             {groups
               .filter((g) => !g.for_guests)
@@ -422,10 +396,10 @@ function MemberForm({
         <label htmlFor={`${id}-payer`}>
           {t("pw3.who_pays_for_them")}
           <select id={`${id}-payer`} value={payer} onChange={(e) => setPayer(e.target.value)}>
-            <option value={KEEP}>{t("pw3.leave_as_it_is")}</option>
             <option value={NONE}>{t("pw3.they_pay_themselves")}</option>
+            {/* A junior added by name can't pay for anybody. */}
             {members
-              .filter((x) => x.user_id !== m.user_id)
+              .filter((x) => x.user_id !== m.user_id && !x.managed)
               .map((x) => (
                 <option key={x.user_id} value={x.user_id}>
                   {x.name}
@@ -436,7 +410,7 @@ function MemberForm({
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="field-row">
-        <button className="btn primary" type="submit" disabled={busy || (group === KEEP && payer === KEEP)}>
+        <button className="btn primary" type="submit" disabled={busy || (!groupChanged && !payerChanged)}>
           {t("acc.save")}
         </button>
         <button className="btn" type="button" disabled={busy} onClick={onCancel}>
@@ -457,8 +431,8 @@ function AddJunior({
 }: {
   clubId: string;
   groups: PriceType[];
-  members: ClubMemberRow[];
-  onAdded: (userId: string, s: Said, message: string) => Promise<void>;
+  members: PayingMember[];
+  onAdded: (message: string) => Promise<void>;
 }) {
   const t = useT();
   const id = useId();
@@ -485,14 +459,12 @@ function AddJunior({
       );
       attempt.done();
       const payerName = members.find((m) => m.user_id === payer)?.name ?? "";
-      let groupName: string | undefined;
       if (chosen) {
         await api("PUT", `/clubs/${clubId}/members/${made.user_id}/price-type`, { price_type_id: chosen }).catch(() => undefined);
-        groupName = groups.find((g) => g.id === chosen)?.name;
       }
       setName("");
       setGroup(null);
-      await onAdded(made.user_id, { group: groupName, payer: payerName }, t("pw3.junior_added", { name: made.name, payer: payerName }));
+      await onAdded(t("pw3.junior_added", { name: made.name, payer: payerName }));
     } catch (e) {
       setError(readErr(e, t("le.that_did_not_work")));
     } finally {
@@ -519,7 +491,9 @@ function AddJunior({
             {t("pw3.who_pays_for_them")}
             <select id={`${id}-payer`} value={payer} onChange={(e) => setPayer(e.target.value)}>
               <option value="">{t("sc.choose_ellipsis")}</option>
-              {members.map((m) => (
+              {members
+                .filter((m) => !m.managed)
+                .map((m) => (
                 <option key={m.user_id} value={m.user_id}>
                   {m.name}
                 </option>

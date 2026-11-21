@@ -129,7 +129,8 @@
       "waiting_cents": 0,
       "currency": "GBP",
       "state": "covered",
-      "reason": "Free: Coach"
+      "reason": "Free: Coach",
+      "cover": "free"
     }
   ],
   "my_share": null,
