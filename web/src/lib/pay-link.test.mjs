@@ -6,22 +6,22 @@ import { test } from "node:test";
 import { firstName, fingerprint, fitWithin, isPayLinkPath, isProfileToken, surnameRef, whatsappUrl } from "./pay-link.ts";
 
 test("a profile token is 24 letters and digits; a pay link is anything else", () => {
-  assert.equal(isProfileToken("aB3dE5fG7hJ9kL1mN3pQ5rS7"), true);
-  assert.equal(isProfileToken("UO0ZuBsnTrCEO10vUQ-KjgbDYTbNPzYxVzymhQ"), false);
+  assert.equal(isProfileToken("ProfileTokenForTests0000"), true);
+  assert.equal(isProfileToken("PayLinkTokenForTestsOnly-0000000000000"), false);
   // A pay link with a character changed or cut off is still a pay link, so it
   // reaches the friendly wrong-link page and not a sign-in screen.
-  assert.equal(isProfileToken("UO0ZuBsnTrCEO10vUQ-KjgbDYTbNPzYxVzymhX"), false);
-  assert.equal(isProfileToken("UO0ZuBsnTrCEO10v"), false);
+  assert.equal(isProfileToken("PayLinkTokenForTestsOnly-000000000000X"), false);
+  assert.equal(isProfileToken("PayLinkTokenForT"), false);
 });
 
 test("only /p/<pay token> is a public pay page", () => {
-  assert.equal(isPayLinkPath("/p/UO0ZuBsnTrCEO10vUQ-KjgbDYTbNPzYxVzymhQ"), true);
-  assert.equal(isPayLinkPath("/p/aB3dE5fG7hJ9kL1mN3pQ5rS7"), false);
+  assert.equal(isPayLinkPath("/p/PayLinkTokenForTestsOnly-0000000000000"), true);
+  assert.equal(isPayLinkPath("/p/ProfileTokenForTests0000"), false);
   assert.equal(isPayLinkPath("/profile"), false);
   assert.equal(isPayLinkPath("/players/p/x"), false);
   assert.equal(isPayLinkPath("/p/%E0%A4%A"), true);
-  assert.equal(isPayLinkPath("/pay/UO0ZuBsnTrCEO10vUQ-KjgbDYTbNPzYxVzymhQ"), true);
-  assert.equal(isPayLinkPath("/pay/aB3dE5fG7hJ9kL1mN3pQ5rS7"), true);
+  assert.equal(isPayLinkPath("/pay/PayLinkTokenForTestsOnly-0000000000000"), true);
+  assert.equal(isPayLinkPath("/pay/ProfileTokenForTests0000"), true);
   assert.equal(isPayLinkPath("/pay/"), false);
 });
 
