@@ -5,8 +5,11 @@ struct EventDetailView: View {
     let eventId: UUID
     /// Said once on arrival — "8 sessions scheduled" after a weekly series.
     var notice: String? = nil
+    /// From "Who came to Friday nets?": open the ticking once it has loaded.
+    var openWhoCame = false
 
     @Environment(\.modelContext) private var modelContext
+    @StateObject private var money: EventMoneyStore
     @State private var event: Event?
     @State private var attendees: [AttendeeSummary] = []
     @State private var message: String?
@@ -16,6 +19,13 @@ struct EventDetailView: View {
     @State private var existingCricket: CricketMatchDTO?
     @State private var hasLocalMatch = false
     @State private var showingCached = false
+
+    init(eventId: UUID, notice: String? = nil, openWhoCame: Bool = false) {
+        self.eventId = eventId
+        self.notice = notice
+        self.openWhoCame = openWhoCame
+        _money = StateObject(wrappedValue: EventMoneyStore(eventId: eventId))
+    }
 
     var body: some View {
         ScrollView {
@@ -39,7 +49,10 @@ struct EventDetailView: View {
                         Text(t("np.are_you_coming")).font(FishersTheme.headline)
                     }
                     rsvpRow
-                    paymentRow(event)
+                    EventMoneySection(store: money, event: event, openWhoCame: openWhoCame)
+                    // The card payment from before bank transfers, kept for
+                    // events the new money section has nothing to say about.
+                    if !money.ownsPayment { paymentRow(event) }
                     // A dinner or quiz night sells places rather than asking
                     // who is available.
                     if event.ticketPriceCents != nil || event.eventSubtype == "social" {
@@ -80,6 +93,7 @@ struct EventDetailView: View {
         .navigationTitle(t("ev.event"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .task { await money.load() }
         // Every ball, the toss, the result — as the scorer records them.
         .task {
             for await event in LiveStream.shared.events() {
@@ -288,6 +302,7 @@ struct EventDetailView: View {
                     try await FishersAPI.rsvp(eventId: eventId, status: status)
                     message = tr("RSVP updated")
                     await load()
+                    await money.load()
                 } catch {
                     message = error.localizedDescription
                 }

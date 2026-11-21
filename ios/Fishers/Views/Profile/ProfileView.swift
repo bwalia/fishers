@@ -14,6 +14,7 @@ struct ProfileView: View {
     @State private var confirmSignOut = false
     @State private var statsRefresh = 0
     @State private var stats: MeStatsResponse?
+    @StateObject private var dues = DuesStore()
 
     enum Tab: String, CaseIterable, Identifiable {
         case overview, batting, bowling, umpiring
@@ -44,6 +45,8 @@ struct ProfileView: View {
                     }
 
                     ProfileStrengthSection(user: user, onComplete: { isEditing = true }, offersReminder: false)
+
+                    YouOweSection(store: dues, showsWhenPaidUp: true)
 
                     Section {
                         Picker(tr("Section"), selection: $tab) {
@@ -87,10 +90,12 @@ struct ProfileView: View {
             .task {
                 await session.refreshProfile()
                 await loadStats()
+                await dues.load()
             }
             .refreshable {
                 await session.refreshProfile()
                 await loadStats()
+                await dues.load()
                 statsRefresh += 1
             }
         }

@@ -150,7 +150,62 @@ struct AppNotification: Codable, Identifiable, Equatable {
                 tr("into"): into,
             ])
         default:
-            return type.replacingOccurrences(of: "_", with: " ")
+            // Money notifications, and any kind this build has never heard
+            // of: the server stores the sentence it pushed, so show that.
+            // Never the raw type when there are words to show instead.
+            return payload["body"] ?? payload["title"] ?? type.replacingOccurrences(of: "_", with: " ")
+        }
+    }
+
+    /// A bold first line, for the kinds that carry their own title: the
+    /// event's name on a bill, "Tom says they paid £15.00" on a claim.
+    /// Nil for the kinds `line` already writes in full.
+    var heading: String? {
+        guard Self.handledKinds.contains(type) == false,
+              let title = payload["title"], payload["body"] != nil
+        else { return nil }
+        return title
+    }
+
+    /// The kinds `line` has its own words for.
+    private static let handledKinds: Set<String> = [
+        "match_terms_proposed", "match_pick_your_xi", "match_terms_agreed", "match_book_handed_over",
+        "fixture_scheduled", "player_responded", "invite", "profile_nudge", "invite_accepted",
+    ]
+
+    /// Paying the club by bank transfer: who is told what. See §11 of
+    /// docs/PAY_BY_BANK_TRANSFER.md.
+    static let moneyKinds: Set<String> = [
+        "bill_issued", "bill_updated", "bill_cancelled",
+        "bill_who_came", "bill_auto_sent", "bill_not_sent",
+        "fee_reminder",
+        "payment_claimed", "payments_to_check",
+        "payment_confirmed", "payment_rejected",
+        "payout_details_changed", "payout_details_frozen",
+    ]
+
+    /// The club a money notification is about.
+    var clubId: UUID? { payload["club_id"].flatMap(UUID.init(uuidString:)) }
+
+    /// Where a tap goes, for a money notification. An `event_id` opens the
+    /// event's money section; otherwise a `club_id` opens the pay screen, or
+    /// the overview for whoever checks payments.
+    var moneyRoute: MoneyRoute? {
+        if let eventId, Self.moneyKinds.contains(type) {
+            return .event(eventId, whoCame: type == "bill_who_came" || type == "bill_not_sent")
+        }
+        guard eventId == nil, let clubId else { return nil }
+        switch type {
+        case "fee_reminder", "payment_confirmed", "payment_rejected":
+            return .payScreen(clubId)
+        case "payment_claimed", "payments_to_check", "payout_details_changed", "payout_details_frozen":
+            return .overview(clubId)
+        default:
+            // A kind this build doesn't know, sent the way money ones are
+            // (its own title and body, no link of another sort): let the
+            // server decide by answering the overview or not.
+            guard payload["body"] != nil, payload["url"] == nil, payload["season"] == nil else { return nil }
+            return .overview(clubId)
         }
     }
 

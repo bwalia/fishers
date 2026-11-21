@@ -452,6 +452,16 @@ struct ScheduleMatchSheet: View {
     @State private var made: [Event] = []
     @State private var busy = false
     @State private var error: String?
+    /// The optional cost. Off unless somebody turns it on.
+    @State private var costOn = false
+    @State private var costMode: CostMode
+    @State private var costAmount = ""
+    @State private var confirmCost = false
+
+    /// Events are made in pounds unless the app says otherwise, and a club
+    /// does not carry a currency of its own yet — so the form asks in the
+    /// currency the server will use.
+    private let costCurrency = Money.fallbackCurrency
 
     init(
         clubs: [Club],
@@ -465,6 +475,15 @@ struct ScheduleMatchSheet: View {
         _kind = State(initialValue: startAs)
         _name = State(initialValue: startAs.isPractice ? startAs.label : "")
         _minutes = State(initialValue: startAs.defaultMinutes)
+        // Nets are usually a hire to share; a match, a fee each.
+        _costMode = State(initialValue: startAs.isPractice ? .splitTotal : .perPlayer)
+    }
+
+    /// The cost to send, or nil for none. Turned on but not a usable amount
+    /// is caught by `missing`.
+    private var cost: ScheduleCost? {
+        guard costOn, let minor = Money.parse(costAmount, currency: costCurrency), minor > 0 else { return nil }
+        return ScheduleCost(mode: costMode, amountCents: minor)
     }
 
     private var club: Club? { clubs.first { $0.id == clubId } }
@@ -476,6 +495,7 @@ struct ScheduleMatchSheet: View {
         var parts: [String] = []
         if club == nil { parts.append(tr("which of your clubs is playing")) }
         if !kind.isPractice, theirName.isEmpty { parts.append(tr("who you are playing")) }
+        if costOn, cost == nil { parts.append(tr("the cost")) }
         return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
@@ -496,6 +516,8 @@ struct ScheduleMatchSheet: View {
                     matchSections
                 }
 
+                costSection.disabled(!made.isEmpty)
+
                 if let error {
                     // A series that stopped part way says how much of it exists.
                     if kind.isPractice, repeating {
@@ -506,7 +528,11 @@ struct ScheduleMatchSheet: View {
 
                 Section {
                     Button {
-                        Task { await schedule() }
+                        if cost?.needsConfirming == true {
+                            confirmCost = true
+                        } else {
+                            Task { await schedule() }
+                        }
                     } label: {
                         Group {
                             if busy {
@@ -544,6 +570,17 @@ struct ScheduleMatchSheet: View {
                 }
             }
             .interactiveDismissDisabled(busy || !made.isEmpty)
+            .confirmationDialog(
+                tr("{amount} each", vars: ["amount": Money.format(cost?.amountCents ?? 0, costCurrency)]),
+                isPresented: $confirmCost, titleVisibility: .visible
+            ) {
+                Button(tr("Yes, {amount} each is right", vars: ["amount": Money.format(cost?.amountCents ?? 0, costCurrency)])) {
+                    Task { await schedule() }
+                }
+                Button(tr("Never mind"), role: .cancel) {}
+            } message: {
+                Text(tr("That's a lot a head, so it's worth a second look before anybody is asked for it."))
+            }
             .sheet(isPresented: $picking) {
                 OppositionPickerView { name, identity in
                     oppositionName = name
@@ -560,6 +597,7 @@ struct ScheduleMatchSheet: View {
                 teams = (try? await FishersAPI.teams(clubId: clubId)) ?? []
             }
             .onChange(of: kind) { before, now in
+                if costAmount.isEmpty { costMode = now.isPractice ? .splitTotal : .perPlayer }
                 guard now.isPractice else { return }
                 // Follow the kind until somebody has typed a name or picked a
                 // length of their own.
@@ -645,6 +683,20 @@ struct ScheduleMatchSheet: View {
         }
     }
 
+    /// Optional: split the nets hire, or a match fee each. Players are billed
+    /// later, from who actually came.
+    @ViewBuilder
+    private var costSection: some View {
+        Section {
+            Toggle(tr("Cost (optional)"), isOn: $costOn)
+        } footer: {
+            Text(tr("Once it's over, you tick who came and everyone is sent their share with the club's bank details."))
+        }
+        if costOn {
+            CostFields(mode: $costMode, amount: $costAmount, currency: costCurrency)
+        }
+    }
+
     private var groundSection: some View {
         Section {
             if venues.isEmpty {
@@ -673,7 +725,8 @@ struct ScheduleMatchSheet: View {
         defer { busy = false }
         do {
             _ = try await FishersAPI.createEvent(ScheduleRequests.match(
-                club: club, opponentClubId: opponent?.clubId, theirName: theirName, venueId: venueId, start: start
+                club: club, opponentClubId: opponent?.clubId, theirName: theirName, venueId: venueId, start: start,
+                cost: cost
             ))
             onScheduled()
             dismiss()
@@ -700,7 +753,8 @@ struct ScheduleMatchSheet: View {
                 start: start,
                 minutes: minutes,
                 note: note,
-                weeks: repeating ? weeks : nil
+                weeks: repeating ? weeks : nil,
+                cost: cost
             )
         }
         let outcome = await ScheduleRequests.create(plan, from: made.count, send: FishersAPI.createEvent)

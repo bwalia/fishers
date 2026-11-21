@@ -35,5 +35,17 @@ struct MainTabView: View {
                     }
             }
         }
+        // A bill, a payment to check, the bank details changing: the same
+        // sheet-over-any-tab, for the same reason.
+        .sheet(item: $push.pendingMoney) { link in
+            NavigationStack {
+                MoneyDestination(route: link.route)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(t("sh.done")) { push.pendingMoney = nil }
+                        }
+                    }
+            }
+        }
     }
 }
