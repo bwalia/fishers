@@ -1369,23 +1369,37 @@ fn dues_for(club_id: Uuid, club_name: String, ledger: &Ledger, payer: &Payer) ->
     }
 }
 
+/// Recent sessions a pass or free price covered join the history, so a
+/// player sees "covered by your pass" rather than nothing at all.
+async fn with_covered(state: &AppState, dues: &mut ClubDues, user_id: Uuid) -> ApiResult<()> {
+    let covered = repo::recent_covered_shares(&state.pool, dues.club_id, user_id, 5).await?;
+    if covered.is_empty() {
+        return Ok(());
+    }
+    let open = dues.shares.iter().take_while(|v| v.state != ShareState::Paid).count();
+    let mut history: Vec<ShareView> = dues.shares.split_off(open);
+    history.extend(covered.iter().map(|r| share_view(r, None)));
+    history.sort_by_key(|v| std::cmp::Reverse(v.event_start_at));
+    history.truncate(12);
+    dues.shares.extend(history);
+    Ok(())
+}
+
 async fn my_dues(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Dues>> {
     let mut clubs = Vec::new();
     for (club_id, name) in repo::clubs_with_money(&state.pool, auth.user_id).await? {
         let ledger = Ledger::load(&state, club_id, Some(auth.user_id)).await?;
-        clubs.push(dues_for(club_id, name, &ledger, &Payer::Member(auth.user_id)));
+        let mut dues = dues_for(club_id, name, &ledger, &Payer::Member(auth.user_id));
+        with_covered(&state, &mut dues, auth.user_id).await?;
+        clubs.push(dues);
     }
     let mut people = Vec::new();
     for d in fishers_db::repos::passes::dependents(&state.pool, auth.user_id).await? {
         let club_name = repo::club_name(&state.pool, d.club_id).await?.unwrap_or_default();
         let ledger = Ledger::load(&state, d.club_id, Some(d.member_id)).await?;
-        people.push(PersonDues {
-            user_id: d.member_id,
-            name: d.name,
-            managed: d.managed,
-            club_id: d.club_id,
-            dues: dues_for(d.club_id, club_name, &ledger, &Payer::Member(d.member_id)),
-        });
+        let mut dues = dues_for(d.club_id, club_name, &ledger, &Payer::Member(d.member_id));
+        with_covered(&state, &mut dues, d.member_id).await?;
+        people.push(PersonDues { user_id: d.member_id, name: d.name, managed: d.managed, club_id: d.club_id, dues });
     }
     Ok(Json(Dues { clubs, people }))
 }

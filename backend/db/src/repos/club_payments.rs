@@ -1415,6 +1415,20 @@ pub async fn mark_auto_bill_skipped(pool: &PgPool, event_id: Uuid) -> Result<(),
     Ok(())
 }
 
+/// A member's most recent lines a pass or free price covered, newest first:
+/// "Tuesday nets — covered by your pass", in their history.
+pub async fn recent_covered_shares(pool: &PgPool, club_id: Uuid, user_id: Uuid, limit: i64) -> Result<Vec<ShareRow>, sqlx::Error> {
+    sqlx::query_as::<_, ShareRow>(&format!(
+        "{SHARE_SELECT} WHERE s.club_id = $1 AND s.user_id = $2 AND s.status = 'covered' AND b.status = 'issued'
+         ORDER BY b.event_start_at DESC LIMIT $3"
+    ))
+    .bind(club_id)
+    .bind(user_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
 /// Live shares old enough to chase and not chased too often, for members.
 /// Whether anything is still owed is decided by the caller with the ledger.
 pub async fn shares_due_a_reminder(pool: &PgPool) -> Result<Vec<ShareRow>, sqlx::Error> {

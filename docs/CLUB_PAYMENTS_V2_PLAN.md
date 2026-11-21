@@ -408,6 +408,8 @@ Errors are `{error, code}` as before.
 - **`PUT /events/{id}/cost` takes `prices`:** `[{price_type_id, amount_cents}]` (per-player
   costs only: `prices_need_per_player`). Given, it replaces the session's prices; left out, they
   stay as they are. A price of 0 makes that type free for the session.
+- **`GET /me/dues` `shares` include the 5 most recent covered lines** among the history, so a
+  player sees "Tuesday nets: covered by your pass ✓".
 - **`GET /me/dues` gains `people`:** `[{user_id, name, managed, club_id, dues}]`, where `dues`
   has the same shape as a club in `clubs`. Each is somebody you pay for. `managed` means they have
   no sign-in of their own.
