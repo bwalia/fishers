@@ -53,7 +53,12 @@ import com.fishers.app.views.clubs.ClubsTabRoot
 import com.fishers.app.views.fixtures.FixturesTabRoot
 import com.fishers.app.views.home.HomeActions
 import com.fishers.app.views.home.HomeScreen
+import com.fishers.app.views.nav.LocalAppDeps
 import com.fishers.app.views.nav.LocalNavigator
+import com.fishers.app.views.payments.DuesRoute
+import com.fishers.app.views.payments.YouOweCard
+import com.fishers.app.payments.DuesViewModel
+import com.fishers.app.net.PaymentsApi
 import com.fishers.app.views.nav.Navigator
 import com.fishers.app.views.nav.Route
 import com.fishers.app.views.profile.ProfileTabRoot
@@ -110,6 +115,10 @@ fun MainTabScreen(
     var openWorldMatch by rememberSaveable { mutableStateOf<String?>(null) }
     // My game, off Profile. Held here because a notification tap opens it.
     var myGameOpen by rememberSaveable { mutableStateOf(false) }
+    // What you owe the club: the card on Home. Held here so switching tabs
+    // shows the last answer at once while it is asked again.
+    val deps = LocalAppDeps.current
+    val dues = remember { DuesViewModel(deps.service<PaymentsApi>()) }
 
     // A notification tap. Lands on My game for the season it is about, as the
     // website's /stats?season=&club= does; the club tab is one tap away.
@@ -199,13 +208,18 @@ fun MainTabScreen(
                         )
                     } else {
                         val state by home.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(Unit) { home.load() }
+                        val owed by dues.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(Unit) {
+                            home.load()
+                            dues.load()
+                        }
                         HomeScreen(
                             name = user?.name,
                             state = state,
                             onOpenShop = { shopOpen = true },
                             onOpenScores = { scoresOpen = true },
                             actions = { HomeActions(offline = state.offline) },
+                            owed = { YouOweCard(owed.dues, onOpen = { navigator.push(DuesRoute()) }) },
                         )
                     }
 

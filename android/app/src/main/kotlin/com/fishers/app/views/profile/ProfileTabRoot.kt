@@ -75,6 +75,10 @@ import com.fishers.app.umpire.PendingUmpireReviewsViewModel
 import com.fishers.app.umpire.UmpireViewModel
 import com.fishers.app.views.nav.LocalAppDeps
 import com.fishers.app.views.nav.LocalNavigator
+import com.fishers.app.views.payments.DuesRoute
+import com.fishers.app.views.payments.YouOweCard
+import com.fishers.app.payments.DuesViewModel
+import com.fishers.app.net.PaymentsApi
 import com.fishers.app.views.onboarding.ShareProfileCard
 import com.fishers.app.views.onboarding.VerifyAccountRoute
 import com.fishers.app.views.safety.BlockedListCard
@@ -171,6 +175,13 @@ fun ProfileTabRoot(
                 ) { ButtonLabel(t("ss.my_game")) }
             }
         }
+
+        // What you owe, what is waiting for the club, and credit — the
+        // Payments section of a profile, there only when there is something.
+        val dues = remember { DuesViewModel(deps.service<PaymentsApi>()) }
+        val owed by dues.state.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { dues.load() }
+        YouOweCard(owed.dues, showSettled = true, onOpen = { nav.push(DuesRoute()) })
 
         if (me == null) {
             if (state.error != null) {

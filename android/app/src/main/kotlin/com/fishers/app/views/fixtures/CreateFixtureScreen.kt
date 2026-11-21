@@ -75,6 +75,11 @@ import com.fishers.app.fixtures.formatDay
 import com.fishers.app.fixtures.formatTime
 import com.fishers.app.i18n.t
 import com.fishers.app.net.FixturesApi
+import com.fishers.app.payments.CostMode
+import com.fishers.app.payments.amountText
+import com.fishers.app.views.payments.AmountField
+import com.fishers.app.views.payments.BigAmountDialog
+import com.fishers.app.views.payments.CostModeChoice
 import com.fishers.app.views.clubs.CreateClubRoute
 import com.fishers.app.views.nav.LocalAppDeps
 import com.fishers.app.views.nav.LocalNavigator
@@ -331,6 +336,27 @@ private fun Form(state: CreateFixtureState, model: CreateFixtureViewModel, modif
             }
         }
 
+        // ---- what it costs, if anything ----
+        Section(t("pay.cost_optional")) {
+            CostModeChoice(
+                mode = state.costMode,
+                onMode = model::setCostMode,
+                offerNone = true,
+                onNone = { model.setCostMode(null) },
+            )
+            state.costMode?.let { mode ->
+                // The club's currency is not known here; the event page shows it.
+                AmountField(
+                    value = state.costAmount,
+                    onValue = model::setCostAmount,
+                    label = if (mode == CostMode.SplitTotal) t("pay.total_cost") else t("pay.each_pays"),
+                    currency = null,
+                    error = state.costProblem,
+                )
+                Hint(if (mode == CostMode.SplitTotal) t("pay.split_hint") else t("pay.each_hint"))
+            }
+        }
+
         // A series that stopped part way: these weeks are made, and trying
         // again sends only the rest.
         if (state.sessionsMade > 0 && state.createdEventId == null) {
@@ -366,6 +392,9 @@ private fun Form(state: CreateFixtureState, model: CreateFixtureViewModel, modif
         }
     }
 
+    state.confirmingCost?.let { cents ->
+        BigAmountDialog(amount = amountText(cents), onYes = model::confirmCost, onNo = model::dismissCostConfirm)
+    }
     if (pickingDate) DayPicker(state.date, onPick = { model.setDate(it); pickingDate = false }, onDismiss = { pickingDate = false })
     if (pickingTime) TimeOfDayPicker(state.time, onPick = { model.setTime(it); pickingTime = false }, onDismiss = { pickingTime = false })
 }

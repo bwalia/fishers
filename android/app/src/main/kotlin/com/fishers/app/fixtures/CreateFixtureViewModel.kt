@@ -6,6 +6,9 @@ import com.fishers.app.clubs.Club
 import com.fishers.app.clubs.Team
 import com.fishers.app.i18n.t
 import com.fishers.app.net.FixturesApi
+import com.fishers.app.payments.CostCheck
+import com.fishers.app.payments.CostMode
+import com.fishers.app.payments.checkCost
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,6 +74,14 @@ data class CreateFixtureState(
     val sessionsMade: Int = 0,
     /** Set once the server has the fixture; the screen becomes it. For a series, the first week. */
     val createdEventId: String? = null,
+    /** What it costs: null for nothing, which is what most fixtures are. */
+    val costMode: CostMode? = null,
+    /** As typed: "60", "7.50". */
+    val costAmount: String = "",
+    /** A fee a head above £100, waiting for "yes, that's right". */
+    val confirmingCost: Long? = null,
+    /** Said yes to this amount; typing a new one asks again. */
+    val costConfirmed: Boolean = false,
 ) {
     val club: Club? get() = clubs.firstOrNull { it.id == clubId }
 
@@ -78,6 +89,22 @@ data class CreateFixtureState(
 
     /** Whoever was picked from the search, else whatever was typed. */
     val theirName: String get() = opponent?.displayName ?: oppositionName.trim()
+
+    /** What is wrong with the cost typed, once something has been typed; null when nothing is. */
+    val costProblem: String?
+        get() {
+            val mode = costMode ?: return null
+            if (costAmount.isBlank()) return null
+            return (checkCost(mode, costAmount) as? CostCheck.Invalid)?.message
+        }
+
+    /** The cost in minor units, when there is one and it is valid. */
+    val costCents: Long?
+        get() = when (val check = costMode?.let { checkCost(it, costAmount) }) {
+            is CostCheck.Ok -> check.cents
+            is CostCheck.Confirm -> check.cents
+            else -> null
+        }
 }
 
 /**
@@ -217,6 +244,25 @@ class CreateFixtureViewModel(
         _state.value = _state.value.copy(weeks = weeks.coerceIn(SERIES_WEEKS))
     }
 
+    /** No cost, a total to split, or the same from everyone. */
+    fun setCostMode(mode: CostMode?) {
+        _state.value = _state.value.copy(costMode = mode, costConfirmed = false, error = null)
+    }
+
+    fun setCostAmount(text: String) {
+        _state.value = _state.value.copy(costAmount = text, costConfirmed = false, error = null)
+    }
+
+    /** "Yes, £150 a head is right": save it. */
+    fun confirmCost() {
+        _state.value = _state.value.copy(confirmingCost = null, costConfirmed = true)
+        save()
+    }
+
+    fun dismissCostConfirm() {
+        _state.value = _state.value.copy(confirmingCost = null)
+    }
+
     /**
      * Who you are playing, typed. A scratch side that is not on the app is
      * only ever a name, and that is fine; one that is gets offered as they
@@ -291,12 +337,24 @@ class CreateFixtureViewModel(
         // Nets have no opposition.
         if (!state.isPractice && state.theirName.isEmpty()) add(t("ev.missing_who"))
         if (!startsAt(state).isAfter(now())) add(t("ev.missing_when"))
+        // A cost chosen and left empty, or typed wrong, is a cost nobody meant.
+        if (state.costMode != null && state.costCents == null) add(t("pay.missing_cost"))
     }
 
     fun save() {
         val s = _state.value
         val club = s.club ?: return
         if (s.isSaving || missing(s).isNotEmpty()) return
+        // Above £100 a head, asked once: a slipped zero is easy to type and
+        // hard to explain to eleven people. The server's limit is the hard stop.
+        val mode = s.costMode
+        if (mode != null && !s.costConfirmed) {
+            val check = checkCost(mode, s.costAmount)
+            if (check is CostCheck.Confirm) {
+                _state.value = s.copy(confirmingCost = check.cents)
+                return
+            }
+        }
         if (s.isPractice) return schedule(s)
         if (s.opponent?.clubId == club.id) {
             _state.value = s.copy(error = t("ld.your_side_and_the_opposition_are_the_s"))
@@ -317,6 +375,8 @@ class CreateFixtureViewModel(
             // A cricket match runs most of an afternoon; nobody wants to type
             // an end time as well.
             endAt = start.plus(MATCH_LENGTH).toString(),
+            costMode = s.costCents?.let { s.costMode?.wire },
+            costAmountCents = s.costCents,
         )
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true, error = null)
@@ -360,6 +420,9 @@ class CreateFixtureViewModel(
                     seriesIndex = week.takeIf { state.repeatWeekly },
                     seriesCount = count.takeIf { state.repeatWeekly },
                 ),
+                // Every week costs the same; each is billed on its own.
+                costMode = state.costCents?.let { state.costMode?.wire },
+                costAmountCents = state.costCents,
             )
         }
     }

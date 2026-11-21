@@ -83,6 +83,13 @@ data class CreateEventBody(
     @SerialName("end_at") val endAt: String,
     /** Nets and training only; a match sends none, as it always has. */
     val metadata: SessionMetadata? = null,
+    /**
+     * What it costs, sent together or not at all: `split_total` (a total shared
+     * by whoever comes) or `per_player`. Every week of a series carries it.
+     */
+    @SerialName("cost_mode") val costMode: String? = null,
+    @SerialName("cost_amount_cents") val costAmountCents: Long? = null,
+    @SerialName("cost_note") val costNote: String? = null,
 )
 
 /**
