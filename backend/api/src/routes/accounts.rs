@@ -15,7 +15,8 @@ use chrono::{NaiveDate, Utc};
 use fishers_db::repos::accounts as repo;
 use fishers_db::repos::accounts::TransactionFilter;
 use fishers_domain::{
-    build_report, fee_category_key, keys, period_label, AcceptPaymentsRequest, AccountCategory,
+    bill_category_key, build_report, fee_category_key, keys, period_label, AcceptPaymentsRequest,
+    AcceptTransfersRequest, AccountCategory, PaidPart, TransferSuggestion,
     AccountPeriod, AccountTransaction, AccountsReport, AuditEntry, CategoryKind,
     CreateCategoryRequest, CreateDebtRequest, CreateMoneyAccountRequest, CreatePeriodRequest,
     CreateStockItemRequest, CreateTransactionRequest, DebtPosition, DebtSettlement, EntryKind,
@@ -51,6 +52,7 @@ pub fn router() -> Router<AppState> {
         .route("/clubs/{id}/accounts/periods/{pid}/debts", get(list_debts))
         .route("/clubs/{id}/accounts/periods/{pid}/suggestions", get(suggestions))
         .route("/clubs/{id}/accounts/periods/{pid}/accept-payments", post(accept_payments))
+        .route("/clubs/{id}/accounts/periods/{pid}/accept-transfers", post(accept_transfers))
         .route("/clubs/{id}/accounts/periods/{pid}/raise-unpaid-fees", post(raise_unpaid_fees))
         .route("/clubs/{id}/accounts/periods/{pid}/stock", get(list_stock))
         .route("/clubs/{id}/accounts/periods/{pid}/money", get(list_money_positions))
@@ -1126,8 +1128,175 @@ async fn void_settlement(
 struct Suggestions {
     /// Fees paid in the app, not yet in the books.
     payments: Vec<PaymentSuggestion>,
+    /// Payments by bank transfer and cash the treasurer ticked, not yet in the books.
+    transfers: Vec<TransferSuggestion>,
     /// Fees still unpaid for fixtures played in the year.
     unpaid_fees: Vec<UnpaidFee>,
+}
+
+/// What each ticked transfer or cash payment paid for, and so the income line
+/// it belongs on: the shares it paid, oldest first, in the order payments
+/// were ticked. A payment that paid several kinds goes on the line it paid
+/// most of; money beyond every share (credit) goes on miscellaneous.
+async fn transfer_suggestions(
+    state: &AppState,
+    club_id: Uuid,
+    from: chrono::NaiveDate,
+    until: chrono::NaiveDate,
+) -> ApiResult<Vec<TransferSuggestion>> {
+    use fishers_db::repos::club_payments::{self as payments_repo, Payer};
+    let rows = repo::transfers_to_book(&state.pool, club_id, from, until).await?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (shares, _) = payments_repo::ledger(&state.pool, club_id, None).await?;
+    let confirmed = repo::confirmed_in_order(&state.pool, club_id).await?;
+    let event_ids: Vec<Uuid> = shares.iter().filter_map(|s| s.event_id).collect();
+    let subtypes = repo::event_subtypes(&state.pool, &event_ids).await?;
+    let mut paid: std::collections::HashMap<Uuid, Vec<(Uuid, i64)>> = std::collections::HashMap::new();
+    let payers: std::collections::HashSet<Payer> =
+        rows.iter().map(|r| Payer::of(r.user_id, r.guest_name.as_deref())).collect();
+    for payer in payers {
+        let mine: Vec<_> = shares.iter().filter(|s| s.payer() == payer).map(|s| s.ledger()).collect();
+        let theirs: Vec<(Uuid, i64)> = confirmed
+            .iter()
+            .filter(|(_, u, g, _)| Payer::of(*u, g.as_deref()) == payer)
+            .map(|(id, _, _, amount)| (*id, *amount))
+            .collect();
+        paid.extend(fishers_domain::money::allocate(&mine, &theirs));
+    }
+    let by_id: std::collections::HashMap<Uuid, &payments_repo::ShareRow> = shares.iter().map(|s| (s.id, s)).collect();
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let lines = paid.get(&r.id).cloned().unwrap_or_default();
+            let mut per_key: Vec<(&'static str, i64)> = Vec::new();
+            let mut paid_for: Vec<String> = Vec::new();
+            let mut parts: Vec<PaidPart> = Vec::new();
+            for (share_id, cents) in &lines {
+                let Some(share) = by_id.get(share_id) else { continue };
+                let subtype = share.event_id.and_then(|e| subtypes.get(&e)).map(String::as_str);
+                let key = bill_category_key(&share.kind, subtype);
+                match per_key.iter_mut().find(|(k, _)| *k == key) {
+                    Some((_, total)) => *total += cents,
+                    None => per_key.push((key, *cents)),
+                }
+                if !paid_for.contains(&share.title) {
+                    paid_for.push(share.title.clone());
+                }
+                match parts.iter_mut().find(|p| p.title == share.title) {
+                    Some(p) => p.amount_cents += cents,
+                    None => parts.push(PaidPart { title: share.title.clone(), amount_cents: *cents }),
+                }
+            }
+            let allocated: i64 = lines.iter().map(|(_, c)| c).sum();
+            if allocated < r.amount_cents {
+                match per_key.iter_mut().find(|(k, _)| *k == keys::MISC) {
+                    Some((_, total)) => *total += r.amount_cents - allocated,
+                    None => per_key.push((keys::MISC, r.amount_cents - allocated)),
+                }
+            }
+            let category_key = per_key.iter().max_by_key(|(_, c)| *c).map(|(k, _)| *k).unwrap_or(keys::MISC);
+            TransferSuggestion {
+                payment_id: r.id,
+                paid_on: r.paid_on,
+                amount_cents: r.amount_cents,
+                currency: r.currency,
+                method: r.method,
+                member_id: r.user_id,
+                member_name: r.name,
+                category_key: category_key.to_string(),
+                paid_for,
+                parts,
+            }
+        })
+        .collect())
+}
+
+#[derive(Serialize)]
+struct AcceptTransfersOutcome {
+    posted: usize,
+    /// Not in the books' year, taken in already, or cash with no cash account given.
+    skipped: Vec<Uuid>,
+}
+
+/// Take ticked transfer and cash payments into the books: each on the line it
+/// paid for, into the bank or the cash tin. Nothing posts without this, and a
+/// payment is only ever taken in once.
+async fn accept_transfers(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((club_id, pid)): Path<(Uuid, Uuid)>,
+    Json(body): Json<AcceptTransfersRequest>,
+) -> ApiResult<Json<AcceptTransfersOutcome>> {
+    require_accounts_access(&state, club_id, auth.user_id).await?;
+    let period = period_or_404(&state, club_id, pid).await?;
+    ensure_open(&period)?;
+    check_money_account(&state, club_id, body.bank_account_id).await?;
+    if let Some(cash) = body.cash_account_id {
+        check_money_account(&state, club_id, cash).await?;
+    }
+    let wanted: std::collections::HashSet<Uuid> = body.payment_ids.iter().copied().collect();
+    let suggestions = transfer_suggestions(&state, club_id, period.starts_on, period.ends_on).await?;
+    let mut out = AcceptTransfersOutcome { posted: 0, skipped: Vec::new() };
+    let found: std::collections::HashSet<Uuid> = suggestions.iter().map(|s| s.payment_id).collect();
+    out.skipped.extend(wanted.iter().filter(|id| !found.contains(id)));
+    let mut tx = state.pool.begin().await?;
+    for s in suggestions.into_iter().filter(|s| wanted.contains(&s.payment_id)) {
+        let account = match (s.method.as_str(), body.cash_account_id) {
+            ("cash", Some(cash)) => cash,
+            ("cash", None) => {
+                out.skipped.push(s.payment_id);
+                continue;
+            }
+            _ => body.bank_account_id,
+        };
+        let category = if s.category_key == keys::SUBS {
+            repo::ensure_subs_category(&mut tx, club_id).await?
+        } else {
+            repo::category_by_key(&mut tx, club_id, CategoryKind::Income.as_str(), &s.category_key)
+                .await?
+                .ok_or_else(|| ApiError::conflict(format!("the club has no income line for {}", s.category_key)))?
+        };
+        let description = match s.paid_for.as_slice() {
+            [] => format!("Paid ahead by {}", s.member_name),
+            [one] => one.clone(),
+            [first, rest @ ..] => format!("{first} and {} more", rest.len()),
+        };
+        let line = CreateTransactionRequest {
+            occurred_on: s.paid_on,
+            kind: EntryKind::Income,
+            category_id: Some(category.id),
+            money_account_id: Some(account),
+            amount_cents: s.amount_cents,
+            description,
+            counterparty: Some(s.member_name.clone()),
+            member_id: s.member_id,
+            event_id: None,
+            // What it paid, so a payment covering a session and a pass can
+            // be split by hand if the treasurer wants it on two lines.
+            note: Some({
+                let how = if s.method == "cash" { "Paid in cash" } else { "Paid by bank transfer" };
+                let what: Vec<String> = s
+                    .parts
+                    .iter()
+                    .map(|p| format!("{} {}", p.title, fishers_domain::money::fmt_money(p.amount_cents, &s.currency)))
+                    .collect();
+                if what.len() > 1 { format!("{how}: {}", what.join(", ")) } else { how.to_string() }
+            }),
+            receipt_url: None,
+            extraordinary: false,
+            authorised_on: None,
+            authorisation_ref: None,
+        };
+        repo::insert_transaction(&mut tx, club_id, pid, &line, Some(("member_payment", s.payment_id)), auth.user_id)
+            .await?;
+        out.posted += 1;
+    }
+    repo::audit(&mut tx, club_id, auth.user_id, "accept_transfers", "period", Some(pid), None,
+        Some(json!({ "payment_ids": body.payment_ids, "posted": out.posted }))).await?;
+    tx.commit().await?;
+    Ok(Json(out))
 }
 
 async fn suggestions(
@@ -1139,6 +1308,7 @@ async fn suggestions(
     let p = period_or_404(&state, club_id, pid).await?;
     Ok(Json(Suggestions {
         payments: repo::payment_suggestions(&state.pool, club_id, p.starts_on, p.ends_on).await?,
+        transfers: transfer_suggestions(&state, club_id, p.starts_on, p.ends_on).await?,
         unpaid_fees: repo::unpaid_fees(&state.pool, club_id, p.starts_on, p.ends_on).await?,
     }))
 }

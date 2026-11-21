@@ -307,6 +307,34 @@ pub fn settle(shares: &[LedgerShare], payments: &[LedgerPayment]) -> Settlement 
     out
 }
 
+/// Which shares each confirmed payment paid: shares oldest first, payments in
+/// the order given (the order they were made). For saying what a payment was
+/// for — the line it goes on in the club's books — never for what is owed,
+/// which [`settle`] decides. Money beyond every share is left unallocated.
+pub fn allocate(shares: &[LedgerShare], payments: &[(Uuid, i64)]) -> HashMap<Uuid, Vec<(Uuid, i64)>> {
+    let mut ordered: Vec<&LedgerShare> = shares.iter().collect();
+    ordered.sort_by(|a, b| a.issued_at.cmp(&b.issued_at).then(a.id.cmp(&b.id)));
+    let mut left: Vec<i64> = ordered.iter().map(|s| s.amount_cents.max(0)).collect();
+    let mut at = 0;
+    let mut out: HashMap<Uuid, Vec<(Uuid, i64)>> = HashMap::new();
+    for (payment, amount) in payments {
+        let mut money = (*amount).max(0);
+        let lines = out.entry(*payment).or_default();
+        while money > 0 && at < ordered.len() {
+            let take = money.min(left[at]);
+            if take > 0 {
+                lines.push((ordered[at].id, take));
+                money -= take;
+                left[at] -= take;
+            }
+            if left[at] == 0 {
+                at += 1;
+            }
+        }
+    }
+    out
+}
+
 // MARK: references
 
 /// The longest base a reference is built from, leaving room for " 99".
@@ -976,5 +1004,20 @@ mod tests {
         assert!(!same_person("Riverside CC", "Aman Gill"));
         assert!(!same_person("Gill", "Aman Gill"));
         assert!(!same_person("", "Aman Gill"));
+    }
+    #[test]
+    fn allocate_pays_oldest_shares_first_in_payment_order() {
+        let t = |h: i64| Utc::now() - chrono::Duration::hours(h);
+        let (a, b, c) = (Uuid::from_bytes([1; 16]), Uuid::from_bytes([2; 16]), Uuid::from_bytes([3; 16]));
+        let shares = vec![
+            LedgerShare { id: b, amount_cents: 600, issued_at: t(1) },
+            LedgerShare { id: a, amount_cents: 500, issued_at: t(5) },
+        ];
+        let (p1, p2, p3) = (Uuid::from_bytes([11; 16]), Uuid::from_bytes([12; 16]), Uuid::from_bytes([13; 16]));
+        let got = allocate(&shares, &[(p1, 700), (p2, 300), (p3, 900)]);
+        assert_eq!(got[&p1], vec![(a, 500), (b, 200)]);
+        assert_eq!(got[&p2], vec![(b, 300)]);
+        assert_eq!(got[&p3], vec![(b, 100)], "the rest is credit, unallocated");
+        let _ = c;
     }
 }
