@@ -164,7 +164,11 @@ enum ShareState: LenientState {
 
     /// Short, for a badge beside a name in a list.
     var shortLabel: String {
-        self == .waiting ? tr("Waiting to confirm") : label
+        switch self {
+        case .waiting: return tr("Waiting to confirm")
+        case .covered: return tr("Covered")
+        default: return label
+        }
     }
 
     /// Money still to come from this person for this share.
@@ -554,24 +558,34 @@ struct ClubDues: Codable, Identifiable, Equatable {
 /// `GET /me/dues`.
 struct MyDues: Codable, Equatable {
     let clubs: [ClubDues]
+    /// Whoever the reader pays for (a parent's juniors), club by club.
+    let people: [PersonDues]
 
-    init(clubs: [ClubDues]) { self.clubs = clubs }
+    init(clubs: [ClubDues], people: [PersonDues] = []) {
+        self.clubs = clubs
+        self.people = people
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         clubs = try c.decodeIfPresent([ClubDues].self, forKey: .clubs) ?? []
+        // Somebody this build can't read is no reason to lose your own dues.
+        people = (try? c.decodeIfPresent([PersonDues].self, forKey: .people)) ?? []
     }
 
-    enum CodingKeys: String, CodingKey { case clubs }
+    enum CodingKeys: String, CodingKey { case clubs, people }
 
     /// Clubs with something still to pay, which is what the card is about.
     var owing: [ClubDues] { clubs.filter { $0.owedCents > 0 } }
 
     /// "£15.00", or one amount per currency when clubs differ: adding pounds
-    /// to rupees would be a number that means nothing.
+    /// to rupees would be a number that means nothing. What the people the
+    /// reader pays for owe is in it: the reader pays it.
     var owedSummary: String? {
-        let totals = Dictionary(grouping: owing, by: \.currency)
-            .map { (currency: $0.key, minor: $0.value.reduce(0) { $0 + $1.owedCents }) }
+        let lines = owing.map { (currency: $0.currency, minor: $0.owedCents) }
+            + people.filter { $0.dues.owedCents > 0 }.map { (currency: $0.dues.currency, minor: $0.dues.owedCents) }
+        let totals = Dictionary(grouping: lines, by: \.currency)
+            .map { (currency: $0.key, minor: $0.value.reduce(0) { $0 + $1.minor }) }
             .sorted { $0.currency < $1.currency }
         guard !totals.isEmpty else { return nil }
         return totals.map { Money.format($0.minor, $0.currency) }.joined(separator: " + ")
@@ -1072,9 +1086,11 @@ struct EventBillPage: Codable, Equatable {
     let guests: [String]
     let hasPayoutAccount: Bool
     let roundSharesUp: Bool
+    /// The session's own prices for juniors and others, where they differ.
+    let prices: [TypePrice]
 
     enum CodingKeys: String, CodingKey {
-        case title, cost, bill, shares, candidates, guests
+        case title, cost, bill, shares, candidates, guests, prices
         case eventId = "event_id"
         case clubId = "club_id"
         case endAt = "end_at"
@@ -1101,6 +1117,7 @@ struct EventBillPage: Codable, Equatable {
         guests = try c.decodeIfPresent([String].self, forKey: .guests) ?? []
         hasPayoutAccount = try c.decodeIfPresent(Bool.self, forKey: .hasPayoutAccount) ?? false
         roundSharesUp = try c.decodeIfPresent(Bool.self, forKey: .roundSharesUp) ?? false
+        prices = (try? c.decodeIfPresent([TypePrice].self, forKey: .prices)) ?? []
     }
 
     /// Whether this person has anything to see here at all. A member at an
@@ -1125,11 +1142,22 @@ struct BillPreview: Codable, Equatable {
         let userId: UUID?
         let name: String
         let amountCents: Int
+        /// Why they owe nothing ("Covered by Monthly nets", "Free: Coach"),
+        /// or nil.
+        let covered: String?
 
         enum CodingKeys: String, CodingKey {
-            case name
+            case name, covered
             case userId = "user_id"
             case amountCents = "amount_cents"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            userId = try c.decodeIfPresent(UUID.self, forKey: .userId)
+            name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+            amountCents = try c.decodeIfPresent(Int.self, forKey: .amountCents) ?? 0
+            covered = try? c.decodeIfPresent(String.self, forKey: .covered)
         }
     }
 
@@ -1144,18 +1172,23 @@ struct BillPreview: Codable, Equatable {
         case surplusCents = "surplus_cents"
     }
 
+    /// Covered by a pass or a free price: on the bill, owing nothing.
+    var coveredLines: [Line] { shares.filter { $0.covered != nil } }
+
     /// "4 people · £20.00 in all · £5.00 each", or "… · 6 pay £6.67 · 3 pay
-    /// £6.66" when the pennies don't divide.
+    /// £6.66" when the pennies don't divide, and "· 1 covered" for anybody
+    /// a pass or a free price covers.
     var summary: String {
         let total = Money.format(totalCents, currency)
         let people = shares.count == 1
             ? tr("{n} person · {total} in all", vars: ["n": 1, "total": total])
             : tr("{n} people · {total} in all", vars: ["n": shares.count, "total": total])
+        let covered = coveredLines.isEmpty ? [] : [tr("{n} covered", vars: ["n": coveredLines.count])]
         // Each distinct amount, the bigger first, with how many pay it.
-        let groups = Dictionary(grouping: shares.map(\.amountCents), by: { $0 })
+        let groups = Dictionary(grouping: shares.filter { $0.covered == nil }.map(\.amountCents), by: { $0 })
             .map { (amount: $0.key, count: $0.value.count) }
             .sorted { $0.amount > $1.amount }
-        guard !groups.isEmpty else { return people }
+        guard !groups.isEmpty else { return ([people] + covered).joined(separator: " · ") }
         let parts = groups.count == 1
             ? [tr("{amount} each", vars: ["amount": Money.format(groups[0].amount, currency)])]
             : groups.map { group in
@@ -1163,7 +1196,7 @@ struct BillPreview: Codable, Equatable {
                     ? tr("{n} pays {amount}", vars: ["n": 1, "amount": Money.format(group.amount, currency)])
                     : tr("{n} pay {amount}", vars: ["n": group.count, "amount": Money.format(group.amount, currency)])
             }
-        return ([people] + parts).joined(separator: " · ")
+        return ([people] + parts + covered).joined(separator: " · ")
     }
 }
 
@@ -1189,6 +1222,7 @@ extension APIError {
         return [
             "version_conflict", "already_billed", "already_decided", "nothing_owed",
             "no_bill", "not_live", "not_frozen", "already_retired", "not_freezable",
+            "already_on_pass", "already_cancelled",
         ].contains(code)
     }
 }

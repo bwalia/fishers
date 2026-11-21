@@ -1,0 +1,31 @@
+{
+  "shares": [
+    {
+      "user_id": "461ac7a0-c62f-4c92-a5ff-1f834fb180f7",
+      "name": "Jas Gill",
+      "amount_cents": 300,
+      "covered": null
+    },
+    {
+      "user_id": "f8770d5a-e87c-4344-a8cb-759f83589409",
+      "name": "Ravi Sharma",
+      "amount_cents": 600,
+      "covered": null
+    },
+    {
+      "user_id": "4c4b0c37-e697-48e6-b36f-aaba206df596",
+      "name": "Tom Bennett",
+      "amount_cents": 600,
+      "covered": "Free: Coach"
+    },
+    {
+      "user_id": null,
+      "name": "Gary Guest",
+      "amount_cents": 800,
+      "covered": null
+    }
+  ],
+  "total_cents": 1700,
+  "surplus_cents": 0,
+  "currency": "GBP"
+}

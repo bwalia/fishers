@@ -1,0 +1,52 @@
+{
+  "payments": [
+    {
+      "id": "c9975923-ea75-437b-a943-349a6e280dcb",
+      "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+      "user_id": "461ac7a0-c62f-4c92-a5ff-1f834fb180f7",
+      "guest_name": null,
+      "name": "Jas Gill",
+      "amount_cents": 900,
+      "currency": "GBP",
+      "method": "transfer",
+      "reference": "GILL",
+      "payout_account_id": "cfe78b48-3f25-44d4-9b67-d655de499b6b",
+      "status": "claimed",
+      "note": "Paid by Neha Gill",
+      "created_by": "0cca3ac7-0a87-4153-873e-9c730a08c2d0",
+      "created_at": "2026-11-21T19:46:33.053175Z",
+      "decided_by": null,
+      "decided_by_name": null,
+      "decided_at": null,
+      "decision_reason": null,
+      "share_id": null,
+      "via_link": null,
+      "has_screenshot": false
+    },
+    {
+      "id": "2ba39901-19f5-4195-85ba-33ca4bbd38c8",
+      "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+      "user_id": "7cc084d9-f373-4722-8ac4-072c4b4f7c97",
+      "guest_name": null,
+      "name": "Arjun Gill",
+      "amount_cents": 600,
+      "currency": "GBP",
+      "method": "transfer",
+      "reference": "GILL",
+      "payout_account_id": "cfe78b48-3f25-44d4-9b67-d655de499b6b",
+      "status": "claimed",
+      "note": "Paid by Neha Gill",
+      "created_by": "0cca3ac7-0a87-4153-873e-9c730a08c2d0",
+      "created_at": "2026-11-21T19:46:33.053175Z",
+      "decided_by": null,
+      "decided_by_name": null,
+      "decided_at": null,
+      "decision_reason": null,
+      "share_id": null,
+      "via_link": null,
+      "has_screenshot": false
+    }
+  ],
+  "total_cents": 1500,
+  "reference": "GILL"
+}

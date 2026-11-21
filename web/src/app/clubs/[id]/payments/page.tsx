@@ -30,6 +30,7 @@ import {
   type Confirmed,
 } from "@/lib/payments";
 import { BankDetailsForm } from "@/components/BankDetailsForm";
+import { MoneyNav } from "@/components/MoneyAdmin";
 import { SetupWizard, UsualPrices, needsSetup, setupPutOff, setupPutOffKey } from "@/components/PaySetup";
 import { ReasonForm } from "@/components/ReasonForm";
 import { useRequireAuth } from "@/lib/require-auth";
@@ -166,6 +167,8 @@ export default function ClubPaymentsPage() {
           <div className="stat-value num">{money(overview.totals.credit_cents, cur)}</div>
         </div>
       </div>
+
+      <MoneyNav clubId={clubId} />
 
       <BankDetailsCard
         clubId={clubId}

@@ -83,7 +83,7 @@ val MoneyOverview.needsSetup: Boolean
  */
 class ClubMoneyViewModel(
     private val api: PaymentsApi,
-    private val clubId: String,
+    val clubId: String,
     private val keys: AttemptKeys = AttemptKeys(),
     /** How long the settings wait for the taps to stop before they save. */
     private val saveDelayMs: Long = 600,

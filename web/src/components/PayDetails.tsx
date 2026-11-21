@@ -53,17 +53,8 @@ export function PayDetails({
       )}
 
       <dl className="pay-details pay-rows">
-        <Row term={t("pw2.row_name")} value={account.holder_name} what={t("pw2.what_name")} />
-        {/* Copied as six digits: some banking apps take nothing else in a
-            six-character box, and "40-11-22" would arrive as "40-11-". */}
-        <Row
-          term={t("pay.sort_code")}
-          value={account.sort_code}
-          copy={account.sort_code.replace(/\D/g, "")}
-          what={t("pw2.what_sort_code")}
-        />
-        <Row term={t("pay.account_number")} value={account.account_number} what={t("pw2.what_account_number")} />
-        <Row term={t("pw2.row_reference")} value={reference} what={t("pw2.what_reference")} />
+        <PayeeRows account={account} />
+        <PayRow term={t("pw2.row_reference")} value={reference} what={t("pw2.what_reference")} />
       </dl>
 
       {before && <p className="pay-usual">{t("pw2.pay_as_usual", { name: checker(account) ?? account.holder_name })}</p>}
@@ -94,8 +85,28 @@ export function PayDetails({
   );
 }
 
+/// Who to pay: the name, sort code and account number, each with Copy. Shared
+/// with the standing-order card, which needs the same three.
+export function PayeeRows({ account }: { account: BankDetails }) {
+  const t = useT();
+  return (
+    <>
+      <PayRow term={t("pw2.row_name")} value={account.holder_name} what={t("pw2.what_name")} />
+      {/* Copied as six digits: some banking apps take nothing else in a
+          six-character box, and "40-11-22" would arrive as "40-11-". */}
+      <PayRow
+        term={t("pay.sort_code")}
+        value={account.sort_code}
+        copy={account.sort_code.replace(/\D/g, "")}
+        what={t("pw2.what_sort_code")}
+      />
+      <PayRow term={t("pay.account_number")} value={account.account_number} what={t("pw2.what_account_number")} />
+    </>
+  );
+}
+
 /// One line: what it is, the value, and its Copy button.
-function Row({ term, value, what, copy }: { term: string; value: string; what: string; copy?: string }) {
+export function PayRow({ term, value, what, copy }: { term: string; value: string; what: string; copy?: string }) {
   return (
     <div className="pay-detail">
       <dt>{term}</dt>
@@ -125,10 +136,6 @@ export function SendDetails({
   title: string;
 }) {
   const t = useT();
-  const [canShare, setCanShare] = useState(false);
-  const [said, setSaid] = useState<string | null>(null);
-  useEffect(() => setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function"), []);
-
   const text = [
     t("pw2.send_details_line", { amount: money(amountCents, currency), title }),
     `${t("pw2.row_name")}: ${account.holder_name}`,
@@ -136,6 +143,23 @@ export function SendDetails({
     `${t("pay.account_number")}: ${account.account_number}`,
     `${t("pay.reference")}: ${reference}`,
   ].join("\n");
+  return (
+    <SendText
+      title={t("pw2.send_details")}
+      help={t("pw2.send_details_help")}
+      button={t("pw2.send_details_button")}
+      text={text}
+    />
+  );
+}
+
+/// A block of text for somebody else to act on, sent from the phone's share
+/// sheet, or copied where there is none.
+export function SendText({ title, help, button, text }: { title: string; help: string; button: string; text: string }) {
+  const t = useT();
+  const [canShare, setCanShare] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  useEffect(() => setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function"), []);
 
   const share = async () => {
     setSaid(null);
@@ -150,11 +174,11 @@ export function SendDetails({
 
   return (
     <div className="pay-send">
-      <h3 className="pay-send-title">{t("pw2.send_details")}</h3>
-      <p className="muted">{t("pw2.send_details_help")}</p>
+      <h3 className="pay-send-title">{title}</h3>
+      <p className="muted">{help}</p>
       {canShare ? (
         <button className="btn" type="button" onClick={() => void share()}>
-          <Icon name="share" size={18} /> {t("pw2.send_details_button")}
+          <Icon name="share" size={18} /> {button}
         </button>
       ) : (
         <CopyButton text={text} what={t("pay.all_the_details")} label={t("pw2.copy_all_details")} />

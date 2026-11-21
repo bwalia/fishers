@@ -198,6 +198,11 @@ struct AppNotification: Codable, Identifiable, Equatable {
         switch type {
         case "fee_reminder", "payment_confirmed", "payment_rejected":
             return .payScreen(clubId)
+        // A pass or a group fee is about the reader's own money (or that of
+        // somebody they pay for): their pay screen, whatever their role.
+        case "pass_started", "pass_charge", "pass_behind", "pass_cancelled", "pass_sessions_left",
+             "pass_price_changed", "collection_issued":
+            return .payScreen(clubId)
         case "payment_claimed", "payments_to_check", "payout_details_changed", "payout_details_frozen":
             return .overview(clubId)
         default:

@@ -11,10 +11,11 @@
 /// of still renders under its own name rather than breaking the screen.
 
 import { useRef } from "react";
-import { api, apiV1, usableToken } from "./api";
+import { api, apiV1, money, usableToken } from "./api";
 import type { T } from "./i18n";
 import type { Key } from "./i18n/en";
 import { firstName, fingerprint, fitWithin } from "./pay-link";
+import { longDay, shortDay } from "./passes";
 import { randomUUID } from "./uuid";
 
 /// `owed`, `part_paid`, `waiting` (somebody said they paid; not confirmed),
@@ -55,7 +56,18 @@ export type ClubDues = {
   shares: Share[];
 };
 
-export type Dues = { clubs: ClubDues[] };
+/// Somebody you pay for (a parent's junior), and what they owe one club.
+export type PersonDues = {
+  user_id: string;
+  name: string;
+  /// Has no sign-in of their own: a junior added by name.
+  managed: boolean;
+  club_id: string;
+  dues: ClubDues;
+};
+
+/// `people` is missing from APIs older than passes (step B).
+export type Dues = { clubs: ClubDues[]; people?: PersonDues[] };
 
 /// The full details, shown only to somebody who owes the club, or its admins.
 export type BankDetails = {
@@ -272,10 +284,18 @@ export type BillResponse = {
   guests: string[];
   has_payout_account: boolean;
   round_shares_up: boolean;
+  /// The session's own prices for juniors, guests and so on. Older APIs leave
+  /// it out.
+  prices?: TypePrice[];
 };
 
+/// One group's price for one session: "Junior £3".
+export type TypePrice = { price_type_id: string; name: string; amount_cents: number };
+
 export type Preview = {
-  shares: { user_id: string | null; name: string; amount_cents: number }[];
+  /// `covered` is why somebody owes nothing ("Covered by Monthly nets",
+  /// "Free: Coach"), or null.
+  shares: { user_id: string | null; name: string; amount_cents: number; covered?: string | null }[];
   total_cents: number;
   surplus_cents: number;
   currency: string;
@@ -329,6 +349,22 @@ export function toAmount(cents: number): string {
 export function shareDate(s: { event_start_at?: string | null; due_on?: string | null }): string {
   const when = s.event_start_at || s.due_on;
   return when ? shortDate(when) : "";
+}
+
+/// When a line is for, in words: a session's day, or "by Sun 6 Dec" for a
+/// pass charge or group fee with a due date. A line that is not a session and
+/// has no due date says nothing — its own date is only when it was sent.
+export function shareWhen(s: Pick<Share, "kind" | "event_start_at" | "due_on">, t: T): string {
+  if (s.kind && s.kind !== "event") return s.due_on ? t("pw3.by_date", { date: shortDay(s.due_on) }) : "";
+  return s.event_start_at ? shortDate(s.event_start_at) : "";
+}
+
+/// The badge on a line. A covered one says why, in the server's words
+/// ("Covered by Monthly nets", "Free: Coach"), with a tick: there is nothing
+/// to pay and nothing to tap.
+export function shareTag(s: Pick<Share, "state" | "reason">, t: T): string {
+  if (s.state === "covered") return `${s.reason || t("pw2.state_covered")} ✓`;
+  return shareStateLabel(s.state, t);
 }
 
 /// "Fri 20 Nov".
@@ -444,6 +480,205 @@ export type CashRecorded = { recorded: number; total_cents: number; received: bo
 
 /// `POST /clubs/{id}/payments/confirm`.
 export type Confirmed = { confirmed: number; skipped: number };
+
+// MARK: passes, prices by group, group fees, paying for others (steps B and C)
+
+/// A group with its own price: juniors, students, guests, coaches.
+export type PriceType = {
+  id: string;
+  club_id: string;
+  name: string;
+  /// Owes nothing at a session: coaches, say.
+  free: boolean;
+  /// The price a guest added by name pays.
+  for_guests: boolean;
+  sort_order: number;
+  archived_at: string | null;
+};
+
+/// `up_to_date`, `behind` (a payment late, still covering) or `suspended`
+/// (not covering until paid up).
+export type PassStanding = string;
+
+/// Somebody on a pass.
+export type PassHolder = {
+  id: string;
+  plan_id: string;
+  club_id: string;
+  user_id: string;
+  name: string;
+  started_on: string;
+  /// The last day it covers, once cancelled or ended.
+  ends_on: string | null;
+  cancelled_at: string | null;
+  /// Covers however far behind, because an admin said so.
+  keep_covering: boolean;
+  plan_name: string;
+  /// `once`, `monthly` or `instalments`.
+  billing: string;
+  standing: PassStanding;
+  /// A card's sessions left, where it has a number.
+  sessions_left: number | null;
+  /// Covers sessions today.
+  running: boolean;
+  next_charge_on: string | null;
+};
+
+/// A pass the club offers.
+export type PassPlan = {
+  id: string;
+  club_id: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  billing: string;
+  instalments: number | null;
+  /// Session kinds: `nets`, `training`, `friendly`, `league_match`,
+  /// `tournament`, `social`. Empty for a membership.
+  covers: string[];
+  team_id: string | null;
+  valid_until: string | null;
+  sessions: number | null;
+  /// Only for members in this group.
+  price_type_id: string | null;
+  /// Players may get it themselves; otherwise the secretary adds them.
+  open_to_join: boolean;
+  created_at: string;
+  archived_at: string | null;
+  /// One payment: the price, or one part of it.
+  charge_cents: number;
+  holders: number;
+  /// Your own running pass on it.
+  mine: PassHolder | null;
+};
+
+/// Exactly what to type into a banking app for a monthly pass.
+export type StandingOrder = {
+  amount_cents: number;
+  /// "month".
+  every: string;
+  first_payment_on: string;
+  reference: string;
+};
+
+/// `GET /me/passes`: yours, and those of people you pay for.
+export type MyPass = PassHolder & {
+  club_name: string;
+  charge_cents: number;
+  currency: string;
+  standing_order: StandingOrder | null;
+};
+
+/// A group fee: a bill not tied to a session.
+export type GroupFee = {
+  id: string;
+  event_id: string | null;
+  club_id: string;
+  title: string;
+  event_start_at: string;
+  mode: CostMode;
+  amount_cents: number;
+  total_cents: number;
+  currency: string;
+  /// `issued` or `void`.
+  status: string;
+  note: string | null;
+  issued_at: string;
+  void_reason: string | null;
+  due_on: string | null;
+  paid_cents: number;
+  waiting_cents: number;
+  owed_cents: number;
+  people: number;
+  /// Everyone's for an admin; empty in the list.
+  shares: Share[];
+};
+
+/// `POST /clubs/{id}/payments/for-others`.
+export type ForOthers = { payments: Payment[]; total_cents: number; reference: string | null };
+
+/// One club's money: yours, and that of anybody you pay for there. A parent
+/// who was never billed themselves still gets the club, for their juniors.
+export type ClubBlock = {
+  club_id: string;
+  club_name: string;
+  currency: string;
+  mine: ClubDues | null;
+  people: PersonDues[];
+};
+
+export function clubBlocks(dues: Dues): ClubBlock[] {
+  const out = new Map<string, ClubBlock>();
+  for (const c of dues.clubs) {
+    out.set(c.club_id, { club_id: c.club_id, club_name: c.club_name, currency: c.currency, mine: c, people: [] });
+  }
+  for (const p of dues.people ?? []) {
+    const block = out.get(p.club_id) ?? {
+      club_id: p.club_id,
+      club_name: p.dues.club_name,
+      currency: p.dues.currency,
+      mine: null,
+      people: [],
+    };
+    block.people.push(p);
+    out.set(p.club_id, block);
+  }
+  return [...out.values()];
+}
+
+/// What a club block comes to: yours plus everyone you pay for there.
+export function blockOwed(b: ClubBlock): number {
+  return (b.mine?.owed_cents ?? 0) + b.people.reduce((sum, p) => sum + Math.max(0, p.dues.owed_cents), 0);
+}
+
+const COVERS: Record<string, Key> = {
+  nets: "pw3.kind_nets",
+  training: "pw3.kind_training",
+  friendly: "pw3.kind_friendly",
+  league_match: "pw3.kind_league_match",
+  tournament: "pw3.kind_tournament",
+  social: "pw3.kind_social",
+};
+
+/// "nets and training", "nets, friendlies and league matches".
+export function listWords(items: string[], t: T): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return t("pw3.list_and", { a: items.slice(0, -1).join(", "), b: items[items.length - 1] });
+}
+
+export function kindWord(kind: string, t: T): string {
+  return COVERS[kind] ? t(COVERS[kind]) : kind.replaceAll("_", " ");
+}
+
+/// "£20.00 a month", "£60.00 once", "£120.00 in 3 parts of £40.00".
+export function passPrice(p: Pick<PassPlan, "billing" | "price_cents" | "charge_cents" | "instalments" | "currency">, t: T): string {
+  const amount = money(p.price_cents, p.currency);
+  if (p.billing === "monthly") return t("pw3.price_month", { amount: money(p.charge_cents, p.currency) });
+  if (p.billing === "instalments" && p.instalments) {
+    return t("pw3.price_parts", { amount, n: p.instalments, part: money(p.charge_cents, p.currency) });
+  }
+  return t("pw3.price_once", { amount });
+}
+
+/// "Covers nets and training", "Covers nets until 31 Mar 2027", "Covers
+/// nets, for 10 sessions", or "Club membership" when it covers no sessions.
+export function passCovers(p: Pick<PassPlan, "covers" | "valid_until" | "sessions">, t: T): string {
+  if (p.covers.length === 0) {
+    return p.valid_until ? t("pw3.membership_until", { date: longDay(p.valid_until) }) : t("pw3.membership_only");
+  }
+  const what = listWords(p.covers.map((c) => kindWord(c, t)), t);
+  if (p.sessions) return t("pw3.covers_sessions", { what, count: p.sessions, n: p.sessions });
+  if (p.valid_until) return t("pw3.covers_until", { what, date: longDay(p.valid_until) });
+  return t("pw3.covers", { what });
+}
+
+/// How a pass stands, to the club's money admins.
+export function standingWord(standing: PassStanding, t: T): string {
+  if (standing === "up_to_date") return t("pw3.standing_up_to_date");
+  if (standing === "behind") return t("pw3.standing_behind");
+  if (standing === "suspended") return t("pw3.standing_suspended");
+  return standing.replaceAll("_", " ");
+}
 
 /// "Pay Aman Gill, the club secretary": who the money goes to, by name and
 /// what they are to the club.

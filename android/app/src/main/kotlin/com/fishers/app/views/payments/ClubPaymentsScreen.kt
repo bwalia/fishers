@@ -21,6 +21,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -158,6 +159,16 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
                 onFreeze = { freezing = it },
                 onUnfreeze = model::unfreeze,
                 onRemove = { removing = it },
+            )
+        }
+
+        // ---- what the club charges besides sessions ----
+        item {
+            ChargesPart(
+                passesBehind = overview.passesBehind,
+                onPasses = { nav.push(PassesAdminRoute(model.clubId, currency)) },
+                onGroupFees = { nav.push(GroupFeesRoute(model.clubId, currency)) },
+                onPrices = { nav.push(PricesRoute(model.clubId)) },
             )
         }
 
@@ -311,6 +322,46 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
             dismissButton = { TextButton(onClick = { removing = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("sc.cancel")) } },
         )
     }
+}
+
+// ---- passes, group fees, prices ----
+
+/**
+ * Passes, group fees, and prices for juniors and others: each its own page,
+ * one row a thumb can hit. "2 passes behind" in amber when payments are late.
+ */
+@Composable
+private fun ChargesPart(passesBehind: Int, onPasses: () -> Unit, onGroupFees: () -> Unit, onPrices: () -> Unit) {
+    Column(Modifier.padding(top = 8.dp)) {
+        SectionHeading(t("pa3.what_the_club_charges"))
+        ChargeRow(
+            t("pa3.passes"),
+            if (passesBehind > 0) t("pa3.passes_behind", count = passesBehind, vars = mapOf("n" to passesBehind)) else t("pa3.passes_row_hint"),
+            warn = passesBehind > 0,
+            onClick = onPasses,
+        )
+        ChargeRow(t("pa3.group_fees"), t("pa3.group_fees_row_hint"), onClick = onGroupFees)
+        ChargeRow(t("pa3.prices_title"), t("pa3.prices_row_hint"), onClick = onPrices)
+    }
+}
+
+@Composable
+private fun ChargeRow(title: String, hint: String, warn: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(hint, style = MaterialTheme.typography.bodyMedium, color = if (warn) AMBER else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+    }
+    HorizontalDivider()
 }
 
 // ---- bank details ----

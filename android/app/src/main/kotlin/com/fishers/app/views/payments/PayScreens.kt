@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,11 +28,13 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -61,13 +64,18 @@ import com.fishers.app.payments.BankDetails
 import com.fishers.app.payments.ClubDues
 import com.fishers.app.payments.Dues
 import com.fishers.app.payments.DuesViewModel
+import com.fishers.app.payments.ForOthers
+import com.fishers.app.payments.PassHolder
+import com.fishers.app.payments.PassPlan
 import com.fishers.app.payments.PayScreen
+import com.fishers.app.payments.PersonDues
 import com.fishers.app.payments.PayState
 import com.fishers.app.payments.PayViewModel
 import com.fishers.app.payments.Payment
 import com.fishers.app.payments.PaymentMethod
 import com.fishers.app.payments.Share
 import com.fishers.app.payments.detailsToSend
+import com.fishers.app.payments.firstName
 import com.fishers.app.payments.oweHeadline
 import com.fishers.app.payments.payeeLine
 import com.fishers.app.payments.payeeShortName
@@ -92,11 +100,17 @@ import com.fishers.app.views.nav.LocalNavigator
  * like, and Undo.
  */
 @Composable
-internal fun PayPage(clubId: String, clubName: String) {
+internal fun PayPage(clubId: String, clubName: String, forEveryone: Boolean = false) {
     val deps = LocalAppDeps.current
     val context = LocalContext.current
-    val model = remember(clubId) {
-        PayViewModel(deps.service<PaymentsApi>(), clubId, guide = payGuidePrefs(context.applicationContext))
+    val model = remember(clubId, forEveryone) {
+        PayViewModel(
+            deps.service<PaymentsApi>(),
+            clubId,
+            guide = payGuidePrefs(context.applicationContext),
+            me = deps.user()?.id,
+            forEveryone = forEveryone,
+        )
     }
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(clubId) { model.load() }
@@ -124,6 +138,9 @@ internal fun PayPage(clubId: String, clubName: String) {
                 onClaim = model::claim,
                 onUndo = model::undo,
                 onAddPicture = { claim -> picturing = claim.id; pickPicture() },
+                onToggleFriend = model::toggleFriend,
+                onGetPass = model::getPass,
+                onCancelPass = model::cancelPass,
             )
         }
     }
@@ -136,8 +153,12 @@ private fun PayBody(
     onClaim: (PaymentMethod) -> Unit,
     onUndo: (Payment) -> Unit,
     onAddPicture: (Payment) -> Unit,
+    onToggleFriend: (String) -> Unit,
+    onGetPass: (PassPlan, String?) -> Unit,
+    onCancelPass: (PassHolder) -> Unit,
 ) {
     val context = LocalContext.current
+    val paying = state.payingCents
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -145,14 +166,29 @@ private fun PayBody(
         // ---- 1. how much, and what for ----
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when {
+                state.forEveryone && state.othersOwing.isNotEmpty() -> {
+                    Text(
+                        t("pa3.pay_for_everyone_headline", vars = mapOf("amount" to money(paying, pay.currency))),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    EveryoneLines(pay, state)
+                }
                 pay.owedCents > 0 -> Text(
                     pay.oweHeadline(),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.semantics { heading() },
                 )
-                pay.waitingCents <= 0 && pay.claims.isEmpty() ->
+                pay.waitingCents <= 0 && pay.claims.isEmpty() && state.paidForOthers == null ->
                     Text(t("pay.all_paid_up"), style = MaterialTheme.typography.headlineSmall)
+            }
+            if (!state.forEveryone && state.friendsTicked.isNotEmpty()) {
+                Text(
+                    t("pa3.with_friends_total", count = state.friendsTicked.size, vars = mapOf("amount" to money(paying, pay.currency), "n" to state.friendsTicked.size)),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
             if (pay.creditCents > 0) {
                 Body(t("pay.you_have_credit", vars = mapOf("amount" to money(pay.creditCents, pay.currency))))
@@ -163,11 +199,17 @@ private fun PayBody(
         state.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) }
 
         // ---- 6. said you've paid: waiting, with a picture and Undo ----
+        state.paidForOthers?.let { PaidForOthersCard(it, pay) }
         if (pay.claims.isNotEmpty()) {
             WaitingCard(pay, state, onUndo = onUndo, onAddPicture = onAddPicture)
         }
 
-        if (pay.owedCents > 0) {
+        // Friends on the same session, paid for in the same payment.
+        if (!state.forEveryone && state.friends.isNotEmpty() && paying > 0) {
+            FriendsPart(state, pay.currency, onToggle = onToggleFriend)
+        }
+
+        if (paying > 0) {
             val account = pay.account
             when (pay.accountState) {
                 AccountState.Active -> if (account != null) {
@@ -192,7 +234,7 @@ private fun PayBody(
                     }
 
                     // ---- 4. first time? ----
-                    PayGuide(pay, account, seen = state.guideSeen)
+                    PayGuide(pay, account, seen = state.guideSeen, amountCents = paying)
 
                     // ---- 5. the two big buttons ----
                     Button(
@@ -204,7 +246,7 @@ private fun PayBody(
 
                     // ---- 7. somebody else does the banking ----
                     OutlinedButton(
-                        onClick = { shareAnywhere(context, pay.detailsToSend()) },
+                        onClick = { shareAnywhere(context, pay.detailsToSend(paying, forOthers = state.payingForOthers)) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     ) {
                         Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -221,6 +263,11 @@ private fun PayBody(
                     Body(t("pay.details_need_entering_again"))
                     CashButton(state, onClaim)
                 }
+                // Paying only for others: the club's details come with your own dues.
+                AccountState.NothingOwed -> {
+                    Body(t("pa3.details_not_shown"))
+                    CashButton(state, onClaim)
+                }
                 else -> CashButton(state, onClaim)
             }
         }
@@ -231,6 +278,78 @@ private fun PayBody(
                 SectionHeading(t("pay.what_its_for"))
                 pay.shares.forEach { ShareLine(it) }
             }
+        }
+
+        // ---- passes ----
+        PassesPart(state, clubName = pay.clubName, onGet = onGetPass, onCancel = onCancelPass)
+    }
+}
+
+/** "You £5.62 · Jas Gill £8.63 · Arjun Gill £5.63": who "Pay for everyone" is for. */
+@Composable
+private fun EveryoneLines(pay: PayScreen, state: PayState) {
+    Column {
+        if (pay.owedCents > 0) AmountLine(t("nav.you"), money(pay.owedCents, pay.currency))
+        state.othersOwing.forEach { person ->
+            AmountLine(person.name, money(person.dues.owedCents, person.dues.currency))
+        }
+    }
+}
+
+/**
+ * "I'm paying for friends too": tick who else from the same session this
+ * payment covers. Each is recorded for what they owe, under your reference.
+ */
+@Composable
+private fun FriendsPart(state: PayState, currency: String, onToggle: (String) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(state.friendsTicked.isNotEmpty()) }
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .toggleable(value = open, role = Role.Switch, onValueChange = { open = it }),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(t("pa3.paying_for_friends"), style = MaterialTheme.typography.titleMedium)
+                Body(t("pa3.paying_for_friends_hint"))
+            }
+            Switch(checked = open, onCheckedChange = null)
+        }
+        if (open) {
+            state.friends.forEach { friend ->
+                val ticked = friend.userId in state.friendsTicked
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(value = ticked, role = Role.Checkbox, enabled = !state.isClaiming, onValueChange = { onToggle(friend.userId) }),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = ticked, onCheckedChange = null)
+                    Text(friend.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                    Text(money(friend.owedCents, currency), style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        }
+    }
+}
+
+/** After paying for others: what was said, and for whom, while the club checks it. */
+@Composable
+private fun PaidForOthersCard(done: ForOthers, pay: PayScreen) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0), contentColor = Color(0xFF5C3600)),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            val currency = done.payments.firstOrNull()?.currency ?: pay.currency
+            Text(
+                t("pa3.paid_for_names", vars = mapOf("amount" to money(done.totalCents, currency), "names" to done.payments.joinToString(", ") { firstName(it.name) })),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(pay.account.waitingLine(), style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
@@ -257,7 +376,7 @@ internal fun Body(text: String, modifier: Modifier = Modifier) {
  * "Copied" for a moment, because older phones show nothing when it works.
  */
 @Composable
-private fun BigCopyRow(label: String, value: String, mono: Boolean = false, sensitive: Boolean = false) {
+internal fun BigCopyRow(label: String, value: String, mono: Boolean = false, sensitive: Boolean = false) {
     val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) {
@@ -299,7 +418,7 @@ private fun BigCopyRow(label: String, value: String, mono: Boolean = false, sens
  * still a tap away.
  */
 @Composable
-private fun PayGuide(pay: PayScreen, account: BankDetails, seen: Boolean) {
+private fun PayGuide(pay: PayScreen, account: BankDetails, seen: Boolean, amountCents: Long = pay.owedCents) {
     var open by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (seen) Body(t("pa2.pay_as_usual", vars = mapOf("name" to account.payeeShortName)))
@@ -326,7 +445,7 @@ private fun PayGuide(pay: PayScreen, account: BankDetails, seen: Boolean) {
                 3,
                 Icons.Filled.ContentPaste,
                 t("pa2.guide_3_title"),
-                t("pa2.guide_3_body", vars = mapOf("amount" to money(pay.owedCents, pay.currency), "reference" to pay.reference)),
+                t("pa2.guide_3_body", vars = mapOf("amount" to money(amountCents, pay.currency), "reference" to pay.reference)),
             )
         }
     }
@@ -414,17 +533,21 @@ private fun WaitingRow(
     }
 }
 
-/** "Friday nets · Fri 20 Nov   £15.00 Owed". */
+/**
+ * "Friday nets · Fri 20 Nov   £15.00 Owed", "Match balls · by 6 Dec", or
+ * "Tuesday nets   Covered by your pass ✓" — a covered line has no amount and
+ * nothing to tap.
+ */
 @Composable
 internal fun ShareLine(share: Share, trailing: @Composable () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).padding(end = 8.dp)) {
             Text(share.title, style = MaterialTheme.typography.bodyLarge)
-            Hint(shortDay(share.eventStartAt))
+            share.whenWords().takeIf { it.isNotEmpty() }?.let { Body(it) }
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(money(share.amountCents, share.currency), style = MaterialTheme.typography.bodyLarge)
-            StateLabel(share.state)
+            if (!share.isCovered) Text(money(share.amountCents, share.currency), style = MaterialTheme.typography.bodyLarge)
+            StateLabel(share)
         }
         trailing()
     }
@@ -485,43 +608,87 @@ internal fun DuesPage() {
                 ErrorLine(state.error ?: t("rest.something_went_wrong_plain"))
                 TextButton(onClick = model::load, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("rest.try_again")) }
             }
-            dues.clubs.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
+            dues.clubs.isEmpty() && dues.people.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
                 Text(t("pay.nothing_owed_anywhere"), style = MaterialTheme.typography.bodyLarge)
             }
             else -> Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                dues.clubs.forEach { club -> ClubDuesCard(club, onPay = { nav.push(PayRoute(club.clubId, club.clubName)) }) }
+                val ids = (dues.clubs.map { it.clubId } + dues.people.map { it.dues.clubId.ifEmpty { it.clubId } }).distinct()
+                ids.forEach { id ->
+                    val own = dues.clubs.firstOrNull { it.clubId == id }
+                    val people = dues.peopleIn(id)
+                    val name = own?.clubName?.takeIf { it.isNotBlank() } ?: people.firstOrNull()?.dues?.clubName.orEmpty()
+                    ClubDuesCard(
+                        own = own,
+                        people = people,
+                        clubName = name,
+                        onPay = { nav.push(PayRoute(id, name)) },
+                        onPayEveryone = { nav.push(PayRoute(id, name, forEveryone = true)) },
+                    )
+                }
             }
         }
     }
 }
 
+/**
+ * One club: what you owe, then each person you pay for as their own block,
+ * and one button. With people to pay for it is Pay for everyone — one
+ * payment, one reference — because that is what a parent wants to do.
+ */
 @Composable
-private fun ClubDuesCard(club: ClubDues, onPay: () -> Unit) {
+private fun ClubDuesCard(
+    own: ClubDues?,
+    people: List<PersonDues>,
+    clubName: String,
+    onPay: () -> Unit,
+    onPayEveryone: () -> Unit,
+) {
+    val currency = own?.currency ?: people.firstOrNull()?.dues?.currency ?: "GBP"
+    val othersOwe = people.sumOf { it.dues.owedCents }
+    val total = (own?.owedCents ?: 0) + othersOwe
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(club.clubName, style = MaterialTheme.typography.titleMedium)
+            Text(clubName, style = MaterialTheme.typography.titleMedium)
+            if (own != null) {
+                if (people.isNotEmpty()) {
+                    Text(t("nav.you"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
+                }
+                DuesBlock(own, owedLabel = t("pay.you_owe"))
+            }
+            people.forEach { person ->
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text(person.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+                DuesBlock(person.dues, owedLabel = t("pa3.they_owe"))
+            }
             when {
-                club.owedCents > 0 -> AmountLine(t("pay.you_owe"), money(club.owedCents, club.currency), strong = true)
-                club.waitingCents <= 0 -> Hint(t("pay.all_paid_up"))
-            }
-            if (club.waitingCents > 0) {
-                Hint(t("pay.amount_waiting_to_confirm", vars = mapOf("amount" to money(club.waitingCents, club.currency))))
-            }
-            if (club.creditCents > 0) {
-                Hint(t("pay.you_have_credit", vars = mapOf("amount" to money(club.creditCents, club.currency))))
-            }
-            club.shares.forEach { ShareLine(it) }
-            if (club.owedCents > 0) {
-                Button(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 48.dp)) {
+                othersOwe > 0 -> Button(onClick = onPayEveryone, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 56.dp)) {
+                    Text(t("pa3.pay_for_everyone", vars = mapOf("amount" to money(total, currency))), style = MaterialTheme.typography.titleMedium)
+                }
+                (own?.owedCents ?: 0) > 0 -> Button(onClick = onPay, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 48.dp)) {
                     Text(t("pay.pay"))
                 }
-            } else if (club.waitingCents > 0) {
                 // Somewhere to undo a claim made by mistake.
-                TextButton(onClick = onPay, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("pay.see_details")) }
+                (own?.waitingCents ?: 0) > 0 -> TextButton(onClick = onPay, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("pay.see_details")) }
             }
         }
     }
+}
+
+/** What one person owes a club, what is waiting, their credit, and the lines. */
+@Composable
+private fun DuesBlock(club: ClubDues, owedLabel: String) {
+    when {
+        club.owedCents > 0 -> AmountLine(owedLabel, money(club.owedCents, club.currency), strong = true)
+        club.waitingCents <= 0 -> Body(t("pay.all_paid_up"))
+    }
+    if (club.waitingCents > 0) {
+        Body(t("pay.amount_waiting_to_confirm", vars = mapOf("amount" to money(club.waitingCents, club.currency))))
+    }
+    if (club.creditCents > 0) {
+        Body(t("pay.you_have_credit", vars = mapOf("amount" to money(club.creditCents, club.currency))))
+    }
+    club.shares.forEach { ShareLine(it) }
 }

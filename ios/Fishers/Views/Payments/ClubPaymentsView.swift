@@ -43,6 +43,7 @@ struct ClubPaymentsView: View {
                 bankDetailsSection(overview.account)
                 toCheckSection(overview)
                 whoOwesSection(overview)
+                moreWaysSection(overview)
                 billsSection(overview)
                 usualPricesSection(overview)
                 settingsSection(overview.settings)
@@ -484,6 +485,53 @@ struct ClubPaymentsView: View {
         if bill.waiting > 0 { parts.append(tr("{n} to check", vars: ["n": bill.waiting])) }
         if bill.unpaid == 0, bill.waiting == 0 { parts.append(tr("Paid")) }
         return parts.joined(separator: " · ")
+    }
+
+    // MARK: Passes, group fees and prices
+
+    private func moreWaysSection(_ overview: MoneyOverview) -> some View {
+        Section {
+            NavigationLink {
+                PassesAdminView(clubId: store.clubId, currency: overview.currency)
+            } label: {
+                linkRow(tr("Passes"), "ticket", tr("Nets passes, session cards and memberships."))
+            }
+            NavigationLink {
+                GroupFeesView(clubId: store.clubId, currency: overview.currency)
+            } label: {
+                linkRow(tr("Group fees"), "person.3", tr("League fees, a tour, kit: one charge to a group of people."))
+            }
+            NavigationLink {
+                PriceGroupsView(clubId: store.clubId)
+            } label: {
+                linkRow(tr("Prices for juniors, students…"), "tag", tr("Groups who pay a different price, or nothing."))
+            }
+            NavigationLink {
+                MemberPricesView(clubId: store.clubId)
+            } label: {
+                linkRow(tr("Who pays for whom"), "figure.and.child.holdinghands", tr("A parent paying for juniors, and each member's price."))
+            }
+        } header: {
+            Text(tr("Passes, group fees and prices"))
+        }
+    }
+
+    private func linkRow(_ title: String, _ symbol: String, _ detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(FishersTheme.pitch)
+                .frame(width: 32)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(FishersTheme.subhead.weight(.semibold))
+                Text(detail)
+                    .font(FishersTheme.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(minHeight: FishersTheme.minTap)
     }
 
     // MARK: Usual prices

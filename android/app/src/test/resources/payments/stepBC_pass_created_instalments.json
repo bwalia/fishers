@@ -1,0 +1,22 @@
+{
+  "id": "4f4fb647-c3c3-460b-bf5e-a648a73b2a0d",
+  "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+  "name": "Season",
+  "price_cents": 10000,
+  "currency": "GBP",
+  "billing": "instalments",
+  "instalments": 3,
+  "covers": [
+    "league_match"
+  ],
+  "team_id": null,
+  "valid_until": null,
+  "sessions": null,
+  "price_type_id": null,
+  "open_to_join": false,
+  "created_at": "2026-11-21T19:46:27.843581Z",
+  "archived_at": null,
+  "charge_cents": 3334,
+  "holders": 0,
+  "mine": null
+}

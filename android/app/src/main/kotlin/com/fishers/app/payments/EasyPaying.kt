@@ -115,14 +115,15 @@ fun BankDetails?.waitingLine(): String =
  * who does the banking. Sent by the person, from their own phone, to someone
  * they chose: the only place the app puts the account number into words.
  */
-fun PayScreen.detailsToSend(): String {
+fun PayScreen.detailsToSend(amountCents: Long = owedCents, forOthers: Boolean = false): String {
     val a = account ?: return ""
-    val what = owedShares.firstOrNull()?.title?.takeIf { it.isNotBlank() }
+    // Paying for others too, it is more than one thing: the amount says it all.
+    val what = owedShares.firstOrNull()?.title?.takeIf { it.isNotBlank() && !forOthers }
     return listOfNotNull(
         if (what != null) {
-            t("pa2.details_intro_for", vars = mapOf("amount" to money(owedCents, currency), "club" to clubName, "what" to what))
+            t("pa2.details_intro_for", vars = mapOf("amount" to money(amountCents, currency), "club" to clubName, "what" to what))
         } else {
-            t("pa2.details_intro", vars = mapOf("amount" to money(owedCents, currency), "club" to clubName))
+            t("pa2.details_intro", vars = mapOf("amount" to money(amountCents, currency), "club" to clubName))
         },
         "",
         t("pay.copy_all_name", vars = mapOf("name" to a.holderName)),

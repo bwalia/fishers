@@ -3,13 +3,19 @@
 /// Everything you owe, across all your clubs, and what you paid lately.
 /// Each club opens its own pay screen: a transfer goes to one club's account,
 /// so paying is always per club.
+///
+/// A parent sees each junior they pay for as their own block under the club,
+/// and one **Pay for everyone** button: one transfer, one reference, for all
+/// of it (plan §4).
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, money, readErr } from "@/lib/api";
-import { shareDate, shareStateLabel, shareStateTag, type Dues } from "@/lib/payments";
+import { clubBlocks, type Dues } from "@/lib/payments";
+import { DueList } from "@/components/DueList";
 import { useRequireAuth } from "@/lib/require-auth";
 import { useT } from "@/lib/i18n/provider";
+import { firstName } from "@/lib/pay-link";
 
 export default function YourPaymentsPage() {
   const t = useT();
@@ -25,6 +31,7 @@ export default function YourPaymentsPage() {
   }, [authed, t]);
 
   if (!authed) return <main id="main" />;
+  const blocks = dues ? clubBlocks(dues) : [];
 
   return (
     <main id="main" className="page">
@@ -36,58 +43,75 @@ export default function YourPaymentsPage() {
 
       {error && <p className="error" role="alert">{error}</p>}
       {!dues && !error && <div className="skeleton" style={{ height: 160 }} />}
-      {dues && dues.clubs.length === 0 && (
+      {dues && blocks.length === 0 && (
         <div className="panel">
           <p className="muted">{t("pay.nothing_billed_yet")}</p>
         </div>
       )}
 
-      {dues?.clubs.map((c) => (
-        <section className="panel" key={c.club_id} aria-labelledby={`dues-${c.club_id}`}>
-          <div className="panel-head">
-            <h2 id={`dues-${c.club_id}`}>{c.club_name}</h2>
-            {c.owed_cents > 0 && (
-              <Link className="btn primary" href={`/clubs/${c.club_id}/pay`}>
-                {t("pay.pay_amount", { amount: money(c.owed_cents, c.currency) })}
-              </Link>
+      {blocks.map((b) => {
+        const mine = b.mine;
+        const owingPeople = b.people.filter((p) => p.dues.owed_cents > 0);
+        const total = (mine?.owed_cents ?? 0) + owingPeople.reduce((sum, p) => sum + p.dues.owed_cents, 0);
+        const many = owingPeople.length > 0;
+        return (
+          <section className="panel" key={b.club_id} aria-labelledby={`dues-${b.club_id}`}>
+            <div className="panel-head">
+              <h2 id={`dues-${b.club_id}`}>{b.club_name}</h2>
+            </div>
+
+            {many ? (
+              <p className="pay-total">{t("pw3.you_owe_everyone", { amount: money(total, b.currency) })}</p>
+            ) : null}
+
+            {mine && (
+              <div className={b.people.length > 0 ? "pay-person" : undefined}>
+                {b.people.length > 0 && <h3 className="pay-person-name">{t("nav.you")}</h3>}
+                <p>
+                  {mine.owed_cents > 0
+                    ? t("pay.you_owe_amount", { amount: money(mine.owed_cents, mine.currency) })
+                    : mine.waiting_cents > 0
+                      ? t("pay.said_you_paid")
+                      : t("pay.all_paid_up")}
+                </p>
+                {mine.waiting_cents > 0 && (
+                  <p className="muted">{t("pay.amount_waiting", { amount: money(mine.waiting_cents, mine.currency) })}</p>
+                )}
+                {mine.credit_cents > 0 && (
+                  <p className="muted">{t("pay.amount_credit", { amount: money(mine.credit_cents, mine.currency) })}</p>
+                )}
+                <DueList shares={mine.shares} />
+              </div>
             )}
-          </div>
-          <p>
-            {c.owed_cents > 0
-              ? t("pay.you_owe_amount", { amount: money(c.owed_cents, c.currency) })
-              : c.waiting_cents > 0
-                ? t("pay.said_you_paid")
-                : t("pay.all_paid_up")}
-          </p>
-          {c.waiting_cents > 0 && (
-            <p className="muted">{t("pay.amount_waiting", { amount: money(c.waiting_cents, c.currency) })}</p>
-          )}
-          {c.credit_cents > 0 && (
-            <p className="muted">{t("pay.amount_credit", { amount: money(c.credit_cents, c.currency) })}</p>
-          )}
-          {c.shares.length > 0 && (
-            <ul className="pay-list">
-              {c.shares.map((s) => (
-                <li key={s.id}>
-                  <div>
-                    {s.event_id ? <Link href={`/events/${s.event_id}#money`}>{s.title}</Link> : <strong>{s.title}</strong>}
-                    <div className="muted">
-                      {shareDate(s)}
-                      {s.state === "waiting" && ` · ${t("pay.waiting_for_the_club")}`}
-                      {s.state === "part_paid" &&
-                        ` · ${t("pay.paid_of", { paid: money(s.paid_cents, s.currency), amount: money(s.amount_cents, s.currency) })}`}
-                    </div>
-                  </div>
-                  <div className="pay-list-end">
-                    <span className="num">{money(s.amount_cents, s.currency)}</span>
-                    <span className={shareStateTag(s.state)}>{shareStateLabel(s.state, t)}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+
+            {b.people.map((p) => (
+              <div className="pay-person" key={p.user_id} aria-labelledby={`person-${p.user_id}`}>
+                <h3 className="pay-person-name" id={`person-${p.user_id}`}>
+                  {p.name}
+                </h3>
+                <p>
+                  {p.dues.owed_cents > 0
+                    ? t("pw3.they_owe", { name: firstName(p.name), amount: money(p.dues.owed_cents, p.dues.currency) })
+                    : p.dues.waiting_cents > 0
+                      ? t("pw3.they_said_paid", { name: firstName(p.name) })
+                      : t("pw3.they_paid_up", { name: firstName(p.name) })}
+                </p>
+                <DueList shares={p.dues.shares} label={p.name} />
+              </div>
+            ))}
+
+            {total > 0 && (
+              <div className="pay-buttons">
+                <Link className="btn primary xl" href={`/clubs/${b.club_id}/pay`}>
+                  {many
+                    ? t("pw3.pay_for_everyone", { amount: money(total, b.currency) })
+                    : t("pay.pay_amount", { amount: money(total, b.currency) })}
+                </Link>
+              </div>
+            )}
+          </section>
+        );
+      })}
     </main>
   );
 }

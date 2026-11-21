@@ -37,6 +37,8 @@ data class EventMoneyState(
     val cashOpen: Boolean = false,
     /** Shares ticked as paid in cash. */
     val cashTicked: Set<String> = emptySet(),
+    /** The club's groups with their own price, for "Different price for juniors?". */
+    val priceTypes: List<PriceType> = emptyList(),
 ) {
     val bill: Bill? get() = money?.bill
 
@@ -114,6 +116,23 @@ class EventMoneyViewModel(
             previewProblem = null,
         )
         if (choose) refreshPreview(immediately = true)
+        if (money.canBill && !priceTypesAsked) loadPriceTypes(money.clubId)
+    }
+
+    private var priceTypesAsked = false
+
+    /**
+     * The club's groups, for the cost form. Only for whoever sets the cost,
+     * once; without them the form simply has no "Different price" choice.
+     */
+    private fun loadPriceTypes(clubId: String) {
+        if (clubId.isEmpty()) return
+        priceTypesAsked = true
+        viewModelScope.launch {
+            runCatching { api.priceTypes(clubId) }
+                .onSuccess { types -> _state.update { it.copy(priceTypes = types) } }
+                .onFailure { priceTypesAsked = false }
+        }
     }
 
     // ---- who came ----
@@ -218,8 +237,18 @@ class EventMoneyViewModel(
 
     // ---- the cost ----
 
-    fun saveCost(mode: CostMode, cents: Long, note: String?, applyToSeries: Boolean) {
-        val body = CostBody(mode.wire, cents, note?.trim()?.takeIf { it.isNotEmpty() }, applyToSeries)
+    /**
+     * [prices] are the session's prices for juniors and others: null leaves
+     * them as they are, empty clears them. A total split evenly has none.
+     */
+    fun saveCost(mode: CostMode, cents: Long, note: String?, applyToSeries: Boolean, prices: List<PriceIn>? = null) {
+        val body = CostBody(
+            mode.wire,
+            cents,
+            note?.trim()?.takeIf { it.isNotEmpty() },
+            applyToSeries,
+            prices = prices.takeIf { mode == CostMode.PerPlayer },
+        )
         busy({ api.setCost(eventId, body) }) { saved ->
             val n = saved.seriesUpdated
             _state.update {

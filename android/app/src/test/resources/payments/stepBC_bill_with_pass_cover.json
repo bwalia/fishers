@@ -1,0 +1,143 @@
+{
+  "event_id": "bba43067-faa7-49e7-a06e-8fa1cfb6631b",
+  "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+  "title": "Thursday nets",
+  "start_at": "2026-11-21T17:46:28.306263Z",
+  "end_at": "2026-11-21T19:46:28.306263Z",
+  "event_status": "scheduled",
+  "cost": {
+    "event_id": "bba43067-faa7-49e7-a06e-8fa1cfb6631b",
+    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+    "mode": "per_player",
+    "amount_cents": 600,
+    "currency": "GBP",
+    "note": null,
+    "updated_at": "2026-11-21T19:46:28.323157Z"
+  },
+  "prices": [],
+  "bill": {
+    "id": "fbbe6942-2587-4dfe-a9b1-539e1e7dda09",
+    "event_id": "bba43067-faa7-49e7-a06e-8fa1cfb6631b",
+    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+    "title": "Thursday nets",
+    "event_start_at": "2026-11-21T17:46:28.306263Z",
+    "mode": "per_player",
+    "amount_cents": 600,
+    "total_cents": 600,
+    "currency": "GBP",
+    "rounding": "exact",
+    "payout_account_id": "cfe78b48-3f25-44d4-9b67-d655de499b6b",
+    "status": "issued",
+    "version": 1,
+    "auto": false,
+    "note": null,
+    "issued_by": "b88bf410-a7e5-4238-ab18-0dc33a836f33",
+    "issued_at": "2026-11-21T19:46:28.519338Z",
+    "updated_at": "2026-11-21T19:46:28.519338Z",
+    "voided_at": null,
+    "void_reason": null,
+    "kind": "event",
+    "pass_holder_id": null,
+    "period_start": null,
+    "due_on": null,
+    "paid_cents": 0,
+    "waiting_cents": 0,
+    "owed_cents": 600,
+    "surplus_cents": 0
+  },
+  "can_bill": true,
+  "can_manage_money": true,
+  "shares": [
+    {
+      "id": "2c5ad7d6-239c-4d9c-ac39-37784bc6ac35",
+      "bill_id": "fbbe6942-2587-4dfe-a9b1-539e1e7dda09",
+      "event_id": "bba43067-faa7-49e7-a06e-8fa1cfb6631b",
+      "kind": "event",
+      "due_on": null,
+      "title": "Thursday nets",
+      "event_start_at": "2026-11-21T17:46:28.306263Z",
+      "user_id": "f8770d5a-e87c-4344-a8cb-759f83589409",
+      "guest_name": null,
+      "name": "Ravi Sharma",
+      "amount_cents": 600,
+      "paid_cents": 0,
+      "waiting_cents": 0,
+      "currency": "GBP",
+      "state": "covered",
+      "reason": "Covered by Monthly nets"
+    },
+    {
+      "id": "f2371550-babe-4d1d-ad31-0eee31ac2750",
+      "bill_id": "fbbe6942-2587-4dfe-a9b1-539e1e7dda09",
+      "event_id": "bba43067-faa7-49e7-a06e-8fa1cfb6631b",
+      "kind": "event",
+      "due_on": null,
+      "title": "Thursday nets",
+      "event_start_at": "2026-11-21T17:46:28.306263Z",
+      "user_id": "b576727b-e4c0-41a2-a2fe-6523fa7421ce",
+      "guest_name": null,
+      "name": "Sam Student",
+      "amount_cents": 600,
+      "paid_cents": 0,
+      "waiting_cents": 0,
+      "currency": "GBP",
+      "state": "owed",
+      "reason": null
+    }
+  ],
+  "my_share": null,
+  "candidates": [
+    {
+      "user_id": "b88bf410-a7e5-4238-ab18-0dc33a836f33",
+      "name": "Aman Gill",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    },
+    {
+      "user_id": "461ac7a0-c62f-4c92-a5ff-1f834fb180f7",
+      "name": "Jas Gill",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    },
+    {
+      "user_id": "0cca3ac7-0a87-4153-873e-9c730a08c2d0",
+      "name": "Neha Gill",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    },
+    {
+      "user_id": "f8770d5a-e87c-4344-a8cb-759f83589409",
+      "name": "Ravi Sharma",
+      "rsvp": "invited",
+      "attended": true,
+      "suggested": true
+    },
+    {
+      "user_id": "b576727b-e4c0-41a2-a2fe-6523fa7421ce",
+      "name": "Sam Student",
+      "rsvp": "invited",
+      "attended": true,
+      "suggested": true
+    },
+    {
+      "user_id": "b8784fb5-daee-4aa8-98fd-0995c1131a76",
+      "name": "Tara Treasurer",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    },
+    {
+      "user_id": "4c4b0c37-e697-48e6-b36f-aaba206df596",
+      "name": "Tom Bennett",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    }
+  ],
+  "guests": [],
+  "has_payout_account": true,
+  "round_shares_up": false
+}

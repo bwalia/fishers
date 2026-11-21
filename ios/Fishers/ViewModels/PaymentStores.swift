@@ -246,14 +246,23 @@ final class EventMoneyStore: ObservableObject {
         if case .failed(let message) = await perform(work) { errorMessage = message }
     }
 
-    /// From the cost sheet, which shows its own failures.
-    func setCost(mode: CostMode, amountCents: Int, note: String?, applyToSeries: Bool) async -> PaymentWrite {
+    /// From the cost sheet, which shows its own failures. `prices` replaces
+    /// the session's prices for juniors and others; nil leaves them be.
+    func setCost(
+        mode: CostMode, amountCents: Int, note: String?, applyToSeries: Bool, prices: [TypePriceBody]? = nil
+    ) async -> PaymentWrite {
         await perform {
             try await FishersAPI.setEventCost(
                 eventId: eventId, mode: mode, amountCents: amountCents,
-                note: note, applyToSeries: applyToSeries
+                note: note, applyToSeries: applyToSeries, prices: prices
             )
         }
+    }
+
+    /// The club's groups with their own price, for "Different price for
+    /// juniors?". None from a server without them.
+    func priceGroups(clubId: UUID) async -> [PriceType] {
+        ((try? await FishersAPI.priceTypes(clubId: clubId)) ?? []).inUse.filter { !$0.free }
     }
 
     func removeCost() async {

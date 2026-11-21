@@ -1,5 +1,7 @@
 package com.fishers.app.payments
 
+import com.fishers.app.clubs.ClubMemberDetail
+import com.fishers.app.clubs.Team
 import com.fishers.app.net.PaymentsApi
 import kotlinx.serialization.json.Json
 import okhttp3.RequestBody
@@ -48,6 +50,35 @@ open class FakePaymentsApi : PaymentsApi {
     override suspend fun confirmMany(clubId: String, body: ConfirmManyBody): ConfirmedMany = error("confirmMany not expected")
     override suspend fun screenshot(paymentId: String): ResponseBody = error("screenshot not expected")
     override suspend fun uploadScreenshot(paymentId: String, image: RequestBody): Unit = error("uploadScreenshot not expected")
+
+    // ---- steps B and C ----
+    override suspend fun priceTypes(clubId: String): List<PriceType> = error("priceTypes not expected")
+    override suspend fun addPriceType(clubId: String, body: PriceTypeBody): PriceType = error("addPriceType not expected")
+    override suspend fun changePriceType(priceTypeId: String, body: PriceTypeBody): PriceType = error("changePriceType not expected")
+    override suspend fun setMemberPriceType(clubId: String, userId: String, body: MemberPriceTypeBody): Unit =
+        error("setMemberPriceType not expected")
+    override suspend fun passes(clubId: String, all: Boolean?): List<PassPlan> = error("passes not expected")
+    override suspend fun addPass(clubId: String, body: NewPassBody): PassPlan = error("addPass not expected")
+    override suspend fun changePass(passId: String, body: PassChangeBody): PassPlan = error("changePass not expected")
+    override suspend fun passHolders(passId: String): List<PassHolder> = error("passHolders not expected")
+    override suspend fun addToPass(passId: String, body: AddHolderBody): PassHolder = error("addToPass not expected")
+    override suspend fun joinPass(passId: String, body: JoinPassBody): PassHolder = error("joinPass not expected")
+    override suspend fun cancelPass(holderId: String): PassHolder = error("cancelPass not expected")
+    override suspend fun keepCovering(holderId: String, body: KeepCoveringBody): PassHolder = error("keepCovering not expected")
+    override suspend fun myPasses(): List<PassHolder> = error("myPasses not expected")
+    override suspend fun addGroupFee(clubId: String, idempotencyKey: String, body: NewGroupFeeBody): GroupFee =
+        error("addGroupFee not expected")
+    override suspend fun groupFees(clubId: String): List<GroupFee> = error("groupFees not expected")
+    override suspend fun groupFee(billId: String): GroupFee = error("groupFee not expected")
+    override suspend fun cancelGroupFee(billId: String, body: ReasonBody): GroupFee = error("cancelGroupFee not expected")
+    override suspend fun groupFeeLink(billId: String): BillLink = error("groupFeeLink not expected")
+    override suspend fun disableGroupFeeLink(billId: String): DisabledLinks = error("disableGroupFeeLink not expected")
+    override suspend fun setPayer(clubId: String, memberId: String, body: PayerBody): Unit = error("setPayer not expected")
+    override suspend fun addJunior(clubId: String, body: ManagedMemberBody): ManagedMember = error("addJunior not expected")
+    override suspend fun payForOthers(clubId: String, idempotencyKey: String, body: ForOthersBody): ForOthers =
+        error("payForOthers not expected")
+    override suspend fun clubMembers(clubId: String): List<ClubMemberDetail> = error("clubMembers not expected")
+    override suspend fun clubTeams(clubId: String): List<Team> = error("clubTeams not expected")
 }
 
 /** The responses captured from the running API (`.dev/payments/examples/`), as `Network` decodes them. */

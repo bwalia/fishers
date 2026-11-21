@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -67,9 +68,15 @@ import com.fishers.app.payments.EventMoneyState
 import com.fishers.app.payments.EventMoneyViewModel
 import com.fishers.app.payments.LinkUse
 import com.fishers.app.payments.Outgoing
+import com.fishers.app.payments.PriceIn
+import com.fishers.app.payments.PriceType
 import com.fishers.app.payments.Share
+import com.fishers.app.payments.TypePrice
+import com.fishers.app.payments.TypePricesCheck
 import com.fishers.app.payments.amountText
 import com.fishers.app.payments.checkCost
+import com.fishers.app.payments.checkTypePrices
+import com.fishers.app.payments.typePricesWords
 import com.fishers.app.views.components.ButtonLabel
 import com.fishers.app.views.components.ButtonRow
 import com.fishers.app.views.clubs.ErrorLine
@@ -172,9 +179,11 @@ fun EventMoneySection(eventId: String, inSeries: Boolean = false) {
             current = money.cost,
             currency = money.currency,
             inSeries = inSeries,
-            onSave = { mode, cents, note, series ->
+            priceTypes = state.priceTypes,
+            prices = money.prices,
+            onSave = { mode, cents, note, series, prices ->
                 editingCost = false
-                model.saveCost(mode, cents, note, series)
+                model.saveCost(mode, cents, note, series, prices)
             },
             onDismiss = { editingCost = false },
         )
@@ -237,6 +246,9 @@ private fun CostPart(money: EventMoney, state: EventMoneyState, onEdit: () -> Un
     val cost = money.cost
     if (cost != null) {
         Text(cost.summary, style = MaterialTheme.typography.bodyLarge)
+        if (cost.mode == CostMode.PerPlayer && money.prices.isNotEmpty()) {
+            Body(typePricesWords(money.prices, money.currency))
+        }
         cost.note?.let { Hint(it) }
     }
     if (!money.canBill || money.bill != null) return
@@ -274,11 +286,11 @@ private fun BillPart(money: EventMoney, state: EventMoneyState, onLetOff: (Share
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(share.name, style = MaterialTheme.typography.bodyLarge)
-                        share.reason?.let { Hint(it) }
+                        share.reason?.let { Body(it) }
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(money(share.amountCents, share.currency), style = MaterialTheme.typography.bodyMedium)
-                        StateLabel(share.state)
+                        if (!share.isCovered) Text(money(share.amountCents, share.currency), style = MaterialTheme.typography.bodyMedium)
+                        StateLabel(share, admin = true)
                     }
                     if (money.canManageMoney && share.canLetOff) {
                         TextButton(onClick = { onLetOff(share) }, enabled = !state.isBusy, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -391,9 +403,12 @@ private fun MySharePart(money: EventMoney, onPay: () -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(t("pay.your_share"), style = MaterialTheme.typography.labelLarge)
-            Text(money(mine.amountCents, mine.currency), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            // Covered by a pass: nothing to pay, so no amount to worry about.
+            if (!mine.isCovered) {
+                Text(money(mine.amountCents, mine.currency), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
         }
-        StateLabel(mine.state)
+        StateLabel(mine)
     }
     if (mine.leftCents > 0) {
         Button(onClick = onPay, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(t("pay.pay")) }
@@ -479,7 +494,7 @@ private fun rsvpWord(rsvp: String): String? = when (rsvp) {
 }
 
 @Composable
-private fun GuestField(onAdd: (String) -> Unit) {
+internal fun GuestField(onAdd: (String) -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     val add = {
         if (name.isNotBlank()) {
@@ -511,7 +526,9 @@ internal fun CostDialog(
     current: EventCost?,
     currency: String?,
     inSeries: Boolean,
-    onSave: (CostMode, Long, String?, Boolean) -> Unit,
+    priceTypes: List<PriceType> = emptyList(),
+    prices: List<TypePrice> = emptyList(),
+    onSave: (CostMode, Long, String?, Boolean, List<PriceIn>?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var mode by rememberSaveable { mutableStateOf(current?.mode ?: CostMode.SplitTotal) }
@@ -520,6 +537,26 @@ internal fun CostDialog(
     var series by rememberSaveable { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var confirming by remember { mutableStateOf<Long?>(null) }
+    // "Different price for juniors?": the groups that pay, typed by id.
+    val payable = priceTypes.filter { !it.isArchived && !it.free }
+    val alwaysFree = priceTypes.filter { !it.isArchived && it.free }
+    var byGroup by rememberSaveable { mutableStateOf(prices.isNotEmpty()) }
+    val typed = remember { mutableStateMapOf<String, String>().apply { prices.forEach { put(it.priceTypeId, amountText(it.amountCents)) } } }
+    var groupProblems by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var pendingPrices by remember { mutableStateOf<List<PriceIn>?>(null) }
+
+    /** What to send for the groups, or null with the problems shown. Left as they are unless changed. */
+    fun groupPrices(): Result<List<PriceIn>?> {
+        if (mode != CostMode.PerPlayer) return Result.success(null)
+        if (!byGroup) return Result.success(if (prices.isNotEmpty()) emptyList() else null)
+        return when (val check = checkTypePrices(typed.filterKeys { id -> payable.any { it.id == id } })) {
+            is TypePricesCheck.Ok -> Result.success(check.prices)
+            is TypePricesCheck.Invalid -> {
+                groupProblems = check.problems
+                Result.failure(IllegalArgumentException())
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -542,6 +579,33 @@ internal fun CostDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (mode == CostMode.PerPlayer && payable.isNotEmpty()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .toggleable(value = byGroup, role = Role.Switch, onValueChange = { byGroup = it }),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(t("pa3.different_price_juniors"), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Switch(checked = byGroup, onCheckedChange = null)
+                    }
+                    if (byGroup) {
+                        Body(t("pa3.group_price_hint"))
+                        payable.forEach { type ->
+                            AmountField(
+                                value = typed[type.id] ?: "",
+                                onValue = { typed[type.id] = it; groupProblems = groupProblems - type.id },
+                                label = type.name,
+                                currency = currency,
+                                error = groupProblems[type.id],
+                            )
+                        }
+                    }
+                    if (alwaysFree.isNotEmpty()) {
+                        Body(t("pa3.always_free", vars = mapOf("groups" to alwaysFree.joinToString(", ") { it.name })))
+                    }
+                }
                 if (inSeries) {
                     Row(
                         Modifier
@@ -559,10 +623,16 @@ internal fun CostDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    when (val check = checkCost(mode, amount)) {
-                        is CostCheck.Ok -> onSave(mode, check.cents, note, series)
-                        is CostCheck.Confirm -> confirming = check.cents
-                        is CostCheck.Invalid -> problem = check.message
+                    val check = checkCost(mode, amount)
+                    val groups = groupPrices()
+                    when {
+                        check is CostCheck.Invalid -> problem = check.message
+                        groups.isFailure -> Unit
+                        check is CostCheck.Ok -> onSave(mode, check.cents, note, series, groups.getOrNull())
+                        check is CostCheck.Confirm -> {
+                            pendingPrices = groups.getOrNull()
+                            confirming = check.cents
+                        }
                     }
                 },
                 enabled = amount.isNotBlank(),
@@ -575,7 +645,7 @@ internal fun CostDialog(
     confirming?.let { cents ->
         BigAmountDialog(
             amount = money(cents, currency),
-            onYes = { confirming = null; onSave(mode, cents, note, series) },
+            onYes = { confirming = null; onSave(mode, cents, note, series, pendingPrices) },
             onNo = { confirming = null },
         )
     }
@@ -595,7 +665,7 @@ internal fun CostModeChoice(mode: CostMode?, onMode: (CostMode) -> Unit, offerNo
 }
 
 @Composable
-private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()

@@ -1,0 +1,21 @@
+[
+  {
+    "id": "e449ecd1-fc91-4d75-9ffc-6d6204219f40",
+    "plan_id": "83adbb78-d5ef-46ae-bbd6-9d3ff317e699",
+    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+    "user_id": "f8770d5a-e87c-4344-a8cb-759f83589409",
+    "name": "Ravi Sharma",
+    "started_on": "2026-11-21",
+    "ends_on": null,
+    "cancelled_at": null,
+    "keep_covering": false,
+    "told_standing": "up_to_date",
+    "created_at": "2026-11-21T19:46:27.971682Z",
+    "plan_name": "Monthly nets",
+    "billing": "monthly",
+    "standing": "up_to_date",
+    "sessions_left": null,
+    "running": true,
+    "next_charge_on": "2026-12-21"
+  }
+]

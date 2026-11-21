@@ -34,7 +34,7 @@ enum class ShareState {
             Paid -> t("pay.state_paid")
             Waived -> t("pay.state_waived")
             Void -> t("pay.state_void")
-            Covered -> t("pa2.state_covered")
+            Covered -> t("pa3.covered_by_your_pass")
             Unknown -> ""
         }
 
@@ -85,19 +85,76 @@ data class Share(
 
     /** Only a share somebody still owes can be let off. */
     val canLetOff: Boolean get() = state == ShareState.Owed || state == ShareState.PartPaid || state == ShareState.Waiting
+
+    /** A pass or a free price pays for it: nothing to pay, nothing to tap. */
+    val isCovered: Boolean get() = state == ShareState.Covered
+
+    /**
+     * Covered because their group is free (a coach), not by a pass. The
+     * server says which only in its English reason — "Free: Coach" against
+     * "Covered by Monthly nets" — so anything else reads as a pass.
+     */
+    val isFreePrice: Boolean get() = isCovered && reason?.startsWith("Free") == true
+
+    /**
+     * When, under the title: "by 6 Dec" for a pass charge or a group fee with
+     * a date, the session's day for a session, and nothing for a charge that
+     * has neither — a group fee's own time is only when it was made.
+     */
+    fun whenWords(zone: ZoneId = ZoneId.systemDefault()): String = when {
+        dueOn != null -> dayMonth(dueOn).takeIf { it.isNotEmpty() }?.let { t("pa3.by_date", vars = mapOf("date" to it)) } ?: ""
+        kind == null || kind == "event" -> shortDay(eventStartAt, zone)
+        else -> ""
+    }
 }
 
 // ---- the player's side ----
 
-/** `GET /me/dues`: per club, what you owe, what is waiting, and your credit. */
+/**
+ * `GET /me/dues`: per club, what you owe, what is waiting, and your credit —
+ * and, in [people], the same for everybody you pay for (a parent's juniors).
+ */
 @Serializable
-data class Dues(val clubs: List<ClubDues> = emptyList()) {
-    /** The clubs still owed something — what the "you owe" card lists. */
-    val owing: List<ClubDues> get() = clubs.filter { it.owedCents > 0 }
+data class Dues(
+    val clubs: List<ClubDues> = emptyList(),
+    val people: List<PersonDues> = emptyList(),
+) {
+    /**
+     * What the "you owe" card lists: each club still owed something, by you
+     * or by somebody you pay for — a parent owes their juniors' nets too.
+     */
+    val owing: List<ClubDues>
+        get() = (clubs.map { it.clubId } + people.map { it.dues.clubId.ifEmpty { it.clubId } }).distinct().mapNotNull { id ->
+            val own = clubs.firstOrNull { it.clubId == id }
+            val theirs = peopleIn(id)
+            val owed = (own?.owedCents ?: 0) + theirs.sumOf { it.dues.owedCents }
+            if (owed <= 0) return@mapNotNull null
+            val name = own?.clubName?.takeIf { it.isNotBlank() } ?: theirs.firstOrNull()?.dues?.clubName.orEmpty()
+            val currency = own?.currency ?: theirs.first().dues.currency
+            ClubDues(clubId = id, clubName = name, currency = currency, owedCents = owed)
+        }
 
-    /** Anything at all to show under Profile: owed, waiting or credit. */
-    val hasAnything: Boolean get() = clubs.any { it.owedCents > 0 || it.waitingCents > 0 || it.creditCents > 0 }
+    /** The people you pay for in one club. */
+    fun peopleIn(clubId: String): List<PersonDues> =
+        people.filter { (it.dues.clubId.ifEmpty { it.clubId }) == clubId }
+
+    /** Anything at all to show under Profile: owed, waiting or credit, yours or theirs. */
+    val hasAnything: Boolean
+        get() = (clubs + people.map { it.dues }).any { it.owedCents > 0 || it.waitingCents > 0 || it.creditCents > 0 }
 }
+
+/**
+ * Somebody you pay for, and what they owe one club. [managed] means they
+ * have no sign-in of their own: you are the only way they see it.
+ */
+@Serializable
+data class PersonDues(
+    @SerialName("user_id") val userId: String,
+    val name: String = "",
+    val managed: Boolean = false,
+    @SerialName("club_id") val clubId: String = "",
+    val dues: ClubDues = ClubDues(clubId = ""),
+)
 
 @Serializable
 data class ClubDues(
@@ -175,6 +232,12 @@ data class PayScreen(
     val reference: String = "",
     /** Your claims nobody has confirmed yet. */
     val claims: List<Payment> = emptyList(),
+    /**
+     * Friends on a bill you're on who still owe, for "I'm paying for friends
+     * too". Not sent by the server yet (it has nowhere a player can read who
+     * else is on their bill); the option stays hidden until it is.
+     */
+    val friends: List<Friend> = emptyList(),
 ) {
     val accountState: AccountState get() = AccountState.of(accountStateName)
 
@@ -407,6 +470,8 @@ data class BillSummary(
 @Serializable
 data class MoneyOverview(
     val currency: String = "GBP",
+    /** Passes with a payment late, or paused: "2 passes behind". */
+    @SerialName("passes_behind") val passesBehind: Int = 0,
     val settings: MoneySettings = MoneySettings(),
     val account: PayoutAccounts = PayoutAccounts(),
     @SerialName("to_check") val toCheck: List<Payment> = emptyList(),
@@ -468,12 +533,19 @@ data class CostBody(
     @SerialName("amount_cents") val amountCents: Long,
     val note: String? = null,
     @SerialName("apply_to_series") val applyToSeries: Boolean = false,
+    /**
+     * Prices for juniors and others, a cost per player only. Given, they
+     * replace the session's; null leaves them as they are (and stays out of
+     * the body); empty clears them.
+     */
+    val prices: List<PriceIn>? = null,
 )
 
 @Serializable
 data class CostResponse(
     val cost: EventCost? = null,
     @SerialName("series_updated") val seriesUpdated: Int = 0,
+    val prices: List<TypePrice> = emptyList(),
 )
 
 @Serializable
@@ -516,6 +588,8 @@ data class EventMoney(
     @SerialName("end_at") val endAt: String? = null,
     @SerialName("event_status") val eventStatus: String? = null,
     val cost: EventCost? = null,
+    /** The session's own prices for juniors and others, when it has any. */
+    val prices: List<TypePrice> = emptyList(),
     val bill: Bill? = null,
     /** Set the cost; send, re-split or cancel the bill. */
     @SerialName("can_bill") val canBill: Boolean = false,
@@ -555,6 +629,8 @@ data class PreviewShare(
     @SerialName("user_id") val userId: String? = null,
     val name: String = "",
     @SerialName("amount_cents") val amountCents: Long = 0,
+    /** Why they pay nothing — "Covered by Monthly nets", "Free: Coach" — or null. */
+    val covered: String? = null,
 )
 
 @Serializable
@@ -571,15 +647,22 @@ data class BillPreview(
     val summary: String
         get() {
             val total = money(totalCents, currency)
-            val amounts = shares.groupingBy { it.amountCents }.eachCount().toSortedMap(compareByDescending { it })
+            // Somebody a pass or a free price covers pays nothing and is not
+            // in the total: said separately, never as "1 pays £6.00".
+            val paying = shares.filter { it.covered == null }
+            val covered = shares.size - paying.size
+            val amounts = paying.groupingBy { it.amountCents }.eachCount().toSortedMap(compareByDescending { it })
             val each = amounts.entries.joinToString(", ") { (cents, n) ->
                 t("pay.n_pay_amount", count = n, vars = mapOf("n" to n, "amount" to money(cents, currency)))
             }
-            return if (amounts.size == 1) {
-                t("pay.preview_even", count = shares.size, vars = mapOf("total" to total, "n" to shares.size, "amount" to money(amounts.firstKey(), currency)))
-            } else {
-                t("pay.preview_uneven", vars = mapOf("total" to total, "n" to shares.size, "each" to each))
+            val said = when {
+                amounts.isEmpty() -> null
+                amounts.size == 1 ->
+                    t("pay.preview_even", count = paying.size, vars = mapOf("total" to total, "n" to paying.size, "amount" to money(amounts.firstKey(), currency)))
+                else -> t("pay.preview_uneven", vars = mapOf("total" to total, "n" to paying.size, "each" to each))
             }
+            val coveredSaid = covered.takeIf { it > 0 }?.let { t("pa3.preview_n_covered", count = it, vars = mapOf("n" to it)) }
+            return listOfNotNull(said, coveredSaid).joinToString(" ")
         }
 }
 

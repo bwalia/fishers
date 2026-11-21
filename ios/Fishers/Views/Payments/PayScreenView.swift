@@ -120,14 +120,17 @@ struct PayScreenView: View {
     var clubName: String? = nil
 
     @StateObject private var store: PayScreenStore
+    @StateObject private var passes: PlayerPassesStore
     @State private var guideOpen: Bool
     @State private var sendingDetails = false
+    @State private var payingForFriends = false
 
     init(clubId: UUID, clubName: String? = nil) {
         self.clubId = clubId
         self.clubName = clubName
         let store = PayScreenStore(clubId: clubId)
         _store = StateObject(wrappedValue: store)
+        _passes = StateObject(wrappedValue: PlayerPassesStore(clubId: clubId))
         // Open the first time; folded away once they've paid this club before.
         _guideOpen = State(initialValue: !store.hasPaidBefore)
     }
@@ -155,9 +158,11 @@ struct PayScreenView: View {
                     }
                 }
                 actionSection(screen)
+                friendsSection(screen)
                 claimsSection(screen)
                 sendSection(screen)
                 sharesSection(screen)
+                PlayerPassesSection(store: passes, screen: screen) { await store.load() }
             } else if store.isLoading {
                 Section { ProgressView().frame(maxWidth: .infinity) }
             }
@@ -167,7 +172,16 @@ struct PayScreenView: View {
         .navigationTitle(store.screen?.clubName ?? clubName ?? tr("Payments"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
-        .refreshable { await store.load() }
+        .task { await passes.load() }
+        .refreshable {
+            await store.load()
+            await passes.load()
+        }
+        .sheet(isPresented: $payingForFriends, onDismiss: { Task { await store.load() } }) {
+            if let screen = store.screen {
+                FriendsPaySheet(screen: screen)
+            }
+        }
         .sheet(isPresented: $sendingDetails) {
             if let text = store.screen?.detailsToSend {
                 // No Copy in this sheet: the account number reaches the
@@ -316,6 +330,26 @@ struct PayScreenView: View {
                 }
             }
             .disabled(store.isWorking)
+        }
+    }
+
+    // MARK: Paying for friends too
+
+    /// "I'm paying for friends too": one payment for the reader and friends
+    /// from the same sessions. Only while there is a session to pay for.
+    @ViewBuilder
+    private func friendsSection(_ screen: PayScreen) -> some View {
+        if screen.owedCents > 0, screen.owedShares.contains(where: { $0.eventId != nil }) {
+            Section {
+                Button {
+                    payingForFriends = true
+                } label: {
+                    Label(tr("I'm paying for friends too"), systemImage: "person.2")
+                        .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap, alignment: .leading)
+                }
+            } footer: {
+                Text(tr("One payment for you and friends from the same session, with your reference."))
+            }
         }
     }
 
@@ -471,29 +505,42 @@ private struct WaitingPaymentRow: View {
 }
 
 /// One share in a list: what, when, how much, where it stands.
+///
+/// A covered line ("Covered by your pass ✓") shows no amount: there is
+/// nothing to pay and nothing to tap, and a price beside it reads as owed.
 struct ShareLine: View {
     let share: ClubShare
     var showsName = false
+    /// A line of somebody the reader pays for: "their pass", not "your pass".
+    var forSomeoneElse = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(showsName ? share.name : share.title)
                     .font(FishersTheme.subhead.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
                 if let subtitle {
                     Text(subtitle)
                         .font(FishersTheme.footnote)
                         .foregroundStyle(.secondary)
                 }
-                if let reason = share.reason, share.state == .waived {
+                if let reason = share.reason, share.state == .waived || (showsName && share.state == .covered) {
                     Text(reason).font(FishersTheme.footnote).foregroundStyle(.secondary)
                 }
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(Money.format(share.amountCents, share.currency))
-                    .font(FishersTheme.subhead.monospacedDigit())
-                ShareStateBadge(state: share.state)
+            if share.state == .covered, !showsName {
+                Text(share.coveredWords(forSomeoneElse: forSomeoneElse))
+                    .font(FishersTheme.footnote.weight(.semibold))
+                    .foregroundStyle(FishersTheme.available)
+                    .multilineTextAlignment(.trailing)
+            } else {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(Money.format(share.amountCents, share.currency))
+                        .font(FishersTheme.subhead.monospacedDigit())
+                    ShareStateBadge(state: share.state)
+                }
             }
         }
         .accessibilityElement(children: .combine)
@@ -501,6 +548,6 @@ struct ShareLine: View {
 
     private var subtitle: String? {
         if showsName { return share.isGuest ? tr("Guest") : nil }
-        return share.eventStartAt.formatted(date: .abbreviated, time: .omitted)
+        return share.whenWords
     }
 }

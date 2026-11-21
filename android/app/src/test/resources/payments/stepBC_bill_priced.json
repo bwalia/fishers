@@ -1,0 +1,192 @@
+{
+  "event_id": "0da12d77-39b5-42e1-998e-8dcc31b2b9c9",
+  "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+  "title": "Tuesday nets",
+  "start_at": "2026-11-21T16:46:27.045889Z",
+  "end_at": "2026-11-21T18:46:27.045889Z",
+  "event_status": "scheduled",
+  "cost": {
+    "event_id": "0da12d77-39b5-42e1-998e-8dcc31b2b9c9",
+    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+    "mode": "per_player",
+    "amount_cents": 600,
+    "currency": "GBP",
+    "note": null,
+    "updated_at": "2026-11-21T19:46:27.191988Z"
+  },
+  "prices": [
+    {
+      "price_type_id": "84e74cc3-dfcc-472e-8d64-4d6f9d37573e",
+      "name": "Junior",
+      "amount_cents": 300
+    },
+    {
+      "price_type_id": "e07c38cd-b957-4e4f-8ec1-8062b1e74b6a",
+      "name": "Guest",
+      "amount_cents": 800
+    }
+  ],
+  "bill": {
+    "id": "8b42978c-91fc-4403-961a-d5862921c2a1",
+    "event_id": "0da12d77-39b5-42e1-998e-8dcc31b2b9c9",
+    "club_id": "9168e7da-32ef-4429-9f63-1298223d445d",
+    "title": "Tuesday nets",
+    "event_start_at": "2026-11-21T16:46:27.045889Z",
+    "mode": "per_player",
+    "amount_cents": 600,
+    "total_cents": 1700,
+    "currency": "GBP",
+    "rounding": "exact",
+    "payout_account_id": "cfe78b48-3f25-44d4-9b67-d655de499b6b",
+    "status": "issued",
+    "version": 1,
+    "auto": false,
+    "note": null,
+    "issued_by": "b88bf410-a7e5-4238-ab18-0dc33a836f33",
+    "issued_at": "2026-11-21T19:46:27.356114Z",
+    "updated_at": "2026-11-21T19:46:27.356114Z",
+    "voided_at": null,
+    "void_reason": null,
+    "kind": "event",
+    "pass_holder_id": null,
+    "period_start": null,
+    "due_on": null,
+    "paid_cents": 0,
+    "waiting_cents": 0,
+    "owed_cents": 1700,
+    "surplus_cents": 0
+  },
+  "can_bill": true,
+  "can_manage_money": true,
+  "shares": [
+    {
+      "id": "36e923e4-ba36-4f0c-b2e3-b8528ae5f8dc",
+      "bill_id": "8b42978c-91fc-4403-961a-d5862921c2a1",
+      "event_id": "0da12d77-39b5-42e1-998e-8dcc31b2b9c9",
+      "kind": "event",
+      "due_on": null,
+      "title": "Tuesday nets",
+      "event_start_at": "2026-11-21T16:46:27.045889Z",
+      "user_id": null,
+      "guest_name": "Gary Guest",
+      "name": "Gary Guest",
+      "amount_cents": 800,
+      "paid_cents": 0,
+      "waiting_cents": 0,
+      "currency": "GBP",
+      "state": "owed",
+      "reason": null
+    },
+    {
+      "id": "fcd53a8b-f6ea-4ba7-b37b-3521e09b860a",
+      "bill_id": "8b42978c-91fc-4403-961a-d5862921c2a1",
+      "event_id": "0da12d77-39b5-42e1-998e-8dcc31b2b9c9",
+      "kind": "event",
+      "due_on": null,
+      "title": "Tuesday nets",
+      "event_start_at": "2026-11-21T16:46:27.045889Z",
+      "user_id": "461ac7a0-c62f-4c92-a5ff-1f834fb180f7",
+      "guest_name": null,
+      "name": "Jas Gill",
+      "amount_cents": 300,
+      "paid_cents": 0,
+      "waiting_cents": 0,
+      "currency": "GBP",
+      "state": "owed",
+      "reason": null
+    },
+    {
+      "id": "46c76b94-c3fd-4b5c-b857-3b420c1e5dce",
+      "bill_id": "8b42978c-91fc-4403-961a-d5862921c2a1",
+      "event_id": "0da12d77-39b5-42e1-998e-8dcc31b2b9c9",
+      "kind": "event",
+      "due_on": null,
+      "title": "Tuesday nets",
+      "event_start_at": "2026-11-21T16:46:27.045889Z",
+      "user_id": "f8770d5a-e87c-4344-a8cb-759f83589409",
+      "guest_name": null,
+      "name": "Ravi Sharma",
+      "amount_cents": 600,
+      "paid_cents": 0,
+      "waiting_cents": 0,
+      "currency": "GBP",
+      "state": "owed",
+      "reason": null
+    },
+    {
+      "id": "f3e9f77f-7c8f-48b4-871b-c7f40b4c878e",
+      "bill_id": "8b42978c-91fc-4403-961a-d5862921c2a1",
+      "event_id": "0da12d77-39b5-42e1-998e-8dcc31b2b9c9",
+      "kind": "event",
+      "due_on": null,
+      "title": "Tuesday nets",
+      "event_start_at": "2026-11-21T16:46:27.045889Z",
+      "user_id": "4c4b0c37-e697-48e6-b36f-aaba206df596",
+      "guest_name": null,
+      "name": "Tom Bennett",
+      "amount_cents": 600,
+      "paid_cents": 0,
+      "waiting_cents": 0,
+      "currency": "GBP",
+      "state": "covered",
+      "reason": "Free: Coach"
+    }
+  ],
+  "my_share": null,
+  "candidates": [
+    {
+      "user_id": "b88bf410-a7e5-4238-ab18-0dc33a836f33",
+      "name": "Aman Gill",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    },
+    {
+      "user_id": "461ac7a0-c62f-4c92-a5ff-1f834fb180f7",
+      "name": "Jas Gill",
+      "rsvp": "invited",
+      "attended": true,
+      "suggested": true
+    },
+    {
+      "user_id": "0cca3ac7-0a87-4153-873e-9c730a08c2d0",
+      "name": "Neha Gill",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    },
+    {
+      "user_id": "f8770d5a-e87c-4344-a8cb-759f83589409",
+      "name": "Ravi Sharma",
+      "rsvp": "invited",
+      "attended": true,
+      "suggested": true
+    },
+    {
+      "user_id": "b576727b-e4c0-41a2-a2fe-6523fa7421ce",
+      "name": "Sam Student",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    },
+    {
+      "user_id": "b8784fb5-daee-4aa8-98fd-0995c1131a76",
+      "name": "Tara Treasurer",
+      "rsvp": "invited",
+      "attended": null,
+      "suggested": false
+    },
+    {
+      "user_id": "4c4b0c37-e697-48e6-b36f-aaba206df596",
+      "name": "Tom Bennett",
+      "rsvp": "invited",
+      "attended": true,
+      "suggested": true
+    }
+  ],
+  "guests": [
+    "Gary Guest"
+  ],
+  "has_payout_account": true,
+  "round_shares_up": false
+}

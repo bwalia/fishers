@@ -8,10 +8,25 @@ import UIKit
 /// Straight into WhatsApp when it is on the phone, the share sheet otherwise;
 /// "Other apps" always reaches the share sheet. The link is only made when
 /// somebody taps, never just by opening the event.
+///
+/// A session's bill and a group fee share the same way; each says how to
+/// get its link and how to switch it off.
 struct BillShareBlock: View {
-    @ObservedObject var store: EventMoneyStore
+    /// The link and its messages, or nil after a failure the caller shows.
+    let makeLink: () async -> BillLink?
+    let switchOff: () async -> Void
     /// Somebody still owes: worth a reminder.
     let anyoneOwes: Bool
+
+    init(anyoneOwes: Bool, makeLink: @escaping () async -> BillLink?, switchOff: @escaping () async -> Void) {
+        self.anyoneOwes = anyoneOwes
+        self.makeLink = makeLink
+        self.switchOff = switchOff
+    }
+
+    init(store: EventMoneyStore, anyoneOwes: Bool) {
+        self.init(anyoneOwes: anyoneOwes, makeLink: { await store.billLink() }, switchOff: { await store.switchLinkOff() })
+    }
 
     @State private var sharing: SharedText?
     @State private var confirmOff = false
@@ -57,7 +72,7 @@ struct BillShareBlock: View {
             }
         }
         .confirmationDialog(tr("Switch the pay link off?"), isPresented: $confirmOff, titleVisibility: .visible) {
-            Button(tr("Switch it off"), role: .destructive) { Task { await store.switchLinkOff() } }
+            Button(tr("Switch it off"), role: .destructive) { Task { await switchOff() } }
             Button(tr("Never mind"), role: .cancel) {}
         } message: {
             Text(tr("Anyone who opens it is asked for the latest one. Sharing the bill again makes a new link."))
@@ -105,7 +120,7 @@ struct BillShareBlock: View {
     }
 
     private func share(_ message: Message, viaWhatsApp: Bool) async {
-        guard let link = await store.billLink() else { return }
+        guard let link = await makeLink() else { return }
         let text = message == .bill ? link.billMessage : link.reminderMessage
         if viaWhatsApp, WhatsApp.isInstalled, let url = WhatsApp.sendURL(text),
            await UIApplication.shared.open(url) {
@@ -115,7 +130,7 @@ struct BillShareBlock: View {
     }
 
     private func copyLink() async {
-        guard let link = await store.billLink(), !link.url.isEmpty else { return }
+        guard let link = await makeLink(), !link.url.isEmpty else { return }
         Clipboard.copy(link.url)
         copied = true
         try? await Task.sleep(for: .seconds(2))

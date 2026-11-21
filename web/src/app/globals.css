@@ -9567,3 +9567,106 @@ body:has(main.paylink) .app-banner { display: none; }
    is for keyboard focus only. */
 .paylink [tabindex="-1"]:focus, .pay-page [tabindex="-1"]:focus { outline: none; }
 .setup-preview-card .pay-headline { font-size: 1.6rem; }
+
+/* ---------- Passes, group fees and paying for others (steps B and C) ----------
+   The same big, plain design as the pay screen: one thing per line, a
+   thumb-sized button for the one next step. */
+
+/* "You owe £14.88 for everyone", then a line per person. */
+.pay-people-sum { list-style: none; margin: 0 0 var(--s2); padding: 0; display: grid; gap: var(--s1); font-size: 1.1rem; }
+.pay-people-sum li { display: flex; justify-content: space-between; gap: var(--s3); border-bottom: 1px dashed var(--border); padding: var(--s1) 0; }
+.pay-people-sum li:last-child { border-bottom: none; }
+.pay-total { font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; margin: 0 0 var(--s2); }
+.pay-person { margin-top: var(--s4); padding-top: var(--s3); border-top: 1px solid var(--border); }
+.pay-person:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.pay-person p { margin: 0 0 var(--s2); }
+.pay-person-name { margin: var(--s3) 0 var(--s1); font-size: 1.1rem; }
+.pay-for-who { font-weight: 600; margin: var(--s3) 0 0; }
+.pay-friends-body { padding: 0 var(--s4) var(--s4); }
+.pay-friends-body p { margin: 0 0 var(--s2); }
+
+/* A covered line: nothing to pay, so it reads as done. */
+.due-list li.is-covered .tag { color: var(--primary-ink); background: var(--pitch-50); }
+
+/* Passes on the pay screen. */
+.passes h2 { margin-bottom: var(--s3); }
+.pass-card {
+  margin: 0 0 var(--s4);
+  padding: var(--s3) var(--s4) var(--s4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.pass-card.is-warn { border-left-color: var(--gold-600); }
+.pass-card-head { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.pass-card-head h3 { margin: 0; font-size: 1.25rem; }
+.pass-state { margin: var(--s2) 0; font-size: 1.15rem; font-weight: 700; }
+.pass-state.pay-warn { font-size: 1.05rem; }
+.pass-card > .muted { margin: 0 0 var(--s2); }
+.pass-cancel { margin-top: var(--s3); }
+.pass-more { margin: var(--s4) 0 var(--s2); font-size: 1.1rem; }
+.pass-offers { list-style: none; margin: 0; padding: 0; }
+.pass-offers > li { padding: var(--s3) 0; border-bottom: 1px solid var(--border); }
+.pass-offers > li:last-child { border-bottom: none; }
+.pass-offer { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+.pass-offer > div { min-width: 0; flex: 1 1 14em; }
+.pass-name { font-size: 1.2rem; }
+.pass-price { font-size: 1.1rem; font-weight: 600; margin-top: 2px; }
+.pass-ask { margin: 0; }
+.pass-confirm .chip-set { margin: var(--s3) 0 0; }
+.standing-order {
+  margin-top: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.standing-order h4 { margin: 0 0 var(--s1); font-size: 1.15rem; }
+.standing-order .pay-send { margin-top: var(--s3); }
+
+/* The money admins' pages. */
+.money-nav { display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 0 0 var(--s4); }
+.money-nav-link {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  text-decoration: none;
+}
+.money-nav-link:hover { background: var(--surface-2); }
+.money-nav-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.template-grid { display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: var(--s3); }
+.template-card {
+  display: grid;
+  gap: 2px;
+  min-height: 64px;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.template-card:hover { background: var(--surface-2); border-color: var(--primary); }
+.template-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.pass-form .chip-set, .fee-form .chip-set { margin: var(--s3) 0 0; }
+.pass-form > .subtle, .fee-form > .subtle { margin: var(--s2) 0 0; }
+.pay-list > li > .pass-holders,
+.pay-list > li > .fee-detail,
+.pay-list > li > .confirm-box,
+.pay-list > li > .money-form { flex: 1 1 100%; }
+.pass-holders, .fee-detail { padding: var(--s2) 0 0 var(--s3); border-left: 3px solid var(--border); }
+.pass-add { margin-top: var(--s3); }
+.pass-add h3 { margin: 0 0 var(--s1); font-size: 1rem; }
+.pass-offer-toggle { margin-top: var(--s3); }
+.check-row.inline { margin: 0; align-items: center; min-height: 44px; }
+.check-row.inline input[type="checkbox"] { margin-top: 0; }
+.group-prices { margin-top: var(--s2); }

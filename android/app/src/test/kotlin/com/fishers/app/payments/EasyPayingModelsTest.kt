@@ -74,7 +74,7 @@ class EasyPayingModelsTest {
         assertEquals("pass", share.kind)
         assertEquals("2026-12-01", share.dueOn)
         assertEquals(ShareState.Covered, share.state)
-        assertEquals("Covered by your pass", share.state.label)
+        assertEquals("Covered by your pass ✓", share.state.label)
         assertEquals(0L, share.leftCents)
         assertFalse("nothing to let off", share.canLetOff)
 

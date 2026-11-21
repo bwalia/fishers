@@ -1,0 +1,11 @@
+{
+  "url": "http://192.168.1.99:7311/pay/Xbcn1TQ7QIyPhjgFOtQ2FUOIxsBvIOhbL6vqDw",
+  "expires_at": "2026-12-21T19:46:35.200999Z",
+  "bill_message": "💷 Match balls, by Sun 6 Dec: £15.00 each.\nTap to pay: http://192.168.1.99:7311/pay/Xbcn1TQ7QIyPhjgFOtQ2FUOIxsBvIOhbL6vqDw",
+  "reminder_message": "Still to pay for Match balls, by Sun 6 Dec: Gary, Ravi and Sam.\nTap to pay: http://192.168.1.99:7311/pay/Xbcn1TQ7QIyPhjgFOtQ2FUOIxsBvIOhbL6vqDw",
+  "still_to_pay": [
+    "Gary Guest",
+    "Ravi Sharma",
+    "Sam Student"
+  ]
+}
