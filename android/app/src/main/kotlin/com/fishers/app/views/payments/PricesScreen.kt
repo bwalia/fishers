@@ -81,43 +81,50 @@ internal fun PricesPage(clubId: String) {
                 ErrorLine(state.loadError ?: "")
                 TextButton(onClick = model::load, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("rest.try_again")) }
             }
-            else -> Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                state.message?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary) }
-                state.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) }
-                Body(t("pa3.prices_intro"))
+            else -> {
+                val scroll = rememberScrollState()
+                // "Mia Sharma added": said at the top, and the list it was done from is long.
+                LaunchedEffect(state.message, state.error) {
+                    if (state.message != null || state.error != null) scroll.animateScrollTo(0)
+                }
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(scroll).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    state.message?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary) }
+                    state.error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) }
+                    Body(t("pa3.prices_intro"))
 
-                // ---- the groups ----
-                SectionHeading(t("pa3.groups"))
-                if (state.inUse.isEmpty()) Body(t("pa3.no_groups_yet"))
-                state.inUse.forEach { type ->
-                    GroupRow(type, action = t("la.change"), busy = state.isBusy, onAction = { changing = type })
-                }
-                Button(onClick = { adding = true }, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
-                    Text(t("pa3.add_group"), modifier = Modifier.padding(start = 8.dp))
-                }
-                Body(t("pa3.groups_session_hint"))
-                if (state.notInUse.isNotEmpty()) {
-                    Text(t("pa3.groups_not_used"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-                    state.notInUse.forEach { type ->
-                        GroupRow(type, action = t("pa3.use_again"), busy = state.isBusy, onAction = {
-                            model.changeGroup(type, PriceTypeBody(archived = false), t("pa3.group_back", vars = mapOf("group" to type.name)))
-                        })
+                    // ---- the groups ----
+                    SectionHeading(t("pa3.groups"))
+                    if (state.inUse.isEmpty()) Body(t("pa3.no_groups_yet"))
+                    state.inUse.forEach { type ->
+                        GroupRow(type, action = t("la.change"), busy = state.isBusy, onAction = { changing = type })
                     }
-                }
+                    Button(onClick = { adding = true }, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Icon(Icons.Filled.Add, contentDescription = null)
+                        Text(t("pa3.add_group"), modifier = Modifier.padding(start = 8.dp))
+                    }
+                    Body(t("pa3.groups_session_hint"))
+                    if (state.notInUse.isNotEmpty()) {
+                        Text(t("pa3.groups_not_used"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                        state.notInUse.forEach { type ->
+                            GroupRow(type, action = t("pa3.use_again"), busy = state.isBusy, onAction = {
+                                model.changeGroup(type, PriceTypeBody(archived = false), t("pa3.group_back", vars = mapOf("group" to type.name)))
+                            })
+                        }
+                    }
 
-                // ---- members ----
-                SectionHeading(t("cl.members"))
-                Body(t("pa3.members_hint"))
-                OutlinedButton(onClick = { addingJunior = true }, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                    Icon(Icons.Filled.PersonAdd, contentDescription = null)
-                    Text(t("pa3.add_junior"), modifier = Modifier.padding(start = 8.dp))
-                }
-                state.roster.forEach { person ->
-                    MemberRow(person, state, onOpen = { member = person })
+                    // ---- members ----
+                    SectionHeading(t("cl.members"))
+                    Body(t("pa3.members_hint"))
+                    OutlinedButton(onClick = { addingJunior = true }, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Icon(Icons.Filled.PersonAdd, contentDescription = null)
+                        Text(t("pa3.add_junior"), modifier = Modifier.padding(start = 8.dp))
+                    }
+                    state.roster.forEach { person ->
+                        MemberRow(person, state, onOpen = { member = person })
+                    }
                 }
             }
         }

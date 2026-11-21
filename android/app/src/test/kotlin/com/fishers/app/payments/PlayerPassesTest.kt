@@ -281,6 +281,24 @@ class PlayerPassesTest {
     }
 
     @Test
+    fun `your own pay screen can turn into Pay for everyone`() = runTest(dispatcher.scheduler) {
+        val api = Club()
+        val model = model(api)
+        model.load()
+        advanceUntilIdle()
+        assertFalse("your own payment to start with", model.state.value.payingForOthers)
+        assertEquals(listOf("Arjun Gill", "Jas Gill"), model.state.value.othersOwing.map { it.name })
+
+        model.payForEveryone()
+        assertTrue(model.state.value.payingForOthers)
+        assertEquals(1500L + 600 + 900, model.state.value.payingCents)
+        model.claim(PaymentMethod.Transfer)
+        advanceUntilIdle()
+        assertEquals(listOf(arjun, jas).sorted(), api.forOthers.single().second.people)
+        assertTrue("one payment, not your own claim", api.claims.isEmpty())
+    }
+
+    @Test
     fun `with nobody else owing, the pay screen pays for you alone`() = runTest(dispatcher.scheduler) {
         val api = Club().apply { dues = Dues() }
         val model = model(api, forEveryone = true)

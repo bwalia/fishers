@@ -178,7 +178,8 @@ internal fun ReasonDialog(
             ) { Text(confirm) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("sc.cancel")) }
+            // Not "Cancel": beside "Cancel the bill" it reads as the same thing.
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("pay.not_now")) }
         },
     )
 }

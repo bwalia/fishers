@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
@@ -138,9 +139,16 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
     var freezing by remember { mutableStateOf<PayoutAccount?>(null) }
     var removing by remember { mutableStateOf<PayoutAccount?>(null) }
     val currency = overview.currency
+    val list = rememberLazyListState()
+    // What an action came to is said at the top: go up to it, as the button
+    // that did it may be a long way down.
+    LaunchedEffect(state.message, state.error) {
+        if (state.message != null || state.error != null) list.animateScrollToItem(0)
+    }
 
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = list,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -149,6 +157,34 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
 
         if (state.offerSetup) {
             item { SetupCard(onStart = model::startSetup) }
+        }
+
+        // ---- payments to check: the treasurer's everyday job, so first while there are any ----
+        if (overview.toCheck.isNotEmpty()) {
+            item {
+                SectionHeading(t("pay.payments_to_check_n", vars = mapOf("n" to overview.toCheck.size)))
+            }
+            item { Hint(t("pay.check_your_bank")) }
+            // One payment has its own Received: "All arrived" is for more than one.
+            if (overview.toCheck.size > 1) {
+                item {
+                    Button(
+                        onClick = { confirmingAll = true },
+                        enabled = !state.confirmingAll,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) { Text(if (state.confirmingAll) t("pay.sending") else t("pa2.all_arrived")) }
+                }
+            }
+            items(overview.toCheck, key = { "check-${it.id}" }) { payment ->
+                ToCheckRow(
+                    payment = payment,
+                    busy = payment.id in state.deciding,
+                    onReceived = { model.confirm(payment) },
+                    onNotReceived = { rejecting = payment },
+                    onScreenshot = { model.openScreenshot(payment) },
+                )
+            }
+            item { ChargeRow(t("pw4.import_statement"), t("pa4.import_statement_hint"), onClick = { nav.push(StatementRoute(model.clubId)) }) }
         }
 
         item {
@@ -172,36 +208,13 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
             )
         }
 
-        // ---- payments to check ----
-        item {
-            SectionHeading(
-                if (overview.toCheck.isEmpty()) t("pay.payments_to_check")
-                else t("pay.payments_to_check_n", vars = mapOf("n" to overview.toCheck.size)),
-            )
-        }
+        // ---- payments to check, when there are none (with some, they're at the top) ----
         if (overview.toCheck.isEmpty()) {
+            item { SectionHeading(t("pay.payments_to_check")) }
             item { Hint(t("pay.nothing_to_check")) }
-        } else {
-            item { Hint(t("pay.check_your_bank")) }
-            item {
-                Button(
-                    onClick = { confirmingAll = true },
-                    enabled = !state.confirmingAll,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) { Text(if (state.confirmingAll) t("pay.sending") else t("pa2.all_arrived")) }
-            }
-            items(overview.toCheck, key = { "check-${it.id}" }) { payment ->
-                ToCheckRow(
-                    payment = payment,
-                    busy = payment.id in state.deciding,
-                    onReceived = { model.confirm(payment) },
-                    onNotReceived = { rejecting = payment },
-                    onScreenshot = { model.openScreenshot(payment) },
-                )
-            }
+            // The bank's statement finds the ones nobody said.
+            item { ChargeRow(t("pw4.import_statement"), t("pa4.import_statement_hint"), onClick = { nav.push(StatementRoute(model.clubId)) }) }
         }
-        // The bank's statement ticks these off in one go, and finds the ones nobody said.
-        item { ChargeRow(t("pw4.import_statement"), t("pa4.import_statement_hint"), onClick = { nav.push(StatementRoute(model.clubId)) }) }
 
         // ---- who owes what ----
         item { SectionHeading(t("pay.who_owes_what")) }
@@ -458,7 +471,10 @@ private fun AccountLines(account: PayoutAccount) {
             account.label.takeIf { it.isNotBlank() },
             t("pay.personal_account").takeIf { account.isPersonal },
             account.createdByName?.let { t("pay.added_by", vars = mapOf("name" to it)) },
-        ).joinToString(" · "),
+        )
+            // A label typed as "Personal account" is not said twice.
+            .distinctBy { it.trim().lowercase() }
+            .joinToString(" · "),
     )
 }
 

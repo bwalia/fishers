@@ -136,6 +136,24 @@ class EasyPayingModelsTest {
     }
 
     @Test
+    fun `the month a standing order pays is not named in what you owe`() {
+        val pay = Captured.read<PayScreen>("pay_screen")
+        val nets = pay.shares.first()
+        val month = nets.copy(id = "m", title = "Monthly nets — November 2026", kind = "pass", dueOn = "2026-11-28", amountCents = 2000)
+        // The server's amount is Friday nets only; the pass charge is the standing order's.
+        val withOrder = pay.copy(shares = listOf(month, nets), standingOrderCents = 2000)
+        val today = java.time.LocalDate.parse("2026-11-22")
+        assertEquals("You owe £15.00 for Friday nets", withOrder.oweHeadline(today))
+        // Past its due day the standing order has not paid it: it is to pay by hand.
+        assertEquals(
+            "You owe £15.00 for Monthly nets — November 2026 and 1 more",
+            withOrder.oweHeadline(java.time.LocalDate.parse("2026-11-29")),
+        )
+        // Without a standing order it is just another line.
+        assertEquals(2, withOrder.copy(standingOrderCents = 0).byHandShares(today).size)
+    }
+
+    @Test
     fun `waiting and paid lines are not counted as owed`() {
         val pay = Captured.read<PayScreen>("stepA_pay_screen")
         assertTrue("everything is waiting", pay.owedShares.isEmpty())

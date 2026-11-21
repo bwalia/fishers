@@ -297,6 +297,13 @@ class PayViewModel(
     fun clearFriends() = _state.update { it.copy(friendsTicked = emptySet()) }
 
     /**
+     * From your own pay screen to Pay for everyone: you and everybody you pay
+     * for, in one payment — what a parent who has just undone a junior's
+     * payment needs to pay it again.
+     */
+    fun payForEveryone() = _state.update { it.copy(forEveryone = true, friendsTicked = emptySet(), message = null, error = null) }
+
+    /**
      * One payment for you and the others in it: everybody you pay for, or
      * the friends ticked. Each is recorded for what they owe, under your
      * reference. The key is the same on every retry of the same payment —

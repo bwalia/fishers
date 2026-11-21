@@ -4,6 +4,7 @@ import com.fishers.app.clubs.money
 import com.fishers.app.i18n.t
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.time.LocalDate
 
 // Easy paying, step A of docs/CLUB_PAYMENTS_V2_PLAN.md (§5 and §10):
 // pay links shared to WhatsApp, cash at the ground, "all arrived", screenshots,
@@ -63,12 +64,25 @@ val PayScreen.owedShares: List<Share>
     get() = shares.filter { it.leftCents > 0 && (it.state == ShareState.Owed || it.state == ShareState.PartPaid) }
 
 /**
- * "You owe £5.00 for Friday nets", "You owe £25.00 for Friday nets and 2
- * more", or just "You owe £5.00." when nothing on the list names it.
+ * What [owedCents] is for: the owed lines less this month's pass charge that
+ * the standing order is about to pay (a pass charge not yet past its due
+ * day), which the server leaves out of the amount but keeps in the list.
  */
-fun PayScreen.oweHeadline(): String {
+fun PayScreen.byHandShares(today: LocalDate = LocalDate.now()): List<Share> {
+    if (standingOrderCents <= 0) return owedShares
+    return owedShares.filterNot { share ->
+        share.kind == "pass" && share.dueOn?.let { runCatching { !LocalDate.parse(it.take(10)).isBefore(today) }.getOrNull() } == true
+    }
+}
+
+/**
+ * "You owe £5.00 for Friday nets", "You owe £25.00 for Friday nets and 2
+ * more", or just "You owe £5.00." when nothing on the list names it. The
+ * month a standing order pays is not named: it isn't in the amount.
+ */
+fun PayScreen.oweHeadline(today: LocalDate = LocalDate.now()): String {
     val amount = money(owedCents, currency)
-    val owed = owedShares
+    val owed = byHandShares(today)
     val first = owed.firstOrNull()?.title?.takeIf { it.isNotBlank() }
         ?: return t("pay.you_owe_amount", vars = mapOf("amount" to amount))
     val more = owed.size - 1
@@ -136,7 +150,7 @@ fun Payment.waitingWords(me: String?): String {
 fun PayScreen.detailsToSend(amountCents: Long = owedCents, forOthers: Boolean = false): String {
     val a = account ?: return ""
     // Paying for others too, it is more than one thing: the amount says it all.
-    val what = owedShares.firstOrNull()?.title?.takeIf { it.isNotBlank() && !forOthers }
+    val what = byHandShares().firstOrNull()?.title?.takeIf { it.isNotBlank() && !forOthers }
     return listOfNotNull(
         if (what != null) {
             t("pa2.details_intro_for", vars = mapOf("amount" to money(amountCents, currency), "club" to clubName, "what" to what))
