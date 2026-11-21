@@ -296,7 +296,7 @@ data class ClubFixture(
     /** "Sat 27 Sep, 13:30", in the reader's time zone and the app's language. */
     fun whenText(zone: ZoneId = ZoneId.systemDefault()): String =
         runCatching {
-            DateTimeFormatter.ofPattern("EEE d MMM, HH:mm", Locale.forLanguageTag(Strings.language.code))
+            DateTimeFormatter.ofPattern("EEE d MMM, ${com.fishers.app.fixtures.clockPattern()}", Locale.forLanguageTag(Strings.language.code))
                 .withZone(zone)
                 .format(Instant.parse(startAt))
         }.getOrDefault(startAt)

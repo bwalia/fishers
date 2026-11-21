@@ -494,4 +494,44 @@ class MatchSetupTest {
         assertTrue(again.state.value.named(Side.Home))
         assertEquals("the agreement, the toss, the sheet", 3, FileBallStore(File(disk.root, "books")).read("e1")!!.pending.size)
     }
+
+    /** Leaving the team sheets half picked used to lose every pick. */
+    @Test
+    fun `picks made before leaving are there when the sheets are opened again`() = runTest(dispatcher.scheduler) {
+        val log = mutableListOf<ScoringEvent>()
+        fun add(kind: JsonObject) {
+            log += ScoringEvent("00000000-0000-4000-9000-%012d".format(log.size + 1), log.size + 1L, kind)
+        }
+        add(SetupEvents.matchPrepared(20, "Lords CC", "Hemel CC"))
+        add(SetupEvents.conditionsProposed(com.fishers.app.match.start.MatchConditions.standard(20), Side.Home, "Ravi"))
+        add(SetupEvents.conditionsAgreed(Side.Away, "Imran"))
+        add(SetupEvents.tossRecorded(Side.Home, TossCall.Bat))
+        val server = Server(
+            match = SetupMatch(id = "m1", eventId = "e1", clubId = "lords", status = "selecting_xi", canScore = true, lastSeq = 4),
+            log = log,
+        )
+        val first = model(server)
+        first.load()
+        advanceUntilIdle()
+        assertEquals(SetupStep.Sheets, first.state.value.step)
+        val picked = first.state.value.clubPlayers.take(2)
+        picked.forEach { first.addPlayer(Side.Home, it) }
+        first.addGuest(Side.Away, "Imran")
+        // ...and leaves, before naming either side.
+
+        val again = model(server)
+        again.load()
+        advanceUntilIdle()
+        assertEquals(picked.map { it.name }, again.state.value.homeSheet.map { it.name })
+        assertEquals(listOf("Imran"), again.state.value.awaySheet.map { it.name })
+        assertFalse("restored, not named", again.state.value.named(Side.Home))
+
+        // Named both: the draft goes, and the book is what is kept.
+        again.addGuest(Side.Away, "Wasim")
+        again.confirmSheet(Side.Home)
+        advanceUntilIdle()
+        again.confirmSheet(Side.Away)
+        advanceUntilIdle()
+        assertNull(OfflineCache(File(disk.root, "cache")).sheetDraft("e1"))
+    }
 }

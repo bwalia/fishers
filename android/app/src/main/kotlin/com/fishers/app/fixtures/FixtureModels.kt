@@ -217,6 +217,19 @@ data class FishersEvent(
     }
 }
 
+/**
+ * Whether the phone shows 24-hour times. The schedule form's clock follows the
+ * phone's own setting, and every other time on screen must agree with it: Home
+ * said "18:30" while the form beside it said "6:30 PM". Set from the system
+ * when the app starts and whenever it comes back to the front.
+ */
+object ClockStyle {
+    @Volatile var is24Hour: Boolean = true
+}
+
+/** "13:30" or "1:30 pm", as the phone's clock is set. */
+internal fun clockPattern(): String = if (ClockStyle.is24Hour) "HH:mm" else "h:mm a"
+
 /** "Sat 27 Sep, 13:30" — short, and in the reader's own time zone. */
 fun formatWhen(iso: String, zone: ZoneId = ZoneId.systemDefault()): String =
     runCatching {
@@ -224,7 +237,7 @@ fun formatWhen(iso: String, zone: ZoneId = ZoneId.systemDefault()): String =
             // The app's own language, not the device's. Someone whose phone is
             // in English but who picked ਪੰਜਾਬੀ in the app was reading Punjabi
             // headings above an English date.
-            .ofPattern("EEE d MMM, HH:mm", Locale.forLanguageTag(Strings.language.code))
+            .ofPattern("EEE d MMM, ${clockPattern()}", Locale.forLanguageTag(Strings.language.code))
             .withZone(zone)
             .format(Instant.parse(iso))
     }.getOrDefault(iso)
@@ -236,9 +249,9 @@ internal fun appLocale(): Locale = Locale.forLanguageTag(Strings.language.code)
 fun formatDay(date: java.time.LocalDate): String =
     DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", appLocale()).format(date)
 
-/** "13:30", or "1:30 PM" where that is how the language writes it. */
+/** "13:30", or "1:30 pm" on a phone set to 12-hour time. */
 fun formatTime(time: java.time.LocalTime): String =
-    DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT).withLocale(appLocale()).format(time)
+    DateTimeFormatter.ofPattern(clockPattern(), appLocale()).format(time)
 
 /** "Saturday 27 September, 13:30 – 18:30" — a fixture's whole afternoon, in the reader's zone. */
 fun formatSpan(startIso: String, endIso: String?, zone: ZoneId = ZoneId.systemDefault()): String =

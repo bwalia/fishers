@@ -57,6 +57,29 @@ class OfflineCache(private val dir: File) {
 
     fun roster(clubId: String): List<Player> = read("roster-${safe(clubId)}", players).orEmpty()
 
+    /**
+     * A team sheet still being picked, until its side is named. Leaving the
+     * screen half way through used to lose every pick: they lived on the
+     * screen, and only a named side goes into the match's book.
+     */
+    @Serializable
+    data class SheetDraft(
+        val home: List<MatchPlayer> = emptyList(),
+        val away: List<MatchPlayer> = emptyList(),
+        @SerialName("home_captain") val homeCaptain: String? = null,
+        @SerialName("away_captain") val awayCaptain: String? = null,
+        @SerialName("home_keeper") val homeKeeper: String? = null,
+        @SerialName("away_keeper") val awayKeeper: String? = null,
+    )
+
+    fun saveSheetDraft(eventId: String, draft: SheetDraft) = write("sheets-${safe(eventId)}", SheetDraft.serializer(), draft)
+
+    fun sheetDraft(eventId: String): SheetDraft? = read("sheets-${safe(eventId)}", SheetDraft.serializer())
+
+    fun clearSheetDraft(eventId: String) {
+        synchronized(lock) { File(dir, "sheets-${safe(eventId)}.json").delete() }
+    }
+
     private fun safe(id: String) = id.filter { it.isLetterOrDigit() || it == '-' }
 
     private fun <T> read(name: String, serializer: KSerializer<T>): T? = synchronized(lock) {

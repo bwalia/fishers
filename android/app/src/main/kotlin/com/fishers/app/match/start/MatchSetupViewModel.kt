@@ -275,12 +275,15 @@ class MatchSetupViewModel(
 
     // MARK: Step 4 — the team sheets
 
-    fun addPlayer(side: Side, player: MatchPlayer) = update {
-        if ((homeSheet + awaySheet).any { it.id == player.id }) return@update this
-        val next = sheet(side) + player
-        // Picking a club's captain marks them C, until somebody chooses otherwise.
-        val captain = captain(side) ?: player.id.takeIf { it in captains }
-        withSheet(side, next).withCaptain(side, captain)
+    fun addPlayer(side: Side, player: MatchPlayer) {
+        update {
+            if ((homeSheet + awaySheet).any { it.id == player.id }) return@update this
+            val next = sheet(side) + player
+            // Picking a club's captain marks them C, until somebody chooses otherwise.
+            val captain = captain(side) ?: player.id.takeIf { it in captains }
+            withSheet(side, next).withCaptain(side, captain)
+        }
+        keepDraft()
     }
 
     /** A guest, or one of an opposition that is only a name: a fresh id, as iOS mints. */
@@ -290,26 +293,68 @@ class MatchSetupViewModel(
         addPlayer(side, MatchPlayer(newId(), trimmed))
     }
 
-    fun removePlayer(side: Side, id: String) = update {
-        val next = sheet(side).filterNot { it.id == id }
-        var out = withSheet(side, next)
-        if (captain(side) == id) out = out.withCaptain(side, next.firstOrNull { it.id in captains }?.id)
-        if (keeper(side) == id) out = out.withKeeper(side, null)
-        out
+    fun removePlayer(side: Side, id: String) {
+        update {
+            val next = sheet(side).filterNot { it.id == id }
+            var out = withSheet(side, next)
+            if (captain(side) == id) out = out.withCaptain(side, next.firstOrNull { it.id in captains }?.id)
+            if (keeper(side) == id) out = out.withKeeper(side, null)
+            out
+        }
+        keepDraft()
     }
 
     /** Batting order: one place up, or down. */
-    fun movePlayer(side: Side, id: String, up: Boolean) = update {
-        val list = sheet(side).toMutableList()
-        val at = list.indexOfFirst { it.id == id }
-        val to = if (up) at - 1 else at + 1
-        if (at < 0 || to !in list.indices) return@update this
-        list.add(to, list.removeAt(at))
-        withSheet(side, list)
+    fun movePlayer(side: Side, id: String, up: Boolean) {
+        update {
+            val list = sheet(side).toMutableList()
+            val at = list.indexOfFirst { it.id == id }
+            val to = if (up) at - 1 else at + 1
+            if (at < 0 || to !in list.indices) return@update this
+            list.add(to, list.removeAt(at))
+            withSheet(side, list)
+        }
+        keepDraft()
     }
 
-    fun setCaptain(side: Side, id: String?) = update { withCaptain(side, id) }
-    fun setKeeper(side: Side, id: String?) = update { withKeeper(side, id) }
+    fun setCaptain(side: Side, id: String?) {
+        update { withCaptain(side, id) }
+        keepDraft()
+    }
+
+    fun setKeeper(side: Side, id: String?) {
+        update { withKeeper(side, id) }
+        keepDraft()
+    }
+
+    /** The sheets as picked so far, on this phone, until both sides are named. */
+    private fun keepDraft() {
+        val s = _state.value
+        cache.saveSheetDraft(
+            eventId,
+            OfflineCache.SheetDraft(
+                home = s.homeSheet, away = s.awaySheet,
+                homeCaptain = s.homeCaptain, awayCaptain = s.awayCaptain,
+                homeKeeper = s.homeKeeper, awayKeeper = s.awayKeeper,
+            ),
+        )
+    }
+
+    /**
+     * Picks made before leaving the screen, for any side not yet named. A
+     * named side is the book's, and the book always wins.
+     */
+    private fun MatchSetupState.withDraft(): MatchSetupState {
+        val draft = cache.sheetDraft(eventId) ?: return this
+        var out = this
+        if (!named(Side.Home) && homeSheet.isEmpty() && draft.home.isNotEmpty()) {
+            out = out.copy(homeSheet = draft.home, homeCaptain = draft.homeCaptain, homeKeeper = draft.homeKeeper)
+        }
+        if (!named(Side.Away) && awaySheet.isEmpty() && draft.away.isNotEmpty()) {
+            out = out.copy(awaySheet = draft.away, awayCaptain = draft.awayCaptain, awayKeeper = draft.awayKeeper)
+        }
+        return out
+    }
 
     fun addOfficial(umpire: Boolean, player: MatchPlayer) = update {
         if ((umpires + scorers).any { it.id == player.id }) return@update this
@@ -348,6 +393,8 @@ class MatchSetupViewModel(
     private suspend fun finishSheets() {
         val s = _state.value
         if (!s.named(Side.Home) || !s.named(Side.Away)) return
+        // Both sides are in the book now: the draft has done its job.
+        cache.clearSheetDraft(eventId)
         val officials = MatchOfficials(s.umpires, s.scorers)
         val wanted = officials.umpires.isNotEmpty() || officials.scorers.isNotEmpty()
         if (wanted && officials != s.book.officials) {
@@ -456,7 +503,7 @@ class MatchSetupViewModel(
                     awayName = if (fresh) awayName else match.awayName,
                 )
             } else {
-                pickUp(book)
+                pickUp(book).withDraft()
             }
         }
         if (_state.value.step == SetupStep.Openers) enterOpeners()
@@ -520,7 +567,7 @@ class MatchSetupViewModel(
                     conditions = match?.oversLimit?.takeIf { it > 0 }?.let { MatchConditions.standard(it) } ?: conditions,
                 )
             } else {
-                here.pickUp(setup)
+                here.pickUp(setup).withDraft()
             }
         }
         if (_state.value.step == SetupStep.Openers) enterOpeners()

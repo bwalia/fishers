@@ -87,7 +87,8 @@ data class WorldMatch(
             runCatching {
                 val at = Instant.parse(it).atZone(ZoneId.systemDefault())
                 val today = Instant.now().atZone(ZoneId.systemDefault()).toLocalDate()
-                val pattern = if (at.toLocalDate() == today) "HH:mm" else "EEE HH:mm"
+                val clock = com.fishers.app.fixtures.clockPattern()
+                val pattern = if (at.toLocalDate() == today) clock else "EEE $clock"
                 at.format(DateTimeFormatter.ofPattern(pattern))
             }.getOrNull()
         }
