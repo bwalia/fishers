@@ -71,7 +71,7 @@ struct ClubPaymentsView: View {
             }
             Button(tr("Never mind"), role: .cancel) { freezeReason = "" }
         } message: {
-            Text(tr("Everyone who looks after the club's money is told. Players are told not to pay until the club owner has looked."))
+            Text(tr("Everyone who looks after the club's money is told. Nobody pays into these details until the club owner has looked."))
         }
         .confirmationDialog(
             removing?.state == .pending
@@ -153,8 +153,8 @@ struct ClubPaymentsView: View {
 
             if let frozen = accounts.frozen {
                 accountRow(frozen, heading: tr("Frozen"))
-                Text(frozen.freezeReason.map { tr("Frozen: {reason}. Players are told not to pay until the club owner has looked.", vars: ["reason": $0]) }
-                     ?? tr("Frozen. Players are told not to pay until the club owner has looked."))
+                Text(frozen.freezeReason.map { tr("Frozen: {reason}. Nobody pays into these details until the club owner has looked.", vars: ["reason": $0]) }
+                     ?? tr("Frozen. Nobody pays into these details until the club owner has looked."))
                     .font(FishersTheme.footnote)
                     .foregroundStyle(FishersTheme.unavailable)
                 if accounts.isOwner {

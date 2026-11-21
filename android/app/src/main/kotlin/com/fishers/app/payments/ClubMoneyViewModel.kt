@@ -232,7 +232,7 @@ class ClubMoneyViewModel(
         }
     }
 
-    /** "Not right?" — players are told not to pay until the owner has looked. */
+    /** "Not right?" — nobody pays into frozen details until the owner has looked. */
     fun freeze(account: PayoutAccount, reason: String?) =
         accountChange(t("pay.details_frozen")) { api.freezePayoutAccount(clubId, account.id, ReasonBody(reason?.trim()?.takeIf { it.isNotEmpty() })) }
 

@@ -332,7 +332,8 @@ async fn add_payout_account(
     let sort_code = money::normalise_sort_code(&body.sort_code).map_err(bad)?;
     let number = money::normalise_account_number(&body.account_number).map_err(bad)?;
     let label = body.label.as_deref().map(str::trim).filter(|l| !l.is_empty()).unwrap_or(
-        if body.is_personal { "Personal account" } else { "Club account" },
+        // Not "Personal account": the apps already say that beside it.
+        if body.is_personal { "Bank account" } else { "Club account" },
     );
     if label.chars().count() > 60 {
         return Err(bad("Keep the nickname to 60 characters."));
@@ -473,6 +474,14 @@ async fn freeze_account(
         return Err(ApiError::conflict("Those details aren't live or waiting, so there's nothing to freeze")
             .with_code("not_freezable"));
     }
+    // A change frozen before it went live stops only the change: players
+    // keep paying into the current details. Live details frozen leave them
+    // nothing to pay into.
+    let what_players_see = if s == PayoutState::Pending {
+        "The change won't go live until the club owner has looked. Players keep paying into the current details."
+    } else {
+        "Players are told not to pay until the club owner has looked."
+    };
     repo::freeze_payout_account(&mut tx, aid, auth.user_id, reason.as_deref()).await?;
     repo::audit(&mut tx, club_id, Some(auth.user_id), "freeze_bank_details", "payout_account", Some(aid), None,
         Some(json!({ "reason": reason }))).await?;
@@ -486,7 +495,7 @@ async fn freeze_account(
                 admin,
                 "payout_details_frozen",
                 &format!("{club}: bank details frozen"),
-                &format!("{who} froze the bank details. Players are told not to pay until the club owner has looked."),
+                &format!("{who} froze the bank details. {what_players_see}"),
                 json!({ "club_id": club_id }),
             )
             .await;
