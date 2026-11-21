@@ -25,7 +25,7 @@
 # every push was refused and every subscription dropped. Those subscriptions
 # are already dead; browsers make fresh ones against the new key on their own.
 #
-# Generated here: JWT_SECRET, S3_ACCESS_KEY, S3_SECRET_KEY, VAPID_PUBLIC_KEY,
+# Generated here: JWT_SECRET, PAYOUT_DETAILS_KEY, S3_ACCESS_KEY, S3_SECRET_KEY, VAPID_PUBLIC_KEY,
 # VAPID_PRIVATE_KEY. Add the rest in the vault by hand when a ring needs them —
 # STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID
 # (a Google OAuth "Web application" client whose authorised JavaScript origins
@@ -110,6 +110,10 @@ generated='{}'
 add() { generated=$(jq -c --arg k "$1" --arg v "$2" '. + {($k): $v}' <<<"$generated"); }
 
 has JWT_SECRET    || add JWT_SECRET    "$(openssl rand -hex 32)"
+# Seals club bank details at rest (backend/api/src/services/payout_crypto.rs).
+# Never rotate it by hand: rows name the key that sealed them, and a key that
+# is gone leaves those details unreadable until the club enters them again.
+has PAYOUT_DETAILS_KEY || add PAYOUT_DETAILS_KEY "$(openssl rand -hex 32)"
 # MinIO wants a root user of 3+ characters and a password of 8+.
 has S3_ACCESS_KEY || add S3_ACCESS_KEY "fishers$(openssl rand -hex 8)"
 has S3_SECRET_KEY || add S3_SECRET_KEY "$(openssl rand -hex 24)"

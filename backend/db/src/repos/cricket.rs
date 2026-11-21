@@ -576,6 +576,10 @@ pub async fn list_cricket_fixtures(
         r#"
         WHERE e.sport = 'cricket'
           AND e.status <> 'cancelled'
+          -- Matches, not practice: nets, training and socials are in the
+          -- diary, not the scorebook. One somebody started scoring anyway
+          -- still shows, so a scored game is never hidden.
+          AND (e.event_subtype NOT IN ('nets', 'training', 'social') OR m.id IS NOT NULL)
           AND (
             EXISTS (
               SELECT 1 FROM club_members cm

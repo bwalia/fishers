@@ -621,7 +621,7 @@ fun shortDay(iso: String?, zone: ZoneId = ZoneId.systemDefault()): String =
 fun dayAndTime(iso: String?, zone: ZoneId = ZoneId.systemDefault()): String =
     iso?.let {
         runCatching {
-            DateTimeFormatter.ofPattern("EEE d MMM, HH:mm", Locale.forLanguageTag(Strings.language.code))
+            DateTimeFormatter.ofPattern("EEE d MMM, ${com.fishers.app.fixtures.clockPattern()}", Locale.forLanguageTag(Strings.language.code))
                 .withZone(zone)
                 .format(Instant.parse(it))
         }.getOrNull()

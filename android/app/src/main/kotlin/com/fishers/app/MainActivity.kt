@@ -78,6 +78,8 @@ class MainActivity : ComponentActivity() {
      */
     override fun onResume() {
         super.onResume()
+        // Somebody may have switched their clock between 12- and 24-hour.
+        com.fishers.app.fixtures.ClockStyle.is24Hour = android.text.format.DateFormat.is24HourFormat(this)
         sweep()
     }
 
@@ -133,6 +135,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.fishers.app.fixtures.ClockStyle.is24Hour = android.text.format.DateFormat.is24HourFormat(this)
         enableEdgeToEdge()
         // Not on a recreation: the tap was handled the first time round, and
         // rotating the phone should not throw somebody back to the stats.
