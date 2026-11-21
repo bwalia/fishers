@@ -1,6 +1,6 @@
 # Paying the club by bank transfer
 
-> **Status: phase 1 being built** (API done; apps in progress). Written 2026-11-21. What was built, and the contract the apps use, is in §11.
+> **Status: phase 1 built** (API, Android, iOS, web). Written 2026-11-21. What was built, and the contract the apps use, is in §11; what is left, in §12.
 
 A secretary adds the club's bank details once. When a match or nets session has a cost,
 the app works out each player's share from who actually came. It shows them the bank
@@ -446,3 +446,31 @@ shows. Route by the payload: an `event_id` opens that event's money section; oth
 Demo data for building against the local API: `python3 .dev/payments/seed_demo.py` (the
 accounts and story are in its docstring). Real responses are in `.dev/payments/examples/`
 after `--examples`.
+
+---
+
+## 12. Deploying it, and what is left
+
+**Before a ring takes real bank details,** set `PAYOUT_DETAILS_KEY` in its secrets: 64 hex
+characters, from `openssl rand -hex 32`. Without it, account numbers are sealed with a key
+derived from `JWT_SECRET`. That works, but rotating the JWT secret would then make every saved
+account number unreadable: players see "ask your secretary to enter the bank details again"
+until somebody does. Rows sealed before the key arrives stay readable after it, because each
+row names the key that sealed it.
+
+The migration is additive. It backfills a per-player cost for every event that already had a
+fee, but nothing is billed automatically for a session that ended before a club added its bank
+details.
+
+**Left for later:**
+- **"I've paid" with no signal.** It isn't queued until the signal returns. A retry reuses the
+  same key, so it can't make two claims.
+- **No history screen** for `/clubs/{id}/payments/audit`.
+- **Currency:**
+  - clubs have no currency of their own, so a new event's cost is in GBP unless the app sends
+    `fee_currency`;
+  - the treasurer's overview falls back to GBP before a club's first bill.
+- **Android push:** there is no FCM yet, so the routing for payment notifications is in place
+  but nothing delivers them on Android.
+- **Phase 2 and 3 items** in §9: the sort-code and account-number check, statement import,
+  guest pay links, posting to Club accounts, more payment methods.
