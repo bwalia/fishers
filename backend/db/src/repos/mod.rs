@@ -3,6 +3,7 @@ pub mod admin;
 pub mod agent;
 pub mod availability;
 pub mod chat;
+pub mod club_payments;
 pub mod clubs;
 pub mod cricket;
 pub mod events;

@@ -451,7 +451,12 @@ pub async fn outstanding_fees(
     club_id: Uuid,
 ) -> Result<Vec<OutstandingFeeRow>, sqlx::Error> {
     sqlx::query_as::<_, OutstandingFeeRow>(
-        "SELECT * FROM outstanding_match_fees WHERE club_id = $1 ORDER BY start_at DESC, name",
+        // A fixture with a bill is settled from its shares instead (see
+        // `club_payments`); this view only knows the old per-player fee.
+        "SELECT f.* FROM outstanding_match_fees f
+         WHERE f.club_id = $1
+           AND NOT EXISTS (SELECT 1 FROM event_bills b WHERE b.event_id = f.event_id)
+         ORDER BY f.start_at DESC, f.name",
     )
     .bind(club_id)
     .fetch_all(pool)
@@ -464,7 +469,11 @@ pub async fn fees_due_chasing(pool: &PgPool) -> Result<Vec<OutstandingFeeRow>, s
     sqlx::query_as::<_, OutstandingFeeRow>(
         "SELECT f.* FROM outstanding_match_fees f
          JOIN clubs c ON c.id = f.club_id
-         WHERE f.start_at < NOW() - (c.fee_chase_after_hours || ' hours')::INTERVAL
+         -- A club that collects payments in the app is chased from its bills,
+         -- and a billed fixture never from here: one reminder, not two.
+         WHERE c.payments_enabled_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM event_bills b WHERE b.event_id = f.event_id)
+           AND f.start_at < NOW() - (c.fee_chase_after_hours || ' hours')::INTERVAL
            AND f.fee_reminders_sent < c.fee_chase_max_reminders
            AND (f.last_fee_reminder_at IS NULL
                 OR f.last_fee_reminder_at < NOW() - INTERVAL '24 hours')

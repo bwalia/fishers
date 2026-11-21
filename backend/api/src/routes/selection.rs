@@ -476,23 +476,37 @@ async fn outstanding_fees(
 ) -> ApiResult<Json<serde_json::Value>> {
     require_club_selector(&state, id, auth.user_id).await?;
     let rows = selection_repo::outstanding_fees(&state.pool, id).await?;
-    let total: i64 = rows
+    let billed = super::club_payments::billed_outstanding(&state, id).await?;
+    let mut total: i64 = rows.iter().map(|r| r.fee_amount_cents.unwrap_or(0) as i64).sum();
+    total += billed.iter().map(|(_, owed)| owed).sum::<i64>();
+    let mut owed: Vec<serde_json::Value> = billed
         .iter()
-        .map(|r| r.fee_amount_cents.unwrap_or(0) as i64)
-        .sum();
+        .map(|(s, left)| json!({
+            "user_id": s.user_id,
+            "name": s.name,
+            "event_id": s.event_id,
+            "fixture": s.title,
+            "start_at": s.event_start_at,
+            "amount_cents": left,
+            "currency": s.currency,
+            "reminders_sent": s.reminders_sent,
+            "share_id": s.id,
+        }))
+        .collect();
+    owed.extend(rows.iter().map(|r| json!({
+        "user_id": r.user_id,
+        "name": r.name,
+        "event_id": r.event_id,
+        "fixture": r.title,
+        "start_at": r.start_at,
+        "amount_cents": r.fee_amount_cents,
+        "currency": r.fee_currency,
+        "reminders_sent": r.fee_reminders_sent,
+    })));
     Ok(Json(json!({
         "total_cents": total,
-        "count": rows.len(),
-        "owed": rows.iter().map(|r| json!({
-            "user_id": r.user_id,
-            "name": r.name,
-            "event_id": r.event_id,
-            "fixture": r.title,
-            "start_at": r.start_at,
-            "amount_cents": r.fee_amount_cents,
-            "currency": r.fee_currency,
-            "reminders_sent": r.fee_reminders_sent,
-        })).collect::<Vec<_>>()
+        "count": owed.len(),
+        "owed": owed,
     })))
 }
 
@@ -504,12 +518,36 @@ async fn chase_fees(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     require_club_selector(&state, id, auth.user_id).await?;
-    let rows = selection_repo::outstanding_fees(&state.pool, id).await?;
+    let club = fishers_db::repos::club_payments::club_name(&state.pool, id).await?.unwrap_or_default();
 
+    // Billed shares: one nudge per member, for everything they still owe.
+    let mut per_member: std::collections::BTreeMap<Uuid, (i64, String, Vec<Uuid>)> = Default::default();
+    for (share, left) in super::club_payments::billed_outstanding(&state, id).await? {
+        let Some(user) = share.user_id else { continue };
+        let entry = per_member.entry(user).or_insert((0, share.currency.clone(), Vec::new()));
+        entry.0 += left;
+        entry.2.push(share.id);
+    }
+    for (user, (left, currency, shares)) in &per_member {
+        let money = fishers_domain::money::fmt_money(*left, currency);
+        state
+            .notify_text(
+                *user,
+                "fee_reminder",
+                &format!("You owe {club} {money}"),
+                &format!("You still owe {club} {money}. Pay by bank transfer in the app, then tap I've paid."),
+                json!({ "club_id": id }),
+            )
+            .await;
+        fishers_db::repos::club_payments::mark_shares_reminded(&state.pool, shares).await?;
+    }
+
+    // Fixtures from before bills, still on the old per-player fee.
+    let rows = selection_repo::outstanding_fees(&state.pool, id).await?;
     for row in &rows {
-        let amount = row.fee_amount_cents.unwrap_or(0) as f64 / 100.0;
+        let amount = fishers_domain::money::fmt_money(row.fee_amount_cents.unwrap_or(0) as i64, &row.fee_currency);
         let body = format!(
-            "{} — £{amount:.2} for {} on {}. You can pay in the app.",
+            "{} — {amount} for {} on {}. You can pay in the app.",
             row.name,
             row.title,
             row.start_at.format("%-d %b")
@@ -541,7 +579,7 @@ async fn chase_fees(
         selection_repo::mark_fee_reminded(&state.pool, row.event_id, row.user_id).await?;
     }
 
-    Ok(Json(json!({ "chased": rows.len() })))
+    Ok(Json(json!({ "chased": rows.len() + per_member.len() })))
 }
 
 // MARK: fixture blocks (tours, tournaments, the next few weeks)

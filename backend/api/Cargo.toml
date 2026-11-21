@@ -9,6 +9,9 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+# Club bank details are encrypted at rest. Already in the tree through
+# web-push-native, so this adds no new crate; nonces come from `rand`.
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
 argon2 = { workspace = true }
 axum = { workspace = true }
 chrono = { workspace = true }

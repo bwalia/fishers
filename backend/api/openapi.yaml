@@ -27,6 +27,12 @@ tags:
   - name: Stats
   - name: Accounts
     description: Club books. The club owner or a treasurer only — every route returns 403 `accounts_forbidden` to anyone else, secretaries included.
+  - name: Club payments
+    description: >-
+      Paying the club by bank transfer (docs/PAY_BY_BANK_TRANSFER.md). The app never touches the money.
+      Money admins (owner, secretaries, treasurers) manage bank details and confirm payments; whoever
+      manages an event sets its cost and sends its bill; members see their own shares. Errors carry a
+      stable `code`.
 
 paths:
   /health:
@@ -1109,6 +1115,242 @@ paths:
         "200": { description: OK }
         "403": { description: Not the owner or a treasurer }
         "409": { description: The year is closed, or the change conflicts }
+
+  /clubs/{id}/payout-account:
+    get:
+      tags: [Club payments]
+      summary: "The club's bank details, masked: current, and (admins) pending or frozen"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: "{can_manage, is_owner, current, pending, frozen, changed_at}" }
+        "403": { description: "`not_member`" }
+    post:
+      tags: [Club payments]
+      summary: "Add or change bank details. First details are live at once; a change waits 24 hours and every admin is told"
+      description: "Body: {holder_name, sort_code, account_number, label?, is_personal?, password}. The password is required when the account has one."
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "400": { description: "`invalid_bank_details`" }
+        "403": { description: "`not_money_admin` or `wrong_password`" }
+        "409": { description: "`same_details`" }
+        "428": { description: "`reauth_required` — send the password" }
+
+  /clubs/{id}/payout-account/{aid}/freeze:
+    post:
+      tags: [Club payments]
+      summary: "Freeze live or waiting details (\"that wasn't me\"). Body: {reason?}"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: aid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "409": { description: "`not_freezable`" }
+
+  /clubs/{id}/payout-account/{aid}/unfreeze:
+    post:
+      tags: [Club payments]
+      summary: "Unfreeze details (owner only)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: aid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "403": { description: "`owner_only`" }
+        "409": { description: "`not_frozen`" }
+
+  /clubs/{id}/payout-account/{aid}/retire:
+    post:
+      tags: [Club payments]
+      summary: "Remove details (or cancel a waiting change). The sealed number is wiped"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - { name: aid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "409": { description: "`already_retired`" }
+
+  /clubs/{id}/payments/settings:
+    put:
+      tags: [Club payments]
+      summary: "Auto-billing and rounding. Body: {auto_bill?, auto_bill_after_hours? (1–336), round_shares_up?}"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+
+  /clubs/{id}/money:
+    get:
+      tags: [Club payments]
+      summary: "Treasurer's overview: settings, bank details, payments to check, balances, recent bills"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "403": { description: "`not_money_admin`" }
+
+  /clubs/{id}/pay:
+    get:
+      tags: [Club payments]
+      summary: "The pay screen: what you owe, the bank details (only while you owe) and your reference"
+      description: "`account_state` is active, none, frozen, unreadable or nothing_owed. Each reveal is audited and throttled."
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "429": { description: "`too_many_reveals`" }
+
+  /clubs/{id}/payments:
+    get:
+      tags: [Club payments]
+      summary: "Payments, newest first (?status=claimed|confirmed|rejected|cancelled|all)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Club payments]
+      summary: "\"I've paid\": claim a payment. Body: {method: transfer|cash, amount_cents? (default: all owed), note?}. Send Idempotency-Key"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: "The claim (a retry with the same key returns the first one)" }
+        "409": { description: "`nothing_owed`" }
+
+  /clubs/{id}/payments/record:
+    post:
+      tags: [Club payments]
+      summary: "Record money received (cash at the ground). Body: {user_id | guest_name, amount_cents, method?, note?}"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+
+  /clubs/{id}/payments/refund:
+    post:
+      tags: [Club payments]
+      summary: "Record money sent back out of a member's credit. Body: {user_id | guest_name, amount_cents, note?}"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "400": { description: "`more_than_credit`" }
+
+  /clubs/{id}/payments/audit:
+    get:
+      tags: [Club payments]
+      summary: "Who did what to the club's money (never an account number)"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+
+  /payments/{pid}:
+    delete:
+      tags: [Club payments]
+      summary: "Take back your own claim, while nobody has confirmed it"
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Cancelled }
+        "409": { description: "`already_decided`" }
+
+  /payments/{pid}/confirm:
+    post:
+      tags: [Club payments]
+      summary: "Confirm a claim: the money arrived"
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "409": { description: "`already_decided`" }
+
+  /payments/{pid}/reject:
+    post:
+      tags: [Club payments]
+      summary: "Reject a claim: the money never arrived. Body: {reason}"
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "400": { description: "`reason_required`" }
+        "409": { description: "`already_decided`" }
+
+  /shares/{sid}/waive:
+    post:
+      tags: [Club payments]
+      summary: "Let somebody off their share. Body: {reason}"
+      parameters:
+        - { name: sid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+        "409": { description: "`not_live`" }
+
+  /events/{id}/cost:
+    put:
+      tags: [Club payments]
+      summary: "Set what an event costs. Body: {mode: split_total|per_player, amount_cents, note?, apply_to_series?}"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: "{cost, series_updated}" }
+        "409": { description: "`already_billed`" }
+    delete:
+      tags: [Club payments]
+      summary: "Take the cost off an event that hasn't been billed"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204": { description: Removed }
+        "409": { description: "`already_billed`" }
+
+  /events/{id}/bill:
+    get:
+      tags: [Club payments]
+      summary: "The event's cost, bill and shares, and (for whoever runs it) who to tick as having come"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Club payments]
+      summary: "Send the bill, or re-split it. Body: {attendees: [user_id], guests: [name], version? (to re-split), note?}"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "400": { description: "`not_members`" }
+        "409": { description: "`no_cost`, `already_billed` or `version_conflict`" }
+        "422": { description: "`no_attendees`, `bad_amount` or `amount_limit`" }
+
+  /events/{id}/bill/preview:
+    post:
+      tags: [Club payments]
+      summary: "What each person would pay, without sending anything. Same body as sending"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: "{shares, total_cents, surplus_cents, currency}" }
+
+  /events/{id}/bill/void:
+    post:
+      tags: [Club payments]
+      summary: "Cancel the bill (rained off). Anything paid becomes credit. Body: {reason}"
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200": { description: OK }
+        "409": { description: "`no_bill`" }
+
+  /me/dues:
+    get:
+      tags: [Club payments]
+      summary: "What you owe, are waiting on, and hold in credit, club by club"
+      responses:
+        "200": { description: OK }
+
 
 components:
   securitySchemes:
