@@ -222,6 +222,8 @@ pub enum ShareState {
     Paid,
     Waived,
     Void,
+    /// Covered by a pass, or a free price type: on the bill, owing nothing.
+    Covered,
 }
 
 impl ShareState {
@@ -233,6 +235,7 @@ impl ShareState {
             Self::Paid => "paid",
             Self::Waived => "waived",
             Self::Void => "void",
+            Self::Covered => "covered",
         }
     }
 }
@@ -472,6 +475,105 @@ pub fn payout_states(accounts: &[PayoutTimeline], now: DateTime<Utc>) -> Vec<Pay
     states
 }
 
+// MARK: passes
+
+/// How a pass is paid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PassBilling {
+    /// One payment.
+    Once,
+    /// A payment every month, by the player's standing order, until cancelled.
+    Monthly,
+    /// A fixed number of monthly payments.
+    Instalments,
+}
+
+impl PassBilling {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Once => "once",
+            Self::Monthly => "monthly",
+            Self::Instalments => "instalments",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "once" => Some(Self::Once),
+            "monthly" => Some(Self::Monthly),
+            "instalments" => Some(Self::Instalments),
+            _ => None,
+        }
+    }
+}
+
+/// The session kinds a pass can cover (the `event_subtype` values).
+pub const PASS_COVERABLE: [&str; 7] = ["nets", "training", "friendly", "league_match", "tournament", "social", "generic"];
+
+/// How many days a charge may be unpaid before it counts against a pass.
+pub const PASS_GRACE_DAYS: i64 = 7;
+
+/// `months` months after `start`, on the same day where the month has it and
+/// on its last day where it doesn't: a pass started on 31 January is next due
+/// on 28 (or 29) February, then 31 March.
+pub fn add_months(start: chrono::NaiveDate, months: u32) -> chrono::NaiveDate {
+    start.checked_add_months(chrono::Months::new(months)).unwrap_or(start)
+}
+
+/// The days a pass's monthly charges fall on, from `started_on` up to and
+/// including `today`, and no later than `ends_on`. Months run from the day it
+/// started, so nobody pays for part of a month.
+pub fn monthly_periods(
+    started_on: chrono::NaiveDate,
+    today: chrono::NaiveDate,
+    ends_on: Option<chrono::NaiveDate>,
+) -> Vec<chrono::NaiveDate> {
+    let mut out = Vec::new();
+    for k in 0..240u32 {
+        let day = add_months(started_on, k);
+        if day > today || ends_on.is_some_and(|end| day > end) {
+            break;
+        }
+        out.push(day);
+    }
+    out
+}
+
+/// The days instalments fall on: `n` of them, a month apart, from the start.
+pub fn instalment_days(started_on: chrono::NaiveDate, n: u32) -> Vec<chrono::NaiveDate> {
+    (0..n).map(|k| add_months(started_on, k)).collect()
+}
+
+/// Whether a pass holder is up to date with its charges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PassStanding {
+    /// Paid up, or not yet past the grace period.
+    UpToDate,
+    /// One charge overdue: still covering, and told so.
+    Behind,
+    /// Too far behind: sessions are billed as usual until it's paid up.
+    Suspended,
+}
+
+/// From how many charges are unpaid past the grace period. A one-off pass
+/// stops covering as soon as its one payment is overdue; a monthly or
+/// instalment pass after two missed months. A secretary can keep it covering.
+pub fn pass_standing(billing: PassBilling, overdue: usize, keep_covering: bool) -> PassStanding {
+    let limit = match billing {
+        PassBilling::Once => 1,
+        PassBilling::Monthly | PassBilling::Instalments => 2,
+    };
+    if overdue == 0 {
+        PassStanding::UpToDate
+    } else if overdue < limit || keep_covering {
+        PassStanding::Behind
+    } else {
+        PassStanding::Suspended
+    }
+}
+
 // MARK: money as people read it
 
 /// "£6.67", "₹600.00", "€12.50", or "CHF 12.50" for anything else.
@@ -494,6 +596,27 @@ pub fn fmt_money(cents: i64, currency: &str) -> String {
         grouped.push(c);
     }
     format!("{sign}{symbol}{grouped}.{minor:02}")
+}
+
+/// Whether the name on a bank account is plausibly this person's: the same
+/// surname and the same first initial, titles ignored. "MR A GILL" is Aman
+/// Gill; "Neha Gill" isn't. Used to say "Aman Gill, the club treasurer" only
+/// when the account really is the treasurer's own.
+pub fn same_person(holder_name: &str, name: &str) -> bool {
+    fn words(s: &str) -> Vec<String> {
+        s.split(|c: char| !c.is_alphabetic())
+            .filter(|w| !w.is_empty())
+            .map(str::to_lowercase)
+            .filter(|w| !matches!(w.as_str(), "mr" | "mrs" | "ms" | "miss" | "mx" | "dr"))
+            .collect()
+    }
+    let (a, b) = (words(holder_name), words(name));
+    match (a.first(), a.last(), b.first(), b.last()) {
+        (Some(af), Some(al), Some(bf), Some(bl)) if a.len() > 1 && b.len() > 1 => {
+            al == bl && af.chars().next() == bf.chars().next()
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -787,6 +910,51 @@ mod tests {
         assert_eq!(payout_states(&[acct(1, 0, 0, None, Some(1))], t(5)), vec![PayoutState::Retired]);
     }
 
+    // ── passes ─────────────────────────────────────────────────────────
+
+    fn d(y: i32, m: u32, day: u32) -> chrono::NaiveDate {
+        chrono::NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    #[test]
+    fn monthly_charges_run_from_the_day_it_started() {
+        let p = monthly_periods(d(2026, 11, 14), d(2027, 2, 14), None);
+        assert_eq!(p, vec![d(2026, 11, 14), d(2026, 12, 14), d(2027, 1, 14), d(2027, 2, 14)]);
+        assert_eq!(monthly_periods(d(2026, 11, 14), d(2026, 12, 13), None), vec![d(2026, 11, 14)]);
+    }
+
+    /// Started on the 31st: the last day of short months, then the 31st again.
+    #[test]
+    fn a_pass_started_on_the_31st_is_due_on_the_last_day_of_short_months() {
+        let p = monthly_periods(d(2027, 1, 31), d(2027, 4, 30), None);
+        assert_eq!(p, vec![d(2027, 1, 31), d(2027, 2, 28), d(2027, 3, 31), d(2027, 4, 30)]);
+    }
+
+    #[test]
+    fn a_cancelled_pass_is_not_charged_after_it_ends() {
+        let p = monthly_periods(d(2026, 11, 14), d(2027, 6, 1), Some(d(2027, 1, 13)));
+        assert_eq!(p, vec![d(2026, 11, 14), d(2026, 12, 14)]);
+    }
+
+    #[test]
+    fn instalments_are_a_month_apart() {
+        assert_eq!(instalment_days(d(2026, 4, 1), 3), vec![d(2026, 4, 1), d(2026, 5, 1), d(2026, 6, 1)]);
+    }
+
+    #[test]
+    fn a_one_off_pass_stops_at_its_first_overdue_payment() {
+        assert_eq!(pass_standing(PassBilling::Once, 0, false), PassStanding::UpToDate);
+        assert_eq!(pass_standing(PassBilling::Once, 1, false), PassStanding::Suspended);
+        assert_eq!(pass_standing(PassBilling::Once, 1, true), PassStanding::Behind);
+    }
+
+    #[test]
+    fn a_monthly_pass_stops_after_two_missed_months() {
+        assert_eq!(pass_standing(PassBilling::Monthly, 1, false), PassStanding::Behind);
+        assert_eq!(pass_standing(PassBilling::Monthly, 2, false), PassStanding::Suspended);
+        assert_eq!(pass_standing(PassBilling::Instalments, 3, true), PassStanding::Behind, "the secretary's override");
+    }
+
     // ── money ──────────────────────────────────────────────────────────
 
     #[test]
@@ -798,5 +966,15 @@ mod tests {
         assert_eq!(fmt_money(1_250, "CHF"), "CHF 12.50");
         assert_eq!(fmt_money(100_000, "GBP"), "£1,000.00");
         assert_eq!(fmt_money(123_456_789, "GBP"), "£1,234,567.89");
+    }
+    #[test]
+    fn same_person_matches_bank_style_names() {
+        assert!(same_person("MR A GILL", "Aman Gill"));
+        assert!(same_person("Aman Singh Gill", "Aman Gill"));
+        assert!(same_person("aman gill", "Aman Gill"));
+        assert!(!same_person("Neha Gill", "Aman Gill"));
+        assert!(!same_person("Riverside CC", "Aman Gill"));
+        assert!(!same_person("Gill", "Aman Gill"));
+        assert!(!same_person("", "Aman Gill"));
     }
 }

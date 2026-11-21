@@ -282,3 +282,215 @@ stores.
 | 5 | By "group fee", do you mean a charge to a team or group (league fees, tour, kit), or a family or friends paying together? | **Both** are in this plan; tell me if you meant something else. |
 | 6 | Should phase 1 go to the stores and production now, or wait for step A? | **Wait for step A.** The first version players see should be the easy one. |
 | 7 | Should sign-in with a WhatsApp code be part of this work? | **Yes, alongside step A.** It needs the WhatsApp Business account set up, which you'll have to do. |
+
+---
+
+## 10. Step A: the contract the apps use (built)
+
+The source of truth is `backend/api/src/routes/easy_paying.rs` and `club_payments.rs`.
+Real responses are in `.dev/payments/examples/stepA_*.json` after
+`python3 .dev/payments/seed_demo.py`. Errors are `{error, code}`: show `error`, and branch on
+`code`.
+
+### For whoever runs the session (`can_bill`)
+
+| Call | Returns |
+|---|---|
+| `GET /events/{id}/bill/link` | The open link as below, or `null`. Never makes one: use it to show the share buttons when somebody opens the session. |
+| `POST /events/{id}/bill/link` | `{url, expires_at, bill_message, reminder_message, still_to_pay: [name]}`. It reuses the open link, and makes one only when there isn't one: call it when somebody taps Share. `no_bill` (409) until the bill is sent. Links are `/pay/<token>`. |
+| `POST /events/{id}/bill/link/disable` | `{disabled}`. Every open link for the bill closes. |
+| `POST /events/{id}/bill/cash {share_ids}` | `{recorded, already_paid, total_cents, received}`. A money admin's tick counts as received; anyone else's waits for the treasurer. `already_paid` counts ticked people who owe nothing now: after a retry, the ones the first tap recorded. |
+
+### For money admins
+
+| Call | Returns |
+|---|---|
+| `POST /clubs/{id}/payments/confirm {ids}` | `{confirmed, already_confirmed, skipped}`, for the **All arrived** button. |
+| `GET /payments/{pid}/screenshot` | Image bytes, when `has_screenshot` is true on the payment. |
+| `PUT /clubs/{id}/payments/settings` | Also takes `default_nets: {mode, amount_cents} \| null` and `default_match_fee_cents: int \| null`. These are read back as `default_nets_mode`, `default_nets_cents` and `default_match_fee_cents` in `settings`. |
+
+### For a player, signed in
+
+- **`GET /clubs/{id}/payments/defaults`:** `{default_nets_mode, default_nets_cents,
+  default_match_fee_cents, currency}` for any member, so a captain's schedule form starts from the
+  usual price too.
+- **`GET /clubs/{id}/pay`:** `account` gains `payee_role` (`secretary`, `treasurer`, `owner` or
+  null), for "Pay Aman Gill, the club secretary". It's only set when the name on the account
+  matches the person who added it: a treasurer adding the secretary's account gets null. `reference` is now readable, for example
+  "SHARMA".
+- **`POST /payments/{pid}/screenshot`:** raw image bytes (JPEG, PNG or WebP, at most 1 MB), for
+  the payer's own claim. Shrink it on the phone first: at most 1600 px, JPEG quality 0.7.
+- **Payments** gain `share_id`, `via_link` and `has_screenshot`.
+
+### The pay link: public, no sign-in (send `Authorization` if signed in, to get `me`)
+
+| Call | Returns |
+|---|---|
+| `GET /pay-links/{token}` | `{club_name, title, event_start_at, currency, expires_at, people: [{id, name}], me, account_state, account}` |
+| `GET /pay-links/{token}/people/{share_id}` | The share, plus `owed_cents`, `reference` and `claim: {id, method, amount_cents, created_at, can_undo, has_screenshot} \| null` |
+| `POST /pay-links/{token}/people/{share_id}/claim {method: transfer\|cash, note?}` + `Idempotency-Key` | The same person, now waiting. `nothing_owed` (409). |
+| `DELETE /pay-links/{token}/claims/{pid}` | 204 when taken back. `too_late` or `already_decided` (409). |
+| `POST /pay-links/{token}/claims/{pid}/screenshot` | Raw bytes as above. 204. `not_an_image` (415), `too_big` (400), `too_late` (409). |
+
+Link errors: `bad_link` (404, "ask your secretary to share it again"), `link_closed` (410,
+"ask for the latest one"), `slow_down` (429). `not_on_bill` (404) means one name has gone from a
+re-split bill: go back to the names, not to the wrong-link page.
+
+### Signing in with WhatsApp
+
+| Call | Returns |
+|---|---|
+| `GET /auth/whatsapp` | `{enabled}`. Show the option only when it's true. |
+| `POST /auth/whatsapp/start {phone}` | `{sent, expires_in, resend_after}`, always the same, so it never reveals whether a number has an account. Errors: `bad_phone`, `whatsapp_off` (503), `slow_down`, `not_sent` (502). |
+| `POST /auth/whatsapp/verify {phone, code}` | The same tokens as `/auth/login`. `wrong_code` (400), `slow_down` (429). |
+
+### What each app builds for step A
+
+1. **Share to WhatsApp.**
+   - **Where:** on a billed event's money section, for whoever can bill.
+   - **Two buttons:** **Share the bill** (`bill_message`) and **Remind who hasn't paid**
+     (`reminder_message`).
+   - **Copy link.**
+   - **Switch the link off,** tucked away and with a confirmation.
+   - **How it shares:** through the phone's share sheet (WhatsApp first where possible) or
+     `https://wa.me/?text=`.
+2. **The pay screen, rewritten (§5.2).**
+   1. "You owe £5 for Friday nets".
+   2. "Pay Aman Gill, the club secretary", plus the own-account sentence when `is_personal`.
+   3. Four big rows, each with Copy: name, sort code, account number, and "What to write in the
+      reference box".
+   4. **First time? Here's how:** three steps.
+   5. **I've paid** (big) and **I paid cash**.
+   6. After claiming: **Add a screenshot** (optional), and **Undo**.
+   7. **Send these details to someone.**
+
+   Words not to use: claim, share, waived, reference code, payout.
+3. **For the treasurer:**
+   - **All arrived** above the payments to check, with a confirmation ("Mark all 3 as arrived?");
+   - a screenshot opens when there is one;
+   - **Who paid cash?** on a billed event: tick, then save.
+4. **Setup wizard,** shown to a money admin when the club has no bank details and no usual
+   prices:
+   1. bank details, with a preview of what players will see;
+   2. usual nets price and match fee;
+   3. done: "after each session, share the bill to WhatsApp".
+5. **The schedule form starts from the usual price:** nets from `default_nets_*`, a match from
+   `default_match_fee_cents`.
+6. **WhatsApp sign-in** on the sign-in screen, when it's enabled: mobile number, then the
+   six-digit code.
+7. **Web only: `/pay/[token]`** (and `/p/[token]` for links made before it moved), the public pay page. No sign-in, mobile first, very large buttons.
+   - Opens on: a list of names; when signed in, it opens on your own name.
+   - Then: your amount and the bank details.
+   - Then: **I've paid** or **I paid cash**, then waiting, with **Undo** and **Add a screenshot**.
+   - Friendly pages for a closed or wrong link, and each `account_state`.
+
+---
+
+## 11. Steps B and C: the contract the apps use (built)
+
+The source of truth is `backend/api/src/routes/passes.rs` (with the pricing in
+`backend/db/src/repos/passes.rs`). Real responses are in `.dev/payments/examples/stepBC_*.json`.
+Errors are `{error, code}` as before.
+
+**Words.** "Pass", "group fee", "covered by your pass", "pays for". Never "subscription",
+"collection", "holder", "dependent" or "price type" in front of a player. A secretary sees
+"Prices for juniors, students…" rather than "price types".
+
+### What changed in things the apps already read
+
+- **A share can be `covered`:** a pass or a free price covers it. Show it like paid, with its
+  `reason` ("Covered by Monthly nets", "Free: Coach"). It owes nothing and isn't counted.
+- **Shares and bills carry `kind`:** `event` (a session), `pass` (a pass charge) or `collection`
+  (a group fee). `event_id` is null for the last two; `due_on` is set on pass charges and on group
+  fees given a date.
+- **`GET /events/{id}/bill` gains `prices`:** `[{price_type_id, name, amount_cents}]`, the
+  session's own prices by type. The bill preview's shares gain `covered` (the reason, or null).
+- **`PUT /events/{id}/cost` takes `prices`:** `[{price_type_id, amount_cents}]` (per-player
+  costs only: `prices_need_per_player`). Given, it replaces the session's prices; left out, they
+  stay as they are. A price of 0 makes that type free for the session.
+- **`GET /me/dues` gains `people`:** `[{user_id, name, managed, club_id, dues}]`, where `dues`
+  has the same shape as a club in `clubs`. Each is somebody you pay for. `managed` means they have
+  no sign-in of their own.
+
+### Prices for juniors, students, guests (money admins write; members read)
+
+| Call | Returns |
+|---|---|
+| `GET /clubs/{id}/price-types` | `[{id, name, free, for_guests, sort_order, archived_at}]` |
+| `POST /clubs/{id}/price-types {name, free?, for_guests?}` | The type. `name_taken` and `guest_type_taken` (409): one guest type per club. |
+| `PATCH /price-types/{id} {name?, free?, for_guests?, archived?}` | The type. |
+| `PUT /clubs/{id}/members/{user_id}/price-type {price_type_id \| null}` | 204. Null means the standard price. |
+
+### Passes
+
+| Call | Who | Returns |
+|---|---|---|
+| `GET /clubs/{id}/passes` | members | `[plan + {charge_cents, holders, mine}]`. `mine` is your own running pass on it, or null. `?all=true` includes archived ones (admins only). |
+| `POST /clubs/{id}/passes` | admins | `{name, price_cents, billing: once\|monthly\|instalments, instalments? (2–12), covers: [nets, training, friendly, league_match, tournament, social], team_id?, valid_until?, sessions?, price_type_id?, open_to_join?}`. A monthly pass has no end date or session count. |
+| `PATCH /passes/{id}` | admins | `{name?, price_cents?, open_to_join?, archived?}`. A new price applies to later charges only, and everybody on a monthly pass is told to change their standing order. |
+| `GET /passes/{id}/holders` | admins | `[holder]` |
+| `POST /passes/{id}/holders {user_id, started_on?}` | admins | `holder`. The first payment is charged at once. `already_on_pass` (409). |
+| `POST /passes/{id}/join {for_user_id?}` | members | `holder`. Pass `for_user_id` for somebody you pay for. Errors: `not_open`, `not_eligible` (wrong price type), `not_their_payer`, `already_on_pass`. |
+| `POST /pass-holders/{id}/cancel` | the holder, their payer, admins | `holder`. A monthly pass covers to the end of the month already charged (`ends_on`); anything else stops today. `already_cancelled` (409). |
+| `PUT /pass-holders/{id}/keep-covering {on}` | admins | `holder`. Covers however far behind. |
+| `GET /me/passes` | anyone | `[holder + {club_id, club_name, charge_cents, currency, standing_order}]`, yours and those of people you pay for. |
+
+A **holder** is `{id, plan_id, club_id, user_id, name, started_on, ends_on, cancelled_at,
+keep_covering, plan_name, billing, standing, sessions_left, running, next_charge_on}`.
+- **`standing`** is `up_to_date`, `behind` (a payment late but still covering: say so) or
+  `suspended` (not covering until paid up).
+- **`running`** means it covers sessions today.
+- **`standing_order`** is `{amount_cents, every: "month", first_payment_on, reference}`: exactly
+  what to type into the banking app for a monthly pass. It's null for other passes and once
+  cancelled.
+
+The scheduler charges each month (or instalment) on the day it falls. The holder (and whoever
+pays for them) is told once when a pass falls behind and again if it's suspended; the club is told
+at suspension.
+
+### Group fees (money admins)
+
+| Call | Returns |
+|---|---|
+| `POST /clubs/{id}/collections` | `{title, mode: split_total\|per_player, amount_cents, due_on?, note?}` plus who: one of `everyone: true`, `team_id`, `price_type_id` or `user_ids`, and optionally `guests: [name]`. Returns the group fee: the bill fields plus `{paid_cents, waiting_cents, owed_cents, people, shares}`. Everybody in it is told. |
+| `GET /clubs/{id}/collections` | The 50 newest, totals only (`shares` empty). |
+| `GET /collections/{bill_id}` | Everyone's lines for an admin; only your own for a member. |
+| `POST /collections/{bill_id}/void {reason}` | Cancelled: anything paid becomes credit, and its pay link closes. `reason_required`. |
+| `POST /bills/{bill_id}/link`, `…/link/disable` | A group fee's WhatsApp link and messages, the same shape as a session's. |
+
+### Paying for others
+
+| Call | Who | Returns |
+|---|---|---|
+| `PUT /clubs/{id}/members/{member_id}/payer {payer_id \| null}` | admins | 204 |
+| `POST /clubs/{id}/members/managed {name, payer_id}` | admins | `{user_id, name, payer_id}`: a junior with no sign-in of their own. |
+| `POST /clubs/{id}/payments/for-others {method: transfer\|cash, people: [user_id], include_me?, note?}` + `Idempotency-Key` | members | `{payments, total_cents, reference}`. One line each for what they owe, all under your reference, marked paid by you. You may pay for people you pay for, or for friends on a bill you're on (`not_their_payer` otherwise). `nothing_owed` (409) when nobody picked owes anything. |
+
+### What each app builds for steps B and C
+
+1. **For a player: "Passes" on the club's pay screen.**
+   - Each offered pass in one line, for example "Monthly nets: £20 a month, covers nets and
+     training", with **Get this pass**.
+   - Your own pass: "Covered until …" or "3 sessions left", and the standing as words ("A payment
+     is late: pay it to stay covered").
+   - For a monthly pass, a **Set up your standing order** card: who, the amount, "every month",
+     the start date and the reference, each with Copy. It also offers "Send to someone who pays
+     for me" and **Cancel my pass** (with a confirmation, and the reminder to cancel the standing
+     order in the bank too).
+2. **Covered lines** read "Covered by your pass ✓" and need no tap. Pass charges and group fees sit
+   in "You owe" like any session: "Monthly nets — December 2026", or "Match balls, by 6 Dec".
+3. **For a parent:** "You owe" shows each person they pay for as their own block, with one
+   **Pay for everyone** button: one payment, one reference, through `for-others`. The pay screen
+   also has "I'm paying for friends too": tick names from the same session.
+4. **For money admins:**
+   - **Passes.** Make one from a template (Winter nets pass, 10-session card, Monthly nets,
+     Season membership in 3 parts, Junior membership). See who's on it and how they stand. Add
+     somebody, cancel, and keep covering.
+   - **Prices for juniors and others.** Name the groups, mark one free or for guests, and set
+     each member's group from the member list. The session cost form gets "Different price for
+     juniors?".
+   - **Group fees.** New group fee: who (everyone, a team, juniors, ticked names, plus guests),
+     how much (split a total, or the same from each), and a due date. Then the list, one
+     opened, Share to WhatsApp, and cancel.
+   - **Who pays for whom** on a member's page, and **Add a junior by name**.
+

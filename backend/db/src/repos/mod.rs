@@ -12,6 +12,7 @@ pub mod motm;
 pub mod moderation;
 pub mod notifications;
 pub mod orders;
+pub mod passes;
 pub mod payments;
 pub mod platform;
 pub mod scoreboard_shares;

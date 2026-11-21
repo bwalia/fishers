@@ -12,7 +12,8 @@ use chrono::Utc;
 use fishers_db::repos::club_payments as repo;
 use fishers_db::repos::club_payments::{Attendee, BillError, BillInput, Payer};
 use fishers_db::repos::notifications as notifications_repo;
-use fishers_domain::money::{self, fmt_money, CostMode, PayoutState, Rounding};
+use fishers_db::repos::passes;
+use fishers_domain::money::{self, fmt_money, CostMode, PassBilling, PassStanding, PayoutState, Rounding};
 use fishers_notifications::PushService;
 use serde_json::{json, Value};
 use sqlx::PgPool;
@@ -82,9 +83,19 @@ pub async fn auto_bill(pool: &PgPool, push: &PushService) -> anyhow::Result<()> 
         let mut people: Vec<Attendee> = candidates
             .into_iter()
             .filter(|c| if recorded { c.attended == Some(true) } else { c.rsvp == "going" })
-            .map(|c| Attendee { user_id: Some(c.user_id), name: c.name })
+            .map(|c| Attendee { user_id: Some(c.user_id), name: c.name, ..Default::default() })
             .collect();
         people.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then(a.user_id.cmp(&b.user_id)));
+        // Passes, free price types and per-type prices, exactly as a bill sent by hand.
+        let facts = fishers_db::repos::passes::SessionFacts {
+            club_id: e.club_id,
+            event_id: Some(e.event_id),
+            subtype: e.subtype.clone(),
+            team_id: e.team_id,
+            day: e.start_at.date_naive(),
+        };
+        let mode = CostMode::parse(&e.mode).unwrap_or(CostMode::PerPlayer);
+        let people = fishers_db::repos::passes::priced(pool, &facts, mode, people).await?;
         if people.is_empty() {
             repo::mark_auto_bill_skipped(pool, e.event_id).await?;
             notify(
@@ -235,6 +246,20 @@ pub async fn chase_shares(pool: &PgPool, push: &PushService) -> anyhow::Result<(
             json!({ "club_id": club_id }),
         )
         .await;
+        // A junior's parent pays: they hear about it too.
+        if let Some(payer) = passes::payer_of(pool, club_id, user).await? {
+            let name = repo::user_name(pool, user).await?.unwrap_or_default();
+            notify(
+                pool,
+                push,
+                payer,
+                "fee_reminder",
+                &format!("{} owes {club} {money}", repo::first_name_of(&name)),
+                &format!("{name} still owes {club} {money}. Pay it in the app, then tap I've paid."),
+                json!({ "club_id": club_id, "for": user }),
+            )
+            .await;
+        }
         chased += 1;
     }
     if chased > 0 {
@@ -284,6 +309,110 @@ pub async fn retire_replaced_accounts(pool: &PgPool) -> anyhow::Result<()> {
                     Some(json!({ "holder_name": account.holder_name, "last4": account.last4 })), None).await?;
             }
             tx.commit().await?;
+        }
+    }
+    Ok(())
+}
+
+/// Each month's charge for a monthly pass, and each instalment when it falls.
+/// Never charges for days before somebody was put on a pass (a back-dated
+/// start pays from its first charge, not for the months in between), and
+/// charging a month twice does nothing.
+pub async fn charge_passes(pool: &PgPool, push: &PushService) -> anyhow::Result<()> {
+    let today = Utc::now().date_naive();
+    let mut charged = 0usize;
+    for h in passes::running_holders(pool).await? {
+        let Some(plan) = passes::plan(pool, h.plan_id).await? else { continue };
+        let added = h.created_at.date_naive();
+        let due: Vec<(chrono::NaiveDate, usize)> = match plan.billing() {
+            PassBilling::Once => Vec::new(),
+            PassBilling::Monthly => money::monthly_periods(h.started_on, today, h.ends_on)
+                .into_iter()
+                .enumerate()
+                .map(|(i, d)| (d, i + 1))
+                .collect(),
+            // Instalments keep falling after a cancel: the pass was bought.
+            PassBilling::Instalments => money::instalment_days(h.started_on, plan.instalments.unwrap_or(1).max(1) as u32)
+                .into_iter()
+                .enumerate()
+                .filter(|(_, d)| *d <= today)
+                .map(|(i, d)| (d, i + 1))
+                .collect(),
+        };
+        for (period, part) in due {
+            if period < added && period != h.started_on {
+                continue;
+            }
+            let payout = repo::payout_accounts(pool, h.club_id).await.ok().and_then(|accounts| {
+                let timelines: Vec<_> = accounts.iter().map(|a| a.timeline()).collect();
+                let states = money::payout_states(&timelines, Utc::now());
+                accounts.iter().zip(states).rev().find(|(_, s)| *s == PayoutState::Active).map(|(a, _)| a.id)
+            });
+            let title = passes::charge_title(&plan, period, part);
+            let mut tx = pool.begin().await?;
+            let bill = passes::charge_pass(&mut tx, &plan, &h, period, &title, plan.charge_cents(), payout).await?;
+            tx.commit().await?;
+            if bill.is_none() {
+                continue;
+            }
+            charged += 1;
+            let club = repo::club_name(pool, h.club_id).await?.unwrap_or_default();
+            let money = fmt_money(plan.charge_cents(), &plan.currency);
+            let body = match plan.billing() {
+                PassBilling::Monthly => format!(
+                    "{money} for {}. If your standing order to {club} is set up, there's nothing to do.",
+                    period.format("%B")
+                ),
+                _ => format!("{money} is due to {club}. Pay by bank transfer in the app, then tap I've paid."),
+            };
+            notify_pass(pool, push, &h, "pass_charge", &title, &body).await;
+        }
+    }
+    if charged > 0 {
+        info!(charged, "charged passes");
+    }
+    Ok(())
+}
+
+/// A holder hears about their pass, and so does whoever pays for them.
+async fn notify_pass(pool: &PgPool, push: &PushService, h: &passes::Holder, kind: &str, title: &str, body: &str) {
+    let payload = json!({ "club_id": h.club_id, "pass_holder_id": h.id });
+    notify(pool, push, h.user_id, kind, title, body, payload.clone()).await;
+    if let Ok(Some(payer)) = passes::payer_of(pool, h.club_id, h.user_id).await {
+        notify(pool, push, payer, kind, title, &format!("For {}: {body}", h.name), payload).await;
+    }
+}
+
+/// Once when a pass falls behind, once more if it's suspended (the club is
+/// told then too), and back to quiet once it's paid up.
+pub async fn pass_standing_notices(pool: &PgPool, push: &PushService) -> anyhow::Result<()> {
+    let today = Utc::now().date_naive();
+    for h in passes::running_holders(pool).await? {
+        let Some(plan) = passes::plan(pool, h.plan_id).await? else { continue };
+        let now = match passes::standing(pool, &plan, &h, today).await? {
+            PassStanding::UpToDate => "up_to_date",
+            PassStanding::Behind => "behind",
+            PassStanding::Suspended => "suspended",
+        };
+        if now == h.told_standing || !passes::set_told_standing(pool, h.id, &h.told_standing, now).await? {
+            continue;
+        }
+        let club = repo::club_name(pool, h.club_id).await?.unwrap_or_default();
+        match now {
+            "behind" if h.told_standing == "up_to_date" => {
+                notify_pass(pool, push, &h, "pass_behind", &format!("{}: a payment is late", plan.name),
+                    &format!("A payment for {} hasn't reached {club} yet. Pay it in the app to keep your sessions covered.", plan.name)).await;
+            }
+            "suspended" => {
+                notify_pass(pool, push, &h, "pass_suspended", &format!("{} is paused", plan.name),
+                    &format!("Payments to {club} are late, so sessions are charged as usual until it's paid up.")).await;
+                for (admin, _) in repo::money_admins(pool, h.club_id).await? {
+                    notify(pool, push, admin, "pass_suspended", &format!("{}: {} is behind", plan.name, h.name),
+                        &format!("{}'s pass is paused for late payments. You can keep it covering them from the pass.", h.name),
+                        json!({ "club_id": h.club_id, "pass_holder_id": h.id })).await;
+                }
+            }
+            _ => {}
         }
     }
     Ok(())

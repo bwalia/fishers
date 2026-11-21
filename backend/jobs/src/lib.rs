@@ -105,6 +105,12 @@ async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> an
     if let Err(e) = club_payments::auto_bill(pool, push).await {
         warn!(error = %e, "sending bills automatically failed");
     }
+    if let Err(e) = club_payments::charge_passes(pool, push).await {
+        warn!(error = %e, "charging passes failed");
+    }
+    if let Err(e) = club_payments::pass_standing_notices(pool, push).await {
+        warn!(error = %e, "pass standing notices failed");
+    }
     if let Err(e) = club_payments::chase_shares(pool, push).await {
         warn!(error = %e, "chasing unpaid shares failed");
     }

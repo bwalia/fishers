@@ -619,7 +619,12 @@ async fn update_settings(
 pub struct ShareView {
     pub id: Uuid,
     pub bill_id: Uuid,
-    pub event_id: Uuid,
+    /// The session; none for a pass charge or a group fee (see `kind`).
+    pub event_id: Option<Uuid>,
+    /// `event`, `pass` or `collection`.
+    pub kind: String,
+    /// When a pass charge or group fee is due.
+    pub due_on: Option<chrono::NaiveDate>,
     pub title: String,
     pub event_start_at: DateTime<Utc>,
     pub user_id: Option<Uuid>,
@@ -638,12 +643,15 @@ pub(crate) fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> Share
     let state = match s.status.as_str() {
         "waived" => ShareState::Waived,
         "void" => ShareState::Void,
+        "covered" => ShareState::Covered,
         _ => p.state(s.amount_cents),
     };
     ShareView {
         id: s.id,
         bill_id: s.bill_id,
         event_id: s.event_id,
+        kind: s.kind.clone(),
+        due_on: s.due_on,
         title: s.title.clone(),
         event_start_at: s.event_start_at,
         user_id: s.user_id,
@@ -708,6 +716,35 @@ struct CostBody {
     /// Also every later week of the same weekly series not yet billed.
     #[serde(default)]
     apply_to_series: bool,
+    /// A per-player price for some price types ("Juniors £3"). Given, it
+    /// replaces the session's prices; left out, they stay as they are.
+    prices: Option<Vec<PriceIn>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PriceIn {
+    price_type_id: Uuid,
+    amount_cents: i64,
+}
+
+/// A session's price for one price type.
+#[derive(Debug, Serialize)]
+pub(crate) struct TypePrice {
+    price_type_id: Uuid,
+    name: String,
+    amount_cents: i64,
+}
+
+pub(crate) async fn type_prices(state: &AppState, club_id: Uuid, event_id: Uuid) -> ApiResult<Vec<TypePrice>> {
+    let prices = fishers_db::repos::passes::event_prices(&state.pool, event_id).await?;
+    if prices.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(fishers_db::repos::passes::price_types(&state.pool, club_id)
+        .await?
+        .into_iter()
+        .filter_map(|t| prices.get(&t.id).map(|a| TypePrice { price_type_id: t.id, name: t.name, amount_cents: *a }))
+        .collect())
 }
 
 #[derive(Debug, Serialize)]
@@ -715,6 +752,7 @@ struct CostResponse {
     cost: Option<EventCostRow>,
     /// Other weeks of the series that took the same cost.
     series_updated: usize,
+    prices: Vec<TypePrice>,
 }
 
 async fn set_cost(
@@ -745,6 +783,33 @@ async fn set_cost(
         return Err(ApiError::conflict("This one's already been billed. Re-split the bill to change it.")
             .with_code("already_billed"));
     }
+    let prices: Option<Vec<(Uuid, i64)>> = match &body.prices {
+        None => None,
+        Some(list) => {
+            if mode != CostMode::PerPlayer && !list.is_empty() {
+                return Err(ApiError::bad_request("Prices by type are for a cost per player; a total is split evenly")
+                    .with_code("prices_need_per_player"));
+            }
+            let types = fishers_db::repos::passes::price_types(&state.pool, event.club_id).await?;
+            let mut out: Vec<(Uuid, i64)> = Vec::new();
+            for p in list {
+                if !types.iter().any(|t| t.id == p.price_type_id && t.archived_at.is_none()) {
+                    return Err(ApiError::bad_request("That price type isn't one of this club's"));
+                }
+                if p.amount_cents < 0 || p.amount_cents > money::MAX_SHARE_CENTS {
+                    return Err(ApiError::bad_request(format!(
+                        "A price is between nothing and {}",
+                        fmt_money(money::MAX_SHARE_CENTS, &event.fee_currency)
+                    ))
+                    .with_code("amount_limit"));
+                }
+                if !out.iter().any(|(t, _)| *t == p.price_type_id) {
+                    out.push((p.price_type_id, p.amount_cents));
+                }
+            }
+            Some(out)
+        }
+    };
     let mut targets = vec![event_id];
     if body.apply_to_series {
         if let Some(series) = event.metadata.get("series_id").and_then(|v| v.as_str()) {
@@ -759,11 +824,21 @@ async fn set_cost(
     for id in &targets {
         repo::upsert_cost(&mut tx, *id, event.club_id, mode, body.amount_cents, &event.fee_currency, note, Some(auth.user_id))
             .await?;
+        match (&prices, mode) {
+            (Some(p), _) => fishers_db::repos::passes::set_event_prices(&mut tx, *id, p).await?,
+            // A split total has no per-type prices to keep.
+            (None, CostMode::SplitTotal) => fishers_db::repos::passes::set_event_prices(&mut tx, *id, &[]).await?,
+            (None, CostMode::PerPlayer) => {}
+        }
     }
     repo::audit(&mut tx, event.club_id, Some(auth.user_id), "set_cost", "event", Some(event_id), None,
-        Some(json!({ "mode": mode.as_str(), "amount_cents": body.amount_cents, "weeks": targets.len() }))).await?;
+        Some(json!({ "mode": mode.as_str(), "amount_cents": body.amount_cents, "weeks": targets.len(), "prices": prices }))).await?;
     tx.commit().await?;
-    Ok(Json(CostResponse { cost: repo::cost(&state.pool, event_id).await?, series_updated: targets.len() - 1 }))
+    Ok(Json(CostResponse {
+        cost: repo::cost(&state.pool, event_id).await?,
+        series_updated: targets.len() - 1,
+        prices: type_prices(&state, event.club_id, event_id).await?,
+    }))
 }
 
 async fn remove_cost(
@@ -814,6 +889,8 @@ struct BillResponse {
     end_at: DateTime<Utc>,
     event_status: fishers_domain::EventStatus,
     cost: Option<EventCostRow>,
+    /// The session's own prices for some price types.
+    prices: Vec<TypePrice>,
     bill: Option<BillView>,
     can_bill: bool,
     can_manage_money: bool,
@@ -884,6 +961,7 @@ async fn bill_response(state: &AppState, event: &Event, user_id: Uuid) -> ApiRes
         end_at: event.end_at,
         event_status: event.status,
         cost,
+        prices: type_prices(state, event.club_id, event.id).await?,
         bill,
         can_bill: billing,
         can_manage_money: money_role.is_admin(),
@@ -936,7 +1014,7 @@ async fn attendees_for(
         .with_code("not_members"));
     }
     let mut people: Vec<Attendee> =
-        members.into_iter().map(|(id, name)| Attendee { user_id: Some(id), name }).collect();
+        members.into_iter().map(|(id, name)| Attendee { user_id: Some(id), name, ..Default::default() }).collect();
     people.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then(a.user_id.cmp(&b.user_id)));
 
     let mut seen = std::collections::HashSet::new();
@@ -950,7 +1028,7 @@ async fn attendees_for(
             return Err(ApiError::bad_request("A guest's name can be at most 60 characters"));
         }
         if seen.insert(name.to_lowercase()) {
-            guests.push(Attendee { user_id: None, name });
+            guests.push(Attendee { user_id: None, name, ..Default::default() });
         }
     }
     if guests.len() > 50 {
@@ -959,6 +1037,23 @@ async fn attendees_for(
     guests.sort_by_key(|g| g.name.to_lowercase());
     people.extend(guests);
     Ok(people)
+}
+
+/// Everybody on a session's bill, priced by their price type and marked
+/// where a pass or a free type means they owe nothing.
+async fn priced(state: &AppState, event: &Event, mode: CostMode, people: Vec<Attendee>) -> ApiResult<Vec<Attendee>> {
+    let subtype = serde_json::to_value(event.event_subtype)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_else(|| "generic".into());
+    let facts = fishers_db::repos::passes::SessionFacts {
+        club_id: event.club_id,
+        event_id: Some(event.id),
+        subtype,
+        team_id: event.team_id,
+        day: event.start_at.date_naive(),
+    };
+    Ok(fishers_db::repos::passes::priced(&state.pool, &facts, mode, people).await?)
 }
 
 fn split_error(e: money::SplitError) -> ApiError {
@@ -985,6 +1080,8 @@ struct PreviewShare {
     user_id: Option<Uuid>,
     name: String,
     amount_cents: i64,
+    /// Owing nothing, and why: "Covered by Winter nets pass", "Free: Coach".
+    covered: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1006,16 +1103,28 @@ async fn preview_bill(
     let cost = cost_or_409(&state, event_id).await?;
     let settings = repo::settings(&state.pool, event.club_id).await?;
     let people = attendees_for(&mut *state.pool.acquire().await?, event.club_id, &body).await?;
+    let people = priced(&state, &event, cost.mode(), people).await?;
     let split = money::split(cost.mode(), cost.amount_cents, people.len(), rounding_for(&settings)).map_err(split_error)?;
+    let shares: Vec<PreviewShare> = people
+        .into_iter()
+        .zip(&split.shares)
+        .map(|(p, standard)| {
+            let amount = match (cost.mode(), p.amount_cents) {
+                (CostMode::PerPlayer, Some(own)) if own > 0 => own,
+                _ => *standard,
+            };
+            let covered = p.cover.as_ref().map(|c| match c {
+                repo::Cover::Pass { plan_name, .. } => format!("Covered by {plan_name}"),
+                repo::Cover::Free { price_type } => format!("Free: {price_type}"),
+            });
+            PreviewShare { user_id: p.user_id, name: p.name, amount_cents: amount, covered }
+        })
+        .collect();
     Ok(Json(Preview {
-        shares: people
-            .into_iter()
-            .zip(&split.shares)
-            .map(|(p, a)| PreviewShare { user_id: p.user_id, name: p.name, amount_cents: *a })
-            .collect(),
-        total_cents: split.total_cents,
+        total_cents: shares.iter().filter(|s| s.covered.is_none()).map(|s| s.amount_cents).sum(),
         surplus_cents: split.surplus_cents,
         currency: cost.currency,
+        shares,
     }))
 }
 
@@ -1034,6 +1143,7 @@ async fn send_bill(
 
     let mut tx = state.pool.begin().await?;
     let people = attendees_for(&mut tx, event.club_id, &body).await?;
+    let people = priced(&state, &event, cost.mode(), people).await?;
     let came: Vec<Uuid> = people.iter().filter_map(|p| p.user_id).collect();
     let outcome = repo::issue_bill(
         &mut tx,
@@ -1217,6 +1327,18 @@ struct ClubDues {
 #[derive(Debug, Serialize)]
 struct Dues {
     clubs: Vec<ClubDues>,
+    /// What the people you pay for owe (a parent's juniors), club by club.
+    people: Vec<PersonDues>,
+}
+
+#[derive(Debug, Serialize)]
+struct PersonDues {
+    user_id: Uuid,
+    name: String,
+    /// No sign-in of their own: you look after their account.
+    managed: bool,
+    club_id: Uuid,
+    dues: ClubDues,
 }
 
 fn dues_for(club_id: Uuid, club_name: String, ledger: &Ledger, payer: &Payer) -> ClubDues {
@@ -1253,7 +1375,19 @@ async fn my_dues(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Jso
         let ledger = Ledger::load(&state, club_id, Some(auth.user_id)).await?;
         clubs.push(dues_for(club_id, name, &ledger, &Payer::Member(auth.user_id)));
     }
-    Ok(Json(Dues { clubs }))
+    let mut people = Vec::new();
+    for d in fishers_db::repos::passes::dependents(&state.pool, auth.user_id).await? {
+        let club_name = repo::club_name(&state.pool, d.club_id).await?.unwrap_or_default();
+        let ledger = Ledger::load(&state, d.club_id, Some(d.member_id)).await?;
+        people.push(PersonDues {
+            user_id: d.member_id,
+            name: d.name,
+            managed: d.managed,
+            club_id: d.club_id,
+            dues: dues_for(d.club_id, club_name, &ledger, &Payer::Member(d.member_id)),
+        });
+    }
+    Ok(Json(Dues { clubs, people }))
 }
 
 /// This member's reference with this club, made the first time it is needed.
@@ -1304,6 +1438,12 @@ pub(crate) async fn payee_role(state: &AppState, row: &PayoutAccountRow) -> Opti
         return None;
     }
     let by = row.created_by?;
+    // Only when the account is the adder's own: a treasurer who adds the
+    // secretary's account mustn't make it read "the club treasurer".
+    let adder = repo::user_name(&state.pool, by).await.ok().flatten()?;
+    if !money::same_person(&row.holder_name, &adder) {
+        return None;
+    }
     let r = repo::money_role(&state.pool, row.club_id, by).await.ok().flatten()?;
     if r.is_treasurer {
         Some("treasurer")
@@ -1841,7 +1981,7 @@ struct Totals {
 #[derive(Debug, Serialize)]
 struct BillSummary {
     bill_id: Uuid,
-    event_id: Uuid,
+    event_id: Option<Uuid>,
     title: String,
     event_start_at: DateTime<Utc>,
     currency: String,

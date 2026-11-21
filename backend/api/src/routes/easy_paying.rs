@@ -53,7 +53,11 @@ const SCREENSHOT_MINUTES: i64 = 120;
 const MAX_SCREENSHOT_BYTES: usize = 1_000_000;
 
 static VIEWS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(120, StdDuration::from_secs(60)));
-static CLAIMS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(20, StdDuration::from_secs(3600)));
+/// Claims from one address: a whole club on the ground's Wi-Fi shares one,
+/// so the limit is per link (a club's worth of people) with a looser one
+/// across links. One open claim per share bounds the rest.
+static CLAIMS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(40, StdDuration::from_secs(3600)));
+static CLAIMS_ANY_LINK: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(120, StdDuration::from_secs(3600)));
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -64,8 +68,10 @@ pub fn router() -> Router<AppState> {
         .route("/pay-links/{token}/claims/{pid}", axum::routing::delete(link_undo))
         .route("/pay-links/{token}/claims/{pid}/screenshot", post(link_screenshot))
         // Whoever runs the session.
-        .route("/events/{id}/bill/link", post(make_link))
+        .route("/events/{id}/bill/link", get(get_link).post(make_link))
         .route("/events/{id}/bill/link/disable", post(disable_link))
+        .route("/bills/{bill_id}/link", post(make_bill_link))
+        .route("/bills/{bill_id}/link/disable", post(disable_bill_link))
         .route("/events/{id}/bill/cash", post(cash_at_ground))
         // Money admins.
         .route("/clubs/{id}/payments/confirm", post(confirm_many))
@@ -134,7 +140,7 @@ async fn link_page(
 ) -> ApiResult<Json<LinkPage>> {
     let link = open_link(&state, &token, &headers).await?;
     let shares = repo::bill_shares(&state.pool, link.bill_id).await?;
-    let bill = repo::live_bill(&state.pool, link.event_id).await?.ok_or_else(link_closed)?;
+    let bill = repo::bill_by_id(&state.pool, link.bill_id).await?.filter(|b| b.status == "issued").ok_or_else(link_closed)?;
     let club_name = repo::club_name(&state.pool, link.club_id).await?.unwrap_or_default();
     let me = signed_in(&state, &headers).and_then(|u| shares.iter().find(|s| s.user_id == Some(u)).map(|s| s.id));
     let all = accounts(&state, link.club_id).await?;
@@ -210,7 +216,7 @@ async fn link_person(
     let link = open_link(&state, &token, &headers).await?;
     let share = repo::share_on_bill(&state.pool, link.bill_id, share_id)
         .await?
-        .ok_or_else(|| ApiError::not_found("That name isn't on this bill any more. Open the link again."))?;
+        .ok_or_else(|| ApiError::not_found("That name isn't on this bill any more. Open the link again.").with_code("not_on_bill"))?;
     Ok(Json(person(&state, &link, &share).await?))
 }
 
@@ -236,7 +242,7 @@ async fn link_claim(
     let note = body.note.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(|n| n.chars().take(200).collect::<String>());
     let share = repo::share_on_bill(&state.pool, link.bill_id, share_id)
         .await?
-        .ok_or_else(|| ApiError::not_found("That name isn't on this bill any more. Open the link again."))?;
+        .ok_or_else(|| ApiError::not_found("That name isn't on this bill any more. Open the link again.").with_code("not_on_bill"))?;
 
     // A claim already waiting for this person — a second tap, a retry on a
     // bad signal, a friend tapping too — is that claim, not another one.
@@ -253,7 +259,10 @@ async fn link_claim(
         .with_code("nothing_owed"));
     }
     let ip = crate::services::pay_links::client_ip(&headers);
-    if !CLAIMS.allow(&ip) || repo::recent_link_claims(&state.pool, link.id).await? >= CLAIMS_PER_LINK_HOUR {
+    if !CLAIMS.allow(&format!("{ip}|{}", link.id))
+        || !CLAIMS_ANY_LINK.allow(&ip)
+        || repo::recent_link_claims(&state.pool, link.id).await? >= CLAIMS_PER_LINK_HOUR
+    {
         return Err(ApiError::too_many("Too many payments from here. Try again later.").with_code("slow_down"));
     }
 
@@ -475,20 +484,67 @@ async fn make_link(
     let bill = repo::live_bill(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::conflict("Send the bill first, then share it.").with_code("no_bill"))?;
-    let link = match repo::open_link_for_bill(&state.pool, bill.id).await? {
-        Some(link) => link,
-        None => {
+    Ok(Json(link_for_bill(&state, bill, auth.user_id).await?))
+}
+
+/// A group fee's pay link, for its WhatsApp message. Money admins only.
+async fn make_bill_link(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(bill_id): Path<Uuid>,
+) -> ApiResult<Json<LinkResponse>> {
+    let bill = repo::bill_by_id(&state.pool, bill_id)
+        .await?
+        .filter(|b| b.kind == "collection")
+        .ok_or_else(|| ApiError::not_found("no such group fee"))?;
+    require_money_admin(&state, bill.club_id, auth.user_id).await?;
+    if bill.status != "issued" {
+        return Err(ApiError::conflict("That group fee was cancelled.").with_code("no_bill"));
+    }
+    Ok(Json(link_for_bill(&state, bill, auth.user_id).await?))
+}
+
+async fn disable_bill_link(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(bill_id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let bill = repo::bill_by_id(&state.pool, bill_id)
+        .await?
+        .filter(|b| b.kind == "collection")
+        .ok_or_else(|| ApiError::not_found("no such group fee"))?;
+    require_money_admin(&state, bill.club_id, auth.user_id).await?;
+    let mut tx = state.pool.begin().await?;
+    let n = repo::disable_links_for_bill(&mut tx, bill.id, auth.user_id).await?;
+    repo::audit(&mut tx, bill.club_id, Some(auth.user_id), "disable_pay_links", "bill", Some(bill.id), None,
+        Some(json!({ "links": n }))).await?;
+    tx.commit().await?;
+    Ok(Json(json!({ "disabled": n })))
+}
+
+/// The bill's open link (made if there isn't one) and the messages to share it with.
+async fn link_for_bill(state: &AppState, bill: repo::BillRow, by: Uuid) -> ApiResult<LinkResponse> {
+    link_messages(state, bill, Some(by)).await?.ok_or_else(|| ApiError::internal("pay link vanished"))
+}
+
+/// The bill's open link and its messages. With `make`, a link is made when
+/// there isn't one; without, there's nothing to show until somebody shares.
+async fn link_messages(state: &AppState, bill: repo::BillRow, make: Option<Uuid>) -> ApiResult<Option<LinkResponse>> {
+    let link = match (repo::open_link_for_bill(&state.pool, bill.id).await?, make) {
+        (Some(link), _) => link,
+        (None, None) => return Ok(None),
+        (None, Some(by)) => {
             let mut tx = state.pool.begin().await?;
-            let id = repo::create_pay_link(&mut tx, bill.club_id, bill.id, auth.user_id, Utc::now() + Duration::days(LINK_DAYS)).await?;
-            repo::audit(&mut tx, bill.club_id, Some(auth.user_id), "make_pay_link", "bill", Some(bill.id), None,
+            let id = repo::create_pay_link(&mut tx, bill.club_id, bill.id, by, Utc::now() + Duration::days(LINK_DAYS)).await?;
+            repo::audit(&mut tx, bill.club_id, Some(by), "make_pay_link", "bill", Some(bill.id), None,
                 Some(json!({ "pay_link": id }))).await?;
             tx.commit().await?;
             repo::pay_link(&state.pool, id).await?.ok_or_else(|| ApiError::internal("pay link vanished"))?
         }
     };
-    let url = format!("{}/p/{}", super::scoreboard_share::public_web_base(), state.pay_links.mint(link.id));
+    let url = format!("{}/pay/{}", super::scoreboard_share::public_web_base(), state.pay_links.mint(link.id));
 
-    let ledger = Ledger::load(&state, bill.club_id, None).await?;
+    let ledger = Ledger::load(state, bill.club_id, None).await?;
     let shares = repo::bill_shares(&state.pool, bill.id).await?;
     let live: Vec<&ShareRow> = shares.iter().filter(|s| s.status == "live").collect();
     let owing: Vec<String> = live
@@ -499,19 +555,38 @@ async fn make_link(
         })
         .map(|s| s.name.clone())
         .collect();
-    let when = bill.event_start_at.format("%a %-d %b");
+    // A session says when it was; a group fee says when it's due, if it is.
+    let (icon, when) = if bill.kind == "collection" {
+        ("💷", bill.due_on.map(|d| format!(", by {}", d.format("%a %-d %b"))).unwrap_or_default())
+    } else {
+        ("🏏", format!(", {}", bill.event_start_at.format("%a %-d %b")))
+    };
     let amounts: std::collections::BTreeSet<i64> = live.iter().map(|s| s.amount_cents).collect();
     let price = match (amounts.len(), amounts.iter().next()) {
         (1, Some(each)) => format!("{} each", fmt_money(*each, &bill.currency)),
         _ => format!("{} between {}", fmt_money(bill.total_cents, &bill.currency), live.len()),
     };
-    let bill_message = format!("🏏 {}, {when}: {price}.\nTap to pay: {url}", bill.title);
+    let bill_message = format!("{icon} {}{when}: {price}.\nTap to pay: {url}", bill.title);
     let reminder_message = if owing.is_empty() {
-        format!("Everyone has paid for {}, {when}. Thank you!", bill.title)
+        format!("Everyone has paid for {}{when}. Thank you!", bill.title)
     } else {
-        format!("Still to pay for {}, {when}: {}.\nTap to pay: {url}", bill.title, and_list(&short_names(&owing)))
+        format!("Still to pay for {}{when}: {}.\nTap to pay: {url}", bill.title, and_list(&short_names(&owing)))
     };
-    Ok(Json(LinkResponse { url, expires_at: link.expires_at, bill_message, reminder_message, still_to_pay: owing }))
+    Ok(Some(LinkResponse { url, expires_at: link.expires_at, bill_message, reminder_message, still_to_pay: owing }))
+}
+
+/// The open link, if there is one — never makes one. For showing "Still to
+/// pay" and the share buttons when somebody opens a billed session; the link
+/// itself is made the first time somebody taps Share.
+async fn get_link(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(event_id): Path<Uuid>,
+) -> ApiResult<Json<Option<LinkResponse>>> {
+    let event = event_or_404(&state, event_id).await?;
+    require_can_bill(&state, &event, auth.user_id).await?;
+    let Some(bill) = repo::live_bill(&state.pool, event_id).await? else { return Ok(Json(None)) };
+    Ok(Json(link_messages(&state, bill, None).await?))
 }
 
 async fn disable_link(
@@ -549,7 +624,9 @@ async fn confirm_many(
     if body.ids.len() > 200 {
         return Err(ApiError::bad_request("At most 200 at a time"));
     }
-    let (mut confirmed, mut skipped) = (0, 0);
+    // `already_confirmed`: a retry after a lost reply finds them done, and
+    // the app can say so rather than "nothing to confirm".
+    let (mut confirmed, mut already, mut skipped) = (0, 0, 0);
     for id in body.ids {
         match repo::payment(&state.pool, id).await? {
             Some(p) if p.club_id == club_id && p.status == "claimed" => {
@@ -558,10 +635,11 @@ async fn confirm_many(
                     Err(_) => skipped += 1,
                 }
             }
+            Some(p) if p.club_id == club_id && p.status == "confirmed" => already += 1,
             _ => skipped += 1,
         }
     }
-    Ok(Json(json!({ "confirmed": confirmed, "skipped": skipped })))
+    Ok(Json(json!({ "confirmed": confirmed, "already_confirmed": already, "skipped": skipped })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -588,13 +666,16 @@ async fn cash_at_ground(
     let collector = repo::user_name(&state.pool, auth.user_id).await?.unwrap_or_default();
     let ledger = Ledger::load(&state, bill.club_id, None).await?;
     let shares = repo::bill_shares(&state.pool, bill.id).await?;
-    let (mut recorded, mut total) = (0, 0i64);
+    // `already_paid`: ticked people who owe nothing now — on a retry after a
+    // lost reply, the ones the first tap recorded.
+    let (mut recorded, mut already, mut total) = (0, 0, 0i64);
     let mut tx = state.pool.begin().await?;
     for sid in body.share_ids {
         let Some(share) = shares.iter().find(|s| s.id == sid && s.status == "live") else { continue };
         let p = ledger.progress(share).unwrap_or_default();
         let owed = share.amount_cents - p.paid_cents - p.waiting_cents;
         if owed <= 0 {
+            already += 1;
             continue;
         }
         let (user_id, guest) = match share.payer() {
@@ -643,7 +724,7 @@ async fn cash_at_ground(
                 .await;
         }
     }
-    Ok(Json(json!({ "recorded": recorded, "total_cents": total, "received": admin })))
+    Ok(Json(json!({ "recorded": recorded, "already_paid": already, "total_cents": total, "received": admin })))
 }
 
 #[cfg(test)]

@@ -93,6 +93,25 @@ pub async fn user_name(pool: &PgPool, user_id: Uuid) -> Result<Option<String>, s
     sqlx::query_scalar("SELECT name FROM users WHERE id = $1").bind(user_id).fetch_optional(pool).await
 }
 
+/// "Josh" from "Josh Patel".
+pub fn first_name_of(name: &str) -> &str {
+    name.split_whitespace().next().unwrap_or(name)
+}
+
+/// The currency a club works in: its open accounting year's, else the one
+/// its sessions were last priced in, else pounds.
+pub async fn club_currency(pool: &PgPool, club_id: Uuid) -> Result<String, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT COALESCE(
+             (SELECT currency FROM club_account_periods WHERE club_id = $1 AND status = 'open' ORDER BY starts_on DESC LIMIT 1),
+             (SELECT currency FROM event_costs WHERE club_id = $1 ORDER BY updated_at DESC LIMIT 1),
+             'GBP')",
+    )
+    .bind(club_id)
+    .fetch_one(pool)
+    .await
+}
+
 /// Take the club row's lock, so two changes to its bank details can't
 /// interleave (two "replace" requests landing together).
 pub async fn lock_club(conn: &mut PgConnection, club_id: Uuid) -> Result<bool, sqlx::Error> {
@@ -595,7 +614,8 @@ pub async fn record_attendance(conn: &mut PgConnection, event_id: Uuid, came: &[
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct BillRow {
     pub id: Uuid,
-    pub event_id: Uuid,
+    /// The session, for a session's bill; none for a pass charge or a group fee.
+    pub event_id: Option<Uuid>,
     pub club_id: Uuid,
     pub title: String,
     pub event_start_at: DateTime<Utc>,
@@ -614,10 +634,23 @@ pub struct BillRow {
     pub updated_at: DateTime<Utc>,
     pub voided_at: Option<DateTime<Utc>>,
     pub void_reason: Option<String>,
+    /// `event`, `pass` or `collection`.
+    pub kind: String,
+    pub pass_holder_id: Option<Uuid>,
+    pub period_start: Option<chrono::NaiveDate>,
+    pub due_on: Option<chrono::NaiveDate>,
 }
 
 const BILL_COLS: &str = "id, event_id, club_id, title, event_start_at, mode, amount_cents, total_cents, currency, \
-    rounding, payout_account_id, status, version, auto, note, issued_by, issued_at, updated_at, voided_at, void_reason";
+    rounding, payout_account_id, status, version, auto, note, issued_by, issued_at, updated_at, voided_at, void_reason, \
+    kind, pass_holder_id, period_start, due_on";
+
+pub async fn bill_by_id(pool: &PgPool, id: Uuid) -> Result<Option<BillRow>, sqlx::Error> {
+    sqlx::query_as::<_, BillRow>(&format!("SELECT {BILL_COLS} FROM event_bills WHERE id = $1"))
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+}
 
 pub async fn live_bill(pool: &PgPool, event_id: Uuid) -> Result<Option<BillRow>, sqlx::Error> {
     sqlx::query_as::<_, BillRow>(&format!(
@@ -672,7 +705,7 @@ pub async fn void_bill(
     .bind(reason)
     .execute(&mut *conn)
     .await?;
-    sqlx::query("UPDATE bill_shares SET status = 'void', reason = $2, decided_by = $3, decided_at = NOW() WHERE bill_id = $1 AND status = 'live'")
+    sqlx::query("UPDATE bill_shares SET status = 'void', reason = $2, decided_by = $3, decided_at = NOW() WHERE bill_id = $1 AND status IN ('live', 'covered')")
         .bind(bill.id)
         .bind(reason)
         .bind(by)
@@ -695,17 +728,21 @@ pub struct ShareRow {
     pub reminders_sent: i32,
     pub last_reminded_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// The pass that covers it, when `status` is `covered` by a pass.
+    pub covered_by: Option<Uuid>,
     // From the bill.
-    pub event_id: Uuid,
+    pub event_id: Option<Uuid>,
     pub title: String,
     pub event_start_at: DateTime<Utc>,
     pub currency: String,
     pub issued_at: DateTime<Utc>,
+    pub kind: String,
+    pub due_on: Option<chrono::NaiveDate>,
 }
 
 const SHARE_SELECT: &str = "SELECT s.id, s.bill_id, s.club_id, s.user_id, s.guest_name, s.name, s.amount_cents, \
-    s.status, s.reason, s.reminders_sent, s.last_reminded_at, s.created_at, \
-    b.event_id, b.title, b.event_start_at, b.currency, b.issued_at \
+    s.status, s.reason, s.reminders_sent, s.last_reminded_at, s.created_at, s.covered_by, \
+    b.event_id, b.title, b.event_start_at, b.currency, b.issued_at, b.kind, b.due_on \
     FROM bill_shares s JOIN event_bills b ON b.id = s.bill_id";
 
 impl ShareRow {
@@ -739,7 +776,7 @@ impl Payer {
 /// The shares on one bill, live and waived (voided ones are history).
 pub async fn bill_shares(pool: &PgPool, bill_id: Uuid) -> Result<Vec<ShareRow>, sqlx::Error> {
     sqlx::query_as::<_, ShareRow>(&format!(
-        "{SHARE_SELECT} WHERE s.bill_id = $1 AND s.status IN ('live', 'waived') ORDER BY lower(s.name), s.id"
+        "{SHARE_SELECT} WHERE s.bill_id = $1 AND s.status IN ('live', 'waived', 'covered') ORDER BY lower(s.name), s.id"
     ))
     .bind(bill_id)
     .fetch_all(pool)
@@ -768,10 +805,23 @@ pub async fn waive_share(conn: &mut PgConnection, share_id: Uuid, by: Uuid, reas
 }
 
 /// Somebody on the bill.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Attendee {
     pub user_id: Option<Uuid>,
     pub name: String,
+    /// Their own price, for a per-player cost where their price type has one.
+    pub amount_cents: Option<i64>,
+    /// Owing nothing on this bill, and why.
+    pub cover: Option<Cover>,
+}
+
+/// Why somebody on a bill owes nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Cover {
+    /// A pass covers it (the pass holder's id).
+    Pass { holder_id: Uuid, plan_name: String },
+    /// Their price type is free (coach, say).
+    Free { price_type: String },
 }
 
 pub struct BillInput<'a> {
@@ -834,6 +884,22 @@ type PriorShare = (Option<Uuid>, Option<String>, i64, String, Option<String>);
 pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Result<BillOutcome, BillError> {
     let split = money::split(input.mode, input.amount_cents, input.attendees.len(), input.rounding)
         .map_err(BillError::Split)?;
+    // A per-player price type overrides the standard price; a split total is
+    // split evenly. What everyone covered "would have paid" stays on their line
+    // for the record; the club covers it, so nobody else pays more.
+    let amounts: Vec<i64> = input
+        .attendees
+        .iter()
+        .zip(&split.shares)
+        .map(|(a, standard)| match (input.mode, a.amount_cents) {
+            (CostMode::PerPlayer, Some(own)) if own > 0 => own,
+            _ => *standard,
+        })
+        .collect();
+    // What the bill collects: everybody's line but those a pass or a free
+    // price type covers.
+    let total_cents: i64 =
+        input.attendees.iter().zip(&amounts).filter(|(a, _)| a.cover.is_none()).map(|(_, amount)| amount).sum();
     let live = live_bill_locked(conn, input.event_id).await?;
     // Keyed by payer — a member by id, a guest by name — so a guest who was
     // let off stays let off too.
@@ -855,7 +921,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
             .bind(input.event_start_at)
             .bind(input.mode.as_str())
             .bind(input.amount_cents)
-            .bind(split.total_cents)
+            .bind(total_cents)
             .bind(input.currency)
             .bind(input.rounding.as_str())
             .bind(input.payout_account_id)
@@ -872,7 +938,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
             }
             let rows: Vec<PriorShare> = sqlx::query_as(
                 "SELECT user_id, guest_name, amount_cents, status, reason FROM bill_shares
-                 WHERE bill_id = $1 AND status IN ('live', 'waived')",
+                 WHERE bill_id = $1 AND status IN ('live', 'waived', 'covered')",
             )
             .bind(live.id)
             .fetch_all(&mut *conn)
@@ -887,7 +953,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
                 rows.into_iter().map(|(u, _, a, st, r)| (u, a, st, r)).collect();
             sqlx::query(
                 "UPDATE bill_shares SET status = 'void', reason = 're-split', decided_by = $2, decided_at = NOW()
-                 WHERE bill_id = $1 AND status IN ('live', 'waived')",
+                 WHERE bill_id = $1 AND status IN ('live', 'waived', 'covered')",
             )
             .bind(live.id)
             .bind(input.by)
@@ -904,7 +970,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
             .bind(live.id)
             .bind(input.mode.as_str())
             .bind(input.amount_cents)
-            .bind(split.total_cents)
+            .bind(total_cents)
             .bind(input.rounding.as_str())
             .bind(input.note)
             .fetch_one(&mut *conn)
@@ -915,13 +981,19 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
     };
 
     let mut changed = Vec::new();
-    for (attendee, amount) in input.attendees.iter().zip(&split.shares) {
+    for (attendee, amount) in input.attendees.iter().zip(&amounts) {
         let waiver = waived.get(&Payer::of(attendee.user_id, Some(attendee.name.as_str())));
+        let (status, reason, covered_by) = match (&attendee.cover, waiver) {
+            (Some(Cover::Pass { holder_id, plan_name }), _) => ("covered", Some(format!("Covered by {plan_name}")), Some(*holder_id)),
+            (Some(Cover::Free { price_type }), _) => ("covered", Some(format!("Free: {price_type}")), None),
+            (None, Some(reason)) => ("waived", reason.clone(), None),
+            (None, None) => ("live", None, None),
+        };
         sqlx::query(
             "INSERT INTO bill_shares (bill_id, club_id, user_id, guest_name, name, amount_cents, status, reason,
-                                      decided_by, decided_at)
+                                      decided_by, decided_at, covered_by)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $7 = 'waived' THEN $9 END,
-                     CASE WHEN $7 = 'waived' THEN NOW() END)",
+                     CASE WHEN $7 = 'waived' THEN NOW() END, $10)",
         )
         .bind(bill.id)
         .bind(input.club_id)
@@ -929,12 +1001,13 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
         .bind(attendee.user_id.is_none().then_some(attendee.name.as_str()))
         .bind(&attendee.name)
         .bind(amount)
-        .bind(if waiver.is_some() { "waived" } else { "live" })
-        .bind(waiver.cloned().flatten())
+        .bind(status)
+        .bind(reason)
         .bind(input.by)
+        .bind(covered_by)
         .execute(&mut *conn)
         .await?;
-        if let (Some(user), None) = (attendee.user_id, waiver) {
+        if let (Some(user), "live") = (attendee.user_id, status) {
             let was = before.iter().find(|(u, _, s, _)| *u == Some(user) && s == "live").map(|(_, a, _, _)| *a);
             if was != Some(*amount) {
                 changed.push((user, *amount));
@@ -1279,6 +1352,8 @@ pub struct FinishedEvent {
     pub club_id: Uuid,
     pub title: String,
     pub start_at: DateTime<Utc>,
+    pub subtype: String,
+    pub team_id: Option<Uuid>,
     pub created_by: Uuid,
     pub mode: String,
     pub amount_cents: i64,
@@ -1287,7 +1362,7 @@ pub struct FinishedEvent {
 }
 
 const FINISHED_SELECT: &str = r#"
-    SELECT e.id AS event_id, e.club_id, e.title, e.start_at, e.created_by,
+    SELECT e.id AS event_id, e.club_id, e.title, e.start_at, e.event_subtype::text AS subtype, e.team_id, e.created_by,
            ec.mode, ec.amount_cents, ec.currency, c.round_shares_up
     FROM event_costs ec
     JOIN events e ON e.id = ec.event_id
@@ -1349,6 +1424,7 @@ pub async fn shares_due_a_reminder(pool: &PgPool) -> Result<Vec<ShareRow>, sqlx:
         JOIN clubs c ON c.id = s.club_id
         WHERE s.status = 'live' AND b.status = 'issued' AND s.user_id IS NOT NULL
           AND b.issued_at < NOW() - make_interval(hours => c.fee_chase_after_hours)
+          AND (b.due_on IS NULL OR b.due_on < CURRENT_DATE)
           AND s.reminders_sent < c.fee_chase_max_reminders
           AND (s.last_reminded_at IS NULL OR s.last_reminded_at < NOW() - INTERVAL '72 hours')
         ORDER BY s.club_id, s.user_id
@@ -1400,7 +1476,7 @@ pub struct PayLinkRow {
     pub disabled_at: Option<DateTime<Utc>>,
     /// The bill it is for: still the live one?
     pub bill_status: String,
-    pub event_id: Uuid,
+    pub event_id: Option<Uuid>,
 }
 
 const PAY_LINK_SELECT: &str = "SELECT l.id, l.club_id, l.bill_id, l.created_at, l.expires_at, l.disabled_at, \
@@ -1464,7 +1540,7 @@ pub async fn disable_links_for_bill(conn: &mut PgConnection, bill_id: Uuid, by: 
 /// A share on this bill (live or let off), as the link shows it.
 pub async fn share_on_bill(pool: &PgPool, bill_id: Uuid, share_id: Uuid) -> Result<Option<ShareRow>, sqlx::Error> {
     sqlx::query_as::<_, ShareRow>(&format!(
-        "{SHARE_SELECT} WHERE s.bill_id = $1 AND s.id = $2 AND s.status IN ('live', 'waived')"
+        "{SHARE_SELECT} WHERE s.bill_id = $1 AND s.id = $2 AND s.status IN ('live', 'waived', 'covered')"
     ))
     .bind(bill_id)
     .bind(share_id)
