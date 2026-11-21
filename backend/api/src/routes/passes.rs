@@ -1100,7 +1100,10 @@ async fn pay_for_others(
                 continue;
             }
         }
-        let total = ledger.by_payer.get(&Payer::Member(person)).map(|s| s.owed_cents).unwrap_or(0);
+        // What a standing order pays isn't paid by hand as well.
+        let total = (ledger.by_payer.get(&Payer::Member(person)).map(|s| s.owed_cents).unwrap_or(0)
+            - super::club_payments::standing_order_part(&state, club_id, person, &ledger).await?)
+            .max(0);
         let theirs = person == auth.user_id || passes_repo::payer_of(&state.pool, club_id, person).await? == Some(auth.user_id);
         let owed = if theirs { total } else { total.min(shared.get(&person).map(|(_, o)| *o).unwrap_or(0)) };
         if owed <= 0 {

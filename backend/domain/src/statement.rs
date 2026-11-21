@@ -308,7 +308,7 @@ const CLAIM_DAYS: i64 = 21;
 
 /// The reference written in a line, longest first, so "SHARMA 2" wins over
 /// "SHARMA".
-fn reference_in<'a>(text: &str, refs: &'a [Reference]) -> Option<&'a Reference> {
+pub fn reference_in<'a>(text: &str, refs: &'a [Reference]) -> Option<&'a Reference> {
     let text = words(text);
     let mut sorted: Vec<&Reference> = refs.iter().collect();
     sorted.sort_by_key(|r| std::cmp::Reverse(r.code.len()));

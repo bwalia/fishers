@@ -738,11 +738,13 @@ pub struct ShareRow {
     pub issued_at: DateTime<Utc>,
     pub kind: String,
     pub due_on: Option<chrono::NaiveDate>,
+    /// For a pass charge: whose pass.
+    pub pass_holder_id: Option<Uuid>,
 }
 
 const SHARE_SELECT: &str = "SELECT s.id, s.bill_id, s.club_id, s.user_id, s.guest_name, s.name, s.amount_cents, \
     s.status, s.reason, s.reminders_sent, s.last_reminded_at, s.created_at, s.covered_by, \
-    b.event_id, b.title, b.event_start_at, b.currency, b.issued_at, b.kind, b.due_on \
+    b.event_id, b.title, b.event_start_at, b.currency, b.issued_at, b.kind, b.due_on, b.pass_holder_id \
     FROM bill_shares s JOIN event_bills b ON b.id = s.bill_id";
 
 impl ShareRow {
@@ -1050,13 +1052,16 @@ pub struct PaymentRow {
     pub via_link: Option<Uuid>,
     /// Whether the payer attached a screenshot of the payment.
     pub has_screenshot: bool,
+    /// Who recorded it, when that's somebody else: "paid for you by Neha Gill".
+    pub created_by_name: Option<String>,
 }
 
 const PAYMENT_SELECT: &str = "SELECT p.id, p.club_id, p.user_id, p.guest_name, p.name, p.amount_cents, p.currency, \
     p.method, p.reference, p.payout_account_id, p.status, p.note, p.created_by, p.created_at, \
     p.decided_by, d.name AS decided_by_name, p.decided_at, p.decision_reason, p.share_id, p.via_link, \
-    EXISTS (SELECT 1 FROM payment_attachments a WHERE a.payment_id = p.id) AS has_screenshot \
-    FROM member_payments p LEFT JOIN users d ON d.id = p.decided_by";
+    EXISTS (SELECT 1 FROM payment_attachments a WHERE a.payment_id = p.id) AS has_screenshot, \
+    c.name AS created_by_name \
+    FROM member_payments p LEFT JOIN users d ON d.id = p.decided_by LEFT JOIN users c ON c.id = p.created_by";
 
 impl PaymentRow {
     pub fn payer(&self) -> Payer {

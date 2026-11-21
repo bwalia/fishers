@@ -600,3 +600,13 @@ These apply to every app.
     only the holder's.
 - **Statement preview:** a line's `payment_ids` (plural) replaces `payment_id`. One bank line can
   tick several claims, for example a parent's one transfer for two juniors.
+- **More from the apps (built):**
+  - **`GET /clubs/{id}/pay` gains `standing_order_cents`:** the part of `owed_cents` that the
+    standing order pays. These are monthly-pass charges not yet past their due day, yours or those
+    of somebody you pay for. "I've paid" without an amount claims the rest, and nothing more.
+    `nothing_owed` with "Your standing order pays your pass" means there's nothing else.
+  - **Shares gain `pass_holder_id`:** whose pass a charge is for.
+  - **Payments gain `created_by_name`:** "Paid for you by Neha Gill".
+  - **The bill preview's shares gain `cover`.**
+  - **Statement lines gain `reference`** (the member reference found) **and `said_cents`** (for
+    `different_amount`: what was said in the "I've paid"s still waiting).

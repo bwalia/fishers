@@ -54,6 +54,11 @@ struct Line {
     payment_ids: Vec<Uuid>,
     /// For `check`: `different_amount` or `shared_name`.
     why: Option<CheckWhy>,
+    /// The member reference found in the line ("SHARMA 2").
+    reference: Option<String>,
+    /// For `different_amount`: what they said they'd sent, each "I've paid"
+    /// still waiting — "said £6, sent £9".
+    said_cents: Vec<i64>,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -146,8 +151,28 @@ async fn read(state: &AppState, club_id: Uuid, csv: &str) -> ApiResult<Preview> 
             },
             None => None,
         };
+        let reference = statement::reference_in(&c.text, &refs).map(|r| r.code.clone());
+        let said_cents: Vec<i64> = match (why, user_id) {
+            (Some(CheckWhy::DifferentAmount), Some(u)) => {
+                claims.iter().filter(|k| k.payer == u).map(|k| k.amount_cents).collect()
+            }
+            _ => Vec::new(),
+        };
         let text: String = c.text.chars().take(140).collect();
-        lines.push(Line { hash, row: c.row, date: c.date, amount_cents: c.amount_cents, text, action, user_id, name, payment_ids, why });
+        lines.push(Line {
+            hash,
+            row: c.row,
+            date: c.date,
+            amount_cents: c.amount_cents,
+            text,
+            action,
+            user_id,
+            name,
+            payment_ids,
+            why,
+            reference,
+            said_cents,
+        });
     }
     Ok(Preview { currency: repo::club_currency(&state.pool, club_id).await?, summary, lines })
 }

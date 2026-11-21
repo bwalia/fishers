@@ -664,6 +664,8 @@ pub struct ShareView {
     /// For a covered line: `pass` or `free` (a free price group). The reason
     /// is the server's English; this is what an app words for itself.
     pub cover: Option<&'static str>,
+    /// For a pass charge: whose pass it's for.
+    pub pass_holder_id: Option<Uuid>,
 }
 
 pub(crate) fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> ShareView {
@@ -692,6 +694,7 @@ pub(crate) fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> Share
         state,
         reason: s.reason.clone(),
         cover: (s.status == "covered").then_some(if s.covered_by.is_some() { "pass" } else { "free" }),
+        pass_holder_id: s.pass_holder_id,
     }
 }
 
@@ -1111,6 +1114,8 @@ struct PreviewShare {
     amount_cents: i64,
     /// Owing nothing, and why: "Covered by Winter nets pass", "Free: Coach".
     covered: Option<String>,
+    /// `pass` or `free`, to word it in the app's own language.
+    cover: Option<&'static str>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1146,7 +1151,11 @@ async fn preview_bill(
                 repo::Cover::Pass { plan_name, .. } => format!("Covered by {plan_name}"),
                 repo::Cover::Free { price_type } => format!("Free: {price_type}"),
             });
-            PreviewShare { user_id: p.user_id, name: p.name, amount_cents: amount, covered }
+            let cover = p.cover.as_ref().map(|c| match c {
+                repo::Cover::Pass { .. } => "pass",
+                repo::Cover::Free { .. } => "free",
+            });
+            PreviewShare { user_id: p.user_id, name: p.name, amount_cents: amount, covered, cover }
         })
         .collect();
     Ok(Json(Preview {
@@ -1569,6 +1578,9 @@ struct PayScreen {
     /// People on the bills you're on who still owe on them, and how much:
     /// for "I'm paying for friends too".
     friends: Vec<FriendOwing>,
+    /// Of `owed_cents`, what your standing order pays (monthly pass charges):
+    /// not part of "I've paid", which claims the rest.
+    standing_order_cents: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -1577,6 +1589,34 @@ pub(crate) struct FriendOwing {
     name: String,
     /// Owed on the bills you share — nothing about their other dues.
     owed_cents: i64,
+}
+
+/// What a member owes on monthly-pass charges their standing order is about
+/// to pay — those not yet past their due day: not for paying by hand, or the
+/// month is paid twice. A charge past its due day wasn't paid by the
+/// standing order, so that one can be caught up by hand.
+pub(crate) async fn standing_order_part(state: &AppState, club_id: Uuid, user_id: Uuid, ledger: &Ledger) -> ApiResult<i64> {
+    let holders: std::collections::HashSet<Uuid> = fishers_db::repos::passes::standing_orders(&state.pool, club_id)
+        .await?
+        .into_iter()
+        .filter(|h| h.user_id == user_id)
+        .map(|h| h.id)
+        .collect();
+    if holders.is_empty() {
+        return Ok(0);
+    }
+    let today = Utc::now().date_naive();
+    Ok(ledger
+        .shares
+        .iter()
+        .filter(|s| s.user_id == Some(user_id) && s.pass_holder_id.is_some_and(|h| holders.contains(&h)))
+        .filter(|s| s.due_on.is_some_and(|d| d >= today))
+        // Less only money that has arrived. An "I've paid" by hand still
+        // waiting is settled against the oldest line first — often this very
+        // charge — so counting it here would let the next tap claim the
+        // standing order's month again.
+        .map(|s| (s.amount_cents - ledger.progress(s).unwrap_or_default().paid_cents).max(0))
+        .sum())
 }
 
 async fn pays_for_someone_owing(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<bool> {
@@ -1664,11 +1704,20 @@ async fn pay_screen(
     let own = settled.owed_cents > 0 || settled.waiting_cents > 0;
     // The bank details are for whoever has something to pay: their own dues,
     // those of somebody they pay for, or a monthly pass paid by standing order.
+    let mine: Vec<Uuid> = std::iter::once(auth.user_id)
+        .chain(
+            fishers_db::repos::passes::dependents(&state.pool, auth.user_id)
+                .await?
+                .into_iter()
+                .filter(|d| d.club_id == club_id)
+                .map(|d| d.member_id),
+        )
+        .collect();
     let owes = own || pays_for_someone_owing(&state, club_id, auth.user_id).await?
         || fishers_db::repos::passes::standing_orders(&state.pool, club_id)
             .await?
             .iter()
-            .any(|h| h.user_id == auth.user_id);
+            .any(|h| mine.contains(&h.user_id));
     // A former member who still owes can still see what to pay.
     if !(r.is_member || r.is_owner || owes) {
         return Err(ApiError::forbidden("You're not a member of this club").with_code("not_member"));
@@ -1693,8 +1742,10 @@ async fn pay_screen(
         .filter(|p| p.status == "claimed")
         .collect();
     let friends = friends_owing(&state, club_id, auth.user_id).await?;
+    let standing_order_cents = standing_order_part(&state, club_id, auth.user_id, &ledger).await?;
     Ok(Json(PayScreen {
         friends,
+        standing_order_cents,
         club_id,
         club_name,
         currency: dues.currency.clone(),
@@ -1767,7 +1818,14 @@ async fn claim_payment(
         })
         .with_code("nothing_owed"));
     }
-    let amount = body.amount_cents.unwrap_or(settled.owed_cents);
+    // Without an amount, "I've paid" is for what's owed less what the
+    // standing order pays.
+    let by_standing_order = standing_order_part(&state, club_id, auth.user_id, &ledger).await?;
+    if body.amount_cents.is_none() && settled.owed_cents - by_standing_order <= 0 && settled.owed_cents > 0 {
+        return Err(ApiError::conflict("Your standing order pays your pass. There's nothing else to pay.")
+            .with_code("nothing_owed"));
+    }
+    let amount = body.amount_cents.unwrap_or(settled.owed_cents - by_standing_order);
     if amount <= 0 || amount > money::MAX_SHARE_CENTS {
         return Err(ApiError::bad_request(format!(
             "The amount has to be more than zero and at most {}",
