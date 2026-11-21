@@ -17,6 +17,7 @@ import { Icon } from "@/components/Icon";
 import { GettingStarted } from "@/components/GettingStarted";
 import { Landing } from "@/components/Landing";
 import { PendingInvites } from "@/components/PendingInvites";
+import { YouOwe } from "@/components/YouOwe";
 import { RoleChooser } from "@/components/RoleChooser";
 import { PushPrompt } from "@/components/PushPrompt";
 import { ProfileStrength } from "@/components/ProfileStrength";
@@ -126,6 +127,7 @@ export default function HomePage() {
       {error && <p className="error">{error}</p>}
 
       <PendingInvites onJoined={load} onCount={setInvitesCount} />
+      {loaded && <YouOwe />}
       {loaded && <PushPrompt />}
 
       {loaded && !user.role_intent && clubs.length === 0 && (

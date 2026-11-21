@@ -9161,3 +9161,183 @@ main .panel[id] { scroll-margin-top: 80px; }
   .season-form-table .season-result { display: none; }
   .season-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---------- Paying the club by bank transfer ----------
+   The pay screen is copied from, not read: each value sits on its own line in
+   a large, tabular face with its Copy button beside it, and a whole line
+   selects at once for anyone copying by hand. */
+
+.note-body { grid-column: 1 / -1; color: var(--fg-muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+
+.field-error {
+  display: block;
+  margin-top: var(--s1);
+  color: #7a1a1a;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .field-error { color: #ffc9c9; }
+}
+:root[data-theme="dark"] .field-error { color: #ffc9c9; }
+.setup-fields label > .field-error { order: 3; }
+input[aria-invalid="true"] { border-color: var(--danger); }
+
+/* Amber: worth reading before paying, not an error. */
+.pay-warn {
+  margin: 0 0 var(--s3);
+  padding: var(--s2) var(--s3);
+  border-left: 4px solid var(--gold-600);
+  background: var(--gold-100);
+  color: var(--fg);
+  border-radius: var(--radius-sm);
+}
+
+.pay-sum .stat-label { margin: 0; }
+.pay-big {
+  margin: var(--s1) 0 var(--s2);
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.pay-then { margin: var(--s4) 0 var(--s3); font-weight: 600; }
+
+.pay-details { margin: var(--s3) 0; display: grid; gap: var(--s2); }
+.pay-detail {
+  display: grid;
+  grid-template-columns: minmax(8em, 11em) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.pay-detail dt { color: var(--fg-muted); font-size: 0.9rem; font-weight: 600; }
+.pay-detail dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.pay-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+@media (max-width: 520px) {
+  .pay-detail { grid-template-columns: minmax(0, 1fr); }
+}
+
+.copy-wrap { display: inline-flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.copy-wrap .btn { min-width: 6.5em; }
+.copy-wrap .btn.is-copied { border-color: var(--primary); color: var(--primary-ink); }
+.copy-said { color: #7a1a1a; font-size: 0.85rem; }
+
+.pay-list { list-style: none; margin: 0; padding: 0; }
+.pay-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+  flex-wrap: wrap;
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.pay-list > li:last-child { border-bottom: none; }
+.pay-list > li > div:first-child { min-width: 0; flex: 1 1 14em; }
+.pay-list > li > form { flex: 1 1 100%; }
+.pay-list-end { display: inline-flex; align-items: center; gap: var(--s2); flex-wrap: wrap; justify-content: flex-end; }
+
+.pay-owe-card.owing { border-left: 3px solid var(--accent); }
+
+/* The event's money section. */
+.money-mine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+/* A rule under your share only when the bill's own lines follow it. */
+.money-mine:not(:last-child) {
+  padding-bottom: var(--s3);
+  margin-bottom: var(--s3);
+  border-bottom: 1px solid var(--border);
+}
+.money-mine .stat-label { margin: 0; }
+.money-totals { font-weight: 700; font-size: 1.05rem; margin: 0 0 var(--s1); }
+.money-actions { margin-top: var(--s3); }
+.money-cost p { margin: 0; }
+
+.who-came, .cost-form, .reason-form, .bank-form, .money-form, .confirm-box {
+  margin-top: var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.who-came h3, .bank-form h3 { margin: 0 0 var(--s1); }
+.who-came > label, .reason-form > label { margin-top: var(--s3); }
+.reason-form > label:first-child { margin-top: 0; }
+.reason-form .subtle { display: block; margin-top: 2px; }
+.reason-form .field-row, .who-came > .field-row, .cost-form .field-row, .bank-form > .field-row, .money-form .field-row {
+  margin-top: var(--s3);
+}
+.who-list { border: 0; padding: 0; margin: var(--s3) 0 0; display: grid; gap: 2px; }
+.who-list legend { font-size: 0.85rem; font-weight: 600; color: var(--fg-muted); margin-bottom: var(--s1); }
+.who-person {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: 0 var(--s2);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  color: var(--fg);
+  cursor: pointer;
+}
+.who-person:hover { background: var(--surface); }
+.who-person .who-name { flex: 1; }
+.who-guest { margin-top: var(--s3); }
+.who-guests { list-style: none; margin: var(--s2) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.who-guests li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-left: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+.money-preview {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-left: 4px solid var(--primary);
+  background: var(--pitch-50);
+  border-radius: var(--radius-sm);
+  min-height: 2.5em;
+}
+.money-preview:empty { display: none; }
+
+/* The club's Payments page. */
+.money-headline { margin-bottom: var(--s4); }
+.bank-block { padding: var(--s3) 0; border-bottom: 1px solid var(--border); }
+.bank-block:last-of-type { border-bottom: none; }
+.bank-block.is-pending, .bank-block.is-frozen { padding-left: var(--s3); border-left: 4px solid var(--gold-600); }
+.bank-head { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; margin-bottom: var(--s2); }
+.bank-head h3 { margin: 0; }
+.bank-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--s2) var(--s4); margin: 0 0 var(--s2); }
+.bank-facts dt { font-size: 0.8rem; color: var(--fg-subtle); font-weight: 600; }
+.bank-facts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.bank-password { margin-top: var(--s3); max-width: 420px; }
+.confirm-box p { margin: 0; }
+.money-hours { max-width: 260px; margin-top: var(--s2); }

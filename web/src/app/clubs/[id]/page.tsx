@@ -49,6 +49,9 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
   // flag comes off the address so a refresh does not show it again.
   const [welcome, setWelcome] = useState(false);
   const [myRole, setMyRole] = useState<MyRole | null>(null);
+  /// Whether this person looks after the club's money — the owner, a
+  /// secretary or a treasurer — as the API's `can_manage` says.
+  const [moneyAdmin, setMoneyAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -59,18 +62,21 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
 
   const load = useCallback(async () => {
     try {
-      const [c, m, t, v, role] = await Promise.all([
+      const [c, m, t, v, role, payout] = await Promise.all([
         api<Club>("GET", `/clubs/${id}`),
         api<ClubMemberRow[]>("GET", `/clubs/${id}/members`),
         api<Team[]>("GET", `/clubs/${id}/teams`).catch(() => []),
         api<Venue[]>("GET", `/clubs/${id}/venues`).catch(() => []),
         api<MyRole>("GET", `/clubs/${id}/my-role`),
+        // An API without payments answers 404; that is "no", not a failure.
+        api<{ can_manage: boolean }>("GET", `/clubs/${id}/payout-account`).catch(() => null),
       ]);
       setClub(c);
       setMembers(m);
       setTeams(t);
       setVenues(v);
       setMyRole(role);
+      setMoneyAdmin(payout?.can_manage ?? false);
     } catch (err) {
       setError(readErr(err, t("lc.could_not_load_the_club")));
     } finally {
@@ -158,6 +164,21 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
           </div>
           <Link className="btn" href={`/clubs/${id}/accounts`}>
             {t("acc.open_the_accounts")}
+          </Link>
+        </div>
+      )}
+
+      {/* Bank details, payments to check and who owes what: the owner,
+          secretaries and treasurers. The API enforces it; this only spares
+          everyone else a link that would say no. */}
+      {moneyAdmin && (
+        <div className="panel instant-start">
+          <div>
+            <h2>{t("pay.payments_title")}</h2>
+            <p className="muted">{t("pay.club_page_blurb")}</p>
+          </div>
+          <Link className="btn" href={`/clubs/${id}/payments`}>
+            {t("pay.open_payments")}
           </Link>
         </div>
       )}
