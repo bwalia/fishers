@@ -426,7 +426,7 @@ pub async fn pass_standing_notices(pool: &PgPool, push: &PushService) -> anyhow:
                 notify_pass(pool, push, &h, "pass_suspended", &format!("{} is paused", plan.name),
                     &format!("Payments to {club} are late, so sessions are charged as usual until it's paid up.")).await;
                 for (admin, _) in repo::money_admins(pool, h.club_id).await? {
-                    notify(pool, push, admin, "pass_suspended", &format!("{}: {} is behind", plan.name, h.name),
+                    notify(pool, push, admin, "pass_suspended_club", &format!("{}: {} is behind", plan.name, h.name),
                         &format!("{}'s pass is paused for late payments. You can keep it covering them from the pass.", h.name),
                         json!({ "club_id": h.club_id, "pass_holder_id": h.id })).await;
                 }

@@ -390,7 +390,7 @@ fn signin_throttle() -> &'static [crate::services::pay_links::Throttle; 3] {
         [
             Throttle::new(1, Duration::from_secs(60)),    // per number, a minute apart
             Throttle::new(5, Duration::from_secs(3600)),  // per number, an hour
-            Throttle::new(30, Duration::from_secs(3600)), // per address, an hour
+            Throttle::new(600, Duration::from_secs(3600)), // the whole service, an hour
         ]
     })
 }
@@ -460,11 +460,14 @@ async fn whatsapp_start(
         return Err(whatsapp_off());
     }
     let number = state.whatsapp.normalize(&body.phone).ok_or_else(bad_number)?;
-    let ip = crate::services::pay_links::client_ip(&headers);
-    let [minute, hour, per_ip] = signin_throttle();
-    // The same limits whether or not the number has an account, so the reply
-    // never gives that away.
-    if !per_ip.allow(&ip) || !hour.allow(&number) || !minute.allow(&number) {
+    let _ = &headers;
+    let [minute, hour, everyone] = signin_throttle();
+    // The same limits and the same reply whether or not the number has an
+    // account, so neither gives that away. Limits are per number: behind the
+    // ingress every caller can share one address, so an address limit would
+    // let one person switch sign-in off for everybody. The service-wide cap
+    // bounds what a flood can cost in messages.
+    if !hour.allow(&number) || !minute.allow(&number) || !everyone.allow("all") {
         return Err(ApiError::too_many("A code is already on its way. Wait a minute before asking for another.")
             .with_code("slow_down"));
     }
@@ -476,17 +479,17 @@ async fn whatsapp_start(
     let code = format!("{:06}", rand::rngs::OsRng.gen_range(0..1_000_000u32));
     let hash = super::verification::hash_code(&state.jwt_secret, user.id, SIGNIN, &number, &code);
     fishers_db::repos::verification::create(&state.pool, user.id, SIGNIN, &number, &hash, SIGNIN_CODE_SECS).await?;
-    if let Err(error) = state.whatsapp.send_code(&number, &code).await {
-        tracing::warn!(%error, "sign-in code not delivered");
-        if let Ok(Some(live)) = fishers_db::repos::verification::active(&state.pool, user.id, SIGNIN).await {
-            let _ = fishers_db::repos::verification::consume(&state.pool, live.id).await;
+    // Sent after replying: how long WhatsApp takes, or that it failed, would
+    // otherwise say this number has an account.
+    let (whatsapp, pool) = (state.whatsapp.clone(), state.pool.clone());
+    tokio::spawn(async move {
+        if let Err(error) = whatsapp.send_code(&number, &code).await {
+            tracing::warn!(%error, "sign-in code not delivered");
+            if let Ok(Some(live)) = fishers_db::repos::verification::active(&pool, user.id, SIGNIN).await {
+                let _ = fishers_db::repos::verification::consume(&pool, live.id).await;
+            }
         }
-        return Err(ApiError {
-            status: StatusCode::BAD_GATEWAY,
-            message: "We couldn't send the WhatsApp message just now. Try again in a minute.".into(),
-            code: Some("not_sent"),
-        });
-    }
+    });
     Ok(Json(sent))
 }
 
@@ -518,7 +521,11 @@ async fn whatsapp_verify(
         record_failed_login(&key);
         return Err(wrong());
     };
-    if live.target != number || live.attempts >= SIGNIN_MAX_ATTEMPTS {
+    // The try is spent before the guess is compared, so parallel guesses
+    // can't each be checked before any is counted.
+    if live.target != number
+        || !fishers_db::repos::verification::take_attempt(&state.pool, live.id, SIGNIN_MAX_ATTEMPTS).await?
+    {
         let _ = fishers_db::repos::verification::consume(&state.pool, live.id).await;
         record_failed_login(&key);
         return Err(wrong());
@@ -527,7 +534,6 @@ async fn whatsapp_verify(
     let same = expected.len() == live.code_hash.len()
         && expected.bytes().zip(live.code_hash.bytes()).fold(0u8, |d, (a, b)| d | (a ^ b)) == 0;
     if !same {
-        fishers_db::repos::verification::record_attempt(&state.pool, live.id).await?;
         record_failed_login(&key);
         return Err(wrong());
     }

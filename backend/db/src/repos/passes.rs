@@ -500,6 +500,25 @@ pub async fn overdue_charges(pool: &PgPool, holder: &Holder, today: NaiveDate) -
         .count())
 }
 
+/// Charges for this pass nobody has paid or said they've paid, due or not.
+pub async fn unpaid_charges(pool: &PgPool, holder: &Holder) -> Result<usize, sqlx::Error> {
+    let (shares, payments) = payments::ledger(pool, holder.club_id, Some(holder.user_id)).await?;
+    let mine: Vec<LedgerShare> = shares.iter().map(|s| s.ledger()).collect();
+    let paid: Vec<_> = payments.iter().filter(|p| p.payer() == Payer::Member(holder.user_id)).map(|p| p.ledger()).collect();
+    let settled = money::settle(&mine, &paid);
+    let bills: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM event_bills WHERE pass_holder_id = $1 AND kind = 'pass' AND status = 'issued'",
+    )
+    .bind(holder.id)
+    .fetch_all(pool)
+    .await?;
+    Ok(shares
+        .iter()
+        .filter(|s| bills.contains(&s.bill_id))
+        .filter(|s| settled.shares.get(&s.id).is_some_and(|p| p.paid_cents + p.waiting_cents < s.amount_cents))
+        .count())
+}
+
 /// Where a holder stands, from the plan's billing and how far behind they are.
 pub async fn standing(pool: &PgPool, plan: &PassPlan, holder: &Holder, today: NaiveDate) -> Result<PassStanding, sqlx::Error> {
     let overdue = overdue_charges(pool, holder, today).await?;
@@ -731,6 +750,9 @@ pub async fn dependents(pool: &PgPool, payer_id: Uuid) -> Result<Vec<Dependent>,
     sqlx::query_as::<_, Dependent>(
         "SELECT p.club_id, p.member_id, u.name, (u.managed_by IS NOT NULL) AS managed
          FROM club_payers p JOIN users u ON u.id = p.member_id
+         -- Both still in the club: leaving it ends paying for (and seeing) anyone.
+         JOIN club_members pm ON pm.club_id = p.club_id AND pm.user_id = p.payer_id AND pm.status = 'active'
+         JOIN club_members mm ON mm.club_id = p.club_id AND mm.user_id = p.member_id AND mm.status = 'active'
          WHERE p.payer_id = $1 AND u.deleted_at IS NULL ORDER BY lower(u.name)",
     )
     .bind(payer_id)
@@ -739,7 +761,11 @@ pub async fn dependents(pool: &PgPool, payer_id: Uuid) -> Result<Vec<Dependent>,
 }
 
 pub async fn payer_of(pool: &PgPool, club_id: Uuid, member_id: Uuid) -> Result<Option<Uuid>, sqlx::Error> {
-    sqlx::query_scalar("SELECT payer_id FROM club_payers WHERE club_id = $1 AND member_id = $2")
+    sqlx::query_scalar(
+        "SELECT p.payer_id FROM club_payers p
+         JOIN club_members pm ON pm.club_id = p.club_id AND pm.user_id = p.payer_id AND pm.status = 'active'
+         WHERE p.club_id = $1 AND p.member_id = $2",
+    )
         .bind(club_id)
         .bind(member_id)
         .fetch_optional(pool)

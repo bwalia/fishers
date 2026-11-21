@@ -46,9 +46,12 @@ struct Line {
     /// `check` (look at it yourself), `unknown` (nobody's reference) or
     /// `already` (applied before).
     action: &'static str,
+    /// Whose reference it carries.
     user_id: Option<Uuid>,
     name: Option<String>,
-    payment_id: Option<Uuid>,
+    /// For `confirm`: the "I've paid"s it ticks — several when one transfer
+    /// paid for several people (a parent for two juniors).
+    payment_ids: Vec<Uuid>,
     /// For `check`: `different_amount` or `shared_name`.
     why: Option<CheckWhy>,
 }
@@ -90,7 +93,14 @@ async fn read(state: &AppState, club_id: Uuid, csv: &str) -> ApiResult<Preview> 
     let claims: Vec<OpenClaim> = repo::open_transfer_claims(&state.pool, club_id)
         .await?
         .into_iter()
-        .map(|(payment_id, user_id, amount_cents, on)| OpenClaim { payment_id, user_id, amount_cents, on })
+        .map(|c| OpenClaim {
+            payment_id: c.id,
+            user_id: c.user_id,
+            amount_cents: c.amount_cents,
+            on: c.on,
+            payer: c.payer,
+            batch: c.batch,
+        })
         .collect();
     let proposals = statement::propose(&credits, &refs, &claims);
 
@@ -108,14 +118,14 @@ async fn read(state: &AppState, club_id: Uuid, csv: &str) -> ApiResult<Preview> 
     let mut summary = Summary { credits: credits.len(), ..Default::default() };
     let mut lines = Vec::with_capacity(credits.len());
     for ((c, p), hash) in credits.into_iter().zip(proposals).zip(hashes) {
-        let (action, user_id, payment_id, why) = if applied.contains(&hash) {
-            ("already", None, None, None)
+        let (action, user_id, payment_ids, why) = if applied.contains(&hash) {
+            ("already", None, Vec::new(), None)
         } else {
             match p {
-                Proposal::Confirm { payment_id, user_id } => ("confirm", Some(user_id), Some(payment_id), None),
-                Proposal::Record { user_id } => ("record", Some(user_id), None, None),
-                Proposal::Check { user_id, why } => ("check", user_id, None, Some(why)),
-                Proposal::Unknown => ("unknown", None, None, None),
+                Proposal::Confirm { payment_ids, user_id } => ("confirm", Some(user_id), payment_ids, None),
+                Proposal::Record { user_id } => ("record", Some(user_id), Vec::new(), None),
+                Proposal::Check { user_id, why } => ("check", user_id, Vec::new(), Some(why)),
+                Proposal::Unknown => ("unknown", None, Vec::new(), None),
             }
         };
         match action {
@@ -137,7 +147,7 @@ async fn read(state: &AppState, club_id: Uuid, csv: &str) -> ApiResult<Preview> 
             None => None,
         };
         let text: String = c.text.chars().take(140).collect();
-        lines.push(Line { hash, row: c.row, date: c.date, amount_cents: c.amount_cents, text, action, user_id, name, payment_id, why });
+        lines.push(Line { hash, row: c.row, date: c.date, amount_cents: c.amount_cents, text, action, user_id, name, payment_ids, why });
     }
     Ok(Preview { currency: repo::club_currency(&state.pool, club_id).await?, summary, lines })
 }
@@ -187,21 +197,27 @@ async fn apply(
     let club = repo::club_name(&state.pool, club_id).await?.unwrap_or_default();
     let mut out = Applied { confirmed: 0, recorded: 0, skipped: 0 };
     for line in preview.lines.iter().filter(|l| wanted.contains(l.hash.as_str())) {
-        match (line.action, line.payment_id, line.user_id) {
-            ("confirm", Some(pid), Some(_)) => {
-                // Ticked like any other (the member hears it arrived), and
-                // only then is the line marked applied: an "I've paid" taken
-                // back meanwhile leaves the line for next time.
-                if decide(&state, auth.user_id, pid, true, None).await.is_err() {
+        match (line.action, line.payment_ids.first().copied(), line.user_id) {
+            ("confirm", Some(first), Some(_)) => {
+                // Each ticked like any other (the member hears it arrived),
+                // and only then is the line marked applied: an "I've paid"
+                // taken back meanwhile leaves the line for next time.
+                let mut ticked = 0;
+                for pid in &line.payment_ids {
+                    if decide(&state, auth.user_id, *pid, true, None).await.is_ok() {
+                        ticked += 1;
+                    }
+                }
+                if ticked == 0 {
                     out.skipped += 1;
                     continue;
                 }
                 let mut tx = state.pool.begin().await?;
                 if repo::take_line(&mut tx, club_id, &line.hash, auth.user_id).await? {
-                    repo::set_line_payment(&mut tx, club_id, &line.hash, pid).await?;
+                    repo::set_line_payment(&mut tx, club_id, &line.hash, first).await?;
                 }
                 tx.commit().await?;
-                out.confirmed += 1;
+                out.confirmed += ticked;
             }
             ("record", _, Some(user)) => {
                 let name = line.name.clone().unwrap_or_default();

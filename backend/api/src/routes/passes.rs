@@ -47,6 +47,54 @@ pub fn router() -> Router<AppState> {
         .route("/clubs/{id}/members/managed", post(add_managed_member))
         .route("/clubs/{id}/payments/for-others", post(pay_for_others))
         .route("/clubs/{id}/payments/defaults", get(usual_prices))
+        .route("/clubs/{id}/payments/members", get(money_members))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+struct MoneyMember {
+    user_id: Uuid,
+    name: String,
+    price_type_id: Option<Uuid>,
+    payer_id: Option<Uuid>,
+    payer_name: Option<String>,
+    /// No sign-in of their own: added by name, looked after by their payer.
+    managed: bool,
+}
+
+/// Every active member with their price group and who pays for them, for the
+/// secretary's "Prices and who pays".
+async fn money_members(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(club_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<MoneyMember>>> {
+    require_money_admin(&state, club_id, auth.user_id).await?;
+    Ok(Json(
+        sqlx::query_as::<_, MoneyMember>(
+            "SELECT m.user_id, u.name, m.price_type_id, p.payer_id, pu.name AS payer_name,
+                    (u.managed_by IS NOT NULL) AS managed
+             FROM club_members m JOIN users u ON u.id = m.user_id
+             LEFT JOIN club_payers p ON p.club_id = m.club_id AND p.member_id = m.user_id
+             LEFT JOIN users pu ON pu.id = p.payer_id
+             WHERE m.club_id = $1 AND m.status = 'active'
+             ORDER BY lower(u.name)",
+        )
+        .bind(club_id)
+        .fetch_all(&state.pool)
+        .await?,
+    ))
+}
+
+/// A price group's name must be new to the club, whatever its capitals.
+async fn name_free(state: &AppState, club_id: Uuid, name: &str, except: Option<Uuid>) -> ApiResult<()> {
+    let taken = passes_repo::price_types(&state.pool, club_id)
+        .await?
+        .iter()
+        .any(|t| Some(t.id) != except && t.archived_at.is_none() && t.name.to_lowercase() == name.to_lowercase());
+    if taken {
+        return Err(ApiError::conflict("There's already a price type with that name").with_code("name_taken"));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]
@@ -122,6 +170,7 @@ async fn create_price_type(
 ) -> ApiResult<Json<PriceType>> {
     require_money_admin(&state, club_id, auth.user_id).await?;
     let name = clean_name(body.name.as_deref().unwrap_or(""), 30, "price type")?;
+    name_free(&state, club_id, &name, None).await?;
     let mut tx = state.pool.begin().await?;
     let id = passes_repo::create_price_type(&mut tx, club_id, &name, body.free.unwrap_or(false), body.for_guests.unwrap_or(false))
         .await
@@ -149,6 +198,9 @@ async fn update_price_type(
     let t = passes_repo::price_type(&state.pool, id).await?.ok_or_else(|| ApiError::not_found("no such price type"))?;
     require_money_admin(&state, t.club_id, auth.user_id).await?;
     let name = body.name.as_deref().map(|n| clean_name(n, 30, "price type")).transpose()?;
+    if let Some(n) = &name {
+        name_free(&state, t.club_id, n, Some(id)).await?;
+    }
     let mut tx = state.pool.begin().await?;
     passes_repo::update_price_type(&mut tx, id, name.as_deref(), body.free, body.for_guests, body.archived).await?;
     repo::audit(&mut tx, t.club_id, Some(auth.user_id), "update_price_type", "price_type", Some(id),
@@ -574,6 +626,10 @@ struct MyPass {
     currency: String,
     /// For a monthly pass: what to set up in the banking app.
     standing_order: Option<StandingOrder>,
+    /// What it covers and for how long, so the app needn't load the plan.
+    covers: Vec<String>,
+    valid_until: Option<NaiveDate>,
+    sessions: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -587,16 +643,19 @@ struct StandingOrder {
 
 /// My passes, and those of anybody I pay for.
 async fn my_passes(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Vec<MyPass>>> {
-    let mut people = vec![auth.user_id];
+    // Yours in every club; somebody you pay for, only in the club you pay for them.
+    let mut people: Vec<(Uuid, Option<Uuid>)> = vec![(auth.user_id, None)];
     let deps = passes_repo::dependents(&state.pool, auth.user_id).await?;
-    people.extend(deps.iter().map(|d| d.member_id));
+    people.extend(deps.iter().map(|d| (d.member_id, Some(d.club_id))));
     let mut out = Vec::new();
-    for person in people {
+    for (person, club) in people {
         let ids: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM pass_holders WHERE user_id = $1 AND (ends_on IS NULL OR ends_on >= CURRENT_DATE)
+            "SELECT id FROM pass_holders WHERE user_id = $1 AND ($2::uuid IS NULL OR club_id = $2)
+               AND (ends_on IS NULL OR ends_on >= CURRENT_DATE)
              ORDER BY created_at DESC",
         )
         .bind(person)
+        .bind(club)
         .fetch_all(&state.pool)
         .await?;
         for id in ids {
@@ -604,12 +663,23 @@ async fn my_passes(State(state): State<AppState>, auth: AuthUser) -> ApiResult<J
             let Some(plan) = passes_repo::plan(&state.pool, h.plan_id).await? else { continue };
             let club_name = repo::club_name(&state.pool, h.club_id).await?.unwrap_or_default();
             let standing_order = if plan.billing() == PassBilling::Monthly && h.cancelled_at.is_none() {
-                let first = (0..240u32).map(|k| money::add_months(h.started_on, k)).find(|d| *d >= today()).unwrap_or(h.started_on);
+                // The standing order pays every month's charge, this one too:
+                // with a charge still unpaid it starts tomorrow (banks can't
+                // start one today), otherwise on the next charge. Nobody pays
+                // a month twice, by hand and by standing order.
+                let tomorrow = today().succ_opt().unwrap_or_else(today);
+                let first = if passes_repo::unpaid_charges(&state.pool, &h).await? > 0 {
+                    tomorrow
+                } else {
+                    (1..240u32).map(|k| money::add_months(h.started_on, k)).find(|d| *d > today()).unwrap_or(tomorrow)
+                };
                 Some(StandingOrder {
                     amount_cents: plan.charge_cents(),
                     every: "month",
                     first_payment_on: first,
-                    reference: reference_for(&state, h.club_id, auth.user_id).await?,
+                    // The holder's own reference, even when somebody else pays:
+                    // it's what puts the money against their pass.
+                    reference: reference_for(&state, h.club_id, h.user_id).await?,
                 })
             } else {
                 None
@@ -621,6 +691,9 @@ async fn my_passes(State(state): State<AppState>, auth: AuthUser) -> ApiResult<J
                 charge_cents: plan.charge_cents(),
                 currency: plan.currency.clone(),
                 standing_order,
+                covers: plan.covers.clone(),
+                valid_until: plan.valid_until,
+                sessions: plan.sessions,
                 view: holder_view(&state, &plan, h).await?,
             });
         }
@@ -694,10 +767,31 @@ async fn collection_view(state: &AppState, bill: repo::BillRow, viewer: Option<U
 async fn create_collection(
     State(state): State<AppState>,
     auth: AuthUser,
+    headers: HeaderMap,
     Path(club_id): Path<Uuid>,
     Json(body): Json<CollectionBody>,
 ) -> ApiResult<Json<CollectionView>> {
     require_money_admin(&state, club_id, auth.user_id).await?;
+    // A retry after a lost reply (same Idempotency-Key) gets the group fee the
+    // first try made, not a second one.
+    let key = idempotency_key(&headers)?;
+    if let Some(k) = key.as_deref() {
+        let made: Option<Uuid> = sqlx::query_scalar(
+            "SELECT entity_id FROM club_payment_audit WHERE club_id = $1 AND actor_id = $2
+               AND action = 'create_collection' AND after->>'key' = $3 LIMIT 1",
+        )
+        .bind(club_id)
+        .bind(auth.user_id)
+        .bind(k)
+        .fetch_optional(&state.pool)
+        .await?
+        .flatten();
+        if let Some(id) = made {
+            if let Some(bill) = repo::bill_by_id(&state.pool, id).await? {
+                return Ok(Json(collection_view(&state, bill, None).await?));
+            }
+        }
+    }
     let title = clean_name(&body.title, 80, "group fee")?;
     let mode = CostMode::parse(&body.mode).ok_or_else(|| ApiError::bad_request("mode is split_total or per_player"))?;
     let choices = [body.everyone, body.team_id.is_some(), body.price_type_id.is_some(), body.user_ids.is_some()];
@@ -746,7 +840,7 @@ async fn create_collection(
     })?;
     repo::enable_payments(&mut tx, club_id).await?;
     repo::audit(&mut tx, club_id, Some(auth.user_id), "create_collection", "bill", Some(bill.id), None,
-        Some(json!({ "title": title, "total_cents": bill.total_cents, "people": told.len() }))).await?;
+        Some(json!({ "title": title, "total_cents": bill.total_cents, "people": told.len(), "key": key }))).await?;
     tx.commit().await?;
 
     let club = repo::club_name(&state.pool, club_id).await?.unwrap_or_default();
@@ -958,11 +1052,20 @@ async fn pay_for_others(
                 .with_code("not_their_payer"));
         }
     }
+    // Everybody in it is locked first, then what they owe is read.
+    let mut tx = state.pool.begin().await?;
+    let mut locked: Vec<Payer> = people.iter().map(|p| Payer::Member(*p)).collect();
+    locked.sort();
+    for p in &locked {
+        super::club_payments::lock_payer(&mut tx, club_id, p).await?;
+    }
     let ledger = Ledger::load(&state, club_id, None).await?;
+    // A friend pays only what somebody owes on the bills they share — never
+    // that person's other dues, which aren't theirs to see or settle.
+    let shared = super::club_payments::owed_on_shared_bills(&state, club_id, auth.user_id, &ledger).await?;
     let payer_name = repo::user_name(&state.pool, auth.user_id).await?.unwrap_or_default();
     let reference = if body.method == "transfer" { Some(reference_for(&state, club_id, auth.user_id).await?) } else { None };
     let payout = accounts(&state, club_id).await?.current().map(|a| a.id);
-    let mut tx = state.pool.begin().await?;
     let mut out = Vec::new();
     for person in people {
         let person_key = key.as_deref().map(|k| format!("{k}:{person}"));
@@ -973,7 +1076,9 @@ async fn pay_for_others(
                 continue;
             }
         }
-        let owed = ledger.by_payer.get(&Payer::Member(person)).map(|s| s.owed_cents).unwrap_or(0);
+        let total = ledger.by_payer.get(&Payer::Member(person)).map(|s| s.owed_cents).unwrap_or(0);
+        let theirs = person == auth.user_id || passes_repo::payer_of(&state.pool, club_id, person).await? == Some(auth.user_id);
+        let owed = if theirs { total } else { total.min(shared.get(&person).map(|(_, o)| *o).unwrap_or(0)) };
         if owed <= 0 {
             continue;
         }
@@ -1017,6 +1122,16 @@ async fn pay_for_others(
     tx.commit().await?;
     let total: i64 = out.iter().map(|p| p.amount_cents).sum();
     let currency = out[0].currency.clone();
+    // Whoever was paid for hears it: it's their line that now says "waiting".
+    for p in out.iter().filter(|p| p.user_id.is_some_and(|u| u != auth.user_id)) {
+        let Some(u) = p.user_id else { continue };
+        state
+            .notify_text(u, "paid_for_you",
+                &format!("{} paid {} for you", first_name(&payer_name), fmt_money(p.amount_cents, &p.currency)),
+                &format!("{payer_name} says they paid {} for you. The club will check it arrived.", fmt_money(p.amount_cents, &p.currency)),
+                json!({ "club_id": club_id, "payment_id": p.id }))
+            .await;
+    }
     let admins = repo::money_admins(&state.pool, club_id).await?;
     let names: Vec<String> = out.iter().map(|p| first_name(&p.name).to_string()).collect();
     for checker in repo::payment_checkers(&admins) {

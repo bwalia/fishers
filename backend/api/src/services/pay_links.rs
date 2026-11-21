@@ -90,6 +90,23 @@ impl PayLinkKeys {
 
     /// The caller's address, hashed: enough to see one phone hammering a
     /// link in the audit trail, never an address kept in the clear.
+    /// The secret handed to whoever said "I've paid" on a link, and only to
+    /// them: taking it back or adding its screenshot needs it, so somebody
+    /// else holding the same link can't.
+    pub fn claim_secret(&self, payment_id: Uuid) -> String {
+        let mut mac = <HmacSha256 as Mac>::new_from_slice(&self.key).expect("any key length");
+        mac.update(b"claim|");
+        mac.update(payment_id.as_bytes());
+        hex::encode(&mac.finalize().into_bytes()[..16])
+    }
+
+    /// Whether `given` is that claim's secret, compared in constant time.
+    pub fn claim_secret_ok(&self, payment_id: Uuid, given: Option<&str>) -> bool {
+        let Some(given) = given else { return false };
+        let want = self.claim_secret(payment_id);
+        want.len() == given.len() && want.bytes().zip(given.bytes()).fold(0u8, |d, (a, b)| d | (a ^ b)) == 0
+    }
+
     pub fn ip_hash(&self, headers: &HeaderMap) -> String {
         let ip = client_ip(headers);
         let mut mac = <HmacSha256 as Mac>::new_from_slice(&self.ip_key).expect("any key length");
@@ -98,17 +115,33 @@ impl PayLinkKeys {
     }
 }
 
-/// The caller as the ingress saw them: the last address Traefik appended to
-/// `X-Forwarded-For`. Earlier entries are whatever the client sent and prove
-/// nothing. Used only to throttle and to hash for the audit trail.
+/// How many proxies in front of the API append to `X-Forwarded-For` and can
+/// be trusted to: the caller is that many entries from the right. 1 (the
+/// default) is the ingress alone. Today Traefik doesn't trust the edge
+/// proxy's header, so every caller arrives as the edge's address — which is
+/// why the limits keyed on this are always per link or per number, never per
+/// address alone.
+fn trusted_hops() -> usize {
+    static HOPS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *HOPS.get_or_init(|| {
+        std::env::var("TRUSTED_PROXY_HOPS").ok().and_then(|v| v.parse().ok()).filter(|n| (1..=5).contains(n)).unwrap_or(1)
+    })
+}
+
+/// The caller as the trusted proxies saw them. Entries further left are
+/// whatever the client sent and prove nothing. Used only to throttle and to
+/// hash for the audit trail.
 pub fn client_ip(headers: &HeaderMap) -> String {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').map(str::trim).rfind(|s| !s.is_empty()))
-        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()))
-        .unwrap_or("local")
-        .to_string()
+    forwarded_for(headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()), trusted_hops())
+        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()).map(str::to_string))
+        .unwrap_or_else(|| "local".to_string())
+}
+
+fn forwarded_for(header: Option<&str>, hops: usize) -> Option<String> {
+    let entries: Vec<&str> = header?.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+    // Fewer entries than proxies: the leftmost is the best there is.
+    let at = entries.len().saturating_sub(hops);
+    entries.get(at).map(|s| s.to_string())
 }
 
 /// A sliding-window limit per key, in this process. Each API replica keeps
@@ -153,6 +186,16 @@ pub fn token_fingerprint(token: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_caller_is_counted_from_the_trusted_end() {
+        let h = Some("6.6.6.6, 81.2.3.4, 10.42.0.7");
+        assert_eq!(forwarded_for(h, 1).as_deref(), Some("10.42.0.7"));
+        assert_eq!(forwarded_for(h, 2).as_deref(), Some("81.2.3.4"));
+        assert_eq!(forwarded_for(h, 5).as_deref(), Some("6.6.6.6"));
+        assert_eq!(forwarded_for(Some(""), 1), None);
+        assert_eq!(forwarded_for(None, 1), None);
+    }
 
     #[test]
     fn a_minted_token_opens_its_own_link() {

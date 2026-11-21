@@ -1183,7 +1183,7 @@ pub async fn decide_payment(
 pub async fn cancel_claim(conn: &mut PgConnection, id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
     Ok(sqlx::query(
         "UPDATE member_payments SET status = 'cancelled', decided_by = $2, decided_at = NOW()
-         WHERE id = $1 AND user_id = $2 AND status = 'claimed'",
+         WHERE id = $1 AND (user_id = $2 OR created_by = $2) AND status = 'claimed'",
     )
     .bind(id)
     .bind(user_id)
@@ -1210,9 +1210,10 @@ pub async fn club_payments(
     .await
 }
 
+/// A member's payments at a club, and those they made for somebody else.
 pub async fn user_payments(pool: &PgPool, club_id: Uuid, user_id: Uuid, limit: i64) -> Result<Vec<PaymentRow>, sqlx::Error> {
     sqlx::query_as::<_, PaymentRow>(&format!(
-        "{PAYMENT_SELECT} WHERE p.club_id = $1 AND p.user_id = $2 ORDER BY p.created_at DESC LIMIT $3"
+        "{PAYMENT_SELECT} WHERE p.club_id = $1 AND (p.user_id = $2 OR p.created_by = $2) ORDER BY p.created_at DESC LIMIT $3"
     ))
     .bind(club_id)
     .bind(user_id)
@@ -1564,6 +1565,16 @@ pub async fn share_on_bill(pool: &PgPool, bill_id: Uuid, share_id: Uuid) -> Resu
 
 /// A claim still waiting for the treasurer, for one share — so a second tap
 /// on the link shows that claim instead of making another.
+/// The claim a link request with this Idempotency-Key made, if any: a retry
+/// by the same phone.
+pub async fn link_claim_by_key(pool: &PgPool, link_id: Uuid, key: &str) -> Result<Option<PaymentRow>, sqlx::Error> {
+    sqlx::query_as::<_, PaymentRow>(&format!("{PAYMENT_SELECT} WHERE p.via_link = $1 AND p.idempotency_key = $2"))
+        .bind(link_id)
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+}
+
 pub async fn open_claim_for_share(pool: &PgPool, share_id: Uuid) -> Result<Option<PaymentRow>, sqlx::Error> {
     sqlx::query_as::<_, PaymentRow>(&format!(
         "{PAYMENT_SELECT} WHERE p.share_id = $1 AND p.status = 'claimed' ORDER BY p.created_at DESC LIMIT 1"
@@ -1619,14 +1630,24 @@ pub async fn club_references(pool: &PgPool, club_id: Uuid) -> Result<Vec<(String
     sqlx::query_as("SELECT code, user_id FROM payment_references WHERE club_id = $1").bind(club_id).fetch_all(pool).await
 }
 
-/// Bank transfers members said they made and nobody has ticked:
-/// `(payment id, member, amount, day said)`.
-pub async fn open_transfer_claims(
-    pool: &PgPool,
-    club_id: Uuid,
-) -> Result<Vec<(Uuid, Uuid, i64, NaiveDate)>, sqlx::Error> {
+/// A bank transfer somebody said they made, not yet ticked.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct OpenTransfer {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub amount_cents: i64,
+    pub on: NaiveDate,
+    /// Whose reference it came with: whoever paid for them, else their own.
+    pub payer: Uuid,
+    /// The same for claims made in one go (one transfer on the statement).
+    pub batch: String,
+}
+
+pub async fn open_transfer_claims(pool: &PgPool, club_id: Uuid) -> Result<Vec<OpenTransfer>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT id, user_id, amount_cents, created_at::date FROM member_payments
+        "SELECT id, user_id, amount_cents, created_at::date AS \"on\", COALESCE(paid_by, user_id) AS payer,
+                COALESCE(created_by::text || '|' || created_at::text, id::text) AS batch
+         FROM member_payments
          WHERE club_id = $1 AND status = 'claimed' AND method = 'transfer' AND user_id IS NOT NULL",
     )
     .bind(club_id)
@@ -1665,5 +1686,30 @@ pub async fn set_line_payment(conn: &mut PgConnection, club_id: Uuid, hash: &str
         .execute(conn)
         .await?;
     Ok(())
+}
+
+/// The bills a member is on at a club (issued, any status of their line).
+pub async fn bills_with(pool: &PgPool, club_id: Uuid, user_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT s.bill_id FROM bill_shares s JOIN event_bills b ON b.id = s.bill_id
+         WHERE b.club_id = $1 AND b.status = 'issued' AND s.user_id = $2",
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Take the payer's lock for this transaction, without waiting: `false` when
+/// another request is saving a payment for them right now. Two taps at once
+/// (or a burst from a pay link) can't both read "£10 owed" and both record
+/// it. Not waiting matters: a waiter would hold a pooled connection that the
+/// request holding the lock may need.
+pub async fn try_lock_payer(conn: &mut PgConnection, club_id: Uuid, payer: &Payer) -> Result<bool, sqlx::Error> {
+    let key = match payer {
+        Payer::Member(u) => format!("pay|{club_id}|m|{u}"),
+        Payer::Guest(n) => format!("pay|{club_id}|g|{n}"),
+    };
+    sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))").bind(key).fetch_one(conn).await
 }
 

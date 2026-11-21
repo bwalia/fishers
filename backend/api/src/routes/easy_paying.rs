@@ -33,7 +33,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::club_payments::{
-    accounts, club_bank_details, decide, event_or_404, first_name, idempotency_key, reference_for,
+    accounts, club_bank_details, decide, event_or_404, first_name, idempotency_key, lock_payer, reference_for,
     require_can_bill, require_money_admin, share_view, status, BankDetails, Ledger, ShareView,
 };
 use crate::auth::{decode_token, AuthUser};
@@ -52,12 +52,17 @@ const SCREENSHOT_MINUTES: i64 = 120;
 /// The request body limit is a megabyte; the apps shrink a screenshot first.
 const MAX_SCREENSHOT_BYTES: usize = 1_000_000;
 
+// Every limit here is per link. Behind the ingress every caller can arrive
+// from one address (Traefik replaces the forwarded one), so a limit on an
+// address alone would let one person shut every pay link for everybody.
+/// Opening one link, from one address.
 static VIEWS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(120, StdDuration::from_secs(60)));
-/// Claims from one address: a whole club on the ground's Wi-Fi shares one,
-/// so the limit is per link (a club's worth of people) with a looser one
-/// across links. One open claim per share bounds the rest.
+/// Tokens that aren't links. A forged token can't be found (it's an HMAC),
+/// so this only slows somebody trying, and touches nobody else's limit.
+static BAD_TOKENS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(30, StdDuration::from_secs(60)));
+/// "I've paid" on one link, from one address: a whole club on the ground's
+/// Wi-Fi shares one. One open claim per person bounds the rest.
 static CLAIMS: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(40, StdDuration::from_secs(3600)));
-static CLAIMS_ANY_LINK: LazyLock<Throttle> = LazyLock::new(|| Throttle::new(120, StdDuration::from_secs(3600)));
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -70,7 +75,7 @@ pub fn router() -> Router<AppState> {
         // Whoever runs the session.
         .route("/events/{id}/bill/link", get(get_link).post(make_link))
         .route("/events/{id}/bill/link/disable", post(disable_link))
-        .route("/bills/{bill_id}/link", post(make_bill_link))
+        .route("/bills/{bill_id}/link", get(get_bill_link).post(make_bill_link))
         .route("/bills/{bill_id}/link/disable", post(disable_bill_link))
         .route("/events/{id}/bill/cash", post(cash_at_ground))
         // Money admins.
@@ -88,15 +93,22 @@ fn link_closed() -> ApiError {
     )
 }
 
-/// The link a token names, open. Throttled per address before anything else.
+/// The link a token names, open. A token is checked (an HMAC, no database)
+/// before any limit is counted, so made-up tokens can't use up a real link's.
 async fn open_link(state: &AppState, token: &str, headers: &HeaderMap) -> ApiResult<repo::PayLinkRow> {
     let ip = crate::services::pay_links::client_ip(headers);
-    if !VIEWS.allow(&format!("{ip}|{}", token_fingerprint(token))) || !VIEWS.allow(&ip) {
-        return Err(ApiError::too_many("Too many tries. Wait a minute and open the link again.").with_code("slow_down"));
+    let slow = || ApiError::too_many("Too many tries. Wait a minute and open the link again.").with_code("slow_down");
+    let Some(id) = state.pay_links.open(token) else {
+        if !BAD_TOKENS.allow(&format!("{ip}|{}", token_fingerprint(token))) {
+            return Err(slow());
+        }
+        return Err(
+            ApiError::not_found("This pay link isn't right. Ask your secretary to share it again.").with_code("bad_link"),
+        );
+    };
+    if !VIEWS.allow(&format!("{ip}|{id}")) {
+        return Err(slow());
     }
-    let id = state.pay_links.open(token).ok_or_else(|| {
-        ApiError::not_found("This pay link isn't right. Ask your secretary to share it again.").with_code("bad_link")
-    })?;
     let link = repo::pay_link(&state.pool, id).await?.ok_or_else(link_closed)?;
     if !link.is_open(Utc::now()) {
         return Err(link_closed());
@@ -169,6 +181,18 @@ struct PersonOnLink {
     reference: String,
     /// A claim waiting for the treasurer, which can be taken back within the hour.
     claim: Option<LinkClaim>,
+    /// Only in the reply to "I've paid": keep it, and send it as
+    /// `X-Claim-Secret` to take the claim back or add its screenshot.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    claim_secret: Option<String>,
+}
+
+/// Who may change a claim made on a link: whoever made it (they hold its
+/// secret), or the person it's for, signed in.
+fn may_change_claim(state: &AppState, headers: &HeaderMap, payment: &PaymentRow) -> bool {
+    let secret = headers.get("x-claim-secret").and_then(|v| v.to_str().ok());
+    state.pay_links.claim_secret_ok(payment.id, secret)
+        || signed_in(state, headers).is_some_and(|u| payment.user_id == Some(u) || payment.created_by == Some(u))
 }
 
 #[derive(Debug, Serialize)]
@@ -205,7 +229,14 @@ async fn person(state: &AppState, link: &repo::PayLinkRow, share: &ShareRow) -> 
         None => money::reference_base(share.guest_name.as_deref().unwrap_or(&share.name)),
     };
     let claim = repo::open_claim_for_share(&state.pool, share.id).await?.map(|p| LinkClaim::of(&p, link.id));
-    Ok(PersonOnLink { share: view, owed_cents: owed, reference, claim })
+    // Anybody holding the link reads this: no member ids, and no reason a
+    // line was let off ("hardship") — only that a pass covers it.
+    let mut view = view;
+    view.user_id = None;
+    if view.state != ShareState::Covered {
+        view.reason = None;
+    }
+    Ok(PersonOnLink { share: view, owed_cents: owed, reference, claim, claim_secret: None })
 }
 
 async fn link_person(
@@ -244,8 +275,19 @@ async fn link_claim(
         .await?
         .ok_or_else(|| ApiError::not_found("That name isn't on this bill any more. Open the link again.").with_code("not_on_bill"))?;
 
-    // A claim already waiting for this person — a second tap, a retry on a
-    // bad signal, a friend tapping too — is that claim, not another one.
+    // One at a time for this person, so two taps at once can't both record.
+    let mut tx = state.pool.begin().await?;
+    lock_payer(&mut tx, link.club_id, &share.payer()).await?;
+    // A retry by the same phone (the same key): its claim, and its secret.
+    if let Some(k) = key.as_deref() {
+        if let Some(mine) = repo::link_claim_by_key(&state.pool, link.id, k).await? {
+            let mut out = person(&state, &link, &share).await?;
+            out.claim_secret = (mine.share_id == Some(share.id)).then(|| state.pay_links.claim_secret(mine.id));
+            return Ok(Json(out));
+        }
+    }
+    // A claim already waiting for this person — a second tap, a friend
+    // tapping too — is that claim, not another one (and not its secret).
     if repo::open_claim_for_share(&state.pool, share.id).await?.is_some() {
         return Ok(Json(person(&state, &link, &share).await?));
     }
@@ -260,7 +302,6 @@ async fn link_claim(
     }
     let ip = crate::services::pay_links::client_ip(&headers);
     if !CLAIMS.allow(&format!("{ip}|{}", link.id))
-        || !CLAIMS_ANY_LINK.allow(&ip)
         || repo::recent_link_claims(&state.pool, link.id).await? >= CLAIMS_PER_LINK_HOUR
     {
         return Err(ApiError::too_many("Too many payments from here. Try again later.").with_code("slow_down"));
@@ -273,7 +314,6 @@ async fn link_claim(
     };
     let reference = (body.method == "transfer").then(|| current.reference.clone());
     let payout = accounts(&state, link.club_id).await?.current().map(|a| a.id);
-    let mut tx = state.pool.begin().await?;
     let (row, created) = repo::insert_payment(
         &mut tx,
         &NewPayment {
@@ -321,7 +361,9 @@ async fn link_claim(
                 .await;
         }
     }
-    Ok(Json(person(&state, &link, &share).await?))
+    let mut out = person(&state, &link, &share).await?;
+    out.claim_secret = Some(state.pay_links.claim_secret(row.id));
+    Ok(Json(out))
 }
 
 /// Taken back: tapped the wrong name, or hadn't really paid yet. Only from
@@ -333,7 +375,7 @@ async fn link_undo(
 ) -> ApiResult<StatusCode> {
     let link = open_link(&state, &token, &headers).await?;
     let payment = repo::payment(&state.pool, pid).await?.ok_or_else(|| ApiError::not_found("no such payment"))?;
-    if payment.via_link != Some(link.id) {
+    if payment.via_link != Some(link.id) || !may_change_claim(&state, &headers, &payment) {
         return Err(ApiError::not_found("no such payment"));
     }
     if payment.status != "claimed" {
@@ -383,7 +425,10 @@ async fn link_screenshot(
 ) -> ApiResult<StatusCode> {
     let link = open_link(&state, &token, &headers).await?;
     let payment = repo::payment(&state.pool, pid).await?.ok_or_else(|| ApiError::not_found("no such payment"))?;
-    if payment.via_link != Some(link.id) || payment.status != "claimed"
+    if payment.via_link != Some(link.id) || !may_change_claim(&state, &headers, &payment) {
+        return Err(ApiError::not_found("no such payment"));
+    }
+    if payment.status != "claimed"
         || Utc::now() - payment.created_at >= Duration::minutes(SCREENSHOT_MINUTES)
     {
         return Err(ApiError::conflict("You can only add a picture to a payment you've just made here.")
@@ -502,6 +547,23 @@ async fn make_bill_link(
         return Err(ApiError::conflict("That group fee was cancelled.").with_code("no_bill"));
     }
     Ok(Json(link_for_bill(&state, bill, auth.user_id).await?))
+}
+
+/// A group fee's open link, if it has one — never makes one.
+async fn get_bill_link(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(bill_id): Path<Uuid>,
+) -> ApiResult<Json<Option<LinkResponse>>> {
+    let bill = repo::bill_by_id(&state.pool, bill_id)
+        .await?
+        .filter(|b| b.kind == "collection")
+        .ok_or_else(|| ApiError::not_found("no such group fee"))?;
+    require_money_admin(&state, bill.club_id, auth.user_id).await?;
+    if bill.status != "issued" {
+        return Ok(Json(None));
+    }
+    Ok(Json(link_messages(&state, bill, None).await?))
 }
 
 async fn disable_bill_link(
@@ -664,12 +726,21 @@ async fn cash_at_ground(
         return Err(ApiError::bad_request("At most 200 at a time"));
     }
     let collector = repo::user_name(&state.pool, auth.user_id).await?.unwrap_or_default();
-    let ledger = Ledger::load(&state, bill.club_id, None).await?;
     let shares = repo::bill_shares(&state.pool, bill.id).await?;
+    // Everybody ticked is locked first, then what they owe is read: a double
+    // tap can't record their cash twice.
+    let mut tx = state.pool.begin().await?;
+    let mut payers: Vec<Payer> =
+        shares.iter().filter(|s| body.share_ids.contains(&s.id)).map(|s| s.payer()).collect();
+    payers.sort();
+    payers.dedup();
+    for p in &payers {
+        lock_payer(&mut tx, bill.club_id, p).await?;
+    }
+    let ledger = Ledger::load(&state, bill.club_id, None).await?;
     // `already_paid`: ticked people who owe nothing now — on a retry after a
     // lost reply, the ones the first tap recorded.
     let (mut recorded, mut already, mut total) = (0, 0, 0i64);
-    let mut tx = state.pool.begin().await?;
     for sid in body.share_ids {
         let Some(share) = shares.iter().find(|s| s.id == sid && s.status == "live") else { continue };
         let p = ledger.progress(share).unwrap_or_default();

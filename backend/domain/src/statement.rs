@@ -271,14 +271,21 @@ pub struct OpenClaim {
     pub user_id: Uuid,
     pub amount_cents: i64,
     pub on: NaiveDate,
+    /// Whose reference the money comes with: the member's own, or — when
+    /// somebody paid for them — the payer's.
+    pub payer: Uuid,
+    /// Claims made in one go (a parent paying for two juniors) share this:
+    /// the bank shows them as one transfer, of their total.
+    pub batch: String,
 }
 
 /// What to do with one line.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Proposal {
-    /// It's the money somebody said they'd sent: tick their "I've paid".
-    Confirm { payment_id: Uuid, user_id: Uuid },
+    /// It's the money somebody said they'd sent: tick their "I've paid" —
+    /// several when one transfer paid for several people.
+    Confirm { payment_ids: Vec<Uuid>, user_id: Uuid },
     /// Their reference, and they hadn't said: record it as paid.
     Record { user_id: Uuid },
     /// Their reference, but something doesn't add up: a person should look.
@@ -308,8 +315,9 @@ fn reference_in<'a>(text: &str, refs: &'a [Reference]) -> Option<&'a Reference> 
     sorted.into_iter().find(|r| text.contains(&words(&r.code)))
 }
 
-/// What to do with each line, in order. Each "I've paid" is matched to one
-/// line at most, the nearest in date with the same amount.
+/// What to do with each line, in order. Each "I've paid" (or batch of them,
+/// made in one go) is matched to one line at most: the nearest in date whose
+/// total is the line's amount.
 pub fn propose(credits: &[Credit], refs: &[Reference], claims: &[OpenClaim]) -> Vec<Proposal> {
     let mut used: HashSet<Uuid> = HashSet::new();
     credits
@@ -323,30 +331,43 @@ pub fn propose(credits: &[Credit], refs: &[Reference], claims: &[OpenClaim]) -> 
                 .filter(|o| o.user_id != r.user_id && o.code.starts_with(&format!("{} ", r.code)))
                 .collect();
             let candidates: Vec<Uuid> = std::iter::once(r.user_id).chain(siblings.iter().map(|s| s.user_id)).collect();
-            let exact = |user: Uuid, used: &HashSet<Uuid>| {
-                claims
-                    .iter()
-                    .filter(|k| k.user_id == user && k.amount_cents == c.amount_cents && !used.contains(&k.payment_id))
-                    .filter(|k| (k.on - c.date).num_days().abs() <= CLAIM_DAYS)
-                    .min_by_key(|k| (k.on - c.date).num_days().abs())
-                    .map(|k| k.payment_id)
+            // A payer's unticked batches whose total is this line's amount,
+            // nearest in date first.
+            let exact = |payer: Uuid, used: &HashSet<Uuid>| -> Option<Vec<Uuid>> {
+                let mut batches: Vec<(&str, i64, i64, Vec<Uuid>)> = Vec::new();
+                for k in claims.iter().filter(|k| k.payer == payer && !used.contains(&k.payment_id)) {
+                    let gap = (k.on - c.date).num_days().abs();
+                    match batches.iter_mut().find(|b| b.0 == k.batch) {
+                        Some(b) => {
+                            b.1 += k.amount_cents;
+                            b.2 = b.2.min(gap);
+                            b.3.push(k.payment_id);
+                        }
+                        None => batches.push((k.batch.as_str(), k.amount_cents, gap, vec![k.payment_id])),
+                    }
+                }
+                batches
+                    .into_iter()
+                    .filter(|b| b.1 == c.amount_cents && b.2 <= CLAIM_DAYS)
+                    .min_by_key(|b| b.2)
+                    .map(|b| b.3)
             };
             if !siblings.is_empty() {
-                let hits: Vec<(Uuid, Uuid)> =
+                let hits: Vec<(Uuid, Vec<Uuid>)> =
                     candidates.iter().filter_map(|u| exact(*u, &used).map(|p| (*u, p))).collect();
                 return match hits.as_slice() {
-                    [(user_id, payment_id)] => {
-                        used.insert(*payment_id);
-                        Proposal::Confirm { payment_id: *payment_id, user_id: *user_id }
+                    [(user_id, ids)] => {
+                        used.extend(ids.iter().copied());
+                        Proposal::Confirm { payment_ids: ids.clone(), user_id: *user_id }
                     }
                     _ => Proposal::Check { user_id: None, why: CheckWhy::SharedName },
                 };
             }
-            if let Some(payment_id) = exact(r.user_id, &used) {
-                used.insert(payment_id);
-                return Proposal::Confirm { payment_id, user_id: r.user_id };
+            if let Some(ids) = exact(r.user_id, &used) {
+                used.extend(ids.iter().copied());
+                return Proposal::Confirm { payment_ids: ids, user_id: r.user_id };
             }
-            let waiting = claims.iter().any(|k| k.user_id == r.user_id && !used.contains(&k.payment_id));
+            let waiting = claims.iter().any(|k| k.payer == r.user_id && !used.contains(&k.payment_id));
             if waiting {
                 Proposal::Check { user_id: Some(r.user_id), why: CheckWhy::DifferentAmount }
             } else {
@@ -445,6 +466,34 @@ mod tests {
         Uuid::from_bytes([n; 16])
     }
 
+    fn claim(id: u8, user: Uuid, cents: i64, on: &str) -> OpenClaim {
+        OpenClaim { payment_id: uid(id), user_id: user, amount_cents: cents, on: d(on), payer: user, batch: format!("b{id}") }
+    }
+
+    #[test]
+    fn a_parent_paying_for_two_is_one_transfer_under_their_reference() {
+        let (neha, jas, arjun) = (uid(1), uid(2), uid(3));
+        let refs = vec![
+            Reference { code: "GILL".into(), user_id: neha },
+            Reference { code: "GILL 2".into(), user_id: jas },
+        ];
+        let batch = |id: u8, user: Uuid, cents: i64| OpenClaim {
+            payment_id: uid(id),
+            user_id: user,
+            amount_cents: cents,
+            on: d("2026-11-21"),
+            payer: neha,
+            batch: "neha-once".into(),
+        };
+        let claims = vec![batch(21, jas, 900), batch(22, arjun, 600)];
+        // "GILL" with a "GILL 2" about: the one batch that adds up decides it.
+        let p = propose(&[credit("N GILL GILL", 1500)], &refs, &claims);
+        assert_eq!(p[0], Proposal::Confirm { payment_ids: vec![uid(21), uid(22)], user_id: neha });
+        // Part of it isn't a match: somebody looks.
+        let p = propose(&[credit("N GILL GILL", 900)], &refs, &claims);
+        assert_eq!(p[0], Proposal::Check { user_id: None, why: CheckWhy::SharedName });
+    }
+
     fn credit(text: &str, cents: i64) -> Credit {
         Credit { row: 2, date: d("2026-11-21"), amount_cents: cents, text: text.into() }
     }
@@ -459,9 +508,9 @@ mod tests {
             Reference { code: "BENNETT".into(), user_id: tom },
         ];
         let claims = vec![
-            OpenClaim { payment_id: uid(11), user_id: rohit, amount_cents: 1500, on: d("2026-11-20") },
-            OpenClaim { payment_id: uid(13), user_id: josh, amount_cents: 500, on: d("2026-11-21") },
-            OpenClaim { payment_id: uid(14), user_id: tom, amount_cents: 600, on: d("2026-11-21") },
+            claim(11, rohit, 1500, "2026-11-20"),
+            claim(13, josh, 500, "2026-11-21"),
+            claim(14, tom, 600, "2026-11-21"),
         ];
         let lines = vec![
             credit("ROHIT SHARMA SHARMA 2", 1500),   // the numbered one wins
@@ -472,8 +521,8 @@ mod tests {
             credit("INTEREST", 12),                  // nobody's
         ];
         let p = propose(&lines, &refs, &claims);
-        assert_eq!(p[0], Proposal::Confirm { payment_id: uid(11), user_id: rohit });
-        assert_eq!(p[1], Proposal::Confirm { payment_id: uid(13), user_id: josh });
+        assert_eq!(p[0], Proposal::Confirm { payment_ids: vec![uid(11)], user_id: rohit });
+        assert_eq!(p[1], Proposal::Confirm { payment_ids: vec![uid(13)], user_id: josh });
         assert_eq!(p[2], Proposal::Record { user_id: josh });
         assert_eq!(p[3], Proposal::Check { user_id: Some(tom), why: CheckWhy::DifferentAmount });
         assert_eq!(p[4], Proposal::Check { user_id: None, why: CheckWhy::SharedName });
@@ -487,16 +536,16 @@ mod tests {
             Reference { code: "SHARMA".into(), user_id: ravi },
             Reference { code: "SHARMA 2".into(), user_id: rohit },
         ];
-        let claims = vec![OpenClaim { payment_id: uid(11), user_id: rohit, amount_cents: 1500, on: d("2026-11-20") }];
+        let claims = vec![claim(11, rohit, 1500, "2026-11-20")];
         let p = propose(&[credit("SHARMA", 1500)], &refs, &claims);
-        assert_eq!(p[0], Proposal::Confirm { payment_id: uid(11), user_id: rohit });
+        assert_eq!(p[0], Proposal::Confirm { payment_ids: vec![uid(11)], user_id: rohit });
     }
 
     #[test]
     fn a_claim_too_far_away_in_time_is_not_matched() {
         let josh = uid(3);
         let refs = vec![Reference { code: "TURNER".into(), user_id: josh }];
-        let claims = vec![OpenClaim { payment_id: uid(13), user_id: josh, amount_cents: 500, on: d("2026-09-01") }];
+        let claims = vec![claim(13, josh, 500, "2026-09-01")];
         let p = propose(&[credit("TURNER", 500)], &refs, &claims);
         assert_eq!(p[0], Proposal::Check { user_id: Some(josh), why: CheckWhy::DifferentAmount });
     }

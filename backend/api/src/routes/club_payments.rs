@@ -81,6 +81,17 @@ pub(crate) fn status(code: StatusCode, message: impl Into<String>, reason: &'sta
     ApiError { status: code, message: message.into(), code: Some(reason) }
 }
 
+/// Another request is saving a payment for the same person this instant (a
+/// double tap): try again, with the same Idempotency-Key, and get that one.
+pub(crate) fn busy() -> ApiError {
+    status(StatusCode::CONFLICT, "Hold on, that's still being saved. Try again in a moment.", "busy")
+}
+
+/// Lock a payer for this transaction, or say they're busy.
+pub(crate) async fn lock_payer(tx: &mut sqlx::PgConnection, club_id: Uuid, payer: &Payer) -> ApiResult<()> {
+    if repo::try_lock_payer(tx, club_id, payer).await? { Ok(()) } else { Err(busy()) }
+}
+
 pub(crate) async fn role(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
     repo::money_role(&state.pool, club_id, user_id)
         .await?
@@ -636,6 +647,9 @@ pub struct ShareView {
     pub currency: String,
     pub state: ShareState,
     pub reason: Option<String>,
+    /// For a covered line: `pass` or `free` (a free price group). The reason
+    /// is the server's English; this is what an app words for itself.
+    pub cover: Option<&'static str>,
 }
 
 pub(crate) fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> ShareView {
@@ -663,6 +677,7 @@ pub(crate) fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> Share
         currency: s.currency.clone(),
         state,
         reason: s.reason.clone(),
+        cover: (s.status == "covered").then_some(if s.covered_by.is_some() { "pass" } else { "free" }),
     }
 }
 
@@ -1535,8 +1550,66 @@ struct PayScreen {
     account_state: &'static str,
     account: Option<BankDetails>,
     reference: String,
-    /// Your claims nobody has confirmed yet.
+    /// Your claims nobody has confirmed yet, and those you made for others.
     claims: Vec<PaymentRow>,
+    /// People on the bills you're on who still owe on them, and how much:
+    /// for "I'm paying for friends too".
+    friends: Vec<FriendOwing>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct FriendOwing {
+    user_id: Uuid,
+    name: String,
+    /// Owed on the bills you share — nothing about their other dues.
+    owed_cents: i64,
+}
+
+async fn pays_for_someone_owing(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<bool> {
+    for d in fishers_db::repos::passes::dependents(&state.pool, user_id).await? {
+        if d.club_id != club_id {
+            continue;
+        }
+        let ledger = Ledger::load(state, club_id, Some(d.member_id)).await?;
+        let s = ledger.of(&Payer::Member(d.member_id));
+        if s.owed_cents > 0 || s.waiting_cents > 0 {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// What each of `people` owes on the bills `user_id` is on: the most a friend
+/// may pay for them, and all a friend sees of their dues.
+pub(crate) async fn owed_on_shared_bills(
+    state: &AppState,
+    club_id: Uuid,
+    user_id: Uuid,
+    ledger: &Ledger,
+) -> ApiResult<HashMap<Uuid, (String, i64)>> {
+    let bills: std::collections::HashSet<Uuid> = repo::bills_with(&state.pool, club_id, user_id).await?.into_iter().collect();
+    let mut out: HashMap<Uuid, (String, i64)> = HashMap::new();
+    for s in ledger.shares.iter().filter(|s| bills.contains(&s.bill_id)) {
+        let Some(u) = s.user_id.filter(|u| *u != user_id) else { continue };
+        let p = ledger.progress(s).unwrap_or_default();
+        let left = (s.amount_cents - p.paid_cents - p.waiting_cents).max(0);
+        let e = out.entry(u).or_insert_with(|| (s.name.clone(), 0));
+        e.1 += left;
+    }
+    Ok(out)
+}
+
+async fn friends_owing(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<Vec<FriendOwing>> {
+    let ledger = Ledger::load(state, club_id, None).await?;
+    let mut out: Vec<FriendOwing> = owed_on_shared_bills(state, club_id, user_id, &ledger)
+        .await?
+        .into_iter()
+        .filter(|(_, (_, owed))| *owed > 0)
+        .map(|(user_id, (name, owed_cents))| FriendOwing { user_id, name, owed_cents })
+        .collect();
+    out.sort_by_key(|a| a.name.to_lowercase());
+    out.truncate(40);
+    Ok(out)
 }
 
 async fn pay_screen(
@@ -1548,7 +1621,14 @@ async fn pay_screen(
     let ledger = Ledger::load(&state, club_id, Some(auth.user_id)).await?;
     let payer = Payer::Member(auth.user_id);
     let settled = ledger.of(&payer);
-    let owes = settled.owed_cents > 0 || settled.waiting_cents > 0;
+    let own = settled.owed_cents > 0 || settled.waiting_cents > 0;
+    // The bank details are for whoever has something to pay: their own dues,
+    // those of somebody they pay for, or a monthly pass paid by standing order.
+    let owes = own || pays_for_someone_owing(&state, club_id, auth.user_id).await?
+        || fishers_db::repos::passes::standing_orders(&state.pool, club_id)
+            .await?
+            .iter()
+            .any(|h| h.user_id == auth.user_id);
     // A former member who still owes can still see what to pay.
     if !(r.is_member || r.is_owner || owes) {
         return Err(ApiError::forbidden("You're not a member of this club").with_code("not_member"));
@@ -1572,7 +1652,9 @@ async fn pay_screen(
         .into_iter()
         .filter(|p| p.status == "claimed")
         .collect();
+    let friends = friends_owing(&state, club_id, auth.user_id).await?;
     Ok(Json(PayScreen {
+        friends,
         club_id,
         club_name,
         currency: dues.currency.clone(),
@@ -1614,6 +1696,10 @@ async fn claim_payment(
         return Err(ApiError::bad_request("method is transfer or cash"));
     }
     let key = idempotency_key(&headers)?;
+    // One at a time for this member: the balance read below is then the one
+    // the payment is recorded against.
+    let mut tx = state.pool.begin().await?;
+    lock_payer(&mut tx, club_id, &Payer::Member(auth.user_id)).await?;
     // A retry of a claim already made (a bad signal, a double tap) answers
     // with that claim, before anything is checked against the balance — which
     // the first attempt has just changed.
@@ -1655,7 +1741,6 @@ async fn claim_payment(
         (None, None)
     };
 
-    let mut tx = state.pool.begin().await?;
     let (row, created) = repo::insert_payment(
         &mut tx,
         &NewPayment {
@@ -1717,7 +1802,8 @@ async fn cancel_claim(
     Path(pid): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     let payment = repo::payment(&state.pool, pid).await?.ok_or_else(|| ApiError::not_found("no such payment"))?;
-    if payment.user_id != Some(auth.user_id) {
+    // Yours, or one you made for somebody (a parent's for their junior).
+    if payment.user_id != Some(auth.user_id) && payment.created_by != Some(auth.user_id) {
         return Err(ApiError::not_found("no such payment"));
     }
     let mut tx = state.pool.begin().await?;
@@ -2006,6 +2092,8 @@ struct Totals {
 struct BillSummary {
     bill_id: Uuid,
     event_id: Option<Uuid>,
+    /// `event`, `pass` or `collection`: which screen opens it.
+    kind: String,
     title: String,
     event_start_at: DateTime<Utc>,
     currency: String,
@@ -2071,6 +2159,7 @@ async fn money_overview(
         let mut sum = BillSummary {
             bill_id: b.id,
             event_id: b.event_id,
+            kind: b.kind.clone(),
             title: b.title.clone(),
             event_start_at: b.event_start_at,
             currency: b.currency.clone(),
