@@ -306,32 +306,35 @@ pub fn settle(shares: &[LedgerShare], payments: &[LedgerPayment]) -> Settlement 
 
 // MARK: references
 
-/// The characters a reference code is made of: no 0/O, 1/I/L or U, so it
-/// reads back over the phone and out of a banking app without a doubt.
-pub const REFERENCE_ALPHABET: &[u8] = b"23456789ABCDEFGHJKMNPQRSTVWXYZ";
-pub const REFERENCE_CODE_LEN: usize = 5;
+/// The longest base a reference is built from, leaving room for " 99".
+const REFERENCE_BASE_LEN: usize = 14;
 
-/// Whether `code` is a well-formed reference code.
-pub fn is_reference_code(code: &str) -> bool {
-    code.len() == REFERENCE_CODE_LEN && code.bytes().all(|b| REFERENCE_ALPHABET.contains(&b))
+/// What a member writes in the reference box: their surname, in capitals,
+/// A–Z only (banks drop everything else). Readable on purpose — players are
+/// told "write SHARMA", not handed a code to copy — and the treasurer sees who
+/// paid at a glance on the statement.
+///
+/// No usable surname (a name in Gurmukhi, say) falls back to the first name,
+/// then to "PLAYER": a reference box must never be empty.
+pub fn reference_base(name: &str) -> String {
+    let letters = |word: &str| -> String {
+        word.chars().filter(char::is_ascii_alphabetic).map(|c| c.to_ascii_uppercase()).collect()
+    };
+    let words: Vec<&str> = name.split_whitespace().collect();
+    let base = words
+        .iter()
+        .rev()
+        .map(|w| letters(w))
+        .find(|w| !w.is_empty())
+        .unwrap_or_else(|| "PLAYER".to_string());
+    base[..base.len().min(REFERENCE_BASE_LEN)].to_string()
 }
 
-/// What goes in the transfer's reference box: the member's code, then as much
-/// of their surname as fits in 18 characters, A–Z only (banks strip the rest).
-pub fn reference(code: &str, name: &str) -> String {
-    let surname: String = name
-        .split_whitespace()
-        .last()
-        .unwrap_or("")
-        .chars()
-        .filter(char::is_ascii_alphabetic)
-        .map(|c| c.to_ascii_uppercase())
-        .collect();
-    let room = MAX_REFERENCE_LEN.saturating_sub(code.len() + 1);
-    if surname.is_empty() || room == 0 {
-        return code.to_string();
-    }
-    format!("{code} {}", &surname[..surname.len().min(room)])
+/// The `n`th reference for a base within one club: "SHARMA", then
+/// "SHARMA 2", "SHARMA 3"… when two members share a surname. Always within the
+/// 18-character Faster Payments limit.
+pub fn reference_numbered(base: &str, n: u32) -> String {
+    if n <= 1 { base.to_string() } else { format!("{base} {n}") }
 }
 
 // MARK: UK bank details
@@ -667,23 +670,24 @@ mod tests {
     // ── references ─────────────────────────────────────────────────────
 
     #[test]
-    fn a_reference_is_the_code_and_the_surname_within_eighteen() {
-        assert_eq!(reference("7KQ3X", "Aman Gill"), "7KQ3X GILL");
-        assert_eq!(reference("7KQ3X", "Jaspreet Singh-Sandhu-Wolfeschlegel"), "7KQ3X SINGHSANDHUW");
-        assert!(reference("7KQ3X", "A Very Longsurnamethatgoesonandon").len() <= MAX_REFERENCE_LEN);
-        assert_eq!(reference("7KQ3X", ""), "7KQ3X");
-        assert_eq!(reference("7KQ3X", "Zoë O'Brien"), "7KQ3X OBRIEN");
-        assert_eq!(reference("7KQ3X", "李"), "7KQ3X");
+    fn a_reference_is_the_surname_people_can_read() {
+        assert_eq!(reference_base("Aman Gill"), "GILL");
+        assert_eq!(reference_base("Zoë O'Brien"), "OBRIEN");
+        assert_eq!(reference_base("Jaspreet Singh-Sandhu-Wolfeschlegel"), "SINGHSANDHUWOL");
+        assert_eq!(reference_base("Ravi"), "RAVI");
+        // A surname with no Latin letters falls back to the first name...
+        assert_eq!(reference_base("Ravi ਸ਼ਰਮਾ"), "RAVI");
+        // ...and a name with none at all still gives something to write.
+        assert_eq!(reference_base("ਹਰਚਰਨ ਸਿੰਘ"), "PLAYER");
+        assert_eq!(reference_base("   "), "PLAYER");
     }
 
     #[test]
-    fn reference_codes_avoid_confusable_characters() {
-        for bad in *b"0O1ILU" {
-            assert!(!REFERENCE_ALPHABET.contains(&bad), "{}", bad as char);
-        }
-        assert!(is_reference_code("7KQ3X"));
-        assert!(!is_reference_code("7KQ3O"));
-        assert!(!is_reference_code("7KQ3"));
+    fn two_members_with_one_surname_get_a_number_and_stay_within_eighteen() {
+        assert_eq!(reference_numbered("SHARMA", 1), "SHARMA");
+        assert_eq!(reference_numbered("SHARMA", 2), "SHARMA 2");
+        let longest = reference_numbered(&reference_base("Aleksandrovichovski"), 99);
+        assert!(longest.len() <= MAX_REFERENCE_LEN, "{longest}");
     }
 
     // ── bank details ───────────────────────────────────────────────────

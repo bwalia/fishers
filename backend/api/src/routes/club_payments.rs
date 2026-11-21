@@ -35,7 +35,6 @@ use fishers_domain::money::{
     self, fmt_money, CostMode, PayoutState, Rounding, Settlement, ShareProgress, ShareState,
 };
 use fishers_domain::{Event, Permission};
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -78,11 +77,11 @@ pub fn router() -> Router<AppState> {
 
 // MARK: access
 
-fn status(code: StatusCode, message: impl Into<String>, reason: &'static str) -> ApiError {
+pub(crate) fn status(code: StatusCode, message: impl Into<String>, reason: &'static str) -> ApiError {
     ApiError { status: code, message: message.into(), code: Some(reason) }
 }
 
-async fn role(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
+pub(crate) async fn role(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
     repo::money_role(&state.pool, club_id, user_id)
         .await?
         .ok_or_else(|| ApiError::not_found("club not found"))
@@ -97,7 +96,7 @@ async fn require_member(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiRe
     }
 }
 
-async fn require_money_admin(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
+pub(crate) async fn require_money_admin(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
     let r = role(state, club_id, user_id).await?;
     if r.is_admin() {
         Ok(r)
@@ -109,7 +108,7 @@ async fn require_money_admin(state: &AppState, club_id: Uuid, user_id: Uuid) -> 
     }
 }
 
-async fn event_or_404(state: &AppState, event_id: Uuid) -> ApiResult<Event> {
+pub(crate) async fn event_or_404(state: &AppState, event_id: Uuid) -> ApiResult<Event> {
     events_repo::get_event(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))
@@ -124,7 +123,7 @@ async fn can_bill(state: &AppState, event: &Event, user_id: Uuid, money: MoneyRo
             .is_ok()
 }
 
-async fn require_can_bill(state: &AppState, event: &Event, user_id: Uuid) -> ApiResult<MoneyRole> {
+pub(crate) async fn require_can_bill(state: &AppState, event: &Event, user_id: Uuid) -> ApiResult<MoneyRole> {
     let money = role(state, event.club_id, user_id).await?;
     if can_bill(state, event, user_id, money).await {
         Ok(money)
@@ -160,7 +159,7 @@ async fn reauthenticate(state: &AppState, user_id: Uuid, given: Option<&str>) ->
         .map_err(|_| ApiError::forbidden("That password doesn't match").with_code("wrong_password"))
 }
 
-fn idempotency_key(headers: &HeaderMap) -> ApiResult<Option<String>> {
+pub(crate) fn idempotency_key(headers: &HeaderMap) -> ApiResult<Option<String>> {
     match headers.get("idempotency-key").and_then(|v| v.to_str().ok()) {
         None => Ok(None),
         Some(k) if !k.is_empty() && k.len() <= 100 => Ok(Some(k.to_string())),
@@ -190,7 +189,7 @@ fn reason_required(reason: Option<&str>, what: &str) -> ApiResult<String> {
     Ok(r.to_string())
 }
 
-fn first_name(name: &str) -> &str {
+pub(crate) fn first_name(name: &str) -> &str {
     name.split_whitespace().next().unwrap_or(name)
 }
 
@@ -249,8 +248,8 @@ fn view_of(state: &AppState, row: &PayoutAccountRow, s: PayoutState) -> PayoutAc
 }
 
 /// The club's accounts and the state of each, now.
-struct Accounts {
-    rows: Vec<PayoutAccountRow>,
+pub(crate) struct Accounts {
+    pub(crate) rows: Vec<PayoutAccountRow>,
     states: Vec<PayoutState>,
 }
 
@@ -261,12 +260,12 @@ impl Accounts {
         Self { rows, states }
     }
 
-    fn find(&self, wanted: PayoutState) -> Option<&PayoutAccountRow> {
+    pub(crate) fn find(&self, wanted: PayoutState) -> Option<&PayoutAccountRow> {
         // Newest first: rows are oldest first.
         self.rows.iter().zip(&self.states).rev().find(|(_, s)| **s == wanted).map(|(r, _)| r)
     }
 
-    fn current(&self) -> Option<&PayoutAccountRow> {
+    pub(crate) fn current(&self) -> Option<&PayoutAccountRow> {
         self.find(PayoutState::Active)
     }
 
@@ -276,7 +275,7 @@ impl Accounts {
 
     /// When the current account went live, if it replaced one within the
     /// notice period: players are told the details changed.
-    fn changed_at(&self) -> Option<DateTime<Utc>> {
+    pub(crate) fn changed_at(&self) -> Option<DateTime<Utc>> {
         let current = self.current()?;
         current.replaces_id?;
         (Utc::now() - current.live_from < Duration::days(money::CHANGED_NOTICE_DAYS)).then_some(current.live_from)
@@ -296,7 +295,7 @@ impl Accounts {
     }
 }
 
-async fn accounts(state: &AppState, club_id: Uuid) -> ApiResult<Accounts> {
+pub(crate) async fn accounts(state: &AppState, club_id: Uuid) -> ApiResult<Accounts> {
     Ok(Accounts::of(repo::payout_accounts(&state.pool, club_id).await?))
 }
 
@@ -553,6 +552,18 @@ struct SettingsBody {
     auto_bill: Option<bool>,
     auto_bill_after_hours: Option<i32>,
     round_shares_up: Option<bool>,
+    /// The usual nets price: `{ "mode": "per_player", "amount_cents": 500 }`,
+    /// or null to clear it. Absent leaves it as it is.
+    #[serde(default, deserialize_with = "fishers_domain::double_option")]
+    default_nets: Option<Option<DefaultPrice>>,
+    #[serde(default, deserialize_with = "fishers_domain::double_option")]
+    default_match_fee_cents: Option<Option<i64>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DefaultPrice {
+    mode: String,
+    amount_cents: i64,
 }
 
 async fn update_settings(
@@ -567,11 +578,37 @@ async fn update_settings(
             return Err(ApiError::bad_request("Send the bill between 1 hour and 14 days after the session"));
         }
     }
+    let default_nets = match &body.default_nets {
+        None => None,
+        Some(None) => Some(None),
+        Some(Some(p)) => {
+            let mode = CostMode::parse(&p.mode)
+                .ok_or_else(|| ApiError::bad_request("mode is split_total or per_player"))?;
+            let cap = if mode == CostMode::PerPlayer { money::MAX_SHARE_CENTS } else { money::MAX_BILL_CENTS };
+            if p.amount_cents <= 0 || p.amount_cents > cap {
+                return Err(ApiError::bad_request("That price is more than the app allows").with_code("amount_limit"));
+            }
+            Some(Some((mode.as_str().to_string(), p.amount_cents)))
+        }
+    };
+    if let Some(Some(fee)) = body.default_match_fee_cents {
+        if fee <= 0 || fee > money::MAX_SHARE_CENTS {
+            return Err(ApiError::bad_request("That match fee is more than the app allows").with_code("amount_limit"));
+        }
+    }
+    let change = repo::SettingsChange {
+        auto_bill: body.auto_bill,
+        auto_bill_after_hours: body.auto_bill_after_hours,
+        round_shares_up: body.round_shares_up,
+        default_nets,
+        default_match_fee_cents: body.default_match_fee_cents,
+    };
     let mut tx = state.pool.begin().await?;
-    repo::set_settings(&mut tx, club_id, body.auto_bill, body.auto_bill_after_hours, body.round_shares_up).await?;
+    repo::set_settings(&mut tx, club_id, &change).await?;
     repo::audit(&mut tx, club_id, Some(auth.user_id), "update_settings", "club", Some(club_id), None,
         Some(json!({ "auto_bill": body.auto_bill, "auto_bill_after_hours": body.auto_bill_after_hours,
-                     "round_shares_up": body.round_shares_up }))).await?;
+                     "round_shares_up": body.round_shares_up, "default_nets": format!("{:?}", change.default_nets),
+                     "default_match_fee_cents": body.default_match_fee_cents }))).await?;
     tx.commit().await?;
     Ok(Json(repo::settings(&state.pool, club_id).await?.ok_or_else(|| ApiError::not_found("club not found"))?))
 }
@@ -596,7 +633,7 @@ pub struct ShareView {
     pub reason: Option<String>,
 }
 
-fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> ShareView {
+pub(crate) fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> ShareView {
     let p = progress.unwrap_or_default();
     let state = match s.status.as_str() {
         "waived" => ShareState::Waived,
@@ -622,10 +659,10 @@ fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> ShareView {
 }
 
 /// A club's money, settled per payer.
-struct Ledger {
-    shares: Vec<ShareRow>,
-    by_payer: HashMap<Payer, Settlement>,
-    names: HashMap<Payer, String>,
+pub(crate) struct Ledger {
+    pub(crate) shares: Vec<ShareRow>,
+    pub(crate) by_payer: HashMap<Payer, Settlement>,
+    pub(crate) names: HashMap<Payer, String>,
 }
 
 impl Ledger {
@@ -647,12 +684,12 @@ impl Ledger {
         Self { shares, by_payer, names }
     }
 
-    async fn load(state: &AppState, club_id: Uuid, only: Option<Uuid>) -> ApiResult<Self> {
+    pub(crate) async fn load(state: &AppState, club_id: Uuid, only: Option<Uuid>) -> ApiResult<Self> {
         let (shares, payments) = repo::ledger(&state.pool, club_id, only).await?;
         Ok(Self::build(shares, payments))
     }
 
-    fn progress(&self, s: &ShareRow) -> Option<ShareProgress> {
+    pub(crate) fn progress(&self, s: &ShareRow) -> Option<ShareProgress> {
         self.by_payer.get(&s.payer()).and_then(|st| st.shares.get(&s.id)).copied()
     }
 
@@ -1220,18 +1257,21 @@ async fn my_dues(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Jso
 }
 
 /// This member's reference with this club, made the first time it is needed.
-async fn reference_for(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<String> {
-    let name = repo::user_name(&state.pool, user_id).await?.unwrap_or_default();
+pub(crate) async fn reference_for(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<String> {
+    // The same reference for good, so a player can save the club as a payee
+    // once. Made the first time it is needed: their surname, or the surname
+    // with a number when another member of the club already has it.
     for _ in 0..8 {
         if let Some(code) = repo::reference_code(&state.pool, club_id, user_id).await? {
-            return Ok(money::reference(&code, &name));
+            return Ok(code);
         }
-        let code: String = {
-            let mut rng = rand::thread_rng();
-            (0..money::REFERENCE_CODE_LEN)
-                .map(|_| money::REFERENCE_ALPHABET[rng.gen_range(0..money::REFERENCE_ALPHABET.len())] as char)
-                .collect()
-        };
+        let name = repo::user_name(&state.pool, user_id).await?.unwrap_or_default();
+        let base = money::reference_base(&name);
+        let taken = repo::references_like(&state.pool, club_id, &base).await?;
+        let code = (1..=99)
+            .map(|n| money::reference_numbered(&base, n))
+            .find(|c| !taken.contains(c))
+            .ok_or_else(|| ApiError::internal("could not make a payment reference"))?;
         match repo::store_reference_code(&state.pool, club_id, user_id, &code).await {
             Ok(()) => continue, // read it back: a concurrent request may have won
             Err(sqlx::Error::Database(db)) if db.constraint() == Some("payment_references_club_id_code_key") => continue,
@@ -1242,14 +1282,78 @@ async fn reference_for(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiRes
 }
 
 #[derive(Debug, Serialize)]
-struct BankDetails {
-    label: String,
-    holder_name: String,
-    sort_code: String,
-    account_number: String,
-    is_personal: bool,
+pub(crate) struct BankDetails {
+    pub(crate) label: String,
+    pub(crate) holder_name: String,
+    pub(crate) sort_code: String,
+    pub(crate) account_number: String,
+    pub(crate) is_personal: bool,
     /// When these replaced older details, if recently: say so to the player.
-    changed_at: Option<DateTime<Utc>>,
+    pub(crate) changed_at: Option<DateTime<Utc>>,
+    /// Who the money goes to, in words a player understands: "Aman Gill, the
+    /// club secretary". `role` is secretary, treasurer or owner — what the
+    /// person who added the details is to the club — or null for a club account.
+    pub(crate) payee_role: Option<&'static str>,
+}
+
+/// What the person who added these details is to the club, for "Pay Aman
+/// Gill, the club secretary". Only said of a personal account: a club account
+/// is the club's.
+pub(crate) async fn payee_role(state: &AppState, row: &PayoutAccountRow) -> Option<&'static str> {
+    if !row.is_personal {
+        return None;
+    }
+    let by = row.created_by?;
+    let r = repo::money_role(&state.pool, row.club_id, by).await.ok().flatten()?;
+    if r.is_treasurer {
+        Some("treasurer")
+    } else if r.is_secretary {
+        Some("secretary")
+    } else if r.is_owner {
+        Some("owner")
+    } else {
+        None
+    }
+}
+
+/// The club's bank details as a player is shown them, and which of the
+/// states the pay screen speaks of: `active` (details below), `none` (the club
+/// hasn't added any), `frozen` (being checked: don't pay) or `unreadable` (the
+/// club must enter them again). Each time a number is shown, an audit row
+/// says who saw it — a member, or a pay link with the caller's hashed address.
+pub(crate) async fn club_bank_details(
+    state: &AppState,
+    club_id: Uuid,
+    all: &Accounts,
+    viewer: Option<Uuid>,
+    via_link: Option<(Uuid, String)>,
+) -> ApiResult<(&'static str, Option<BankDetails>)> {
+    let Some(row) = all.current() else {
+        return Ok(if all.find(PayoutState::Frozen).is_some() { ("frozen", None) } else { ("none", None) });
+    };
+    match row.details_ciphertext.as_deref().map(|c| state.payout_crypto.open(club_id, c, &row.key_id)) {
+        Some(Ok(details)) => {
+            let mut conn = state.pool.acquire().await?;
+            let after = via_link.as_ref().map(|(link, ip)| json!({ "pay_link": link, "ip": ip }));
+            repo::audit(&mut conn, club_id, viewer, "reveal", "payout_account", Some(row.id), None, after).await?;
+            Ok((
+                "active",
+                Some(BankDetails {
+                    label: row.label.clone(),
+                    holder_name: row.holder_name.clone(),
+                    sort_code: row.sort_code.as_deref().map(money::fmt_sort_code).unwrap_or_default(),
+                    account_number: details.account_number,
+                    is_personal: row.is_personal,
+                    changed_at: all.changed_at(),
+                    payee_role: payee_role(state, row).await,
+                }),
+            ))
+        }
+        _ => {
+            warn!(%club_id, "bank details could not be opened — key missing or data damaged");
+            Ok(("unreadable", None))
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -1291,41 +1395,12 @@ async fn pay_screen(
 
     let (account_state, account) = if !owes && !r.is_admin() {
         ("nothing_owed", None)
-    } else if let Some(row) = all.current() {
+    } else {
         if repo::recent_reveals(&state.pool, auth.user_id).await? >= REVEALS_PER_HOUR {
             return Err(ApiError::too_many("That's a lot of looks at bank details. Try again in an hour.")
                 .with_code("too_many_reveals"));
         }
-        match row
-            .details_ciphertext
-            .as_deref()
-            .map(|c| state.payout_crypto.open(club_id, c, &row.key_id))
-        {
-            Some(Ok(details)) => {
-                let mut conn = state.pool.acquire().await?;
-                repo::audit(&mut conn, club_id, Some(auth.user_id), "reveal", "payout_account", Some(row.id), None, None)
-                    .await?;
-                (
-                    "active",
-                    Some(BankDetails {
-                        label: row.label.clone(),
-                        holder_name: row.holder_name.clone(),
-                        sort_code: row.sort_code.as_deref().map(money::fmt_sort_code).unwrap_or_default(),
-                        account_number: details.account_number,
-                        is_personal: row.is_personal,
-                        changed_at: all.changed_at(),
-                    }),
-                )
-            }
-            _ => {
-                warn!(%club_id, "bank details could not be opened — key missing or data damaged");
-                ("unreadable", None)
-            }
-        }
-    } else if all.find(PayoutState::Frozen).is_some() {
-        ("frozen", None)
-    } else {
-        ("none", None)
+        club_bank_details(&state, club_id, &all, Some(auth.user_id), None).await?
     };
 
     let claims = repo::user_payments(&state.pool, club_id, auth.user_id, 20)
@@ -1432,7 +1507,9 @@ async fn claim_payment(
             status: "claimed",
             note: note.as_deref(),
             idempotency_key: key.as_deref(),
-            created_by: auth.user_id,
+            created_by: Some(auth.user_id),
+            via_link: None,
+            share_id: None,
         },
     )
     .await?;
@@ -1512,7 +1589,7 @@ async fn list_payments(
     Ok(Json(repo::club_payments(&state.pool, club_id, status, q.limit.unwrap_or(100)).await?))
 }
 
-async fn decide(
+pub(crate) async fn decide(
     state: &AppState,
     by: Uuid,
     pid: Uuid,
@@ -1649,7 +1726,9 @@ async fn record_payment(
             status: "confirmed",
             note: note.as_deref(),
             idempotency_key: key.as_deref(),
-            created_by: auth.user_id,
+            created_by: Some(auth.user_id),
+            via_link: None,
+            share_id: None,
         },
     )
     .await?;
@@ -1717,7 +1796,9 @@ async fn refund(
             status: "confirmed",
             note: note.as_deref(),
             idempotency_key: key.as_deref(),
-            created_by: auth.user_id,
+            created_by: Some(auth.user_id),
+            via_link: None,
+            share_id: None,
         },
     )
     .await?;

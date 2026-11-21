@@ -474,7 +474,7 @@ fn noun(channel: &str) -> &'static str {
 
 /// Keyed by the server's secret and bound to the person, channel and address,
 /// so a stored hash is useless on its own and cannot be replayed elsewhere.
-fn hash_code(secret: &str, user_id: Uuid, channel: &str, target: &str, code: &str) -> String {
+pub(crate) fn hash_code(secret: &str, user_id: Uuid, channel: &str, target: &str, code: &str) -> String {
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("any key length");
     mac.update(format!("{user_id}|{channel}|{}|{code}", target.to_lowercase()).as_bytes());
     mac.finalize()

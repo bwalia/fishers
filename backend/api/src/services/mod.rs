@@ -13,3 +13,4 @@ pub mod apple;
 pub mod google;
 pub mod sports;
 pub mod payout_crypto;
+pub mod pay_links;
