@@ -80,6 +80,26 @@ Appointing a treasurer gives the person who appointed them no access to the
 books. Every change to the books, and every appointment, is in the accounts
 audit trail. See [CLUB_ACCOUNTS.md](CLUB_ACCOUNTS.md).
 
+## Club payments — owner, secretaries and treasurers
+
+Collecting money by bank transfer (`/clubs/{id}/payout-account`, `/clubs/{id}/money`,
+`/clubs/{id}/payments…`, `/payments/{pid}/…`, `/shares/{sid}/…`) is deliberately wider than
+the books: a club's **secretaries** run it too, because they are usually the ones booking
+the nets. A secretary still can't open the books. See
+[PAY_BY_BANK_TRANSFER.md](PAY_BY_BANK_TRANSFER.md).
+
+| What | Who |
+|---|---|
+| Add, change, freeze or remove bank details; confirm, reject or record payments; refund credit; let somebody off a share; the money overview and its audit trail | owner, secretary or treasurer (403 `not_money_admin`) |
+| Unfreeze bank details | owner only (`owner_only`) |
+| Set an event's cost; send, re-split or cancel its bill | anyone with `manage_events` on the event (its captain), or a money admin (403 `not_billing_admin`) |
+| Their own shares, "I've paid", and full bank details while they owe the club | any member, and a former member who still owes |
+
+Changing bank details also needs the person's password typed again (428
+`reauth_required`, 403 `wrong_password`). Every change waits 24 hours, and everyone in the
+first row is told. The gates are `require_money_admin` and `require_can_bill` in
+`backend/api/src/routes/club_payments.rs`.
+
 ## Who can change roles
 
 A **club secretary** appoints and stands down captains, vice captains and

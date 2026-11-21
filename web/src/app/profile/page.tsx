@@ -24,6 +24,7 @@ import { Avatar } from "@/components/Avatar";
 import { BlockedList } from "@/components/BlockedList";
 import { ShareProfile } from "@/components/ShareProfile";
 import { ProfileStrength } from "@/components/ProfileStrength";
+import { YouOwe } from "@/components/YouOwe";
 import { useRequireAuth } from "@/lib/require-auth";
 import { brand } from "@/brand.generated";
 import { useT } from "@/lib/i18n/provider";
@@ -230,6 +231,7 @@ function Overview({
   return (
     <div className="pro-cols">
       <div className="pro-main">
+        <YouOwe always />
         <ProfileStrength user={me} onProfilePage />
         <Details me={me} onSaved={onSaved} />
 

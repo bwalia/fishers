@@ -210,14 +210,18 @@ actor NetworkService {
         try? await refreshAccessToken()
     }
 
+    /// `headers` carries what a single call needs beyond the defaults — the
+    /// `Idempotency-Key` on a payment, which has to survive the 401 retry
+    /// below unchanged or a refreshed session would make a second claim.
     func request<T: Decodable>(
         _ method: String,
         path: String,
         body: (any Encodable)? = nil,
-        authorized: Bool = true
+        authorized: Bool = true,
+        headers: [String: String] = [:]
     ) async throws -> T {
         let data = try await rawRequest(
-            method, path: path, body: body, authorized: authorized
+            method, path: path, body: body, authorized: authorized, headers: headers
         )
         do {
             return try decoder.decode(T.self, from: data)
@@ -230,10 +234,11 @@ actor NetworkService {
         _ method: String,
         path: String,
         body: (any Encodable)? = nil,
-        authorized: Bool = true
+        authorized: Bool = true,
+        headers: [String: String] = [:]
     ) async throws {
         _ = try await rawRequest(
-            method, path: path, body: body, authorized: authorized
+            method, path: path, body: body, authorized: authorized, headers: headers
         )
     }
 
@@ -302,6 +307,7 @@ actor NetworkService {
         path: String,
         body: (any Encodable)?,
         authorized: Bool,
+        headers: [String: String] = [:],
         hasRefreshed: Bool = false
     ) async throws -> Data {
         guard let url = URL(string: AppConfig.apiBaseURL.absoluteString + AppConfig.apiVersionPrefix + path) else {
@@ -312,6 +318,9 @@ actor NetworkService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if authorized, let token = accessToken {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        for (name, value) in headers {
+            req.setValue(value, forHTTPHeaderField: name)
         }
         if let body {
             req.httpBody = try encoder.encode(AnyEncodable(body))
@@ -335,7 +344,7 @@ actor NetworkService {
         if http.statusCode == 401, authorized, !hasRefreshed, refreshToken != nil {
             try await refreshAccessToken()
             return try await rawRequest(
-                method, path: path, body: body, authorized: true, hasRefreshed: true
+                method, path: path, body: body, authorized: true, headers: headers, hasRefreshed: true
             )
         }
 

@@ -1433,6 +1433,12 @@ struct CreateEventBody: Codable {
     let capacity: Int?
     let fee_amount_cents: Int?
     let metadata: [String: JSONValue]?
+    /// An optional cost, sent together or not at all: `split_total` or
+    /// `per_player`, in the club's minor units. Nil fields are left out of the
+    /// JSON, so a body without a cost is exactly what it always was.
+    var cost_mode: String? = nil
+    var cost_amount_cents: Int? = nil
+    var cost_note: String? = nil
 }
 
 struct PaymentIntentDTO: Codable {

@@ -235,6 +235,8 @@ export type EventRow = {
   start_at: string;
   end_at: string;
   fee_amount_cents?: number | null;
+  /// The currency every amount on this event is in: the club's.
+  fee_currency?: string;
   /// Set when the event sells tickets — a dinner, a quiz. Distinct from
   /// `fee_amount_cents`, which is what a player owes for a fixture.
   ticket_price_cents?: number | null;
@@ -430,10 +432,14 @@ export async function api<T>(
   authorized = true,
   retried = false,
   /// Cancels the request — for work that a newer request makes pointless.
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /// Sent as given, and again on the retry after a refresh — an
+  /// `Idempotency-Key` has to be the same both times to mean anything.
+  extra?: Record<string, string>
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...extra,
   };
   if (authorized) {
     const token = await usableToken();
@@ -451,7 +457,7 @@ export async function api<T>(
   // sleeping laptop, a clock that drifted. Refresh once and send it again.
   if (res.status === 401 && authorized && !retried) {
     const token = await refreshSession();
-    if (token) return api<T>(method, path, body, authorized, true, signal);
+    if (token) return api<T>(method, path, body, authorized, true, signal, extra);
     sessionLost();
     throw new Error(clientT()("lb.your_session_has_expired_please_sign_i"));
   }
@@ -795,7 +801,33 @@ export const NOTIFICATION_KIND: Record<string, string> = {
   availability_request: "nav.availability",
   fee_reminder: "lb.match_fees",
   scoreboard_shared: "lb.scoreboards",
+  bill_issued: "pay.kind_bills",
+  bill_updated: "pay.kind_bills",
+  bill_cancelled: "pay.kind_bills",
+  bill_who_came: "pay.kind_bills",
+  bill_auto_sent: "pay.kind_bills",
+  bill_not_sent: "pay.kind_bills",
+  payment_claimed: "pay.kind_payments",
+  payments_to_check: "pay.kind_payments",
+  payment_confirmed: "pay.kind_payments",
+  payment_rejected: "pay.kind_payments",
+  payout_details_changed: "pay.kind_bank_details",
+  payout_details_frozen: "pay.kind_bank_details",
 };
+
+/// Where a money notification goes (docs/PAY_BY_BANK_TRANSFER.md §11): an
+/// event opens its money section; otherwise the club's pay screen, or the
+/// club's Payments page for the kinds only its money admins are sent.
+function moneyHref(kind: string, p: { event_id?: string; club_id?: string }): string | undefined {
+  if (p.event_id) return `/events/${p.event_id}#money`;
+  if (!p.club_id) return undefined;
+  if (kind === "payment_claimed" || kind === "payments_to_check") return `/clubs/${p.club_id}/payments#to-check`;
+  if (kind.startsWith("payout_details_")) return `/clubs/${p.club_id}/payments#bank-details`;
+  return `/clubs/${p.club_id}/pay`;
+}
+
+/// A string from a payload, or nothing. Payloads are free JSON.
+const payloadText = (v: unknown) => (typeof v === "string" && v.trim() ? v : undefined);
 
 export function kindLabel(kind: string, t: T): string {
   const key = NOTIFICATION_KIND[kind];
@@ -812,6 +844,8 @@ export function notificationLine(
   t: T
 ): {
   title: string;
+  /// A second line, where the server wrote one.
+  body?: string;
   href?: string;
   /// Which fixture this is, when there are several against the same side.
   when?: string;
@@ -895,8 +929,36 @@ export function notificationLine(
         href: a.club_id ? `/clubs/${a.club_id}#members` : undefined,
       };
     }
+    // Paying the club. The server writes these sentences with the amounts and
+    // names in them, and stores them in the payload for exactly this.
+    case "bill_issued":
+    case "bill_updated":
+    case "bill_cancelled":
+    case "bill_who_came":
+    case "bill_auto_sent":
+    case "bill_not_sent":
+    case "fee_reminder":
+    case "payment_claimed":
+    case "payments_to_check":
+    case "payment_confirmed":
+    case "payment_rejected":
+    case "payout_details_changed":
+    case "payout_details_frozen": {
+      const m = n.payload as { title?: unknown; body?: unknown; event_id?: string; club_id?: string };
+      return {
+        title: payloadText(m.title) ?? kindLabel(n.type, t),
+        body: payloadText(m.body),
+        href: moneyHref(n.type, m),
+      };
+    }
     default:
-      return { title: n.type.replaceAll("_", " ") };
+      // A kind this build has never heard of. Every stored payload carries a
+      // title and body for this case, so it reads as a sentence rather than
+      // as `some_new_kind`.
+      return {
+        title: payloadText(n.payload.title) ?? n.type.replaceAll("_", " "),
+        body: payloadText(n.payload.body),
+      };
   }
 }
 

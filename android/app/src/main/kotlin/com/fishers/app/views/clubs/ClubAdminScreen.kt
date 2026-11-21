@@ -44,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -79,6 +80,9 @@ import com.fishers.app.clubs.UserRole
 import com.fishers.app.clubs.money
 import com.fishers.app.i18n.t
 import com.fishers.app.net.ClubsApi
+import com.fishers.app.net.PaymentsApi
+import com.fishers.app.payments.ClubMoneyViewModel
+import com.fishers.app.views.payments.ClubPaymentsContent
 import com.fishers.app.views.nav.LocalAppDeps
 import com.fishers.app.views.nav.LocalNavigator
 import com.fishers.app.views.profile.PlayerProfileRoute
@@ -102,11 +106,15 @@ internal fun ManageClubPage(clubId: String, clubName: String, startAdding: Boole
     // model's, and each one that changes the roster has it re-read.
     val detail = remember(clubId) { ClubDetailViewModel(deps.api, clubId, deps.webBase) }
     val admin = remember(clubId) { ClubAdminViewModel(deps.service<ClubsApi>(), clubId, deps.webBase) }
+    // The club's money: its own tab, for whoever the server lets read it.
+    val clubMoney = remember(clubId) { ClubMoneyViewModel(deps.service<PaymentsApi>(), clubId) }
     val roster by detail.state.collectAsStateWithLifecycle()
     val state by admin.state.collectAsStateWithLifecycle()
+    val moneyState by clubMoney.state.collectAsStateWithLifecycle()
     LaunchedEffect(clubId) {
         detail.load()
         admin.load()
+        clubMoney.load()
     }
     LaunchedEffect(state.changed) { if (state.changed > 0) detail.load() }
 
@@ -124,10 +132,21 @@ internal fun ManageClubPage(clubId: String, clubName: String, startAdding: Boole
             }
         },
     ) {
-        TabRow(selectedTabIndex = tab) {
-            listOf(t("cl.members"), t("rest.policy"), t("cl.fees")).forEachIndexed { index, label ->
-                Tab(selected = tab == index, onClick = { tab = index }, text = { Text(label) })
+        // Payments only once `/money` has answered: a 403 means it is not
+        // for this person, and a tab that says so is a tab they did not need.
+        val labels = listOf(t("cl.members"), t("rest.policy"), t("cl.fees")) +
+            listOfNotNull(t("pay.payments").takeIf { moneyState.overview != null })
+        val tabs = @Composable {
+            labels.forEachIndexed { index, label ->
+                Tab(selected = tab == index, onClick = { tab = index }, text = { Text(label, maxLines = 1) })
             }
+        }
+        // Four fixed tabs on a 360dp phone squeeze "Payments" (and more so its
+        // Punjabi) until it is cut off; scrolling tabs size to their words.
+        if (labels.size > 3) {
+            ScrollableTabRow(selectedTabIndex = tab.coerceAtMost(labels.lastIndex), edgePadding = 0.dp) { tabs() }
+        } else {
+            TabRow(selectedTabIndex = tab.coerceAtMost(labels.lastIndex)) { tabs() }
         }
         when (tab) {
             0 -> RosterTab(
@@ -141,7 +160,8 @@ internal fun ManageClubPage(clubId: String, clubName: String, startAdding: Boole
                 onStopLink = detail::stopJoinLink,
             )
             1 -> PolicyTab(state, onChange = admin::changeSettings)
-            else -> FeesTab(state, onChase = admin::chaseFees)
+            2 -> FeesTab(state, onChase = admin::chaseFees)
+            else -> ClubPaymentsContent(moneyState, clubMoney)
         }
     }
 

@@ -1,0 +1,21 @@
+{
+  "can_manage": true,
+  "is_owner": true,
+  "current": {
+    "id": "4dd8d3d4-21cb-4a16-9875-d98a03f66be4",
+    "label": "Club account",
+    "holder_name": "Riverside Strikers CC",
+    "is_personal": false,
+    "sort_code": "20-00-00",
+    "last4": "9911",
+    "state": "active",
+    "live_from": "2026-11-21T10:41:35.269019Z",
+    "created_at": "2026-11-21T10:41:35.263007Z",
+    "created_by_name": "Aman Gill",
+    "freeze_reason": null,
+    "readable": true
+  },
+  "pending": null,
+  "frozen": null,
+  "changed_at": null
+}

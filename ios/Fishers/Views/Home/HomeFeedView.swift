@@ -5,6 +5,7 @@ struct HomeFeedView: View {
     @EnvironmentObject private var clubContext: ClubContextStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var guide = GettingStartedStore()
+    @StateObject private var dues = DuesStore()
     @State private var events: [Event] = []
     @State private var live: [CricketFixtureRow] = []
     @State private var invites: [PendingInvite] = []
@@ -60,6 +61,9 @@ struct HomeFeedView: View {
                 }
 
                 PendingInvitesSection(invites: invites) { await refreshAll() }
+
+                // Money owed to a club: something to do, so near the top.
+                YouOweSection(store: dues)
 
                 if loaded, let user = session.user, let role = user.intent {
                     GettingStartedSection(
@@ -229,6 +233,8 @@ struct HomeFeedView: View {
                     case .notification:
                         await loadUnread()
                         await loadInvites()
+                        // A bill sent or a payment confirmed arrives as one.
+                        await dues.load()
                     // Every ball of a match the club can see: the scores in
                     // the list move with it, and one just started shows up.
                     case .match:
@@ -272,7 +278,8 @@ struct HomeFeedView: View {
         async let profile: Void = session.refreshProfile()
         async let feed: Void = load()
         async let mine: Void = loadInvites()
-        _ = await (profile, feed, mine)
+        async let owed: Void = dues.load()
+        _ = await (profile, feed, mine, owed)
         if let user = session.user {
             await guide.load(user: user, ownClub: ownClub)
             // Moved on from now, so somebody who keeps opening the app is

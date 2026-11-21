@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
+import { EventMoney } from "@/components/EventMoney";
 import { PeoplePicker, type PeopleTab } from "@/components/PeoplePicker";
 import { getStoredUser } from "@/lib/api";
 import { useRequireAuth } from "@/lib/require-auth";
@@ -71,6 +72,10 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
   const [loading, setLoading] = useState(true);
   const [side, setSide] = useState(0);
   const [who, setWho] = useState("");
+  /// Whether the money section runs this event with a cost and a bill. When
+  /// it does, the older per-fixture fee lines would say something different
+  /// from the bill, so they step aside.
+  const [billing, setBilling] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -180,7 +185,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
           <div className="panel">
             <div className="panel-head">
               <h2>{session ? t("np.are_you_coming") : t("ev.are_you_playing")}</h2>
-              {event.fee_amount_cents != null && (
+              {event.fee_amount_cents != null && !billing && (
                 <span className="tag gold">{t("ev.amount_match_fee", { amount: money(event.fee_amount_cents) })}</span>
               )}
             </div>
@@ -201,6 +206,13 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
               ))}
             </div>
           </div>
+
+          <EventMoney
+            eventId={id}
+            currency={event.fee_currency ?? "GBP"}
+            inSeries={!!week}
+            onBilling={setBilling}
+          />
 
           <div className="panel">
             <div className="panel-head">
@@ -264,7 +276,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
                         </span>
                       </div>
                       <div className="pick-actions">
-                        {event.fee_amount_cents != null && (
+                        {event.fee_amount_cents != null && !billing && (
                           <span className={a.paid ? "tag" : "tag grey"}>
                             {a.paid ? "paid" : "owes"}
                           </span>
@@ -290,7 +302,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         </div>
 
         <aside className="pro-rail">
-          {event.fee_amount_cents != null && owing.length > 0 && (
+          {event.fee_amount_cents != null && !billing && owing.length > 0 && (
             <div className="panel">
               <h2>{t("ev.still_to_pay")}</h2>
               <p className="muted">

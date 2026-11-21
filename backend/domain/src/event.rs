@@ -86,6 +86,12 @@ pub struct CreateEventRequest {
     /// Sell to anyone signed in, not only members. Defaults to members only.
     pub tickets_public: Option<bool>,
     pub metadata: Option<Value>,
+    /// What it costs, to be shared by whoever comes: `split_total` (a total
+    /// divided between them) or `per_player` (the same from each). Optional;
+    /// apps that only know `fee_amount_cents` get a `per_player` cost from it.
+    pub cost_mode: Option<String>,
+    pub cost_amount_cents: Option<i64>,
+    pub cost_note: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]

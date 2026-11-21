@@ -1,0 +1,13 @@
+{
+  "club_id": "814f6802-c8e0-44c2-a9f7-f2a86c06c1d7",
+  "club_name": "Riverside Strikers (demo)",
+  "currency": "GBP",
+  "owed_cents": 0,
+  "waiting_cents": 0,
+  "credit_cents": 0,
+  "shares": [],
+  "account_state": "nothing_owed",
+  "account": null,
+  "reference": "DFWCT TURNER",
+  "claims": []
+}

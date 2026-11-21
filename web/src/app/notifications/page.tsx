@@ -171,6 +171,7 @@ export default function NotificationsPage() {
                 <>
                   <span className="note-kind">{kindLabel(n.type, t)}</span>
                   <span className="note-title">{line.title}</span>
+                  {line.body && <span className="note-body">{line.body}</span>}
                   {line.when && <span className="note-when">{line.when}</span>}
                   <time className="subtle" dateTime={n.sent_at}>
                     {new Date(n.sent_at).toLocaleString("en-GB", {

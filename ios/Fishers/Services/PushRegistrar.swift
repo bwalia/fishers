@@ -29,6 +29,8 @@ final class PushRegistrar: NSObject, ObservableObject {
     @Published var pendingMotmPoll: UUID?
     /// A closed season to open on "My game" — the `season_closed` push.
     @Published var pendingSeason: SeasonLink?
+    /// A bill, a payment or a club's bank details — the money pushes.
+    @Published var pendingMoney: MoneyPushLink?
 
     private override init() { super.init() }
 
@@ -95,6 +97,7 @@ final class PushRegistrar: NSObject, ObservableObject {
         if let conversation = target.conversation { pendingConversation = conversation }
         if let poll = target.motmPoll { pendingMotmPoll = poll }
         if let season = target.season { pendingSeason = season }
+        if let money = target.money { pendingMoney = money }
     }
 
     /// The ids the server puts alongside `aps`, lifted out of a payload.
@@ -106,11 +109,55 @@ final class PushRegistrar: NSObject, ObservableObject {
         var conversation: UUID?
         var motmPoll: UUID?
         var season: SeasonLink?
+        var money: MoneyPushLink?
 
         init(_ userInfo: [AnyHashable: Any]) {
             conversation = (userInfo["conversation_id"] as? String).flatMap(UUID.init(uuidString:))
             motmPoll = (userInfo["motm_poll_id"] as? String).flatMap(UUID.init(uuidString:))
             season = SeasonLink(userInfo)
+            // Only when nothing more specific claimed the tap.
+            if conversation == nil, motmPoll == nil, season == nil {
+                money = MoneyPushLink(userInfo)
+            }
+        }
+    }
+}
+
+/// Where a money push points.
+///
+/// APNs carries the payload's fields but not the notification's kind, so this
+/// routes the way §11 of docs/PAY_BY_BANK_TRANSFER.md says to: an `event_id`
+/// opens that event (and its money section); otherwise a `club_id` opens the
+/// club's payments for whoever looks after them, or the pay screen for
+/// everyone else. Money pushes carry their own `title` and `body`; pushes of
+/// other sorts that mention a club carry a `url` or a `season` instead, and
+/// are left alone.
+enum MoneyPushLink: Identifiable, Equatable, Sendable {
+    case event(UUID)
+    case club(UUID)
+
+    var id: String {
+        switch self {
+        case .event(let id): return "event:\(id.uuidString)"
+        case .club(let id): return "club:\(id.uuidString)"
+        }
+    }
+
+    init?(_ userInfo: [AnyHashable: Any]) {
+        if let event = (userInfo["event_id"] as? String).flatMap(UUID.init(uuidString:)) {
+            self = .event(event)
+            return
+        }
+        guard let club = (userInfo["club_id"] as? String).flatMap(UUID.init(uuidString:)),
+              userInfo["body"] != nil, userInfo["url"] == nil, userInfo["season"] == nil
+        else { return nil }
+        self = .club(club)
+    }
+
+    var route: MoneyRoute {
+        switch self {
+        case .event(let id): return .event(id, whoCame: false)
+        case .club(let id): return .overview(id)
         }
     }
 }

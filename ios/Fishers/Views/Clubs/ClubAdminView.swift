@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The club secretary's screen: who is in the club, who runs it, what the
-/// assistant is allowed to do, and who still owes money.
+/// assistant is allowed to do, and who still owes money. Payments — bank
+/// details, transfers to check — appears for the club's money admins only.
 ///
 /// Everything here was API-only before, which meant appointing a captain took a
 /// curl command.
@@ -10,13 +11,21 @@ struct ClubAdminView: View {
     let role: ClubRoleInfo?
 
     @StateObject private var store: ClubAdminStore
+    @StateObject private var money: ClubMoneyStore
     @State private var tab: Tab = .roster
 
     enum Tab: String, CaseIterable, Identifiable {
         case roster = "Members"
         case settings = "Policy"
         case fees = "Fees"
+        case payments = "Payments"
         var id: String { rawValue }
+    }
+
+    /// Payments only once the server has answered the money overview: a 403
+    /// there is what says this person does not look after the club's money.
+    private var tabs: [Tab] {
+        money.overview == nil ? [.roster, .settings, .fees] : Tab.allCases
     }
 
     /// Open on the add-member sheet — from a new club's welcome.
@@ -27,6 +36,7 @@ struct ClubAdminView: View {
         self.role = role
         self.startAdding = startAdding
         _store = StateObject(wrappedValue: ClubAdminStore(clubId: club.id))
+        _money = StateObject(wrappedValue: ClubMoneyStore(clubId: club.id))
     }
 
     private var isSecretary: Bool { role?.isSecretary ?? false }
@@ -34,7 +44,7 @@ struct ClubAdminView: View {
     var body: some View {
         VStack(spacing: 0) {
             Picker(tr("View"), selection: $tab) {
-                ForEach(Tab.allCases) { Text(tr($0.rawValue)).tag($0) }
+                ForEach(tabs) { Text(tr($0.rawValue)).tag($0) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -44,11 +54,13 @@ struct ClubAdminView: View {
             case .roster: RosterList(store: store, club: club, canManage: isSecretary, startAdding: startAdding)
             case .settings: PolicyForm(store: store, canManage: isSecretary)
             case .fees: FeesList(store: store, canChase: role?.isCaptain ?? false)
+            case .payments: ClubPaymentsView(store: money)
             }
         }
         .navigationTitle(t("cl.manage_club"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.load() }
+        .task { await money.load() }
         .refreshable { await store.load() }
         .alert(tr("Something went wrong"), isPresented: store.errorBinding) {
             Button(t("rest.ok"), role: .cancel) { store.errorMessage = nil }

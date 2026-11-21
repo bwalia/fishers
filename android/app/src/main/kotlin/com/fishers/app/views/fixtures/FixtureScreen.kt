@@ -70,6 +70,7 @@ import com.fishers.app.views.match.ScorecardRoute
 import com.fishers.app.views.motm.MotmCard
 import com.fishers.app.views.nav.LocalAppDeps
 import com.fishers.app.views.nav.LocalNavigator
+import com.fishers.app.views.payments.EventMoneySection
 import com.fishers.app.views.profile.PlayerProfileRoute
 import com.fishers.app.views.selection.SelectionBoardRoute
 import java.time.Instant
@@ -141,6 +142,10 @@ internal fun FixtureScreen(eventId: String, notice: String? = null) {
                         AnswerChips(answer = state.myAnswer, enabled = !state.isAnswering, onAnswer = model::answer)
                     }
                 }
+
+                // The cost, who came, the bill and your share. Draws nothing
+                // when there is nothing here for this person.
+                EventMoneySection(eventId, inSeries = (event.practice?.seriesCount ?: 0) > 1)
 
                 if (state.canSelect) {
                     CaptainTools(

@@ -3,6 +3,7 @@ mod admin;
 mod auth;
 mod availability;
 mod chat;
+pub(crate) mod club_payments;
 mod clubs;
 pub(crate) mod cricket;
 mod events;
@@ -78,6 +79,7 @@ fn api_v1() -> Router<AppState> {
         .merge(admin::router())
         .merge(auth::router())
         .merge(users::router())
+        .merge(club_payments::router())
         .merge(clubs::router())
         .merge(events::router())
         .merge(availability::router())

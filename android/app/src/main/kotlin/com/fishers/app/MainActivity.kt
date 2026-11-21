@@ -52,6 +52,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.fishers.app.season.SeasonLink
 import com.fishers.app.season.SeasonViewModel
+import com.fishers.app.payments.MoneyLink
+import com.fishers.app.views.payments.route
 
 class MainActivity : ComponentActivity() {
     /**
@@ -64,6 +66,9 @@ class MainActivity : ComponentActivity() {
 
     /** An invite link the app was opened with (`/invite/{token}`), until it has been shown. */
     private var inviteToken by mutableStateOf<String?>(null)
+
+    /** A tapped payments notification — a bill, a payment to check — until it has been shown. */
+    private var moneyLink by mutableStateOf<MoneyLink?>(null)
 
     /**
      * Balls scored with no signal, from a match nobody has reopened, go up
@@ -121,7 +126,8 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        linkFrom(intent)?.let { seasonLink = it }
+        val season = linkFrom(intent)
+        if (season != null) seasonLink = season else moneyLinkFrom(intent)?.let { moneyLink = it }
         inviteTokenFrom(intent)?.let { inviteToken = it }
     }
 
@@ -132,6 +138,7 @@ class MainActivity : ComponentActivity() {
         // rotating the phone should not throw somebody back to the stats.
         if (savedInstanceState == null) {
             seasonLink = linkFrom(intent)
+            if (seasonLink == null) moneyLink = moneyLinkFrom(intent)
             inviteToken = inviteTokenFrom(intent)
         }
         val app = application as FishersApp
@@ -180,11 +187,12 @@ class MainActivity : ComponentActivity() {
                         season = remember { SeasonViewModel(app.network.api) },
                         seasonLink = seasonLink,
                         onSeasonLinkHandled = { seasonLink = null },
-                        // Only once somebody is signed in to join with.
-                        pendingRoute = inviteToken
-                            ?.takeIf { session.isAuthenticated }
-                            ?.let { JoinByLinkRoute(it) },
-                        onPendingRouteHandled = { inviteToken = null },
+                        // Only once somebody is signed in to join with, or
+                        // to see the money a notification was about. The
+                        // invite first; the notification's screen after it.
+                        pendingRoute = (inviteToken?.let { JoinByLinkRoute(it) } ?: moneyLink?.route())
+                            ?.takeIf { session.isAuthenticated },
+                        onPendingRouteHandled = { if (inviteToken != null) inviteToken = null else moneyLink = null },
                         inviteToken = inviteToken,
                         modifier = Modifier.padding(inner),
                     )
@@ -200,6 +208,19 @@ internal fun inviteTokenFrom(intent: Intent?): String? {
     val uri = intent?.data ?: return null
     val segments = uri.pathSegments
     return if (segments.size == 2 && segments[0] == "invite" && segments[1].isNotBlank()) segments[1] else null
+}
+
+/**
+ * A payments notification, from its extras: FCM hands the payload's keys over
+ * as strings. Null for anything it does not lead anywhere from.
+ */
+private fun moneyLinkFrom(intent: Intent?): MoneyLink? {
+    val extras = intent?.extras ?: return null
+    return MoneyLink.fromPush(
+        kind = extras.getString("kind"),
+        eventId = extras.getString("event_id"),
+        clubId = extras.getString("club_id"),
+    )
 }
 
 /** `season_closed`, from a notification's extras; null for anything else. */

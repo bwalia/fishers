@@ -22,6 +22,31 @@ enum ScheduleKind: String, CaseIterable, Identifiable {
     var defaultMinutes: Int { self == .training ? 90 : 120 }
 }
 
+/// An optional cost on what is being scheduled: a total to split between
+/// whoever comes, or the same from everyone. Sent with every week of a
+/// series, so each week is created costed.
+struct ScheduleCost: Equatable {
+    let mode: CostMode
+    let amountCents: Int
+    var note: String? = nil
+
+    /// The same cost on `body`'s `cost_*` fields, which travel together or
+    /// not at all.
+    func apply(to body: inout CreateEventBody) {
+        body.cost_mode = mode.raw
+        body.cost_amount_cents = amountCents
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        body.cost_note = (trimmed?.isEmpty ?? true) ? nil : trimmed
+    }
+
+    /// Above £100 a head the form asks first. A split total is not "a head"
+    /// until people come, so only the per-player amount is asked about; the
+    /// server's `amount_limit` stops anything truly out of range.
+    var needsConfirming: Bool {
+        mode == .perPlayer && amountCents > Money.confirmAboveMinor
+    }
+}
+
 /// What the schedule sheet sends, kept out of the view so it can be tested
 /// without a server: one `POST /events` per match, or per week of practice.
 enum ScheduleRequests {
@@ -31,9 +56,10 @@ enum ScheduleRequests {
 
     /// A match, exactly as the sheet has always sent it.
     static func match(
-        club: Club, opponentClubId: UUID?, theirName: String, venueId: UUID?, start: Date
+        club: Club, opponentClubId: UUID?, theirName: String, venueId: UUID?, start: Date,
+        cost: ScheduleCost? = nil
     ) -> CreateEventBody {
-        CreateEventBody(
+        var body = CreateEventBody(
             club_id: club.id,
             opponent_club_id: opponentClubId,
             team_id: nil,
@@ -52,6 +78,8 @@ enum ScheduleRequests {
             fee_amount_cents: nil,
             metadata: nil
         )
+        cost?.apply(to: &body)
+        return body
     }
 
     /// Nets or training: one body per session, a week apart.
@@ -71,6 +99,7 @@ enum ScheduleRequests {
         minutes: Int,
         note: String,
         weeks: Int?,
+        cost: ScheduleCost? = nil,
         seriesId: UUID = UUID(),
         calendar: Calendar = .current
     ) -> [CreateEventBody] {
@@ -85,7 +114,7 @@ enum ScheduleRequests {
                 metadata["series_index"] = .number(Double(index))
                 metadata["series_count"] = .number(Double(count))
             }
-            return CreateEventBody(
+            var body = CreateEventBody(
                 club_id: club.id,
                 opponent_club_id: nil,
                 team_id: teamId,
@@ -100,6 +129,8 @@ enum ScheduleRequests {
                 fee_amount_cents: nil,
                 metadata: metadata
             )
+            cost?.apply(to: &body)
+            return body
         }
     }
 

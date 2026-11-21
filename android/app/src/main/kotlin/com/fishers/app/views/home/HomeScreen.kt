@@ -45,6 +45,8 @@ fun HomeScreen(
     onOpenScores: () -> Unit = {},
     /** Drawn under the greeting: what to do next. */
     actions: @Composable () -> Unit = {},
+    /** "You owe £15.00" — drawn only when something is owed. */
+    owed: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (state.isFirstLoad && state.isLoading) {
@@ -63,6 +65,8 @@ fun HomeScreen(
         )
 
         actions()
+
+        owed()
 
         state.error?.let {
             Text(it, color = MaterialTheme.colorScheme.error,

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "cf07a56d-256a-4065-93c6-e25aae04b958",
+    "club_id": "814f6802-c8e0-44c2-a9f7-f2a86c06c1d7",
+    "user_id": "1dda4e43-935f-461e-b53d-ef09a8813238",
+    "guest_name": null,
+    "name": "Tom Bennett",
+    "amount_cents": 1500,
+    "currency": "GBP",
+    "method": "transfer",
+    "reference": "DS69N BENNETT",
+    "payout_account_id": "4dd8d3d4-21cb-4a16-9875-d98a03f66be4",
+    "status": "claimed",
+    "note": null,
+    "created_by": "1dda4e43-935f-461e-b53d-ef09a8813238",
+    "created_at": "2026-11-21T10:41:35.910332Z",
+    "decided_by": null,
+    "decided_by_name": null,
+    "decided_at": null,
+    "decision_reason": null
+  }
+]

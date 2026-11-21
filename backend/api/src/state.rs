@@ -71,6 +71,8 @@ pub struct AppState {
     /// scorecard is fetched when somebody opens that one match — so the API
     /// needs the same client, and claims from the same daily allowance.
     pub feed: fishers_jobs::world_cricket::Feed,
+    /// Seals club bank details at rest; see `services::payout_crypto`.
+    pub payout_crypto: crate::services::payout_crypto::PayoutCrypto,
 }
 
 impl AppState {
@@ -85,6 +87,7 @@ impl AppState {
             .unwrap_or(2_592_000);
         // Before the struct: `pool` moves into it below.
         let live = crate::live::Live::spawn(pool.clone());
+        let payout_crypto = crate::services::payout_crypto::PayoutCrypto::from_env(&jwt_secret);
         Self {
             pool,
             jwt_secret,
@@ -119,6 +122,7 @@ impl AppState {
             world_scores: std::env::var("CRICKET_FEED_KEY")
                 .is_ok_and(|key| !key.trim().is_empty()),
             feed: fishers_jobs::world_cricket::Feed::from_env(),
+            payout_crypto,
         }
     }
 
@@ -129,6 +133,27 @@ impl AppState {
     /// registered, a server with no APNs key, a browser whose subscription
     /// has lapsed. The app reads notifications back the next time it is
     /// opened, so "they'll be told" is true whether or not a device answered.
+    /// [`Self::notify`], with the title, body and kind also kept in the
+    /// payload — so an app that doesn't know this kind of notification yet
+    /// can still show it in its list, and a push can be routed by its kind.
+    pub async fn notify_text(
+        &self,
+        user_id: uuid::Uuid,
+        kind: &str,
+        title: &str,
+        body: &str,
+        mut payload: serde_json::Value,
+    ) {
+        if let serde_json::Value::Object(map) = &mut payload {
+            map.entry("title").or_insert_with(|| serde_json::json!(title));
+            map.entry("body").or_insert_with(|| serde_json::json!(body));
+            // The push carries the payload's keys, not the kind it was sent
+            // as; a payload with only a club id can't be routed without it.
+            map.entry("kind").or_insert_with(|| serde_json::json!(kind));
+        }
+        self.notify(user_id, kind, title, body, payload).await
+    }
+
     pub async fn notify(
         &self,
         user_id: uuid::Uuid,

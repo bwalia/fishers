@@ -15,6 +15,8 @@ pub use fishers_cricket as cricket;
 mod enums;
 mod event;
 mod invite;
+/// Paying the club by bank transfer: splits, settling, references, bank details.
+pub mod money;
 /// Man of the match, voted for by the club after the game.
 mod motm;
 /// Reporting something, and blocking somebody.

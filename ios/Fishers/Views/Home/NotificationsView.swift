@@ -137,15 +137,29 @@ struct NotificationsView: View {
         case "match_scheduled": return tr("Fixtures")
         case "availability_request": return tr("Availability")
         case "fee_reminder": return tr("Match fees")
+        case "bill_issued", "bill_updated", "bill_cancelled", "bill_auto_sent", "bill_not_sent": return tr("Bills")
+        case "bill_who_came": return tr("Who came?")
+        case "payment_claimed", "payments_to_check": return tr("Payments to check")
+        case "payment_confirmed", "payment_rejected": return tr("Payments")
+        case "payout_details_changed", "payout_details_frozen": return tr("Bank details")
         // A kind the app has not been taught about is still readable.
         default: return kind.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
 
     /// A notification about a fixture opens it; reading it marks it read.
+    /// Money ones open the event's money section, the pay screen, or the
+    /// club's payments.
     @ViewBuilder
     private func row(_ item: AppNotification) -> some View {
-        if let eventId = item.eventId {
+        if let route = item.moneyRoute {
+            NavigationLink {
+                MoneyDestination(route: route)
+                    .task { await markRead(item) }
+            } label: {
+                rowContent(item)
+            }
+        } else if let eventId = item.eventId {
             NavigationLink {
                 EventDetailView(eventId: eventId)
                     .task { await markRead(item) }
@@ -170,6 +184,11 @@ struct NotificationsView: View {
                 Text(label(for: item.type))
                     .font(FishersTheme.overline)
                     .foregroundStyle(FishersTheme.pitch)
+                if let heading = item.heading {
+                    Text(heading)
+                        .font(.subheadline.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(item.line)
                     .font(.subheadline)
                     .fixedSize(horizontal: false, vertical: true)
@@ -185,7 +204,11 @@ struct NotificationsView: View {
         }
         .frame(minHeight: FishersTheme.minTap)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(item.isUnread ? "Unread. \(item.line)" : item.line)
+        .accessibilityLabel(item.isUnread ? "Unread. \(spoken(item))" : spoken(item))
+    }
+
+    private func spoken(_ item: AppNotification) -> String {
+        [item.heading, item.line].compactMap { $0 }.joined(separator: ". ")
     }
 
     private func markRead(_ item: AppNotification) async {

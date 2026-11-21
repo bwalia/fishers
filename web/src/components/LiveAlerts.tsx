@@ -66,7 +66,7 @@ export function LiveAlerts() {
           // The same event fires when something is marked read elsewhere.
           if (!n || n.read_at) return;
           const line = notificationLine(n, t);
-          add({ id: `n:${n.id}`, icon: "inbox", title: line.title, href: line.href ?? "/notifications" });
+          add({ id: `n:${n.id}`, icon: "inbox", title: line.title, body: line.body, href: line.href ?? "/notifications" });
         }
       } catch {
         /* an alert that could not be built is one nobody misses */

@@ -140,10 +140,15 @@ fn resolve_jwt_secret() -> String {
 /// The iOS app does not use CORS at all, so nothing is allowed cross-origin
 /// unless a web front end is named in `CORS_ALLOWED_ORIGINS`.
 fn cors_layer() -> CorsLayer {
+    // Every method and header a browser client actually sends. PUT was
+    // missing, so the accounts and payments settings failed from any origin
+    // but the API's own; Idempotency-Key is what keeps a retried "I've paid"
+    // from becoming a second claim.
     let layer = CorsLayer::new()
         .allow_methods([
             Method::GET,
             Method::POST,
+            Method::PUT,
             Method::PATCH,
             Method::DELETE,
             Method::OPTIONS,
@@ -151,6 +156,7 @@ fn cors_layer() -> CorsLayer {
         .allow_headers([
             axum::http::header::AUTHORIZATION,
             axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderName::from_static("idempotency-key"),
         ]);
 
     let configured: Vec<HeaderValue> = std::env::var("CORS_ALLOWED_ORIGINS")

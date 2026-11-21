@@ -1,5 +1,7 @@
 //! Background jobs: recurring event materialisation and reminders.
 
+/// Paying the club by bank transfer: who-came prompts, auto-bills, chasing.
+pub mod club_payments;
 /// Reading the outside cricket scores feed within its daily allowance.
 pub mod world_cricket;
 /// One outside match in full — fetching and parsing its scorecard.
@@ -93,6 +95,21 @@ async fn run_tick(pool: &PgPool, push: &PushService, email: &EmailService) -> an
     }
     if let Err(e) = chase_match_fees(pool, push, email).await {
         warn!(error = %e, "fee chasing failed");
+    }
+    if let Err(e) = club_payments::retire_replaced_accounts(pool).await {
+        warn!(error = %e, "retiring replaced bank details failed");
+    }
+    if let Err(e) = club_payments::prompt_who_came(pool, push).await {
+        warn!(error = %e, "asking who came failed");
+    }
+    if let Err(e) = club_payments::auto_bill(pool, push).await {
+        warn!(error = %e, "sending bills automatically failed");
+    }
+    if let Err(e) = club_payments::chase_shares(pool, push).await {
+        warn!(error = %e, "chasing unpaid shares failed");
+    }
+    if let Err(e) = club_payments::nudge_stale_claims(pool, push).await {
+        warn!(error = %e, "nudging about unchecked payments failed");
     }
     if let Err(e) = nudge_unfinished_profiles(pool, push, &email.brand.name).await {
         warn!(error = %e, "profile nudges failed");
@@ -397,9 +414,9 @@ async fn chase_match_fees(
 ) -> anyhow::Result<()> {
     let owed = selection_repo::fees_due_chasing(pool).await?;
     for row in &owed {
-        let amount = row.fee_amount_cents.unwrap_or(0) as f64 / 100.0;
+        let amount = fishers_domain::money::fmt_money(row.fee_amount_cents.unwrap_or(0) as i64, &row.fee_currency);
         let body = format!(
-            "£{amount:.2} match fee for {} on {} is still outstanding. You can pay in the app.",
+            "{amount} match fee for {} on {} is still outstanding. You can pay in the app.",
             row.title,
             row.start_at.format("%-d %b")
         );

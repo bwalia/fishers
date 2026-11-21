@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   api,
+  money,
   readErr,
   type Club,
   type MyRole,
@@ -11,6 +12,7 @@ import {
   type Venue,
 } from "@/lib/api";
 import { dayKey, type Availability, type AvailabilityStatus } from "@/lib/availability";
+import { CostModePicker, costCheck } from "@/components/EventMoney";
 import {
   byDay,
   clashes,
@@ -519,6 +521,17 @@ function ScheduleMatch({
   const [note, setNote] = useState("");
   const [repeat, setRepeat] = useState(false);
   const [weeks, setWeeks] = useState(String(DEFAULT_WEEKS));
+  // What it costs, if anything: a total split between whoever comes, or the
+  // same for everyone. Optional — plenty of sessions are free.
+  const [costMode, setCostMode] = useState("");
+  const [costAmount, setCostAmount] = useState("");
+  const [costSure, setCostSure] = useState(false);
+  // An event this form makes is in pounds: it sends no other currency.
+  const costing = costCheck(costMode, costAmount, "GBP", t);
+  const costFields =
+    costMode && costing.cents != null && !costing.problem
+      ? { cost_mode: costMode, cost_amount_cents: costing.cents }
+      : {};
 
   // The grounds belong to whichever club is hosting, so they follow the club.
   useEffect(() => {
@@ -531,18 +544,17 @@ function ScheduleMatch({
     setBusy(true);
     setError(null);
     try {
-      await api(
-        "POST",
-        "/events",
-        matchBody({
+      await api("POST", "/events", {
+        ...matchBody({
           clubId,
           club: clubs.find((c) => c.id === clubId),
           opponent,
           oppositionName,
           venueId,
           start: new Date(start),
-        })
-      );
+        }),
+        ...costFields,
+      });
       onScheduled();
     } catch (err) {
       setError(readErr(err, t("ld.could_not_schedule_that")));
@@ -574,7 +586,8 @@ function ScheduleMatch({
           note,
           weeks: count,
           seriesId: count > 1 ? randomUUID() : undefined,
-        });
+          // Every week carries the cost, so each one is billed on its own.
+        }).map((body) => ({ ...body, ...costFields }));
       // One after another, so a failure stops the series where it is rather
       // than leaving a gap in the middle of it.
       for (const body of queue) {
@@ -604,6 +617,8 @@ function ScheduleMatch({
         !clubId && t("ev.missing_which_club"),
         !session && !opponent && !oppositionName.trim() && t("ev.missing_who"),
         (!start || (session && start < earliest)) && t("ev.missing_when"),
+        costMode && (costing.cents == null || costing.problem) && t("pay.missing_cost"),
+        costing.confirm && !costSure && t("pay.missing_cost_check"),
       ]
         .filter(Boolean)
         .join(", ");
@@ -755,6 +770,58 @@ function ScheduleMatch({
           </div>
         </fieldset>
       )}
+
+      <fieldset className="setup-group" disabled={!!left}>
+        <legend>{t("pay.cost_optional")}</legend>
+        <CostModePicker
+          mode={costMode}
+          withNone
+          onMode={(m) => {
+            setCostMode(m);
+            setCostSure(false);
+          }}
+        />
+        {costMode && (
+          <div className="setup-fields">
+            <label htmlFor="schedule-cost">
+              <span id="schedule-cost-label">
+                {costMode === "split_total" ? t("pay.total_to_split") : t("pay.each_person_pays")}
+              </span>
+              <input
+                id="schedule-cost"
+                aria-labelledby="schedule-cost-label"
+                inputMode="decimal"
+                value={costAmount}
+                placeholder={costMode === "split_total" ? "60.00" : "5.00"}
+                aria-invalid={costing.problem ? true : undefined}
+                aria-describedby={costing.problem ? "schedule-cost-error" : "schedule-cost-hint"}
+                onChange={(e) => {
+                  setCostAmount(e.target.value);
+                  setCostSure(false);
+                }}
+              />
+              <span className="subtle" id="schedule-cost-hint">
+                {costMode === "split_total" ? t("pay.split_hint") : t("pay.each_hint")}
+              </span>
+              {costing.problem && (
+                <span className="field-error" id="schedule-cost-error">
+                  {costing.problem}
+                </span>
+              )}
+            </label>
+          </div>
+        )}
+        {costing.confirm && (
+          <label className="check-row">
+            <input type="checkbox" checked={costSure} onChange={(e) => setCostSure(e.target.checked)} />
+            <span>
+              <strong>{t("pay.yes_amount_each", { amount: money(costing.cents ?? 0, "GBP") })}</strong>
+              <span className="subtle">{t("pay.big_amount_check")}</span>
+            </span>
+          </label>
+        )}
+        {costMode && <p className="subtle">{t("pay.cost_schedule_note")}</p>}
+      </fieldset>
 
       {session && made > 0 && (
         <p className="notice" role="status">{t("np.scheduled_sessions", { count: made, n: made })}</p>

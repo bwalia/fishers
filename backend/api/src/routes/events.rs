@@ -2,10 +2,12 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
+use fishers_db::repos::club_payments as payments_repo;
 use fishers_db::repos::clubs as clubs_repo;
 use fishers_db::repos::events as events_repo;
 use fishers_db::repos::events::EventSort;
 use fishers_db::repos::invites as invites_repo;
+use fishers_domain::money::CostMode;
 use fishers_domain::{
     AttendeeSummary, CreateEventRequest, Event, EventInvite, EventSubtype, Permission,
     RsvpRequest, UpdateEventRequest,
@@ -82,9 +84,58 @@ async fn create_event(
         }
     }
 
+    let cost = requested_cost(&body)?;
     let event = events_repo::create_event(&state.pool, auth.user_id, &body).await?;
+    if let Some((mode, amount, note)) = cost {
+        // Checked above, so only the database can fail here — and the event
+        // already exists, so failing the request would invite a duplicate on
+        // retry. The cost can be set again from the event.
+        let saved = async {
+            let mut tx = state.pool.begin().await?;
+            payments_repo::upsert_cost(&mut tx, event.id, event.club_id, mode, amount, &event.fee_currency, note.as_deref(), Some(auth.user_id)).await?;
+            tx.commit().await
+        }
+        .await;
+        if let Err(error) = saved {
+            tracing::error!(%error, event_id = %event.id, "could not save the event's cost");
+        }
+    }
+    // Re-read: saving a cost keeps `fee_amount_cents` in step.
+    let event = events_repo::get_event(&state.pool, event.id).await?.unwrap_or(event);
     ask_who_is_available(&state, &event, auth.user_id).await;
     Ok(Json(event))
+}
+
+/// The cost a new event was created with, checked before anything is saved.
+/// An app that only knows the old per-player fee gets a `per_player` cost.
+fn requested_cost(body: &CreateEventRequest) -> ApiResult<Option<(CostMode, i64, Option<String>)>> {
+    use fishers_domain::money::{MAX_BILL_CENTS, MAX_SHARE_CENTS};
+    let note = body.cost_note.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(str::to_string);
+    if note.as_deref().is_some_and(|n| n.chars().count() > 200) {
+        return Err(ApiError::bad_request("Keep the cost note to 200 characters"));
+    }
+    let (mode, amount) = match (body.cost_mode.as_deref(), body.cost_amount_cents) {
+        (Some(mode), Some(amount)) => (
+            CostMode::parse(mode).ok_or_else(|| ApiError::bad_request("cost_mode is split_total or per_player"))?,
+            amount,
+        ),
+        (None, None) => match body.fee_amount_cents {
+            Some(fee) if fee > 0 => (CostMode::PerPlayer, i64::from(fee)),
+            _ => return Ok(None),
+        },
+        _ => return Err(ApiError::bad_request("Send cost_mode and cost_amount_cents together")),
+    };
+    let cap = if mode == CostMode::PerPlayer { MAX_SHARE_CENTS } else { MAX_BILL_CENTS };
+    if amount <= 0 || amount > cap {
+        let currency = body.fee_currency.as_deref().unwrap_or("GBP");
+        return Err(ApiError::bad_request(format!(
+            "The cost has to be more than zero and at most {} a head or {} in total",
+            fishers_domain::money::fmt_money(MAX_SHARE_CENTS, currency),
+            fishers_domain::money::fmt_money(MAX_BILL_CENTS, currency)
+        ))
+        .with_code("amount_limit"));
+    }
+    Ok(Some((mode, amount, note)))
 }
 
 /// Put the fixture in front of everyone who might play in it.
@@ -277,9 +328,25 @@ async fn update_event(
 ) -> ApiResult<Json<Event>> {
     body.validate()?;
     require_event_permission(&state, id, auth.user_id, Permission::ManageEvents).await?;
-    Ok(Json(
-        events_repo::update_event(&state.pool, id, &body).await?,
-    ))
+    let event = events_repo::update_event(&state.pool, id, &body).await?;
+    // An app that edits the old per-player fee keeps the cost in step — unless
+    // the event is split as a total (that is not a fee a head) or already billed.
+    if let Some(fee) = body.fee_amount_cents {
+        let cost = payments_repo::cost(&state.pool, id).await?;
+        let split = cost.as_ref().is_some_and(|c| c.mode() == CostMode::SplitTotal);
+        if !split && payments_repo::live_bill(&state.pool, id).await?.is_none() {
+            let mut tx = state.pool.begin().await?;
+            if fee > 0 && i64::from(fee) <= fishers_domain::money::MAX_SHARE_CENTS {
+                if cost.as_ref().map(|c| c.amount_cents) != Some(i64::from(fee)) {
+                    payments_repo::upsert_cost(&mut tx, id, event.club_id, CostMode::PerPlayer, i64::from(fee), &event.fee_currency, None, Some(auth.user_id)).await?;
+                }
+            } else if fee <= 0 && cost.is_some() {
+                payments_repo::delete_cost(&mut tx, id).await?;
+            }
+            tx.commit().await?;
+        }
+    }
+    Ok(Json(events_repo::get_event(&state.pool, id).await?.unwrap_or(event)))
 }
 
 async fn rsvp(
