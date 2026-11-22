@@ -23,6 +23,9 @@ pub fn router() -> Router<AppState> {
         .route("/auth/refresh", post(refresh))
         .route("/auth/google", get(google_config).post(google))
         .route("/auth/apple", get(apple_config).post(apple))
+        .route("/auth/whatsapp", get(whatsapp_config))
+        .route("/auth/whatsapp/start", post(whatsapp_start))
+        .route("/auth/whatsapp/verify", post(whatsapp_verify))
 }
 
 /// Whether "Continue with Google" is offered, and the public client ids the
@@ -364,6 +367,185 @@ async fn refresh(
     let user = users_repo::find_by_id(&state.pool, claims.sub)
         .await?
         .ok_or_else(|| ApiError::unauthorized("user not found"))?;
+    issue_tokens(&state, user).await
+}
+
+// MARK: signing in with a WhatsApp code
+//
+// For players who get stuck at a password: type your mobile number, get a
+// six-digit code on WhatsApp, and you are in. Only a number the account has
+// already confirmed can sign in — a number typed into a profile and never
+// confirmed could belong to somebody else. Neither reply says whether a number
+// has an account; codes are hashed, live ten minutes, allow five tries, and a
+// number gets one code a minute and five an hour.
+
+const SIGNIN: &str = "signin";
+const SIGNIN_CODE_SECS: i64 = 600;
+const SIGNIN_MAX_ATTEMPTS: i32 = 5;
+
+fn signin_throttle() -> &'static [crate::services::pay_links::Throttle; 3] {
+    use crate::services::pay_links::Throttle;
+    static T: OnceLock<[Throttle; 3]> = OnceLock::new();
+    T.get_or_init(|| {
+        [
+            Throttle::new(1, Duration::from_secs(60)),    // per number, a minute apart
+            Throttle::new(5, Duration::from_secs(3600)),  // per number, an hour
+            Throttle::new(600, Duration::from_secs(3600)), // the whole service, an hour
+        ]
+    })
+}
+
+async fn whatsapp_config(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "enabled": state.whatsapp.enabled() }))
+}
+
+#[derive(serde::Deserialize)]
+struct PhoneBody {
+    phone: String,
+}
+
+#[derive(serde::Deserialize)]
+struct PhoneCodeBody {
+    phone: String,
+    code: String,
+}
+
+fn whatsapp_off() -> ApiError {
+    ApiError {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        message: "Signing in with WhatsApp isn't switched on yet. Use your email and password.".into(),
+        code: Some("whatsapp_off"),
+    }
+}
+
+fn bad_number() -> ApiError {
+    ApiError::bad_request("That doesn't look like a mobile number. Put the country code first, like +44 7700 900123.")
+        .with_code("bad_phone")
+}
+
+/// The one account whose confirmed number is this number. Numbers are stored
+/// as people typed them, so they are compared normalised; two accounts with
+/// the same number is refused rather than guessed.
+async fn user_by_whatsapp(state: &AppState, number: &str) -> ApiResult<Option<fishers_domain::User>> {
+    let tail: String = number.chars().rev().take(9).collect::<Vec<_>>().into_iter().rev().collect();
+    let rows: Vec<(uuid::Uuid, String)> = sqlx::query_as(
+        "SELECT id, phone FROM users
+         WHERE phone IS NOT NULL AND phone_verified_at IS NOT NULL AND deleted_at IS NULL
+           AND regexp_replace(phone, '[^0-9]', '', 'g') LIKE '%' || $1",
+    )
+    .bind(&tail)
+    .fetch_all(&state.pool)
+    .await?;
+    let matches: Vec<uuid::Uuid> = rows
+        .into_iter()
+        .filter(|(_, phone)| state.whatsapp.normalize(phone).as_deref() == Some(number))
+        .map(|(id, _)| id)
+        .collect();
+    match matches.as_slice() {
+        [id] => Ok(users_repo::find_by_id(&state.pool, *id).await?),
+        [] => Ok(None),
+        _ => {
+            tracing::warn!(count = matches.len(), "one confirmed number on several accounts; not signing in by WhatsApp");
+            Ok(None)
+        }
+    }
+}
+
+async fn whatsapp_start(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<PhoneBody>,
+) -> ApiResult<Json<serde_json::Value>> {
+    if !state.whatsapp.enabled() {
+        return Err(whatsapp_off());
+    }
+    let number = state.whatsapp.normalize(&body.phone).ok_or_else(bad_number)?;
+    let _ = &headers;
+    let [minute, hour, everyone] = signin_throttle();
+    // Limits per number, the same whether or not it has an account. Behind
+    // the ingress every caller can share one address, so a limit on address
+    // would let one person switch sign-in off for everybody.
+    if !hour.allow(&number) || !minute.allow(&number) {
+        return Err(ApiError::too_many("A code is already on its way. Wait a minute before asking for another.")
+            .with_code("slow_down"));
+    }
+    // Everything else happens after the reply — finding the account, making
+    // the code, sending it — so neither how long it takes nor whether it
+    // fails says this number has an account. The service-wide cap (what a
+    // flood can cost in messages) only counts numbers that have one, so made-
+    // up numbers can't use it up and switch sign-in off for real people.
+    let state = state.clone();
+    tokio::spawn(async move {
+        let Ok(Some(user)) = user_by_whatsapp(&state, &number).await else { return };
+        if !everyone.allow("all") {
+            tracing::warn!("sign-in codes: the hourly cap is spent; not sending");
+            return;
+        }
+        use rand::Rng;
+        let code = format!("{:06}", rand::rngs::OsRng.gen_range(0..1_000_000u32));
+        let hash = super::verification::hash_code(&state.jwt_secret, user.id, SIGNIN, &number, &code);
+        if let Err(error) =
+            fishers_db::repos::verification::create(&state.pool, user.id, SIGNIN, &number, &hash, SIGNIN_CODE_SECS).await
+        {
+            tracing::warn!(%error, "sign-in code not saved");
+            return;
+        }
+        if let Err(error) = state.whatsapp.send_code(&number, &code).await {
+            tracing::warn!(%error, "sign-in code not delivered");
+            if let Ok(Some(live)) = fishers_db::repos::verification::active(&state.pool, user.id, SIGNIN).await {
+                let _ = fishers_db::repos::verification::consume(&state.pool, live.id).await;
+            }
+        }
+    });
+    Ok(Json(serde_json::json!({ "sent": true, "expires_in": SIGNIN_CODE_SECS, "resend_after": 60 })))
+}
+
+async fn whatsapp_verify(
+    State(state): State<AppState>,
+    Json(body): Json<PhoneCodeBody>,
+) -> ApiResult<Json<AuthTokens>> {
+    if !state.whatsapp.enabled() {
+        return Err(whatsapp_off());
+    }
+    let number = state.whatsapp.normalize(&body.phone).ok_or_else(bad_number)?;
+    let key = format!("whatsapp:{number}");
+    if let Some(wait) = lockout_remaining(&key) {
+        return Err(ApiError::too_many(format!("Too many wrong codes. Try again in {} seconds.", wait.as_secs() + 1))
+            .with_code("slow_down"));
+    }
+    let wrong = || {
+        ApiError::bad_request("That code isn't right, or it has run out. Ask for a new one.").with_code("wrong_code")
+    };
+    let code = body.code.trim();
+    if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(wrong());
+    }
+    let Some(user) = user_by_whatsapp(&state, &number).await? else {
+        record_failed_login(&key);
+        return Err(wrong());
+    };
+    let Some(live) = fishers_db::repos::verification::active(&state.pool, user.id, SIGNIN).await? else {
+        record_failed_login(&key);
+        return Err(wrong());
+    };
+    // The try is spent before the guess is compared, so parallel guesses
+    // can't each be checked before any is counted.
+    if live.target != number
+        || !fishers_db::repos::verification::take_attempt(&state.pool, live.id, SIGNIN_MAX_ATTEMPTS).await?
+    {
+        let _ = fishers_db::repos::verification::consume(&state.pool, live.id).await;
+        record_failed_login(&key);
+        return Err(wrong());
+    }
+    let expected = super::verification::hash_code(&state.jwt_secret, user.id, SIGNIN, &live.target, code);
+    let same = expected.len() == live.code_hash.len()
+        && expected.bytes().zip(live.code_hash.bytes()).fold(0u8, |d, (a, b)| d | (a ^ b)) == 0;
+    if !same {
+        record_failed_login(&key);
+        return Err(wrong());
+    }
+    fishers_db::repos::verification::consume(&state.pool, live.id).await?;
+    clear_failed_logins(&key);
     issue_tokens(&state, user).await
 }
 

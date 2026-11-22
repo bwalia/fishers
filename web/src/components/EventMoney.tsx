@@ -16,22 +16,27 @@ import {
   MAX_SHARE_CENTS,
   STALE_CODES,
   parseAmount,
+  retryBusy,
   shareGroups,
-  shareStateLabel,
   shareStateTag,
+  shareTag,
   toAmount,
   type BillResponse,
   type Candidate,
+  type CashRecorded,
   type EventCost,
   type Preview,
+  type PriceType,
   type Share,
+  type TypePrice,
 } from "@/lib/payments";
 import { ReasonForm } from "@/components/ReasonForm";
+import { ShareBill } from "@/components/ShareBill";
 import type { T } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/provider";
 import type { Key } from "@/lib/i18n/en";
 
-type Open = "none" | "cost" | "who" | "cancel";
+type Open = "none" | "cost" | "who" | "cancel" | "cash";
 
 /// What a change came back with: the bill as it is now, when the call
 /// returns it (otherwise it is reloaded), and a better sentence than the
@@ -209,7 +214,7 @@ export function EventMoney({
                   </div>
                   <div className="pay-list-end">
                     <span className="num">{money(s.amount_cents, s.currency)}</span>
-                    <span className={shareStateTag(s.state)}>{shareStateLabel(s.state, t)}</span>
+                    <span className={shareStateTag(s.state)}>{shareTag(s, t)}</span>
                     {data.can_manage_money && (s.state === "owed" || s.state === "part_paid") && waiving !== s.id && (
                       <button
                         className="btn"
@@ -246,8 +251,20 @@ export function EventMoney({
             </ul>
           )}
 
+          {data.can_bill && (
+            <ShareBill
+              eventId={eventId}
+              refreshKey={`${bill.id}:${bill.version}:${bill.paid_cents}:${bill.waiting_cents}:${bill.owed_cents}`}
+            />
+          )}
+
           {data.can_bill && open === "none" && (
             <div className="field-row money-actions">
+              {owingShares(data.shares).length > 0 && (
+                <button className="btn" type="button" onClick={() => openForm("cash")}>
+                  {t("pw2.who_paid_cash")}
+                </button>
+              )}
               <button className="btn" type="button" onClick={() => openForm("who")}>
                 {t("pay.change_who_came")}
               </button>
@@ -265,6 +282,30 @@ export function EventMoney({
               error={formError}
               onSend={(body) => void sendBill(body, true)}
               onCancel={() => setOpen("none")}
+            />
+          )}
+          {data.can_bill && open === "cash" && (
+            <WhoPaidCash
+              shares={owingShares(data.shares)}
+              received={data.can_manage_money}
+              busy={busy}
+              error={formError}
+              onCancel={() => setOpen("none")}
+              onSave={(ids) =>
+                void run(async () => {
+                  // A tick already being saved for one of them (a double
+                  // tap) answers `busy`: once more, a second later.
+                  const out = await retryBusy(() =>
+                    api<CashRecorded>("POST", `/events/${eventId}/bill/cash`, { share_ids: ids }),
+                  );
+                  const amount = money(out.total_cents, cur);
+                  return {
+                    said: out.received
+                      ? t("pw2.cash_recorded", { count: out.recorded, n: out.recorded, amount })
+                      : t("pw2.cash_recorded_waiting", { count: out.recorded, n: out.recorded, amount }),
+                  };
+                }, t("pw2.cash_recorded", { count: 0, n: 0, amount: money(0, cur) }))
+              }
             />
           )}
           {data.can_bill && open === "cancel" && (
@@ -290,6 +331,8 @@ export function EventMoney({
           {open === "cost" ? (
             <CostEditor
               cost={cost}
+              clubId={data.club_id}
+              prices={data.prices ?? []}
               currency={cur}
               inSeries={inSeries}
               busy={busy}
@@ -312,6 +355,9 @@ export function EventMoney({
             <div className="row money-cost">
               <div>
                 <strong>{costLine(cost, t)}</strong>
+                {cost.mode === "per_player" && (data.prices?.length ?? 0) > 0 && (
+                  <div className="muted">{pricesLine(data.prices ?? [], cur)}</div>
+                )}
                 {cost.note && <div className="muted">{cost.note}</div>}
               </div>
               <button className="btn" type="button" onClick={() => openForm("cost")}>
@@ -356,6 +402,90 @@ export function EventMoney({
   );
 }
 
+/// Still something to pay on: owed in full or in part, with nothing waiting
+/// to be checked against it.
+function owingShares(shares: Share[]): Share[] {
+  return shares.filter(
+    (s) => (s.state === "owed" || s.state === "part_paid") && s.amount_cents - s.paid_cents - s.waiting_cents > 0,
+  );
+}
+
+/// "Who paid cash?" at the ground: tick, then save. A money admin's tick
+/// counts as received; anybody else's — a captain who collected it — waits
+/// for the treasurer to have the cash in hand.
+function WhoPaidCash({
+  shares,
+  received,
+  busy,
+  error,
+  onSave,
+  onCancel,
+}: {
+  shares: Share[];
+  /// Whether a tick here counts as received straight away.
+  received: boolean;
+  busy: boolean;
+  error: string | null;
+  onSave: (shareIds: string[]) => void;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  const id = useId();
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const toggle = (sid: string) =>
+    setTicked((cur) => {
+      const next = new Set(cur);
+      if (next.has(sid)) next.delete(sid);
+      else next.add(sid);
+      return next;
+    });
+  const total = shares.filter((s) => ticked.has(s.id)).reduce((sum, s) => sum + s.amount_cents - s.paid_cents - s.waiting_cents, 0);
+  const cur = shares[0]?.currency ?? "GBP";
+
+  return (
+    <form
+      className="who-came cash-form"
+      aria-labelledby={`${id}-title`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ticked.size > 0) onSave([...ticked]);
+      }}
+    >
+      <h3 id={`${id}-title`}>{t("pw2.who_paid_cash")}</h3>
+      <p className="muted">{received ? t("pw2.who_paid_cash_help") : t("pw2.who_paid_cash_help_collector")}</p>
+      <fieldset className="who-list">
+        <legend className="sr-only">{t("pw2.who_paid_cash")}</legend>
+        {shares.map((s) => (
+          <label className="who-person" key={s.id}>
+            <input type="checkbox" checked={ticked.has(s.id)} onChange={() => toggle(s.id)} />
+            <span className="who-name">{s.name}</span>
+            <span className="num">{money(s.amount_cents - s.paid_cents - s.waiting_cents, s.currency)}</span>
+          </label>
+        ))}
+      </fieldset>
+      {ticked.size > 0 && (
+        <p className="money-preview" role="status">
+          <strong>{t("pw2.cash_total", { count: ticked.size, n: ticked.size, amount: money(total, cur) })}</strong>
+        </p>
+      )}
+      {error && <p className="field-error" role="alert">{error}</p>}
+      <div className="field-row">
+        <button className="btn primary" type="submit" disabled={busy || ticked.size === 0}>
+          {t("pw2.save_cash")}
+        </button>
+        <button className="btn" type="button" disabled={busy} onClick={onCancel}>
+          {t("pay.never_mind")}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/// "Junior £3.00 · Guest £8.00": the session's own prices by group.
+function pricesLine(prices: TypePrice[], currency: string): string {
+  return prices.map((p) => `${p.name} ${money(p.amount_cents, currency)}`).join(" · ");
+}
+
 function costLine(cost: EventCost, t: T): string {
   const amount = money(cost.amount_cents, cost.currency);
   return cost.mode === "split_total" ? t("pay.cost_split", { amount }) : t("pay.cost_each", { amount });
@@ -365,12 +495,17 @@ function costLine(cost: EventCost, t: T): string {
 function MyShare({ share: s, clubId }: { share: Share; clubId: string }) {
   const t = useT();
   const owes = s.state === "owed" || s.state === "part_paid";
+  const covered = s.state === "covered";
   return (
     <div className="money-mine">
       <div>
         <p className="stat-label">{t("pay.your_share")}</p>
-        <p className="pay-big num">{money(s.amount_cents, s.currency)}</p>
-        <span className={shareStateTag(s.state)}>{shareStateLabel(s.state, t)}</span>
+        {covered ? (
+          <p className="pay-big">{t("pw3.nothing_to_pay")}</p>
+        ) : (
+          <p className="pay-big num">{money(s.amount_cents, s.currency)}</p>
+        )}
+        <span className={shareStateTag(s.state)}>{shareTag(s, t, true)}</span>
         {s.state === "waiting" && <p className="muted">{t("pay.waiting_for_the_club")}</p>}
         {s.state === "part_paid" && (
           <p className="muted">
@@ -478,7 +613,10 @@ function WhoCame({
 
   const asked = data.candidates.filter((c) => c.rsvp !== "not_invited");
   const others = data.candidates.filter((c) => c.rsvp === "not_invited");
-  const groups = preview ? shareGroups(preview.shares.map((s) => s.amount_cents)) : [];
+  // Somebody a pass or a free price covers owes nothing, and is not counted.
+  const paying = preview ? preview.shares.filter((s) => !s.covered) : [];
+  const covered = preview ? preview.shares.filter((s) => s.covered) : [];
+  const groups = shareGroups(paying.map((s) => s.amount_cents));
 
   const person = (c: Candidate) => (
     <label className="who-person" key={c.user_id}>
@@ -571,18 +709,34 @@ function WhoCame({
           <>
             <strong>
               {t("pay.preview_total", {
-                count: preview.shares.length,
-                n: preview.shares.length,
+                count: paying.length,
+                n: paying.length,
                 total: money(preview.total_cents, preview.currency),
               })}
             </strong>
-            <span>
-              {groups.length === 1
-                ? t("pay.each", { amount: money(groups[0].amount_cents, preview.currency) })
-                : groups
-                    .map((g) => t("pay.n_pay", { count: g.count, n: g.count, amount: money(g.amount_cents, preview.currency) }))
-                    .join(", ")}
-            </span>
+            {groups.length > 0 && (
+              <span>
+                {groups.length === 1
+                  ? t("pay.each", { amount: money(groups[0].amount_cents, preview.currency) })
+                  : groups
+                      .map((g) => t("pay.n_pay", { count: g.count, n: g.count, amount: money(g.amount_cents, preview.currency) }))
+                      .join(", ")}
+              </span>
+            )}
+            {covered.length > 0 && (
+              <span>
+                {t("pw3.owe_nothing", {
+                  names: covered
+                    .map((s) => {
+                      // Worded from `cover`; an older API's English otherwise.
+                      const why =
+                        s.cover === "free" ? t("le.free") : s.cover === "pass" ? t("pw4.covered_by_a_pass") : s.covered;
+                      return `${s.name} (${why})`;
+                    })
+                    .join(", "),
+                })}
+              </span>
+            )}
             {preview.surplus_cents > 0 && (
               <span className="subtle">{t("pay.surplus_note", { amount: money(preview.surplus_cents, preview.currency) })}</span>
             )}
@@ -605,9 +759,21 @@ function WhoCame({
   );
 }
 
-/// Setting what the session costs, before it is billed.
+type CostBody = {
+  mode: string;
+  amount_cents: number;
+  note?: string;
+  apply_to_series: boolean;
+  /// The session's own prices by group; left out, they stay as they are.
+  prices?: { price_type_id: string; amount_cents: number }[];
+};
+
+/// Setting what the session costs, before it is billed — and, for a price
+/// each, a different one for juniors, students or guests.
 function CostEditor({
   cost,
+  clubId,
+  prices,
   currency,
   inSeries,
   busy,
@@ -617,11 +783,13 @@ function CostEditor({
   onCancel,
 }: {
   cost: EventCost | null;
+  clubId: string;
+  prices: TypePrice[];
   currency: string;
   inSeries: boolean;
   busy: boolean;
   error: string | null;
-  onSave: (body: { mode: string; amount_cents: number; note?: string; apply_to_series: boolean }) => void;
+  onSave: (body: CostBody) => void;
   onRemove: () => void;
   onCancel: () => void;
 }) {
@@ -632,17 +800,48 @@ function CostEditor({
   const [note, setNote] = useState(cost?.note ?? "");
   const [series, setSeries] = useState(false);
   const [sure, setSure] = useState(false);
+  /// The club's groups with a price of their own. None: the question is not asked.
+  const [groups, setGroups] = useState<PriceType[]>([]);
+  const [byGroup, setByGroup] = useState(prices.length > 0);
+  const [groupAmounts, setGroupAmounts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(prices.map((p) => [p.price_type_id, toAmount(p.amount_cents)])),
+  );
+
+  useEffect(() => {
+    api<PriceType[]>("GET", `/clubs/${clubId}/price-types`)
+      .then((all) => setGroups(all.filter((g) => !g.archived_at && !g.free)))
+      .catch(() => setGroups([]));
+  }, [clubId]);
 
   const check = costCheck(mode, amount, currency, t);
-  const said = check.problem ?? error;
+  const perPlayer = mode === "per_player";
+  // Each group's price: empty means the usual price, 0 means free.
+  const groupCents = groups.map((g) => {
+    const raw = (groupAmounts[g.id] ?? "").trim();
+    return { g, raw, cents: raw ? parseAmount(raw) : null };
+  });
+  const groupProblem =
+    perPlayer && byGroup && groupCents.some((x) => x.raw && (x.cents == null || x.cents > MAX_SHARE_CENTS))
+      ? t("pay.not_an_amount")
+      : null;
+  const said = check.problem ?? groupProblem ?? error;
 
   return (
     <form
       className="cost-form"
       onSubmit={(e) => {
         e.preventDefault();
-        if (check.cents == null || check.problem || (check.confirm && !sure)) return;
-        onSave({ mode, amount_cents: check.cents, note: note.trim() || undefined, apply_to_series: series });
+        if (check.cents == null || check.problem || groupProblem || (check.confirm && !sure)) return;
+        const set = groupCents.flatMap((x) => (x.cents != null ? [{ price_type_id: x.g.id, amount_cents: x.cents }] : []));
+        onSave({
+          mode,
+          amount_cents: check.cents,
+          note: note.trim() || undefined,
+          apply_to_series: series,
+          // Ticked: these replace the session's prices. Unticked: clear any
+          // it had. A split total has none to send.
+          prices: perPlayer ? (byGroup ? set : prices.length > 0 ? [] : undefined) : undefined,
+        });
       }}
     >
       <CostModePicker mode={mode} onMode={setMode} />
@@ -684,6 +883,34 @@ function CostEditor({
           />
         </label>
       </div>
+      {perPlayer && groups.length > 0 && (
+        <div className="group-prices">
+          <label className="check-row">
+            <input type="checkbox" checked={byGroup} onChange={(e) => setByGroup(e.target.checked)} />
+            <span>
+              <strong>{t("pw3.different_price_q")}</strong>
+              <span className="subtle">{t("pw3.different_price_hint")}</span>
+            </span>
+          </label>
+          {byGroup && (
+            <div className="setup-fields">
+              {groupCents.map(({ g, raw }) => (
+                <label key={g.id} htmlFor={`${id}-g-${g.id}`}>
+                  <span id={`${id}-g-${g.id}-label`}>{t("pw3.group_price", { group: g.name })}</span>
+                  <input
+                    id={`${id}-g-${g.id}`}
+                    aria-labelledby={`${id}-g-${g.id}-label`}
+                    inputMode="decimal"
+                    value={raw}
+                    placeholder={check.cents != null ? toAmount(check.cents) : "3.00"}
+                    onChange={(e) => setGroupAmounts({ ...groupAmounts, [g.id]: e.target.value })}
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {check.confirm && (
         <label className="check-row">
           <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} />
@@ -706,7 +933,7 @@ function CostEditor({
         <button
           className="btn primary"
           type="submit"
-          disabled={busy || check.cents == null || !!check.problem || (check.confirm && !sure)}
+          disabled={busy || check.cents == null || !!check.problem || !!groupProblem || (check.confirm && !sure)}
         >
           {t("pay.save_cost")}
         </button>

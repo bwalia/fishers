@@ -98,7 +98,14 @@ internal fun CreateFixtureScreen(clubId: String?, nets: Boolean) {
     val deps = LocalAppDeps.current
     val nav = LocalNavigator.current
     val model = remember {
-        CreateFixtureViewModel(deps.service<FixturesApi>(), clubId).also {
+        val payments = deps.service<com.fishers.app.net.PaymentsApi>()
+        CreateFixtureViewModel(
+            deps.service<FixturesApi>(),
+            clubId,
+            // Read from the money page, which only money admins may open: a
+            // captain's 403 simply means no usual price to start from.
+            usualPrices = { id -> runCatching { payments.usualPrices(id) }.getOrNull() },
+        ).also {
             if (nets) it.setWhat(EventSubtype.Nets)
         }
     }
@@ -353,7 +360,11 @@ private fun Form(state: CreateFixtureState, model: CreateFixtureViewModel, modif
                     currency = null,
                     error = state.costProblem,
                 )
-                Hint(if (mode == CostMode.SplitTotal) t("pay.split_hint") else t("pay.each_hint"))
+                if (state.costFromUsual) {
+                    Text(t("pa2.usual_price_used"), style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Hint(if (mode == CostMode.SplitTotal) t("pay.split_hint") else t("pay.each_hint"))
+                }
             }
         }
 

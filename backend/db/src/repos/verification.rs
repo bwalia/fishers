@@ -88,14 +88,20 @@ pub async fn active(
     }))
 }
 
-/// Counts a guess before it is checked, so a failed comparison can never be
-/// retried for free.
-pub async fn record_attempt(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE verification_codes SET attempts = attempts + 1 WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await
-        .map(|_| ())
+/// Spend one of a code's tries before it's compared: `false` when none are
+/// left. Counting first, in one statement, means a burst of parallel guesses
+/// can't each be checked before any is counted.
+pub async fn take_attempt(pool: &PgPool, id: Uuid, max: i32) -> Result<bool, sqlx::Error> {
+    Ok(sqlx::query(
+        "UPDATE verification_codes SET attempts = attempts + 1
+         WHERE id = $1 AND consumed_at IS NULL AND attempts < $2",
+    )
+    .bind(id)
+    .bind(max)
+    .execute(pool)
+    .await?
+    .rows_affected()
+        == 1)
 }
 
 pub async fn consume(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {

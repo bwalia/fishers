@@ -1,29 +1,63 @@
 package com.fishers.app.net
 
+import com.fishers.app.clubs.ClubMemberDetail
+import com.fishers.app.clubs.Team
 import com.fishers.app.payments.AddBankDetailsBody
+import com.fishers.app.payments.AddHolderBody
 import com.fishers.app.payments.BillBody
+import com.fishers.app.payments.BillLink
 import com.fishers.app.payments.BillPreview
+import com.fishers.app.payments.CashBody
+import com.fishers.app.payments.CashRecorded
 import com.fishers.app.payments.ClaimBody
+import com.fishers.app.payments.ConfirmManyBody
+import com.fishers.app.payments.ConfirmedMany
 import com.fishers.app.payments.CostBody
 import com.fishers.app.payments.CostResponse
+import com.fishers.app.payments.DisabledLinks
 import com.fishers.app.payments.Dues
 import com.fishers.app.payments.EventMoney
+import com.fishers.app.payments.ForOthers
+import com.fishers.app.payments.ForOthersBody
+import com.fishers.app.payments.GroupFee
+import com.fishers.app.payments.JoinPassBody
+import com.fishers.app.payments.KeepCoveringBody
+import com.fishers.app.payments.ManagedMember
+import com.fishers.app.payments.ManagedMemberBody
+import com.fishers.app.payments.MemberPriceTypeBody
+import com.fishers.app.payments.MoneyMember
 import com.fishers.app.payments.MoneyOverview
 import com.fishers.app.payments.MoneySettings
 import com.fishers.app.payments.MoneySettingsBody
+import com.fishers.app.payments.NewGroupFeeBody
+import com.fishers.app.payments.NewPassBody
+import com.fishers.app.payments.PassChangeBody
+import com.fishers.app.payments.PassHolder
+import com.fishers.app.payments.PassPlan
 import com.fishers.app.payments.PayScreen
 import com.fishers.app.payments.Payment
+import com.fishers.app.payments.PayerBody
 import com.fishers.app.payments.PayoutAccounts
+import com.fishers.app.payments.PriceType
+import com.fishers.app.payments.PriceTypeBody
 import com.fishers.app.payments.ReasonBody
 import com.fishers.app.payments.RecordBody
 import com.fishers.app.payments.Share
+import com.fishers.app.payments.StatementApplied
+import com.fishers.app.payments.StatementBody
+import com.fishers.app.payments.StatementPreview
+import kotlinx.serialization.json.JsonElement
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * Paying the club by bank transfer — `backend/api/src/routes/club_payments.rs`,
@@ -33,8 +67,10 @@ import retrofit2.http.Path
  * not what they look like: 428 `reauth_required` and 403 `wrong_password` on
  * the bank details form mean "type your password", never "signed out".
  *
- * The three calls that make a payment carry an `Idempotency-Key`: one per
- * attempt, the same on a retry, so a tap on a bad signal is one payment.
+ * The calls that make a payment carry an `Idempotency-Key`: one per attempt,
+ * the same on a retry, so a tap on a bad signal is one payment. Any of them
+ * may answer 409 `busy` (another request is saving a payment for the same
+ * person this moment): [com.fishers.app.payments.retryIfBusy] tries once more.
  */
 interface PaymentsApi {
 
@@ -67,6 +103,10 @@ interface PaymentsApi {
     /** 403 for anybody who is not the owner, a secretary or a treasurer. */
     @GET("clubs/{id}/money")
     suspend fun money(@Path("id") clubId: String): MoneyOverview
+
+    /** The club's usual prices, for anybody who schedules (a captain too) — only the price fields are filled. */
+    @GET("clubs/{id}/payments/defaults")
+    suspend fun usualPrices(@Path("id") clubId: String): MoneySettings
 
     @PUT("clubs/{id}/payments/settings")
     suspend fun updateMoneySettings(@Path("id") clubId: String, @Body body: MoneySettingsBody): MoneySettings
@@ -141,4 +181,182 @@ interface PaymentsApi {
     /** Undo a claim, while nobody has confirmed it. 409 `already_decided` after. */
     @DELETE("payments/{pid}")
     suspend fun cancelClaim(@Path("pid") paymentId: String)
+
+    // ---- easy paying (step A, `easy_paying.rs`) ----
+
+    /**
+     * The bill's pay link and the words to post with it, for whoever runs
+     * the session. Reuses the open link. 409 `no_bill` until the bill is sent.
+     */
+    @POST("events/{id}/bill/link")
+    suspend fun billLink(@Path("id") eventId: String): BillLink
+
+    /** Closes every open link for the bill. */
+    @POST("events/{id}/bill/link/disable")
+    suspend fun disableBillLink(@Path("id") eventId: String): DisabledLinks
+
+    /**
+     * Who handed over cash at the ground. A money admin's tick is received;
+     * anybody else's waits for the treasurer. A share already paid or said to
+     * be is skipped, so a retry cannot pay twice; the key is sent all the same.
+     */
+    @POST("events/{id}/bill/cash")
+    suspend fun cashAtGround(
+        @Path("id") eventId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CashBody,
+    ): CashRecorded
+
+    /** "All arrived". One somebody else already decided is skipped. */
+    @POST("clubs/{id}/payments/confirm")
+    suspend fun confirmMany(@Path("id") clubId: String, @Body body: ConfirmManyBody): ConfirmedMany
+
+    /** Money admins only: the picture that came with a payment, when `has_screenshot`. */
+    @GET("payments/{pid}/screenshot")
+    suspend fun screenshot(@Path("pid") paymentId: String): ResponseBody
+
+    /**
+     * Your own claim's picture: raw JPEG, PNG or WebP, at most 1 MB. 415
+     * `not_an_image`, 400 `too_big`, 409 `already_decided`.
+     */
+    @POST("payments/{pid}/screenshot")
+    suspend fun uploadScreenshot(@Path("pid") paymentId: String, @Body image: RequestBody)
+
+    // ---- passes, prices for juniors and others, group fees (steps B and C, `passes.rs`) ----
+
+    /** The club's groups with their own price. Any member may read them. */
+    @GET("clubs/{id}/price-types")
+    suspend fun priceTypes(@Path("id") clubId: String): List<PriceType>
+
+    /** Money admins. 409 `name_taken`, `guest_type_taken` (one guest price a club). */
+    @POST("clubs/{id}/price-types")
+    suspend fun addPriceType(@Path("id") clubId: String, @Body body: PriceTypeBody): PriceType
+
+    @PATCH("price-types/{id}")
+    suspend fun changePriceType(@Path("id") priceTypeId: String, @Body body: PriceTypeBody): PriceType
+
+    /** A member's group; null is the standard price. 204. */
+    @PUT("clubs/{id}/members/{user_id}/price-type")
+    suspend fun setMemberPriceType(
+        @Path("id") clubId: String,
+        @Path("user_id") userId: String,
+        @Body body: MemberPriceTypeBody,
+    )
+
+    /** The passes the club offers, each with your own on it (`mine`). `all` (admins) adds ones no longer offered. */
+    @GET("clubs/{id}/passes")
+    suspend fun passes(@Path("id") clubId: String, @Query("all") all: Boolean? = null): List<PassPlan>
+
+    @POST("clubs/{id}/passes")
+    suspend fun addPass(@Path("id") clubId: String, @Body body: NewPassBody): PassPlan
+
+    /** A new price applies to later payments; everybody on a monthly pass is told. */
+    @PATCH("passes/{id}")
+    suspend fun changePass(@Path("id") passId: String, @Body body: PassChangeBody): PassPlan
+
+    /** Money admins: who is on it, and how each stands. */
+    @GET("passes/{id}/holders")
+    suspend fun passHolders(@Path("id") passId: String): List<PassHolder>
+
+    /** Money admins. The first payment is charged at once. 409 `already_on_pass`. */
+    @POST("passes/{id}/holders")
+    suspend fun addToPass(@Path("id") passId: String, @Body body: AddHolderBody): PassHolder
+
+    /** "Get this pass". `not_open`, `not_eligible`, `not_their_payer`, 409 `already_on_pass`. */
+    @POST("passes/{id}/join")
+    suspend fun joinPass(@Path("id") passId: String, @Body body: JoinPassBody): PassHolder
+
+    /** A monthly pass covers to the end of the month already charged. 409 `already_cancelled`. */
+    @POST("pass-holders/{id}/cancel")
+    suspend fun cancelPass(@Path("id") holderId: String): PassHolder
+
+    @PUT("pass-holders/{id}/keep-covering")
+    suspend fun keepCovering(@Path("id") holderId: String, @Body body: KeepCoveringBody): PassHolder
+
+    /** Your passes, and those of the people you pay for; monthly ones with their standing order. */
+    @GET("me/passes")
+    suspend fun myPasses(): List<PassHolder>
+
+    /**
+     * A group fee. Everybody in it is told. The same key on a retry is the
+     * same group fee. 422 for an amount it cannot split.
+     */
+    @POST("clubs/{id}/collections")
+    suspend fun addGroupFee(
+        @Path("id") clubId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: NewGroupFeeBody,
+    ): GroupFee
+
+    /** The 50 newest, totals only. Money admins. */
+    @GET("clubs/{id}/collections")
+    suspend fun groupFees(@Path("id") clubId: String): List<GroupFee>
+
+    /** Everyone's lines for a money admin; only your own for a member. */
+    @GET("collections/{bill_id}")
+    suspend fun groupFee(@Path("bill_id") billId: String): GroupFee
+
+    /** Anything paid becomes credit, and its pay link closes. `reason_required`. */
+    @POST("collections/{bill_id}/void")
+    suspend fun cancelGroupFee(@Path("bill_id") billId: String, @Body body: ReasonBody): GroupFee
+
+    /**
+     * The group fee's open link and its words, or a bare JSON `null` when it
+     * has none yet — which the converter cannot decode into a class, hence
+     * the raw element. Never makes one: [groupFeeLink] does, on Share.
+     */
+    @GET("bills/{bill_id}/link")
+    suspend fun currentGroupFeeLink(@Path("bill_id") billId: String): JsonElement
+
+    /** A group fee's pay link (made if there is none) and the words to post with it: the same shape as a session's. */
+    @POST("bills/{bill_id}/link")
+    suspend fun groupFeeLink(@Path("bill_id") billId: String): BillLink
+
+    @POST("bills/{bill_id}/link/disable")
+    suspend fun disableGroupFeeLink(@Path("bill_id") billId: String): DisabledLinks
+
+    /** Who pays for a member; null: they pay for themselves. 204. */
+    @PUT("clubs/{id}/members/{member_id}/payer")
+    suspend fun setPayer(@Path("id") clubId: String, @Path("member_id") memberId: String, @Body body: PayerBody)
+
+    /** A junior by name, with no sign-in of their own, and who pays for them. */
+    @POST("clubs/{id}/members/managed")
+    suspend fun addJunior(@Path("id") clubId: String, @Body body: ManagedMemberBody): ManagedMember
+
+    /**
+     * One payment for several people. `not_their_payer`; 409 `nothing_owed`
+     * when nobody picked owes anything. The same key on every retry.
+     */
+    @POST("clubs/{id}/payments/for-others")
+    suspend fun payForOthers(
+        @Path("id") clubId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: ForOthersBody,
+    ): ForOthers
+
+    /** Money admins: every member with their price group and who pays for them, for "Prices and who pays". */
+    @GET("clubs/{id}/payments/members")
+    suspend fun moneyMembers(@Path("id") clubId: String): List<MoneyMember>
+
+    /** The roster, for picking who goes on a pass or a group fee. */
+    @GET("clubs/{id}/members")
+    suspend fun clubMembers(@Path("id") clubId: String): List<ClubMemberDetail>
+
+    /** The club's teams, for "a group fee for the 1st XI". */
+    @GET("clubs/{id}/teams")
+    suspend fun clubTeams(@Path("id") clubId: String): List<Team>
+
+    // ---- a bank statement (step D, `statements.rs`) ----
+
+    /**
+     * What each payment in the bank's CSV matches. The body is the file's
+     * text as it is. Changes nothing. 422 `empty_statement`,
+     * `unknown_statement` (no date or amount column), `statement_too_long`.
+     */
+    @POST("clubs/{id}/statement/preview")
+    suspend fun previewStatement(@Path("id") clubId: String, @Body csv: RequestBody): StatementPreview
+
+    /** Tick off the chosen lines. The statement is read again, so the phone only picks among the server's matches. */
+    @POST("clubs/{id}/statement/apply")
+    suspend fun applyStatement(@Path("id") clubId: String, @Body body: StatementBody): StatementApplied
 }

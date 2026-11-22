@@ -1,0 +1,11 @@
+{
+  "payments_enabled_at": "2026-11-11T10:41:35.434Z",
+  "auto_bill": true,
+  "auto_bill_after_hours": 24,
+  "round_shares_up": false,
+  "fee_chase_after_hours": 24,
+  "fee_chase_max_reminders": 3,
+  "default_nets_mode": "split_total",
+  "default_nets_cents": 6000,
+  "default_match_fee_cents": 500
+}

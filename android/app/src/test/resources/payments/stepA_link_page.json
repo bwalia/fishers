@@ -1,0 +1,36 @@
+{
+  "club_name": "Riverside Strikers (demo)",
+  "title": "Friday nets",
+  "event_start_at": "2026-11-20T08:41:00Z",
+  "currency": "GBP",
+  "expires_at": "2026-12-21T18:13:28.551461Z",
+  "people": [
+    {
+      "id": "2e85b72d-c658-4245-a44f-4823907f9a8e",
+      "name": "Aman Gill"
+    },
+    {
+      "id": "a7dd12db-2259-4d48-9a32-9200346b786c",
+      "name": "Josh Turner"
+    },
+    {
+      "id": "7c5f2847-06a4-46a8-9b86-0aab4c69f714",
+      "name": "Ravi Sharma"
+    },
+    {
+      "id": "70c53855-7693-4104-b282-d145e55f3bdd",
+      "name": "Tom Bennett"
+    }
+  ],
+  "me": "7c5f2847-06a4-46a8-9b86-0aab4c69f714",
+  "account_state": "active",
+  "account": {
+    "label": "Personal account",
+    "holder_name": "Aman Gill",
+    "sort_code": "40-11-22",
+    "account_number": "12345678",
+    "is_personal": true,
+    "changed_at": "2026-11-21T12:18:59.583864Z",
+    "payee_role": "secretary"
+  }
+}

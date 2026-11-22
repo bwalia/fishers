@@ -8,6 +8,8 @@ import com.fishers.app.i18n.t
 import com.fishers.app.net.FixturesApi
 import com.fishers.app.payments.CostCheck
 import com.fishers.app.payments.CostMode
+import com.fishers.app.payments.MoneySettings
+import com.fishers.app.payments.amountText
 import com.fishers.app.payments.checkCost
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -82,6 +84,12 @@ data class CreateFixtureState(
     val confirmingCost: Long? = null,
     /** Said yes to this amount; typing a new one asks again. */
     val costConfirmed: Boolean = false,
+    /** The club's usual prices, when it has them and this person may read them. */
+    val usual: MoneySettings? = null,
+    /** The cost showing is the club's usual price, filled in — not typed. */
+    val costFromUsual: Boolean = false,
+    /** Somebody chose or typed a cost themselves: the usual price stays out of it. */
+    val costTouched: Boolean = false,
 ) {
     val club: Club? get() = clubs.firstOrNull { it.id == clubId }
 
@@ -123,6 +131,12 @@ class CreateFixtureViewModel(
     /** The club to start on, when the form was opened from one. */
     private val preferredClubId: String? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
+    /**
+     * The club's usual prices, which the cost starts from: nets from its
+     * usual nets price, a match from its match fee. Null when there are none,
+     * or this person cannot read them.
+     */
+    private val usualPrices: suspend (clubId: String) -> MoneySettings? = { null },
     private val now: () -> Instant = Instant::now,
 ) : ViewModel() {
 
@@ -164,25 +178,53 @@ class CreateFixtureViewModel(
     /** The grounds and teams belong to whichever club is hosting, so both change with it. */
     fun selectClub(clubId: String) {
         val opponent = _state.value.opponent?.takeIf { it.clubId != clubId }
-        _state.value = _state.value.copy(
-            clubId = clubId, teams = emptyList(), teamId = null, venues = emptyList(), venueId = null,
-            canAddGround = false, opponent = opponent, error = null,
+        _state.value = withUsualCost(
+            _state.value.copy(
+                clubId = clubId, teams = emptyList(), teamId = null, venues = emptyList(), venueId = null,
+                canAddGround = false, opponent = opponent, error = null, usual = null,
+            ),
         )
         clubLoad?.cancel()
         clubLoad = viewModelScope.launch {
             val teams = runCatching { api.teams(clubId) }.getOrDefault(emptyList())
             val venues = runCatching { api.venues(clubId) }.getOrDefault(emptyList())
+            val usual = runCatching { usualPrices(clubId) }.getOrNull()
             val role = roles[clubId]
             if (_state.value.clubId != clubId) return@launch
-            _state.value = _state.value.copy(
-                teams = teams,
-                // One team is the side; nobody should have to pick it.
-                teamId = teams.singleOrNull()?.id,
-                venues = venues,
-                // One ground is where they play.
-                venueId = venues.singleOrNull()?.id,
-                canAddGround = role?.canAddGround == true,
+            _state.value = withUsualCost(
+                _state.value.copy(
+                    teams = teams,
+                    // One team is the side; nobody should have to pick it.
+                    teamId = teams.singleOrNull()?.id,
+                    venues = venues,
+                    // One ground is where they play.
+                    venueId = venues.singleOrNull()?.id,
+                    canAddGround = role?.canAddGround == true,
+                    usual = usual,
+                ),
             )
+        }
+    }
+
+    /**
+     * The cost, started from the club's usual price for what is being
+     * scheduled — nets from the usual nets price, a match from the match fee —
+     * until somebody chooses one themselves. Training has no usual price.
+     */
+    private fun withUsualCost(s: CreateFixtureState): CreateFixtureState {
+        if (s.costTouched) return s
+        val usual = s.usual
+        val price: Pair<CostMode, Long>? = when {
+            usual == null -> null
+            s.practice == EventSubtype.Nets -> usual.usualNets?.let { it.mode to it.amountCents }
+            s.practice == null -> usual.defaultMatchFeeCents?.takeIf { it > 0 }?.let { CostMode.PerPlayer to it }
+            else -> null
+        }
+        return when {
+            price != null -> s.copy(costMode = price.first, costAmount = amountText(price.second), costFromUsual = true, costConfirmed = false)
+            // A usual price filled in for something else: take it back out.
+            s.costFromUsual -> s.copy(costMode = null, costAmount = "", costFromUsual = false, costConfirmed = false)
+            else -> s
         }
     }
 
@@ -216,11 +258,13 @@ class CreateFixtureViewModel(
         if (practice == s.practice || (practice != null && !practice.isPractice)) return
         val nameIsDefault = s.name.isBlank() || PRACTICE_KINDS.any { s.name == it.label }
         val lengthIsDefault = PRACTICE_KINDS.any { s.minutes == defaultMinutes(it) }
-        _state.value = s.copy(
-            practice = practice,
-            name = if (practice != null && nameIsDefault) practice.label else s.name,
-            minutes = if (practice != null && lengthIsDefault) defaultMinutes(practice) else s.minutes,
-            error = null,
+        _state.value = withUsualCost(
+            s.copy(
+                practice = practice,
+                name = if (practice != null && nameIsDefault) practice.label else s.name,
+                minutes = if (practice != null && lengthIsDefault) defaultMinutes(practice) else s.minutes,
+                error = null,
+            ),
         )
     }
 
@@ -246,11 +290,15 @@ class CreateFixtureViewModel(
 
     /** No cost, a total to split, or the same from everyone. */
     fun setCostMode(mode: CostMode?) {
-        _state.value = _state.value.copy(costMode = mode, costConfirmed = false, error = null)
+        _state.value = _state.value.copy(
+            costMode = mode, costConfirmed = false, error = null, costTouched = true, costFromUsual = false,
+        )
     }
 
     fun setCostAmount(text: String) {
-        _state.value = _state.value.copy(costAmount = text, costConfirmed = false, error = null)
+        _state.value = _state.value.copy(
+            costAmount = text, costConfirmed = false, error = null, costTouched = true, costFromUsual = false,
+        )
     }
 
     /** "Yes, £150 a head is right": save it. */

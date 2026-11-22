@@ -4,6 +4,9 @@ import { API_PORT, WEB_PORT } from "../lib/ports";
 
 /// Club accounts on the web: the treasurer sees the books and the AGM report
 /// with a real club's figures; a member sees neither the link nor the page.
+/// Then (plan §12, step D) payments by bank transfer and cash, ticked off on
+/// the Payments page, go into the books: each on the line it paid for, into
+/// the bank or the cash tin.
 ///
 /// Self-contained — it makes its own club, people and year through the API,
 /// so it runs against any local stack:
@@ -29,11 +32,18 @@ async function signup(request: APIRequestContext, name: string): Promise<Session
   return { ...(await res.json()), email };
 }
 
-async function call(request: APIRequestContext, s: Session, method: string, path: string, data?: unknown) {
+async function call(
+  request: APIRequestContext,
+  s: Session,
+  method: string,
+  path: string,
+  data?: unknown,
+  headers: Record<string, string> = {},
+) {
   const res = await request.fetch(`${API}${path}`, {
     method,
     data,
-    headers: { Authorization: `Bearer ${s.access_token}` },
+    headers: { Authorization: `Bearer ${s.access_token}`, ...headers },
   });
   expect(res.ok(), `${method} ${path} → ${res.status()} ${await res.text()}`).toBeTruthy();
   return res.json();
@@ -187,4 +197,98 @@ test("a treasurer keeps the books and prints the AGM report; a member can't get 
   await page.goto(`${WEB}/clubs/${club.id}/accounts`);
   await expect(page.getByText("Only the club owner or a treasurer can open the accounts.")).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/accounts-8-member-refused.png` });
+});
+
+/// A day as the API writes one, some days from today.
+function isoDay(days: number): string {
+  const d = new Date(Date.now() + days * 86_400_000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+test("payments by bank transfer and cash go into the books, each on the line it paid for", async ({ page, request }) => {
+  const owner = await signup(request, "Olive Owner");
+  const treasurer = await signup(request, "Tess Treasurer");
+  const tom = await signup(request, "Tom Bennett");
+  const josh = await signup(request, "Josh Turner");
+  const ids = (s: Session) => (s.user as { id: string }).id;
+
+  const club = await call(request, owner, "POST", "/clubs", {
+    name: `Books CC ${STAMP}`,
+    sport_types: ["cricket"],
+    visibility: "invite_only",
+  });
+  for (const p of [treasurer, tom, josh]) {
+    await call(request, owner, "POST", `/clubs/${club.id}/members`, { identifier: p.email, role: "member" });
+  }
+  await call(request, owner, "PUT", `/clubs/${club.id}/members/${ids(treasurer)}/treasurer`, { is_treasurer: true });
+
+  // This year's books, with a bank account and a cash tin.
+  const A = `/clubs/${club.id}/accounts`;
+  const period = await call(request, treasurer, "POST", `${A}/periods`, {
+    label: `Books ${STAMP}`,
+    starts_on: isoDay(-60),
+    ends_on: isoDay(300),
+    opening_balance_cents: 0,
+  });
+  await call(request, treasurer, "POST", `${A}/money-accounts`, { name: "Bank current a/c", kind: "bank", opening_cents: 0 });
+  await call(request, treasurer, "POST", `${A}/money-accounts`, { name: "Cash tin", kind: "cash", opening_cents: 0 });
+  const overview = await call(request, treasurer, "GET", A);
+  const netFees = overview.categories.find((c: { system_key: string | null }) => c.system_key === "net_fees").name;
+
+  // Nets, £6 each. Tom paid cash at the ground; Josh paid by bank transfer.
+  // The treasurer ticked both off on the Payments page.
+  const start = new Date(Date.now() - 3 * 3600_000);
+  const nets = await call(request, owner, "POST", "/events", {
+    club_id: club.id,
+    sport: "cricket",
+    event_subtype: "nets",
+    title: "Books nets",
+    start_at: start.toISOString(),
+    end_at: new Date(start.getTime() + 2 * 3600_000).toISOString(),
+    cost_mode: "per_player",
+    cost_amount_cents: 600,
+  });
+  await call(request, owner, "POST", `/events/${nets.id}/bill`, { attendees: [ids(tom), ids(josh)] });
+  for (const [who, method] of [
+    [tom, "cash"],
+    [josh, "transfer"],
+  ] as const) {
+    await call(
+      request,
+      treasurer,
+      "POST",
+      `/clubs/${club.id}/payments/record`,
+      { user_id: ids(who), amount_cents: 600, method },
+      { "Idempotency-Key": `books-${STAMP}-${method}` },
+    );
+  }
+
+  // The Owed tab offers both, each with what it paid for and its line.
+  await signIn(page, treasurer);
+  await page.goto(`${WEB}/clubs/${club.id}/accounts`);
+  await page.getByRole("tab", { name: "Owed" }).click({ timeout: 30_000 });
+  const transfers = page.locator(".acc-transfers");
+  await expect(transfers.getByRole("heading", { name: "2 payments by bank transfer and cash, £12.00" })).toBeVisible();
+  const tomLine = transfers.locator("label", { hasText: "Tom Bennett" });
+  await expect(tomLine).toContainText("Cash");
+  await expect(tomLine).toContainText("For Books nets");
+  await expect(tomLine).toContainText(`Goes on: ${netFees}`);
+  await expect(tomLine.getByRole("checkbox")).toBeChecked();
+  const joshLine = transfers.locator("label", { hasText: "Josh Turner" });
+  await expect(joshLine).toContainText("Bank transfer");
+  await expect(transfers.getByLabel("Transfers go into")).toHaveValue(/.+/);
+  await expect(transfers.getByLabel("Cash goes into")).toHaveValue(/.+/);
+  await page.screenshot({ path: `${SHOTS}/accounts-9-transfers.png`, fullPage: true });
+
+  await transfers.getByRole("button", { name: "Take 2 payments into the books" }).click();
+  await expect(page.getByText("2 payments taken into the books.")).toBeVisible();
+  await expect(transfers).toHaveCount(0);
+
+  // In the books: a line each, and never twice.
+  await page.getByRole("tab", { name: "Transactions" }).click();
+  await expect(page.locator("table.acc-tx")).toContainText("Books nets");
+  await expect(page.locator("table.acc-tx tr", { hasText: "Books nets" })).toHaveCount(2);
+  await page.screenshot({ path: `${SHOTS}/accounts-10-in-the-books.png`, fullPage: true });
+  const after = await call(request, treasurer, "GET", `${A}/periods/${period.id}/suggestions`);
+  expect(after.transfers).toHaveLength(0);
 });

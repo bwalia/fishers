@@ -78,6 +78,12 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    /// Signed in some other way — a WhatsApp code — with tokens already in
+    /// hand. From here it is the same as any other sign-in.
+    func signIn(with tokens: AuthTokens) async {
+        await authenticate { tokens }
+    }
+
     /// Google or Apple — one step signs in or creates the account. `role` is
     /// saved only when the account is brand new.
     func signInSocial(_ credential: SocialCredential, role: RoleIntent? = nil) async {

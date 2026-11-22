@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api, saveSession, type AuthTokens } from "@/lib/api";
 import { AuthPitch } from "@/components/AuthPitch";
 import { GoogleButton } from "@/components/GoogleButton";
+import { WhatsAppSignIn } from "@/components/WhatsAppSignIn";
 import { useT } from "@/lib/i18n/provider";
 
 export default function LoginPage() {
@@ -54,6 +55,9 @@ export default function LoginPage() {
         <h2>{t("rest.sign_in")}</h2>
         <p>{t("rest.the_same_account_as_the_ios_app")}</p>
 
+        {/* Above Google, whose "or with your email" line belongs right over
+            the email form. */}
+        <WhatsAppSignIn onSignedIn={goNext} />
         <GoogleButton mode="signin" onSignedIn={goNext} />
 
         <form className="auth-form" onSubmit={onSubmit}>

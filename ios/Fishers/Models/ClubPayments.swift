@@ -117,9 +117,10 @@ extension LenientState {
 }
 
 /// Where one share stands: `owed`, `part_paid`, `waiting` (somebody said they
-/// paid, nobody has confirmed it), `paid`, `waived` or `void`.
+/// paid, nobody has confirmed it), `paid`, `waived`, `void`, or `covered` (a
+/// pass pays for it: nothing to pay).
 enum ShareState: LenientState {
-    case owed, partPaid, waiting, paid, waived, void
+    case owed, partPaid, waiting, paid, waived, void, covered
     case unknown(String)
 
     init(raw: String) {
@@ -130,6 +131,7 @@ enum ShareState: LenientState {
         case "paid": self = .paid
         case "waived": self = .waived
         case "void": self = .void
+        case "covered": self = .covered
         default: self = .unknown(raw)
         }
     }
@@ -142,6 +144,7 @@ enum ShareState: LenientState {
         case .paid: return "paid"
         case .waived: return "waived"
         case .void: return "void"
+        case .covered: return "covered"
         case .unknown(let raw): return raw
         }
     }
@@ -154,13 +157,18 @@ enum ShareState: LenientState {
         case .paid: return tr("Paid")
         case .waived: return tr("Let off")
         case .void: return tr("Cancelled")
+        case .covered: return tr("Covered by your pass")
         case .unknown(let raw): return raw.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
 
     /// Short, for a badge beside a name in a list.
     var shortLabel: String {
-        self == .waiting ? tr("Waiting to confirm") : label
+        switch self {
+        case .waiting: return tr("Waiting to confirm")
+        case .covered: return tr("Covered")
+        default: return label
+        }
     }
 
     /// Money still to come from this person for this share.
@@ -451,10 +459,13 @@ enum BankDetailsCheck {
 // MARK: - Shares and dues
 
 /// One person's part of a bill.
+///
+/// Not always a session's: a monthly pass charge or a group fee is a line
+/// too, with no event (`kind` says which), so `eventId` is optional.
 struct ClubShare: Codable, Identifiable, Equatable {
     let id: UUID
     let billId: UUID
-    let eventId: UUID
+    let eventId: UUID?
     let title: String
     let eventStartAt: Date
     let userId: UUID?
@@ -466,9 +477,17 @@ struct ClubShare: Codable, Identifiable, Equatable {
     let currency: String
     let state: ShareState
     let reason: String?
+    /// `event`, `pass` or `collection`; nil from servers before passes.
+    let kind: String?
+    /// When a pass charge or a group fee falls due, as the server wrote it.
+    let dueOn: String?
+    /// On a covered line, what covers it: `pass` or `free` (a free price
+    /// group). Worded from this, never from the English `reason`.
+    let cover: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, name, currency, state, reason
+        case id, title, name, currency, state, reason, kind, cover
+        case dueOn = "due_on"
         case billId = "bill_id"
         case eventId = "event_id"
         case eventStartAt = "event_start_at"
@@ -483,7 +502,7 @@ struct ClubShare: Codable, Identifiable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         billId = try c.decode(UUID.self, forKey: .billId)
-        eventId = try c.decode(UUID.self, forKey: .eventId)
+        eventId = try? c.decodeIfPresent(UUID.self, forKey: .eventId)
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
         eventStartAt = try c.decode(Date.self, forKey: .eventStartAt)
         userId = try c.decodeIfPresent(UUID.self, forKey: .userId)
@@ -495,6 +514,9 @@ struct ClubShare: Codable, Identifiable, Equatable {
         currency = try c.decodeIfPresent(String.self, forKey: .currency) ?? Money.fallbackCurrency
         state = try c.decodeIfPresent(ShareState.self, forKey: .state) ?? .unknown("")
         reason = try c.decodeIfPresent(String.self, forKey: .reason)
+        kind = try? c.decodeIfPresent(String.self, forKey: .kind)
+        dueOn = try? c.decodeIfPresent(String.self, forKey: .dueOn)
+        cover = try? c.decodeIfPresent(String.self, forKey: .cover)
     }
 
     var isGuest: Bool { userId == nil }
@@ -540,24 +562,34 @@ struct ClubDues: Codable, Identifiable, Equatable {
 /// `GET /me/dues`.
 struct MyDues: Codable, Equatable {
     let clubs: [ClubDues]
+    /// Whoever the reader pays for (a parent's juniors), club by club.
+    let people: [PersonDues]
 
-    init(clubs: [ClubDues]) { self.clubs = clubs }
+    init(clubs: [ClubDues], people: [PersonDues] = []) {
+        self.clubs = clubs
+        self.people = people
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         clubs = try c.decodeIfPresent([ClubDues].self, forKey: .clubs) ?? []
+        // Somebody this build can't read is no reason to lose your own dues.
+        people = (try? c.decodeIfPresent([PersonDues].self, forKey: .people)) ?? []
     }
 
-    enum CodingKeys: String, CodingKey { case clubs }
+    enum CodingKeys: String, CodingKey { case clubs, people }
 
     /// Clubs with something still to pay, which is what the card is about.
     var owing: [ClubDues] { clubs.filter { $0.owedCents > 0 } }
 
     /// "£15.00", or one amount per currency when clubs differ: adding pounds
-    /// to rupees would be a number that means nothing.
+    /// to rupees would be a number that means nothing. What the people the
+    /// reader pays for owe is in it: the reader pays it.
     var owedSummary: String? {
-        let totals = Dictionary(grouping: owing, by: \.currency)
-            .map { (currency: $0.key, minor: $0.value.reduce(0) { $0 + $1.owedCents }) }
+        let lines = owing.map { (currency: $0.currency, minor: $0.owedCents) }
+            + people.filter { $0.dues.owedCents > 0 }.map { (currency: $0.dues.currency, minor: $0.dues.owedCents) }
+        let totals = Dictionary(grouping: lines, by: \.currency)
+            .map { (currency: $0.key, minor: $0.value.reduce(0) { $0 + $1.minor }) }
             .sorted { $0.currency < $1.currency }
         guard !totals.isEmpty else { return nil }
         return totals.map { Money.format($0.minor, $0.currency) }.joined(separator: " + ")
@@ -575,6 +607,10 @@ struct BankDetails: Codable, Equatable {
     let accountNumber: String
     let isPersonal: Bool
     let changedAt: Date?
+    /// What the person who added a personal account is to the club —
+    /// `secretary`, `treasurer` or `owner` — for "Pay Aman Gill, the club
+    /// secretary". Nil for a club account.
+    let payeeRole: String?
 
     enum CodingKeys: String, CodingKey {
         case label
@@ -583,6 +619,7 @@ struct BankDetails: Codable, Equatable {
         case accountNumber = "account_number"
         case isPersonal = "is_personal"
         case changedAt = "changed_at"
+        case payeeRole = "payee_role"
     }
 
     init(from decoder: Decoder) throws {
@@ -593,6 +630,7 @@ struct BankDetails: Codable, Equatable {
         accountNumber = try c.decodeIfPresent(String.self, forKey: .accountNumber) ?? ""
         isPersonal = try c.decodeIfPresent(Bool.self, forKey: .isPersonal) ?? false
         changedAt = try c.decodeIfPresent(Date.self, forKey: .changedAt)
+        payeeRole = try? c.decodeIfPresent(String.self, forKey: .payeeRole)
     }
 
     /// A description that cannot leak the number into a log by accident.
@@ -618,9 +656,21 @@ struct ClubPayment: Codable, Identifiable, Equatable {
     let decidedByName: String?
     let decidedAt: Date?
     let decisionReason: String?
+    /// The share a pay-link payment was for, and the link it came through.
+    let shareId: UUID?
+    let viaLink: UUID?
+    /// The payer added a picture of the payment.
+    let hasScreenshot: Bool
+    /// Who said it was paid: the person it's for, or somebody paying for
+    /// them (a parent, a friend).
+    let createdBy: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, name, currency, method, reference, status, note
+        case createdBy = "created_by"
+        case shareId = "share_id"
+        case viaLink = "via_link"
+        case hasScreenshot = "has_screenshot"
         case clubId = "club_id"
         case userId = "user_id"
         case guestName = "guest_name"
@@ -648,7 +698,18 @@ struct ClubPayment: Codable, Identifiable, Equatable {
         decidedByName = try c.decodeIfPresent(String.self, forKey: .decidedByName)
         decidedAt = try c.decodeIfPresent(Date.self, forKey: .decidedAt)
         decisionReason = try c.decodeIfPresent(String.self, forKey: .decisionReason)
+        shareId = try? c.decodeIfPresent(UUID.self, forKey: .shareId)
+        viaLink = try? c.decodeIfPresent(UUID.self, forKey: .viaLink)
+        hasScreenshot = (try? c.decodeIfPresent(Bool.self, forKey: .hasScreenshot)) ?? false
+        createdBy = try? c.decodeIfPresent(UUID.self, forKey: .createdBy)
     }
+
+    /// Whose reference it went under: whoever said it was paid. That is who
+    /// a bank statement line names.
+    var payerId: UUID? { createdBy ?? userId }
+
+    /// Waiting for a money admin to check it.
+    var isWaiting: Bool { status == .claimed }
 
     /// "Bank transfer", "Cash".
     var methodLabel: String {
@@ -673,11 +734,18 @@ struct PayScreen: Codable, Equatable {
     let accountState: PayAccountState
     let account: BankDetails?
     let reference: String
-    /// Your claims nobody has confirmed yet.
+    /// Your claims nobody has confirmed yet, and those you made for others.
     let claims: [ClubPayment]
+    /// People still owing on bills the reader is on, and what they owe on
+    /// those bills only: "I'm paying for friends too".
+    let friends: [FriendOwing]
+    /// What the standing order is about to pay (this month's pass charge):
+    /// already left out of `owedCents`, which is what to pay by hand.
+    let standingOrderCents: Int
 
     enum CodingKeys: String, CodingKey {
-        case currency, shares, account, reference, claims
+        case currency, shares, account, reference, claims, friends
+        case standingOrderCents = "standing_order_cents"
         case clubId = "club_id"
         case clubName = "club_name"
         case owedCents = "owed_cents"
@@ -699,25 +767,74 @@ struct PayScreen: Codable, Equatable {
         account = try c.decodeIfPresent(BankDetails.self, forKey: .account)
         reference = try c.decodeIfPresent(String.self, forKey: .reference) ?? ""
         claims = try c.decodeIfPresent([ClubPayment].self, forKey: .claims) ?? []
+        friends = (try? c.decodeIfPresent([FriendOwing].self, forKey: .friends)) ?? []
+        standingOrderCents = (try? c.decodeIfPresent(Int.self, forKey: .standingOrderCents)) ?? 0
     }
 
     /// Details to copy, only when the server says they are good to pay into.
     var payableAccount: BankDetails? { accountState == .active ? account : nil }
 
-    /// Everything a banking app asks for, for the "Copy all" button —
-    /// pasted into a note or a message to oneself. The same lines, in the
-    /// same order, as the website's.
-    var copyAllText: String? {
+    /// What is still to pay, oldest first as the server lists them.
+    var owedShares: [ClubShare] { shares.filter(\.state.stillOwed) }
+
+    /// "You owe £5.00 for Friday nets.", or the total when it is for more
+    /// than one thing.
+    var owedHeadline: String {
+        let amount = Money.format(owedCents, currency)
+        if owedShares.count == 1, let title = owedShares.first?.title, !title.isEmpty {
+            return tr("You owe {amount} for {what}.", vars: ["amount": amount, "what": title])
+        }
+        return tr("You owe {amount}.", vars: ["amount": amount])
+    }
+
+    /// Everything a banking app asks for, for "Send these details to
+    /// someone" — a son or daughter who does the banking. The words are the
+    /// pay screen's own.
+    var detailsToSend: String? {
         guard let account = payableAccount else { return nil }
-        return [
+        let lines = [
             [tr("Amount"), Money.format(owedCents, currency)],
-            [tr("Account name"), account.holderName],
+            [tr("Name"), account.holderName],
             [tr("Sort code"), account.sortCode],
             [tr("Account number"), account.accountNumber],
-            [tr("Reference"), reference],
+            [tr("What to write in the reference box"), reference],
         ]
         .map { $0.joined(separator: ": ") }
-        .joined(separator: "\n")
+        return ([tr("Please pay {club} for me:", vars: ["club": clubName])] + lines).joined(separator: "\n")
+    }
+
+    /// Why there are no details to pay into, for a screen that would show
+    /// them: none added, frozen, or unreadable. Nil while there are details,
+    /// and for `nothing_owed`, where there is nothing to pay anyway.
+    var noDetailsReason: String? {
+        switch accountState {
+        case .active, .nothingOwed: return nil
+        default: return accountState.explanation
+        }
+    }
+}
+
+/// Somebody on a bill the reader is on who still owes on it.
+struct FriendOwing: Codable, Identifiable, Equatable {
+    let userId: UUID
+    let name: String
+    /// What they owe on the bills the reader shares with them, and nothing
+    /// of their other dues: the most "for-others" takes for them.
+    let owedCents: Int
+
+    var id: UUID { userId }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case userId = "user_id"
+        case owedCents = "owed_cents"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        owedCents = (try? c.decodeIfPresent(Int.self, forKey: .owedCents)) ?? 0
     }
 }
 
@@ -727,17 +844,24 @@ struct PaymentSettings: Codable, Equatable {
     var autoBill: Bool
     var autoBillAfterHours: Int
     var roundSharesUp: Bool
+    /// The club's usual prices: read here, and only ever written through
+    /// `UsualPrices`, so a settings save can never clear them by accident.
+    var usualPrices: UsualPrices
 
     enum CodingKeys: String, CodingKey {
         case autoBill = "auto_bill"
         case autoBillAfterHours = "auto_bill_after_hours"
         case roundSharesUp = "round_shares_up"
+        case defaultNetsMode = "default_nets_mode"
+        case defaultNetsCents = "default_nets_cents"
+        case defaultMatchFeeCents = "default_match_fee_cents"
     }
 
-    init(autoBill: Bool, autoBillAfterHours: Int, roundSharesUp: Bool) {
+    init(autoBill: Bool, autoBillAfterHours: Int, roundSharesUp: Bool, usualPrices: UsualPrices = UsualPrices()) {
         self.autoBill = autoBill
         self.autoBillAfterHours = autoBillAfterHours
         self.roundSharesUp = roundSharesUp
+        self.usualPrices = usualPrices
     }
 
     init(from decoder: Decoder) throws {
@@ -745,8 +869,27 @@ struct PaymentSettings: Codable, Equatable {
         autoBill = try c.decodeIfPresent(Bool.self, forKey: .autoBill) ?? false
         autoBillAfterHours = try c.decodeIfPresent(Int.self, forKey: .autoBillAfterHours) ?? 24
         roundSharesUp = try c.decodeIfPresent(Bool.self, forKey: .roundSharesUp) ?? false
+        var nets: UsualPrices.Price?
+        if let mode = (try? c.decodeIfPresent(CostMode.self, forKey: .defaultNetsMode)) ?? nil,
+           let cents = (try? c.decodeIfPresent(Int.self, forKey: .defaultNetsCents)) ?? nil {
+            nets = UsualPrices.Price(mode: mode, amountCents: cents)
+        }
+        usualPrices = UsualPrices(
+            nets: nets,
+            matchFeeCents: (try? c.decodeIfPresent(Int.self, forKey: .defaultMatchFeeCents)) ?? nil
+        )
+    }
+
+    /// The three switches only. An absent price is left as it is by the
+    /// server; a null one would be cleared.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(autoBill, forKey: .autoBill)
+        try c.encode(autoBillAfterHours, forKey: .autoBillAfterHours)
+        try c.encode(roundSharesUp, forKey: .roundSharesUp)
     }
 }
+
 
 /// One payer's position with the club: a member, or a guest by name.
 struct MemberBalance: Codable, Identifiable, Equatable {
@@ -801,7 +944,8 @@ struct MoneyTotals: Codable, Equatable {
 /// One recent bill, as the overview lists it.
 struct BillSummary: Codable, Identifiable, Equatable {
     let billId: UUID
-    let eventId: UUID
+    /// Nil for a bill that is not a session's (a group fee, later).
+    let eventId: UUID?
     let title: String
     let eventStartAt: Date
     let currency: String
@@ -812,11 +956,14 @@ struct BillSummary: Codable, Identifiable, Equatable {
     let people: Int
     let unpaid: Int
     let waiting: Int
+    /// `event` opens the session, `collection` the group fee, `pass`
+    /// nothing. Nil from servers before passes: a session's, if it has one.
+    let kind: String?
 
     var id: UUID { billId }
 
     enum CodingKeys: String, CodingKey {
-        case title, currency, people, unpaid, waiting
+        case title, currency, people, unpaid, waiting, kind
         case billId = "bill_id"
         case eventId = "event_id"
         case eventStartAt = "event_start_at"
@@ -829,7 +976,7 @@ struct BillSummary: Codable, Identifiable, Equatable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         billId = try c.decode(UUID.self, forKey: .billId)
-        eventId = try c.decode(UUID.self, forKey: .eventId)
+        eventId = try? c.decodeIfPresent(UUID.self, forKey: .eventId)
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
         eventStartAt = try c.decode(Date.self, forKey: .eventStartAt)
         currency = try c.decodeIfPresent(String.self, forKey: .currency) ?? Money.fallbackCurrency
@@ -840,7 +987,11 @@ struct BillSummary: Codable, Identifiable, Equatable {
         people = try c.decodeIfPresent(Int.self, forKey: .people) ?? 0
         unpaid = try c.decodeIfPresent(Int.self, forKey: .unpaid) ?? 0
         waiting = try c.decodeIfPresent(Int.self, forKey: .waiting) ?? 0
+        kind = try? c.decodeIfPresent(String.self, forKey: .kind)
     }
+
+    /// A group fee's bill, which opens the group fee rather than a session.
+    var isGroupFee: Bool { kind == "collection" }
 }
 
 /// `GET /clubs/{id}/money`. A 403 here is how the app learns somebody is not
@@ -998,9 +1149,11 @@ struct EventBillPage: Codable, Equatable {
     let guests: [String]
     let hasPayoutAccount: Bool
     let roundSharesUp: Bool
+    /// The session's own prices for juniors and others, where they differ.
+    let prices: [TypePrice]
 
     enum CodingKeys: String, CodingKey {
-        case title, cost, bill, shares, candidates, guests
+        case title, cost, bill, shares, candidates, guests, prices
         case eventId = "event_id"
         case clubId = "club_id"
         case endAt = "end_at"
@@ -1027,6 +1180,7 @@ struct EventBillPage: Codable, Equatable {
         guests = try c.decodeIfPresent([String].self, forKey: .guests) ?? []
         hasPayoutAccount = try c.decodeIfPresent(Bool.self, forKey: .hasPayoutAccount) ?? false
         roundSharesUp = try c.decodeIfPresent(Bool.self, forKey: .roundSharesUp) ?? false
+        prices = (try? c.decodeIfPresent([TypePrice].self, forKey: .prices)) ?? []
     }
 
     /// Whether this person has anything to see here at all. A member at an
@@ -1051,11 +1205,22 @@ struct BillPreview: Codable, Equatable {
         let userId: UUID?
         let name: String
         let amountCents: Int
+        /// Why they owe nothing ("Covered by Monthly nets", "Free: Coach"),
+        /// or nil.
+        let covered: String?
 
         enum CodingKeys: String, CodingKey {
-            case name
+            case name, covered
             case userId = "user_id"
             case amountCents = "amount_cents"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            userId = try c.decodeIfPresent(UUID.self, forKey: .userId)
+            name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+            amountCents = try c.decodeIfPresent(Int.self, forKey: .amountCents) ?? 0
+            covered = try? c.decodeIfPresent(String.self, forKey: .covered)
         }
     }
 
@@ -1070,18 +1235,23 @@ struct BillPreview: Codable, Equatable {
         case surplusCents = "surplus_cents"
     }
 
+    /// Covered by a pass or a free price: on the bill, owing nothing.
+    var coveredLines: [Line] { shares.filter { $0.covered != nil } }
+
     /// "4 people · £20.00 in all · £5.00 each", or "… · 6 pay £6.67 · 3 pay
-    /// £6.66" when the pennies don't divide.
+    /// £6.66" when the pennies don't divide, and "· 1 covered" for anybody
+    /// a pass or a free price covers.
     var summary: String {
         let total = Money.format(totalCents, currency)
         let people = shares.count == 1
             ? tr("{n} person · {total} in all", vars: ["n": 1, "total": total])
             : tr("{n} people · {total} in all", vars: ["n": shares.count, "total": total])
+        let covered = coveredLines.isEmpty ? [] : [tr("{n} covered", vars: ["n": coveredLines.count])]
         // Each distinct amount, the bigger first, with how many pay it.
-        let groups = Dictionary(grouping: shares.map(\.amountCents), by: { $0 })
+        let groups = Dictionary(grouping: shares.filter { $0.covered == nil }.map(\.amountCents), by: { $0 })
             .map { (amount: $0.key, count: $0.value.count) }
             .sorted { $0.amount > $1.amount }
-        guard !groups.isEmpty else { return people }
+        guard !groups.isEmpty else { return ([people] + covered).joined(separator: " · ") }
         let parts = groups.count == 1
             ? [tr("{amount} each", vars: ["amount": Money.format(groups[0].amount, currency)])]
             : groups.map { group in
@@ -1089,7 +1259,7 @@ struct BillPreview: Codable, Equatable {
                     ? tr("{n} pays {amount}", vars: ["n": 1, "amount": Money.format(group.amount, currency)])
                     : tr("{n} pay {amount}", vars: ["n": group.count, "amount": Money.format(group.amount, currency)])
             }
-        return ([people] + parts).joined(separator: " · ")
+        return ([people] + parts + covered).joined(separator: " · ")
     }
 }
 
@@ -1115,6 +1285,7 @@ extension APIError {
         return [
             "version_conflict", "already_billed", "already_decided", "nothing_owed",
             "no_bill", "not_live", "not_frozen", "already_retired", "not_freezable",
+            "already_on_pass", "already_cancelled",
         ].contains(code)
     }
 }

@@ -35,7 +35,6 @@ use fishers_domain::money::{
     self, fmt_money, CostMode, PayoutState, Rounding, Settlement, ShareProgress, ShareState,
 };
 use fishers_domain::{Event, Permission};
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -78,11 +77,36 @@ pub fn router() -> Router<AppState> {
 
 // MARK: access
 
-fn status(code: StatusCode, message: impl Into<String>, reason: &'static str) -> ApiError {
+pub(crate) fn status(code: StatusCode, message: impl Into<String>, reason: &'static str) -> ApiError {
     ApiError { status: code, message: message.into(), code: Some(reason) }
 }
 
-async fn role(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
+/// Another request is saving a payment for the same person this instant (a
+/// double tap): try again, with the same Idempotency-Key, and get that one.
+pub(crate) fn busy() -> ApiError {
+    status(StatusCode::CONFLICT, "Hold on, that's still being saved. Try again in a moment.", "busy")
+}
+
+/// How many payments are saved at once, per replica. Each save holds a pooled
+/// connection for its transaction and reads balances through another, so
+/// without a limit a burst of saves for different people could take every
+/// connection in the pool (10) and freeze the API. Waiters hold none.
+static SAVES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(3);
+
+/// A turn to save a payment, or "busy" after ten seconds of waiting.
+pub(crate) async fn save_slot() -> ApiResult<tokio::sync::SemaphorePermit<'static>> {
+    match tokio::time::timeout(std::time::Duration::from_secs(10), SAVES.acquire()).await {
+        Ok(Ok(permit)) => Ok(permit),
+        _ => Err(busy()),
+    }
+}
+
+/// Lock a payer for this transaction, or say they're busy.
+pub(crate) async fn lock_payer(tx: &mut sqlx::PgConnection, club_id: Uuid, payer: &Payer) -> ApiResult<()> {
+    if repo::try_lock_payer(tx, club_id, payer).await? { Ok(()) } else { Err(busy()) }
+}
+
+pub(crate) async fn role(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
     repo::money_role(&state.pool, club_id, user_id)
         .await?
         .ok_or_else(|| ApiError::not_found("club not found"))
@@ -97,7 +121,7 @@ async fn require_member(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiRe
     }
 }
 
-async fn require_money_admin(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
+pub(crate) async fn require_money_admin(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<MoneyRole> {
     let r = role(state, club_id, user_id).await?;
     if r.is_admin() {
         Ok(r)
@@ -109,7 +133,7 @@ async fn require_money_admin(state: &AppState, club_id: Uuid, user_id: Uuid) -> 
     }
 }
 
-async fn event_or_404(state: &AppState, event_id: Uuid) -> ApiResult<Event> {
+pub(crate) async fn event_or_404(state: &AppState, event_id: Uuid) -> ApiResult<Event> {
     events_repo::get_event(&state.pool, event_id)
         .await?
         .ok_or_else(|| ApiError::not_found("event not found"))
@@ -124,7 +148,7 @@ async fn can_bill(state: &AppState, event: &Event, user_id: Uuid, money: MoneyRo
             .is_ok()
 }
 
-async fn require_can_bill(state: &AppState, event: &Event, user_id: Uuid) -> ApiResult<MoneyRole> {
+pub(crate) async fn require_can_bill(state: &AppState, event: &Event, user_id: Uuid) -> ApiResult<MoneyRole> {
     let money = role(state, event.club_id, user_id).await?;
     if can_bill(state, event, user_id, money).await {
         Ok(money)
@@ -160,7 +184,7 @@ async fn reauthenticate(state: &AppState, user_id: Uuid, given: Option<&str>) ->
         .map_err(|_| ApiError::forbidden("That password doesn't match").with_code("wrong_password"))
 }
 
-fn idempotency_key(headers: &HeaderMap) -> ApiResult<Option<String>> {
+pub(crate) fn idempotency_key(headers: &HeaderMap) -> ApiResult<Option<String>> {
     match headers.get("idempotency-key").and_then(|v| v.to_str().ok()) {
         None => Ok(None),
         Some(k) if !k.is_empty() && k.len() <= 100 => Ok(Some(k.to_string())),
@@ -190,7 +214,7 @@ fn reason_required(reason: Option<&str>, what: &str) -> ApiResult<String> {
     Ok(r.to_string())
 }
 
-fn first_name(name: &str) -> &str {
+pub(crate) fn first_name(name: &str) -> &str {
     name.split_whitespace().next().unwrap_or(name)
 }
 
@@ -249,8 +273,8 @@ fn view_of(state: &AppState, row: &PayoutAccountRow, s: PayoutState) -> PayoutAc
 }
 
 /// The club's accounts and the state of each, now.
-struct Accounts {
-    rows: Vec<PayoutAccountRow>,
+pub(crate) struct Accounts {
+    pub(crate) rows: Vec<PayoutAccountRow>,
     states: Vec<PayoutState>,
 }
 
@@ -261,12 +285,12 @@ impl Accounts {
         Self { rows, states }
     }
 
-    fn find(&self, wanted: PayoutState) -> Option<&PayoutAccountRow> {
+    pub(crate) fn find(&self, wanted: PayoutState) -> Option<&PayoutAccountRow> {
         // Newest first: rows are oldest first.
         self.rows.iter().zip(&self.states).rev().find(|(_, s)| **s == wanted).map(|(r, _)| r)
     }
 
-    fn current(&self) -> Option<&PayoutAccountRow> {
+    pub(crate) fn current(&self) -> Option<&PayoutAccountRow> {
         self.find(PayoutState::Active)
     }
 
@@ -276,7 +300,7 @@ impl Accounts {
 
     /// When the current account went live, if it replaced one within the
     /// notice period: players are told the details changed.
-    fn changed_at(&self) -> Option<DateTime<Utc>> {
+    pub(crate) fn changed_at(&self) -> Option<DateTime<Utc>> {
         let current = self.current()?;
         current.replaces_id?;
         (Utc::now() - current.live_from < Duration::days(money::CHANGED_NOTICE_DAYS)).then_some(current.live_from)
@@ -296,7 +320,7 @@ impl Accounts {
     }
 }
 
-async fn accounts(state: &AppState, club_id: Uuid) -> ApiResult<Accounts> {
+pub(crate) async fn accounts(state: &AppState, club_id: Uuid) -> ApiResult<Accounts> {
     Ok(Accounts::of(repo::payout_accounts(&state.pool, club_id).await?))
 }
 
@@ -553,6 +577,18 @@ struct SettingsBody {
     auto_bill: Option<bool>,
     auto_bill_after_hours: Option<i32>,
     round_shares_up: Option<bool>,
+    /// The usual nets price: `{ "mode": "per_player", "amount_cents": 500 }`,
+    /// or null to clear it. Absent leaves it as it is.
+    #[serde(default, deserialize_with = "fishers_domain::double_option")]
+    default_nets: Option<Option<DefaultPrice>>,
+    #[serde(default, deserialize_with = "fishers_domain::double_option")]
+    default_match_fee_cents: Option<Option<i64>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DefaultPrice {
+    mode: String,
+    amount_cents: i64,
 }
 
 async fn update_settings(
@@ -567,11 +603,37 @@ async fn update_settings(
             return Err(ApiError::bad_request("Send the bill between 1 hour and 14 days after the session"));
         }
     }
+    let default_nets = match &body.default_nets {
+        None => None,
+        Some(None) => Some(None),
+        Some(Some(p)) => {
+            let mode = CostMode::parse(&p.mode)
+                .ok_or_else(|| ApiError::bad_request("mode is split_total or per_player"))?;
+            let cap = if mode == CostMode::PerPlayer { money::MAX_SHARE_CENTS } else { money::MAX_BILL_CENTS };
+            if p.amount_cents <= 0 || p.amount_cents > cap {
+                return Err(ApiError::bad_request("That price is more than the app allows").with_code("amount_limit"));
+            }
+            Some(Some((mode.as_str().to_string(), p.amount_cents)))
+        }
+    };
+    if let Some(Some(fee)) = body.default_match_fee_cents {
+        if fee <= 0 || fee > money::MAX_SHARE_CENTS {
+            return Err(ApiError::bad_request("That match fee is more than the app allows").with_code("amount_limit"));
+        }
+    }
+    let change = repo::SettingsChange {
+        auto_bill: body.auto_bill,
+        auto_bill_after_hours: body.auto_bill_after_hours,
+        round_shares_up: body.round_shares_up,
+        default_nets,
+        default_match_fee_cents: body.default_match_fee_cents,
+    };
     let mut tx = state.pool.begin().await?;
-    repo::set_settings(&mut tx, club_id, body.auto_bill, body.auto_bill_after_hours, body.round_shares_up).await?;
+    repo::set_settings(&mut tx, club_id, &change).await?;
     repo::audit(&mut tx, club_id, Some(auth.user_id), "update_settings", "club", Some(club_id), None,
         Some(json!({ "auto_bill": body.auto_bill, "auto_bill_after_hours": body.auto_bill_after_hours,
-                     "round_shares_up": body.round_shares_up }))).await?;
+                     "round_shares_up": body.round_shares_up, "default_nets": format!("{:?}", change.default_nets),
+                     "default_match_fee_cents": body.default_match_fee_cents }))).await?;
     tx.commit().await?;
     Ok(Json(repo::settings(&state.pool, club_id).await?.ok_or_else(|| ApiError::not_found("club not found"))?))
 }
@@ -582,7 +644,12 @@ async fn update_settings(
 pub struct ShareView {
     pub id: Uuid,
     pub bill_id: Uuid,
-    pub event_id: Uuid,
+    /// The session; none for a pass charge or a group fee (see `kind`).
+    pub event_id: Option<Uuid>,
+    /// `event`, `pass` or `collection`.
+    pub kind: String,
+    /// When a pass charge or group fee is due.
+    pub due_on: Option<chrono::NaiveDate>,
     pub title: String,
     pub event_start_at: DateTime<Utc>,
     pub user_id: Option<Uuid>,
@@ -594,19 +661,27 @@ pub struct ShareView {
     pub currency: String,
     pub state: ShareState,
     pub reason: Option<String>,
+    /// For a covered line: `pass` or `free` (a free price group). The reason
+    /// is the server's English; this is what an app words for itself.
+    pub cover: Option<&'static str>,
+    /// For a pass charge: whose pass it's for.
+    pub pass_holder_id: Option<Uuid>,
 }
 
-fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> ShareView {
+pub(crate) fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> ShareView {
     let p = progress.unwrap_or_default();
     let state = match s.status.as_str() {
         "waived" => ShareState::Waived,
         "void" => ShareState::Void,
+        "covered" => ShareState::Covered,
         _ => p.state(s.amount_cents),
     };
     ShareView {
         id: s.id,
         bill_id: s.bill_id,
         event_id: s.event_id,
+        kind: s.kind.clone(),
+        due_on: s.due_on,
         title: s.title.clone(),
         event_start_at: s.event_start_at,
         user_id: s.user_id,
@@ -618,14 +693,16 @@ fn share_view(s: &ShareRow, progress: Option<ShareProgress>) -> ShareView {
         currency: s.currency.clone(),
         state,
         reason: s.reason.clone(),
+        cover: (s.status == "covered").then_some(if s.covered_by.is_some() { "pass" } else { "free" }),
+        pass_holder_id: s.pass_holder_id,
     }
 }
 
 /// A club's money, settled per payer.
-struct Ledger {
-    shares: Vec<ShareRow>,
-    by_payer: HashMap<Payer, Settlement>,
-    names: HashMap<Payer, String>,
+pub(crate) struct Ledger {
+    pub(crate) shares: Vec<ShareRow>,
+    pub(crate) by_payer: HashMap<Payer, Settlement>,
+    pub(crate) names: HashMap<Payer, String>,
 }
 
 impl Ledger {
@@ -647,12 +724,12 @@ impl Ledger {
         Self { shares, by_payer, names }
     }
 
-    async fn load(state: &AppState, club_id: Uuid, only: Option<Uuid>) -> ApiResult<Self> {
+    pub(crate) async fn load(state: &AppState, club_id: Uuid, only: Option<Uuid>) -> ApiResult<Self> {
         let (shares, payments) = repo::ledger(&state.pool, club_id, only).await?;
         Ok(Self::build(shares, payments))
     }
 
-    fn progress(&self, s: &ShareRow) -> Option<ShareProgress> {
+    pub(crate) fn progress(&self, s: &ShareRow) -> Option<ShareProgress> {
         self.by_payer.get(&s.payer()).and_then(|st| st.shares.get(&s.id)).copied()
     }
 
@@ -671,6 +748,35 @@ struct CostBody {
     /// Also every later week of the same weekly series not yet billed.
     #[serde(default)]
     apply_to_series: bool,
+    /// A per-player price for some price types ("Juniors £3"). Given, it
+    /// replaces the session's prices; left out, they stay as they are.
+    prices: Option<Vec<PriceIn>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PriceIn {
+    price_type_id: Uuid,
+    amount_cents: i64,
+}
+
+/// A session's price for one price type.
+#[derive(Debug, Serialize)]
+pub(crate) struct TypePrice {
+    price_type_id: Uuid,
+    name: String,
+    amount_cents: i64,
+}
+
+pub(crate) async fn type_prices(state: &AppState, club_id: Uuid, event_id: Uuid) -> ApiResult<Vec<TypePrice>> {
+    let prices = fishers_db::repos::passes::event_prices(&state.pool, event_id).await?;
+    if prices.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(fishers_db::repos::passes::price_types(&state.pool, club_id)
+        .await?
+        .into_iter()
+        .filter_map(|t| prices.get(&t.id).map(|a| TypePrice { price_type_id: t.id, name: t.name, amount_cents: *a }))
+        .collect())
 }
 
 #[derive(Debug, Serialize)]
@@ -678,6 +784,7 @@ struct CostResponse {
     cost: Option<EventCostRow>,
     /// Other weeks of the series that took the same cost.
     series_updated: usize,
+    prices: Vec<TypePrice>,
 }
 
 async fn set_cost(
@@ -708,6 +815,33 @@ async fn set_cost(
         return Err(ApiError::conflict("This one's already been billed. Re-split the bill to change it.")
             .with_code("already_billed"));
     }
+    let prices: Option<Vec<(Uuid, i64)>> = match &body.prices {
+        None => None,
+        Some(list) => {
+            if mode != CostMode::PerPlayer && !list.is_empty() {
+                return Err(ApiError::bad_request("Prices by type are for a cost per player; a total is split evenly")
+                    .with_code("prices_need_per_player"));
+            }
+            let types = fishers_db::repos::passes::price_types(&state.pool, event.club_id).await?;
+            let mut out: Vec<(Uuid, i64)> = Vec::new();
+            for p in list {
+                if !types.iter().any(|t| t.id == p.price_type_id && t.archived_at.is_none()) {
+                    return Err(ApiError::bad_request("That price type isn't one of this club's"));
+                }
+                if p.amount_cents < 0 || p.amount_cents > money::MAX_SHARE_CENTS {
+                    return Err(ApiError::bad_request(format!(
+                        "A price is between nothing and {}",
+                        fmt_money(money::MAX_SHARE_CENTS, &event.fee_currency)
+                    ))
+                    .with_code("amount_limit"));
+                }
+                if !out.iter().any(|(t, _)| *t == p.price_type_id) {
+                    out.push((p.price_type_id, p.amount_cents));
+                }
+            }
+            Some(out)
+        }
+    };
     let mut targets = vec![event_id];
     if body.apply_to_series {
         if let Some(series) = event.metadata.get("series_id").and_then(|v| v.as_str()) {
@@ -722,11 +856,21 @@ async fn set_cost(
     for id in &targets {
         repo::upsert_cost(&mut tx, *id, event.club_id, mode, body.amount_cents, &event.fee_currency, note, Some(auth.user_id))
             .await?;
+        match (&prices, mode) {
+            (Some(p), _) => fishers_db::repos::passes::set_event_prices(&mut tx, *id, p).await?,
+            // A split total has no per-type prices to keep.
+            (None, CostMode::SplitTotal) => fishers_db::repos::passes::set_event_prices(&mut tx, *id, &[]).await?,
+            (None, CostMode::PerPlayer) => {}
+        }
     }
     repo::audit(&mut tx, event.club_id, Some(auth.user_id), "set_cost", "event", Some(event_id), None,
-        Some(json!({ "mode": mode.as_str(), "amount_cents": body.amount_cents, "weeks": targets.len() }))).await?;
+        Some(json!({ "mode": mode.as_str(), "amount_cents": body.amount_cents, "weeks": targets.len(), "prices": prices }))).await?;
     tx.commit().await?;
-    Ok(Json(CostResponse { cost: repo::cost(&state.pool, event_id).await?, series_updated: targets.len() - 1 }))
+    Ok(Json(CostResponse {
+        cost: repo::cost(&state.pool, event_id).await?,
+        series_updated: targets.len() - 1,
+        prices: type_prices(&state, event.club_id, event_id).await?,
+    }))
 }
 
 async fn remove_cost(
@@ -777,6 +921,8 @@ struct BillResponse {
     end_at: DateTime<Utc>,
     event_status: fishers_domain::EventStatus,
     cost: Option<EventCostRow>,
+    /// The session's own prices for some price types.
+    prices: Vec<TypePrice>,
     bill: Option<BillView>,
     can_bill: bool,
     can_manage_money: bool,
@@ -847,6 +993,7 @@ async fn bill_response(state: &AppState, event: &Event, user_id: Uuid) -> ApiRes
         end_at: event.end_at,
         event_status: event.status,
         cost,
+        prices: type_prices(state, event.club_id, event.id).await?,
         bill,
         can_bill: billing,
         can_manage_money: money_role.is_admin(),
@@ -899,7 +1046,7 @@ async fn attendees_for(
         .with_code("not_members"));
     }
     let mut people: Vec<Attendee> =
-        members.into_iter().map(|(id, name)| Attendee { user_id: Some(id), name }).collect();
+        members.into_iter().map(|(id, name)| Attendee { user_id: Some(id), name, ..Default::default() }).collect();
     people.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then(a.user_id.cmp(&b.user_id)));
 
     let mut seen = std::collections::HashSet::new();
@@ -913,7 +1060,7 @@ async fn attendees_for(
             return Err(ApiError::bad_request("A guest's name can be at most 60 characters"));
         }
         if seen.insert(name.to_lowercase()) {
-            guests.push(Attendee { user_id: None, name });
+            guests.push(Attendee { user_id: None, name, ..Default::default() });
         }
     }
     if guests.len() > 50 {
@@ -922,6 +1069,23 @@ async fn attendees_for(
     guests.sort_by_key(|g| g.name.to_lowercase());
     people.extend(guests);
     Ok(people)
+}
+
+/// Everybody on a session's bill, priced by their price type and marked
+/// where a pass or a free type means they owe nothing.
+async fn priced(state: &AppState, event: &Event, mode: CostMode, people: Vec<Attendee>) -> ApiResult<Vec<Attendee>> {
+    let subtype = serde_json::to_value(event.event_subtype)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_else(|| "generic".into());
+    let facts = fishers_db::repos::passes::SessionFacts {
+        club_id: event.club_id,
+        event_id: Some(event.id),
+        subtype,
+        team_id: event.team_id,
+        day: event.start_at.date_naive(),
+    };
+    Ok(fishers_db::repos::passes::priced(&state.pool, &facts, mode, people).await?)
 }
 
 fn split_error(e: money::SplitError) -> ApiError {
@@ -948,6 +1112,10 @@ struct PreviewShare {
     user_id: Option<Uuid>,
     name: String,
     amount_cents: i64,
+    /// Owing nothing, and why: "Covered by Winter nets pass", "Free: Coach".
+    covered: Option<String>,
+    /// `pass` or `free`, to word it in the app's own language.
+    cover: Option<&'static str>,
 }
 
 #[derive(Debug, Serialize)]
@@ -969,16 +1137,32 @@ async fn preview_bill(
     let cost = cost_or_409(&state, event_id).await?;
     let settings = repo::settings(&state.pool, event.club_id).await?;
     let people = attendees_for(&mut *state.pool.acquire().await?, event.club_id, &body).await?;
+    let people = priced(&state, &event, cost.mode(), people).await?;
     let split = money::split(cost.mode(), cost.amount_cents, people.len(), rounding_for(&settings)).map_err(split_error)?;
+    let shares: Vec<PreviewShare> = people
+        .into_iter()
+        .zip(&split.shares)
+        .map(|(p, standard)| {
+            let amount = match (cost.mode(), p.amount_cents) {
+                (CostMode::PerPlayer, Some(own)) if own > 0 => own,
+                _ => *standard,
+            };
+            let covered = p.cover.as_ref().map(|c| match c {
+                repo::Cover::Pass { plan_name, .. } => format!("Covered by {plan_name}"),
+                repo::Cover::Free { price_type } => format!("Free: {price_type}"),
+            });
+            let cover = p.cover.as_ref().map(|c| match c {
+                repo::Cover::Pass { .. } => "pass",
+                repo::Cover::Free { .. } => "free",
+            });
+            PreviewShare { user_id: p.user_id, name: p.name, amount_cents: amount, covered, cover }
+        })
+        .collect();
     Ok(Json(Preview {
-        shares: people
-            .into_iter()
-            .zip(&split.shares)
-            .map(|(p, a)| PreviewShare { user_id: p.user_id, name: p.name, amount_cents: *a })
-            .collect(),
-        total_cents: split.total_cents,
+        total_cents: shares.iter().filter(|s| s.covered.is_none()).map(|s| s.amount_cents).sum(),
         surplus_cents: split.surplus_cents,
         currency: cost.currency,
+        shares,
     }))
 }
 
@@ -997,7 +1181,15 @@ async fn send_bill(
 
     let mut tx = state.pool.begin().await?;
     let people = attendees_for(&mut tx, event.club_id, &body).await?;
+    let people = priced(&state, &event, cost.mode(), people).await?;
     let came: Vec<Uuid> = people.iter().filter_map(|p| p.user_id).collect();
+    let bundles: Vec<Uuid> = people
+        .iter()
+        .filter_map(|p| match &p.cover {
+            Some(repo::Cover::Pass { holder_id, .. }) => Some(*holder_id),
+            _ => None,
+        })
+        .collect();
     let outcome = repo::issue_bill(
         &mut tx,
         &BillInput {
@@ -1049,6 +1241,9 @@ async fn send_bill(
     tx.commit().await?;
 
     tell_players_about_bill(&state, &outcome.bill, &outcome.changed, outcome.resplit, Some(auth.user_id)).await;
+    if !outcome.resplit {
+        super::passes::bundle_notices(&state, &bundles).await;
+    }
     for user in outcome.removed.iter().filter(|u| **u != auth.user_id) {
         state
             .notify_text(
@@ -1173,6 +1368,9 @@ struct ClubDues {
     owed_cents: i64,
     waiting_cents: i64,
     credit_cents: i64,
+    /// What the standing order is about to pay (this month's pass charge):
+    /// left out of `owed_cents`, which is what to pay by hand.
+    standing_order_cents: i64,
     /// Still to pay or waiting, then the most recent paid ones.
     shares: Vec<ShareView>,
 }
@@ -1180,6 +1378,18 @@ struct ClubDues {
 #[derive(Debug, Serialize)]
 struct Dues {
     clubs: Vec<ClubDues>,
+    /// What the people you pay for owe (a parent's juniors), club by club.
+    people: Vec<PersonDues>,
+}
+
+#[derive(Debug, Serialize)]
+struct PersonDues {
+    user_id: Uuid,
+    name: String,
+    /// No sign-in of their own: you look after their account.
+    managed: bool,
+    club_id: Uuid,
+    dues: ClubDues,
 }
 
 fn dues_for(club_id: Uuid, club_name: String, ledger: &Ledger, payer: &Payer) -> ClubDues {
@@ -1199,39 +1409,70 @@ fn dues_for(club_id: Uuid, club_name: String, ledger: &Ledger, payer: &Payer) ->
     paid.truncate(10);
     let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
     open.extend(paid);
+    let standing_order_cents = standing_order_owed(ledger, payer);
     ClubDues {
         club_id,
         club_name,
         currency,
-        owed_cents: settled.owed_cents,
+        owed_cents: (settled.owed_cents - standing_order_cents).max(0),
         waiting_cents: settled.waiting_cents,
         credit_cents: settled.credit_cents,
+        standing_order_cents,
         shares: open,
     }
+}
+
+/// Recent sessions a pass or free price covered join the history, so a
+/// player sees "covered by your pass" rather than nothing at all.
+async fn with_covered(state: &AppState, dues: &mut ClubDues, user_id: Uuid) -> ApiResult<()> {
+    let covered = repo::recent_covered_shares(&state.pool, dues.club_id, user_id, 5).await?;
+    if covered.is_empty() {
+        return Ok(());
+    }
+    let open = dues.shares.iter().take_while(|v| v.state != ShareState::Paid).count();
+    let mut history: Vec<ShareView> = dues.shares.split_off(open);
+    history.extend(covered.iter().map(|r| share_view(r, None)));
+    history.sort_by_key(|v| std::cmp::Reverse(v.event_start_at));
+    history.truncate(12);
+    dues.shares.extend(history);
+    Ok(())
 }
 
 async fn my_dues(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Dues>> {
     let mut clubs = Vec::new();
     for (club_id, name) in repo::clubs_with_money(&state.pool, auth.user_id).await? {
         let ledger = Ledger::load(&state, club_id, Some(auth.user_id)).await?;
-        clubs.push(dues_for(club_id, name, &ledger, &Payer::Member(auth.user_id)));
+        let mut dues = dues_for(club_id, name, &ledger, &Payer::Member(auth.user_id));
+        with_covered(&state, &mut dues, auth.user_id).await?;
+        clubs.push(dues);
     }
-    Ok(Json(Dues { clubs }))
+    let mut people = Vec::new();
+    for d in fishers_db::repos::passes::dependents(&state.pool, auth.user_id).await? {
+        let club_name = repo::club_name(&state.pool, d.club_id).await?.unwrap_or_default();
+        let ledger = Ledger::load(&state, d.club_id, Some(d.member_id)).await?;
+        let mut dues = dues_for(d.club_id, club_name, &ledger, &Payer::Member(d.member_id));
+        with_covered(&state, &mut dues, d.member_id).await?;
+        people.push(PersonDues { user_id: d.member_id, name: d.name, managed: d.managed, club_id: d.club_id, dues });
+    }
+    Ok(Json(Dues { clubs, people }))
 }
 
 /// This member's reference with this club, made the first time it is needed.
-async fn reference_for(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<String> {
-    let name = repo::user_name(&state.pool, user_id).await?.unwrap_or_default();
+pub(crate) async fn reference_for(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<String> {
+    // The same reference for good, so a player can save the club as a payee
+    // once. Made the first time it is needed: their surname, or the surname
+    // with a number when another member of the club already has it.
     for _ in 0..8 {
         if let Some(code) = repo::reference_code(&state.pool, club_id, user_id).await? {
-            return Ok(money::reference(&code, &name));
+            return Ok(code);
         }
-        let code: String = {
-            let mut rng = rand::thread_rng();
-            (0..money::REFERENCE_CODE_LEN)
-                .map(|_| money::REFERENCE_ALPHABET[rng.gen_range(0..money::REFERENCE_ALPHABET.len())] as char)
-                .collect()
-        };
+        let name = repo::user_name(&state.pool, user_id).await?.unwrap_or_default();
+        let base = money::reference_base(&name);
+        let taken = repo::references_like(&state.pool, club_id, &base).await?;
+        let code = (1..=99)
+            .map(|n| money::reference_numbered(&base, n))
+            .find(|c| !taken.contains(c))
+            .ok_or_else(|| ApiError::internal("could not make a payment reference"))?;
         match repo::store_reference_code(&state.pool, club_id, user_id, &code).await {
             Ok(()) => continue, // read it back: a concurrent request may have won
             Err(sqlx::Error::Database(db)) if db.constraint() == Some("payment_references_club_id_code_key") => continue,
@@ -1242,14 +1483,84 @@ async fn reference_for(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiRes
 }
 
 #[derive(Debug, Serialize)]
-struct BankDetails {
-    label: String,
-    holder_name: String,
-    sort_code: String,
-    account_number: String,
-    is_personal: bool,
+pub(crate) struct BankDetails {
+    pub(crate) label: String,
+    pub(crate) holder_name: String,
+    pub(crate) sort_code: String,
+    pub(crate) account_number: String,
+    pub(crate) is_personal: bool,
     /// When these replaced older details, if recently: say so to the player.
-    changed_at: Option<DateTime<Utc>>,
+    pub(crate) changed_at: Option<DateTime<Utc>>,
+    /// Who the money goes to, in words a player understands: "Aman Gill, the
+    /// club secretary". `role` is secretary, treasurer or owner — what the
+    /// person who added the details is to the club — or null for a club account.
+    pub(crate) payee_role: Option<&'static str>,
+}
+
+/// What the person who added these details is to the club, for "Pay Aman
+/// Gill, the club secretary". Only said of a personal account: a club account
+/// is the club's.
+pub(crate) async fn payee_role(state: &AppState, row: &PayoutAccountRow) -> Option<&'static str> {
+    if !row.is_personal {
+        return None;
+    }
+    let by = row.created_by?;
+    // Only when the account is the adder's own: a treasurer who adds the
+    // secretary's account mustn't make it read "the club treasurer".
+    let adder = repo::user_name(&state.pool, by).await.ok().flatten()?;
+    if !money::same_person(&row.holder_name, &adder) {
+        return None;
+    }
+    let r = repo::money_role(&state.pool, row.club_id, by).await.ok().flatten()?;
+    if r.is_treasurer {
+        Some("treasurer")
+    } else if r.is_secretary {
+        Some("secretary")
+    } else if r.is_owner {
+        Some("owner")
+    } else {
+        None
+    }
+}
+
+/// The club's bank details as a player is shown them, and which of the
+/// states the pay screen speaks of: `active` (details below), `none` (the club
+/// hasn't added any), `frozen` (being checked: don't pay) or `unreadable` (the
+/// club must enter them again). Each time a number is shown, an audit row
+/// says who saw it — a member, or a pay link with the caller's hashed address.
+pub(crate) async fn club_bank_details(
+    state: &AppState,
+    club_id: Uuid,
+    all: &Accounts,
+    viewer: Option<Uuid>,
+    via_link: Option<(Uuid, String)>,
+) -> ApiResult<(&'static str, Option<BankDetails>)> {
+    let Some(row) = all.current() else {
+        return Ok(if all.find(PayoutState::Frozen).is_some() { ("frozen", None) } else { ("none", None) });
+    };
+    match row.details_ciphertext.as_deref().map(|c| state.payout_crypto.open(club_id, c, &row.key_id)) {
+        Some(Ok(details)) => {
+            let mut conn = state.pool.acquire().await?;
+            let after = via_link.as_ref().map(|(link, ip)| json!({ "pay_link": link, "ip": ip }));
+            repo::audit(&mut conn, club_id, viewer, "reveal", "payout_account", Some(row.id), None, after).await?;
+            Ok((
+                "active",
+                Some(BankDetails {
+                    label: row.label.clone(),
+                    holder_name: row.holder_name.clone(),
+                    sort_code: row.sort_code.as_deref().map(money::fmt_sort_code).unwrap_or_default(),
+                    account_number: details.account_number,
+                    is_personal: row.is_personal,
+                    changed_at: all.changed_at(),
+                    payee_role: payee_role(state, row).await,
+                }),
+            ))
+        }
+        _ => {
+            warn!(%club_id, "bank details could not be opened — key missing or data damaged");
+            Ok(("unreadable", None))
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -1267,8 +1578,116 @@ struct PayScreen {
     account_state: &'static str,
     account: Option<BankDetails>,
     reference: String,
-    /// Your claims nobody has confirmed yet.
+    /// Your claims nobody has confirmed yet, and those you made for others.
     claims: Vec<PaymentRow>,
+    /// People on the bills you're on who still owe on them, and how much:
+    /// for "I'm paying for friends too".
+    friends: Vec<FriendOwing>,
+    /// What your standing order is about to pay (monthly pass charges not yet
+    /// past their due day). Left out of `owed_cents`, which is what to pay by
+    /// hand — and what "I've paid" claims.
+    standing_order_cents: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct FriendOwing {
+    user_id: Uuid,
+    name: String,
+    /// Owed on the bills you share — nothing about their other dues.
+    owed_cents: i64,
+}
+
+/// What a member owes on monthly-pass charges their standing order is about
+/// to pay — those not yet past their due day: not for paying by hand, or the
+/// month is paid twice. A charge past its due day wasn't paid by the
+/// standing order, so that one can be caught up by hand.
+pub(crate) async fn standing_order_part(_state: &AppState, _club_id: Uuid, user_id: Uuid, ledger: &Ledger) -> ApiResult<i64> {
+    Ok(standing_order_owed(ledger, &Payer::Member(user_id)))
+}
+
+/// What a payer's standing order is about to pay: their monthly pass charges
+/// not yet past the due day, less money that has arrived for them. The
+/// ledger settles these last, so money paid by hand never lands on them.
+fn standing_order_owed(ledger: &Ledger, payer: &Payer) -> i64 {
+    ledger
+        .shares
+        .iter()
+        .filter(|s| s.standing_order && &s.payer() == payer)
+        .map(|s| (s.amount_cents - ledger.progress(s).unwrap_or_default().paid_cents).max(0))
+        .sum()
+}
+
+async fn pays_for_someone_owing(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<bool> {
+    for d in fishers_db::repos::passes::dependents(&state.pool, user_id).await? {
+        if d.club_id != club_id {
+            continue;
+        }
+        let ledger = Ledger::load(state, club_id, Some(d.member_id)).await?;
+        let s = ledger.of(&Payer::Member(d.member_id));
+        if s.owed_cents > 0 || s.waiting_cents > 0 {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// What each of `people` owes on the bills `user_id` is on: the most a friend
+/// may pay for them, and all a friend sees of their dues.
+///
+/// Two limits, the lower wins: what's still unpaid on those bills, and their
+/// lines' full amounts less everything you've already paid for that person.
+/// The second matters because payments settle the oldest debt first: a
+/// friend's money can go to an older private bill and leave the shared one
+/// "owed", so without it you could pay again and again for their other dues.
+pub(crate) async fn owed_on_shared_bills(
+    state: &AppState,
+    club_id: Uuid,
+    user_id: Uuid,
+    ledger: &Ledger,
+) -> ApiResult<HashMap<Uuid, (String, i64)>> {
+    let bills: std::collections::HashSet<Uuid> = repo::bills_with(&state.pool, club_id, user_id).await?.into_iter().collect();
+    let paid_by_me: HashMap<Uuid, i64> = sqlx::query_as::<_, (Uuid, i64)>(
+        "SELECT user_id, SUM(amount_cents)::BIGINT FROM member_payments
+         WHERE club_id = $1 AND created_by = $2 AND user_id IS NOT NULL AND user_id <> $2
+           AND status IN ('claimed', 'confirmed') AND method IN ('transfer', 'cash')
+         GROUP BY user_id",
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await?
+    .into_iter()
+    .collect();
+    // person → (name, unpaid on shared bills, full amount of their shared lines)
+    let mut per: HashMap<Uuid, (String, i64, i64)> = HashMap::new();
+    for s in ledger.shares.iter().filter(|s| bills.contains(&s.bill_id)) {
+        let Some(u) = s.user_id.filter(|u| *u != user_id) else { continue };
+        let p = ledger.progress(s).unwrap_or_default();
+        let left = (s.amount_cents - p.paid_cents - p.waiting_cents).max(0);
+        let e = per.entry(u).or_insert_with(|| (s.name.clone(), 0, 0));
+        e.1 += left;
+        e.2 += s.amount_cents;
+    }
+    Ok(per
+        .into_iter()
+        .map(|(u, (name, unpaid, whole))| {
+            let room = (whole - paid_by_me.get(&u).copied().unwrap_or(0)).max(0);
+            (u, (name, unpaid.min(room)))
+        })
+        .collect())
+}
+
+async fn friends_owing(state: &AppState, club_id: Uuid, user_id: Uuid) -> ApiResult<Vec<FriendOwing>> {
+    let ledger = Ledger::load(state, club_id, None).await?;
+    let mut out: Vec<FriendOwing> = owed_on_shared_bills(state, club_id, user_id, &ledger)
+        .await?
+        .into_iter()
+        .filter(|(_, (_, owed))| *owed > 0)
+        .map(|(user_id, (name, owed_cents))| FriendOwing { user_id, name, owed_cents })
+        .collect();
+    out.sort_by_key(|a| a.name.to_lowercase());
+    out.truncate(40);
+    Ok(out)
 }
 
 async fn pay_screen(
@@ -1280,7 +1699,23 @@ async fn pay_screen(
     let ledger = Ledger::load(&state, club_id, Some(auth.user_id)).await?;
     let payer = Payer::Member(auth.user_id);
     let settled = ledger.of(&payer);
-    let owes = settled.owed_cents > 0 || settled.waiting_cents > 0;
+    let own = settled.owed_cents > 0 || settled.waiting_cents > 0;
+    // The bank details are for whoever has something to pay: their own dues,
+    // those of somebody they pay for, or a monthly pass paid by standing order.
+    let mine: Vec<Uuid> = std::iter::once(auth.user_id)
+        .chain(
+            fishers_db::repos::passes::dependents(&state.pool, auth.user_id)
+                .await?
+                .into_iter()
+                .filter(|d| d.club_id == club_id)
+                .map(|d| d.member_id),
+        )
+        .collect();
+    let owes = own || pays_for_someone_owing(&state, club_id, auth.user_id).await?
+        || fishers_db::repos::passes::standing_orders(&state.pool, club_id)
+            .await?
+            .iter()
+            .any(|h| mine.contains(&h.user_id));
     // A former member who still owes can still see what to pay.
     if !(r.is_member || r.is_owner || owes) {
         return Err(ApiError::forbidden("You're not a member of this club").with_code("not_member"));
@@ -1291,41 +1726,12 @@ async fn pay_screen(
 
     let (account_state, account) = if !owes && !r.is_admin() {
         ("nothing_owed", None)
-    } else if let Some(row) = all.current() {
+    } else {
         if repo::recent_reveals(&state.pool, auth.user_id).await? >= REVEALS_PER_HOUR {
             return Err(ApiError::too_many("That's a lot of looks at bank details. Try again in an hour.")
                 .with_code("too_many_reveals"));
         }
-        match row
-            .details_ciphertext
-            .as_deref()
-            .map(|c| state.payout_crypto.open(club_id, c, &row.key_id))
-        {
-            Some(Ok(details)) => {
-                let mut conn = state.pool.acquire().await?;
-                repo::audit(&mut conn, club_id, Some(auth.user_id), "reveal", "payout_account", Some(row.id), None, None)
-                    .await?;
-                (
-                    "active",
-                    Some(BankDetails {
-                        label: row.label.clone(),
-                        holder_name: row.holder_name.clone(),
-                        sort_code: row.sort_code.as_deref().map(money::fmt_sort_code).unwrap_or_default(),
-                        account_number: details.account_number,
-                        is_personal: row.is_personal,
-                        changed_at: all.changed_at(),
-                    }),
-                )
-            }
-            _ => {
-                warn!(%club_id, "bank details could not be opened — key missing or data damaged");
-                ("unreadable", None)
-            }
-        }
-    } else if all.find(PayoutState::Frozen).is_some() {
-        ("frozen", None)
-    } else {
-        ("none", None)
+        club_bank_details(&state, club_id, &all, Some(auth.user_id), None).await?
     };
 
     let claims = repo::user_payments(&state.pool, club_id, auth.user_id, 20)
@@ -1333,10 +1739,16 @@ async fn pay_screen(
         .into_iter()
         .filter(|p| p.status == "claimed")
         .collect();
+    let friends = friends_owing(&state, club_id, auth.user_id).await?;
+    let standing_order_cents = dues.standing_order_cents;
     Ok(Json(PayScreen {
+        friends,
+        standing_order_cents,
         club_id,
         club_name,
         currency: dues.currency.clone(),
+        // The pay screen is for paying by hand: what the standing order is
+        // about to pay isn't in it (it's still in `shares`, and said apart).
         owed_cents: dues.owed_cents,
         waiting_cents: dues.waiting_cents,
         credit_cents: dues.credit_cents,
@@ -1375,6 +1787,11 @@ async fn claim_payment(
         return Err(ApiError::bad_request("method is transfer or cash"));
     }
     let key = idempotency_key(&headers)?;
+    // One at a time for this member: the balance read below is then the one
+    // the payment is recorded against.
+    let _slot = save_slot().await?;
+    let mut tx = state.pool.begin().await?;
+    lock_payer(&mut tx, club_id, &Payer::Member(auth.user_id)).await?;
     // A retry of a claim already made (a bad signal, a double tap) answers
     // with that claim, before anything is checked against the balance — which
     // the first attempt has just changed.
@@ -1401,7 +1818,14 @@ async fn claim_payment(
         })
         .with_code("nothing_owed"));
     }
-    let amount = body.amount_cents.unwrap_or(settled.owed_cents);
+    // Without an amount, "I've paid" is for what's owed less what the
+    // standing order pays.
+    let by_standing_order = standing_order_part(&state, club_id, auth.user_id, &ledger).await?;
+    if body.amount_cents.is_none() && settled.owed_cents - by_standing_order <= 0 && settled.owed_cents > 0 {
+        return Err(ApiError::conflict("Your standing order pays your pass. There's nothing else to pay.")
+            .with_code("nothing_owed"));
+    }
+    let amount = body.amount_cents.unwrap_or(settled.owed_cents - by_standing_order);
     if amount <= 0 || amount > money::MAX_SHARE_CENTS {
         return Err(ApiError::bad_request(format!(
             "The amount has to be more than zero and at most {}",
@@ -1416,7 +1840,6 @@ async fn claim_payment(
         (None, None)
     };
 
-    let mut tx = state.pool.begin().await?;
     let (row, created) = repo::insert_payment(
         &mut tx,
         &NewPayment {
@@ -1432,7 +1855,9 @@ async fn claim_payment(
             status: "claimed",
             note: note.as_deref(),
             idempotency_key: key.as_deref(),
-            created_by: auth.user_id,
+            created_by: Some(auth.user_id),
+            via_link: None,
+            share_id: None,
         },
     )
     .await?;
@@ -1476,7 +1901,8 @@ async fn cancel_claim(
     Path(pid): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     let payment = repo::payment(&state.pool, pid).await?.ok_or_else(|| ApiError::not_found("no such payment"))?;
-    if payment.user_id != Some(auth.user_id) {
+    // Yours, or one you made for somebody (a parent's for their junior).
+    if payment.user_id != Some(auth.user_id) && payment.created_by != Some(auth.user_id) {
         return Err(ApiError::not_found("no such payment"));
     }
     let mut tx = state.pool.begin().await?;
@@ -1512,7 +1938,7 @@ async fn list_payments(
     Ok(Json(repo::club_payments(&state.pool, club_id, status, q.limit.unwrap_or(100)).await?))
 }
 
-async fn decide(
+pub(crate) async fn decide(
     state: &AppState,
     by: Uuid,
     pid: Uuid,
@@ -1649,7 +2075,9 @@ async fn record_payment(
             status: "confirmed",
             note: note.as_deref(),
             idempotency_key: key.as_deref(),
-            created_by: auth.user_id,
+            created_by: Some(auth.user_id),
+            via_link: None,
+            share_id: None,
         },
     )
     .await?;
@@ -1687,6 +2115,12 @@ async fn refund(
     let note = clean_note(body.note.as_deref())?;
     let ledger = Ledger::load(&state, club_id, None).await?;
     let (payer, name) = payer_for(&state, club_id, &body, &ledger).await?;
+    // Locked, then the credit read again: two refunds at once can't both
+    // take the same credit.
+    let _slot = save_slot().await?;
+    let mut tx = state.pool.begin().await?;
+    lock_payer(&mut tx, club_id, &payer).await?;
+    let ledger = Ledger::load(&state, club_id, None).await?;
     let currency = ledger.shares.last().map(|s| s.currency.clone()).unwrap_or_else(|| "GBP".into());
     let credit = ledger.of(&payer).credit_cents;
     if body.amount_cents <= 0 || body.amount_cents > credit {
@@ -1701,7 +2135,6 @@ async fn refund(
         Payer::Member(id) => (Some(*id), None),
         Payer::Guest(_) => (None, Some(name.as_str())),
     };
-    let mut tx = state.pool.begin().await?;
     let (row, created) = repo::insert_payment(
         &mut tx,
         &NewPayment {
@@ -1717,7 +2150,9 @@ async fn refund(
             status: "confirmed",
             note: note.as_deref(),
             idempotency_key: key.as_deref(),
-            created_by: auth.user_id,
+            created_by: Some(auth.user_id),
+            via_link: None,
+            share_id: None,
         },
     )
     .await?;
@@ -1760,7 +2195,9 @@ struct Totals {
 #[derive(Debug, Serialize)]
 struct BillSummary {
     bill_id: Uuid,
-    event_id: Uuid,
+    event_id: Option<Uuid>,
+    /// `event`, `pass` or `collection`: which screen opens it.
+    kind: String,
     title: String,
     event_start_at: DateTime<Utc>,
     currency: String,
@@ -1776,6 +2213,8 @@ struct BillSummary {
 #[derive(Debug, Serialize)]
 struct MoneyOverview {
     currency: String,
+    /// Passes a payment behind or paused: "3 passes behind".
+    passes_behind: i64,
     settings: PaymentSettings,
     account: PayoutAccountsView,
     to_check: Vec<PaymentRow>,
@@ -1824,6 +2263,7 @@ async fn money_overview(
         let mut sum = BillSummary {
             bill_id: b.id,
             event_id: b.event_id,
+            kind: b.kind.clone(),
             title: b.title.clone(),
             event_start_at: b.event_start_at,
             currency: b.currency.clone(),
@@ -1852,8 +2292,10 @@ async fn money_overview(
     let currency = bills.first().map(|b| b.currency.clone()).unwrap_or_else(|| "GBP".into());
     let mut to_check = repo::club_payments(&state.pool, club_id, Some("claimed"), 200).await?;
     to_check.reverse(); // oldest first: the longest-waiting at the top
+    let passes_behind = fishers_db::repos::passes::passes_behind(&state.pool, club_id).await?;
     Ok(Json(MoneyOverview {
         currency,
+        passes_behind,
         settings,
         account: accounts(&state, club_id).await?.view(&state, r),
         to_check,

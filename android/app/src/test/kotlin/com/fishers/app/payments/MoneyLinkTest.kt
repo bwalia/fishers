@@ -42,4 +42,18 @@ class MoneyLinkTest {
         assertNull(MoneyLink.fromPush(null, null, null))
         assertNull(MoneyLink.fromPush("", "", ""))
     }
+
+    @Test
+    fun `pass and group fee notifications open the pay screen, somebody else's paused pass the money page`() {
+        listOf("pass_started", "pass_charge", "pass_behind", "pass_cancelled", "pass_price_changed", "pass_sessions_left", "collection_issued")
+            .forEach { kind -> assertEquals(kind, MoneyLink.Pay("c1"), MoneyLink.fromPush(kind, null, "c1")) }
+        // §13: `pass_suspended` is only the holder's now; the money admins get `pass_suspended_club`.
+        assertEquals(MoneyLink.Pay("c1"), MoneyLink.fromPush("pass_suspended", null, "c1"))
+        assertEquals(MoneyLink.ClubMoney("c1"), MoneyLink.fromPush("pass_suspended_club", null, "c1"))
+    }
+
+    @Test
+    fun `somebody paying for you opens your pay screen`() {
+        assertEquals(MoneyLink.Pay("c1"), MoneyLink.fromPush("paid_for_you", null, "c1"))
+    }
 }

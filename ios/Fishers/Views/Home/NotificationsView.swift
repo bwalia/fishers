@@ -140,7 +140,8 @@ struct NotificationsView: View {
         case "bill_issued", "bill_updated", "bill_cancelled", "bill_auto_sent", "bill_not_sent": return tr("Bills")
         case "bill_who_came": return tr("Who came?")
         case "payment_claimed", "payments_to_check": return tr("Payments to check")
-        case "payment_confirmed", "payment_rejected": return tr("Payments")
+        case "payment_confirmed", "payment_rejected", "paid_for_you": return tr("Payments")
+        case "pass_suspended", "pass_suspended_club": return tr("Passes")
         case "payout_details_changed", "payout_details_frozen": return tr("Bank details")
         // A kind the app has not been taught about is still readable.
         default: return kind.replacingOccurrences(of: "_", with: " ").capitalized

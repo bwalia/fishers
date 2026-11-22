@@ -34,6 +34,7 @@ import { Avatar } from "@/components/Avatar";
 import { QrCard } from "@/components/QrCard";
 import { copyText } from "@/lib/clipboard";
 import { useRequireAuth } from "@/lib/require-auth";
+import type { PassPlan } from "@/lib/payments";
 import { useT } from "@/lib/i18n/provider";
 import { brand } from "@/brand.generated";
 
@@ -52,6 +53,8 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
   /// Whether this person looks after the club's money — the owner, a
   /// secretary or a treasurer — as the API's `can_manage` says.
   const [moneyAdmin, setMoneyAdmin] = useState(false);
+  /// The passes a player can get, so they can find them without owing anything.
+  const [passes, setPasses] = useState<PassPlan[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -71,6 +74,10 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
         // An API without payments answers 404; that is "no", not a failure.
         api<{ can_manage: boolean }>("GET", `/clubs/${id}/payout-account`).catch(() => null),
       ]);
+      // Best-effort: an API from before passes, or a visitor, has none.
+      api<PassPlan[]>("GET", `/clubs/${id}/passes`)
+        .then((p) => setPasses(p.filter((x) => !x.archived_at && (x.open_to_join || x.mine))))
+        .catch(() => setPasses([]));
       setClub(c);
       setMembers(m);
       setTeams(t);
@@ -164,6 +171,18 @@ export default function ClubPage({ params }: { params: Promise<{ id: string }> }
           </div>
           <Link className="btn" href={`/clubs/${id}/accounts`}>
             {t("acc.open_the_accounts")}
+          </Link>
+        </div>
+      )}
+
+      {passes.length > 0 && (
+        <div className="panel instant-start">
+          <div>
+            <h2>{t("pw3.passes")}</h2>
+            <p className="muted">{passes.map((p) => p.name).join(" · ")}</p>
+          </div>
+          <Link className="btn" href={`/clubs/${id}/pay#passes`}>
+            {passes.some((p) => p.mine) ? t("pw3.see_your_pass") : t("pw3.see_passes")}
           </Link>
         </div>
       )}

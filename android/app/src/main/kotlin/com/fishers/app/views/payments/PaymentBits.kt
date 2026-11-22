@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.fishers.app.i18n.t
+import com.fishers.app.payments.Share
 import com.fishers.app.payments.ShareState
 
 /**
@@ -61,11 +62,31 @@ internal fun StateLabel(state: ShareState) {
         state.label,
         style = MaterialTheme.typography.labelLarge,
         color = when (state) {
-            ShareState.Paid -> Color(0xFF2E7D32)
+            ShareState.Paid, ShareState.Covered -> Color(0xFF2E7D32)
             ShareState.Waiting, ShareState.PartPaid -> AMBER
             ShareState.Owed -> MaterialTheme.colorScheme.error
             else -> MaterialTheme.colorScheme.onSurfaceVariant
         },
+    )
+}
+
+/**
+ * A line's state as a word. A covered line says why it is nothing to pay,
+ * from the server's `cover` and never its English: "Free ✓" for a free price
+ * (a coach), otherwise "Covered by your pass ✓" — or, for the people running
+ * it ([admin]), "Covered by a pass ✓".
+ */
+@Composable
+internal fun StateLabel(share: Share, admin: Boolean = false) {
+    if (!share.isCovered) return StateLabel(share.state)
+    Text(
+        when {
+            share.isFreePrice -> t("pa3.free_tick")
+            admin -> t("pw4.covered_by_a_pass")
+            else -> t("pa3.covered_by_your_pass")
+        },
+        style = MaterialTheme.typography.labelLarge,
+        color = Color(0xFF2E7D32),
     )
 }
 
@@ -157,7 +178,8 @@ internal fun ReasonDialog(
             ) { Text(confirm) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("sc.cancel")) }
+            // Not "Cancel": beside "Cancel the bill" it reads as the same thing.
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("pay.not_now")) }
         },
     )
 }

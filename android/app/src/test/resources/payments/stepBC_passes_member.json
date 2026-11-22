@@ -1,0 +1,109 @@
+[
+  {
+    "id": "ed9336f5-1d8a-4bdd-bca6-a6b146b3fb66",
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+    "name": "Monthly nets",
+    "price_cents": 2000,
+    "currency": "GBP",
+    "billing": "monthly",
+    "instalments": null,
+    "covers": [
+      "nets",
+      "training"
+    ],
+    "team_id": null,
+    "valid_until": null,
+    "sessions": null,
+    "price_type_id": null,
+    "open_to_join": true,
+    "created_at": "2026-11-21T20:35:24.470433Z",
+    "archived_at": null,
+    "charge_cents": 2000,
+    "holders": 1,
+    "mine": {
+      "id": "d92df115-dc59-4f92-a389-da8ff3c42026",
+      "plan_id": "ed9336f5-1d8a-4bdd-bca6-a6b146b3fb66",
+      "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+      "user_id": "0f86a51c-096c-4aa5-ab90-1b7962830f74",
+      "name": "Ravi Sharma",
+      "started_on": "2026-11-21",
+      "ends_on": null,
+      "cancelled_at": null,
+      "keep_covering": false,
+      "told_standing": "up_to_date",
+      "created_at": "2026-11-21T20:35:24.590286Z",
+      "plan_name": "Monthly nets",
+      "billing": "monthly",
+      "standing": "up_to_date",
+      "sessions_left": null,
+      "running": true,
+      "next_charge_on": "2026-12-21"
+    }
+  },
+  {
+    "id": "f3ef90c3-00b5-4892-9f06-5b69d46e044e",
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+    "name": "5 nets",
+    "price_cents": 2500,
+    "currency": "GBP",
+    "billing": "once",
+    "instalments": null,
+    "covers": [
+      "nets"
+    ],
+    "team_id": null,
+    "valid_until": null,
+    "sessions": 2,
+    "price_type_id": null,
+    "open_to_join": true,
+    "created_at": "2026-11-21T20:35:24.489862Z",
+    "archived_at": null,
+    "charge_cents": 2500,
+    "holders": 0,
+    "mine": null
+  },
+  {
+    "id": "3e6ef092-0932-49c5-8938-e89e9f18c7e7",
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+    "name": "Season",
+    "price_cents": 10000,
+    "currency": "GBP",
+    "billing": "instalments",
+    "instalments": 3,
+    "covers": [
+      "league_match"
+    ],
+    "team_id": null,
+    "valid_until": null,
+    "sessions": null,
+    "price_type_id": null,
+    "open_to_join": false,
+    "created_at": "2026-11-21T20:35:24.511083Z",
+    "archived_at": null,
+    "charge_cents": 3334,
+    "holders": 0,
+    "mine": null
+  },
+  {
+    "id": "adb771f8-ce31-42ce-8a69-8adc253126ee",
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+    "name": "Junior nets",
+    "price_cents": 1000,
+    "currency": "GBP",
+    "billing": "monthly",
+    "instalments": null,
+    "covers": [
+      "nets"
+    ],
+    "team_id": null,
+    "valid_until": null,
+    "sessions": null,
+    "price_type_id": "890e6450-42e3-4ed7-b611-09a0724d6829",
+    "open_to_join": true,
+    "created_at": "2026-11-21T20:35:24.531836Z",
+    "archived_at": null,
+    "charge_cents": 1000,
+    "holders": 0,
+    "mine": null
+  }
+]

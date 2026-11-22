@@ -5,7 +5,7 @@
 //! bill is here too ([`issue_bill`]) so the API and the scheduler share one
 //! path: the same split, the same checks, the same rows.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use fishers_domain::money::{self, CostMode, LedgerKind, LedgerPayment, LedgerShare, Rounding, SplitError};
 use serde::Serialize;
 use serde_json::Value;
@@ -93,6 +93,25 @@ pub async fn user_name(pool: &PgPool, user_id: Uuid) -> Result<Option<String>, s
     sqlx::query_scalar("SELECT name FROM users WHERE id = $1").bind(user_id).fetch_optional(pool).await
 }
 
+/// "Josh" from "Josh Patel".
+pub fn first_name_of(name: &str) -> &str {
+    name.split_whitespace().next().unwrap_or(name)
+}
+
+/// The currency a club works in: its open accounting year's, else the one
+/// its sessions were last priced in, else pounds.
+pub async fn club_currency(pool: &PgPool, club_id: Uuid) -> Result<String, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT COALESCE(
+             (SELECT currency FROM club_account_periods WHERE club_id = $1 AND status = 'open' ORDER BY starts_on DESC LIMIT 1),
+             (SELECT currency FROM event_costs WHERE club_id = $1 ORDER BY updated_at DESC LIMIT 1),
+             'GBP')",
+    )
+    .bind(club_id)
+    .fetch_one(pool)
+    .await
+}
+
 /// Take the club row's lock, so two changes to its bank details can't
 /// interleave (two "replace" requests landing together).
 pub async fn lock_club(conn: &mut PgConnection, club_id: Uuid) -> Result<bool, sqlx::Error> {
@@ -113,12 +132,18 @@ pub struct PaymentSettings {
     pub round_shares_up: bool,
     pub fee_chase_after_hours: i32,
     pub fee_chase_max_reminders: i32,
+    /// The club's usual nets price, offered on every new nets session.
+    pub default_nets_mode: Option<String>,
+    pub default_nets_cents: Option<i64>,
+    /// The usual match fee, offered on every new match.
+    pub default_match_fee_cents: Option<i64>,
 }
 
 pub async fn settings(pool: &PgPool, club_id: Uuid) -> Result<Option<PaymentSettings>, sqlx::Error> {
     sqlx::query_as::<_, PaymentSettings>(
         "SELECT payments_enabled_at, auto_bill, auto_bill_after_hours, round_shares_up,
-                fee_chase_after_hours, fee_chase_max_reminders
+                fee_chase_after_hours, fee_chase_max_reminders,
+                default_nets_mode, default_nets_cents, default_match_fee_cents
          FROM clubs WHERE id = $1",
     )
     .bind(club_id)
@@ -126,23 +151,45 @@ pub async fn settings(pool: &PgPool, club_id: Uuid) -> Result<Option<PaymentSett
     .await
 }
 
-pub async fn set_settings(
-    conn: &mut PgConnection,
-    club_id: Uuid,
-    auto_bill: Option<bool>,
-    auto_bill_after_hours: Option<i32>,
-    round_shares_up: Option<bool>,
-) -> Result<(), sqlx::Error> {
+/// What a settings change asks for. `None` leaves a field as it is; for the
+/// usual prices, `Some(None)` clears one.
+#[derive(Debug, Default)]
+pub struct SettingsChange {
+    pub auto_bill: Option<bool>,
+    pub auto_bill_after_hours: Option<i32>,
+    pub round_shares_up: Option<bool>,
+    pub default_nets: Option<Option<(String, i64)>>,
+    pub default_match_fee_cents: Option<Option<i64>>,
+}
+
+pub async fn set_settings(conn: &mut PgConnection, club_id: Uuid, c: &SettingsChange) -> Result<(), sqlx::Error> {
+    let (nets_set, nets_mode, nets_cents) = match &c.default_nets {
+        None => (false, None, None),
+        Some(None) => (true, None, None),
+        Some(Some((mode, cents))) => (true, Some(mode.clone()), Some(*cents)),
+    };
+    let (fee_set, fee) = match c.default_match_fee_cents {
+        None => (false, None),
+        Some(v) => (true, v),
+    };
     sqlx::query(
         "UPDATE clubs SET auto_bill = COALESCE($2, auto_bill),
                           auto_bill_after_hours = COALESCE($3, auto_bill_after_hours),
-                          round_shares_up = COALESCE($4, round_shares_up)
+                          round_shares_up = COALESCE($4, round_shares_up),
+                          default_nets_mode = CASE WHEN $5 THEN $6 ELSE default_nets_mode END,
+                          default_nets_cents = CASE WHEN $5 THEN $7 ELSE default_nets_cents END,
+                          default_match_fee_cents = CASE WHEN $8 THEN $9 ELSE default_match_fee_cents END
          WHERE id = $1",
     )
     .bind(club_id)
-    .bind(auto_bill)
-    .bind(auto_bill_after_hours)
-    .bind(round_shares_up)
+    .bind(c.auto_bill)
+    .bind(c.auto_bill_after_hours)
+    .bind(c.round_shares_up)
+    .bind(nets_set)
+    .bind(nets_mode)
+    .bind(nets_cents)
+    .bind(fee_set)
+    .bind(fee)
     .execute(conn)
     .await?;
     Ok(())
@@ -567,7 +614,8 @@ pub async fn record_attendance(conn: &mut PgConnection, event_id: Uuid, came: &[
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct BillRow {
     pub id: Uuid,
-    pub event_id: Uuid,
+    /// The session, for a session's bill; none for a pass charge or a group fee.
+    pub event_id: Option<Uuid>,
     pub club_id: Uuid,
     pub title: String,
     pub event_start_at: DateTime<Utc>,
@@ -586,10 +634,23 @@ pub struct BillRow {
     pub updated_at: DateTime<Utc>,
     pub voided_at: Option<DateTime<Utc>>,
     pub void_reason: Option<String>,
+    /// `event`, `pass` or `collection`.
+    pub kind: String,
+    pub pass_holder_id: Option<Uuid>,
+    pub period_start: Option<chrono::NaiveDate>,
+    pub due_on: Option<chrono::NaiveDate>,
 }
 
 const BILL_COLS: &str = "id, event_id, club_id, title, event_start_at, mode, amount_cents, total_cents, currency, \
-    rounding, payout_account_id, status, version, auto, note, issued_by, issued_at, updated_at, voided_at, void_reason";
+    rounding, payout_account_id, status, version, auto, note, issued_by, issued_at, updated_at, voided_at, void_reason, \
+    kind, pass_holder_id, period_start, due_on";
+
+pub async fn bill_by_id(pool: &PgPool, id: Uuid) -> Result<Option<BillRow>, sqlx::Error> {
+    sqlx::query_as::<_, BillRow>(&format!("SELECT {BILL_COLS} FROM event_bills WHERE id = $1"))
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+}
 
 pub async fn live_bill(pool: &PgPool, event_id: Uuid) -> Result<Option<BillRow>, sqlx::Error> {
     sqlx::query_as::<_, BillRow>(&format!(
@@ -644,7 +705,7 @@ pub async fn void_bill(
     .bind(reason)
     .execute(&mut *conn)
     .await?;
-    sqlx::query("UPDATE bill_shares SET status = 'void', reason = $2, decided_by = $3, decided_at = NOW() WHERE bill_id = $1 AND status = 'live'")
+    sqlx::query("UPDATE bill_shares SET status = 'void', reason = $2, decided_by = $3, decided_at = NOW() WHERE bill_id = $1 AND status IN ('live', 'covered')")
         .bind(bill.id)
         .bind(reason)
         .bind(by)
@@ -667,22 +728,34 @@ pub struct ShareRow {
     pub reminders_sent: i32,
     pub last_reminded_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// The pass that covers it, when `status` is `covered` by a pass.
+    pub covered_by: Option<Uuid>,
     // From the bill.
-    pub event_id: Uuid,
+    pub event_id: Option<Uuid>,
     pub title: String,
     pub event_start_at: DateTime<Utc>,
     pub currency: String,
     pub issued_at: DateTime<Utc>,
+    pub kind: String,
+    pub due_on: Option<chrono::NaiveDate>,
+    /// For a pass charge: whose pass.
+    pub pass_holder_id: Option<Uuid>,
+    /// A monthly pass charge, not yet past its due day, that a standing
+    /// order is about to pay: settled after everything owed by hand.
+    pub standing_order: bool,
 }
 
 const SHARE_SELECT: &str = "SELECT s.id, s.bill_id, s.club_id, s.user_id, s.guest_name, s.name, s.amount_cents, \
-    s.status, s.reason, s.reminders_sent, s.last_reminded_at, s.created_at, \
-    b.event_id, b.title, b.event_start_at, b.currency, b.issued_at \
+    s.status, s.reason, s.reminders_sent, s.last_reminded_at, s.created_at, s.covered_by, \
+    b.event_id, b.title, b.event_start_at, b.currency, b.issued_at, b.kind, b.due_on, b.pass_holder_id, \
+    (b.kind = 'pass' AND b.due_on >= CURRENT_DATE AND EXISTS ( \
+        SELECT 1 FROM pass_holders sh JOIN pass_plans sp ON sp.id = sh.plan_id \
+        WHERE sh.id = b.pass_holder_id AND sh.cancelled_at IS NULL AND sp.billing = 'monthly')) AS standing_order \
     FROM bill_shares s JOIN event_bills b ON b.id = s.bill_id";
 
 impl ShareRow {
     pub fn ledger(&self) -> LedgerShare {
-        LedgerShare { id: self.id, amount_cents: self.amount_cents, issued_at: self.issued_at }
+        LedgerShare { id: self.id, amount_cents: self.amount_cents, issued_at: self.issued_at, last: self.standing_order }
     }
 
     /// Who this share belongs to, for matching payments: a member, or a guest
@@ -711,7 +784,7 @@ impl Payer {
 /// The shares on one bill, live and waived (voided ones are history).
 pub async fn bill_shares(pool: &PgPool, bill_id: Uuid) -> Result<Vec<ShareRow>, sqlx::Error> {
     sqlx::query_as::<_, ShareRow>(&format!(
-        "{SHARE_SELECT} WHERE s.bill_id = $1 AND s.status IN ('live', 'waived') ORDER BY lower(s.name), s.id"
+        "{SHARE_SELECT} WHERE s.bill_id = $1 AND s.status IN ('live', 'waived', 'covered') ORDER BY lower(s.name), s.id"
     ))
     .bind(bill_id)
     .fetch_all(pool)
@@ -740,10 +813,23 @@ pub async fn waive_share(conn: &mut PgConnection, share_id: Uuid, by: Uuid, reas
 }
 
 /// Somebody on the bill.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Attendee {
     pub user_id: Option<Uuid>,
     pub name: String,
+    /// Their own price, for a per-player cost where their price type has one.
+    pub amount_cents: Option<i64>,
+    /// Owing nothing on this bill, and why.
+    pub cover: Option<Cover>,
+}
+
+/// Why somebody on a bill owes nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Cover {
+    /// A pass covers it (the pass holder's id).
+    Pass { holder_id: Uuid, plan_name: String },
+    /// Their price type is free (coach, say).
+    Free { price_type: String },
 }
 
 pub struct BillInput<'a> {
@@ -806,6 +892,22 @@ type PriorShare = (Option<Uuid>, Option<String>, i64, String, Option<String>);
 pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Result<BillOutcome, BillError> {
     let split = money::split(input.mode, input.amount_cents, input.attendees.len(), input.rounding)
         .map_err(BillError::Split)?;
+    // A per-player price type overrides the standard price; a split total is
+    // split evenly. What everyone covered "would have paid" stays on their line
+    // for the record; the club covers it, so nobody else pays more.
+    let amounts: Vec<i64> = input
+        .attendees
+        .iter()
+        .zip(&split.shares)
+        .map(|(a, standard)| match (input.mode, a.amount_cents) {
+            (CostMode::PerPlayer, Some(own)) if own > 0 => own,
+            _ => *standard,
+        })
+        .collect();
+    // What the bill collects: everybody's line but those a pass or a free
+    // price type covers.
+    let total_cents: i64 =
+        input.attendees.iter().zip(&amounts).filter(|(a, _)| a.cover.is_none()).map(|(_, amount)| amount).sum();
     let live = live_bill_locked(conn, input.event_id).await?;
     // Keyed by payer — a member by id, a guest by name — so a guest who was
     // let off stays let off too.
@@ -827,7 +929,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
             .bind(input.event_start_at)
             .bind(input.mode.as_str())
             .bind(input.amount_cents)
-            .bind(split.total_cents)
+            .bind(total_cents)
             .bind(input.currency)
             .bind(input.rounding.as_str())
             .bind(input.payout_account_id)
@@ -844,7 +946,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
             }
             let rows: Vec<PriorShare> = sqlx::query_as(
                 "SELECT user_id, guest_name, amount_cents, status, reason FROM bill_shares
-                 WHERE bill_id = $1 AND status IN ('live', 'waived')",
+                 WHERE bill_id = $1 AND status IN ('live', 'waived', 'covered')",
             )
             .bind(live.id)
             .fetch_all(&mut *conn)
@@ -859,7 +961,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
                 rows.into_iter().map(|(u, _, a, st, r)| (u, a, st, r)).collect();
             sqlx::query(
                 "UPDATE bill_shares SET status = 'void', reason = 're-split', decided_by = $2, decided_at = NOW()
-                 WHERE bill_id = $1 AND status IN ('live', 'waived')",
+                 WHERE bill_id = $1 AND status IN ('live', 'waived', 'covered')",
             )
             .bind(live.id)
             .bind(input.by)
@@ -876,7 +978,7 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
             .bind(live.id)
             .bind(input.mode.as_str())
             .bind(input.amount_cents)
-            .bind(split.total_cents)
+            .bind(total_cents)
             .bind(input.rounding.as_str())
             .bind(input.note)
             .fetch_one(&mut *conn)
@@ -887,13 +989,19 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
     };
 
     let mut changed = Vec::new();
-    for (attendee, amount) in input.attendees.iter().zip(&split.shares) {
+    for (attendee, amount) in input.attendees.iter().zip(&amounts) {
         let waiver = waived.get(&Payer::of(attendee.user_id, Some(attendee.name.as_str())));
+        let (status, reason, covered_by) = match (&attendee.cover, waiver) {
+            (Some(Cover::Pass { holder_id, plan_name }), _) => ("covered", Some(format!("Covered by {plan_name}")), Some(*holder_id)),
+            (Some(Cover::Free { price_type }), _) => ("covered", Some(format!("Free: {price_type}")), None),
+            (None, Some(reason)) => ("waived", reason.clone(), None),
+            (None, None) => ("live", None, None),
+        };
         sqlx::query(
             "INSERT INTO bill_shares (bill_id, club_id, user_id, guest_name, name, amount_cents, status, reason,
-                                      decided_by, decided_at)
+                                      decided_by, decided_at, covered_by)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $7 = 'waived' THEN $9 END,
-                     CASE WHEN $7 = 'waived' THEN NOW() END)",
+                     CASE WHEN $7 = 'waived' THEN NOW() END, $10)",
         )
         .bind(bill.id)
         .bind(input.club_id)
@@ -901,12 +1009,13 @@ pub async fn issue_bill(conn: &mut PgConnection, input: &BillInput<'_>) -> Resul
         .bind(attendee.user_id.is_none().then_some(attendee.name.as_str()))
         .bind(&attendee.name)
         .bind(amount)
-        .bind(if waiver.is_some() { "waived" } else { "live" })
-        .bind(waiver.cloned().flatten())
+        .bind(status)
+        .bind(reason)
         .bind(input.by)
+        .bind(covered_by)
         .execute(&mut *conn)
         .await?;
-        if let (Some(user), None) = (attendee.user_id, waiver) {
+        if let (Some(user), "live") = (attendee.user_id, status) {
             let was = before.iter().find(|(u, _, s, _)| *u == Some(user) && s == "live").map(|(_, a, _, _)| *a);
             if was != Some(*amount) {
                 changed.push((user, *amount));
@@ -944,12 +1053,21 @@ pub struct PaymentRow {
     pub decided_by_name: Option<String>,
     pub decided_at: Option<DateTime<Utc>>,
     pub decision_reason: Option<String>,
+    /// The share a pay-link claim was for, and the link it came through.
+    pub share_id: Option<Uuid>,
+    pub via_link: Option<Uuid>,
+    /// Whether the payer attached a screenshot of the payment.
+    pub has_screenshot: bool,
+    /// Who recorded it, when that's somebody else: "paid for you by Neha Gill".
+    pub created_by_name: Option<String>,
 }
 
 const PAYMENT_SELECT: &str = "SELECT p.id, p.club_id, p.user_id, p.guest_name, p.name, p.amount_cents, p.currency, \
     p.method, p.reference, p.payout_account_id, p.status, p.note, p.created_by, p.created_at, \
-    p.decided_by, d.name AS decided_by_name, p.decided_at, p.decision_reason \
-    FROM member_payments p LEFT JOIN users d ON d.id = p.decided_by";
+    p.decided_by, d.name AS decided_by_name, p.decided_at, p.decision_reason, p.share_id, p.via_link, \
+    EXISTS (SELECT 1 FROM payment_attachments a WHERE a.payment_id = p.id) AS has_screenshot, \
+    c.name AS created_by_name \
+    FROM member_payments p LEFT JOIN users d ON d.id = p.decided_by LEFT JOIN users c ON c.id = p.created_by";
 
 impl PaymentRow {
     pub fn payer(&self) -> Payer {
@@ -970,7 +1088,10 @@ pub struct NewPayment<'a> {
     pub status: &'a str,
     pub note: Option<&'a str>,
     pub idempotency_key: Option<&'a str>,
-    pub created_by: Uuid,
+    /// Who recorded it; `None` for a claim made through a pay link.
+    pub created_by: Option<Uuid>,
+    pub via_link: Option<Uuid>,
+    pub share_id: Option<Uuid>,
 }
 
 /// Record a payment. With an idempotency key, the same request sent twice
@@ -981,11 +1102,12 @@ pub async fn insert_payment(conn: &mut PgConnection, p: &NewPayment<'_>) -> Resu
         r#"
         INSERT INTO member_payments (club_id, user_id, guest_name, name, amount_cents, currency, method,
             reference, payout_account_id, status, note, idempotency_key, created_by,
-            decided_by, decided_at)
+            decided_by, decided_at, via_link, share_id)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
                 CASE WHEN $10 = 'confirmed' THEN $13 END,
-                CASE WHEN $10 = 'confirmed' THEN NOW() END)
-        ON CONFLICT (created_by, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+                CASE WHEN $10 = 'confirmed' THEN NOW() END, $14, $15)
+        -- Either idempotency index: per person when signed in, per link when not.
+        ON CONFLICT DO NOTHING
         RETURNING id
         "#,
     )
@@ -1002,15 +1124,20 @@ pub async fn insert_payment(conn: &mut PgConnection, p: &NewPayment<'_>) -> Resu
     .bind(p.note)
     .bind(p.idempotency_key)
     .bind(p.created_by)
+    .bind(p.via_link)
+    .bind(p.share_id)
     .fetch_optional(&mut *conn)
     .await?;
     let (id, created) = match id {
         Some(id) => (id, true),
         None => {
             let existing: Uuid = sqlx::query_scalar(
-                "SELECT id FROM member_payments WHERE created_by = $1 AND idempotency_key = $2",
+                "SELECT id FROM member_payments
+                 WHERE idempotency_key = $3
+                   AND ((via_link IS NOT NULL AND via_link = $2) OR (via_link IS NULL AND created_by = $1))",
             )
             .bind(p.created_by)
+            .bind(p.via_link)
             .bind(p.idempotency_key)
             .fetch_one(&mut *conn)
             .await?;
@@ -1067,7 +1194,7 @@ pub async fn decide_payment(
 pub async fn cancel_claim(conn: &mut PgConnection, id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
     Ok(sqlx::query(
         "UPDATE member_payments SET status = 'cancelled', decided_by = $2, decided_at = NOW()
-         WHERE id = $1 AND user_id = $2 AND status = 'claimed'",
+         WHERE id = $1 AND (user_id = $2 OR created_by = $2) AND status = 'claimed'",
     )
     .bind(id)
     .bind(user_id)
@@ -1094,9 +1221,10 @@ pub async fn club_payments(
     .await
 }
 
+/// A member's payments at a club, and those they made for somebody else.
 pub async fn user_payments(pool: &PgPool, club_id: Uuid, user_id: Uuid, limit: i64) -> Result<Vec<PaymentRow>, sqlx::Error> {
     sqlx::query_as::<_, PaymentRow>(&format!(
-        "{PAYMENT_SELECT} WHERE p.club_id = $1 AND p.user_id = $2 ORDER BY p.created_at DESC LIMIT $3"
+        "{PAYMENT_SELECT} WHERE p.club_id = $1 AND (p.user_id = $2 OR p.created_by = $2) ORDER BY p.created_at DESC LIMIT $3"
     ))
     .bind(club_id)
     .bind(user_id)
@@ -1117,6 +1245,8 @@ pub struct LedgerRow {
     pub method: String,
     /// claimed or confirmed
     pub status: String,
+    /// The share it was made for, if one: it goes there first.
+    pub share_id: Option<Uuid>,
 }
 
 impl LedgerRow {
@@ -1130,7 +1260,7 @@ impl LedgerRow {
             (_, "confirmed") => LedgerKind::Confirmed,
             _ => LedgerKind::Claimed,
         };
-        LedgerPayment { amount_cents: self.amount_cents, kind }
+        LedgerPayment { amount_cents: self.amount_cents, kind, share: self.share_id }
     }
 }
 
@@ -1156,11 +1286,11 @@ pub async fn ledger(
     .await?;
     let payments = sqlx::query_as::<_, LedgerRow>(
         r#"
-        SELECT user_id, guest_name, amount_cents, method, status
+        SELECT user_id, guest_name, amount_cents, method, status, share_id
         FROM member_payments
         WHERE club_id = $1 AND status IN ('claimed', 'confirmed') AND ($2::uuid IS NULL OR user_id = $2)
         UNION ALL
-        SELECT p.user_id, NULL, p.amount_cents::bigint, 'card', 'confirmed'
+        SELECT p.user_id, NULL, p.amount_cents::bigint, 'card', 'confirmed', NULL::uuid
         FROM payments p
         WHERE p.status = 'succeeded' AND p.order_id IS NULL AND ($2::uuid IS NULL OR p.user_id = $2)
           AND EXISTS (
@@ -1201,6 +1331,17 @@ pub async fn reference_code(pool: &PgPool, club_id: Uuid, user_id: Uuid) -> Resu
         .await
 }
 
+/// References already taken in this club that start from `base`.
+pub async fn references_like(pool: &PgPool, club_id: Uuid, base: &str) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT code FROM payment_references WHERE club_id = $1 AND (code = $2 OR code LIKE $2 || ' %')",
+    )
+    .bind(club_id)
+    .bind(base)
+    .fetch_all(pool)
+    .await
+}
+
 /// Keep `code` as this member's reference, unless they already have one.
 /// A code another member already has is a unique violation: the caller tries
 /// another.
@@ -1225,6 +1366,8 @@ pub struct FinishedEvent {
     pub club_id: Uuid,
     pub title: String,
     pub start_at: DateTime<Utc>,
+    pub subtype: String,
+    pub team_id: Option<Uuid>,
     pub created_by: Uuid,
     pub mode: String,
     pub amount_cents: i64,
@@ -1233,7 +1376,7 @@ pub struct FinishedEvent {
 }
 
 const FINISHED_SELECT: &str = r#"
-    SELECT e.id AS event_id, e.club_id, e.title, e.start_at, e.created_by,
+    SELECT e.id AS event_id, e.club_id, e.title, e.start_at, e.event_subtype::text AS subtype, e.team_id, e.created_by,
            ec.mode, ec.amount_cents, ec.currency, c.round_shares_up
     FROM event_costs ec
     JOIN events e ON e.id = ec.event_id
@@ -1286,6 +1429,20 @@ pub async fn mark_auto_bill_skipped(pool: &PgPool, event_id: Uuid) -> Result<(),
     Ok(())
 }
 
+/// A member's most recent lines a pass or free price covered, newest first:
+/// "Tuesday nets — covered by your pass", in their history.
+pub async fn recent_covered_shares(pool: &PgPool, club_id: Uuid, user_id: Uuid, limit: i64) -> Result<Vec<ShareRow>, sqlx::Error> {
+    sqlx::query_as::<_, ShareRow>(&format!(
+        "{SHARE_SELECT} WHERE s.club_id = $1 AND s.user_id = $2 AND s.status = 'covered' AND b.status = 'issued'
+         ORDER BY b.event_start_at DESC LIMIT $3"
+    ))
+    .bind(club_id)
+    .bind(user_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
 /// Live shares old enough to chase and not chased too often, for members.
 /// Whether anything is still owed is decided by the caller with the ledger.
 pub async fn shares_due_a_reminder(pool: &PgPool) -> Result<Vec<ShareRow>, sqlx::Error> {
@@ -1295,6 +1452,7 @@ pub async fn shares_due_a_reminder(pool: &PgPool) -> Result<Vec<ShareRow>, sqlx:
         JOIN clubs c ON c.id = s.club_id
         WHERE s.status = 'live' AND b.status = 'issued' AND s.user_id IS NOT NULL
           AND b.issued_at < NOW() - make_interval(hours => c.fee_chase_after_hours)
+          AND (b.due_on IS NULL OR b.due_on < CURRENT_DATE)
           AND s.reminders_sent < c.fee_chase_max_reminders
           AND (s.last_reminded_at IS NULL OR s.last_reminded_at < NOW() - INTERVAL '72 hours')
         ORDER BY s.club_id, s.user_id
@@ -1333,3 +1491,244 @@ pub async fn mark_claims_nudged(pool: &PgPool, ids: &[Uuid]) -> Result<(), sqlx:
         .await?;
     Ok(())
 }
+
+// MARK: pay links
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PayLinkRow {
+    pub id: Uuid,
+    pub club_id: Uuid,
+    pub bill_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub disabled_at: Option<DateTime<Utc>>,
+    /// The bill it is for: still the live one?
+    pub bill_status: String,
+    pub event_id: Option<Uuid>,
+}
+
+const PAY_LINK_SELECT: &str = "SELECT l.id, l.club_id, l.bill_id, l.created_at, l.expires_at, l.disabled_at, \
+    b.status AS bill_status, b.event_id FROM pay_links l JOIN event_bills b ON b.id = l.bill_id";
+
+impl PayLinkRow {
+    /// Open: not switched off, not expired, and its bill not cancelled.
+    pub fn is_open(&self, now: DateTime<Utc>) -> bool {
+        self.disabled_at.is_none() && self.expires_at > now && self.bill_status == "issued"
+    }
+}
+
+pub async fn pay_link(pool: &PgPool, id: Uuid) -> Result<Option<PayLinkRow>, sqlx::Error> {
+    sqlx::query_as::<_, PayLinkRow>(&format!("{PAY_LINK_SELECT} WHERE l.id = $1"))
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+}
+
+/// The newest link for a bill that is still open, if any.
+pub async fn open_link_for_bill(pool: &PgPool, bill_id: Uuid) -> Result<Option<PayLinkRow>, sqlx::Error> {
+    sqlx::query_as::<_, PayLinkRow>(&format!(
+        "{PAY_LINK_SELECT} WHERE l.bill_id = $1 AND l.disabled_at IS NULL AND l.expires_at > NOW()
+         ORDER BY l.created_at DESC LIMIT 1"
+    ))
+    .bind(bill_id)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn create_pay_link(
+    conn: &mut PgConnection,
+    club_id: Uuid,
+    bill_id: Uuid,
+    by: Uuid,
+    expires_at: DateTime<Utc>,
+) -> Result<Uuid, sqlx::Error> {
+    sqlx::query_scalar(
+        "INSERT INTO pay_links (club_id, bill_id, created_by, expires_at) VALUES ($1, $2, $3, $4) RETURNING id",
+    )
+    .bind(club_id)
+    .bind(bill_id)
+    .bind(by)
+    .bind(expires_at)
+    .fetch_one(conn)
+    .await
+}
+
+/// Switch off every open link for a bill.
+pub async fn disable_links_for_bill(conn: &mut PgConnection, bill_id: Uuid, by: Uuid) -> Result<u64, sqlx::Error> {
+    Ok(sqlx::query(
+        "UPDATE pay_links SET disabled_at = NOW(), disabled_by = $2 WHERE bill_id = $1 AND disabled_at IS NULL",
+    )
+    .bind(bill_id)
+    .bind(by)
+    .execute(conn)
+    .await?
+    .rows_affected())
+}
+
+/// A share on this bill (live or let off), as the link shows it.
+pub async fn share_on_bill(pool: &PgPool, bill_id: Uuid, share_id: Uuid) -> Result<Option<ShareRow>, sqlx::Error> {
+    sqlx::query_as::<_, ShareRow>(&format!(
+        "{SHARE_SELECT} WHERE s.bill_id = $1 AND s.id = $2 AND s.status IN ('live', 'waived', 'covered')"
+    ))
+    .bind(bill_id)
+    .bind(share_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// The claim a link request with this Idempotency-Key made, if any: a retry
+/// by the same phone.
+pub async fn link_claim_by_key(pool: &PgPool, link_id: Uuid, key: &str) -> Result<Option<PaymentRow>, sqlx::Error> {
+    sqlx::query_as::<_, PaymentRow>(&format!("{PAYMENT_SELECT} WHERE p.via_link = $1 AND p.idempotency_key = $2"))
+        .bind(link_id)
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+}
+
+/// A claim still waiting for the treasurer, for one share — so a second tap
+/// on the link shows that claim instead of making another.
+pub async fn open_claim_for_share(pool: &PgPool, share_id: Uuid) -> Result<Option<PaymentRow>, sqlx::Error> {
+    sqlx::query_as::<_, PaymentRow>(&format!(
+        "{PAYMENT_SELECT} WHERE p.share_id = $1 AND p.status = 'claimed' ORDER BY p.created_at DESC LIMIT 1"
+    ))
+    .bind(share_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Claims made through one link in the last hour: a link that suddenly makes
+/// dozens is being abused, whatever replica the requests landed on.
+pub async fn recent_link_claims(pool: &PgPool, link_id: Uuid) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT COUNT(*) FROM member_payments WHERE via_link = $1 AND created_at > NOW() - INTERVAL '1 hour'",
+    )
+    .bind(link_id)
+    .fetch_one(pool)
+    .await
+}
+
+// MARK: screenshots
+
+pub async fn put_attachment(
+    conn: &mut PgConnection,
+    payment_id: Uuid,
+    content_type: &str,
+    bytes: &[u8],
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO payment_attachments (payment_id, content_type, bytes) VALUES ($1, $2, $3)
+         ON CONFLICT (payment_id) DO UPDATE SET content_type = EXCLUDED.content_type, bytes = EXCLUDED.bytes,
+             created_at = NOW()",
+    )
+    .bind(payment_id)
+    .bind(content_type)
+    .bind(bytes)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+pub async fn attachment(pool: &PgPool, payment_id: Uuid) -> Result<Option<(String, Vec<u8>)>, sqlx::Error> {
+    sqlx::query_as("SELECT content_type, bytes FROM payment_attachments WHERE payment_id = $1")
+        .bind(payment_id)
+        .fetch_optional(pool)
+        .await
+}
+
+// MARK: bank statement import
+
+/// Every member's reference with the club: `(code, user_id)`.
+pub async fn club_references(pool: &PgPool, club_id: Uuid) -> Result<Vec<(String, Uuid)>, sqlx::Error> {
+    sqlx::query_as("SELECT code, user_id FROM payment_references WHERE club_id = $1").bind(club_id).fetch_all(pool).await
+}
+
+/// A bank transfer somebody said they made, not yet ticked.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct OpenTransfer {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub amount_cents: i64,
+    pub on: NaiveDate,
+    /// Whose reference it came with: whoever paid for them, else their own.
+    pub payer: Uuid,
+    /// The same for claims made in one go (one transfer on the statement).
+    pub batch: String,
+}
+
+pub async fn open_transfer_claims(pool: &PgPool, club_id: Uuid) -> Result<Vec<OpenTransfer>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT id, user_id, amount_cents, created_at::date AS \"on\", COALESCE(paid_by, user_id) AS payer,
+                COALESCE(created_by::text || '|' || created_at::text, id::text) AS batch
+         FROM member_payments
+         WHERE club_id = $1 AND status = 'claimed' AND method = 'transfer' AND user_id IS NOT NULL",
+    )
+    .bind(club_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Which of these statement lines were applied already.
+pub async fn applied_lines(pool: &PgPool, club_id: Uuid, hashes: &[String]) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar("SELECT line_hash FROM statement_lines WHERE club_id = $1 AND line_hash = ANY($2)")
+        .bind(club_id)
+        .bind(hashes)
+        .fetch_all(pool)
+        .await
+}
+
+/// Take a statement line for applying; `false` when it was applied already.
+pub async fn take_line(conn: &mut PgConnection, club_id: Uuid, hash: &str, by: Uuid) -> Result<bool, sqlx::Error> {
+    Ok(sqlx::query(
+        "INSERT INTO statement_lines (club_id, line_hash, applied_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+    )
+    .bind(club_id)
+    .bind(hash)
+    .bind(by)
+    .execute(conn)
+    .await?
+    .rows_affected()
+        == 1)
+}
+
+pub async fn set_line_payment(conn: &mut PgConnection, club_id: Uuid, hash: &str, payment_id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE statement_lines SET payment_id = $3 WHERE club_id = $1 AND line_hash = $2")
+        .bind(club_id)
+        .bind(hash)
+        .bind(payment_id)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
+/// The bills a member is on at a club (issued, any status of their line).
+pub async fn bills_with(pool: &PgPool, club_id: Uuid, user_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT s.bill_id FROM bill_shares s JOIN event_bills b ON b.id = s.bill_id
+         WHERE b.club_id = $1 AND b.status = 'issued' AND s.user_id = $2",
+    )
+    .bind(club_id)
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Take the payer's lock for this transaction, without waiting: `false` when
+/// another request is saving a payment for them right now. Two taps at once
+/// (or a burst from a pay link) can't both read "£10 owed" and both record
+/// it. Not waiting matters: a waiter would hold a pooled connection that the
+/// request holding the lock may need.
+pub async fn try_lock_payer(conn: &mut PgConnection, club_id: Uuid, payer: &Payer) -> Result<bool, sqlx::Error> {
+    let key = match payer {
+        Payer::Member(u) => format!("pay|{club_id}|m|{u}"),
+        Payer::Guest(n) => format!("pay|{club_id}|g|{n}"),
+    };
+    try_lock_key(conn, &key).await
+}
+
+/// Any transaction-long lock by name, without waiting: `false` when another
+/// request holds it.
+pub async fn try_lock_key(conn: &mut PgConnection, key: &str) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))").bind(key).fetch_one(conn).await
+}
+

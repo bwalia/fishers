@@ -12,13 +12,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,6 +32,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,9 +42,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -117,20 +126,66 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
         return
     }
 
+    // Nothing set up yet: the wizard, in place of the page.
+    state.setup?.let { step ->
+        SetupWizard(step, state, model)
+        return
+    }
+
     var rejecting by remember { mutableStateOf<Payment?>(null) }
+    var confirmingAll by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf<MemberBalance?>(null) }
     var refunding by remember { mutableStateOf<MemberBalance?>(null) }
     var freezing by remember { mutableStateOf<PayoutAccount?>(null) }
     var removing by remember { mutableStateOf<PayoutAccount?>(null) }
     val currency = overview.currency
+    val list = rememberLazyListState()
+    // What an action came to is said at the top: go up to it, as the button
+    // that did it may be a long way down.
+    LaunchedEffect(state.message, state.error) {
+        if (state.message != null || state.error != null) list.animateScrollToItem(0)
+    }
 
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = list,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         state.message?.let { item { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) } }
         state.error?.let { item { ErrorLine(it) } }
+
+        if (state.offerSetup) {
+            item { SetupCard(onStart = model::startSetup) }
+        }
+
+        // ---- payments to check: the treasurer's everyday job, so first while there are any ----
+        if (overview.toCheck.isNotEmpty()) {
+            item {
+                SectionHeading(t("pay.payments_to_check_n", vars = mapOf("n" to overview.toCheck.size)))
+            }
+            item { Hint(t("pay.check_your_bank")) }
+            // One payment has its own Received: "All arrived" is for more than one.
+            if (overview.toCheck.size > 1) {
+                item {
+                    Button(
+                        onClick = { confirmingAll = true },
+                        enabled = !state.confirmingAll,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) { Text(if (state.confirmingAll) t("pay.sending") else t("pa2.all_arrived")) }
+                }
+            }
+            items(overview.toCheck, key = { "check-${it.id}" }) { payment ->
+                ToCheckRow(
+                    payment = payment,
+                    busy = payment.id in state.deciding,
+                    onReceived = { model.confirm(payment) },
+                    onNotReceived = { rejecting = payment },
+                    onScreenshot = { model.openScreenshot(payment) },
+                )
+            }
+            item { ChargeRow(t("pw4.import_statement"), t("pa4.import_statement_hint"), onClick = { nav.push(StatementRoute(model.clubId)) }) }
+        }
 
         item {
             BankDetailsCard(
@@ -143,25 +198,22 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
             )
         }
 
-        // ---- payments to check ----
+        // ---- what the club charges besides sessions ----
         item {
-            SectionHeading(
-                if (overview.toCheck.isEmpty()) t("pay.payments_to_check")
-                else t("pay.payments_to_check_n", vars = mapOf("n" to overview.toCheck.size)),
+            ChargesPart(
+                passesBehind = overview.passesBehind,
+                onPasses = { nav.push(PassesAdminRoute(model.clubId, currency)) },
+                onGroupFees = { nav.push(GroupFeesRoute(model.clubId, currency)) },
+                onPrices = { nav.push(PricesRoute(model.clubId)) },
             )
         }
+
+        // ---- payments to check, when there are none (with some, they're at the top) ----
         if (overview.toCheck.isEmpty()) {
+            item { SectionHeading(t("pay.payments_to_check")) }
             item { Hint(t("pay.nothing_to_check")) }
-        } else {
-            item { Hint(t("pay.check_your_bank")) }
-            items(overview.toCheck, key = { "check-${it.id}" }) { payment ->
-                ToCheckRow(
-                    payment = payment,
-                    busy = payment.id in state.deciding,
-                    onReceived = { model.confirm(payment) },
-                    onNotReceived = { rejecting = payment },
-                )
-            }
+            // The bank's statement finds the ones nobody said.
+            item { ChargeRow(t("pw4.import_statement"), t("pa4.import_statement_hint"), onClick = { nav.push(StatementRoute(model.clubId)) }) }
         }
 
         // ---- who owes what ----
@@ -189,12 +241,21 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
         if (overview.bills.isNotEmpty()) {
             item { SectionHeading(t("pay.recent_bills")) }
             items(overview.bills, key = { "bill-${it.billId}" }) { bill ->
-                BillRow(bill, onOpen = { nav.push(FixtureRoute(bill.eventId)) })
+                BillRow(
+                    bill,
+                    onOpen = when (bill.kind) {
+                        "collection" -> { { nav.push(GroupFeesRoute(model.clubId, currency, openBillId = bill.billId)) } }
+                        // A pass charge has no page of its own.
+                        "pass" -> null
+                        else -> bill.eventId?.let { id -> { nav.push(FixtureRoute(id)) } }
+                    },
+                )
             }
         }
 
         // ---- settings ----
         item { SettingsPart(overview.settings, onChange = model::changeSettings) }
+        item { UsualPricesPart(overview.settings, currency, onChange = model::openPrices) }
     }
 
     state.form?.let { form ->
@@ -203,6 +264,30 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
             changing = overview.account.current != null,
             onSave = model::saveBankDetails,
             onDismiss = model::closeForm,
+        )
+    }
+    if (confirmingAll) {
+        val n = overview.toCheck.size
+        AlertDialog(
+            onDismissRequest = { confirmingAll = false },
+            title = { Text(t("pa2.all_arrived_title", count = n, vars = mapOf("n" to n))) },
+            text = { Text(t("pa2.all_arrived_body")) },
+            confirmButton = {
+                TextButton(onClick = { confirmingAll = false; model.confirmAll() }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(t("pa2.yes_all_arrived"))
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmingAll = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("sc.cancel")) } },
+        )
+    }
+    state.screenshot?.let { ScreenshotDialog(it, onClose = model::closeScreenshot) }
+    state.prices?.let { form ->
+        UsualPricesDialog(
+            form = form,
+            settings = overview.settings,
+            currency = currency,
+            onSave = model::saveUsualPrices,
+            onDismiss = model::closePrices,
         )
     }
     rejecting?.let { payment ->
@@ -260,6 +345,46 @@ fun ClubPaymentsContent(state: ClubMoneyState, model: ClubMoneyViewModel) {
             dismissButton = { TextButton(onClick = { removing = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("sc.cancel")) } },
         )
     }
+}
+
+// ---- passes, group fees, prices ----
+
+/**
+ * Passes, group fees, and prices for juniors and others: each its own page,
+ * one row a thumb can hit. "2 passes behind" in amber when payments are late.
+ */
+@Composable
+private fun ChargesPart(passesBehind: Int, onPasses: () -> Unit, onGroupFees: () -> Unit, onPrices: () -> Unit) {
+    Column(Modifier.padding(top = 8.dp)) {
+        SectionHeading(t("pa3.what_the_club_charges"))
+        ChargeRow(
+            t("pa3.passes"),
+            if (passesBehind > 0) t("pa3.passes_behind", count = passesBehind, vars = mapOf("n" to passesBehind)) else t("pa3.passes_row_hint"),
+            warn = passesBehind > 0,
+            onClick = onPasses,
+        )
+        ChargeRow(t("pa3.group_fees"), t("pa3.group_fees_row_hint"), onClick = onGroupFees)
+        ChargeRow(t("pa3.prices_title"), t("pa3.prices_row_hint"), onClick = onPrices)
+    }
+}
+
+@Composable
+private fun ChargeRow(title: String, hint: String, warn: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(hint, style = MaterialTheme.typography.bodyMedium, color = if (warn) AMBER else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+    }
+    HorizontalDivider()
 }
 
 // ---- bank details ----
@@ -346,7 +471,10 @@ private fun AccountLines(account: PayoutAccount) {
             account.label.takeIf { it.isNotBlank() },
             t("pay.personal_account").takeIf { account.isPersonal },
             account.createdByName?.let { t("pay.added_by", vars = mapOf("name" to it)) },
-        ).joinToString(" · "),
+        )
+            // A label typed as "Personal account" is not said twice.
+            .distinctBy { it.trim().lowercase() }
+            .joinToString(" · "),
     )
 }
 
@@ -359,14 +487,103 @@ private fun AccountButtons(first: Pair<String, () -> Unit>, second: Pair<String,
 }
 
 /**
- * Add or change the details. The name must be the account's own, because
+ * The bank details being typed. The name, sort code and "personal" tick
+ * survive the phone turning round; the account number and the password are
+ * never put in saved state, which can be written to disk.
+ */
+@Stable
+internal class BankEntry(holder: String = "", sortCode: String = "", personal: Boolean = false) {
+    var holder by mutableStateOf(holder)
+    var sortCode by mutableStateOf(sortCode)
+    var number by mutableStateOf("")
+    var again by mutableStateOf("")
+    var personal by mutableStateOf(personal)
+    var password by mutableStateOf("")
+
+    companion object {
+        val Saver: Saver<BankEntry, Any> = listSaver(
+            save = { listOf(it.holder, it.sortCode, it.personal) },
+            restore = { BankEntry(it[0] as String, it[1] as String, it[2] as Boolean) },
+        )
+    }
+}
+
+@Composable
+internal fun rememberBankEntry(): BankEntry = rememberSaveable(saver = BankEntry.Saver) { BankEntry() }
+
+/**
+ * The fields themselves. The name must be the account's own, because
  * players' banks check it; the number is typed twice because nothing else
  * catches a slipped digit yet; and the password, because a borrowed phone
  * must not be enough to send the club's money somewhere else.
- *
- * The number and the password are held with `remember`, not `rememberSaveable`:
- * saved state can be written to disk, and these must never be.
  */
+@Composable
+internal fun BankDetailsFields(entry: BankEntry, form: BankForm, changing: Boolean) {
+    OutlinedTextField(
+        value = entry.holder,
+        onValueChange = { if (it.length <= 70) entry.holder = it },
+        label = { Text(t("pay.account_name")) },
+        supportingText = { Text(t("pay.holder_name_hint")) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = entry.sortCode,
+        onValueChange = { typed -> entry.sortCode = typed.filter { it.isDigit() || it == '-' || it == ' ' }.take(8) },
+        label = { Text(t("pay.sort_code")) },
+        placeholder = { Text("12-34-56") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = entry.number,
+        onValueChange = { typed -> entry.number = typed.filter { it.isDigit() || it == ' ' }.take(10) },
+        label = { Text(t("pay.account_number")) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = entry.again,
+        onValueChange = { typed -> entry.again = typed.filter { it.isDigit() || it == ' ' }.take(10) },
+        label = { Text(t("pay.account_number_again")) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = entry.personal, role = Role.Checkbox, onValueChange = { entry.personal = it }),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = entry.personal, onCheckedChange = null)
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(t("pay.this_is_personal"), style = MaterialTheme.typography.bodyLarge)
+            Hint(t("pay.personal_hint"))
+        }
+    }
+    OutlinedTextField(
+        value = entry.password,
+        onValueChange = { entry.password = it },
+        label = { Text(t("pay.your_password")) },
+        supportingText = {
+            Text(if (form.needsPassword) t("pay.password_needed") else t("pay.password_hint"))
+        },
+        isError = form.needsPassword && entry.password.isEmpty(),
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    if (changing) Hint(t("pay.change_waits_24_hours"))
+    form.error?.let { ErrorLine(it) }
+}
+
+/** Add or change the details, in a dialog: the page's own button. */
 @Composable
 private fun BankDetailsDialog(
     form: BankForm,
@@ -374,85 +591,18 @@ private fun BankDetailsDialog(
     onSave: (holder: String, sortCode: String, number: String, again: String, personal: Boolean, password: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var holder by rememberSaveable { mutableStateOf("") }
-    var sortCode by rememberSaveable { mutableStateOf("") }
-    var number by remember { mutableStateOf("") }
-    var again by remember { mutableStateOf("") }
-    var personal by rememberSaveable { mutableStateOf(false) }
-    var password by remember { mutableStateOf("") }
-
+    val entry = rememberBankEntry()
     AlertDialog(
         onDismissRequest = { if (!form.isSaving) onDismiss() },
         title = { Text(if (changing) t("pay.change_bank_details") else t("pay.add_bank_details")) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = holder,
-                    onValueChange = { if (it.length <= 70) holder = it },
-                    label = { Text(t("pay.account_name")) },
-                    supportingText = { Text(t("pay.holder_name_hint")) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = sortCode,
-                    onValueChange = { typed -> sortCode = typed.filter { it.isDigit() || it == '-' || it == ' ' }.take(8) },
-                    label = { Text(t("pay.sort_code")) },
-                    placeholder = { Text("12-34-56") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = number,
-                    onValueChange = { typed -> number = typed.filter { it.isDigit() || it == ' ' }.take(10) },
-                    label = { Text(t("pay.account_number")) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = again,
-                    onValueChange = { typed -> again = typed.filter { it.isDigit() || it == ' ' }.take(10) },
-                    label = { Text(t("pay.account_number_again")) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .toggleable(value = personal, role = Role.Checkbox, onValueChange = { personal = it }),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(checked = personal, onCheckedChange = null)
-                    Column(Modifier.padding(start = 12.dp)) {
-                        Text(t("pay.this_is_personal"), style = MaterialTheme.typography.bodyLarge)
-                        Hint(t("pay.personal_hint"))
-                    }
-                }
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text(t("pay.your_password")) },
-                    supportingText = {
-                        Text(if (form.needsPassword) t("pay.password_needed") else t("pay.password_hint"))
-                    },
-                    isError = form.needsPassword && password.isEmpty(),
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (changing) Hint(t("pay.change_waits_24_hours"))
-                form.error?.let { ErrorLine(it) }
+                BankDetailsFields(entry, form, changing)
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(holder, sortCode, number, again, personal, password) },
+                onClick = { onSave(entry.holder, entry.sortCode, entry.number, entry.again, entry.personal, entry.password) },
                 enabled = !form.isSaving,
                 modifier = Modifier.heightIn(min = 48.dp),
             ) { Text(if (form.isSaving) t("la.saving") else t("lc.save")) }
@@ -466,7 +616,13 @@ private fun BankDetailsDialog(
 // ---- payments to check ----
 
 @Composable
-private fun ToCheckRow(payment: Payment, busy: Boolean, onReceived: () -> Unit, onNotReceived: () -> Unit) {
+private fun ToCheckRow(
+    payment: Payment,
+    busy: Boolean,
+    onReceived: () -> Unit,
+    onNotReceived: () -> Unit,
+    onScreenshot: () -> Unit,
+) {
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(payment.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
@@ -480,6 +636,13 @@ private fun ToCheckRow(payment: Payment, busy: Boolean, onReceived: () -> Unit, 
             ).joinToString(" · "),
         )
         payment.note?.let { Hint(it) }
+        if (payment.viaLink != null) Body(t("pa2.from_the_pay_link"))
+        if (payment.hasScreenshot) {
+            TextButton(onClick = onScreenshot, modifier = Modifier.heightIn(min = 48.dp)) {
+                Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(t("pa2.see_screenshot"), modifier = Modifier.padding(start = 8.dp))
+            }
+        }
         ButtonRow(labels = listOf(t("pay.received"), t("pay.not_received"))) { i, m ->
             if (i == 0) {
                 Button(onClick = onReceived, enabled = !busy, modifier = m.heightIn(min = 48.dp)) { ButtonLabel(t("pay.received")) }
@@ -601,12 +764,12 @@ private fun RecordDialog(
 // ---- bills ----
 
 @Composable
-private fun BillRow(bill: BillSummary, onOpen: () -> Unit) {
+private fun BillRow(bill: BillSummary, onOpen: (() -> Unit)?) {
     Column(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .clickable(role = Role.Button, onClick = onOpen)
+            .then(if (onOpen != null) Modifier.clickable(role = Role.Button, onClick = onOpen) else Modifier)
             .padding(vertical = 8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -19,6 +19,7 @@ struct EventMoneySection: View {
     @State private var lettingOff: ClubShare?
     @State private var letOffReason = ""
     @State private var openedOnce = false
+    @State private var tickingCash = false
 
     enum WhoCameMode: Identifiable {
         case send
@@ -66,6 +67,9 @@ struct EventMoneySection: View {
             }
             .sheet(item: $whoCame) { mode in
                 WhoCameSheet(store: store, page: page, version: mode.version)
+            }
+            .sheet(isPresented: $tickingCash) {
+                CashChecklistSheet(store: store, shares: stillOwing(page), countsAsPaid: page.canManageMoney)
             }
             .confirmationDialog(tr("Remove the cost"), isPresented: $confirmRemoveCost, titleVisibility: .hidden) {
                 Button(tr("Remove the cost"), role: .destructive) { Task { await store.removeCost() } }
@@ -120,6 +124,11 @@ struct EventMoneySection: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(cost.summary)
                     .font(FishersTheme.subhead.weight(.semibold))
+                if !page.prices.isEmpty {
+                    Text(page.prices.map { $0.describe(cost.currency) }.joined(separator: " · "))
+                        .font(FishersTheme.footnote)
+                        .foregroundStyle(.secondary)
+                }
                 if let note = cost.note {
                     Text(note).font(FishersTheme.footnote).foregroundStyle(.secondary)
                 }
@@ -178,6 +187,18 @@ struct EventMoneySection: View {
 
     // MARK: The bill
 
+    /// What hasn't come in yet, naming only the parts there are.
+    private func stillToCome(_ bill: EventBill) -> String? {
+        let waiting = Money.format(bill.waitingCents, bill.currency)
+        let owed = Money.format(bill.owedCents, bill.currency)
+        switch (bill.waitingCents > 0, bill.owedCents > 0) {
+        case (true, true): return tr("{waiting} waiting to be checked · {owed} still owed", vars: ["waiting": waiting, "owed": owed])
+        case (false, true): return tr("{amount} still owed", vars: ["amount": owed])
+        case (true, false): return tr("{amount} to check", vars: ["amount": waiting])
+        case (false, false): return nil
+        }
+    }
+
     @ViewBuilder
     private func billBlock(_ page: EventBillPage, _ bill: EventBill) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -186,13 +207,11 @@ struct EventMoneySection: View {
                 "total": Money.format(bill.totalCents, bill.currency),
             ]))
             .font(FishersTheme.subhead.weight(.semibold))
-            if bill.waitingCents > 0 || bill.owedCents > 0 {
-                Text(tr("{waiting} waiting to be checked · {owed} still owed", vars: [
-                    "waiting": Money.format(bill.waitingCents, bill.currency),
-                    "owed": Money.format(bill.owedCents, bill.currency),
-                ]))
-                .font(FishersTheme.footnote)
-                .foregroundStyle(bill.owedCents > 0 ? FishersTheme.unavailable : FishersTheme.maybe)
+            // Only the parts there are: not "£0.00 waiting to be checked".
+            if let left = stillToCome(bill) {
+                Text(left)
+                    .font(FishersTheme.footnote)
+                    .foregroundStyle(bill.owedCents > 0 ? FishersTheme.unavailable : FishersTheme.maybe)
             }
             if bill.surplusCents > 0 {
                 Text(tr("Shares are rounded up, so {amount} extra goes to the club.", vars: ["amount": Money.format(bill.surplusCents, bill.currency)]))
@@ -224,6 +243,18 @@ struct EventMoneySection: View {
         }
 
         if page.canBill {
+            if !stillOwing(page).isEmpty {
+                Button {
+                    tickingCash = true
+                } label: {
+                    Label(tr("Who paid cash?"), systemImage: "banknote")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: FishersTheme.minTap)
+                }
+                .buttonStyle(.bordered)
+            }
+            BillShareBlock(store: store, anyoneOwes: bill.owedCents > 0)
+                .padding(.top, 4)
             ButtonRow {
                 Button(tr("Change who came")) { whoCame = .resplit(version: bill.version) }
                     .buttonStyle(.bordered)
@@ -231,6 +262,11 @@ struct EventMoneySection: View {
                     .buttonStyle(.bordered)
             }
         }
+    }
+
+    /// Who still has something to pay on the bill, for "Who paid cash?".
+    private func stillOwing(_ page: EventBillPage) -> [ClubShare] {
+        page.shares.filter { $0.state.stillOwed && $0.leftCents > 0 }
     }
 
     // MARK: The reader's own share
@@ -363,6 +399,17 @@ struct WhoCameSheet: View {
                                 .font(FishersTheme.footnote)
                                 .foregroundStyle(.secondary)
                         }
+                        ForEach(Array(preview.coveredLines.enumerated()), id: \.offset) { _, line in
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(line.name)
+                                Spacer()
+                                Text(line.covered ?? "")
+                                    .font(FishersTheme.footnote)
+                                    .foregroundStyle(FishersTheme.available)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
                     } else if let previewProblem {
                         Text(previewProblem).foregroundStyle(FishersTheme.unavailable)
                     } else {
@@ -465,6 +512,10 @@ struct CostEditorSheet: View {
     @State private var applyToSeries = false
     @State private var confirmBig = false
     @State private var problem: String?
+    /// The club's groups that pay their own price, for "Different price for
+    /// juniors?". Empty, and no question, for a club with none.
+    @State private var groups: [PriceType] = []
+    @State private var prices: SessionPricesDraft
 
     init(store: EventMoneyStore, page: EventBillPage, event: Event) {
         self.store = store
@@ -475,6 +526,7 @@ struct CostEditorSheet: View {
         _mode = State(initialValue: existing.map { $0.mode == .perPlayer ? .perPlayer : .splitTotal } ?? .splitTotal)
         _amount = State(initialValue: existing.map { Money.plain($0.amountCents, currency) } ?? "")
         _note = State(initialValue: existing?.note ?? "")
+        _prices = State(initialValue: SessionPricesDraft(existing: page.prices, currency: currency))
     }
 
     private var currency: String { page.cost?.currency ?? event.feeCurrency }
@@ -485,6 +537,10 @@ struct CostEditorSheet: View {
         NavigationStack {
             Form {
                 CostFields(mode: $mode, amount: $amount, currency: currency)
+
+                if mode == .perPlayer, !groups.isEmpty {
+                    groupPricesSection
+                }
 
                 Section(tr("Note (optional)")) {
                     TextField(tr("Two lanes for two hours"), text: $note, axis: .vertical)
@@ -520,6 +576,7 @@ struct CostEditorSheet: View {
                     .disabled(store.isWorking || (minor ?? 0) <= 0)
                 }
             }
+            .task { groups = await store.priceGroups(clubId: page.clubId) }
             .confirmationDialog(
                 tr("{amount} each", vars: ["amount": Money.format(minor ?? 0, currency)]),
                 isPresented: $confirmBig, titleVisibility: .visible
@@ -534,12 +591,49 @@ struct CostEditorSheet: View {
         }
     }
 
+    /// "Different price for juniors?": a price for each group, or empty
+    /// for the usual one.
+    private var groupPricesSection: some View {
+        Section {
+            Toggle(tr("Different price for juniors?"), isOn: $prices.on)
+                .frame(minHeight: FishersTheme.minTap)
+            if prices.on {
+                ForEach(groups) { group in
+                    HStack {
+                        Text(group.name)
+                        Spacer()
+                        Text(Money.format(0, currency).prefix { !$0.isNumber })
+                            .foregroundStyle(.secondary)
+                        TextField(tr("Usual price"), text: Binding(
+                            get: { prices.typed[group.id] ?? "" },
+                            set: { prices.typed[group.id] = $0 }
+                        ))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 120)
+                    }
+                    .frame(minHeight: FishersTheme.minTap)
+                }
+            }
+        } footer: {
+            Text(prices.on
+                 ? tr("Leave one empty for the usual price. Put 0 to make it free for them.")
+                 : tr("Juniors, students or guests can pay a different price for this session."))
+        }
+    }
+
     private func save() async {
         guard let minor else { return }
         problem = nil
+        let typed = prices.body(mode: mode, groups: groups, existing: page.prices, currency: currency)
+        if let wrong = typed.problem {
+            problem = wrong
+            return
+        }
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let outcome = await store.setCost(
-            mode: mode, amountCents: minor, note: trimmed.isEmpty ? nil : trimmed, applyToSeries: applyToSeries
+            mode: mode, amountCents: minor, note: trimmed.isEmpty ? nil : trimmed, applyToSeries: applyToSeries,
+            prices: typed.prices
         )
         if let failure = outcome.failure {
             problem = failure

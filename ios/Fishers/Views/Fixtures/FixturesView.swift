@@ -457,6 +457,11 @@ struct ScheduleMatchSheet: View {
     @State private var costMode: CostMode
     @State private var costAmount = ""
     @State private var confirmCost = false
+    /// The club's usual nets price and match fee, which a new session starts
+    /// from — and what was last filled in from them, to tell whether the
+    /// cost is still the usual one or somebody has changed it.
+    @State private var usualPrices = UsualPrices()
+    @State private var prefilled: ScheduleCost?
 
     /// Events are made in pounds unless the app says otherwise, and a club
     /// does not carry a currency of its own yet — so the form asks in the
@@ -595,9 +600,14 @@ struct ScheduleMatchSheet: View {
                 guard let clubId else { return }
                 venues = (try? await FishersAPI.venues(clubId: clubId)) ?? []
                 teams = (try? await FishersAPI.teams(clubId: clubId)) ?? []
+                // Only the club's money admins can read the usual prices; for
+                // anybody else the cost starts empty, as before.
+                usualPrices = (try? await FishersAPI.usualPrices(clubId: clubId)) ?? UsualPrices()
+                applyUsualPrice()
             }
             .onChange(of: kind) { before, now in
                 if costAmount.isEmpty { costMode = now.isPractice ? .splitTotal : .perPlayer }
+                applyUsualPrice()
                 guard now.isPractice else { return }
                 // Follow the kind until somebody has typed a name or picked a
                 // length of their own.
@@ -683,6 +693,24 @@ struct ScheduleMatchSheet: View {
         }
     }
 
+    /// Fill the cost in from the club's usual price for this kind, unless
+    /// somebody has typed or switched it themselves.
+    private func applyUsualPrice() {
+        let untouched = prefilled.map { costOn && cost == $0 } ?? (!costOn && costAmount.isEmpty)
+        guard untouched else { return }
+        if let usual = usualPrices.cost(for: kind) {
+            costOn = true
+            costMode = usual.mode
+            costAmount = Money.plain(usual.amountCents, costCurrency)
+            prefilled = usual
+        } else if prefilled != nil {
+            costOn = false
+            costAmount = ""
+            costMode = kind.isPractice ? .splitTotal : .perPlayer
+            prefilled = nil
+        }
+    }
+
     /// Optional: split the nets hire, or a match fee each. Players are billed
     /// later, from who actually came.
     @ViewBuilder
@@ -694,6 +722,13 @@ struct ScheduleMatchSheet: View {
         }
         if costOn {
             CostFields(mode: $costMode, amount: $costAmount, currency: costCurrency)
+            if prefilled != nil, cost == prefilled {
+                Section {
+                    Label(tr("The club's usual price. Change it if this one is different."), systemImage: "info.circle")
+                        .font(FishersTheme.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

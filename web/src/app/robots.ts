@@ -55,6 +55,7 @@ export default function robots(): MetadataRoute.Robots {
           "/invite/",
           "/live/",
           "/p/",
+          "/pay/",
           "/play/",
           "/unsubscribe/",
         ],

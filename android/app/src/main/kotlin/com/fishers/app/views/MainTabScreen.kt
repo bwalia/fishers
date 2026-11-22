@@ -25,6 +25,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -102,6 +103,11 @@ fun MainTabScreen(
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
     val navigator = remember { Navigator() }
+    // What each screen on the stack remembers (its tab, how far it was
+    // scrolled), kept while a screen is pushed over it, so Back returns to it
+    // as it was: "Back to payments" lands on the Payments tab.
+    val screens = rememberSaveableStateHolder()
+    val keptScreens = remember { mutableSetOf<String>() }
     // Which thread is open, if any. Saved, so rotating the phone mid-sentence
     // does not throw you back to the list.
     var openThread by rememberSaveable { mutableStateOf<String?>(null) }
@@ -163,11 +169,20 @@ fun MainTabScreen(
             },
         ) { inner ->
             Box(Modifier.fillMaxSize().padding(inner)) {
+                val onStack = navigator.stack.mapIndexed { depth, route -> screenKey(depth, route) }
+                // A screen popped off the stack is gone, and so is what it remembered.
+                LaunchedEffect(onStack) {
+                    (keptScreens - onStack.toSet()).forEach(screens::removeState)
+                    keptScreens.retainAll(onStack.toSet())
+                    keptScreens.addAll(onStack)
+                }
                 val top = navigator.top
                 if (top != null) {
                     BackHandler { navigator.pop() }
                     // Keyed, so two pushes of the same kind of screen do not share state.
-                    key(navigator.stack.size, top) { top.Content() }
+                    key(navigator.stack.size, top) {
+                        screens.SaveableStateProvider(onStack.last()) { top.Content() }
+                    }
                     return@Box
                 }
                 when (tab) {
@@ -352,3 +367,6 @@ private enum class Tab(val titleKey: String, val icon: ImageVector) {
     Clubs("nav.clubs", Icons.Filled.Person),
     Profile("nav.profile", Icons.Filled.AccountCircle),
 }
+
+/** One screen on the stack: where it is, and which push it was (an equal route pushed again is a new screen). */
+private fun screenKey(depth: Int, route: Route): String = "screen:$depth:${System.identityHashCode(route)}"

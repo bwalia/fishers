@@ -233,6 +233,42 @@ pub struct PaymentSuggestion {
     pub settles_debt_id: Option<Uuid>,
 }
 
+/// A payment by bank transfer or cash the treasurer ticked, not yet in the
+/// books: what it was for, and the line it would go on.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferSuggestion {
+    pub payment_id: Uuid,
+    pub paid_on: NaiveDate,
+    pub amount_cents: i64,
+    pub currency: String,
+    /// `transfer` or `cash`: which of the club's money accounts it went to.
+    pub method: String,
+    pub member_id: Option<Uuid>,
+    pub member_name: String,
+    /// The income line: `net_fees`, `match_fees`, `subscriptions` or `misc`.
+    pub category_key: String,
+    /// What it paid for, oldest first: "Friday nets", "Monthly nets — November 2026".
+    pub paid_for: Vec<String>,
+    /// How much of it went to each, in the same order.
+    pub parts: Vec<PaidPart>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaidPart {
+    pub title: String,
+    pub amount_cents: i64,
+}
+
+/// Take payments by bank transfer and cash into the books.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AcceptTransfersRequest {
+    pub payment_ids: Vec<Uuid>,
+    /// Where transfers went.
+    pub bank_account_id: Uuid,
+    /// Where cash went; without one, cash payments are left for later.
+    pub cash_account_id: Option<Uuid>,
+}
+
 /// A match fee nobody has paid, from a fixture in the year being kept.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UnpaidFee {
@@ -536,9 +572,26 @@ pub mod keys {
     pub const EQUIPMENT: &str = "equipment";
     pub const INSURANCE: &str = "insurance";
     pub const WEBSITE: &str = "website";
+    /// Passes and memberships paid by bank transfer or cash.
+    pub const SUBS: &str = "subscriptions";
 }
 
 /// Which income line a fee paid in the app belongs on.
+/// The income line a bill's share goes on: a session by its kind, a pass on
+/// subscriptions, a group fee on miscellaneous.
+pub fn bill_category_key(kind: &str, event_subtype: Option<&str>) -> &'static str {
+    match (kind, event_subtype) {
+        ("pass", _) => keys::SUBS,
+        ("event", Some("nets" | "training")) => keys::NET_FEES,
+        ("event", Some("friendly" | "league_match" | "tournament")) => keys::MATCH_FEES,
+        _ => keys::MISC,
+    }
+}
+
+/// The name a club's subscriptions line is made with, the first time a pass
+/// payment is taken into books that don't have one.
+pub const SUBS_CATEGORY_NAME: &str = "Subscriptions and passes";
+
 pub fn fee_category_key(event_subtype: &str) -> &'static str {
     match event_subtype {
         "nets" | "training" => keys::NET_FEES,

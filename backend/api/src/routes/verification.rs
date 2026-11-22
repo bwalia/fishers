@@ -246,13 +246,14 @@ async fn confirm(
             ApiError::bad_request("that code has expired — send a new one")
                 .with_code("code_expired")
         })?;
-    if live.attempts >= MAX_ATTEMPTS {
+    // Counted before comparing, in one statement that also checks there are
+    // tries left — so a wrong guess is never free, and parallel guesses can't
+    // each slip in before any is counted.
+    if !codes::take_attempt(&state.pool, live.id, MAX_ATTEMPTS).await? {
         return Err(
             ApiError::too_many("too many wrong codes — send a new one").with_code("code_expired")
         );
     }
-    // Counted before comparing, so a wrong guess is never free.
-    codes::record_attempt(&state.pool, live.id).await?;
 
     let expected = hash_code(&state.jwt_secret, auth.user_id, channel, &live.target, code);
     if !constant_time_eq(expected.as_bytes(), live.code_hash.as_bytes()) {
@@ -402,11 +403,11 @@ async fn reset(
     let live = codes::active(&state.pool, user.id, RESET)
         .await?
         .ok_or_else(refused)?;
-    if live.attempts >= MAX_ATTEMPTS {
+    // Counted before comparing, with the check for tries left in the same
+    // statement: parallel guesses at a reset code can't beat the limit.
+    if !codes::take_attempt(&state.pool, live.id, MAX_ATTEMPTS).await? {
         return Err(refused());
     }
-    // Counted before comparing, so a wrong guess is never free.
-    codes::record_attempt(&state.pool, live.id).await?;
 
     let expected = hash_code(&state.jwt_secret, user.id, RESET, &live.target, code);
     if !constant_time_eq(expected.as_bytes(), live.code_hash.as_bytes()) {
@@ -474,7 +475,7 @@ fn noun(channel: &str) -> &'static str {
 
 /// Keyed by the server's secret and bound to the person, channel and address,
 /// so a stored hash is useless on its own and cannot be replayed elsewhere.
-fn hash_code(secret: &str, user_id: Uuid, channel: &str, target: &str, code: &str) -> String {
+pub(crate) fn hash_code(secret: &str, user_id: Uuid, channel: &str, target: &str, code: &str) -> String {
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("any key length");
     mac.update(format!("{user_id}|{channel}|{}|{code}", target.to_lowercase()).as_bytes());
     mac.finalize()

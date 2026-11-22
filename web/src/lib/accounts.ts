@@ -202,7 +202,36 @@ export type UnpaidFee = {
   already_raised: boolean;
 };
 
-export type Suggestions = { payments: PaymentSuggestion[]; unpaid_fees: UnpaidFee[] };
+/// A payment by bank transfer or cash the treasurer ticked on the Payments
+/// page, not yet in the books, and the income line it goes on.
+export type TransferSuggestion = {
+  payment_id: string;
+  paid_on: string;
+  amount_cents: number;
+  currency: string;
+  /// `transfer` (into the bank) or `cash` (into the cash tin).
+  method: string;
+  member_id: string | null;
+  member_name: string;
+  /// The income line's `system_key`: `net_fees`, `match_fees`,
+  /// `subscriptions` or `misc`. A payment covering two kinds goes on the one
+  /// it paid most of.
+  category_key: string;
+  /// What it paid for, by title. Empty when it was paid ahead (credit).
+  paid_for: string[];
+  parts: { title: string; amount_cents: number }[];
+};
+
+export type Suggestions = {
+  payments: PaymentSuggestion[];
+  /// Older APIs leave it out.
+  transfers?: TransferSuggestion[];
+  unpaid_fees: UnpaidFee[];
+};
+
+/// `POST …/periods/{pid}/accept-transfers`: how many went in, and which were
+/// left out — outside the year, in already, or cash with no cash account.
+export type TransfersAccepted = { posted: number; skipped: string[] };
 
 export type AuditEntry = {
   id: number;

@@ -1,0 +1,36 @@
+[
+  {
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+    "club_name": "Step BC 1795293315",
+    "id": "d92df115-dc59-4f92-a389-da8ff3c42026",
+    "plan_id": "ed9336f5-1d8a-4bdd-bca6-a6b146b3fb66",
+    "user_id": "0f86a51c-096c-4aa5-ab90-1b7962830f74",
+    "name": "Ravi Sharma",
+    "started_on": "2026-11-21",
+    "ends_on": null,
+    "cancelled_at": null,
+    "keep_covering": false,
+    "told_standing": "up_to_date",
+    "created_at": "2026-11-21T20:35:24.590286Z",
+    "plan_name": "Monthly nets",
+    "billing": "monthly",
+    "standing": "up_to_date",
+    "sessions_left": null,
+    "running": true,
+    "next_charge_on": "2026-12-21",
+    "charge_cents": 2000,
+    "currency": "GBP",
+    "standing_order": {
+      "amount_cents": 2000,
+      "every": "month",
+      "first_payment_on": "2026-11-22",
+      "reference": "SHARMA"
+    },
+    "covers": [
+      "nets",
+      "training"
+    ],
+    "valid_until": null,
+    "sessions": null
+  }
+]

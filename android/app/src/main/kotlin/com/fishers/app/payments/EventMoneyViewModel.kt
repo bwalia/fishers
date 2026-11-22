@@ -31,12 +31,38 @@ data class EventMoneyState(
     val isBusy: Boolean = false,
     val error: String? = null,
     val message: String? = null,
+    /** Something for the screen to hand to the phone — the share sheet, the clipboard — once. */
+    val outgoing: Outgoing? = null,
+    /** "Who paid cash?" is open. */
+    val cashOpen: Boolean = false,
+    /** Shares ticked as paid in cash. */
+    val cashTicked: Set<String> = emptySet(),
+    /** The club's groups with their own price, for "Different price for juniors?". */
+    val priceTypes: List<PriceType> = emptyList(),
 ) {
     val bill: Bill? get() = money?.bill
 
     /** Nobody ticked is a bill nobody pays: the server refuses it, so the button waits. */
     val canSend: Boolean get() = !isBusy && (ticked.isNotEmpty() || guests.isNotEmpty())
+
+    /** Somebody still owes on this bill: worth reminding, and worth asking who paid cash. */
+    val anyoneOwes: Boolean get() = cashCandidates.isNotEmpty()
+
+    /** Who could have handed over cash: still owing, not already said to have paid. */
+    val cashCandidates: List<Share>
+        get() = money?.shares.orEmpty().filter { it.leftCents > 0 && (it.state == ShareState.Owed || it.state == ShareState.PartPaid) }
 }
+
+/** What the money section asks the phone to do with the pay link. */
+sealed interface Outgoing {
+    /** Post these words: to WhatsApp if it is there, else whatever the share sheet offers. */
+    data class Share(val text: String) : Outgoing
+    /** Put the link on the clipboard. */
+    data class Copy(val url: String) : Outgoing
+}
+
+/** Which of the server's words to share. */
+enum class LinkUse { Bill, Reminder, CopyLink }
 
 /**
  * An event's money: its cost, who came, the bill and everybody's share — and,
@@ -51,6 +77,7 @@ class EventMoneyViewModel(
     private val now: () -> Instant = Instant::now,
     /** How long the ticks have to stop changing before the total is asked for. */
     private val previewDelayMs: Long = 300,
+    private val keys: AttemptKeys = AttemptKeys(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EventMoneyState())
@@ -89,6 +116,23 @@ class EventMoneyViewModel(
             previewProblem = null,
         )
         if (choose) refreshPreview(immediately = true)
+        if (money.canBill && !priceTypesAsked) loadPriceTypes(money.clubId)
+    }
+
+    private var priceTypesAsked = false
+
+    /**
+     * The club's groups, for the cost form. Only for whoever sets the cost,
+     * once; without them the form simply has no "Different price" choice.
+     */
+    private fun loadPriceTypes(clubId: String) {
+        if (clubId.isEmpty()) return
+        priceTypesAsked = true
+        viewModelScope.launch {
+            runCatching { api.priceTypes(clubId) }
+                .onSuccess { types -> _state.update { it.copy(priceTypes = types) } }
+                .onFailure { priceTypesAsked = false }
+        }
     }
 
     // ---- who came ----
@@ -193,8 +237,18 @@ class EventMoneyViewModel(
 
     // ---- the cost ----
 
-    fun saveCost(mode: CostMode, cents: Long, note: String?, applyToSeries: Boolean) {
-        val body = CostBody(mode.wire, cents, note?.trim()?.takeIf { it.isNotEmpty() }, applyToSeries)
+    /**
+     * [prices] are the session's prices for juniors and others: null leaves
+     * them as they are, empty clears them. A total split evenly has none.
+     */
+    fun saveCost(mode: CostMode, cents: Long, note: String?, applyToSeries: Boolean, prices: List<PriceIn>? = null) {
+        val body = CostBody(
+            mode.wire,
+            cents,
+            note?.trim()?.takeIf { it.isNotEmpty() },
+            applyToSeries,
+            prices = prices.takeIf { mode == CostMode.PerPlayer },
+        )
         busy({ api.setCost(eventId, body) }) { saved ->
             val n = saved.seriesUpdated
             _state.update {
@@ -211,6 +265,81 @@ class EventMoneyViewModel(
         }
     }
 
+    // ---- sharing to WhatsApp ----
+
+    /**
+     * Share the bill, remind who hasn't paid, or copy the link. The link is
+     * asked for each time: it is the same link while one is open, but the
+     * reminder names whoever still owes now, not when the page was opened.
+     */
+    fun share(use: LinkUse) {
+        busy({ api.billLink(eventId) }) { link ->
+            _state.update {
+                it.copy(
+                    outgoing = when (use) {
+                        LinkUse.Bill -> Outgoing.Share(link.billMessage)
+                        LinkUse.Reminder -> Outgoing.Share(link.reminderMessage)
+                        LinkUse.CopyLink -> Outgoing.Copy(link.url)
+                    },
+                    message = if (use == LinkUse.CopyLink) t("pa2.link_copied") else null,
+                )
+            }
+        }
+    }
+
+    /** The screen has handed [Outgoing] to the phone. */
+    fun handled() = _state.update { it.copy(outgoing = null) }
+
+    /** Close every link to this bill: forwarded too far, or posted in the wrong group. */
+    fun switchLinkOff() {
+        busy({ api.disableBillLink(eventId) }) {
+            _state.update { it.copy(message = t("pa2.link_switched_off")) }
+        }
+    }
+
+    // ---- cash at the ground ----
+
+    fun startCash() = _state.update { it.copy(cashOpen = true, cashTicked = emptySet(), error = null, message = null) }
+
+    fun stopCash() = _state.update { it.copy(cashOpen = false, cashTicked = emptySet()) }
+
+    fun toggleCash(shareId: String) =
+        _state.update { it.copy(cashTicked = if (shareId in it.cashTicked) it.cashTicked - shareId else it.cashTicked + shareId) }
+
+    /**
+     * Save who paid cash. A money admin's ticks count as received; a
+     * captain's wait for the treasurer to have the cash in hand — the server
+     * says which, and the sentence follows it.
+     */
+    fun saveCash() {
+        val ids = _state.value.cashTicked.sorted()
+        if (ids.isEmpty()) return
+        val attempt = "cash:$eventId:$ids"
+        val key = keys.keyFor(attempt)
+        busy(
+            call = { retryIfBusy { api.cashAtGround(eventId, key, CashBody(ids)) } },
+            failed = { refusal -> keys.failed(attempt, refusal) },
+        ) { done ->
+            keys.settled(attempt)
+            val amount = money?.let { com.fishers.app.clubs.money(done.totalCents, it.currency) } ?: ""
+            val n = done.recorded
+            _state.update {
+                it.copy(
+                    cashOpen = false,
+                    cashTicked = emptySet(),
+                    message = when {
+                        n == 0 -> t("pa2.cash_nothing_new")
+                        done.received -> t("pa2.cash_received", count = n, vars = mapOf("n" to n, "amount" to amount))
+                        else -> t("pa2.cash_waiting", count = n, vars = mapOf("n" to n, "amount" to amount))
+                    },
+                )
+            }
+            load()
+        }
+    }
+
+    private val money: EventMoney? get() = _state.value.money
+
     fun dismissMessage() = _state.update { it.copy(message = null, error = null) }
 
     /**
@@ -218,7 +347,11 @@ class EventMoneyViewModel(
      * else billed it, re-split it, or decided it — reloads it and says the
      * server's sentence: "Aman changed this a moment ago. Reload."
      */
-    private fun <T> busy(call: suspend () -> T, done: (T) -> Unit) {
+    private fun <T> busy(
+        call: suspend () -> T,
+        failed: (com.fishers.app.clubs.Refusal?) -> Unit = {},
+        done: (T) -> Unit,
+    ) {
         if (_state.value.isBusy) return
         _state.update { it.copy(isBusy = true, error = null, message = null) }
         viewModelScope.launch {
@@ -229,10 +362,11 @@ class EventMoneyViewModel(
                 }
                 .onFailure { e ->
                     val refusal = refusalOf(e)
+                    failed(refusal)
                     _state.update { it.copy(isBusy = false, error = failureText(e, refusal)) }
                     if (refusal?.meansReload == true) {
                         previewing?.cancel()
-                        _state.update { it.copy(choosing = false, preview = null) }
+                        _state.update { it.copy(choosing = false, preview = null, cashOpen = false, cashTicked = emptySet()) }
                         load()
                     }
                 }

@@ -21,7 +21,10 @@ import java.util.Locale
 
 /** A share's state, derived by the server. */
 enum class ShareState {
-    Owed, PartPaid, Waiting, Paid, Waived, Void, Unknown;
+    Owed, PartPaid, Waiting, Paid, Waived, Void,
+    /** A pass pays for it: nothing to pay, shown as paid is, in its own words. */
+    Covered,
+    Unknown;
 
     val label: String
         get() = when (this) {
@@ -31,6 +34,7 @@ enum class ShareState {
             Paid -> t("pay.state_paid")
             Waived -> t("pay.state_waived")
             Void -> t("pay.state_void")
+            Covered -> t("pa3.covered_by_your_pass")
             Unknown -> ""
         }
 
@@ -42,17 +46,26 @@ enum class ShareState {
             "paid" -> Paid
             "waived" -> Waived
             "void" -> Void
+            "covered" -> Covered
             else -> Unknown
         }
     }
 }
 
-/** One person's part of a bill. */
+/**
+ * One person's part of a bill. Soon also a monthly pass charge or a group fee,
+ * which have no event: so `event_id` may be null, and `kind` and `due_on` may
+ * arrive. A null for a non-null field would fail the whole screen.
+ */
 @Serializable
 data class Share(
     val id: String,
-    @SerialName("bill_id") val billId: String = "",
-    @SerialName("event_id") val eventId: String = "",
+    @SerialName("bill_id") val billId: String? = null,
+    @SerialName("event_id") val eventId: String? = null,
+    /** `event`, `pass` or `collection`; absent from servers before passes. */
+    val kind: String? = null,
+    /** When a pass charge or a group fee is due: a date, not a time. */
+    @SerialName("due_on") val dueOn: String? = null,
     val title: String = "",
     @SerialName("event_start_at") val eventStartAt: String? = null,
     @SerialName("user_id") val userId: String? = null,
@@ -63,7 +76,10 @@ data class Share(
     @SerialName("waiting_cents") val waitingCents: Long = 0,
     val currency: String = "GBP",
     @SerialName("state") val stateName: String = "",
+    /** A let-off's reason as the admin typed it; for a covered line, the server's English. */
     val reason: String? = null,
+    /** On a covered line, what covers it: `pass` or `free` (a free price, a coach). */
+    val cover: String? = null,
 ) {
     val state: ShareState get() = ShareState.of(stateName)
 
@@ -72,19 +88,72 @@ data class Share(
 
     /** Only a share somebody still owes can be let off. */
     val canLetOff: Boolean get() = state == ShareState.Owed || state == ShareState.PartPaid || state == ShareState.Waiting
+
+    /** A pass or a free price pays for it: nothing to pay, nothing to tap. */
+    val isCovered: Boolean get() = state == ShareState.Covered
+
+    /** Covered because their group is free (a coach), not by a pass: the server's `cover`, never its English. */
+    val isFreePrice: Boolean get() = isCovered && cover == "free"
+
+    /**
+     * When, under the title: "by 6 Dec" for a pass charge or a group fee with
+     * a date, the session's day for a session, and nothing for a charge that
+     * has neither — a group fee's own time is only when it was made.
+     */
+    fun whenWords(zone: ZoneId = ZoneId.systemDefault()): String = when {
+        dueOn != null -> dayMonth(dueOn).takeIf { it.isNotEmpty() }?.let { t("pa3.by_date", vars = mapOf("date" to it)) } ?: ""
+        kind == null || kind == "event" -> shortDay(eventStartAt, zone)
+        else -> ""
+    }
 }
 
 // ---- the player's side ----
 
-/** `GET /me/dues`: per club, what you owe, what is waiting, and your credit. */
+/**
+ * `GET /me/dues`: per club, what you owe, what is waiting, and your credit —
+ * and, in [people], the same for everybody you pay for (a parent's juniors).
+ */
 @Serializable
-data class Dues(val clubs: List<ClubDues> = emptyList()) {
-    /** The clubs still owed something — what the "you owe" card lists. */
-    val owing: List<ClubDues> get() = clubs.filter { it.owedCents > 0 }
+data class Dues(
+    val clubs: List<ClubDues> = emptyList(),
+    val people: List<PersonDues> = emptyList(),
+) {
+    /**
+     * What the "you owe" card lists: each club still owed something, by you
+     * or by somebody you pay for — a parent owes their juniors' nets too.
+     */
+    val owing: List<ClubDues>
+        get() = (clubs.map { it.clubId } + people.map { it.dues.clubId.ifEmpty { it.clubId } }).distinct().mapNotNull { id ->
+            val own = clubs.firstOrNull { it.clubId == id }
+            val theirs = peopleIn(id)
+            val owed = (own?.owedCents ?: 0) + theirs.sumOf { it.dues.owedCents }
+            if (owed <= 0) return@mapNotNull null
+            val name = own?.clubName?.takeIf { it.isNotBlank() } ?: theirs.firstOrNull()?.dues?.clubName.orEmpty()
+            val currency = own?.currency ?: theirs.first().dues.currency
+            ClubDues(clubId = id, clubName = name, currency = currency, owedCents = owed)
+        }
 
-    /** Anything at all to show under Profile: owed, waiting or credit. */
-    val hasAnything: Boolean get() = clubs.any { it.owedCents > 0 || it.waitingCents > 0 || it.creditCents > 0 }
+    /** The people you pay for in one club. */
+    fun peopleIn(clubId: String): List<PersonDues> =
+        people.filter { (it.dues.clubId.ifEmpty { it.clubId }) == clubId }
+
+    /** Anything at all to show under Profile: owed, waiting or credit, yours or theirs. */
+    val hasAnything: Boolean
+        get() = (clubs + people.map { it.dues }).any { it.owedCents > 0 || it.waitingCents > 0 || it.creditCents > 0 }
 }
+
+/**
+ * Somebody you pay for, and what they owe one club. [managed] means they
+ * have no sign-in of their own: you are the only way they see it.
+ */
+@Serializable
+data class PersonDues(
+    @SerialName("user_id") val userId: String,
+    val name: String = "",
+    val managed: Boolean = false,
+    @SerialName("club_id") val clubId: String = "",
+    val dues: ClubDues = ClubDues(clubId = ""),
+)
 
 @Serializable
 data class ClubDues(
@@ -136,6 +205,12 @@ data class BankDetails(
     @SerialName("is_personal") val isPersonal: Boolean = false,
     /** When these replaced older details, if recently. */
     @SerialName("changed_at") val changedAt: String? = null,
+    /**
+     * What the person who added personal details is to the club: `secretary`,
+     * `treasurer`, `owner`, or null for a club account. Kept as sent; an
+     * unknown word just leaves the role unsaid.
+     */
+    @SerialName("payee_role") val payeeRole: String? = null,
 ) {
     /** No account number: this is what `toString` would otherwise put in a crash report. */
     override fun toString(): String = "BankDetails($label, $sortCode, ••••${accountNumber.takeLast(4)})"
@@ -154,8 +229,16 @@ data class PayScreen(
     @SerialName("account_state") val accountStateName: String = "",
     val account: BankDetails? = null,
     val reference: String = "",
-    /** Your claims nobody has confirmed yet. */
+    /** Your claims nobody has confirmed yet, and those you made for somebody else (or they for you). */
     val claims: List<Payment> = emptyList(),
+    /**
+     * People still owing on bills you're on, and what they owe on those bills
+     * only: the list for "I'm paying for friends too", and the most
+     * `for-others` takes for each.
+     */
+    val friends: List<Friend> = emptyList(),
+    /** What your standing order is about to pay; already left out of [owedCents], which is what to pay by hand. */
+    @SerialName("standing_order_cents") val standingOrderCents: Long = 0,
 ) {
     val accountState: AccountState get() = AccountState.of(accountStateName)
 
@@ -215,6 +298,14 @@ data class Payment(
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("decided_by_name") val decidedByName: String? = null,
     @SerialName("decision_reason") val decisionReason: String? = null,
+    /** The line on a bill it was said against, from a pay link or cash at the ground. */
+    @SerialName("share_id") val shareId: String? = null,
+    /** The pay link it was said on, when it was: nobody signed in. */
+    @SerialName("via_link") val viaLink: String? = null,
+    /** A picture of the payment came with it; money admins can open it. */
+    @SerialName("has_screenshot") val hasScreenshot: Boolean = false,
+    /** Who said it was paid: somebody else than [userId] when a parent or a friend paid for them. */
+    @SerialName("created_by") val createdBy: String? = null,
 ) {
     val method: PaymentMethod get() = PaymentMethod.of(methodName)
     val isClaimed: Boolean get() = status == "claimed"
@@ -307,14 +398,38 @@ data class MoneySettings(
     @SerialName("auto_bill") val autoBill: Boolean = true,
     @SerialName("auto_bill_after_hours") val autoBillAfterHours: Int = 24,
     @SerialName("round_shares_up") val roundSharesUp: Boolean = false,
+    /** The usual nets price, which the schedule form starts from: `split_total` or `per_player`. */
+    @SerialName("default_nets_mode") val defaultNetsMode: String? = null,
+    @SerialName("default_nets_cents") val defaultNetsCents: Long? = null,
+    /** The usual match fee, a head. */
+    @SerialName("default_match_fee_cents") val defaultMatchFeeCents: Long? = null,
+) {
+    /** The usual nets price, when the club has one. */
+    val usualNets: EventCost?
+        get() = defaultNetsCents?.takeIf { it > 0 }?.let { EventCost(modeName = defaultNetsMode ?: "", amountCents = it) }
+
+    val hasUsualPrices: Boolean get() = usualNets != null || (defaultMatchFeeCents ?: 0) > 0
+}
+
+/** `{ "mode": "per_player", "amount_cents": 500 }`: a usual price. */
+@Serializable
+data class DefaultPrice(
+    val mode: String,
+    @SerialName("amount_cents") val amountCents: Long,
 )
 
-/** `PUT /clubs/{id}/payments/settings`: only what is sent changes. */
+/**
+ * `PUT /clubs/{id}/payments/settings`: only what is sent changes. Nulls stay
+ * out of the body (`explicitNulls = false`), so a usual price left null is left
+ * as it is, never cleared.
+ */
 @Serializable
 data class MoneySettingsBody(
     @SerialName("auto_bill") val autoBill: Boolean? = null,
     @SerialName("auto_bill_after_hours") val autoBillAfterHours: Int? = null,
     @SerialName("round_shares_up") val roundSharesUp: Boolean? = null,
+    @SerialName("default_nets") val defaultNets: DefaultPrice? = null,
+    @SerialName("default_match_fee_cents") val defaultMatchFeeCents: Long? = null,
 )
 
 /** Somebody who owes, is waiting, or has credit. A guest has no user id. */
@@ -340,7 +455,10 @@ data class MoneyTotals(
 @Serializable
 data class BillSummary(
     @SerialName("bill_id") val billId: String,
-    @SerialName("event_id") val eventId: String,
+    /** Null for a bill with no session behind it: a pass charge or a group fee. */
+    @SerialName("event_id") val eventId: String? = null,
+    /** `event`, `pass` or `collection` (a group fee): which screen opens it. */
+    val kind: String? = null,
     val title: String = "",
     @SerialName("event_start_at") val eventStartAt: String? = null,
     val currency: String = "GBP",
@@ -357,6 +475,8 @@ data class BillSummary(
 @Serializable
 data class MoneyOverview(
     val currency: String = "GBP",
+    /** Passes with a payment late, or paused: "2 passes behind". */
+    @SerialName("passes_behind") val passesBehind: Int = 0,
     val settings: MoneySettings = MoneySettings(),
     val account: PayoutAccounts = PayoutAccounts(),
     @SerialName("to_check") val toCheck: List<Payment> = emptyList(),
@@ -418,12 +538,19 @@ data class CostBody(
     @SerialName("amount_cents") val amountCents: Long,
     val note: String? = null,
     @SerialName("apply_to_series") val applyToSeries: Boolean = false,
+    /**
+     * Prices for juniors and others, a cost per player only. Given, they
+     * replace the session's; null leaves them as they are (and stays out of
+     * the body); empty clears them.
+     */
+    val prices: List<PriceIn>? = null,
 )
 
 @Serializable
 data class CostResponse(
     val cost: EventCost? = null,
     @SerialName("series_updated") val seriesUpdated: Int = 0,
+    val prices: List<TypePrice> = emptyList(),
 )
 
 @Serializable
@@ -466,6 +593,8 @@ data class EventMoney(
     @SerialName("end_at") val endAt: String? = null,
     @SerialName("event_status") val eventStatus: String? = null,
     val cost: EventCost? = null,
+    /** The session's own prices for juniors and others, when it has any. */
+    val prices: List<TypePrice> = emptyList(),
     val bill: Bill? = null,
     /** Set the cost; send, re-split or cancel the bill. */
     @SerialName("can_bill") val canBill: Boolean = false,
@@ -505,6 +634,8 @@ data class PreviewShare(
     @SerialName("user_id") val userId: String? = null,
     val name: String = "",
     @SerialName("amount_cents") val amountCents: Long = 0,
+    /** Why they pay nothing — "Covered by Monthly nets", "Free: Coach" — or null. */
+    val covered: String? = null,
 )
 
 @Serializable
@@ -521,15 +652,22 @@ data class BillPreview(
     val summary: String
         get() {
             val total = money(totalCents, currency)
-            val amounts = shares.groupingBy { it.amountCents }.eachCount().toSortedMap(compareByDescending { it })
+            // Somebody a pass or a free price covers pays nothing and is not
+            // in the total: said separately, never as "1 pays £6.00".
+            val paying = shares.filter { it.covered == null }
+            val covered = shares.size - paying.size
+            val amounts = paying.groupingBy { it.amountCents }.eachCount().toSortedMap(compareByDescending { it })
             val each = amounts.entries.joinToString(", ") { (cents, n) ->
                 t("pay.n_pay_amount", count = n, vars = mapOf("n" to n, "amount" to money(cents, currency)))
             }
-            return if (amounts.size == 1) {
-                t("pay.preview_even", count = shares.size, vars = mapOf("total" to total, "n" to shares.size, "amount" to money(amounts.firstKey(), currency)))
-            } else {
-                t("pay.preview_uneven", vars = mapOf("total" to total, "n" to shares.size, "each" to each))
+            val said = when {
+                amounts.isEmpty() -> null
+                amounts.size == 1 ->
+                    t("pay.preview_even", count = paying.size, vars = mapOf("total" to total, "n" to paying.size, "amount" to money(amounts.firstKey(), currency)))
+                else -> t("pay.preview_uneven", vars = mapOf("total" to total, "n" to paying.size, "each" to each))
             }
+            val coveredSaid = covered.takeIf { it > 0 }?.let { t("pa3.preview_n_covered", count = it, vars = mapOf("n" to it)) }
+            return listOfNotNull(said, coveredSaid).joinToString(" ")
         }
 }
 

@@ -1,0 +1,24 @@
+{
+  "cost": {
+    "event_id": "e05dbc22-580a-445f-a344-6b7e03c14321",
+    "club_id": "1ea9b4fb-af33-4597-b3d0-c68f3c73d516",
+    "mode": "per_player",
+    "amount_cents": 600,
+    "currency": "GBP",
+    "note": null,
+    "updated_at": "2026-11-21T20:35:24.208771Z"
+  },
+  "series_updated": 0,
+  "prices": [
+    {
+      "price_type_id": "890e6450-42e3-4ed7-b611-09a0724d6829",
+      "name": "Junior",
+      "amount_cents": 300
+    },
+    {
+      "price_type_id": "4938c749-dc08-4fe6-987b-7af606dbd864",
+      "name": "Guest",
+      "amount_cents": 800
+    }
+  ]
+}

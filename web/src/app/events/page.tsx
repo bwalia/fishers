@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { dayKey, type Availability, type AvailabilityStatus } from "@/lib/availability";
 import { CostModePicker, costCheck } from "@/components/EventMoney";
+import { toAmount, type UsualPrices } from "@/lib/payments";
 import {
   byDay,
   clashes,
@@ -526,6 +527,13 @@ function ScheduleMatch({
   const [costMode, setCostMode] = useState("");
   const [costAmount, setCostAmount] = useState("");
   const [costSure, setCostSure] = useState(false);
+  // The club's usual prices, per club: `null` once asked and there are none to
+  // see. Until the cost is
+  // touched it follows them — nets from the usual nets price, a match from
+  // the usual match fee — so nobody types £5 every week.
+  const [usual, setUsual] = useState<Record<string, UsualPrices | null>>({});
+  const [costTouched, setCostTouched] = useState(false);
+  const [prefilled, setPrefilled] = useState(false);
   // An event this form makes is in pounds: it sends no other currency.
   const costing = costCheck(costMode, costAmount, "GBP", t);
   const costFields =
@@ -539,6 +547,32 @@ function ScheduleMatch({
     setVenueId("");
     api<Venue[]>("GET", `/clubs/${clubId}/venues`).then(setVenues).catch(() => setVenues([]));
   }, [clubId]);
+
+  useEffect(() => {
+    if (!clubId || clubId in usual) return;
+    // Readable by any member — a captain scheduling nets included.
+    api<UsualPrices>("GET", `/clubs/${clubId}/payments/defaults`)
+      .then((o) => setUsual((u) => ({ ...u, [clubId]: o })))
+      .catch(() => setUsual((u) => ({ ...u, [clubId]: null })));
+  }, [clubId, usual]);
+
+  useEffect(() => {
+    if (costTouched || left) return;
+    const s = usual[clubId];
+    let mode = "";
+    let cents: number | null | undefined = null;
+    if (s && shown === "nets" && s.default_nets_mode && s.default_nets_cents != null) {
+      mode = s.default_nets_mode;
+      cents = s.default_nets_cents;
+    } else if (s && shown === "match" && s.default_match_fee_cents != null) {
+      mode = "per_player";
+      cents = s.default_match_fee_cents;
+    }
+    setCostMode(mode);
+    setCostAmount(cents != null ? toAmount(cents) : "");
+    setCostSure(false);
+    setPrefilled(!!mode);
+  }, [usual, clubId, shown, costTouched, left]);
 
   const submit = async () => {
     setBusy(true);
@@ -779,6 +813,8 @@ function ScheduleMatch({
           onMode={(m) => {
             setCostMode(m);
             setCostSure(false);
+            setCostTouched(true);
+            setPrefilled(false);
           }}
         />
         {costMode && (
@@ -798,10 +834,16 @@ function ScheduleMatch({
                 onChange={(e) => {
                   setCostAmount(e.target.value);
                   setCostSure(false);
+                  setCostTouched(true);
+                  setPrefilled(false);
                 }}
               />
               <span className="subtle" id="schedule-cost-hint">
-                {costMode === "split_total" ? t("pay.split_hint") : t("pay.each_hint")}
+                {prefilled
+                  ? t("pw2.usual_price_filled")
+                  : costMode === "split_total"
+                    ? t("pay.split_hint")
+                    : t("pay.each_hint")}
               </span>
               {costing.problem && (
                 <span className="field-error" id="schedule-cost-error">

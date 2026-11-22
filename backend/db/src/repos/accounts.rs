@@ -7,8 +7,11 @@
 //!
 //! `SUM(bigint)` is `numeric` in Postgres; every sum here is cast back.
 
+use std::collections::HashMap;
+
 use chrono::NaiveDate;
 use fishers_domain::{
+    keys, SUBS_CATEGORY_NAME,
     AccountCategory, AccountPeriod, AccountTransaction, AuditEntry, CreateCategoryRequest,
     CreateDebtRequest, CreateTransactionRequest, DebtPosition, DebtSettlement, MoneyAccount,
     MoneyAccountPosition, PaymentSuggestion, StockPosition, UnpaidFee, UpdateCategoryRequest,
@@ -1144,6 +1147,10 @@ pub async fn unpaid_fees(
                          AND d.event_id = f.event_id AND d.voided_at IS NULL) AS already_raised
         FROM outstanding_match_fees f
         WHERE f.club_id = $1 AND f.start_at::DATE BETWEEN $2 AND $3 AND f.start_at < NOW()
+          -- A billed fixture is settled from its bill's shares (bank transfer
+          -- and cash included), which this view doesn't see: raising its fee
+          -- as owed would book people who paid as debtors.
+          AND NOT EXISTS (SELECT 1 FROM event_bills b WHERE b.event_id = f.event_id)
         ORDER BY f.start_at, f.name
         "#,
     )
@@ -1151,6 +1158,93 @@ pub async fn unpaid_fees(
     .bind(starts_on)
     .bind(ends_on)
     .fetch_all(pool)
+    .await
+}
+
+// MARK: payments by bank transfer and cash
+
+/// A payment the treasurer ticked, by bank transfer or cash.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct TransferRow {
+    pub id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub guest_name: Option<String>,
+    pub name: String,
+    pub amount_cents: i64,
+    pub currency: String,
+    pub method: String,
+    pub paid_on: NaiveDate,
+}
+
+/// Confirmed payments by bank transfer or cash ticked within the dates and
+/// not yet taken into the books.
+pub async fn transfers_to_book(
+    pool: &PgPool,
+    club_id: Uuid,
+    from: NaiveDate,
+    until: NaiveDate,
+) -> Result<Vec<TransferRow>, sqlx::Error> {
+    sqlx::query_as::<_, TransferRow>(
+        r#"
+        SELECT p.id, p.user_id, p.guest_name, p.name, p.amount_cents, p.currency, p.method,
+               COALESCE(p.decided_at, p.created_at)::DATE AS paid_on
+        FROM member_payments p
+        WHERE p.club_id = $1 AND p.status = 'confirmed' AND p.method IN ('transfer', 'cash') AND p.amount_cents > 0
+          AND COALESCE(p.decided_at, p.created_at)::DATE BETWEEN $2 AND $3
+          AND NOT EXISTS (SELECT 1 FROM club_account_transactions t
+                          WHERE t.club_id = p.club_id AND t.source = 'member_payment'
+                            AND t.source_ref = p.id AND t.voided_at IS NULL)
+        ORDER BY COALESCE(p.decided_at, p.created_at) DESC
+        "#,
+    )
+    .bind(club_id)
+    .bind(from)
+    .bind(until)
+    .fetch_all(pool)
+    .await
+}
+
+/// Every confirmed transfer and cash payment at a club, in the order they
+/// were ticked: `(id, member, guest, amount)`. For working out what each paid.
+pub async fn confirmed_in_order(
+    pool: &PgPool,
+    club_id: Uuid,
+) -> Result<Vec<(Uuid, Option<Uuid>, Option<String>, i64)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT id, user_id, guest_name, amount_cents FROM member_payments
+         WHERE club_id = $1 AND status = 'confirmed' AND method IN ('transfer', 'cash')
+         ORDER BY COALESCE(decided_at, created_at), id",
+    )
+    .bind(club_id)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn event_subtypes(pool: &PgPool, ids: &[Uuid]) -> Result<HashMap<Uuid, String>, sqlx::Error> {
+    let rows: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, event_subtype::TEXT FROM events WHERE id = ANY($1)")
+        .bind(ids)
+        .fetch_all(pool)
+        .await?;
+    Ok(rows.into_iter().collect())
+}
+
+/// The subscriptions income line, made the first time a pass payment is
+/// taken into books that don't have one (or one of that name is adopted).
+pub async fn ensure_subs_category(conn: &mut PgConnection, club_id: Uuid) -> Result<AccountCategory, sqlx::Error> {
+    if let Some(c) = category_by_key(conn, club_id, "income", keys::SUBS).await? {
+        return Ok(c);
+    }
+    sqlx::query_as::<_, AccountCategory>(&format!(
+        "INSERT INTO club_account_categories (club_id, kind, name, system_key, sort_order)
+         VALUES ($1, 'income', $2, $3, 25)
+         ON CONFLICT (club_id, kind, name) DO UPDATE
+             SET system_key = COALESCE(club_account_categories.system_key, EXCLUDED.system_key)
+         RETURNING {CATEGORY_COLS}"
+    ))
+    .bind(club_id)
+    .bind(SUBS_CATEGORY_NAME)
+    .bind(keys::SUBS)
+    .fetch_one(conn)
     .await
 }
 

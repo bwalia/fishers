@@ -11,19 +11,27 @@
 /// of still renders under its own name rather than breaking the screen.
 
 import { useRef } from "react";
-import { api } from "./api";
+import { api, apiV1, errCode, money, usableToken } from "./api";
 import type { T } from "./i18n";
 import type { Key } from "./i18n/en";
+import { firstName, fingerprint, fitWithin } from "./pay-link";
+import { longDay, shortDay } from "./passes";
 import { randomUUID } from "./uuid";
 
 /// `owed`, `part_paid`, `waiting` (somebody said they paid; not confirmed),
-/// `paid`, `waived` or `void`.
+/// `paid`, `waived`, `covered` (by a pass: nothing to pay) or `void`.
 export type ShareState = string;
 
 export type Share = {
   id: string;
   bill_id: string;
-  event_id: string;
+  /// The session it is for. Null for a line that is not from a session: a
+  /// monthly pass charge or a group fee.
+  event_id: string | null;
+  /// `event`, `pass` or `collection`. Older APIs leave it out, meaning `event`.
+  kind?: string;
+  /// When a pass charge or group fee falls due, as a date.
+  due_on?: string | null;
   title: string;
   event_start_at: string;
   user_id: string | null;
@@ -35,6 +43,9 @@ export type Share = {
   currency: string;
   state: ShareState;
   reason: string | null;
+  /// On a covered line: `pass` (a pass covers it) or `free` (a free price,
+  /// a coach's say). Word it from this, never from the English `reason`.
+  cover?: string | null;
 };
 
 export type ClubDues = {
@@ -48,7 +59,18 @@ export type ClubDues = {
   shares: Share[];
 };
 
-export type Dues = { clubs: ClubDues[] };
+/// Somebody you pay for (a parent's junior), and what they owe one club.
+export type PersonDues = {
+  user_id: string;
+  name: string;
+  /// Has no sign-in of their own: a junior added by name.
+  managed: boolean;
+  club_id: string;
+  dues: ClubDues;
+};
+
+/// `people` is missing from APIs older than passes (step B).
+export type Dues = { clubs: ClubDues[]; people?: PersonDues[] };
 
 /// The full details, shown only to somebody who owes the club, or its admins.
 export type BankDetails = {
@@ -58,6 +80,10 @@ export type BankDetails = {
   account_number: string;
   is_personal: boolean;
   changed_at: string | null;
+  /// What the person who added personal details is to the club —
+  /// `secretary`, `treasurer` or `owner` — for "Pay Aman Gill, the club
+  /// secretary". Null for a club account.
+  payee_role?: string | null;
 };
 
 export type Payment = {
@@ -81,6 +107,13 @@ export type Payment = {
   decided_by_name: string | null;
   decided_at: string | null;
   decision_reason: string | null;
+  /// The line on a bill this pays, when it was said from a pay link or
+  /// ticked as cash at the ground.
+  share_id?: string | null;
+  /// Said from a WhatsApp pay link rather than in the app.
+  via_link?: string | null;
+  /// A picture of the payment came with it.
+  has_screenshot?: boolean;
 };
 
 /// `active`, `none`, `frozen`, `unreadable` or `nothing_owed`.
@@ -97,9 +130,20 @@ export type PayScreen = {
   account_state: AccountState;
   account: BankDetails | null;
   reference: string;
-  /// Your claims nobody has confirmed yet.
+  /// Your claims nobody has confirmed yet, and those you made for somebody
+  /// else (`user_id` is theirs, `created_by` yours).
   claims: Payment[];
+  /// People still owing on bills you're on, and what they owe on those bills
+  /// only: the list for "I'm paying for friends too". Older APIs leave it out.
+  friends?: Friend[];
+  /// What your standing order is about to pay (this month's pass charge):
+  /// already left out of `owed_cents`, which is what to pay by hand.
+  standing_order_cents?: number;
 };
+
+/// Somebody on a bill with you who still owes on it, and how much: the most
+/// you can pay for them.
+export type Friend = { user_id: string; name: string; owed_cents: number };
 
 /// One set of bank details as an admin sees it. Never the full number.
 export type PayoutAccount = {
@@ -130,6 +174,15 @@ export type PayoutAccounts = {
   changed_at: string | null;
 };
 
+/// `GET /clubs/{id}/payments/defaults`: the club's usual prices, readable by
+/// any member (a captain scheduling nets), unlike the full settings.
+export type UsualPrices = {
+  default_nets_mode: CostMode | null;
+  default_nets_cents: number | null;
+  default_match_fee_cents: number | null;
+  currency: string;
+};
+
 export type PaymentSettings = {
   payments_enabled_at: string | null;
   auto_bill: boolean;
@@ -137,6 +190,11 @@ export type PaymentSettings = {
   round_shares_up: boolean;
   fee_chase_after_hours: number;
   fee_chase_max_reminders: number;
+  /// The club's usual nets price, offered on every new nets session.
+  default_nets_mode?: string | null;
+  default_nets_cents?: number | null;
+  /// The usual match fee, offered on every new match.
+  default_match_fee_cents?: number | null;
 };
 
 export type MemberBalance = {
@@ -150,7 +208,11 @@ export type MemberBalance = {
 
 export type BillSummary = {
   bill_id: string;
-  event_id: string;
+  /// `event` (opens the session), `collection` (opens the group fee) or
+  /// `pass` (opens nothing). Older APIs leave it out.
+  kind?: string;
+  /// Null for a bill that is not for a session: a group fee.
+  event_id: string | null;
   title: string;
   event_start_at: string;
   currency: string;
@@ -239,10 +301,24 @@ export type BillResponse = {
   guests: string[];
   has_payout_account: boolean;
   round_shares_up: boolean;
+  /// The session's own prices for juniors, guests and so on. Older APIs leave
+  /// it out.
+  prices?: TypePrice[];
 };
 
+/// One group's price for one session: "Junior £3".
+export type TypePrice = { price_type_id: string; name: string; amount_cents: number };
+
 export type Preview = {
-  shares: { user_id: string | null; name: string; amount_cents: number }[];
+  /// `covered` is why somebody owes nothing, in the server's English, or
+  /// null; `cover` is the same as `pass` or `free`, to word it from.
+  shares: {
+    user_id: string | null;
+    name: string;
+    amount_cents: number;
+    covered?: string | null;
+    cover?: string | null;
+  }[];
   total_cents: number;
   surplus_cents: number;
   currency: string;
@@ -261,6 +337,7 @@ const STATE_LABEL: Record<string, Key> = {
   waiting: "pay.state_waiting",
   paid: "pay.state_paid",
   waived: "pay.state_waived",
+  covered: "pw2.state_covered",
   void: "pay.state_void",
 };
 
@@ -271,7 +348,7 @@ export function shareStateLabel(state: ShareState, t: T): string {
 
 /// The badge colour: owed stands out, settled recedes.
 export function shareStateTag(state: ShareState): string {
-  if (state === "paid") return "tag";
+  if (state === "paid" || state === "covered") return "tag";
   if (state === "owed" || state === "part_paid") return "tag gold";
   return "tag grey";
 }
@@ -288,6 +365,33 @@ export function parseAmount(raw: string): number | null {
 /// Minor units as somebody would type them: "7.50".
 export function toAmount(cents: number): string {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+}
+
+/// When a line is for: its session's day, or the day a pass charge or group
+/// fee falls due. Empty when neither is known.
+export function shareDate(s: { event_start_at?: string | null; due_on?: string | null }): string {
+  const when = s.event_start_at || s.due_on;
+  return when ? shortDate(when) : "";
+}
+
+/// When a line is for, in words: a session's day, or "by Sun 6 Dec" for a
+/// pass charge or group fee with a due date. A line that is not a session and
+/// has no due date says nothing — its own date is only when it was sent.
+export function shareWhen(s: Pick<Share, "kind" | "event_start_at" | "due_on">, t: T): string {
+  if (s.kind && s.kind !== "event") return s.due_on ? t("pw3.by_date", { date: shortDay(s.due_on) }) : "";
+  return s.event_start_at ? shortDate(s.event_start_at) : "";
+}
+
+/// The badge on a line. A covered one says why, with a tick: there is
+/// nothing to pay and nothing to tap. Worded from `cover`, so it reads in the
+/// reader's language: "Covered by your pass ✓" on your own line, "Covered by a
+/// pass ✓" on somebody else's, "Free ✓" for a free price.
+export function shareTag(s: Pick<Share, "state" | "reason" | "cover">, t: T, own = false): string {
+  if (s.state !== "covered") return shareStateLabel(s.state, t);
+  if (s.cover === "free") return `${t("le.free")} ✓`;
+  if (s.cover === "pass" || !s.reason) return `${own ? t("pw2.state_covered") : t("pw4.covered_by_a_pass")} ✓`;
+  // An API from before `cover`: its own words are all there is.
+  return `${s.reason} ✓`;
 }
 
 /// "Fri 20 Nov".
@@ -310,13 +414,31 @@ export function dateTime(iso: string): string {
 /// reload, and show the server's sentence.
 export const STALE_CODES = new Set(["version_conflict", "already_billed", "already_decided", "nothing_owed", "no_bill"]);
 
+/// How long to wait before the one quiet retry after `busy`.
+const BUSY_RETRY_MS = 1000;
+
+/// A payment POST, tried once more after `busy` (409): another request was
+/// saving a payment for the same person at that moment — the other half of a
+/// double tap, usually. A second later, with the same Idempotency-Key, the
+/// server answers with that first payment. Only once: a second `busy` is
+/// shown like any other refusal.
+export async function retryBusy<R>(send: () => Promise<R>): Promise<R> {
+  try {
+    return await send();
+  } catch (e) {
+    if (errCode(e) !== "busy") throw e;
+    await new Promise((done) => setTimeout(done, BUSY_RETRY_MS));
+    return send();
+  }
+}
+
 /// A POST that must happen once however many times it is sent.
 ///
 /// The server keeps the first answer for an `Idempotency-Key` and gives it
 /// back to every retry, so a double tap or a lost reply on bad signal can
 /// never make two payments.
 export function postOnce<R>(path: string, body: unknown, key: string): Promise<R> {
-  return api<R>("POST", path, body, true, false, undefined, { "Idempotency-Key": key });
+  return retryBusy(() => api<R>("POST", path, body, true, false, undefined, { "Idempotency-Key": key }));
 }
 
 /// One key per attempt, kept until it succeeds.
@@ -345,4 +467,492 @@ export function shareGroups(amounts: number[]): { amount_cents: number; count: n
   const by = new Map<number, number>();
   for (const a of amounts) by.set(a, (by.get(a) ?? 0) + 1);
   return [...by.entries()].sort((a, b) => b[0] - a[0]).map(([amount_cents, count]) => ({ amount_cents, count }));
+}
+
+// MARK: easy paying (step A)
+
+/// `POST /events/{id}/bill/link`: the bill's pay link and the messages to
+/// post with it.
+export type PayLinkShare = {
+  url: string;
+  expires_at: string;
+  /// "🏏 Friday nets, Fri 20 Nov: £5.00 each.\nTap to pay: …"
+  bill_message: string;
+  /// "Still to pay for Friday nets: Josh and Imran.\nTap to pay: …"
+  reminder_message: string;
+  /// Who still owes, by full name.
+  still_to_pay: string[];
+};
+
+/// `GET /pay-links/{token}`: what the public pay page opens on.
+export type LinkPage = {
+  club_name: string;
+  title: string;
+  event_start_at: string;
+  currency: string;
+  expires_at: string;
+  /// Everybody on the bill, by name only.
+  people: { id: string; name: string }[];
+  /// Your own line, when you are signed in on this phone and on the bill.
+  me: string | null;
+  account_state: AccountState;
+  account: BankDetails | null;
+};
+
+/// A payment said from the link, waiting for the club to check it.
+export type LinkClaim = {
+  id: string;
+  /// `transfer` or `cash`.
+  method: string;
+  amount_cents: number;
+  created_at: string;
+  /// Taken back from this link, within the hour, while nobody has checked it.
+  can_undo: boolean;
+  has_screenshot: boolean;
+};
+
+/// `GET /pay-links/{token}/people/{id}`: one person's line on the bill.
+export type LinkPerson = Share & {
+  /// Still to pay on this bill: not paid, said to be paid or let off.
+  owed_cents: number;
+  /// What to write in the reference box.
+  reference: string;
+  claim: LinkClaim | null;
+  /// Only in the reply to "I've paid" (and its retry with the same key): the
+  /// proof that this phone made the claim. Sent back as `X-Claim-Secret` to
+  /// take it back or add its screenshot; nobody else ever gets it.
+  claim_secret?: string;
+};
+
+/// Claim secrets live in this tab only, by payment id. Closing the tab ends
+/// them, which is as long as Undo (an hour) and a screenshot (two) last
+/// anyway. Never in a URL, never logged.
+const secretKey = (paymentId: string) => `fishers:claim-secret:${paymentId}`;
+
+export function keepClaimSecret(paymentId: string, secret: string) {
+  try {
+    sessionStorage.setItem(secretKey(paymentId), secret);
+  } catch {
+    /* storage refused: Undo and the screenshot are not offered, which is safe */
+  }
+}
+
+export function claimSecret(paymentId: string): string | null {
+  try {
+    return sessionStorage.getItem(secretKey(paymentId));
+  } catch {
+    return null;
+  }
+}
+
+export function forgetClaimSecret(paymentId: string) {
+  try {
+    sessionStorage.removeItem(secretKey(paymentId));
+  } catch {
+    /* nothing kept, nothing to forget */
+  }
+}
+
+/// `POST /events/{id}/bill/cash`.
+export type CashRecorded = { recorded: number; total_cents: number; received: boolean };
+
+/// `POST /clubs/{id}/payments/confirm`.
+export type Confirmed = { confirmed: number; skipped: number };
+
+// MARK: passes, prices by group, group fees, paying for others (steps B and C)
+
+/// A group with its own price: juniors, students, guests, coaches.
+export type PriceType = {
+  id: string;
+  club_id: string;
+  name: string;
+  /// Owes nothing at a session: coaches, say.
+  free: boolean;
+  /// The price a guest added by name pays.
+  for_guests: boolean;
+  sort_order: number;
+  archived_at: string | null;
+};
+
+/// `up_to_date`, `behind` (a payment late, still covering) or `suspended`
+/// (not covering until paid up).
+export type PassStanding = string;
+
+/// Somebody on a pass.
+export type PassHolder = {
+  id: string;
+  plan_id: string;
+  club_id: string;
+  user_id: string;
+  name: string;
+  started_on: string;
+  /// The last day it covers, once cancelled or ended.
+  ends_on: string | null;
+  cancelled_at: string | null;
+  /// Covers however far behind, because an admin said so.
+  keep_covering: boolean;
+  plan_name: string;
+  /// `once`, `monthly` or `instalments`.
+  billing: string;
+  standing: PassStanding;
+  /// A card's sessions left, where it has a number.
+  sessions_left: number | null;
+  /// Covers sessions today.
+  running: boolean;
+  next_charge_on: string | null;
+};
+
+/// A pass the club offers.
+export type PassPlan = {
+  id: string;
+  club_id: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  billing: string;
+  instalments: number | null;
+  /// Session kinds: `nets`, `training`, `friendly`, `league_match`,
+  /// `tournament`, `social`. Empty for a membership.
+  covers: string[];
+  team_id: string | null;
+  valid_until: string | null;
+  sessions: number | null;
+  /// Only for members in this group.
+  price_type_id: string | null;
+  /// Players may get it themselves; otherwise the secretary adds them.
+  open_to_join: boolean;
+  created_at: string;
+  archived_at: string | null;
+  /// One payment: the price, or one part of it.
+  charge_cents: number;
+  holders: number;
+  /// Your own running pass on it.
+  mine: PassHolder | null;
+};
+
+/// Exactly what to type into a banking app for a monthly pass.
+export type StandingOrder = {
+  amount_cents: number;
+  /// "month".
+  every: string;
+  first_payment_on: string;
+  reference: string;
+};
+
+/// `GET /me/passes`: yours, and those of people you pay for.
+export type MyPass = PassHolder & {
+  club_name: string;
+  charge_cents: number;
+  currency: string;
+  standing_order: StandingOrder | null;
+  /// The plan's own terms, so a pass on a plan no longer offered still says
+  /// what it covers. Older APIs leave them out.
+  covers?: string[];
+  valid_until?: string | null;
+  sessions?: number | null;
+};
+
+/// A group fee: a bill not tied to a session.
+export type GroupFee = {
+  id: string;
+  event_id: string | null;
+  club_id: string;
+  title: string;
+  event_start_at: string;
+  mode: CostMode;
+  amount_cents: number;
+  total_cents: number;
+  currency: string;
+  /// `issued` or `void`.
+  status: string;
+  note: string | null;
+  issued_at: string;
+  void_reason: string | null;
+  due_on: string | null;
+  paid_cents: number;
+  waiting_cents: number;
+  owed_cents: number;
+  people: number;
+  /// Everyone's for an admin; empty in the list.
+  shares: Share[];
+};
+
+/// `GET /clubs/{id}/payments/members` (money admins): each member's group and
+/// who pays for them, for "Prices and who pays".
+export type PayingMember = {
+  user_id: string;
+  name: string;
+  /// Their group's price, or null for the usual one.
+  price_type_id: string | null;
+  payer_id: string | null;
+  payer_name: string | null;
+  /// Added by name, with no sign-in of their own: a junior.
+  managed: boolean;
+};
+
+/// `POST /clubs/{id}/payments/for-others`.
+export type ForOthers = { payments: Payment[]; total_cents: number; reference: string | null };
+
+/// One club's money: yours, and that of anybody you pay for there. A parent
+/// who was never billed themselves still gets the club, for their juniors.
+export type ClubBlock = {
+  club_id: string;
+  club_name: string;
+  currency: string;
+  mine: ClubDues | null;
+  people: PersonDues[];
+};
+
+export function clubBlocks(dues: Dues): ClubBlock[] {
+  const out = new Map<string, ClubBlock>();
+  for (const c of dues.clubs) {
+    out.set(c.club_id, { club_id: c.club_id, club_name: c.club_name, currency: c.currency, mine: c, people: [] });
+  }
+  for (const p of dues.people ?? []) {
+    const block = out.get(p.club_id) ?? {
+      club_id: p.club_id,
+      club_name: p.dues.club_name,
+      currency: p.dues.currency,
+      mine: null,
+      people: [],
+    };
+    block.people.push(p);
+    out.set(p.club_id, block);
+  }
+  return [...out.values()];
+}
+
+/// What a club block comes to: yours plus everyone you pay for there.
+export function blockOwed(b: ClubBlock): number {
+  return (b.mine?.owed_cents ?? 0) + b.people.reduce((sum, p) => sum + Math.max(0, p.dues.owed_cents), 0);
+}
+
+const COVERS: Record<string, Key> = {
+  nets: "pw3.kind_nets",
+  training: "pw3.kind_training",
+  friendly: "pw3.kind_friendly",
+  league_match: "pw3.kind_league_match",
+  tournament: "pw3.kind_tournament",
+  social: "pw3.kind_social",
+};
+
+/// "nets and training", "nets, friendlies and league matches".
+export function listWords(items: string[], t: T): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return t("pw3.list_and", { a: items.slice(0, -1).join(", "), b: items[items.length - 1] });
+}
+
+export function kindWord(kind: string, t: T): string {
+  return COVERS[kind] ? t(COVERS[kind]) : kind.replaceAll("_", " ");
+}
+
+/// "£20.00 a month", "£60.00 once", "£120.00 in 3 parts of £40.00".
+export function passPrice(p: Pick<PassPlan, "billing" | "price_cents" | "charge_cents" | "instalments" | "currency">, t: T): string {
+  const amount = money(p.price_cents, p.currency);
+  if (p.billing === "monthly") return t("pw3.price_month", { amount: money(p.charge_cents, p.currency) });
+  if (p.billing === "instalments" && p.instalments) {
+    return t("pw3.price_parts", { amount, n: p.instalments, part: money(p.charge_cents, p.currency) });
+  }
+  return t("pw3.price_once", { amount });
+}
+
+/// "Covers nets and training", "Covers nets until 31 Mar 2027", "Covers
+/// nets, for 10 sessions", or "Club membership" when it covers no sessions.
+export function passCovers(p: Pick<PassPlan, "covers" | "valid_until" | "sessions">, t: T): string {
+  if (p.covers.length === 0) {
+    return p.valid_until ? t("pw3.membership_until", { date: longDay(p.valid_until) }) : t("pw3.membership_only");
+  }
+  const what = listWords(p.covers.map((c) => kindWord(c, t)), t);
+  if (p.sessions) return t("pw3.covers_sessions", { what, count: p.sessions, n: p.sessions });
+  if (p.valid_until) return t("pw3.covers_until", { what, date: longDay(p.valid_until) });
+  return t("pw3.covers", { what });
+}
+
+/// How a pass stands, to the club's money admins.
+export function standingWord(standing: PassStanding, t: T): string {
+  if (standing === "up_to_date") return t("pw3.standing_up_to_date");
+  if (standing === "behind") return t("pw3.standing_behind");
+  if (standing === "suspended") return t("pw3.standing_suspended");
+  return standing.replaceAll("_", " ");
+}
+
+/// "Pay Aman Gill, the club secretary": who the money goes to, by name and
+/// what they are to the club.
+export function payeeLine(account: BankDetails, t: T): string {
+  const name = account.holder_name;
+  switch (account.payee_role) {
+    case "secretary":
+      return t("pw2.pay_name_secretary", { name });
+    case "treasurer":
+      return t("pw2.pay_name_treasurer", { name });
+    case "owner":
+      return t("pw2.pay_name_owner", { name });
+    default:
+      return t("pw2.pay_name", { name });
+  }
+}
+
+/// The first name of the person who checks the money arrived, where the
+/// details are somebody's own: "waiting for Aman to check". Null for a club
+/// account, which says "the club" instead.
+export function checker(account: BankDetails | null | undefined): string | null {
+  return account?.is_personal && account.payee_role ? firstName(account.holder_name) : null;
+}
+
+/// "You've paid these details before": kept as a fingerprint, so the
+/// browser's storage never holds an account number. Changed details make a
+/// different fingerprint, and the first-time guide comes back — which is
+/// right, because the player has a new payee to add.
+const paidBeforeKey = (a: BankDetails) =>
+  `fishers:paid-before:${fingerprint(`${a.holder_name}|${a.sort_code}|${a.account_number}`)}`;
+
+export function paidBefore(a: BankDetails): boolean {
+  try {
+    return localStorage.getItem(paidBeforeKey(a)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markPaidBefore(a: BankDetails) {
+  try {
+    localStorage.setItem(paidBeforeKey(a), "1");
+  } catch {
+    /* a private window: the guide shows again next time, which is harmless */
+  }
+}
+
+/// A call to the public pay link. It never needs a sign-in, but sends one
+/// when this browser has one so the page can open on the person's own name.
+///
+/// Not `api()`: that sends anybody whose session has lapsed to the sign-in
+/// screen, which is the one place a pay link must never take somebody.
+export async function linkApi<R>(
+  method: string,
+  path: string,
+  body?: unknown,
+  extra?: Record<string, string>,
+): Promise<R> {
+  const headers: Record<string, string> = { ...extra };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const token = await usableToken().catch(() => null);
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiV1()}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+    referrerPolicy: "no-referrer",
+  });
+  return answer<R>(res);
+}
+
+async function answer<R>(res: Response): Promise<R> {
+  if (!res.ok) {
+    const error = new Error((await res.text()) || `HTTP ${res.status}`);
+    (error as Error & { status?: number }).status = res.status;
+    throw error;
+  }
+  if (res.status === 204) return undefined as R;
+  return (await res.json()) as R;
+}
+
+/// A signed-in POST whose body is plain text: a bank statement, sent as the
+/// file it was read from. Never logged and never in a URL — it holds the
+/// club's other banking too.
+export async function postText<R>(path: string, text: string): Promise<R> {
+  const headers: Record<string, string> = { "Content-Type": "text/csv; charset=utf-8" };
+  const token = await usableToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${apiV1()}${path}`, { method: "POST", headers, body: text, cache: "no-store" });
+  return answer<R>(res);
+}
+
+/// Send a picture as the raw bytes the API wants. `link` calls go without
+/// needing a sign-in (with `extra` carrying the claim's secret); the others
+/// are the signed-in payer's own.
+export async function postImage(path: string, image: Blob, link = false, extra?: Record<string, string>): Promise<void> {
+  const headers: Record<string, string> = { ...extra, "Content-Type": image.type || "image/jpeg" };
+  const token = await usableToken().catch(() => null);
+  if (token) headers.Authorization = `Bearer ${token}`;
+  else if (!link) throw Object.assign(new Error("signed out"), { status: 401 });
+  const res = await fetch(`${apiV1()}${path}`, { method: "POST", headers, body: image, cache: "no-store" });
+  await answer<void>(res);
+}
+
+/// A picture only a signed-in money admin may see, as a blob for an
+/// object URL — an `<img src>` cannot carry the sign-in.
+export async function getImage(path: string): Promise<Blob> {
+  const token = await usableToken();
+  const res = await fetch(`${apiV1()}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const error = new Error((await res.text()) || `HTTP ${res.status}`);
+    (error as Error & { status?: number }).status = res.status;
+    throw error;
+  }
+  return res.blob();
+}
+
+/// The picture could not be opened in this browser — a format it cannot
+/// draw, or not a picture at all.
+export class UnreadablePicture extends Error {}
+
+/// The API takes at most a megabyte. A phone screenshot is several, so it is
+/// drawn again here: at most 1600 px on its long side, as a JPEG, a little
+/// rougher each time until it fits.
+const MAX_SIDE = 1600;
+const MAX_BYTES = 1_000_000;
+
+export async function shrinkScreenshot(file: File): Promise<Blob> {
+  const picture = await decode(file);
+  let side = MAX_SIDE;
+  for (let round = 0; round < 4; round++) {
+    const { width, height } = fitWithin(picture.width, picture.height, side);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new UnreadablePicture();
+    // A PNG with see-through parts would turn black as a JPEG.
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(picture.source, 0, 0, width, height);
+    for (const quality of [0.7, 0.55, 0.4]) {
+      const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/jpeg", quality));
+      if (!blob) throw new UnreadablePicture();
+      if (blob.size <= MAX_BYTES) {
+        picture.close();
+        return blob;
+      }
+    }
+    side = Math.round(side * 0.7);
+  }
+  picture.close();
+  throw new UnreadablePicture();
+}
+
+type Decoded = { source: CanvasImageSource; width: number; height: number; close: () => void };
+
+async function decode(file: File): Promise<Decoded> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
+    } catch {
+      /* older Safari: try an <img> below */
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return { source: img, width: img.naturalWidth, height: img.naturalHeight, close: () => URL.revokeObjectURL(url) };
+  } catch {
+    URL.revokeObjectURL(url);
+    throw new UnreadablePicture();
+  }
 }

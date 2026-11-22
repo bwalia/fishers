@@ -142,7 +142,7 @@ final class ClubPaymentsTests: XCTestCase {
         XCTAssertEqual(account.sortCode, "20-00-00")
         XCTAssertFalse(account.debugDescription.contains("55779911"), "a description must not carry the full number")
 
-        let all = try XCTUnwrap(screen.copyAllText)
+        let all = try XCTUnwrap(screen.detailsToSend)
         XCTAssertTrue(all.contains("Riverside Strikers CC"))
         XCTAssertTrue(all.contains("20-00-00"))
         XCTAssertTrue(all.contains("55779911"))
@@ -154,7 +154,7 @@ final class ClubPaymentsTests: XCTestCase {
         let screen = try decode(PayScreen.self, "pay_pay_screen_nothing_owed")
         XCTAssertEqual(screen.accountState, .nothingOwed)
         XCTAssertNil(screen.payableAccount)
-        XCTAssertNil(screen.copyAllText)
+        XCTAssertNil(screen.detailsToSend)
         XCTAssertEqual(screen.accountState.explanation, "You're all paid up.")
     }
 

@@ -187,6 +187,10 @@ targets:
           - "_http._tcp"
         UIBackgroundModes:
           - remote-notification
+        # "Share the bill" goes straight into WhatsApp when it is installed;
+        # canOpenURL only answers for schemes listed here.
+        LSApplicationQueriesSchemes:
+          - whatsapp
         # Google Sign-In: client id (also set at runtime from /auth/google) and
         # the reversed-client-id URL scheme the OAuth redirect lands on.
         GIDClientID: "$(GOOGLE_IOS_CLIENT_ID)"

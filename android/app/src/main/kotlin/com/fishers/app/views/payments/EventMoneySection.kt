@@ -1,6 +1,7 @@
 package com.fishers.app.views.payments
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,11 +14,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,13 +40,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -53,9 +66,17 @@ import com.fishers.app.payments.EventCost
 import com.fishers.app.payments.EventMoney
 import com.fishers.app.payments.EventMoneyState
 import com.fishers.app.payments.EventMoneyViewModel
+import com.fishers.app.payments.LinkUse
+import com.fishers.app.payments.Outgoing
+import com.fishers.app.payments.PriceIn
+import com.fishers.app.payments.PriceType
 import com.fishers.app.payments.Share
+import com.fishers.app.payments.TypePrice
+import com.fishers.app.payments.TypePricesCheck
 import com.fishers.app.payments.amountText
 import com.fishers.app.payments.checkCost
+import com.fishers.app.payments.checkTypePrices
+import com.fishers.app.payments.typePricesWords
 import com.fishers.app.views.components.ButtonLabel
 import com.fishers.app.views.components.ButtonRow
 import com.fishers.app.views.clubs.ErrorLine
@@ -88,6 +109,17 @@ fun EventMoneySection(eventId: String, inSeries: Boolean = false) {
     var removingCost by remember { mutableStateOf(false) }
     var cancelling by remember { mutableStateOf(false) }
     var lettingOff by remember { mutableStateOf<Share?>(null) }
+    var switchingOff by remember { mutableStateOf(false) }
+
+    // The link's words go to WhatsApp, or the link to the clipboard, once.
+    val context = LocalContext.current
+    LaunchedEffect(state.outgoing) {
+        when (val out = state.outgoing ?: return@LaunchedEffect) {
+            is Outgoing.Share -> shareToWhatsApp(context, out.text)
+            is Outgoing.Copy -> copy(context, t("pa2.pay_link"), out.url)
+        }
+        model.handled()
+    }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -98,6 +130,26 @@ fun EventMoneySection(eventId: String, inSeries: Boolean = false) {
             CostPart(money, state, onEdit = { editingCost = true }, onRemove = { removingCost = true })
 
             money.bill?.let { BillPart(money, state, onLetOff = { lettingOff = it }) }
+
+            // Billed, and this person runs it: share it to the group, and
+            // tick off cash handed over at the ground.
+            if (money.bill != null && money.canBill && !state.choosing) {
+                if (state.cashOpen) {
+                    WhoPaidCash(money, state, model)
+                } else {
+                    ShareToWhatsApp(state, model, onSwitchOff = { switchingOff = true })
+                    if (state.anyoneOwes) {
+                        OutlinedButton(
+                            onClick = model::startCash,
+                            enabled = !state.isBusy,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) {
+                            Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text(t("pa2.who_paid_cash"), modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            }
 
             if (state.choosing) {
                 WhoCame(money, state, model)
@@ -127,9 +179,11 @@ fun EventMoneySection(eventId: String, inSeries: Boolean = false) {
             current = money.cost,
             currency = money.currency,
             inSeries = inSeries,
-            onSave = { mode, cents, note, series ->
+            priceTypes = state.priceTypes,
+            prices = money.prices,
+            onSave = { mode, cents, note, series, prices ->
                 editingCost = false
-                model.saveCost(mode, cents, note, series)
+                model.saveCost(mode, cents, note, series, prices)
             },
             onDismiss = { editingCost = false },
         )
@@ -157,6 +211,23 @@ fun EventMoneySection(eventId: String, inSeries: Boolean = false) {
             onDismiss = { cancelling = false },
         )
     }
+    if (switchingOff) {
+        AlertDialog(
+            onDismissRequest = { switchingOff = false },
+            title = { Text(t("pa2.switch_link_off_title")) },
+            text = { Text(t("pa2.switch_link_off_body")) },
+            confirmButton = {
+                TextButton(
+                    onClick = { switchingOff = false; model.switchLinkOff() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text(t("pa2.switch_link_off")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { switchingOff = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(t("sc.cancel")) }
+            },
+        )
+    }
     lettingOff?.let { share ->
         ReasonDialog(
             title = t("pay.let_off_name", vars = mapOf("name" to share.name)),
@@ -175,6 +246,9 @@ private fun CostPart(money: EventMoney, state: EventMoneyState, onEdit: () -> Un
     val cost = money.cost
     if (cost != null) {
         Text(cost.summary, style = MaterialTheme.typography.bodyLarge)
+        if (cost.mode == CostMode.PerPlayer && money.prices.isNotEmpty()) {
+            Body(typePricesWords(money.prices, money.currency))
+        }
         cost.note?.let { Hint(it) }
     }
     if (!money.canBill || money.bill != null) return
@@ -212,11 +286,12 @@ private fun BillPart(money: EventMoney, state: EventMoneyState, onLetOff: (Share
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(share.name, style = MaterialTheme.typography.bodyLarge)
-                        share.reason?.let { Hint(it) }
+                        // A let-off's reason; a covered line says why in its label.
+                        share.reason?.takeIf { !share.isCovered }?.let { Body(it) }
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(money(share.amountCents, share.currency), style = MaterialTheme.typography.bodyMedium)
-                        StateLabel(share.state)
+                        if (!share.isCovered) Text(money(share.amountCents, share.currency), style = MaterialTheme.typography.bodyMedium)
+                        StateLabel(share, admin = true)
                     }
                     if (money.canManageMoney && share.canLetOff) {
                         TextButton(onClick = { onLetOff(share) }, enabled = !state.isBusy, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -231,6 +306,96 @@ private fun BillPart(money: EventMoney, state: EventMoneyState, onLetOff: (Share
     }
 }
 
+/**
+ * Share the bill to the club's WhatsApp group, remind whoever hasn't paid,
+ * or copy the link. The words are the server's. Switching the link off is
+ * tucked behind ⋮, with a question first.
+ */
+@Composable
+private fun ShareToWhatsApp(state: EventMoneyState, model: EventMoneyViewModel, onSwitchOff: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    HorizontalDivider()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            t("pa2.share_to_whatsapp"),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f).semantics { heading() },
+        )
+        Box {
+            IconButton(onClick = { menu = true }, enabled = !state.isBusy) {
+                Icon(Icons.Filled.MoreVert, contentDescription = t("pa2.link_more"))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(t("pa2.switch_link_off")) },
+                    leadingIcon = { Icon(Icons.Filled.LinkOff, contentDescription = null) },
+                    onClick = { menu = false; onSwitchOff() },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                )
+            }
+        }
+    }
+    Body(t("pa2.share_hint"))
+    Button(
+        onClick = { model.share(LinkUse.Bill) },
+        enabled = !state.isBusy,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+    ) {
+        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(if (state.isBusy) t("pa2.getting_link") else t("pa2.share_the_bill"), modifier = Modifier.padding(start = 8.dp))
+    }
+    if (state.anyoneOwes) {
+        OutlinedButton(
+            onClick = { model.share(LinkUse.Reminder) },
+            enabled = !state.isBusy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) { Text(t("pa2.remind_who_hasnt_paid")) }
+    }
+    TextButton(onClick = { model.share(LinkUse.CopyLink) }, enabled = !state.isBusy, modifier = Modifier.heightIn(min = 48.dp)) {
+        Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(t("pa2.copy_link"), modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+/**
+ * Cash at the ground: tick who handed some over, then save. Only those who
+ * still owe are listed; each is recorded for what they still owe.
+ */
+@Composable
+private fun WhoPaidCash(money: EventMoney, state: EventMoneyState, model: EventMoneyViewModel) {
+    HorizontalDivider()
+    SectionHeading(t("pa2.who_paid_cash"))
+    Body(if (money.canManageMoney) t("pa2.who_paid_cash_hint") else t("pa2.who_paid_cash_hint_captain"))
+    state.cashCandidates.forEach { share ->
+        val ticked = share.id in state.cashTicked
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .toggleable(value = ticked, role = Role.Checkbox, onValueChange = { model.toggleCash(share.id) }),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = ticked, onCheckedChange = null)
+            Text(share.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp).weight(1f))
+            Text(money(share.leftCents, share.currency), style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+    val n = state.cashTicked.size
+    val save = if (n == 0) t("lc.save") else t("pa2.save_cash", count = n, vars = mapOf("n" to n))
+    ButtonRow(labels = listOf(save, t("pay.not_now"))) { i, m ->
+        if (i == 0) {
+            Button(onClick = model::saveCash, enabled = n > 0 && !state.isBusy, modifier = m.heightIn(min = 48.dp)) {
+                ButtonLabel(if (state.isBusy) t("pay.sending") else save)
+            }
+        } else {
+            TextButton(onClick = model::stopCash, enabled = !state.isBusy, modifier = m.heightIn(min = 48.dp)) {
+                ButtonLabel(t("pay.not_now"))
+            }
+        }
+    }
+}
+
 /** Your own share, and the way to pay it. */
 @Composable
 private fun MySharePart(money: EventMoney, onPay: () -> Unit) {
@@ -239,9 +404,12 @@ private fun MySharePart(money: EventMoney, onPay: () -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(t("pay.your_share"), style = MaterialTheme.typography.labelLarge)
-            Text(money(mine.amountCents, mine.currency), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            // Covered by a pass: nothing to pay, so no amount to worry about.
+            if (!mine.isCovered) {
+                Text(money(mine.amountCents, mine.currency), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
         }
-        StateLabel(mine.state)
+        StateLabel(mine)
     }
     if (mine.leftCents > 0) {
         Button(onClick = onPay, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(t("pay.pay")) }
@@ -327,7 +495,7 @@ private fun rsvpWord(rsvp: String): String? = when (rsvp) {
 }
 
 @Composable
-private fun GuestField(onAdd: (String) -> Unit) {
+internal fun GuestField(onAdd: (String) -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     val add = {
         if (name.isNotBlank()) {
@@ -359,7 +527,9 @@ internal fun CostDialog(
     current: EventCost?,
     currency: String?,
     inSeries: Boolean,
-    onSave: (CostMode, Long, String?, Boolean) -> Unit,
+    priceTypes: List<PriceType> = emptyList(),
+    prices: List<TypePrice> = emptyList(),
+    onSave: (CostMode, Long, String?, Boolean, List<PriceIn>?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var mode by rememberSaveable { mutableStateOf(current?.mode ?: CostMode.SplitTotal) }
@@ -368,6 +538,26 @@ internal fun CostDialog(
     var series by rememberSaveable { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var confirming by remember { mutableStateOf<Long?>(null) }
+    // "Different price for juniors?": the groups that pay, typed by id.
+    val payable = priceTypes.filter { !it.isArchived && !it.free }
+    val alwaysFree = priceTypes.filter { !it.isArchived && it.free }
+    var byGroup by rememberSaveable { mutableStateOf(prices.isNotEmpty()) }
+    val typed = remember { mutableStateMapOf<String, String>().apply { prices.forEach { put(it.priceTypeId, amountText(it.amountCents)) } } }
+    var groupProblems by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var pendingPrices by remember { mutableStateOf<List<PriceIn>?>(null) }
+
+    /** What to send for the groups, or null with the problems shown. Left as they are unless changed. */
+    fun groupPrices(): Result<List<PriceIn>?> {
+        if (mode != CostMode.PerPlayer) return Result.success(null)
+        if (!byGroup) return Result.success(if (prices.isNotEmpty()) emptyList() else null)
+        return when (val check = checkTypePrices(typed.filterKeys { id -> payable.any { it.id == id } })) {
+            is TypePricesCheck.Ok -> Result.success(check.prices)
+            is TypePricesCheck.Invalid -> {
+                groupProblems = check.problems
+                Result.failure(IllegalArgumentException())
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -390,6 +580,33 @@ internal fun CostDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (mode == CostMode.PerPlayer && payable.isNotEmpty()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .toggleable(value = byGroup, role = Role.Switch, onValueChange = { byGroup = it }),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(t("pa3.different_price_juniors"), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Switch(checked = byGroup, onCheckedChange = null)
+                    }
+                    if (byGroup) {
+                        Body(t("pa3.group_price_hint"))
+                        payable.forEach { type ->
+                            AmountField(
+                                value = typed[type.id] ?: "",
+                                onValue = { typed[type.id] = it; groupProblems = groupProblems - type.id },
+                                label = type.name,
+                                currency = currency,
+                                error = groupProblems[type.id],
+                            )
+                        }
+                    }
+                    if (alwaysFree.isNotEmpty()) {
+                        Body(t("pa3.always_free", vars = mapOf("groups" to alwaysFree.joinToString(", ") { it.name })))
+                    }
+                }
                 if (inSeries) {
                     Row(
                         Modifier
@@ -407,10 +624,16 @@ internal fun CostDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    when (val check = checkCost(mode, amount)) {
-                        is CostCheck.Ok -> onSave(mode, check.cents, note, series)
-                        is CostCheck.Confirm -> confirming = check.cents
-                        is CostCheck.Invalid -> problem = check.message
+                    val check = checkCost(mode, amount)
+                    val groups = groupPrices()
+                    when {
+                        check is CostCheck.Invalid -> problem = check.message
+                        groups.isFailure -> Unit
+                        check is CostCheck.Ok -> onSave(mode, check.cents, note, series, groups.getOrNull())
+                        check is CostCheck.Confirm -> {
+                            pendingPrices = groups.getOrNull()
+                            confirming = check.cents
+                        }
                     }
                 },
                 enabled = amount.isNotBlank(),
@@ -423,7 +646,7 @@ internal fun CostDialog(
     confirming?.let { cents ->
         BigAmountDialog(
             amount = money(cents, currency),
-            onYes = { confirming = null; onSave(mode, cents, note, series) },
+            onYes = { confirming = null; onSave(mode, cents, note, series, pendingPrices) },
             onNo = { confirming = null },
         )
     }
@@ -443,7 +666,7 @@ internal fun CostModeChoice(mode: CostMode?, onMode: (CostMode) -> Unit, offerNo
 }
 
 @Composable
-private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()

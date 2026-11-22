@@ -1,0 +1,91 @@
+{
+  "clubs": [],
+  "people": [
+    {
+      "user_id": "83b1dc49-8a62-4148-a412-f5dd3d8f90d8",
+      "name": "Arjun Gill",
+      "managed": true,
+      "club_id": "5e32aef5-29a9-49dc-8104-ba8e90abe6ef",
+      "dues": {
+        "club_id": "5e32aef5-29a9-49dc-8104-ba8e90abe6ef",
+        "club_name": "Step BC 1795289486",
+        "currency": "GBP",
+        "owed_cents": 600,
+        "waiting_cents": 0,
+        "credit_cents": 0,
+        "shares": [
+          {
+            "id": "7c3ed65f-292d-42e0-9258-7ad17ef2c304",
+            "bill_id": "6736433b-ac18-4326-90c9-4c7515e3d6b8",
+            "event_id": "d753ec00-d4b5-4dfb-9aa0-3e383775dbaf",
+            "kind": "event",
+            "due_on": null,
+            "title": "Junior nets",
+            "event_start_at": "2026-11-21T17:31:36.938762Z",
+            "user_id": "83b1dc49-8a62-4148-a412-f5dd3d8f90d8",
+            "guest_name": null,
+            "name": "Arjun Gill",
+            "amount_cents": 600,
+            "paid_cents": 0,
+            "waiting_cents": 0,
+            "currency": "GBP",
+            "state": "owed",
+            "reason": null
+          }
+        ]
+      }
+    },
+    {
+      "user_id": "f4bc4074-b4ef-4e74-80d8-64d6ac2177cd",
+      "name": "Jas Gill",
+      "managed": false,
+      "club_id": "5e32aef5-29a9-49dc-8104-ba8e90abe6ef",
+      "dues": {
+        "club_id": "5e32aef5-29a9-49dc-8104-ba8e90abe6ef",
+        "club_name": "Step BC 1795289486",
+        "currency": "GBP",
+        "owed_cents": 900,
+        "waiting_cents": 0,
+        "credit_cents": 0,
+        "shares": [
+          {
+            "id": "984a0a5f-e002-4706-8f95-8a350b7bbc80",
+            "bill_id": "d2cfc804-6e92-4df3-a0ea-13904b05fa29",
+            "event_id": "6b410924-7939-4515-85be-1680bfc94166",
+            "kind": "event",
+            "due_on": null,
+            "title": "Tuesday nets",
+            "event_start_at": "2026-11-21T16:31:33.884660Z",
+            "user_id": "f4bc4074-b4ef-4e74-80d8-64d6ac2177cd",
+            "guest_name": null,
+            "name": "Jas Gill",
+            "amount_cents": 300,
+            "paid_cents": 0,
+            "waiting_cents": 0,
+            "currency": "GBP",
+            "state": "owed",
+            "reason": null
+          },
+          {
+            "id": "b7bd6a20-e735-4207-8ddc-38b87cab79d6",
+            "bill_id": "6736433b-ac18-4326-90c9-4c7515e3d6b8",
+            "event_id": "d753ec00-d4b5-4dfb-9aa0-3e383775dbaf",
+            "kind": "event",
+            "due_on": null,
+            "title": "Junior nets",
+            "event_start_at": "2026-11-21T17:31:36.938762Z",
+            "user_id": "f4bc4074-b4ef-4e74-80d8-64d6ac2177cd",
+            "guest_name": null,
+            "name": "Jas Gill",
+            "amount_cents": 600,
+            "paid_cents": 0,
+            "waiting_cents": 0,
+            "currency": "GBP",
+            "state": "owed",
+            "reason": null
+          }
+        ]
+      }
+    }
+  ]
+}

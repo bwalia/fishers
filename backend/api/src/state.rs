@@ -73,6 +73,8 @@ pub struct AppState {
     pub feed: fishers_jobs::world_cricket::Feed,
     /// Seals club bank details at rest; see `services::payout_crypto`.
     pub payout_crypto: crate::services::payout_crypto::PayoutCrypto,
+    /// Mints and opens pay-link tokens; see `services::pay_links`.
+    pub pay_links: crate::services::pay_links::PayLinkKeys,
 }
 
 impl AppState {
@@ -88,6 +90,7 @@ impl AppState {
         // Before the struct: `pool` moves into it below.
         let live = crate::live::Live::spawn(pool.clone());
         let payout_crypto = crate::services::payout_crypto::PayoutCrypto::from_env(&jwt_secret);
+        let pay_links = crate::services::pay_links::PayLinkKeys::new(&jwt_secret);
         Self {
             pool,
             jwt_secret,
@@ -123,6 +126,7 @@ impl AppState {
                 .is_ok_and(|key| !key.trim().is_empty()),
             feed: fishers_jobs::world_cricket::Feed::from_env(),
             payout_crypto,
+            pay_links,
         }
     }
 

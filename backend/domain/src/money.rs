@@ -193,6 +193,10 @@ pub struct LedgerShare {
     pub amount_cents: i64,
     /// When its bill was sent. Payments go to the oldest share first.
     pub issued_at: DateTime<Utc>,
+    /// Paid after everything else: a monthly pass charge the member's
+    /// standing order is about to pay. Money paid by hand goes to what's
+    /// owed by hand first, so the standing order isn't left overpaying.
+    pub last: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -209,6 +213,10 @@ pub enum LedgerKind {
 pub struct LedgerPayment {
     pub amount_cents: i64,
     pub kind: LedgerKind,
+    /// A payment made for one share (from a pay link, cash at the ground, a
+    /// standing order's month) goes to that share first; the rest of it, and
+    /// every other payment, oldest share first.
+    pub share: Option<Uuid>,
 }
 
 /// Where one share stands.
@@ -222,6 +230,8 @@ pub enum ShareState {
     Paid,
     Waived,
     Void,
+    /// Covered by a pass, or a free price type: on the bill, owing nothing.
+    Covered,
 }
 
 impl ShareState {
@@ -233,6 +243,7 @@ impl ShareState {
             Self::Paid => "paid",
             Self::Waived => "waived",
             Self::Void => "void",
+            Self::Covered => "covered",
         }
     }
 }
@@ -277,61 +288,113 @@ pub struct Settlement {
 /// waived share or a cancelled bill can't leave a stale allocation behind.
 pub fn settle(shares: &[LedgerShare], payments: &[LedgerPayment]) -> Settlement {
     let mut ordered: Vec<&LedgerShare> = shares.iter().collect();
-    ordered.sort_by(|a, b| a.issued_at.cmp(&b.issued_at).then(a.id.cmp(&b.id)));
+    ordered.sort_by(|a, b| a.last.cmp(&b.last).then(a.issued_at.cmp(&b.issued_at)).then(a.id.cmp(&b.id)));
+    let at: HashMap<Uuid, usize> = ordered.iter().enumerate().map(|(i, s)| (s.id, i)).collect();
+    let mut paid = vec![0i64; ordered.len()];
+    let mut waiting = vec![0i64; ordered.len()];
 
-    let sum = |kind: LedgerKind| -> i64 {
-        payments.iter().filter(|p| p.kind == kind).map(|p| p.amount_cents.max(0)).sum()
+    // Money for one share goes to it first (up to what it owes); what's left
+    // of it joins everything else, which goes oldest share first.
+    let earmark = |kind: LedgerKind, room: &dyn Fn(usize) -> i64, into: &mut Vec<i64>| -> i64 {
+        let mut pool = 0;
+        for p in payments.iter().filter(|p| p.kind == kind) {
+            let amount = p.amount_cents.max(0);
+            match p.share.and_then(|s| at.get(&s)).copied() {
+                Some(i) => {
+                    let take = amount.min((room(i) - into[i]).max(0));
+                    into[i] += take;
+                    pool += amount - take;
+                }
+                None => pool += amount,
+            }
+        }
+        pool
     };
-    let mut confirmed = (sum(LedgerKind::Confirmed) - sum(LedgerKind::Refund)).max(0);
-    let mut claimed = sum(LedgerKind::Claimed);
-
-    let mut out = Settlement::default();
-    for share in &ordered {
-        let paid = share.amount_cents.min(confirmed);
-        confirmed -= paid;
-        out.shares.insert(share.id, ShareProgress { paid_cents: paid, waiting_cents: 0 });
+    let amount_of = |i: usize| ordered[i].amount_cents;
+    let refunds: i64 = payments.iter().filter(|p| p.kind == LedgerKind::Refund).map(|p| p.amount_cents.max(0)).sum();
+    let mut confirmed = (earmark(LedgerKind::Confirmed, &amount_of, &mut paid) - refunds).max(0);
+    for i in 0..ordered.len() {
+        let take = (ordered[i].amount_cents - paid[i]).max(0).min(confirmed);
+        paid[i] += take;
+        confirmed -= take;
     }
-    out.credit_cents = confirmed;
-    for share in &ordered {
-        let progress = out.shares.get_mut(&share.id).expect("inserted above");
-        let left = share.amount_cents - progress.paid_cents;
-        let waiting = left.min(claimed);
-        claimed -= waiting;
-        progress.waiting_cents = waiting;
-        out.waiting_cents += waiting;
-        out.owed_cents += left - waiting;
+    let paid_now = paid.clone();
+    let room_left = |i: usize| ordered[i].amount_cents - paid_now[i];
+    let mut claimed = earmark(LedgerKind::Claimed, &room_left, &mut waiting);
+    for i in 0..ordered.len() {
+        let take = (ordered[i].amount_cents - paid[i] - waiting[i]).max(0).min(claimed);
+        waiting[i] += take;
+        claimed -= take;
+    }
+
+    let mut out = Settlement { credit_cents: confirmed, ..Default::default() };
+    for (i, share) in ordered.iter().enumerate() {
+        out.shares.insert(share.id, ShareProgress { paid_cents: paid[i], waiting_cents: waiting[i] });
+        out.waiting_cents += waiting[i];
+        out.owed_cents += share.amount_cents - paid[i] - waiting[i];
+    }
+    out
+}
+
+/// Which shares each confirmed payment paid: shares oldest first, payments in
+/// the order given (the order they were made). For saying what a payment was
+/// for — the line it goes on in the club's books — never for what is owed,
+/// which [`settle`] decides. Money beyond every share is left unallocated.
+pub fn allocate(shares: &[LedgerShare], payments: &[(Uuid, i64)]) -> HashMap<Uuid, Vec<(Uuid, i64)>> {
+    let mut ordered: Vec<&LedgerShare> = shares.iter().collect();
+    ordered.sort_by(|a, b| a.last.cmp(&b.last).then(a.issued_at.cmp(&b.issued_at)).then(a.id.cmp(&b.id)));
+    let mut left: Vec<i64> = ordered.iter().map(|s| s.amount_cents.max(0)).collect();
+    let mut at = 0;
+    let mut out: HashMap<Uuid, Vec<(Uuid, i64)>> = HashMap::new();
+    for (payment, amount) in payments {
+        let mut money = (*amount).max(0);
+        let lines = out.entry(*payment).or_default();
+        while money > 0 && at < ordered.len() {
+            let take = money.min(left[at]);
+            if take > 0 {
+                lines.push((ordered[at].id, take));
+                money -= take;
+                left[at] -= take;
+            }
+            if left[at] == 0 {
+                at += 1;
+            }
+        }
     }
     out
 }
 
 // MARK: references
 
-/// The characters a reference code is made of: no 0/O, 1/I/L or U, so it
-/// reads back over the phone and out of a banking app without a doubt.
-pub const REFERENCE_ALPHABET: &[u8] = b"23456789ABCDEFGHJKMNPQRSTVWXYZ";
-pub const REFERENCE_CODE_LEN: usize = 5;
+/// The longest base a reference is built from, leaving room for " 99".
+const REFERENCE_BASE_LEN: usize = 14;
 
-/// Whether `code` is a well-formed reference code.
-pub fn is_reference_code(code: &str) -> bool {
-    code.len() == REFERENCE_CODE_LEN && code.bytes().all(|b| REFERENCE_ALPHABET.contains(&b))
+/// What a member writes in the reference box: their surname, in capitals,
+/// A–Z only (banks drop everything else). Readable on purpose — players are
+/// told "write SHARMA", not handed a code to copy — and the treasurer sees who
+/// paid at a glance on the statement.
+///
+/// No usable surname (a name in Gurmukhi, say) falls back to the first name,
+/// then to "PLAYER": a reference box must never be empty.
+pub fn reference_base(name: &str) -> String {
+    let letters = |word: &str| -> String {
+        word.chars().filter(char::is_ascii_alphabetic).map(|c| c.to_ascii_uppercase()).collect()
+    };
+    let words: Vec<&str> = name.split_whitespace().collect();
+    let base = words
+        .iter()
+        .rev()
+        .map(|w| letters(w))
+        .find(|w| !w.is_empty())
+        .unwrap_or_else(|| "PLAYER".to_string());
+    base[..base.len().min(REFERENCE_BASE_LEN)].to_string()
 }
 
-/// What goes in the transfer's reference box: the member's code, then as much
-/// of their surname as fits in 18 characters, A–Z only (banks strip the rest).
-pub fn reference(code: &str, name: &str) -> String {
-    let surname: String = name
-        .split_whitespace()
-        .last()
-        .unwrap_or("")
-        .chars()
-        .filter(char::is_ascii_alphabetic)
-        .map(|c| c.to_ascii_uppercase())
-        .collect();
-    let room = MAX_REFERENCE_LEN.saturating_sub(code.len() + 1);
-    if surname.is_empty() || room == 0 {
-        return code.to_string();
-    }
-    format!("{code} {}", &surname[..surname.len().min(room)])
+/// The `n`th reference for a base within one club: "SHARMA", then
+/// "SHARMA 2", "SHARMA 3"… when two members share a surname. Always within the
+/// 18-character Faster Payments limit.
+pub fn reference_numbered(base: &str, n: u32) -> String {
+    if n <= 1 { base.to_string() } else { format!("{base} {n}") }
 }
 
 // MARK: UK bank details
@@ -469,6 +532,105 @@ pub fn payout_states(accounts: &[PayoutTimeline], now: DateTime<Utc>) -> Vec<Pay
     states
 }
 
+// MARK: passes
+
+/// How a pass is paid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PassBilling {
+    /// One payment.
+    Once,
+    /// A payment every month, by the player's standing order, until cancelled.
+    Monthly,
+    /// A fixed number of monthly payments.
+    Instalments,
+}
+
+impl PassBilling {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Once => "once",
+            Self::Monthly => "monthly",
+            Self::Instalments => "instalments",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "once" => Some(Self::Once),
+            "monthly" => Some(Self::Monthly),
+            "instalments" => Some(Self::Instalments),
+            _ => None,
+        }
+    }
+}
+
+/// The session kinds a pass can cover (the `event_subtype` values).
+pub const PASS_COVERABLE: [&str; 7] = ["nets", "training", "friendly", "league_match", "tournament", "social", "generic"];
+
+/// How many days a charge may be unpaid before it counts against a pass.
+pub const PASS_GRACE_DAYS: i64 = 7;
+
+/// `months` months after `start`, on the same day where the month has it and
+/// on its last day where it doesn't: a pass started on 31 January is next due
+/// on 28 (or 29) February, then 31 March.
+pub fn add_months(start: chrono::NaiveDate, months: u32) -> chrono::NaiveDate {
+    start.checked_add_months(chrono::Months::new(months)).unwrap_or(start)
+}
+
+/// The days a pass's monthly charges fall on, from `started_on` up to and
+/// including `today`, and no later than `ends_on`. Months run from the day it
+/// started, so nobody pays for part of a month.
+pub fn monthly_periods(
+    started_on: chrono::NaiveDate,
+    today: chrono::NaiveDate,
+    ends_on: Option<chrono::NaiveDate>,
+) -> Vec<chrono::NaiveDate> {
+    let mut out = Vec::new();
+    for k in 0..240u32 {
+        let day = add_months(started_on, k);
+        if day > today || ends_on.is_some_and(|end| day > end) {
+            break;
+        }
+        out.push(day);
+    }
+    out
+}
+
+/// The days instalments fall on: `n` of them, a month apart, from the start.
+pub fn instalment_days(started_on: chrono::NaiveDate, n: u32) -> Vec<chrono::NaiveDate> {
+    (0..n).map(|k| add_months(started_on, k)).collect()
+}
+
+/// Whether a pass holder is up to date with its charges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PassStanding {
+    /// Paid up, or not yet past the grace period.
+    UpToDate,
+    /// One charge overdue: still covering, and told so.
+    Behind,
+    /// Too far behind: sessions are billed as usual until it's paid up.
+    Suspended,
+}
+
+/// From how many charges are unpaid past the grace period. A one-off pass
+/// stops covering as soon as its one payment is overdue; a monthly or
+/// instalment pass after two missed months. A secretary can keep it covering.
+pub fn pass_standing(billing: PassBilling, overdue: usize, keep_covering: bool) -> PassStanding {
+    let limit = match billing {
+        PassBilling::Once => 1,
+        PassBilling::Monthly | PassBilling::Instalments => 2,
+    };
+    if overdue == 0 {
+        PassStanding::UpToDate
+    } else if overdue < limit || keep_covering {
+        PassStanding::Behind
+    } else {
+        PassStanding::Suspended
+    }
+}
+
 // MARK: money as people read it
 
 /// "£6.67", "₹600.00", "€12.50", or "CHF 12.50" for anything else.
@@ -491,6 +653,27 @@ pub fn fmt_money(cents: i64, currency: &str) -> String {
         grouped.push(c);
     }
     format!("{sign}{symbol}{grouped}.{minor:02}")
+}
+
+/// Whether the name on a bank account is plausibly this person's: the same
+/// surname and the same first initial, titles ignored. "MR A GILL" is Aman
+/// Gill; "Neha Gill" isn't. Used to say "Aman Gill, the club treasurer" only
+/// when the account really is the treasurer's own.
+pub fn same_person(holder_name: &str, name: &str) -> bool {
+    fn words(s: &str) -> Vec<String> {
+        s.split(|c: char| !c.is_alphabetic())
+            .filter(|w| !w.is_empty())
+            .map(str::to_lowercase)
+            .filter(|w| !matches!(w.as_str(), "mr" | "mrs" | "ms" | "miss" | "mx" | "dr"))
+            .collect()
+    }
+    let (a, b) = (words(holder_name), words(name));
+    match (a.first(), a.last(), b.first(), b.last()) {
+        (Some(af), Some(al), Some(bf), Some(bl)) if a.len() > 1 && b.len() > 1 => {
+            al == bl && af.chars().next() == bf.chars().next()
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -586,10 +769,10 @@ mod tests {
     // ── settle ─────────────────────────────────────────────────────────
 
     fn share(id: u128, amount: i64, at: i64) -> LedgerShare {
-        LedgerShare { id: Uuid::from_u128(id), amount_cents: amount, issued_at: t(at) }
+        LedgerShare { id: Uuid::from_u128(id), amount_cents: amount, issued_at: t(at), last: false }
     }
     fn pay(amount: i64, kind: LedgerKind) -> LedgerPayment {
-        LedgerPayment { amount_cents: amount, kind }
+        LedgerPayment { amount_cents: amount, kind, share: None }
     }
 
     #[test]
@@ -667,23 +850,24 @@ mod tests {
     // ── references ─────────────────────────────────────────────────────
 
     #[test]
-    fn a_reference_is_the_code_and_the_surname_within_eighteen() {
-        assert_eq!(reference("7KQ3X", "Aman Gill"), "7KQ3X GILL");
-        assert_eq!(reference("7KQ3X", "Jaspreet Singh-Sandhu-Wolfeschlegel"), "7KQ3X SINGHSANDHUW");
-        assert!(reference("7KQ3X", "A Very Longsurnamethatgoesonandon").len() <= MAX_REFERENCE_LEN);
-        assert_eq!(reference("7KQ3X", ""), "7KQ3X");
-        assert_eq!(reference("7KQ3X", "Zoë O'Brien"), "7KQ3X OBRIEN");
-        assert_eq!(reference("7KQ3X", "李"), "7KQ3X");
+    fn a_reference_is_the_surname_people_can_read() {
+        assert_eq!(reference_base("Aman Gill"), "GILL");
+        assert_eq!(reference_base("Zoë O'Brien"), "OBRIEN");
+        assert_eq!(reference_base("Jaspreet Singh-Sandhu-Wolfeschlegel"), "SINGHSANDHUWOL");
+        assert_eq!(reference_base("Ravi"), "RAVI");
+        // A surname with no Latin letters falls back to the first name...
+        assert_eq!(reference_base("Ravi ਸ਼ਰਮਾ"), "RAVI");
+        // ...and a name with none at all still gives something to write.
+        assert_eq!(reference_base("ਹਰਚਰਨ ਸਿੰਘ"), "PLAYER");
+        assert_eq!(reference_base("   "), "PLAYER");
     }
 
     #[test]
-    fn reference_codes_avoid_confusable_characters() {
-        for bad in *b"0O1ILU" {
-            assert!(!REFERENCE_ALPHABET.contains(&bad), "{}", bad as char);
-        }
-        assert!(is_reference_code("7KQ3X"));
-        assert!(!is_reference_code("7KQ3O"));
-        assert!(!is_reference_code("7KQ3"));
+    fn two_members_with_one_surname_get_a_number_and_stay_within_eighteen() {
+        assert_eq!(reference_numbered("SHARMA", 1), "SHARMA");
+        assert_eq!(reference_numbered("SHARMA", 2), "SHARMA 2");
+        let longest = reference_numbered(&reference_base("Aleksandrovichovski"), 99);
+        assert!(longest.len() <= MAX_REFERENCE_LEN, "{longest}");
     }
 
     // ── bank details ───────────────────────────────────────────────────
@@ -783,6 +967,51 @@ mod tests {
         assert_eq!(payout_states(&[acct(1, 0, 0, None, Some(1))], t(5)), vec![PayoutState::Retired]);
     }
 
+    // ── passes ─────────────────────────────────────────────────────────
+
+    fn d(y: i32, m: u32, day: u32) -> chrono::NaiveDate {
+        chrono::NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    #[test]
+    fn monthly_charges_run_from_the_day_it_started() {
+        let p = monthly_periods(d(2026, 11, 14), d(2027, 2, 14), None);
+        assert_eq!(p, vec![d(2026, 11, 14), d(2026, 12, 14), d(2027, 1, 14), d(2027, 2, 14)]);
+        assert_eq!(monthly_periods(d(2026, 11, 14), d(2026, 12, 13), None), vec![d(2026, 11, 14)]);
+    }
+
+    /// Started on the 31st: the last day of short months, then the 31st again.
+    #[test]
+    fn a_pass_started_on_the_31st_is_due_on_the_last_day_of_short_months() {
+        let p = monthly_periods(d(2027, 1, 31), d(2027, 4, 30), None);
+        assert_eq!(p, vec![d(2027, 1, 31), d(2027, 2, 28), d(2027, 3, 31), d(2027, 4, 30)]);
+    }
+
+    #[test]
+    fn a_cancelled_pass_is_not_charged_after_it_ends() {
+        let p = monthly_periods(d(2026, 11, 14), d(2027, 6, 1), Some(d(2027, 1, 13)));
+        assert_eq!(p, vec![d(2026, 11, 14), d(2026, 12, 14)]);
+    }
+
+    #[test]
+    fn instalments_are_a_month_apart() {
+        assert_eq!(instalment_days(d(2026, 4, 1), 3), vec![d(2026, 4, 1), d(2026, 5, 1), d(2026, 6, 1)]);
+    }
+
+    #[test]
+    fn a_one_off_pass_stops_at_its_first_overdue_payment() {
+        assert_eq!(pass_standing(PassBilling::Once, 0, false), PassStanding::UpToDate);
+        assert_eq!(pass_standing(PassBilling::Once, 1, false), PassStanding::Suspended);
+        assert_eq!(pass_standing(PassBilling::Once, 1, true), PassStanding::Behind);
+    }
+
+    #[test]
+    fn a_monthly_pass_stops_after_two_missed_months() {
+        assert_eq!(pass_standing(PassBilling::Monthly, 1, false), PassStanding::Behind);
+        assert_eq!(pass_standing(PassBilling::Monthly, 2, false), PassStanding::Suspended);
+        assert_eq!(pass_standing(PassBilling::Instalments, 3, true), PassStanding::Behind, "the secretary's override");
+    }
+
     // ── money ──────────────────────────────────────────────────────────
 
     #[test]
@@ -794,5 +1023,62 @@ mod tests {
         assert_eq!(fmt_money(1_250, "CHF"), "CHF 12.50");
         assert_eq!(fmt_money(100_000, "GBP"), "£1,000.00");
         assert_eq!(fmt_money(123_456_789, "GBP"), "£1,234,567.89");
+    }
+    #[test]
+    fn same_person_matches_bank_style_names() {
+        assert!(same_person("MR A GILL", "Aman Gill"));
+        assert!(same_person("Aman Singh Gill", "Aman Gill"));
+        assert!(same_person("aman gill", "Aman Gill"));
+        assert!(!same_person("Neha Gill", "Aman Gill"));
+        assert!(!same_person("Riverside CC", "Aman Gill"));
+        assert!(!same_person("Gill", "Aman Gill"));
+        assert!(!same_person("", "Aman Gill"));
+    }
+    #[test]
+    fn allocate_pays_oldest_shares_first_in_payment_order() {
+        let t = |h: i64| Utc::now() - chrono::Duration::hours(h);
+        let (a, b, c) = (Uuid::from_bytes([1; 16]), Uuid::from_bytes([2; 16]), Uuid::from_bytes([3; 16]));
+        let shares = vec![
+            LedgerShare { id: b, amount_cents: 600, issued_at: t(1), last: false },
+            LedgerShare { id: a, amount_cents: 500, issued_at: t(5), last: false },
+        ];
+        let (p1, p2, p3) = (Uuid::from_bytes([11; 16]), Uuid::from_bytes([12; 16]), Uuid::from_bytes([13; 16]));
+        let got = allocate(&shares, &[(p1, 700), (p2, 300), (p3, 900)]);
+        assert_eq!(got[&p1], vec![(a, 500), (b, 200)]);
+        assert_eq!(got[&p2], vec![(b, 300)]);
+        assert_eq!(got[&p3], vec![(b, 100)], "the rest is credit, unallocated");
+        let _ = c;
+    }
+    #[test]
+    fn a_standing_orders_month_is_paid_last_and_its_own_money_goes_to_it() {
+        // November's pass charge (the standing order's), issued first; then a
+        // match and a group fee, owed by hand.
+        let pass = LedgerShare { id: Uuid::from_u128(1), amount_cents: 2000, issued_at: t(30), last: true };
+        let shares = vec![pass.clone(), share(2, 2500, 20), share(3, 562, 10)];
+        // He pays what he owes by hand: it all goes to the match and the fee.
+        let by_hand = settle(&shares, &[pay(3062, LedgerKind::Confirmed)]);
+        assert_eq!(by_hand.shares[&Uuid::from_u128(1)].paid_cents, 0);
+        assert_eq!(by_hand.owed_cents, 2000, "only the standing order's month is left");
+        // The standing order's money, earmarked for the month, pays it — even
+        // arriving before he's paid the rest.
+        let so = LedgerPayment { amount_cents: 2000, kind: LedgerKind::Confirmed, share: Some(Uuid::from_u128(1)) };
+        let first = settle(&shares, std::slice::from_ref(&so));
+        assert_eq!(first.shares[&Uuid::from_u128(1)].paid_cents, 2000);
+        assert_eq!(first.owed_cents, 3062);
+        let both = settle(&shares, &[so, pay(3062, LedgerKind::Confirmed)]);
+        assert_eq!((both.owed_cents, both.credit_cents), (0, 0));
+    }
+
+    #[test]
+    fn an_earmarked_claim_waits_on_its_own_share() {
+        let shares = vec![share(1, 500, 30), share(2, 500, 10)];
+        let claim = LedgerPayment { amount_cents: 500, kind: LedgerKind::Claimed, share: Some(Uuid::from_u128(2)) };
+        let s = settle(&shares, &[claim]);
+        assert_eq!(s.shares[&Uuid::from_u128(2)].waiting_cents, 500);
+        assert_eq!(s.shares[&Uuid::from_u128(1)].waiting_cents, 0);
+        // More than the share owes: the rest goes oldest first.
+        let big = LedgerPayment { amount_cents: 800, kind: LedgerKind::Confirmed, share: Some(Uuid::from_u128(2)) };
+        let s = settle(&shares, &[big]);
+        assert_eq!((s.shares[&Uuid::from_u128(2)].paid_cents, s.shares[&Uuid::from_u128(1)].paid_cents), (500, 300));
     }
 }

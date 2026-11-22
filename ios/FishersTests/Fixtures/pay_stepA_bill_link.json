@@ -1,0 +1,10 @@
+{
+  "url": "http://192.168.1.9:7311/p/UO0ZuBsnTrCEO10vUQ-KjgbDYTbNPzYxVzymhQ",
+  "expires_at": "2026-12-21T18:13:28.551461Z",
+  "bill_message": "\ud83c\udfcf Friday nets, Fri 20 Nov: \u00a315.00 each.\nTap to pay: http://192.168.1.9:7311/p/UO0ZuBsnTrCEO10vUQ-KjgbDYTbNPzYxVzymhQ",
+  "reminder_message": "Still to pay for Friday nets, Fri 20 Nov: Aman and Tom.\nTap to pay: http://192.168.1.9:7311/p/UO0ZuBsnTrCEO10vUQ-KjgbDYTbNPzYxVzymhQ",
+  "still_to_pay": [
+    "Aman Gill",
+    "Tom Bennett"
+  ]
+}

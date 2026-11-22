@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, money } from "@/lib/api";
-import type { Dues } from "@/lib/payments";
+import { blockOwed, clubBlocks, type Dues } from "@/lib/payments";
 import { useT } from "@/lib/i18n/provider";
 
-/// "You owe Riverside £15.00", with the way to pay it.
+/// "You owe Riverside £15.00", with the way to pay it. A parent's total takes
+/// in the juniors they pay for.
 ///
 /// On Home it appears only while something is owed. On Profile (`always`) it
 /// also stays as the way into the payments list once everything is paid, as
@@ -22,8 +23,11 @@ export function YouOwe({ always = false }: { always?: boolean }) {
     api<Dues>("GET", "/me/dues").then(setDues).catch(() => setDues(null));
   }, []);
 
-  if (!dues || dues.clubs.length === 0) return null;
-  const owing = dues.clubs.filter((c) => c.owed_cents > 0);
+  const blocks = dues ? clubBlocks(dues) : [];
+  if (blocks.length === 0) return null;
+  const owing = blocks
+    .map((b) => ({ ...b, owed_cents: blockOwed(b), waiting_cents: b.mine?.waiting_cents ?? 0 }))
+    .filter((c) => c.owed_cents > 0);
   if (owing.length === 0 && !always) return null;
 
   if (owing.length === 0) {
@@ -34,7 +38,7 @@ export function YouOwe({ always = false }: { always?: boolean }) {
           <Link href="/profile/payments">{t("pay.see_your_payments")}</Link>
         </div>
         <p className="muted">
-          {dues.clubs.some((c) => c.waiting_cents > 0) ? t("pay.said_you_paid") : t("pay.all_paid_up")}
+          {blocks.some((c) => (c.mine?.waiting_cents ?? 0) > 0) ? t("pay.said_you_paid") : t("pay.all_paid_up")}
         </p>
       </section>
     );

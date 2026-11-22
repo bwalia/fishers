@@ -157,6 +157,8 @@ fn cors_layer() -> CorsLayer {
             axum::http::header::AUTHORIZATION,
             axum::http::header::CONTENT_TYPE,
             axum::http::HeaderName::from_static("idempotency-key"),
+            // A pay link's claim secret, for taking it back or adding its screenshot.
+            axum::http::HeaderName::from_static("x-claim-secret"),
         ]);
 
     let configured: Vec<HeaderValue> = std::env::var("CORS_ALLOWED_ORIGINS")
