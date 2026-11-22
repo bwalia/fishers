@@ -1,0 +1,45 @@
+{{- /*
+  Each member's data on one node's own disk, when the ring is pinned to a
+  node Longhorn doesn't run on (brands/<brand>.yaml `placement`, rendered by
+  `tools/brand placement`). One directory per member, made on first use, kept
+  when the release goes (Retain). Spilo runs as root and owns them itself.
+*/ -}}
+{{- if .Values.localVolumes.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Release.Namespace }}-pgdata-local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+{{- $root := . }}
+{{- range $i := until (int .Values.instances) }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $root.Release.Namespace }}-pgdata-{{ $i }}
+  labels:
+    app.kubernetes.io/name: fishers-db
+spec:
+  capacity:
+    storage: {{ $root.Values.volume.size }}
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ $root.Release.Namespace }}-pgdata-local
+  # Only this member's claim (the operator names them pgdata-<cluster>-<n>).
+  claimRef:
+    namespace: {{ $root.Release.Namespace }}
+    name: pgdata-{{ $root.Values.clusterName }}-{{ $i }}
+  hostPath:
+    path: {{ $root.Values.localVolumes.path }}/pgdata-{{ $i }}
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [{{ $root.Values.localVolumes.node | quote }}]
+{{- end }}
+{{- end }}

@@ -149,10 +149,17 @@ jobs:
           NAMESPACE=$(node tools/brand/index.mjs namespace "$BRAND" "$TARGET_ENV")
           # And the overlay Helm applies last.
           node tools/brand/index.mjs helm "$BRAND" "$TARGET_ENV" > /tmp/brand-values.yaml
+          # Where the ring runs (brands/<brand>.yaml `placement`) — an empty
+          # overlay unless the ring is pinned to a node. Every chart reads it.
+          node tools/brand/index.mjs placement "$BRAND" "$TARGET_ENV" > /tmp/placement-values.yaml
 
           echo "namespace=$NAMESPACE" >> "$GITHUB_OUTPUT"
           echo "hostname=$HOSTNAME"   >> "$GITHUB_OUTPUT"
           echo "brand=$BRAND"         >> "$GITHUB_OUTPUT"
+          # Both empty unless pinned. The smoke test needs them: a pinned
+          # ring's pods are unreachable from the home nodes' Traefik.
+          echo "pin_node=$(node tools/brand/index.mjs pin-node "$BRAND" "$TARGET_ENV")"       >> "$GITHUB_OUTPUT"
+          echo "pin_address=$(node tools/brand/index.mjs pin-address "$BRAND" "$TARGET_ENV")" >> "$GITHUB_OUTPUT"
           echo "deploying $BRAND to $NAMESPACE at $HOSTNAME"
 
           case "${{ inputs.registry_provider || 'NEBULACR' }}" in
@@ -412,7 +419,8 @@ jobs:
           helm upgrade --install fishers-db "$CHARTS/fishers-db" \
             --namespace "$NS" \
             -f "$CHARTS/fishers-db/values.yaml" \
-            -f "$CHARTS/fishers-db/values-$TARGET_ENV.yaml"
+            -f "$CHARTS/fishers-db/values-$TARGET_ENV.yaml" \
+            -f /tmp/placement-values.yaml
 
           # The operator reports on the postgresql resource, not through helm,
           # so --wait has nothing to wait on. Wait for credentials and a Ready
@@ -476,6 +484,7 @@ jobs:
                --namespace "$NS" \
                -f "$CHARTS/fishers-minio/values.yaml" \
                -f "$CHARTS/fishers-minio/values-$TARGET_ENV.yaml" \
+               -f /tmp/placement-values.yaml \
                --wait --timeout 5m; then
             echo "state=ok" >> "$GITHUB_OUTPUT"
             exit 0
@@ -519,6 +528,7 @@ jobs:
             -f "$CHARTS/fishers-api/values.yaml" \
             -f "$CHARTS/fishers-api/values-$TARGET_ENV.yaml" \
             -f /tmp/brand-values.yaml \
+            -f /tmp/placement-values.yaml \
             --set image.repository='${{ steps.ring.outputs.ns }}/fishers-api' \
             --set image.tag="$IMAGE_TAG" \
             --set hostname='${{ steps.ring.outputs.hostname }}' \
@@ -537,6 +547,7 @@ jobs:
             -f "$CHARTS/fishers-web/values.yaml" \
             -f "$CHARTS/fishers-web/values-$TARGET_ENV.yaml" \
             -f /tmp/brand-values.yaml \
+            -f /tmp/placement-values.yaml \
             --set image.repository='${{ steps.ring.outputs.ns }}/${{ steps.ring.outputs.brand }}-web' \
             --set image.tag="$IMAGE_TAG" \
             --set hostname='${{ steps.ring.outputs.hostname }}' \
@@ -552,11 +563,25 @@ jobs:
           # API — while staying inside the cluster, so DNS, the edge and the
           # certificate still cannot be blamed for a failure here.
           EDGE: ${{ vars.EDGE_SERVICE || 'traefik.kube-system.svc.cluster.local' }}
+          PIN_NODE: ${{ steps.ring.outputs.pin_node }}
+          PIN_ADDRESS: ${{ steps.ring.outputs.pin_address }}
         run: |
           set -euo pipefail
           # In-cluster, so this passes or fails on the deploy alone. The public
           # check is Ring Promoter's health_url, which comes after.
           fail=0
+          # A ring pinned to an edge node (brands/<brand>.yaml `placement`) is
+          # out of reach of the home nodes — the pod network doesn't cross — so
+          # the probe runs on that node and goes through its own traefik-edge,
+          # which is what the public edge sends the ring's traffic to.
+          overrides=()
+          if [ -n "$PIN_NODE" ]; then
+            EDGE="$PIN_ADDRESS"
+            overrides=(--overrides "$(jq -nc --arg n "$PIN_NODE" '{apiVersion: "v1", spec: {
+              nodeSelector: {"kubernetes.io/hostname": $n},
+              tolerations: [{key: "node-role.kubernetes.io/edge", operator: "Exists", effect: "NoSchedule"}]}}')")
+            echo "pinned to $PIN_NODE: probing through $EDGE"
+          fi
           # Exit code, not grepped output: kubectl run propagates the container's
           # status, and curl -f already fails on any non-2xx. Matching on stdout
           # would also match the pod-lifecycle chatter kubectl interleaves with it.
@@ -564,7 +589,7 @@ jobs:
             local host_args=()
             [ -n "${3:-}" ] && host_args=(-H "Host: $3")
             kubectl run "smoke-$1-$RANDOM" --rm -i --restart=Never --namespace "$NS" \
-              --image=curlimages/curl:8.10.1 --quiet --command -- \
+              --image=curlimages/curl:8.10.1 --quiet "${overrides[@]}" --command -- \
               curl -fsS -m 10 -o /dev/null "${host_args[@]}" "$2"
           }
           # The app. A ring that cannot serve these is not deployed.

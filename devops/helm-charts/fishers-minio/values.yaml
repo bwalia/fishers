@@ -78,3 +78,11 @@ podSecurityContext:
 nodeSelector: {}
 
 tolerations: []
+
+# A ring pinned to one node keeps MinIO's data on that node's own disk
+# (templates/local-volume.yaml). Set by `tools/brand placement`, never by hand.
+localVolumes:
+  enabled: false
+  node: ""
+  path: ""
+

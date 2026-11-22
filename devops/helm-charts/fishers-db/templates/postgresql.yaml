@@ -20,9 +20,35 @@ spec:
   numberOfInstances: {{ .Values.instances }}
   postgresql:
     version: {{ .Values.postgresVersion | quote }}
+    {{- with .Values.parameters }}
+    parameters:
+      {{- range $k, $v := . }}
+      {{ $k }}: {{ $v | quote }}
+      {{- end }}
+    {{- end }}
   volume:
     size: {{ .Values.volume.size }}
+    {{- if .Values.localVolumes.enabled }}
+    storageClass: {{ .Release.Namespace }}-pgdata-local
+    {{- else }}
     storageClass: {{ .Values.volume.storageClass }}
+    {{- end }}
+  {{- with .Values.nodeSelector }}
+  # Pinned (brands/<brand>.yaml `placement`): every member on this node.
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            {{- range $k, $v := . }}
+            - key: {{ $k }}
+              operator: In
+              values: [{{ $v | quote }}]
+            {{- end }}
+  {{- end }}
+  {{- with .Values.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   users:
     {{ .Values.owner }}: []
   databases:

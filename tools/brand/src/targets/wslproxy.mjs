@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { edgeHostsFor } from "../helm.mjs";
+import { edgeHostsFor, pinFor } from "../helm.mjs";
 
 /**
  * The edge vhost specs — one per hostname a brand answers on.
@@ -12,26 +12,69 @@ import { edgeHostsFor } from "../helm.mjs";
  * The routing rule is deliberately shared. It says "send this to k3s1's
  * Traefik", and Traefik picks the namespace from the Host header — which is
  * brand-agnostic, and would be the same file copied under a different name.
+ *
+ * Except for a ring pinned to one node (brands/<brand>.yaml `placement`): the
+ * home cluster's Traefik can't reach pods on the edge nodes, so that ring's
+ * hosts get a rule of their own, sending them straight to the node.
  */
 const SHARED_RULE = "fishers-prod-default";
 
 export function wslproxyFiles(brand, repoRoot, outDir) {
   const dir = outDir ?? join(repoRoot, "devops", "wslproxy");
   const rings = Object.keys(brand.rings);
-  const hosts = [...new Set(rings.flatMap((ring) => edgeHostsFor(brand, ring)))];
-
-  return hosts.map((host) => ({
-    path: join(dir, `host-${host}.json`),
-    contents: `${JSON.stringify(spec(brand, host), null, 2)}\n`,
-  }));
+  const ruleOf = new Map();
+  const files = [];
+  for (const ring of rings) {
+    const pin = pinFor(brand, ring);
+    const rule = pin ? pinnedRule(brand, ring, pin) : null;
+    if (rule) files.push({ path: join(dir, `rule-${rule.id}.json`), contents: `${JSON.stringify(rule, null, 2)}\n` });
+    for (const host of edgeHostsFor(brand, ring)) if (!ruleOf.has(host)) ruleOf.set(host, rule?.id ?? SHARED_RULE);
+  }
+  return [
+    ...[...ruleOf].map(([host, rule]) => ({
+      path: join(dir, `host-${host}.json`),
+      contents: `${JSON.stringify(spec(brand, host, rule), null, 2)}\n`,
+    })),
+    ...files,
+  ];
 }
 
-function spec(brand, host) {
+/** The same shape as fishers-prod-default, with the node as the one backend. */
+function pinnedRule(brand, ring, pin) {
+  const id = `${brand.id}-${ring}-${pin.node}`;
+  const backend = `${pin.address}:80`;
+  return {
+    id,
+    name: id,
+    profile_id: "prod",
+    priority: 1,
+    rules_tags: [brand.id, ring],
+    match: {
+      rules: { path: "/", path_key: "starts_with" },
+      response: {
+        strip_path: false,
+        code: 305,
+        routing: { mode: "least_conn" },
+        backends: [
+          {
+            weight: 100,
+            address: backend,
+            label: `${pin.node}'s traefik-edge (hostNetwork, :80). ${brand.name} ${ring} runs wholly on that node — brands/${brand.id}.yaml placement.`,
+          },
+        ],
+        redirect_uri: backend,
+      },
+    },
+    servers: edgeHostsFor(brand, ring).map((h) => `host:${h}`),
+  };
+}
+
+function spec(brand, host, rule) {
   return {
     id: `host:${host}`,
     server_name: host,
     proxy_server_name: host,
-    rules: SHARED_RULE,
+    rules: rule,
     profile_id: "prod",
     ssl_enabled: true,
     ssl_force_https: true,

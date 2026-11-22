@@ -31,6 +31,8 @@ import {
   edgeHostsFor,
   helmValues,
   hostFor,
+  placementValues,
+  pinFor,
   namespaceFor,
   zoneFor,
 } from "./src/helm.mjs";
@@ -154,6 +156,10 @@ function main(argv) {
   // duplicated as shell, because the brand file is the one place that knows.
   const LOOKUPS = {
     helm: (brand, ring) => helmValues(brand, ring),
+    placement: (brand, ring) => placementValues(brand, ring),
+    // Empty for a ring that isn't pinned, so `[ -n "$(… pin-node …)" ]` reads.
+    "pin-node": (brand, ring) => `${pinFor(brand, ring)?.node ?? ""}\n`,
+    "pin-address": (brand, ring) => `${pinFor(brand, ring)?.address ?? ""}\n`,
     host: (brand, ring) => `${hostFor(brand, ring)}\n`,
     namespace: (brand, ring) => `${namespaceFor(brand, ring)}\n`,
     hosts: (brand, ring) => `${edgeHostsFor(brand, ring).join(" ")}\n`,
@@ -202,7 +208,7 @@ function main(argv) {
   }
 
   throw new BrandError(
-    `No command called "${command}". There is: check, generate, list, mobile, helm, host, namespace, hosts, dns-hosts, zone`,
+    `No command called "${command}". There is: check, generate, list, mobile, helm, placement, pin-node, pin-address, host, namespace, hosts, dns-hosts, zone`,
   );
 }
 

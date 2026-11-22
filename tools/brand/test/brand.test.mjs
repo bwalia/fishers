@@ -798,3 +798,65 @@ test("the certificate address is not the support address", () => {
     );
   }
 });
+
+// ---- placement: a ring pinned to one node ----
+
+import { placementValues } from "../src/helm.mjs";
+
+test("a pinned ring renders nodeSelector, the edge toleration and local volumes; others render nothing", () => {
+  const brand = loadBrand(join(import.meta.dirname, "..", "..", ".."), "gullycricket");
+  const prod = parseYaml(placementValues(brand, "prod"));
+  assert.deepEqual(prod.nodeSelector, { "kubernetes.io/hostname": "vps005" });
+  assert.equal(prod.tolerations[0].key, "node-role.kubernetes.io/edge");
+  assert.deepEqual(prod.localVolumes, { enabled: true, node: "vps005", path: "/var/lib/fishers/gullycricket-prod" });
+  assert.deepEqual(parseYaml(placementValues(brand, "int")), {});
+  assert.throws(() => placementValues(brand, "staging"), /no "staging" ring/);
+});
+
+test("placement must name a ring of the brand, a node and its address", () => {
+  const brand = loadBrand(join(import.meta.dirname, "..", "..", ".."), "gullycricket");
+  const bad = {
+    ...brand,
+    placement: { staging: { node: "vps005", address: "77.68.21.34" }, prod: { node: "Not A Node!" }, int: { node: "vps005", address: "77.68.21.340" } },
+  };
+  const problems = (() => {
+    try {
+      validate(bad, "brands/gullycricket.yaml");
+      return [];
+    } catch (e) {
+      return String(e.message ?? e);
+    }
+  })();
+  assert.match(String(problems), /placement\.staging/);
+  assert.match(String(problems), /placement\.prod\.node/);
+  assert.match(String(problems), /placement\.prod\.address/, "no address: the edge wouldn't know where to send it");
+  assert.match(String(problems), /placement\.int\.address/);
+  assert.doesNotMatch(String(problems), /placement\.staging\.address/);
+});
+
+/**
+ * The home cluster's Traefik can't reach a pinned ring's pods, so the edge has
+ * to send that ring's hosts — and only those — straight to the node.
+ */
+test("a pinned ring's hosts get a rule of their own, aimed at the node", () => {
+  const gully = loadBrand(repoRoot, "gullycricket");
+  const files = Object.fromEntries(wslproxyFiles(gully, "/repo").map((f) => [f.path.split("/").pop(), JSON.parse(f.contents)]));
+  const rule = files["rule-gullycricket-prod-vps005.json"];
+  assert.ok(rule, "no rule for the pinned ring");
+  assert.equal(rule.id, "gullycricket-prod-vps005");
+  assert.deepEqual(rule.match.response.backends.map((b) => b.address), ["77.68.21.34:80"]);
+  assert.deepEqual(rule.servers, ["host:www.gullycricket.app", "host:gullycricket.app"]);
+  assert.equal(files["host-www.gullycricket.app.json"].rules, "gullycricket-prod-vps005");
+  assert.equal(files["host-gullycricket.app.json"].rules, "gullycricket-prod-vps005");
+  for (const ring of ["int", "test", "acc"]) {
+    assert.equal(files[`host-${ring}.gullycricket.app.json`].rules, "fishers-prod-default", `${ring} moved with prod`);
+  }
+});
+
+/** What register-edge-vhost.yml imports is what the brand file says. */
+test("the committed gullycricket specs, rule included, are what the generator writes", () => {
+  const gully = loadBrand(repoRoot, "gullycricket");
+  for (const file of wslproxyFiles(gully, repoRoot)) {
+    assert.equal(readFileSync(file.path, "utf8"), file.contents, `${file.path} is stale: run brand generate gullycricket --wslproxy`);
+  }
+});

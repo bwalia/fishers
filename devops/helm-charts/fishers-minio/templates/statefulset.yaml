@@ -37,6 +37,21 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.localVolumes.enabled }}
+      # A directory on the node's own disk starts out root's; MinIO runs as
+      # 1000 and fsGroup doesn't reach a hostPath. Hand it over first.
+      initContainers:
+        - name: own-data
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "chown -R 1000:1000 /data"]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      {{- end }}
       containers:
         - name: minio
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -88,8 +103,12 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
+        {{- if .Values.localVolumes.enabled }}
+        storageClassName: {{ printf "%s-minio-local" .Release.Namespace | quote }}
+        {{- else }}
         {{- with .Values.persistence.storageClass }}
         storageClassName: {{ . | quote }}
+        {{- end }}
         {{- end }}
         resources:
           requests:

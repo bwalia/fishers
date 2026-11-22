@@ -2,7 +2,7 @@
   "id": "host:www.gullycricket.app",
   "server_name": "www.gullycricket.app",
   "proxy_server_name": "www.gullycricket.app",
-  "rules": "fishers-prod-default",
+  "rules": "gullycricket-prod-vps005",
   "profile_id": "prod",
   "ssl_enabled": true,
   "ssl_force_https": true,

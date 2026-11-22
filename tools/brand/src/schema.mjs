@@ -116,6 +116,29 @@ export function validate(brand, source) {
     }
   }
 
+  // Optional: a ring pinned to one node. Only a ring the brand has, and a
+  // node name — a typo here leaves every pod Pending, so say so now.
+  if (brand?.placement !== undefined) {
+    if (typeof brand.placement !== "object" || brand.placement === null || Array.isArray(brand.placement)) {
+      problems.push(`${where("placement")} must map rings to { node: <name>, address: <ip> }`);
+    } else {
+      for (const [ring, place] of Object.entries(brand.placement)) {
+        if (typeof brand?.rings?.[ring] !== "string") {
+          problems.push(`${where(`placement.${ring}`)} is not a ring of this brand`);
+        }
+        if (typeof place?.node !== "string" || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(place.node)) {
+          problems.push(`${where(`placement.${ring}.node`)} must be a node's name`);
+        }
+        // Where the edge sends the ring's traffic. Without it the vhosts keep
+        // pointing at the home cluster's ingress, which can't reach the node.
+        const octets = typeof place?.address === "string" ? place.address.split(".") : [];
+        if (octets.length !== 4 || !octets.every((o) => /^\d{1,3}$/.test(o) && Number(o) <= 255)) {
+          problems.push(`${where(`placement.${ring}.address`)} must be the node's public IPv4 address`);
+        }
+      }
+    }
+  }
+
   for (const key of ["email", "sslEmail"]) {
     if (typeof brand?.support?.[key] !== "string") {
       problems.push(`${where(`support.${key}`)} is missing`);
