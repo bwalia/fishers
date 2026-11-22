@@ -38,7 +38,7 @@ class ScreenshotSizeTest {
     @Test
     fun `too big steps down quality, then pixels, until it fits under the limit`() {
         val asked = mutableListOf<Pair<Int, Int>>()
-        val small = ByteArray(900_000) { 1 }
+        val small = ByteArray(650_000) { 1 }
         val bytes = ScreenshotSize.shrink { side, quality ->
             asked += side to quality
             if (side >= 1280) ByteArray(1_500_000) else small
@@ -46,7 +46,8 @@ class ScreenshotSizeTest {
         assertEquals(listOf(1600 to 70, 1600 to 55, 1280 to 55, 1024 to 50), asked)
         assertArrayEquals(small, bytes)
         assertTrue(bytes!!.size <= ScreenshotSize.MAX_BYTES)
-        assertTrue("under the server's megabyte", ScreenshotSize.MAX_BYTES < 1_000_000)
+        // Sent as base64 in JSON (a third bigger), it still fits the server's megabyte.
+        assertTrue("under the server's megabyte as base64", ScreenshotSize.MAX_BYTES * 4 / 3 + 64 < 1_000_000)
     }
 
     @Test

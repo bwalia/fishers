@@ -405,6 +405,32 @@ async fn link_undo(
 
 /// A screenshot of the payment, checked by its own bytes — never by what the
 /// caller says it is — and kept private to the club's money admins.
+/// A screenshot as raw bytes, or as JSON `{"image": "<base64>"}` — for the
+/// edge in front of one brand's domain, which passes only JSON bodies to new
+/// paths. Either way the bytes are checked the same.
+fn screenshot_bytes(headers: &HeaderMap, body: &Bytes) -> ApiResult<Vec<u8>> {
+    let json = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.trim().to_ascii_lowercase().starts_with("application/json"));
+    if !json {
+        return Ok(body.to_vec());
+    }
+    #[derive(Deserialize)]
+    struct Upload {
+        image: String,
+    }
+    let up: Upload = serde_json::from_slice(body)
+        .map_err(|_| ApiError::bad_request("Send the picture as {\"image\": \"<base64>\"}").with_code("not_an_image"))?;
+    // A data URL's prefix ("data:image/jpeg;base64,") is allowed and ignored.
+    let b64 = up.image.rsplit(',').next().unwrap_or("").trim();
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD
+        .decode(b64)
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(b64))
+        .map_err(|_| status(StatusCode::UNSUPPORTED_MEDIA_TYPE, "That isn't a picture we can keep (JPEG, PNG or WebP).", "not_an_image"))
+}
+
 fn checked_image(bytes: &[u8]) -> ApiResult<&'static str> {
     if bytes.is_empty() {
         return Err(ApiError::bad_request("Choose a picture of the payment"));
@@ -435,11 +461,12 @@ async fn link_screenshot(
         return Err(ApiError::conflict("You can only add a picture to a payment you've just made here.")
             .with_code("too_late"));
     }
-    let content_type = checked_image(&body)?;
+    let image = screenshot_bytes(&headers, &body)?;
+    let content_type = checked_image(&image)?;
     let mut tx = state.pool.begin().await?;
-    repo::put_attachment(&mut tx, pid, content_type, &body).await?;
+    repo::put_attachment(&mut tx, pid, content_type, &image).await?;
     repo::audit(&mut tx, link.club_id, None, "attach_screenshot", "payment", Some(pid), None,
-        Some(json!({ "bytes": body.len(), "pay_link": link.id }))).await?;
+        Some(json!({ "bytes": image.len(), "pay_link": link.id }))).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -448,6 +475,7 @@ async fn link_screenshot(
 async fn upload_screenshot(
     State(state): State<AppState>,
     auth: AuthUser,
+    headers: HeaderMap,
     Path(pid): Path<Uuid>,
     body: Bytes,
 ) -> ApiResult<StatusCode> {
@@ -458,11 +486,12 @@ async fn upload_screenshot(
     if payment.status != "claimed" {
         return Err(ApiError::conflict("The club has already checked that one.").with_code("already_decided"));
     }
-    let content_type = checked_image(&body)?;
+    let image = screenshot_bytes(&headers, &body)?;
+    let content_type = checked_image(&image)?;
     let mut tx = state.pool.begin().await?;
-    repo::put_attachment(&mut tx, pid, content_type, &body).await?;
+    repo::put_attachment(&mut tx, pid, content_type, &image).await?;
     repo::audit(&mut tx, payment.club_id, Some(auth.user_id), "attach_screenshot", "payment", Some(pid), None,
-        Some(json!({ "bytes": body.len() }))).await?;
+        Some(json!({ "bytes": image.len() }))).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

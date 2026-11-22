@@ -857,26 +857,43 @@ async function answer<R>(res: Response): Promise<R> {
   return (await res.json()) as R;
 }
 
-/// A signed-in POST whose body is plain text: a bank statement, sent as the
-/// file it was read from. Never logged and never in a URL — it holds the
-/// club's other banking too.
+/// A signed-in POST of a bank statement, as JSON `{csv}` (one brand's edge
+/// passes only JSON bodies to new paths). Never logged and never in a URL —
+/// it holds the club's other banking too.
 export async function postText<R>(path: string, text: string): Promise<R> {
-  const headers: Record<string, string> = { "Content-Type": "text/csv; charset=utf-8" };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
   const token = await usableToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${apiV1()}${path}`, { method: "POST", headers, body: text, cache: "no-store" });
+  const res = await fetch(`${apiV1()}${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ csv: text }),
+    cache: "no-store",
+  });
   return answer<R>(res);
 }
 
-/// Send a picture as the raw bytes the API wants. `link` calls go without
-/// needing a sign-in (with `extra` carrying the claim's secret); the others
-/// are the signed-in payer's own.
+/// The bytes of a picture as base64, for a JSON body.
+async function base64Of(image: Blob): Promise<string> {
+  const bytes = new Uint8Array(await image.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+/// Send a picture as JSON `{image: <base64>}` (one brand's edge passes only
+/// JSON bodies to new paths). `link` calls go without needing a sign-in
+/// (with `extra` carrying the claim's secret); the others are the signed-in
+/// payer's own.
 export async function postImage(path: string, image: Blob, link = false, extra?: Record<string, string>): Promise<void> {
-  const headers: Record<string, string> = { ...extra, "Content-Type": image.type || "image/jpeg" };
+  const headers: Record<string, string> = { ...extra, "Content-Type": "application/json" };
   const token = await usableToken().catch(() => null);
   if (token) headers.Authorization = `Bearer ${token}`;
   else if (!link) throw Object.assign(new Error("signed out"), { status: 401 });
-  const res = await fetch(`${apiV1()}${path}`, { method: "POST", headers, body: image, cache: "no-store" });
+  const body = JSON.stringify({ image: await base64Of(image) });
+  const res = await fetch(`${apiV1()}${path}`, { method: "POST", headers, body, cache: "no-store" });
   await answer<void>(res);
 }
 
@@ -900,11 +917,12 @@ export async function getImage(path: string): Promise<Blob> {
 /// draw, or not a picture at all.
 export class UnreadablePicture extends Error {}
 
-/// The API takes at most a megabyte. A phone screenshot is several, so it is
-/// drawn again here: at most 1600 px on its long side, as a JPEG, a little
-/// rougher each time until it fits.
+/// The API takes at most a megabyte, and the picture goes as base64 (a
+/// third bigger). A phone screenshot is several megabytes, so it is drawn
+/// again here: at most 1600 px on its long side, as a JPEG, a little rougher
+/// each time until it fits.
 const MAX_SIDE = 1600;
-const MAX_BYTES = 1_000_000;
+const MAX_BYTES = 700_000;
 
 export async function shrinkScreenshot(file: File): Promise<Blob> {
   const picture = await decode(file);

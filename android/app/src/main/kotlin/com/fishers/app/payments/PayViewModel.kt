@@ -13,8 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 
 data class PayState(
     val pay: PayScreen? = null,
@@ -267,7 +265,7 @@ class PayViewModel(
         if (_state.value.attaching != null) return
         _state.update { it.copy(attaching = paymentId, error = null, message = null) }
         viewModelScope.launch {
-            runCatching { api.uploadScreenshot(paymentId, jpeg.toRequestBody(JPEG)) }
+            runCatching { api.uploadScreenshot(paymentId, JsonUpload.image(jpeg)) }
                 .onSuccess {
                     _state.update { it.copy(attaching = null, message = t("pa2.screenshot_added")) }
                     load()
@@ -413,10 +411,6 @@ class PayViewModel(
                     if (refusal?.meansReload == true) load()
                 }
         }
-    }
-
-    private companion object {
-        val JPEG = "image/jpeg".toMediaType()
     }
 }
 

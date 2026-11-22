@@ -247,13 +247,15 @@ extension FishersAPI {
         try await NetworkService.shared.data("GET", path: "/payments/\(id.uuidString)/screenshot")
     }
 
-    /// The payer's own picture of the payment: JPEG bytes, at most 1 MB —
-    /// see `PaymentScreenshot`.
+    /// The payer's own picture of the payment, a JPEG under 700 KB — see
+    /// `PaymentScreenshot` — sent as JSON `{"image": base64}`: one brand's
+    /// edge passes only JSON bodies to new paths.
     static func uploadPaymentScreenshot(_ id: UUID, jpeg: Data, key: UUID) async throws {
+        let body = try JSONEncoder().encode(["image": jpeg.base64EncodedString()])
         _ = try await retryingBusy {
             try await NetworkService.shared.data(
                 "POST", path: "/payments/\(id.uuidString)/screenshot",
-                rawBody: jpeg, contentType: "image/jpeg", headers: idempotent(key)
+                rawBody: body, contentType: "application/json", headers: idempotent(key)
             )
         }
     }
@@ -273,9 +275,10 @@ extension FishersAPI {
     /// amount column) and `statement_too_long` (more than 5,000 lines) are
     /// 422s whose sentence says what to do.
     static func previewStatement(clubId: UUID, csv: String, network: NetworkService = .shared) async throws -> StatementPreview {
+        // As JSON `{"csv": text}`: one brand's edge passes only JSON bodies to new paths.
         let bytes = try await network.data(
             "POST", path: club(clubId) + "/statement/preview",
-            rawBody: Data(csv.utf8), contentType: "text/csv"
+            rawBody: try JSONEncoder().encode(["csv": csv]), contentType: "application/json"
         )
         do {
             return try FishersJSONDecoder.make().decode(StatementPreview.self, from: bytes)
