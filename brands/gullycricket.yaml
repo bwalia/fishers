@@ -22,6 +22,23 @@ rings:
 # limiting, not authentication.
 gateway: []
 
+# Where a ring runs, when it can't be wherever the scheduler likes. Gully
+# Cricket prod lives wholly on vps005, a datacenter VPS, after the home nodes it
+# was spread over took it down (Nov 2026): its pods, and its database's and
+# MinIO's data on vps005's own disk. tools/brand turns this into Helm values
+# for every chart (`brand placement gullycricket prod`).
+#
+# All of it, or none of it: pods on the edge nodes can't reach pods on the home
+# nodes (flannel tunnels over the home LAN's 192.168.1.x), so the API, the
+# database and MinIO have to share the node. For the same reason the edge sends
+# the ring's traffic straight to `address`, where that node's traefik-edge
+# listens on :80, rather than to the home cluster's ingress — the way
+# diytaxreturn runs on cloud003 and vyltzero on vps002.
+placement:
+  prod:
+    node: vps005
+    address: 77.68.21.34
+
 # What the pickers offer when starting a club or a team.
 #
 # The app is called Gully Cricket and the scoring is cricket's; the rest of

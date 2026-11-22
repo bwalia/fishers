@@ -1,0 +1,35 @@
+{
+  "id": "gullycricket-prod-vps005",
+  "name": "gullycricket-prod-vps005",
+  "profile_id": "prod",
+  "priority": 1,
+  "rules_tags": [
+    "gullycricket",
+    "prod"
+  ],
+  "match": {
+    "rules": {
+      "path": "/",
+      "path_key": "starts_with"
+    },
+    "response": {
+      "strip_path": false,
+      "code": 305,
+      "routing": {
+        "mode": "least_conn"
+      },
+      "backends": [
+        {
+          "weight": 100,
+          "address": "77.68.21.34:80",
+          "label": "vps005's traefik-edge (hostNetwork, :80). Gully Cricket prod runs wholly on that node — brands/gullycricket.yaml placement."
+        }
+      ],
+      "redirect_uri": "77.68.21.34:80"
+    }
+  },
+  "servers": [
+    "host:www.gullycricket.app",
+    "host:gullycricket.app"
+  ]
+}

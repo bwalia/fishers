@@ -67,6 +67,14 @@ spec:
           # This pod reads the whole database and holds the keys to the bucket
           # it writes to; it has no business acquiring anything else.
           automountServiceAccountToken: false
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.backup.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}

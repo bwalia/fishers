@@ -27,6 +27,24 @@ volume:
   # across nodes.
   storageClass: longhorn
 
+# Postgres settings the operator passes through.
+parameters:
+  # A replica that can't follow (a failover it never rejoined, a node gone)
+  # keeps its replication slot, and the slot keeps every WAL file since. On
+  # 2026-11-22 that filled Gully Cricket prod's disk and took it down. Past
+  # this much the slot is given up instead: the replica has to be rebuilt
+  # (patronictl reinit), but the primary keeps running.
+  max_slot_wal_keep_size: "4GB"
+
+# Where the cluster runs, and its data. Empty means anywhere, on Longhorn.
+# A pinned ring gets these from `tools/brand placement`, never by hand.
+nodeSelector: {}
+tolerations: []
+localVolumes:
+  enabled: false
+  node: ""
+  path: ""
+
 resources:
   requests:
     cpu: 100m

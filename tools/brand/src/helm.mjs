@@ -131,3 +131,43 @@ export function dnsHostsFor(brand, ring) {
 export function zoneFor(brand) {
   return brand.domain;
 }
+
+/**
+ * Where a ring's pods and data live, as Helm values every chart reads: the
+ * same file goes to fishers-db, fishers-minio, fishers-api and fishers-web.
+ * A ring with no placement gets an empty overlay, so the charts' defaults —
+ * anywhere, on Longhorn — stand.
+ *
+ * Pinned, everything runs on that node (tolerating the edge taint, which is
+ * where the reliable machines are), and the database's and MinIO's volumes
+ * are directories on the node's own disk: Longhorn doesn't run on the edge
+ * nodes, so its volumes can't follow a pod there.
+ */
+export function placementValues(brand, ring) {
+  const place = pinFor(brand, ring);
+  const header = `# ${ring} — placement from brands/${brand.id}.yaml by tools/brand. Do not edit.\n`;
+  if (!place) return `${header}# Not pinned: anywhere the scheduler likes, data on Longhorn.\n{}\n`;
+  const ns = namespaceFor(brand, ring);
+  return `${header}
+nodeSelector:
+  kubernetes.io/hostname: ${place.node}
+tolerations:
+  - key: node-role.kubernetes.io/edge
+    operator: Exists
+    effect: NoSchedule
+localVolumes:
+  enabled: true
+  node: ${place.node}
+  path: /var/lib/fishers/${ns}
+`;
+}
+
+/** `{ node, address }` for a ring pinned to one node, or null. */
+export function pinFor(brand, ring) {
+  if (!brand.rings[ring]) {
+    throw new Error(
+      `${brand.name} has no "${ring}" ring. It has: ${Object.keys(brand.rings).join(", ")}`,
+    );
+  }
+  return brand.placement?.[ring] ?? null;
+}

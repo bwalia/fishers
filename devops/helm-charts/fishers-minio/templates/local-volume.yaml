@@ -1,0 +1,42 @@
+{{- /*
+  MinIO's data on one node's own disk, when the ring is pinned to a node
+  Longhorn doesn't run on (brands/<brand>.yaml `placement`, rendered by
+  `tools/brand placement`). A directory on that node, made on first use, kept
+  when the release goes (Retain): losing it would lose every upload.
+*/ -}}
+{{- if .Values.localVolumes.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Release.Namespace }}-minio-local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Release.Namespace }}-minio-data
+  labels:
+    app.kubernetes.io/name: fishers-minio
+spec:
+  capacity:
+    storage: {{ .Values.persistence.size }}
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Release.Namespace }}-minio-local
+  # Only MinIO's claim may take it.
+  claimRef:
+    namespace: {{ .Release.Namespace }}
+    name: data-fishers-minio-0
+  hostPath:
+    path: {{ .Values.localVolumes.path }}/minio
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [{{ .Values.localVolumes.node | quote }}]
+{{- end }}
