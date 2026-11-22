@@ -127,7 +127,12 @@ class StatementImportTest {
         assertTrue(model.state.value.isReading)
         advanceUntilIdle()
 
-        assertEquals("text/csv; charset=utf-8" to csv, api.previews.single())
+        // As JSON {"csv": text}: one brand's edge passes only JSON bodies.
+        val (type, sentText) = api.previews.single()
+        assertEquals("application/json; charset=utf-8", type)
+        assertEquals(csv, kotlinx.serialization.json.Json.parseToJsonElement(sentText).let {
+            (it as kotlinx.serialization.json.JsonObject)["csv"]!!.let { v -> (v as kotlinx.serialization.json.JsonPrimitive).content }
+        })
         val s = model.state.value
         assertEquals(preview.toApply.map { it.hash }.toSet(), s.ticked)
         assertEquals(listOf("Ravi Sharma", "Rohit Sharma"), s.names)

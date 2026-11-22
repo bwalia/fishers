@@ -178,13 +178,34 @@ async fn read(state: &AppState, club_id: Uuid, csv: &str) -> ApiResult<Preview> 
 }
 
 /// What the statement's payments match. Changes nothing.
+/// The statement as the request body: the CSV text itself, or JSON
+/// `{"csv": "<text>"}` — for the edge in front of one brand's domain, which
+/// passes only JSON bodies to new paths.
+fn statement_text(headers: &axum::http::HeaderMap, body: &axum::body::Bytes) -> ApiResult<String> {
+    let json = headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.trim().to_ascii_lowercase().starts_with("application/json"));
+    let unreadable = || status(StatusCode::UNPROCESSABLE_ENTITY, "That file isn't a bank statement we can read. Export it as CSV.", "unknown_statement");
+    if json {
+        #[derive(Deserialize)]
+        struct Upload {
+            csv: String,
+        }
+        return serde_json::from_slice::<Upload>(body).map(|u| u.csv).map_err(|_| unreadable());
+    }
+    String::from_utf8(body.to_vec()).map_err(|_| unreadable())
+}
+
 async fn preview(
     State(state): State<AppState>,
     auth: AuthUser,
+    headers: axum::http::HeaderMap,
     Path(club_id): Path<Uuid>,
-    csv: String,
+    body: axum::body::Bytes,
 ) -> ApiResult<Json<Preview>> {
     require_money_admin(&state, club_id, auth.user_id).await?;
+    let csv = statement_text(&headers, &body)?;
     Ok(Json(read(&state, club_id, &csv).await?))
 }
 

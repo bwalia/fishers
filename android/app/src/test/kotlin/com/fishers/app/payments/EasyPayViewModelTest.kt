@@ -105,8 +105,11 @@ class EasyPayViewModelTest {
 
         val (id, type, bytes) = api.uploads.single()
         assertEquals(claim.id, id)
-        assertEquals("image/jpeg", type)
-        assertArrayEquals(jpeg, bytes)
+        // As JSON {"image": base64}: one brand's edge passes only JSON bodies.
+        assertEquals("application/json; charset=utf-8", type)
+        val sent = kotlinx.serialization.json.Json.parseToJsonElement(bytes.decodeToString())
+        val image = (sent as kotlinx.serialization.json.JsonObject)["image"]!!.toString().trim('"')
+        assertArrayEquals(jpeg, java.util.Base64.getDecoder().decode(image))
         assertNull(model.state.value.attaching)
         assertEquals("Screenshot added. Thank you.", model.state.value.message)
         assertEquals(loadsBefore + 1, api.loads)

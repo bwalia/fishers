@@ -1,7 +1,13 @@
 package com.fishers.app.payments
 
+import java.util.Base64
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * Making a picture of a payment small enough to send.
@@ -14,8 +20,11 @@ import kotlin.math.roundToInt
  * and live with the picker; what is decided here is plain arithmetic.
  */
 object ScreenshotSize {
-    /** The server's limit, less a little so a rounding never tips it over. */
-    const val MAX_BYTES = 1_000_000 - 8 * 1024
+    /**
+     * Under the server's megabyte once it's base64 in a JSON body (a third
+     * bigger): one brand's edge passes only JSON bodies to new paths.
+     */
+    const val MAX_BYTES = 700_000
 
     const val MAX_SIDE = 1600
 
@@ -60,3 +69,19 @@ object ScreenshotSize {
         return null
     }
 }
+
+/**
+ * Bodies for uploads as JSON — one brand's edge passes only JSON bodies to
+ * new paths, so a picture goes as `{"image": "<base64>"}` and a statement
+ * as `{"csv": "<text>"}`.
+ */
+object JsonUpload {
+    private val JSON = "application/json; charset=utf-8".toMediaType()
+
+    fun image(jpeg: ByteArray): RequestBody =
+        buildJsonObject { put("image", Base64.getEncoder().encodeToString(jpeg)) }.toString().toRequestBody(JSON)
+
+    fun statement(csv: String): RequestBody =
+        buildJsonObject { put("csv", csv) }.toString().toRequestBody(JSON)
+}
+

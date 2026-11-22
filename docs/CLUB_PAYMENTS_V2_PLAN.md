@@ -622,3 +622,12 @@ These apply to every app.
   - So neither order of arrival leaves someone looking behind or the standing order overpaying.
   - `GET /me/dues` now matches the pay screen: each club's `owed_cents` is what to pay by hand,
     with `standing_order_cents` alongside, for the person and for each of `people`.
+- **Uploads as JSON (built):**
+  - The edge in front of the fishers domain passes only JSON bodies to new paths, and refuses
+    others with 415.
+  - So a screenshot also goes as `{"image": "<base64>"}`, and a statement preview as
+    `{"csv": "<text>"}`. All three apps now send these.
+  - The raw forms still work, behind edges that allow them.
+  - A screenshot should be under 700 KB before base64, so the request stays under the API's
+    1 MB limit.
+

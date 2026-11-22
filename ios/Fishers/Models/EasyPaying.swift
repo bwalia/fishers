@@ -256,13 +256,14 @@ enum PayGuide {
 
 // MARK: - A screenshot of the payment
 
-/// What the server takes: JPEG, PNG or WebP, at most 1 MB. Photos come off
+/// What the server takes: JPEG, PNG or WebP, at most 1 MB — and the picture
+/// goes as base64 in JSON (a third bigger), so 700 KB here. Photos come off
 /// an iPhone as HEIC and several megabytes, so every picture is redrawn here
 /// as a JPEG, no more than 1600 px on its longest side. Redrawing also drops
 /// the photo's metadata, its location included.
 enum PaymentScreenshot {
     static let maxPixels: CGFloat = 1600
-    static let maxBytes = 1_000_000
+    static let maxBytes = 700_000
 
     /// Nil when the bytes are not a picture.
     static func jpeg(from data: Data) -> Data? {

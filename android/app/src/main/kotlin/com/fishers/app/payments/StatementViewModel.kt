@@ -11,8 +11,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 
 data class StatementState(
     /** What the server made of the file; null until one has been read. */
@@ -58,7 +56,7 @@ class StatementViewModel(
         csv = text
         _state.value = StatementState(isReading = true)
         viewModelScope.launch {
-            runCatching { api.previewStatement(clubId, text.toRequestBody(CSV)) }
+            runCatching { api.previewStatement(clubId, JsonUpload.statement(text)) }
                 .onSuccess { preview ->
                     _state.update {
                         it.copy(isReading = false, preview = preview, ticked = preview.toApply.map { line -> line.hash }.toSet())
@@ -134,9 +132,5 @@ class StatementViewModel(
 
     override fun onCleared() {
         csv = null
-    }
-
-    private companion object {
-        val CSV = "text/csv; charset=utf-8".toMediaType()
     }
 }

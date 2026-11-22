@@ -256,8 +256,9 @@ final class StatementImportTests: XCTestCase {
         XCTAssertEqual(store.tickedCount, 3, "Ticked off: everything the server matched")
         XCTAssertTrue(store.memberNames.contains("Neha Gill"))
         let sent = try XCTUnwrap(StatementStub.seen.first { $0.0.url?.path.hasSuffix("/statement/preview") == true })
-        XCTAssertEqual(sent.1.flatMap { String(data: $0, encoding: .utf8) }, csv, "the file itself is the body")
-        XCTAssertEqual(sent.0.value(forHTTPHeaderField: "Content-Type"), "text/csv")
+        let sentBody = try XCTUnwrap(JSONSerialization.jsonObject(with: sent.1 ?? Data()) as? [String: Any])
+        XCTAssertEqual(sentBody["csv"] as? String, csv, "the file goes as {\"csv\": text}")
+        XCTAssertEqual(sent.0.value(forHTTPHeaderField: "Content-Type"), "application/json")
 
         store.toggle(lines[1], false)
         XCTAssertEqual(store.tickedCount, 2)
