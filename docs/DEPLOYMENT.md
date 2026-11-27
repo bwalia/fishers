@@ -386,7 +386,7 @@ The charts refuse an empty one rather than falling back to a default.
 Actions → "Register edge vhost (Cloudflare + wslproxy)" → ENV: all
 ```
 
-Creates the Cloudflare CNAME to `lon1.pop0.uk` and the wslproxy vhost from
+Creates the Cloudflare CNAME to `edge.pop0.uk` (the lon1<->lon2 failover switch) and the wslproxy vhost from
 `devops/wslproxy/host-<host>.json`. Until the vhost exists the edge answers
 "Host not configured", which looks like a broken deploy and is not one.
 
