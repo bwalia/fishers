@@ -66,7 +66,8 @@ on:
         default: full
 
 env:
-  CNAME_TARGET: lon1.pop0.uk
+  # edge.pop0.uk is the lon1<->lon2 failover switch; see diy-tax-return-infra docs/runbooks/edge-failover.md
+  CNAME_TARGET: edge.pop0.uk
   BRAND: ${{ inputs.brand || 'fishers' }}
 
 permissions:
